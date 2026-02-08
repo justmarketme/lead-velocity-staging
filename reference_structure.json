@@ -1,0 +1,517 @@
+[
+  {
+    "tag": "p",
+    "text": "FOR INSURANCE BROKERS",
+    "classes": "text-sm font-medium tracking-[0.25em] uppercase text-primary/90 flex items-center justify-center lg:justify-start gap-2"
+  },
+  {
+    "tag": "h1",
+    "text": "Consistent Leads\nDelivered Weekly",
+    "classes": "text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.05]"
+  },
+  {
+    "tag": "p",
+    "text": "This page walks you through exactly how Lead Velocity works, how pricing is structured, and whether it's a fit for your business.",
+    "classes": "text-base sm:text-lg md:text-xl text-muted-foreground leading-relaxed max-w-xl mx-auto lg:mx-0"
+  },
+  {
+    "tag": "button",
+    "text": "See How It Works",
+    "classes": "inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary hover:bg-primary/90 h-11 rounded-md group relative px-8 py-6 text-base bg-gradient-to-r from-primary via-secondary to-primary bg-[length:200%_100%] hover:bg-right text-primary-foreground transition-all duration-500 shadow-[0_0_40px_hsl(var(--primary)/0.4)] hover:shadow-[0_0_60px_hsl(var(--primary)/0.6)] hover:scale-[1.02]"
+  },
+  {
+    "tag": "button",
+    "text": "Skip to Form",
+    "classes": "inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border bg-background hover:text-accent-foreground h-11 rounded-md px-8 py-6 text-base border-primary/30 hover:border-primary/60 hover:bg-primary/5 transition-all duration-300"
+  },
+  {
+    "tag": "p",
+    "text": "THE PROBLEM",
+    "classes": "text-sm font-medium tracking-[0.25em] uppercase text-secondary/90 flex items-center gap-2"
+  },
+  {
+    "tag": "h2",
+    "text": "The Frustration You\nAlready Know",
+    "classes": "text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight leading-[1.1]"
+  },
+  {
+    "tag": "p",
+    "text": "Most brokers have been burned by lead generation before. Here's what they tell us:",
+    "classes": "text-lg text-muted-foreground leading-relaxed"
+  },
+  {
+    "tag": "h3",
+    "text": "Don't Convert",
+    "classes": "font-semibold text-lg tracking-tight"
+  },
+  {
+    "tag": "p",
+    "text": "Contacts who were never interested or qualified.",
+    "classes": "text-sm text-muted-foreground leading-relaxed"
+  },
+  {
+    "tag": "h3",
+    "text": "Inconsistent",
+    "classes": "font-semibold text-lg tracking-tight"
+  },
+  {
+    "tag": "p",
+    "text": "Twenty leads one week, none the next.",
+    "classes": "text-sm text-muted-foreground leading-relaxed"
+  },
+  {
+    "tag": "h3",
+    "text": "Low Quality",
+    "classes": "font-semibold text-lg tracking-tight"
+  },
+  {
+    "tag": "p",
+    "text": "Wrong numbers. Fake emails. No opt-in.",
+    "classes": "text-sm text-muted-foreground leading-relaxed"
+  },
+  {
+    "tag": "h3",
+    "text": "Wasted Time",
+    "classes": "font-semibold text-lg tracking-tight"
+  },
+  {
+    "tag": "p",
+    "text": "Hours chasing leads that never close.",
+    "classes": "text-sm text-muted-foreground leading-relaxed"
+  },
+  {
+    "tag": "p",
+    "text": "Lead Velocity is structured and intentional. We're not another lead vendor hoping something sticks. We're a system designed for consistent, predictable growth.",
+    "classes": "text-base sm:text-lg lg:text-xl text-muted-foreground leading-relaxed max-w-3xl mx-auto"
+  },
+  {
+    "tag": "p",
+    "text": "THE MECHANISM",
+    "classes": "text-sm font-medium tracking-[0.25em] uppercase text-primary/90 flex items-center gap-2"
+  },
+  {
+    "tag": "h2",
+    "text": "How Lead Velocity\nWorks",
+    "classes": "text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight leading-[1.1]"
+  },
+  {
+    "tag": "p",
+    "text": "A structured approach to lead generation that puts you in control.",
+    "classes": "text-lg text-muted-foreground leading-relaxed"
+  },
+  {
+    "tag": "h3",
+    "text": "Define Your Ideal Client Profile",
+    "classes": "font-semibold text-lg sm:text-xl tracking-tight"
+  },
+  {
+    "tag": "p",
+    "text": "We work with you to establish exactly who you want to reach. Geographic area, income bracket, product focus.",
+    "classes": "text-sm sm:text-base text-muted-foreground leading-relaxed"
+  },
+  {
+    "tag": "h3",
+    "text": "Targeted Lead Generation",
+    "classes": "font-semibold text-lg sm:text-xl tracking-tight"
+  },
+  {
+    "tag": "p",
+    "text": "Lead Velocity runs campaigns designed to attract prospects matching your criteria. Fresh, targeted contacts.",
+    "classes": "text-sm sm:text-base text-muted-foreground leading-relaxed"
+  },
+  {
+    "tag": "h3",
+    "text": "Leads Qualified Against Your Criteria",
+    "classes": "font-semibold text-lg sm:text-xl tracking-tight"
+  },
+  {
+    "tag": "p",
+    "text": "Before a lead reaches you, it's checked against the profile we defined together. Quality over volume.",
+    "classes": "text-sm sm:text-base text-muted-foreground leading-relaxed"
+  },
+  {
+    "tag": "h3",
+    "text": "Weekly Delivery",
+    "classes": "font-semibold text-lg sm:text-xl tracking-tight"
+  },
+  {
+    "tag": "p",
+    "text": "Leads arrive on a predictable schedule. No surprises. You know what's coming and when.",
+    "classes": "text-sm sm:text-base text-muted-foreground leading-relaxed"
+  },
+  {
+    "tag": "h3",
+    "text": "Performance Review & Optimisation",
+    "classes": "font-semibold text-lg sm:text-xl tracking-tight"
+  },
+  {
+    "tag": "p",
+    "text": "Conversion rates, feedback, and adjustments are built into the process.",
+    "classes": "text-sm sm:text-base text-muted-foreground leading-relaxed"
+  },
+  {
+    "tag": "p",
+    "text": "QUALITY DEFINED",
+    "classes": "text-sm font-medium tracking-[0.25em] uppercase text-primary/90 flex items-center gap-2"
+  },
+  {
+    "tag": "h2",
+    "text": "What \"Qualified\"\nActually Means",
+    "classes": "text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight leading-[1.1]"
+  },
+  {
+    "tag": "p",
+    "text": "We're specific about this because vague definitions waste everyone's time.",
+    "classes": "text-lg text-muted-foreground leading-relaxed"
+  },
+  {
+    "tag": "h3",
+    "text": "What Qualifies",
+    "classes": "font-semibold text-2xl tracking-tight"
+  },
+  {
+    "tag": "li",
+    "text": "Matches your target geographic area",
+    "classes": "flex items-start gap-3 p-3 rounded-xl bg-background/40 border border-primary/10"
+  },
+  {
+    "tag": "li",
+    "text": "Fits the demographic criteria we defined",
+    "classes": "flex items-start gap-3 p-3 rounded-xl bg-background/40 border border-primary/10"
+  },
+  {
+    "tag": "li",
+    "text": "Has expressed interest in the product type",
+    "classes": "flex items-start gap-3 p-3 rounded-xl bg-background/40 border border-primary/10"
+  },
+  {
+    "tag": "li",
+    "text": "Provided accurate, verified contact details",
+    "classes": "flex items-start gap-3 p-3 rounded-xl bg-background/40 border border-primary/10"
+  },
+  {
+    "tag": "li",
+    "text": "Opted in to receive communication",
+    "classes": "flex items-start gap-3 p-3 rounded-xl bg-background/40 border border-primary/10"
+  },
+  {
+    "tag": "li",
+    "text": "Is reachable and responsive",
+    "classes": "flex items-start gap-3 p-3 rounded-xl bg-background/40 border border-primary/10"
+  },
+  {
+    "tag": "h3",
+    "text": "What Doesn't",
+    "classes": "font-semibold text-2xl tracking-tight"
+  },
+  {
+    "tag": "li",
+    "text": "Cold contacts from purchased databases",
+    "classes": "flex items-start gap-3 p-3 rounded-xl bg-background/40 border border-secondary/10"
+  },
+  {
+    "tag": "li",
+    "text": "Leads outside your service area",
+    "classes": "flex items-start gap-3 p-3 rounded-xl bg-background/40 border border-secondary/10"
+  },
+  {
+    "tag": "li",
+    "text": "People who didn't opt in",
+    "classes": "flex items-start gap-3 p-3 rounded-xl bg-background/40 border border-secondary/10"
+  },
+  {
+    "tag": "li",
+    "text": "Invalid or fake contact information",
+    "classes": "flex items-start gap-3 p-3 rounded-xl bg-background/40 border border-secondary/10"
+  },
+  {
+    "tag": "li",
+    "text": "Tire-kickers with no real intent",
+    "classes": "flex items-start gap-3 p-3 rounded-xl bg-background/40 border border-secondary/10"
+  },
+  {
+    "tag": "li",
+    "text": "Leads already contacted by others",
+    "classes": "flex items-start gap-3 p-3 rounded-xl bg-background/40 border border-secondary/10"
+  },
+  {
+    "tag": "p",
+    "text": "This definition protects your spend and ensures your time is spent on conversations that matter.",
+    "classes": "text-lg text-muted-foreground"
+  },
+  {
+    "tag": "p",
+    "text": "INVESTMENT REALITY",
+    "classes": "text-sm font-medium tracking-[0.25em] uppercase text-accent/90 flex items-center gap-2"
+  },
+  {
+    "tag": "h2",
+    "text": "Understanding\nCost & Volume",
+    "classes": "text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight leading-[1.1]"
+  },
+  {
+    "tag": "p",
+    "text": "Before we discuss numbers, let's talk about what drives them.",
+    "classes": "text-lg text-muted-foreground leading-relaxed"
+  },
+  {
+    "tag": "h3",
+    "text": "Why Lead Costs Vary",
+    "classes": "text-lg sm:text-xl font-semibold"
+  },
+  {
+    "tag": "p",
+    "text": "Lead costs aren't arbitrary. They're driven by market demand, targeting specificity, product complexity, and geographic factors. A life insurance lead in Johannesburg costs differently than a commercial policy lead in a rural area. This is economics, not pricing games.",
+    "classes": "text-muted-foreground leading-relaxed text-sm sm:text-base"
+  },
+  {
+    "tag": "h3",
+    "text": "Why Volume Matters More Than \"Testing\"",
+    "classes": "text-lg sm:text-xl font-semibold"
+  },
+  {
+    "tag": "p",
+    "text": "Brokers often say, \"Let me try 5 leads and see how it goes.\" Here's the problem: 5 leads tells you nothing. Statistical significance requires volume. Consistency drives conversion.",
+    "classes": "text-muted-foreground leading-relaxed text-sm sm:text-base"
+  },
+  {
+    "tag": "h3",
+    "text": "The Real Cost Comparison",
+    "classes": "text-2xl font-semibold tracking-tight"
+  },
+  {
+    "tag": "p",
+    "text": "Consider what you already spend:",
+    "classes": "text-lg text-foreground/90"
+  },
+  {
+    "tag": "p",
+    "text": "The question isn't \"what does a lead cost?\"—it's \"what does inconsistency cost you?\"",
+    "classes": "text-xl font-medium pt-4"
+  },
+  {
+    "tag": "p",
+    "text": "PARTNERSHIP",
+    "classes": "text-sm font-medium tracking-[0.25em] uppercase text-secondary/90 flex items-center gap-2"
+  },
+  {
+    "tag": "h2",
+    "text": "What We Expect\nFrom You",
+    "classes": "text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight leading-[1.1]"
+  },
+  {
+    "tag": "p",
+    "text": "Lead Velocity delivers. But delivery without action is waste.",
+    "classes": "text-lg text-muted-foreground leading-relaxed"
+  },
+  {
+    "tag": "h3",
+    "text": "Your Responsibility",
+    "classes": "text-xl font-semibold tracking-tight"
+  },
+  {
+    "tag": "h4",
+    "text": "Speed-to-Contact",
+    "classes": "font-medium text-foreground"
+  },
+  {
+    "tag": "p",
+    "text": "Leads contacted within 5 minutes convert dramatically higher.",
+    "classes": "text-sm text-muted-foreground mt-1"
+  },
+  {
+    "tag": "h4",
+    "text": "Follow-Up Discipline",
+    "classes": "font-medium text-foreground"
+  },
+  {
+    "tag": "p",
+    "text": "Structured follow-up sequences are non-negotiable.",
+    "classes": "text-sm text-muted-foreground mt-1"
+  },
+  {
+    "tag": "h4",
+    "text": "CRM Usage",
+    "classes": "font-medium text-foreground"
+  },
+  {
+    "tag": "p",
+    "text": "Track, status, and work leads systematically.",
+    "classes": "text-sm text-muted-foreground mt-1"
+  },
+  {
+    "tag": "h4",
+    "text": "Realistic Capacity",
+    "classes": "font-medium text-foreground"
+  },
+  {
+    "tag": "p",
+    "text": "Don't request more than you can actually work.",
+    "classes": "text-sm text-muted-foreground mt-1"
+  },
+  {
+    "tag": "h3",
+    "text": "Our Responsibility",
+    "classes": "text-xl font-semibold tracking-tight"
+  },
+  {
+    "tag": "h4",
+    "text": "Quality Leads",
+    "classes": "font-medium text-foreground"
+  },
+  {
+    "tag": "p",
+    "text": "Contacts that match your criteria with genuine interest.",
+    "classes": "text-sm text-muted-foreground mt-1"
+  },
+  {
+    "tag": "h4",
+    "text": "Predictable Delivery",
+    "classes": "font-medium text-foreground"
+  },
+  {
+    "tag": "p",
+    "text": "Weekly batches you can plan around. No surprises.",
+    "classes": "text-sm text-muted-foreground mt-1"
+  },
+  {
+    "tag": "h4",
+    "text": "Ongoing Optimisation",
+    "classes": "font-medium text-foreground"
+  },
+  {
+    "tag": "p",
+    "text": "Continuous refinement based on conversion data.",
+    "classes": "text-sm text-muted-foreground mt-1"
+  },
+  {
+    "tag": "h4",
+    "text": "Clear Communication",
+    "classes": "font-medium text-foreground"
+  },
+  {
+    "tag": "p",
+    "text": "Always know what's happening and what's next.",
+    "classes": "text-sm text-muted-foreground mt-1"
+  },
+  {
+    "tag": "p",
+    "text": "NEXT STEP",
+    "classes": "text-sm font-medium tracking-[0.25em] uppercase text-primary/80"
+  },
+  {
+    "tag": "h2",
+    "text": "Now Let's Talk\nAbout You",
+    "classes": "text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight leading-[1.1]"
+  },
+  {
+    "tag": "p",
+    "text": "At this point, the right approach depends entirely on your current setup, budget, and growth goals.",
+    "classes": "text-lg text-muted-foreground leading-relaxed max-w-2xl mx-auto"
+  },
+  {
+    "tag": "p",
+    "text": "The form below isn't a commitment—it's a strategy snapshot. Your answers help us understand your situation and prepare a tailored recommendation before we meet.",
+    "classes": "text-lg leading-relaxed max-w-2xl mx-auto"
+  },
+  {
+    "tag": "p",
+    "text": "STRATEGY DIAGNOSTIC",
+    "classes": "text-xs sm:text-sm font-medium tracking-[0.2em] sm:tracking-[0.25em] uppercase text-primary/80"
+  },
+  {
+    "tag": "h2",
+    "text": "Lead Readiness &\nStrategy Snapshot",
+    "classes": "text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight leading-[1.1]"
+  },
+  {
+    "tag": "p",
+    "text": "Complete this diagnostic to help us prepare for your strategy call.",
+    "classes": "text-muted-foreground max-w-xl mx-auto"
+  },
+  {
+    "tag": "label",
+    "text": "Website (leave blank)",
+    "classes": ""
+  },
+  {
+    "tag": "h3",
+    "text": "Contact Information",
+    "classes": "text-xl font-semibold"
+  },
+  {
+    "tag": "p",
+    "text": "Let's start with your details so we can reach you.",
+    "classes": "text-muted-foreground text-sm"
+  },
+  {
+    "tag": "label",
+    "text": "Full Name *",
+    "classes": "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+  },
+  {
+    "tag": "label",
+    "text": "Email Address *",
+    "classes": "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+  },
+  {
+    "tag": "label",
+    "text": "Phone Number *",
+    "classes": "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+  },
+  {
+    "tag": "label",
+    "text": "Company / Brokerage Name",
+    "classes": "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+  },
+  {
+    "tag": "label",
+    "text": "Preferred Time for a Call",
+    "classes": "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+  },
+  {
+    "tag": "button",
+    "text": "When would you prefer we call?",
+    "classes": "flex h-10 w-full items-center justify-between rounded-md border px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 bg-background/50 border-border/50 focus:border-primary/50"
+  },
+  {
+    "tag": "select",
+    "text": "Morning (8am - 12pm)\nEarly Afternoon (12pm - 2pm)\nLate Afternoon (2pm - 5pm)\nEvening (5pm - 7pm)\nAnytime during business hours",
+    "classes": ""
+  },
+  {
+    "tag": "label",
+    "text": "WhatsApp Number",
+    "classes": "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+  },
+  {
+    "tag": "p",
+    "text": "Leave blank if same as phone number above",
+    "classes": "text-xs text-muted-foreground"
+  },
+  {
+    "tag": "label",
+    "text": "I'm happy to be contacted via WhatsApp",
+    "classes": "peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer text-sm font-medium"
+  },
+  {
+    "tag": "p",
+    "text": "We'll use WhatsApp to send quick updates and coordinate your strategy call.",
+    "classes": "text-xs text-muted-foreground"
+  },
+  {
+    "tag": "button",
+    "text": "Previous",
+    "classes": "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 gap-2"
+  },
+  {
+    "tag": "button",
+    "text": "Next",
+    "classes": "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 gap-2"
+  },
+  {
+    "tag": "p",
+    "text": "© 2026 Lead Velocity. Internal use only.",
+    "classes": "text-sm text-muted-foreground/60 tracking-wide"
+  }
+]

@@ -1,0 +1,25 @@
+project_id = "jxrfcxfuzwnsojfasnnu"
+
+[functions.send-admin-invite]
+verify_jwt = false
+
+[functions.send-message-notification]
+verify_jwt = false
+
+[functions.send-communication]
+verify_jwt = false
+
+[functions.handle-inbound-call]
+verify_jwt = false
+
+[functions.transcribe-call-recording]
+verify_jwt = false
+
+[functions.send-sla-alert]
+verify_jwt = false
+
+[functions.send-scheduled-report]
+verify_jwt = false
+
+[functions.send-bulk-communication]
+verify_jwt = false

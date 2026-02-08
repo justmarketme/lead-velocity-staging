@@ -1,0 +1,4 @@
+first_name,last_name,email,phone,source,date,notes
+John,Smith,john.smith@example.com,+27821234567,website_form,2024-01-15,Interested in premium package
+Jane,Doe,jane.doe@example.com,+27839876543,referral,2024-01-16,Referred by existing client
+Michael,Johnson,michael.j@example.com,+27845551234,campaign,2024-01-17,Responded to email campaign
