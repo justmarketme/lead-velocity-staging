@@ -159,7 +159,9 @@ const BrokerOnboarding = () => {
                         <div className="inline-flex p-4 rounded-full bg-primary/10 border border-primary/20 mb-4">
                             <CheckCircle2 className="h-12 w-12 text-primary" />
                         </div>
-                        <h1 className="text-4xl font-extrabold tracking-tight text-white">Strategy Snapshot Submitted</h1>
+                        <h1 className="text-4xl font-extrabold tracking-tight text-white font-inter">
+                            Strategy Snapshot <span className="gradient-text-epiphany">Submitted</span>
+                        </h1>
                         <p className="text-slate-400 text-lg leading-relaxed">
                             Thank you for providing this detailed look into your business. High-quality data leads to high-quality strategy.
                             Our system has calculated your initial **Readiness Score** and our consultant is preparing a targeted plan for our upcoming call.
@@ -221,7 +223,7 @@ const BrokerOnboarding = () => {
                 {/* 1. Hero Section */}
                 <header
                     ref={heroAnim.ref}
-                    className={`relative py-16 lg:py-24 overflow-hidden border-b border-white/5 transition-all duration-700 ${heroAnim.isVisible ? "scroll-fade-up" : "scroll-hidden"}`}
+                    className={`relative py-16 lg:py-24 overflow-hidden bg-black border-b border-white/5 transition-all duration-700 ${heroAnim.isVisible ? "scroll-fade-up" : "scroll-hidden"}`}
                 >
                     <div className="absolute inset-0 overflow-hidden pointer-events-none">
                         <div className="absolute top-1/4 left-1/4 w-64 md:w-96 h-64 md:h-96 bg-primary/10 rounded-full blur-3xl hero-orb hero-orb-1"></div>
@@ -234,9 +236,9 @@ const BrokerOnboarding = () => {
                                 <p className="text-sm font-medium tracking-[0.25em] uppercase text-primary/90 flex items-center gap-2">
                                     <Zap className="w-4 h-4" /> For Insurance Brokers
                                 </p>
-                                <h1 className="text-4xl lg:text-6xl font-extrabold tracking-tight leading-[1.1] text-white">
+                                <h1 className="text-4xl lg:text-6xl font-bold tracking-tight leading-[1.1] text-white font-inter">
                                     Consistent Leads <br />
-                                    <span className="bg-gradient-to-r from-pink-500 via-purple-500 to-violet-500 bg-clip-text text-transparent">Delivered Weekly</span>
+                                    <span className="gradient-text-epiphany">Delivered Weekly</span>
                                 </h1>
                                 <p className="text-lg text-slate-400 leading-relaxed">
                                     This page walks you through exactly how Lead Velocity works, how pricing is structured, and whether it's a fit for your business.
@@ -294,9 +296,9 @@ const BrokerOnboarding = () => {
                                 <p className="text-sm font-medium tracking-[0.25em] uppercase text-pink-400 flex items-center gap-2 mb-4">
                                     <AlertCircle className="w-4 h-4" /> The Problem
                                 </p>
-                                <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-6 text-white">
+                                <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-6 text-white font-inter">
                                     The Frustration You <br />
-                                    <span className="text-pink-400">Already Know</span>
+                                    <span className="gradient-text-epiphany">Already Know</span>
                                 </h2>
                                 <p className="text-lg text-slate-400">Most brokers have been burned by lead generation before. Here's what they tell us:</p>
                             </div>
@@ -334,7 +336,9 @@ const BrokerOnboarding = () => {
                                 <p className="text-sm font-medium tracking-[0.25em] uppercase text-primary/90 flex items-center gap-2 mb-4">
                                     <Zap className="w-4 h-4" /> The Mechanism
                                 </p>
-                                <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-8 text-white">How Lead Velocity Works</h2>
+                                <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-8 text-white font-inter">
+                                    How <span className="gradient-text-epiphany">Lead Velocity</span> Works
+                                </h2>
                                 <p className="text-lg text-slate-400 mb-8">A structured approach to lead generation that puts you in control.</p>
 
                                 <div className="space-y-8">
@@ -376,9 +380,9 @@ const BrokerOnboarding = () => {
                                 <p className="text-sm font-medium tracking-[0.25em] uppercase text-cyan-400 flex items-center gap-2 mb-4">
                                     <ShieldCheck className="w-4 h-4" /> Quality Defined
                                 </p>
-                                <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-4 text-white">
+                                <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-4 text-white font-inter">
                                     What "Qualified" <br />
-                                    <span className="text-cyan-400">Actually Means</span>
+                                    <span className="gradient-text-epiphany">Actually Means</span>
                                 </h2>
                                 <p className="text-lg text-slate-400">We're specific about this because vague definitions waste everyone's time.</p>
                             </div>
@@ -456,9 +460,9 @@ const BrokerOnboarding = () => {
                                 <p className="text-sm font-medium tracking-[0.25em] uppercase text-amber-400 mb-4 flex items-center gap-2">
                                     <BarChart3 className="w-4 h-4" /> Investment Reality
                                 </p>
-                                <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-8 text-white">
+                                <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-8 text-white font-inter">
                                     Understanding <br />
-                                    <span className="text-amber-400">Cost & Volume</span>
+                                    <span className="gradient-text-epiphany">Cost & Volume</span>
                                 </h2>
                                 <div className="space-y-6">
                                     <div className="p-6 bg-slate-900/60 rounded-2xl border border-white/5">
@@ -486,9 +490,9 @@ const BrokerOnboarding = () => {
                                 <p className="text-sm font-medium tracking-[0.25em] uppercase text-purple-400 mb-4 flex items-center gap-2">
                                     <Users className="w-4 h-4" /> Partnership
                                 </p>
-                                <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-4 text-white">
+                                <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-4 text-white font-inter">
                                     What We Expect <br />
-                                    <span className="text-purple-400">From You</span>
+                                    <span className="gradient-text-epiphany">From You</span>
                                 </h2>
                                 <p className="text-lg text-slate-400">Lead Velocity delivers. But delivery without action is waste.</p>
                             </div>
@@ -563,9 +567,9 @@ const BrokerOnboarding = () => {
                             </div>
                             <div className="order-1 lg:order-2">
                                 <p className="text-sm font-medium tracking-[0.25em] uppercase text-emerald-400 mb-4">Strategy Diagnostic</p>
-                                <h2 className="text-3xl md:text-5xl font-bold mb-4 text-white">
+                                <h2 className="text-3xl md:text-5xl font-bold mb-4 text-white font-inter">
                                     Lead Readiness & <br />
-                                    <span className="text-emerald-400">Strategy Snapshot</span>
+                                    <span className="gradient-text-epiphany">Strategy Snapshot</span>
                                 </h2>
                                 <p className="text-slate-400">Complete this diagnostic to help us prepare for your strategy call.</p>
                             </div>

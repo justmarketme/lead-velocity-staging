@@ -95,6 +95,12 @@ All colors MUST be HSL.
     @apply bg-clip-text text-transparent;
     background-image: var(--gradient-neon);
   }
+
+  /* Hero gradient: magenta → pink → coral → orange (matches screenshot) */
+  .gradient-text-epiphany {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(90deg, #e600ff 0%, #ff00cc 35%, #ff7f50 70%, #ff8c00 100%);
+  }
   
   .neon-border {
     border: 1px solid transparent;
