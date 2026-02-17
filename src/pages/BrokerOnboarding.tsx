@@ -33,6 +33,13 @@ import { useNavigate } from "react-router-dom";
 import { calculateScores, OnboardingData } from "@/lib/scoring";
 import { supabase } from "@/integrations/supabase/client";
 import SEO from "@/components/SEO";
+import einsteinGeniusNeon from "@/assets/einstein-hero-new.png";
+import einsteinPointing from "@/assets/einstein-solution-new.png";
+import missionControlNeon from "@/assets/einstein-targeting-new.png";
+import precisionTargeting from "@/assets/einstein-qualified-new.png";
+import einsteinRetention from "@/assets/einstein-roi-new.png";
+import einsteinCalls from "@/assets/einstein-expectation-new.png";
+import einsteinCta from "@/assets/einstein-join-now-final.png";
 
 const BrokerOnboarding = () => {
     const { toast } = useToast();
@@ -266,7 +273,7 @@ const BrokerOnboarding = () => {
                                 <div className="relative">
                                     <div className="absolute inset-0 bg-gradient-to-tr from-pink-500/30 via-purple-500/30 to-violet-500/30 rounded-3xl blur-3xl"></div>
                                     <img
-                                        src="/src/assets/einstein-genius-neon.png"
+                                        src={einsteinGeniusNeon}
                                         alt="Einstein - Lead Velocity Genius"
                                         className="relative w-full max-w-md lg:max-w-lg rounded-3xl shadow-2xl shadow-purple-500/20 border border-white/10"
                                     />
@@ -285,7 +292,7 @@ const BrokerOnboarding = () => {
                                 <div className="relative">
                                     <div className="absolute inset-0 bg-gradient-to-tr from-pink-500/20 via-purple-500/20 to-rose-500/20 rounded-[2rem] blur-3xl"></div>
                                     <img
-                                        src="/src/assets/einstein-pointing.png"
+                                        src={einsteinPointing}
                                         alt="Einstein pointing at solutions"
                                         className="relative w-full max-w-sm rounded-2xl"
                                     />
@@ -363,7 +370,7 @@ const BrokerOnboarding = () => {
                             <div className="relative">
                                 <div className="absolute inset-0 bg-gradient-to-tr from-primary/20 via-purple-500/20 to-pink-500/20 rounded-3xl blur-3xl"></div>
                                 <img
-                                    src="/src/assets/mission-control-neon.png"
+                                    src={missionControlNeon}
                                     alt="Lead Velocity Mission Control"
                                     className="relative w-full rounded-3xl shadow-2xl shadow-purple-500/20 border border-white/10"
                                 />
@@ -390,7 +397,7 @@ const BrokerOnboarding = () => {
                                 <div className="relative">
                                     <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500/30 via-blue-500/30 to-purple-500/30 rounded-full blur-3xl"></div>
                                     <img
-                                        src="/src/assets/precision-targeting.png"
+                                        src={precisionTargeting}
                                         alt="Precision Targeting"
                                         className="relative w-full max-w-sm rounded-2xl"
                                     />
@@ -449,7 +456,7 @@ const BrokerOnboarding = () => {
                                 <div className="relative">
                                     <div className="absolute inset-0 bg-gradient-to-tr from-amber-500/30 via-orange-500/30 to-pink-500/30 rounded-3xl blur-3xl"></div>
                                     <img
-                                        src="/src/assets/einstein-retention.png"
+                                        src={einsteinRetention}
                                         alt="Einstein showing ROI growth"
                                         className="relative w-full max-w-sm rounded-2xl"
                                     />
@@ -500,7 +507,7 @@ const BrokerOnboarding = () => {
                                 <div className="relative">
                                     <div className="absolute inset-0 bg-gradient-to-tr from-purple-500/30 via-violet-500/30 to-pink-500/30 rounded-3xl blur-3xl"></div>
                                     <img
-                                        src="/src/assets/einstein-calls.png"
+                                        src={einsteinCalls}
                                         alt="Einstein on calls with team"
                                         className="relative w-full max-w-sm rounded-2xl"
                                     />
@@ -559,7 +566,7 @@ const BrokerOnboarding = () => {
                                 <div className="relative">
                                     <div className="absolute inset-0 bg-gradient-to-tr from-green-500/30 via-emerald-500/30 to-cyan-500/30 rounded-3xl blur-3xl"></div>
                                     <img
-                                        src="/src/assets/einstein-cta.png"
+                                        src={einsteinCta}
                                         alt="Einstein pointing to Join Now"
                                         className="relative w-full max-w-sm rounded-2xl"
                                     />
