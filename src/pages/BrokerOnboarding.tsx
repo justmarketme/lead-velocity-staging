@@ -24,6 +24,7 @@ import {
     SelectTrigger,
     SelectValue
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
@@ -47,25 +48,32 @@ const BrokerOnboarding = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
 
-    // Form State
-    const [formData, setFormData] = useState<OnboardingData>({
-        crmUsage: 'none',
-        speedToContact: 'nextDay',
-        teamSize: 'solo',
-        followUpClarity: 'none',
-        monthlySpend: 'none',
-        cplAwareness: 'no',
-        pricingComfort: 'sensitive',
+    // Contact form state (matches live site leadvelocity.co.za/onboarding)
+    const [contactForm, setContactForm] = useState({
+        fullName: "",
+        email: "",
+        phone: "",
+        companyName: "",
+        preferredCallTime: "",
+        whatsappNumber: "",
+        whatsappConsent: false,
+    });
+    const [fieldErrors, setFieldErrors] = useState<{ fullName?: string; email?: string; phone?: string }>({});
+
+    const defaultScoringData: OnboardingData = {
+        crmUsage: "none",
+        speedToContact: "nextDay",
+        teamSize: "solo",
+        followUpClarity: "none",
+        monthlySpend: "none",
+        cplAwareness: "no",
+        pricingComfort: "sensitive",
         desiredLeadsWeekly: 10,
         maxCapacityWeekly: 20,
-        productFocusClarity: 'unclear',
-        geographicFocusClarity: 'undefined',
-        growthGoalClarity: 'vague',
-        timeline: 'exploring',
-    });
-
-    const handleInputChange = (field: keyof OnboardingData, value: string | number) => {
-        setFormData(prev => ({ ...prev, [field]: value }));
+        productFocusClarity: "unclear",
+        geographicFocusClarity: "undefined",
+        growthGoalClarity: "vague",
+        timeline: "exploring",
     };
 
     // Animations
@@ -77,34 +85,50 @@ const BrokerOnboarding = () => {
     const partnershipAnim = useScrollAnimation();
     const formAnim = useScrollAnimation();
 
+    const validateContactForm = (): boolean => {
+        const err: { fullName?: string; email?: string; phone?: string } = {};
+        if (!contactForm.fullName?.trim()) err.fullName = "Name is required";
+        if (!contactForm.email?.trim()) err.email = "Valid email is required";
+        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactForm.email)) err.email = "Valid email is required";
+        if (!contactForm.phone?.trim()) err.phone = "Please enter a valid phone number";
+        setFieldErrors(err);
+        return Object.keys(err).length === 0;
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!validateContactForm()) return;
         setIsSubmitting(true);
+        setFieldErrors({});
 
         try {
-            // 1. Calculate deterministic scores locally
-            const results = calculateScores(formData);
-
-            // 2. Save to Supabase
+            const results = calculateScores(defaultScoringData);
             const { data: { user } } = await supabase.auth.getUser();
 
             const { data: responseData, error: responseError } = await supabase
                 .from('broker_onboarding_responses')
                 .insert([{
                     broker_id: user?.id,
-                    crm_usage: formData.crmUsage,
-                    speed_to_contact: formData.speedToContact,
-                    team_size: formData.teamSize,
-                    follow_up_process: formData.followUpClarity,
-                    monthly_lead_spend: formData.monthlySpend,
-                    cpl_awareness: formData.cplAwareness,
-                    pricing_comfort: formData.pricingComfort,
-                    desired_leads_weekly: formData.desiredLeadsWeekly,
-                    max_capacity_weekly: formData.maxCapacityWeekly,
-                    product_focus_clarity: formData.productFocusClarity,
-                    geographic_focus_clarity: formData.geographicFocusClarity,
-                    growth_goal_clarity: formData.growthGoalClarity,
-                    timeline_to_start: formData.timeline
+                    full_name: contactForm.fullName.trim() || null,
+                    email: contactForm.email.trim() || null,
+                    phone: contactForm.phone.trim() || null,
+                    company_name: contactForm.companyName.trim() || null,
+                    preferred_call_time: contactForm.preferredCallTime || null,
+                    whatsapp_number: contactForm.whatsappNumber.trim() || null,
+                    whatsapp_consent: contactForm.whatsappConsent,
+                    crm_usage: defaultScoringData.crmUsage,
+                    speed_to_contact: defaultScoringData.speedToContact,
+                    team_size: defaultScoringData.teamSize,
+                    follow_up_process: defaultScoringData.followUpClarity,
+                    monthly_lead_spend: defaultScoringData.monthlySpend,
+                    cpl_awareness: defaultScoringData.cplAwareness,
+                    pricing_comfort: defaultScoringData.pricingComfort,
+                    desired_leads_weekly: defaultScoringData.desiredLeadsWeekly,
+                    max_capacity_weekly: defaultScoringData.maxCapacityWeekly,
+                    product_focus_clarity: defaultScoringData.productFocusClarity,
+                    geographic_focus_clarity: defaultScoringData.geographicFocusClarity,
+                    growth_goal_clarity: defaultScoringData.growthGoalClarity,
+                    timeline_to_start: defaultScoringData.timeline,
                 }])
                 .select()
                 .single();
@@ -582,258 +606,140 @@ const BrokerOnboarding = () => {
                             </div>
                         </div>
 
-                        <Card className="max-w-4xl mx-auto bg-slate-900/40 border-white/5 backdrop-blur-xl shadow-2xl rounded-[2.5rem] overflow-hidden">
-                            <CardContent className="p-8 lg:p-12 relative">
-                                <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -mr-32 -mt-32"></div>
-                                <form onSubmit={handleSubmit} className="space-y-12 relative z-10">
-
-                                    {/* Operational Inputs - Kept for Strategy Snapshot Value */}
-                                    <div className="space-y-8">
-                                        <div className="flex items-center gap-4 mb-4">
-                                            <div className="p-2 rounded-xl bg-blue-500/10 border border-blue-500/20">
-                                                <Users className="h-5 w-5 text-blue-400" />
-                                            </div>
-                                            <h4 className="text-xl font-bold text-white">Operational Readiness</h4>
+                        <Card className="max-w-3xl mx-auto bg-slate-900/40 border-white/5 backdrop-blur-xl shadow-2xl rounded-2xl sm:rounded-3xl overflow-hidden border border-primary/20 shadow-[0_20px_80px_-20px_hsl(var(--primary)/0.3)]">
+                            <CardContent className="p-4 sm:p-6 md:p-8 lg:p-12 relative">
+                                <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -mr-32 -mt-32" />
+                                <form onSubmit={handleSubmit} className="space-y-8 relative z-10">
+                                    {/* Step indicator (live site: 1–6, we show step 1 active) */}
+                                    <div className="flex items-center justify-between mb-8">
+                                        <div className="flex items-center">
+                                            <div className="w-10 h-10 rounded-full flex items-center justify-center font-medium bg-primary text-primary-foreground">1</div>
+                                            <div className="w-full h-1 mx-2 bg-muted min-w-[2rem]" />
                                         </div>
-
-                                        <div className="grid md:grid-cols-2 gap-8">
-                                            <div className="space-y-3">
-                                                <Label className="text-slate-200 font-semibold">CRM Usage</Label>
-                                                <Select value={formData.crmUsage} onValueChange={(v) => handleInputChange('crmUsage', v)}>
-                                                    <SelectTrigger className="bg-white/5 border-white/10 rounded-xl h-12">
-                                                        <SelectValue placeholder="Select CRM usage" />
-                                                    </SelectTrigger>
-                                                    <SelectContent className="bg-slate-900 border-white/10">
-                                                        <SelectItem value="full">Yes – full CRM (HubSpot/Pipedrive/etc)</SelectItem>
-                                                        <SelectItem value="basic">Basic Tracking (Excel/Sheets)</SelectItem>
-                                                        <SelectItem value="none">None / Manual notes</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-
-                                            <div className="space-y-3">
-                                                <Label className="text-slate-200 font-semibold">Speed to First Contact</Label>
-                                                <Select value={formData.speedToContact} onValueChange={(v) => handleInputChange('speedToContact', v)}>
-                                                    <SelectTrigger className="bg-white/5 border-white/10 rounded-xl h-12">
-                                                        <SelectValue placeholder="Select contact speed" />
-                                                    </SelectTrigger>
-                                                    <SelectContent className="bg-slate-900 border-white/10">
-                                                        <SelectItem value="5min">Within 5 minutes (Industry Standard)</SelectItem>
-                                                        <SelectItem value="30min">Within 30 minutes</SelectItem>
-                                                        <SelectItem value="sameDay">Same day</SelectItem>
-                                                        <SelectItem value="nextDay">Next day or later</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-
-                                            <div className="space-y-3">
-                                                <Label className="text-slate-200 font-semibold">Team Size Handling Leads</Label>
-                                                <Select value={formData.teamSize} onValueChange={(v) => handleInputChange('teamSize', v)}>
-                                                    <SelectTrigger className="bg-white/5 border-white/10 rounded-xl h-12">
-                                                        <SelectValue placeholder="Select team size" />
-                                                    </SelectTrigger>
-                                                    <SelectContent className="bg-slate-900 border-white/10">
-                                                        <SelectItem value="solo">Solo Operator</SelectItem>
-                                                        <SelectItem value="small">Small Team (2–5 agents)</SelectItem>
-                                                        <SelectItem value="dedicated">Dedicated Lead Team</SelectItem>
-                                                        <SelectItem value="unclear">Currently scaling/undefined</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-
-                                            <div className="space-y-3">
-                                                <Label className="text-slate-200 font-semibold">Follow-up Process Clarity</Label>
-                                                <Select value={formData.followUpClarity} onValueChange={(v) => handleInputChange('followUpClarity', v)}>
-                                                    <SelectTrigger className="bg-white/5 border-white/10 rounded-xl h-12">
-                                                        <SelectValue placeholder="Select process clarity" />
-                                                    </SelectTrigger>
-                                                    <SelectContent className="bg-slate-900 border-white/10">
-                                                        <SelectItem value="clear">Clear (Defined touchpoints)</SelectItem>
-                                                        <SelectItem value="basic">Basic (Occasional follow-up)</SelectItem>
-                                                        <SelectItem value="none">None / No defined process</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
+                                        <div className="flex items-center">
+                                            <div className="w-10 h-10 rounded-full flex items-center justify-center font-medium bg-muted text-muted-foreground">2</div>
+                                            <div className="w-full h-1 mx-2 bg-muted min-w-[2rem]" />
+                                        </div>
+                                        <div className="flex items-center">
+                                            <div className="w-10 h-10 rounded-full flex items-center justify-center font-medium bg-muted text-muted-foreground">3</div>
+                                            <div className="w-full h-1 mx-2 bg-muted min-w-[2rem]" />
+                                        </div>
+                                        <div className="flex items-center">
+                                            <div className="w-10 h-10 rounded-full flex items-center justify-center font-medium bg-muted text-muted-foreground">4</div>
+                                            <div className="w-full h-1 mx-2 bg-muted min-w-[2rem]" />
+                                        </div>
+                                        <div className="flex items-center">
+                                            <div className="w-10 h-10 rounded-full flex items-center justify-center font-medium bg-muted text-muted-foreground">5</div>
+                                            <div className="w-full h-1 mx-2 bg-muted min-w-[2rem]" />
+                                        </div>
+                                        <div className="flex items-center">
+                                            <div className="w-10 h-10 rounded-full flex items-center justify-center font-medium bg-muted text-muted-foreground">6</div>
                                         </div>
                                     </div>
 
-                                    {/* Budget & Spend */}
-                                    <div className="space-y-8 pt-8 border-t border-white/5">
-                                        <div className="flex items-center gap-4 mb-4">
-                                            <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                                                <BarChart3 className="h-5 w-5 text-emerald-400" />
-                                            </div>
-                                            <h4 className="text-xl font-bold text-white">Budget Alignment</h4>
+                                    {/* Contact Information (live site step 1) */}
+                                    <div className="p-6 sm:p-8 rounded-xl bg-slate-900/60 border border-white/5">
+                                        <div className="space-y-2 mb-6">
+                                            <h3 className="text-xl font-semibold text-white">Contact Information</h3>
+                                            <p className="text-slate-400 text-sm">Let&apos;s start with your details so we can reach you.</p>
                                         </div>
-
-                                        <div className="grid md:grid-cols-2 gap-8">
-                                            <div className="space-y-3">
-                                                <Label className="text-slate-200 font-semibold">Monthly Lead Spend Range</Label>
-                                                <Select value={formData.monthlySpend} onValueChange={(v) => handleInputChange('monthlySpend', v)}>
-                                                    <SelectTrigger className="bg-white/5 border-white/10 rounded-xl h-12">
-                                                        <SelectValue placeholder="Select spend range" />
-                                                    </SelectTrigger>
-                                                    <SelectContent className="bg-slate-900 border-white/10">
-                                                        <SelectItem value="under5k">Under R5k</SelectItem>
-                                                        <SelectItem value="5k-15k">R5k – R15k</SelectItem>
-                                                        <SelectItem value="15k-30k">R15k – R30k</SelectItem>
-                                                        <SelectItem value="30k+">R30k+</SelectItem>
-                                                        <SelectItem value="none">Not currently spending</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-
-                                            <div className="space-y-3">
-                                                <Label className="text-slate-200 font-semibold">Cost-per-Lead Awareness</Label>
-                                                <Select value={formData.cplAwareness} onValueChange={(v) => handleInputChange('cplAwareness', v)}>
-                                                    <SelectTrigger className="bg-white/5 border-white/10 rounded-xl h-12">
-                                                        <SelectValue placeholder="Select awareness" />
-                                                    </SelectTrigger>
-                                                    <SelectContent className="bg-slate-900 border-white/10">
-                                                        <SelectItem value="yes">Yes (Tracked exactly)</SelectItem>
-                                                        <SelectItem value="rough">Rough idea</SelectItem>
-                                                        <SelectItem value="no">No knowledge of exact CPL</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-
-                                            <div className="space-y-3 md:col-span-2">
-                                                <Label className="text-slate-200 font-semibold">Pricing Comfort</Label>
-                                                <Select value={formData.pricingComfort} onValueChange={(v) => handleInputChange('pricingComfort', v)}>
-                                                    <SelectTrigger className="bg-white/5 border-white/10 rounded-xl h-12">
-                                                        <SelectValue placeholder="Select pricing comfort" />
-                                                    </SelectTrigger>
-                                                    <SelectContent className="bg-slate-900 border-white/10">
-                                                        <SelectItem value="comfortable">Comfortable (Value over lowest price)</SelectItem>
-                                                        <SelectItem value="flexible">Flexible (Willing to invest for quality)</SelectItem>
-                                                        <SelectItem value="sensitive">Very price-sensitive (Need lowest cost)</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Volume & Capacity */}
-                                    <div className="space-y-8 pt-8 border-t border-white/5">
-                                        <div className="flex items-center gap-4 mb-4">
-                                            <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
-                                                <TrendingUp className="h-5 w-5 text-amber-400" />
-                                            </div>
-                                            <h4 className="text-xl font-bold text-white">Volume & Capacity</h4>
-                                        </div>
-
-                                        <div className="grid md:grid-cols-2 gap-8">
-                                            <div className="space-y-3">
-                                                <Label className="text-slate-200 font-semibold">Desired Leads Per Week</Label>
+                                        <div className="space-y-4">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="contact_name" className="text-sm font-medium text-slate-200">Full Name *</Label>
                                                 <Input
-                                                    type="number"
-                                                    value={formData.desiredLeadsWeekly}
-                                                    onChange={(e) => handleInputChange('desiredLeadsWeekly', parseInt(e.target.value) || 0)}
-                                                    className="bg-white/5 border-white/10 h-12 rounded-xl"
+                                                    id="contact_name"
+                                                    className="bg-background/50 border-border/50 focus:border-primary/50 h-10 rounded-md"
+                                                    placeholder="John Smith"
+                                                    value={contactForm.fullName}
+                                                    onChange={(e) => setContactForm((p) => ({ ...p, fullName: e.target.value }))}
+                                                />
+                                                {fieldErrors.fullName && <p className="text-xs text-destructive">{fieldErrors.fullName}</p>}
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="contact_email" className="text-sm font-medium text-slate-200">Email Address *</Label>
+                                                <Input
+                                                    id="contact_email"
+                                                    type="email"
+                                                    className="bg-background/50 border-border/50 focus:border-primary/50 h-10 rounded-md"
+                                                    placeholder="john@example.com"
+                                                    value={contactForm.email}
+                                                    onChange={(e) => setContactForm((p) => ({ ...p, email: e.target.value }))}
+                                                />
+                                                {fieldErrors.email && <p className="text-xs text-destructive">{fieldErrors.email}</p>}
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="contact_phone" className="text-sm font-medium text-slate-200">Phone Number *</Label>
+                                                <Input
+                                                    id="contact_phone"
+                                                    type="tel"
+                                                    className="bg-background/50 border-border/50 focus:border-primary/50 h-10 rounded-md"
+                                                    placeholder="+27 82 123 4567"
+                                                    value={contactForm.phone}
+                                                    onChange={(e) => setContactForm((p) => ({ ...p, phone: e.target.value }))}
+                                                />
+                                                {fieldErrors.phone && <p className="text-xs text-destructive">{fieldErrors.phone}</p>}
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="company_name" className="text-sm font-medium text-slate-200">Company / Brokerage Name</Label>
+                                                <Input
+                                                    id="company_name"
+                                                    className="bg-background/50 border-border/50 focus:border-primary/50 h-10 rounded-md"
+                                                    placeholder="ABC Insurance Brokers"
+                                                    value={contactForm.companyName}
+                                                    onChange={(e) => setContactForm((p) => ({ ...p, companyName: e.target.value }))}
                                                 />
                                             </div>
-                                            <div className="space-y-3">
-                                                <Label className="text-slate-200 font-semibold">Max Realistic Capacity Weekly</Label>
-                                                <Input
-                                                    type="number"
-                                                    value={formData.maxCapacityWeekly}
-                                                    onChange={(e) => handleInputChange('maxCapacityWeekly', parseInt(e.target.value) || 0)}
-                                                    className="bg-white/5 border-white/10 h-12 rounded-xl"
-                                                />
+                                            <div className="pt-4 border-t border-white/5 space-y-4">
+                                                <div className="space-y-2">
+                                                    <Label className="text-sm font-medium text-slate-200">Preferred Time for a Call</Label>
+                                                    <Select value={contactForm.preferredCallTime} onValueChange={(v) => setContactForm((p) => ({ ...p, preferredCallTime: v }))}>
+                                                        <SelectTrigger className="bg-background/50 border-border/50 focus:border-primary/50 h-10 rounded-md">
+                                                            <SelectValue placeholder="When would you prefer we call?" />
+                                                        </SelectTrigger>
+                                                        <SelectContent className="bg-slate-900 border-white/10">
+                                                            <SelectItem value="morning">Morning (8am - 12pm)</SelectItem>
+                                                            <SelectItem value="early-afternoon">Early Afternoon (12pm - 2pm)</SelectItem>
+                                                            <SelectItem value="late-afternoon">Late Afternoon (2pm - 5pm)</SelectItem>
+                                                            <SelectItem value="evening">Evening (5pm - 7pm)</SelectItem>
+                                                            <SelectItem value="anytime">Anytime during business hours</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="whatsapp_number" className="text-sm font-medium text-slate-200">WhatsApp Number</Label>
+                                                    <Input
+                                                        id="whatsapp_number"
+                                                        type="tel"
+                                                        className="bg-background/50 border-border/50 focus:border-primary/50 h-10 rounded-md"
+                                                        placeholder="+27 82 123 4567"
+                                                        value={contactForm.whatsappNumber}
+                                                        onChange={(e) => setContactForm((p) => ({ ...p, whatsappNumber: e.target.value }))}
+                                                    />
+                                                    <p className="text-xs text-muted-foreground">Leave blank if same as phone number above</p>
+                                                </div>
+                                                <div className="flex items-start space-x-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
+                                                    <Checkbox
+                                                        id="whatsapp_consent"
+                                                        checked={contactForm.whatsappConsent}
+                                                        onCheckedChange={(checked) => setContactForm((p) => ({ ...p, whatsappConsent: checked === true }))}
+                                                        className="mt-0.5 border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+                                                    />
+                                                    <div className="space-y-1">
+                                                        <Label htmlFor="whatsapp_consent" className="cursor-pointer text-sm font-medium text-slate-200">I&apos;m happy to be contacted via WhatsApp</Label>
+                                                        <p className="text-xs text-muted-foreground">We&apos;ll use WhatsApp to send quick updates and coordinate your strategy call.</p>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
 
-                                    {/* Growth & Intent */}
-                                    <div className="space-y-8 pt-8 border-t border-white/5">
-                                        <div className="flex items-center gap-4 mb-4">
-                                            <div className="p-2 rounded-xl bg-purple-500/10 border border-purple-500/20">
-                                                <Target className="h-5 w-5 text-purple-400" />
-                                            </div>
-                                            <h4 className="text-xl font-bold text-white">Growth & Intent</h4>
-                                        </div>
-
-                                        <div className="grid md:grid-cols-2 gap-8">
-                                            <div className="space-y-3">
-                                                <Label className="text-slate-200 font-semibold">Product Focus Clarity</Label>
-                                                <Select value={formData.productFocusClarity} onValueChange={(v) => handleInputChange('productFocusClarity', v)}>
-                                                    <SelectTrigger className="bg-white/5 border-white/10 rounded-xl h-12">
-                                                        <SelectValue placeholder="Select focus" />
-                                                    </SelectTrigger>
-                                                    <SelectContent className="bg-slate-900 border-white/10">
-                                                        <SelectItem value="clear">Clear Specific Product</SelectItem>
-                                                        <SelectItem value="multiple">Multiple but defined</SelectItem>
-                                                        <SelectItem value="unclear">Everything / Undefined</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-
-                                            <div className="space-y-3">
-                                                <Label className="text-slate-200 font-semibold">Geographic Focus</Label>
-                                                <Select value={formData.geographicFocusClarity} onValueChange={(v) => handleInputChange('geographicFocusClarity', v)}>
-                                                    <SelectTrigger className="bg-white/5 border-white/10 rounded-xl h-12">
-                                                        <SelectValue placeholder="Select geography" />
-                                                    </SelectTrigger>
-                                                    <SelectContent className="bg-slate-900 border-white/10">
-                                                        <SelectItem value="clear">Clear (Province/City)</SelectItem>
-                                                        <SelectItem value="semi">Semi-defined</SelectItem>
-                                                        <SelectItem value="undefined">National / Undefined</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-
-                                            <div className="space-y-3">
-                                                <Label className="text-slate-200 font-semibold">Growth Goal Clarity</Label>
-                                                <Select value={formData.growthGoalClarity} onValueChange={(v) => handleInputChange('growthGoalClarity', v)}>
-                                                    <SelectTrigger className="bg-white/5 border-white/10 rounded-xl h-12">
-                                                        <SelectValue placeholder="Select goals" />
-                                                    </SelectTrigger>
-                                                    <SelectContent className="bg-slate-900 border-white/10">
-                                                        <SelectItem value="numeric">Specific Numeric Goals</SelectItem>
-                                                        <SelectItem value="general">General Growth</SelectItem>
-                                                        <SelectItem value="vague">Vague / Uncertain</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-
-                                            <div className="space-y-3">
-                                                <Label className="text-slate-200 font-semibold">Timeline to Start</Label>
-                                                <Select value={formData.timeline} onValueChange={(v) => handleInputChange('timeline', v)}>
-                                                    <SelectTrigger className="bg-white/5 border-white/10 rounded-xl h-12">
-                                                        <SelectValue placeholder="Select timeline" />
-                                                    </SelectTrigger>
-                                                    <SelectContent className="bg-slate-900 border-white/10">
-                                                        <SelectItem value="immediate">Immediate</SelectItem>
-                                                        <SelectItem value="30days">Within 30 Days</SelectItem>
-                                                        <SelectItem value="exploring">Just Exploring</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Submit Section */}
-                                    <div className="pt-12 border-t border-white/5 space-y-8">
-                                        <div className="bg-white/5 p-8 rounded-3xl text-sm text-slate-400 leading-relaxed italic border border-white/5">
-                                            "Submission initiates our deterministic scoring engine. You will receive a composite success probability score based on your operational and budgetary inputs. This data remains strictly confidential."
-                                        </div>
-                                        <Button
-                                            type="submit"
-                                            size="lg"
-                                            className="w-full h-20 text-xl font-black bg-primary text-white transition-all duration-500 hover:scale-[1.02] active:scale-95 rounded-2xl shadow-2xl shadow-primary/30 group uppercase tracking-widest"
-                                            disabled={isSubmitting}
-                                        >
-                                            {isSubmitting ? (
-                                                <div className="flex items-center gap-3">
-                                                    <Zap className="h-6 w-6 animate-pulse" />
-                                                    Crunching Analysis Data...
-                                                </div>
-                                            ) : (
-                                                <div className="flex items-center gap-3">
-                                                    Run Readiness Analysis
-                                                    <ArrowRight className="h-6 w-6 group-hover:translate-x-2 transition-transform" />
-                                                </div>
-                                            )}
+                                    <div className="flex justify-between">
+                                        <Button type="button" variant="outline" className="gap-2" disabled>
+                                            <ArrowRight className="h-4 w-4 rotate-180" /> Previous
+                                        </Button>
+                                        <Button type="submit" className="gap-2" disabled={isSubmitting}>
+                                            {isSubmitting ? "Submitting..." : "Next"}
+                                            <ArrowRight className="h-4 w-4" />
                                         </Button>
                                     </div>
                                 </form>
