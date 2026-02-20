@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Download, Mail, MessageCircle, Send, ZoomIn, ZoomOut, Maximize, Monitor, Save } from "lucide-react";
+import { ArrowLeft, Download, Mail, MessageCircle, Send, ZoomIn, ZoomOut, Maximize, Monitor, Save, Zap, History } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import logo from "@/assets/lead-velocity-logo.png";
@@ -10,6 +10,50 @@ import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { getProposalEmailSignature } from "@/utils/emailSignature";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+const PRICING_TIERS = {
+    pilot: {
+        id: "pilot",
+        name: "Pilot Phase",
+        investment: "R6,000 (once-off)",
+        guaranteedLeads: "6 qualified business leads",
+        costPerLead: "R1,000 per lead",
+        subtitle: "30-Day Performance-Aligned Campaign",
+        purposeText: "This 30-day pilot is designed to provide a <strong class='text-pink-900 bg-pink-50 px-1 rounded'>structured, low-risk starting point</strong> while generating enough <strong class='text-pink-900'>real performance data</strong> to assess lead quality, conversion potential, and return on investment.",
+        alignmentText: "The pilot investment covers the delivery of the first six qualified business leads. Beyond that, we align with your success."
+    },
+    bronze: {
+        id: "bronze",
+        name: "Bronze",
+        investment: "R8,500 (monthly)",
+        guaranteedLeads: "± 17 qualified leads",
+        costPerLead: "± R500 per lead",
+        subtitle: "Growth Starter - Recurring Monthly Campaign",
+        purposeText: "This monthly Bronze campaign is designed to provide <strong class='text-pink-900 bg-pink-50 px-1 rounded'>consistent deal flow</strong> while maintaining high lead quality standards for growing brokerages.",
+        alignmentText: "The Bronze tier investment covers the delivery of approximately 17 qualified business leads monthly. We focus on consistent volume and quality."
+    },
+    silver: {
+        id: "silver",
+        name: "Silver",
+        investment: "R10,500 (monthly)",
+        guaranteedLeads: "± 25 qualified leads",
+        costPerLead: "± R420 per lead",
+        subtitle: "Scale & Optimise - Recurring Monthly Campaign",
+        purposeText: "Our most popular Silver campaign is designed for <strong class='text-pink-900 bg-pink-50 px-1 rounded'>rapid scaling</strong> and performance optimization, providing enough volume for deep data insights.",
+        alignmentText: "The Silver tier investment covers the delivery of approximately 25 qualified business leads monthly. This tier includes bi-weekly performance reviews."
+    },
+    gold: {
+        id: "gold",
+        name: "Gold",
+        investment: "R16,500+ (monthly)",
+        guaranteedLeads: "40+ qualified leads",
+        costPerLead: "± R400 per lead",
+        subtitle: "Performance Partner - Recurring Monthly Campaign",
+        purposeText: "The Gold partnership is designed for teams ready to <strong class='text-pink-900 bg-pink-50 px-1 rounded'>dominate their niche</strong> with maximum lead volume and dedicated campaign management.",
+        alignmentText: "The Gold tier investment provides our maximum lead volume and priority delivery. We operate as a true revenue partner for your business."
+    }
+};
 
 interface ProposalGeneratorProps {
     onBack: () => void;
@@ -55,28 +99,30 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
     const reportRef = useRef<HTMLDivElement>(null);
     const [zoom, setZoom] = useState(0.65);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [selectedTier, setSelectedTier] = useState("pilot");
+    const [history, setHistory] = useState<any[]>([]);
+    const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
     const [formData, setFormData] = useState({
         // Variables
         clientName: "Valued Partner",
         date: new Date().toLocaleDateString('en-ZA', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-        investment: "R6,000 (once-off)",
-        guaranteedLeads: "6 qualified business leads",
-        costPerLead: "R1,000 per lead",
+        investment: PRICING_TIERS.pilot.investment,
+        guaranteedLeads: PRICING_TIERS.pilot.guaranteedLeads,
+        costPerLead: PRICING_TIERS.pilot.costPerLead,
         contentsCover: "R1,000,000 or more",
         buildingValue: "R4,000,000 or more",
         commissionRate: "10%",
 
         // Static Text Blocks
-        // UPDATED: Exact colour match for Mission Control
         title: "Your <span class='text-[#D035D0]'>Mission</span> <span class='text-[#F48C57]'>Control</span> for Growth",
-        subtitle: "30-Day Performance-Aligned Campaign",
+        subtitle: PRICING_TIERS.pilot.subtitle,
 
-        purposeTitle: "Purpose of the Pilot",
-        purposeText: "This 30-day pilot is designed to provide a <strong class='text-pink-900 bg-pink-50 px-1 rounded'>structured, low-risk starting point</strong> while generating enough <strong class='text-pink-900'>real performance data</strong> to assess lead quality, conversion potential, and return on investment.",
+        purposeTitle: "Purpose of the Campaign",
+        purposeText: PRICING_TIERS.pilot.purposeText,
         purposeSubText: "Lead Velocity operates as a <strong>performance-aligned lead partner</strong>, focused on delivering qualified decision-makers rather than high-volume, unfiltered enquiries.",
 
-        overviewTitle: "Pilot Overview",
+        overviewTitle: "Package Overview",
         quoteText: `"We guarantee conservatively and aim to overdeliver rather than inflate volume at the expense of lead quality."`,
 
         criteriaTitle: "Qualification Criteria",
@@ -88,15 +134,66 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
         excludedText: "Personal lines, micro businesses below threshold, and qualified price-shopping generic enquiries.",
 
         alignmentTitle: "Performance Alignment",
-        alignmentText: "The pilot investment covers the delivery of the first six qualified business leads. Beyond that, we align with your success.",
+        alignmentText: PRICING_TIERS.pilot.alignmentText,
         alignmentBoxText: "Additional placed policies attract a <span class='text-pink-400 font-bold'>10% commission</span> calculated on the first-year premium."
     });
+
+    const handleTierChange = (tierId: string) => {
+        setSelectedTier(tierId);
+        const tier = PRICING_TIERS[tierId as keyof typeof PRICING_TIERS];
+
+        setFormData(prev => ({
+            ...prev,
+            investment: tier.investment,
+            guaranteedLeads: tier.guaranteedLeads,
+            costPerLead: tier.costPerLead,
+            subtitle: tier.subtitle,
+            purposeText: tier.purposeText,
+            alignmentText: tier.alignmentText,
+            // Update title based on tier if needed, for now just keeping the same
+        }));
+
+        toast({
+            title: `${tier.name} Tier Selected`,
+            description: "Proposal content has been updated.",
+        });
+    };
 
     useEffect(() => {
         if (initialData) {
             setFormData(initialData);
         }
+        fetchHistory();
     }, [initialData]);
+
+    const fetchHistory = async () => {
+        try {
+            setIsLoadingHistory(true);
+            const { data, error } = await supabase
+                .from('admin_documents')
+                .select('*')
+                .eq('category', 'proposals')
+                .order('created_at', { ascending: false })
+                .limit(5);
+
+            if (error) throw error;
+            setHistory(data || []);
+        } catch (error) {
+            console.error("Error fetching history:", error);
+        } finally {
+            setIsLoadingHistory(false);
+        }
+    };
+
+    const loadFromHistory = (item: any) => {
+        if (item.content_data) {
+            setFormData(item.content_data);
+            toast({
+                title: "Proposal Loaded",
+                description: `Loaded previous proposal for ${item.content_data.clientName}`,
+            });
+        }
+    };
 
     const [recipientEmail, setRecipientEmail] = useState("");
     const [recipientPhone, setRecipientPhone] = useState("");
@@ -231,6 +328,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                 }
 
                 toast({ title: "Saved", description: "Proposal saved to documents library." });
+                fetchHistory(); // Refresh history after saving
             }
         } catch (error: any) {
             console.error(error);
@@ -341,6 +439,65 @@ ${getProposalEmailSignature()}`;
                                     </div>
                                 </div>
                             </div>
+                            <Separator className="bg-white/10" />
+
+                            {/* History Section */}
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="font-bold text-lg text-white flex items-center gap-2">
+                                        <History className="h-4 w-4 text-blue-400" />
+                                        Recent History
+                                    </h3>
+                                    {isLoadingHistory && <div className="animate-spin h-3 w-3 border-b border-white rounded-full"></div>}
+                                </div>
+
+                                <div className="space-y-2">
+                                    {history.length === 0 && !isLoadingHistory ? (
+                                        <p className="text-[10px] text-slate-500 italic">No saved proposals yet.</p>
+                                    ) : (
+                                        history.map((item) => (
+                                            <div
+                                                key={item.id}
+                                                onClick={() => loadFromHistory(item)}
+                                                className="group p-2 rounded-lg bg-slate-800/40 border border-white/5 hover:border-pink-500/50 hover:bg-slate-800/60 cursor-pointer transition-all"
+                                            >
+                                                <div className="flex justify-between items-start">
+                                                    <p className="text-[11px] font-bold text-slate-200 truncate pr-2">
+                                                        {item.content_data?.clientName || "Unknown Client"}
+                                                    </p>
+                                                    <span className="text-[8px] text-slate-500 whitespace-nowrap">
+                                                        {new Date(item.created_at).toLocaleDateString()}
+                                                    </span>
+                                                </div>
+                                                <p className="text-[9px] text-slate-500 mt-0.5">
+                                                    {item.content_data?.investment || "Custom Plan"}
+                                                </p>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                                <p className="text-[9px] text-slate-500">Click an item to load its data back into the editor.</p>
+                            </div>
+
+                            <Separator className="bg-white/10" />
+
+                            {/* Pricing Tier Selection */}
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="font-bold text-lg text-white">Pricing Tier</h3>
+                                    <Zap className="h-4 w-4 text-yellow-400" />
+                                </div>
+                                <Tabs value={selectedTier} onValueChange={handleTierChange} className="w-full">
+                                    <TabsList className="grid grid-cols-2 w-full bg-slate-800/50 border border-white/5 p-1 h-auto gap-1">
+                                        <TabsTrigger value="pilot" className="text-[10px] py-1.5 data-[state=active]:bg-pink-600 data-[state=active]:text-white">Pilot</TabsTrigger>
+                                        <TabsTrigger value="bronze" className="text-[10px] py-1.5 data-[state=active]:bg-pink-600 data-[state=active]:text-white">Bronze</TabsTrigger>
+                                        <TabsTrigger value="silver" className="text-[10px] py-1.5 data-[state=active]:bg-pink-600 data-[state=active]:text-white">Silver</TabsTrigger>
+                                        <TabsTrigger value="gold" className="text-[10px] py-1.5 data-[state=active]:bg-pink-600 data-[state=active]:text-white">Gold</TabsTrigger>
+                                    </TabsList>
+                                </Tabs>
+                                <p className="text-[10px] text-slate-500 italic">Select a tier to automatically update the document with standard pricing and wording.</p>
+                            </div>
+
                             <Separator className="bg-white/10" />
                             {/* Variables Section */}
                             <div className="space-y-4">
