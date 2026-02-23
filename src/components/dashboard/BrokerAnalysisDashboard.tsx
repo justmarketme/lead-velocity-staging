@@ -29,6 +29,10 @@ interface BrokerAnalysis {
     admin_notes: string | null;
     created_at: string;
     responses: {
+        full_name: string | null;
+        email: string | null;
+        phone_number: string | null;
+        firm_name: string | null;
         product_focus_clarity: string;
         geographic_focus_clarity: string;
         timeline_to_start: string;
@@ -42,13 +46,7 @@ interface BrokerAnalysis {
         pricing_comfort: string;
         growth_goal_clarity: string;
         cpl_awareness: string;
-    };
-    broker?: {
-        full_name: string;
-        email?: string;
-        phone_number?: string;
-        firm_name?: string;
-    };
+    } | null;
 }
 
 const BrokerAnalysisDashboard = () => {
@@ -68,13 +66,12 @@ const BrokerAnalysisDashboard = () => {
                 .from('broker_analysis')
                 .select(`
                     *,
-                    responses:broker_onboarding_responses(*),
-                    broker:profiles(*)
+                    responses:broker_onboarding_responses(*)
                 `)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
-            setAnalyses(data || []);
+            setAnalyses((data || []) as BrokerAnalysis[]);
         } catch (error: any) {
             toast({
                 title: "Error fetching analyses",
@@ -167,7 +164,7 @@ const BrokerAnalysisDashboard = () => {
                                     </div>
                                     <div className="space-y-1">
                                         <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                                            {analysis.broker?.full_name || "New Broker Intake"}
+                                            {analysis.responses?.full_name || "New Broker Intake"}
                                             {analysis.status !== 'pending' && (
                                                 <Badge variant="outline" className={cn(
                                                     "text-[10px] uppercase font-black px-2 py-0",
@@ -180,6 +177,10 @@ const BrokerAnalysisDashboard = () => {
                                             )}
                                         </h3>
                                         <div className="flex items-center gap-4 text-xs text-slate-400">
+                                            <span className="flex items-center gap-1">
+                                                <Building className="h-3 w-3" />
+                                                {analysis.responses?.firm_name || 'Independent'}
+                                            </span>
                                             <span className="flex items-center gap-1">
                                                 <Target className="h-3 w-3" />
                                                 {analysis.responses?.product_focus_clarity || 'Undefined'} Focus
@@ -234,11 +235,11 @@ const BrokerAnalysisDashboard = () => {
                                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-slate-900/50 rounded-xl border border-white/5">
                                                     <div className="flex items-center gap-3 text-slate-300">
                                                         <Mail className="h-4 w-4 text-primary" />
-                                                        <span className="text-xs truncate">{analysis.broker?.email || 'No email'}</span>
+                                                        <span className="text-xs truncate">{analysis.responses?.email || 'No email'}</span>
                                                     </div>
                                                     <div className="flex items-center gap-3 text-slate-300">
                                                         <Phone className="h-4 w-4 text-primary" />
-                                                        <span className="text-xs">{analysis.broker?.phone_number || 'No phone'}</span>
+                                                        <span className="text-xs">{analysis.responses?.phone_number || 'No phone'}</span>
                                                     </div>
                                                     <div className="flex items-center gap-3 text-slate-300">
                                                         <Target className="h-4 w-4 text-primary" />

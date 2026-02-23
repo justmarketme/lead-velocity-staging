@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Download, Mail, ZoomIn, ZoomOut, Maximize, Monitor, Plus, Trash2, Save, Mic, MicOff, Bot, Sparkles, Check, X } from "lucide-react";
+import { ArrowLeft, Download, Mail, ZoomIn, ZoomOut, Maximize, Monitor, Plus, Trash2, Save, Mic, MicOff, Bot, Sparkles, Check, X, Loader2 } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import logo from "@/assets/lead-velocity-logo.png";
@@ -264,7 +264,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
             await new Promise(resolve => setTimeout(resolve, 100));
 
             const canvas = await html2canvas(clone, {
-                scale: 2,
+                scale: 1.5,
                 useCORS: true,
                 logging: false,
                 backgroundColor: "#ffffff",
@@ -273,11 +273,12 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
 
             document.body.removeChild(clone);
 
-            const imgData = canvas.toDataURL("image/png");
+            const imgData = canvas.toDataURL("image/jpeg", 0.85);
             const pdf = new jsPDF({
                 orientation: "portrait",
                 unit: "mm",
                 format: "a4",
+                compress: true,
             });
 
             const imgWidth = 210;
@@ -285,67 +286,78 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
             const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
             if (imgHeight <= pageHeight) {
-                pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
+                pdf.addImage(imgData, "JPEG", 0, 0, imgWidth, imgHeight);
             } else {
                 let heightLeft = imgHeight;
                 let position = 0;
-                pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+                pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
                 heightLeft -= pageHeight;
                 while (heightLeft >= 0) {
                     position = heightLeft - imgHeight;
                     pdf.addPage();
-                    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+                    pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
                     heightLeft -= pageHeight;
                 }
             }
 
             const fileName = `Invoice_${invoiceData.invoiceNumber}_${Date.now()}.pdf`;
-
             if (action === 'download') {
                 pdf.save(fileName);
                 toast({ title: "Success", description: "Invoice downloaded." });
             }
-            else if (action === 'email') {
-                if (!recipientEmail) {
-                    toast({ title: "Email Required", description: "Please enter a recipient email address in the sidebar.", variant: "destructive" });
-                } else {
-                    const subject = encodeURIComponent(`Invoice: ${invoiceData.invoiceNumber} from Lead Velocity`);
-                    const emailBody = `Hi ${invoiceData.clientName},
-
-Please find attached the invoice ${invoiceData.invoiceNumber}.
-
-Total Due: R${calculateTotal().toLocaleString()}
-Due Date: ${invoiceData.dueDate}
-
-Thank you for your business. Please don't hesitate to reach out if you have any questions.
-${getInvoiceEmailSignature()}`;
-                    const body = encodeURIComponent(emailBody);
-                    window.location.href = `mailto:${recipientEmail}?subject=${subject}&body=${body}`;
-                    toast({ title: "Email Drafted", description: "Your mail client should open now." });
-                }
-            }
             else {
-                // Save to Supabase
+                // For 'save' and 'email', we upload to Supabase
                 const pdfBlob = pdf.output('blob');
                 const filePath = `invoices/${fileName}`;
-                const { error: uploadError } = await supabase.storage.from('admin-documents').upload(filePath, pdfBlob, { upsert: false, contentType: 'application/pdf' });
+
+                // Upload to Storage
+                const { error: uploadError } = await supabase.storage
+                    .from('admin-documents')
+                    .upload(filePath, pdfBlob, {
+                        upsert: false,
+                        contentType: 'application/pdf'
+                    });
+
                 if (uploadError) throw uploadError;
 
+                // Get Public URL
+                const { data: { publicUrl } } = supabase.storage
+                    .from('admin-documents')
+                    .getPublicUrl(filePath);
+
+                // Get Current User
                 const { data: { user } } = await supabase.auth.getUser();
                 if (user) {
-                    const { error: dbError } = await supabase.from('admin_documents').insert({
-                        name: fileName,
-                        description: `Invoice for ${invoiceData.clientName}`,
-                        file_path: filePath,
-                        file_type: 'pdf',
-                        file_size: pdfBlob.size,
-                        category: 'invoices',
-                        uploaded_by: user.id,
-                        content_data: invoiceData
-                    });
+                    // Save to Database
+                    const { error: dbError } = await supabase
+                        .from('admin_documents')
+                        .insert({
+                            name: fileName,
+                            description: `Invoice for ${invoiceData.clientName}`,
+                            file_path: filePath,
+                            file_type: 'pdf',
+                            file_size: pdfBlob.size,
+                            category: 'invoices',
+                            uploaded_by: user.id,
+                            content_data: invoiceData
+                        });
+
                     if (dbError) throw dbError;
                 }
-                toast({ title: "Saved", description: "Invoice saved to documents library." });
+
+                if (action === 'email') {
+                    if (!recipientEmail) {
+                        toast({ title: "Email Required", description: "Please enter a recipient email address in the sidebar.", variant: "destructive" });
+                    } else {
+                        const subject = encodeURIComponent(`Invoice: ${invoiceData.invoiceNumber} from Lead Velocity`);
+                        const emailBody = `Hi ${invoiceData.clientName},\n\nPlease find the invoice ${invoiceData.invoiceNumber} at the link below:\n\n${publicUrl}\n\nTotal Due: R${calculateTotal().toLocaleString()}\nDue Date: ${invoiceData.dueDate}\n\nThank you for your business.\n\n${getInvoiceEmailSignature()}`;
+                        const body = encodeURIComponent(emailBody);
+                        window.location.href = `mailto:${recipientEmail}?subject=${subject}&body=${body}`;
+                        toast({ title: "Email Drafted", description: "Link included in body!" });
+                    }
+                } else {
+                    toast({ title: "Saved", description: "Invoice saved to documents library." });
+                }
             }
         } catch (error: any) {
             console.error(error);

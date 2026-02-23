@@ -11,7 +11,8 @@ import {
     AlertCircle,
     ShieldCheck,
     Mail,
-    Phone
+    Phone,
+    Building
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +48,14 @@ const BrokerOnboarding = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
 
+    // Contact Info State
+    const [contactInfo, setContactInfo] = useState({
+        fullName: '',
+        email: '',
+        phone: '',
+        firmName: '',
+    });
+
     // Form State
     const [formData, setFormData] = useState<OnboardingData>({
         crmUsage: 'none',
@@ -68,6 +77,10 @@ const BrokerOnboarding = () => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
+    const handleContactChange = (field: keyof typeof contactInfo, value: string) => {
+        setContactInfo(prev => ({ ...prev, [field]: value }));
+    };
+
     // Animations
     const heroAnim = useScrollAnimation();
     const problemAnim = useScrollAnimation();
@@ -79,19 +92,38 @@ const BrokerOnboarding = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (!contactInfo.fullName || !contactInfo.email || !contactInfo.phone) {
+            toast({
+                title: "Missing Contact Info",
+                description: "Please fill in your name, email, and phone number.",
+                variant: "destructive"
+            });
+            return;
+        }
+
         setIsSubmitting(true);
 
         try {
             // 1. Calculate deterministic scores locally
             const results = calculateScores(formData);
 
-            // 2. Save to Supabase
-            const { data: { user } } = await supabase.auth.getUser();
+            // Map success band to full label for the admin dashboard
+            const successBandLabel =
+                results.successBand === 'High' ? 'High Probability' :
+                    results.successBand === 'Medium' ? 'Medium Probability' :
+                        'Low Probability';
 
+            // 2. Save onboarding response to Supabase (no auth required)
             const { data: responseData, error: responseError } = await supabase
                 .from('broker_onboarding_responses')
                 .insert([{
-                    broker_id: user?.id,
+                    // Contact Info
+                    full_name: contactInfo.fullName,
+                    email: contactInfo.email,
+                    phone_number: contactInfo.phone,
+                    firm_name: contactInfo.firmName,
+                    // Form Data
                     crm_usage: formData.crmUsage,
                     speed_to_contact: formData.speedToContact,
                     team_size: formData.teamSize,
@@ -111,12 +143,11 @@ const BrokerOnboarding = () => {
 
             if (responseError) throw responseError;
 
-            // 3. Save calculated results
+            // 3. Save calculated analysis scores
             const { error: analysisError } = await supabase
                 .from('broker_analysis')
                 .insert([{
                     response_id: responseData.id,
-                    broker_id: user?.id,
                     operational_score: results.operationalScore,
                     budget_score: results.budgetScore,
                     growth_score: results.growthScore,
@@ -124,20 +155,11 @@ const BrokerOnboarding = () => {
                     success_probability: results.successProbability,
                     risk_flags: results.riskFlags,
                     primary_sales_angle: results.primarySalesAngle,
-                    success_band: results.successBand,
+                    success_band: successBandLabel,
+                    status: 'pending',
                 }]);
 
             if (analysisError) throw analysisError;
-
-            // 4. Trigger AI Analysis
-            try {
-                // This is a placeholder for the actual Edge Function call
-                // In a real scenario, this would trigger an async process
-                console.log("Triggering AI analysis for:", responseData.id);
-                // await supabase.functions.invoke('analyze-broker-score', { ... });
-            } catch (aiError) {
-                console.error("AI Analysis trigger failed:", aiError);
-            }
 
             setSubmitted(true);
             toast({
@@ -587,8 +609,64 @@ const BrokerOnboarding = () => {
                                 <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -mr-32 -mt-32"></div>
                                 <form onSubmit={handleSubmit} className="space-y-12 relative z-10">
 
-                                    {/* Operational Inputs - Kept for Strategy Snapshot Value */}
+                                    {/* Contact Information */}
                                     <div className="space-y-8">
+                                        <div className="flex items-center gap-4 mb-4">
+                                            <div className="p-2 rounded-xl bg-primary/10 border border-primary/20">
+                                                <Users className="h-5 w-5 text-primary" />
+                                            </div>
+                                            <h4 className="text-xl font-bold text-white">Your Details</h4>
+                                        </div>
+
+                                        <div className="grid md:grid-cols-2 gap-8">
+                                            <div className="space-y-3">
+                                                <Label className="text-slate-200 font-semibold">Full Name <span className="text-rose-400">*</span></Label>
+                                                <Input
+                                                    type="text"
+                                                    placeholder="e.g. John Smith"
+                                                    value={contactInfo.fullName}
+                                                    onChange={(e) => handleContactChange('fullName', e.target.value)}
+                                                    className="bg-white/5 border-white/10 h-12 rounded-xl"
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="space-y-3">
+                                                <Label className="text-slate-200 font-semibold">Email Address <span className="text-rose-400">*</span></Label>
+                                                <Input
+                                                    type="email"
+                                                    placeholder="e.g. john@brokerage.co.za"
+                                                    value={contactInfo.email}
+                                                    onChange={(e) => handleContactChange('email', e.target.value)}
+                                                    className="bg-white/5 border-white/10 h-12 rounded-xl"
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="space-y-3">
+                                                <Label className="text-slate-200 font-semibold">Phone Number <span className="text-rose-400">*</span></Label>
+                                                <Input
+                                                    type="tel"
+                                                    placeholder="e.g. 082 123 4567"
+                                                    value={contactInfo.phone}
+                                                    onChange={(e) => handleContactChange('phone', e.target.value)}
+                                                    className="bg-white/5 border-white/10 h-12 rounded-xl"
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="space-y-3">
+                                                <Label className="text-slate-200 font-semibold">Brokerage / Firm Name</Label>
+                                                <Input
+                                                    type="text"
+                                                    placeholder="e.g. Smith Financial Services"
+                                                    value={contactInfo.firmName}
+                                                    onChange={(e) => handleContactChange('firmName', e.target.value)}
+                                                    className="bg-white/5 border-white/10 h-12 rounded-xl"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Operational Inputs */}
+                                    <div className="space-y-8 pt-8 border-t border-white/5">
                                         <div className="flex items-center gap-4 mb-4">
                                             <div className="p-2 rounded-xl bg-blue-500/10 border border-blue-500/20">
                                                 <Users className="h-5 w-5 text-blue-400" />

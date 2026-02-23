@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Download, Mail, ZoomIn, ZoomOut, Maximize, Monitor, Save, Mic, MicOff, Bot, Check, X } from "lucide-react";
+import { ArrowLeft, Download, Mail, ZoomIn, ZoomOut, Maximize, Monitor, Save, Mic, MicOff, Bot, Check, X, Loader2 } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import logo from "@/assets/lead-velocity-logo.png";
@@ -249,25 +249,25 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
             document.body.appendChild(clone);
             await new Promise(r => setTimeout(r, 100));
 
-            const canvas = await html2canvas(clone, { scale: 2, useCORS: true, logging: false, backgroundColor: "#ffffff", windowWidth: 794 });
+            const canvas = await html2canvas(clone, { scale: 1.5, useCORS: true, logging: false, backgroundColor: "#ffffff", windowWidth: 794 });
             document.body.removeChild(clone);
 
-            const imgData = canvas.toDataURL("image/png");
-            const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+            const imgData = canvas.toDataURL("image/jpeg", 0.85);
+            const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
             const imgWidth = 210;
             const pageHeight = 297;
             const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
             if (imgHeight <= pageHeight) {
-                pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
+                pdf.addImage(imgData, "JPEG", 0, 0, imgWidth, imgHeight);
             } else {
                 let heightLeft = imgHeight, position = 0;
-                pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+                pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
                 heightLeft -= pageHeight;
                 while (heightLeft >= 0) {
                     position = heightLeft - imgHeight;
                     pdf.addPage();
-                    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+                    pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
                     heightLeft -= pageHeight;
                 }
             }
@@ -277,42 +277,59 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
             if (action === 'download') {
                 pdf.save(fileName);
                 toast({ title: "Downloaded" });
-            } else if (action === 'email') {
-                if (!recipientEmail) {
-                    toast({ title: "Email Required", variant: "destructive" });
-                } else {
-                    const subject = encodeURIComponent(`Contract: ${contractData.title} - ${contractData.clientCompany}`);
-                    const emailBody = `Dear ${contractData.clientName},
-
-Please find attached the Service Level Agreement for your review.
-
-We look forward to a successful partnership.
-${getContractEmailSignature()}`;
-                    const body = encodeURIComponent(emailBody);
-                    window.location.href = `mailto:${recipientEmail}?subject=${subject}&body=${body}`;
-                    toast({ title: "Email Drafted" });
-                }
             } else {
+                // For 'save' and 'email', we upload to Supabase
                 const pdfBlob = pdf.output('blob');
                 const filePath = `contracts/${fileName}`;
-                const { error: uploadError } = await supabase.storage.from('admin-documents').upload(filePath, pdfBlob, { upsert: false, contentType: 'application/pdf' });
+
+                // Upload to Storage
+                const { error: uploadError } = await supabase.storage
+                    .from('admin-documents')
+                    .upload(filePath, pdfBlob, {
+                        upsert: false,
+                        contentType: 'application/pdf'
+                    });
+
                 if (uploadError) throw uploadError;
 
+                // Get Public URL
+                const { data: { publicUrl } } = supabase.storage
+                    .from('admin-documents')
+                    .getPublicUrl(filePath);
+
+                // Get Current User
                 const { data: { user } } = await supabase.auth.getUser();
                 if (user) {
-                    const { error: dbError } = await supabase.from('admin_documents').insert({
-                        name: fileName,
-                        description: `Contract for ${contractData.clientCompany}`,
-                        file_path: filePath,
-                        file_type: 'pdf',
-                        file_size: pdfBlob.size,
-                        category: 'contracts',
-                        uploaded_by: user.id,
-                        content_data: contractData
-                    });
+                    // Save to Database
+                    const { error: dbError } = await supabase
+                        .from('admin_documents')
+                        .insert({
+                            name: fileName,
+                            description: `Contract for ${contractData.clientCompany}`,
+                            file_path: filePath,
+                            file_type: 'pdf',
+                            file_size: pdfBlob.size,
+                            category: 'contracts',
+                            uploaded_by: user.id,
+                            content_data: contractData
+                        });
+
                     if (dbError) throw dbError;
                 }
-                toast({ title: "Saved to Library" });
+
+                if (action === 'email') {
+                    if (!recipientEmail) {
+                        toast({ title: "Email Required", variant: "destructive" });
+                    } else {
+                        const subject = encodeURIComponent(`Contract: ${contractData.title} - ${contractData.clientCompany}`);
+                        const emailBody = `Dear ${contractData.clientName},\n\nPlease find the Service Level Agreement for your review at the link below:\n\n${publicUrl}\n\nWe look forward to a successful partnership.\n\n${getContractEmailSignature()}`;
+                        const body = encodeURIComponent(emailBody);
+                        window.location.href = `mailto:${recipientEmail}?subject=${subject}&body=${body}`;
+                        toast({ title: "Email Drafted", description: "Link included in body!" });
+                    }
+                } else {
+                    toast({ title: "Saved to Library" });
+                }
             }
         } catch (error: any) {
             toast({ title: "Error", description: error.message, variant: "destructive" });
