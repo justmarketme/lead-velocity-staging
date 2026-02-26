@@ -26,17 +26,17 @@ const Dashboard = () => {
   const setActiveTab = (tab: string) => setSearchParams({ tab });
   const navigate = useNavigate();
 
-  useEffect(() => {
-    // TEMPORARY: Bypass authentication for development
-    console.log("DEV MODE: Bypassing authentication");
-    setSession({ user: { id: 'dev-user' } } as any);
-    setLoading(false);
+  let isMounted = true;
 
-    /* ORIGINAL AUTH CODE - COMMENTED FOR DEVELOPMENT
-    let isMounted = true;
+  const checkUserRole = async (userId: string) => {
+    // Check if user is an admin
+    const { data: isAdmin, error: roleError } = await supabase.rpc('has_role', {
+      _user_id: userId,
+      _role: 'admin'
+    });
 
-    const checkUserRole = async (userId: string) => {
-      // Check if user is a broker
+    if (roleError || !isAdmin) {
+      // Not an admin, check if they are a broker
       const { data: brokerData } = await supabase
         .from("brokers")
         .select("id")
@@ -45,59 +45,48 @@ const Dashboard = () => {
 
       if (brokerData) {
         navigate("/broker/dashboard");
-        return;
-      }
-
-      // Check if user is an admin
-      const { data: roleData } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId)
-        .eq("role", "admin")
-        .single();
-
-      if (!roleData) {
-        await supabase.auth.signOut();
-        navigate("/login");
-      }
-    };
-
-    // Check for existing session first
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!isMounted) return;
-      setSession(session);
-      
-      if (!session) {
-        setLoading(false);
-        navigate("/login");
       } else {
+        // Neither admin nor broker - sign out and go to login
+        await supabase.auth.signOut();
+        navigate("/admin");
+      }
+      return;
+    }
+  };
+
+  // Check for existing session first
+  supabase.auth.getSession().then(async ({ data: { session } }) => {
+    if (!isMounted) return;
+
+    if (!session) {
+      setLoading(false);
+      navigate("/admin");
+    } else {
+      setSession(session);
+      await checkUserRole(session.user.id);
+      if (isMounted) setLoading(false);
+    }
+  });
+
+  // Set up auth state listener
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    async (event, session) => {
+      if (!isMounted) return;
+
+      if (event === 'SIGNED_OUT') {
+        setSession(null);
+        navigate("/admin");
+      } else if (event === 'SIGNED_IN' && session) {
+        setSession(session);
         await checkUserRole(session.user.id);
-        if (isMounted) setLoading(false);
       }
-    });
+    }
+  );
 
-    // Set up auth state listener for future changes only
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (!isMounted) return;
-        
-        // Only handle actual sign in/out events, not initial session
-        if (event === 'SIGNED_OUT') {
-          setSession(null);
-          navigate("/login");
-        } else if (event === 'SIGNED_IN') {
-          setSession(session);
-          // Role check already done in getSession for existing sessions
-        }
-      }
-    );
-
-    return () => {
-      isMounted = false;
-      subscription.unsubscribe();
-    };
-    */
-  }, [navigate]);
+  return () => {
+    isMounted = false;
+    subscription.unsubscribe();
+  };
 
   if (loading) {
     return (

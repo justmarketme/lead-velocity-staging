@@ -7,12 +7,17 @@ import { Button } from "@/components/ui/button";
 import {
     CheckCircle2, AlertCircle, Clock, Zap, Target, TrendingUp,
     BarChart3, Users, ChevronRight, ChevronDown,
-    XCircle, Info, MessageSquare, Briefcase, Phone, Mail, Globe, MapPin, Building
+    XCircle, Info, MessageSquare, Briefcase, Phone, Mail, Globe, MapPin, Building,
+    Filter, MoreHorizontal, Calendar, Star, Sparkles, Layout, Settings2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { format } from "date-fns";
 
 interface BrokerAnalysis {
     id: string;
@@ -29,10 +34,16 @@ interface BrokerAnalysis {
     admin_notes: string | null;
     created_at: string;
     responses: {
+        id: string;
         full_name: string | null;
         email: string | null;
+        phone: string | null;
         phone_number: string | null;
         firm_name: string | null;
+        company_name: string | null;
+        preferred_call_time: string | null;
+        whatsapp_number: string | null;
+        whatsapp_consent: boolean;
         product_focus_clarity: string;
         geographic_focus_clarity: string;
         timeline_to_start: string;
@@ -54,10 +65,9 @@ const BrokerAnalysisDashboard = () => {
     const [analyses, setAnalyses] = useState<BrokerAnalysis[]>([]);
     const [loading, setLoading] = useState(true);
     const [expandedId, setExpandedId] = useState<string | null>(null);
-    const [selectedTier, setSelectedTier] = useState<string>("Bronze");
+    const [selectedTier, setSelectedTier] = useState<string>("Pilot");
+    const [portalStyle, setPortalStyle] = useState<"Standard" | "Elite">("Standard");
     const [isLeadLoading, setIsLeadLoading] = useState(true);
-    const [adminMsg, setAdminMsg] = useState("");
-    const [brokerMessages, setBrokerMessages] = useState<any[]>([]);
 
     useEffect(() => {
         fetchAnalyses();
@@ -87,63 +97,45 @@ const BrokerAnalysisDashboard = () => {
         }
     };
 
-    const fetchBrokerThread = async (analysisId: string) => {
-        // Logic to fetch notes for this broker
-        // Assuming we join via the responses.email or similar
-        const email = analyses.find(a => a.id === analysisId)?.responses?.email;
-        if (!email) return;
-
-        const { data: broker } = await supabase.from("brokers").select("id").eq("email", email).single();
-        if (!broker) return;
-
-        const { data: notes } = await supabase
-            .from("broker_notes")
-            .select("*")
-            .eq("lead_id", broker.id) // Mocking lead_id as broker_id for thread purposes or using a different join
-            .order("created_at", { ascending: true });
-
-        setBrokerMessages(notes || []);
-    };
-
     const handleCreatePremiumPortal = async (analysis: BrokerAnalysis) => {
         try {
             const { responses } = analysis;
-            if (!responses?.email) return;
+            if (!responses?.email) {
+                toast({ title: "Email Missing", description: "Cannot provision portal without email.", variant: "destructive" });
+                return;
+            }
+
+            // Unify names
+            const phone = responses.phone || responses.phone_number;
+            const firmName = responses.firm_name || responses.company_name || 'Individual';
 
             // 1. Create / Update Broker Record
             const { data: broker, error: brokerError } = await supabase
                 .from("brokers")
                 .upsert({
                     email: responses.email,
-                    firm_name: responses.firm_name,
-                    contact_person: responses.full_name,
-                    phone: responses.phone_number,
+                    firm_name: firmName,
+                    contact_person: responses.full_name || 'Anonymous',
+                    phone_number: phone,
                     tier: selectedTier,
                     is_lead_loading: isLeadLoading,
-                    status: 'active'
+                    portal_style: portalStyle,
+                    status: 'Active'
                 }, { onConflict: 'email' })
                 .select()
                 .single();
 
             if (brokerError) throw brokerError;
 
-            // 2. Generate Temp Credentials (Mocking Supabase Admin logic)
-            // In a real app, you'd call a Supabase Edge Function to invite the user
             toast({
-                title: "Premium Portal Provisioning",
-                description: `Created ${selectedTier} portal for ${responses.full_name}. Temp password sent to ${responses.email}.`,
+                title: "Portal Provisioned",
+                description: `${portalStyle} portal created for ${responses.full_name}. Tier: ${selectedTier}.`,
             });
 
             handleAction(analysis.id, 'proceed');
         } catch (e: any) {
             toast({ title: "Provisioning Failed", description: e.message, variant: "destructive" });
         }
-    };
-
-    const handleSendAdminNote = async (analysisId: string) => {
-        // Logic to send note back to broker
-        toast({ title: "Message Dispatched", description: "Your response has been sent to the broker portal." });
-        setAdminMsg("");
     };
 
     const handleAction = async (id: string, status: string) => {
@@ -170,20 +162,21 @@ const BrokerAnalysisDashboard = () => {
         }
     };
 
-    const getScoreColor = (score: number) => {
-        if (score >= 80) return "text-emerald-400";
-        if (score >= 60) return "text-amber-400";
-        return "text-rose-400";
-    };
-
     const getProbabilityColor = (band: string) => {
         switch (band) {
-            case 'High Probability': return "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
-            case 'Medium Probability': return "bg-amber-500/10 text-amber-400 border-amber-500/20";
-            case 'Low Probability': return "bg-rose-500/10 text-rose-400 border-rose-500/20";
-            default: return "bg-slate-500/10 text-slate-400 border-slate-500/20";
+            case 'High Probability': return "text-emerald-400";
+            case 'Medium Probability': return "text-amber-400";
+            case 'Low Probability': return "text-rose-400";
+            default: return "text-slate-400";
         }
     };
+
+    const stats = [
+        { label: "Total", value: analyses.length, icon: Users, color: "text-purple-500" },
+        { label: "New", value: analyses.filter(a => a.status === 'pending').length, icon: Clock, color: "text-blue-500" },
+        { label: "Scheduled", value: 0, icon: Calendar, color: "text-orange-500" },
+        { label: "Converted", value: analyses.filter(a => a.status === 'proceed').length, icon: CheckCircle2, color: "text-green-500" },
+    ];
 
     if (loading) {
         return (
@@ -194,326 +187,255 @@ const BrokerAnalysisDashboard = () => {
     }
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-700">
+        <div className="space-y-6 animate-in fade-in duration-500">
+            {/* Header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div className="flex flex-col gap-2">
-                    <h1 className="text-4xl font-black tracking-tighter text-white italic uppercase">Broker Intelligence Center</h1>
-                    <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Filtering high-velocity partners for elite growth</p>
+                <div>
+                    <h1 className="text-2xl font-bold text-white">Broker Onboarding Submissions</h1>
+                    <p className="text-slate-500 text-sm">Review and manage incoming broker applications</p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <Badge className="bg-pink-600/10 text-pink-500 border-pink-500/20 px-4 py-2 rounded-xl font-black uppercase text-[10px] tracking-widest">
-                        Total Submissions: {analyses.length}
-                    </Badge>
-                </div>
+                <Button variant="outline" className="bg-slate-900/50 border-white/10 text-xs h-9">
+                    All Submissions <ChevronDown className="ml-2 h-4 w-4" />
+                </Button>
             </div>
 
-            <div className="grid gap-8">
-                {analyses.length === 0 ? (
-                    <Card className="bg-slate-900/20 border-2 border-dashed border-white/5 py-24 text-center rounded-[40px]">
-                        <CardContent className="space-y-6">
-                            <Users className="h-16 w-16 text-slate-800 mx-auto" />
-                            <p className="text-slate-500 font-bold uppercase tracking-widest text-xs italic">Awaiting new broker intake signals...</p>
+            {/* Stats Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {stats.map((stat, i) => (
+                    <Card key={i} className="bg-slate-900/40 border-white/5">
+                        <CardContent className="p-4 flex items-center gap-4">
+                            <div className={cn("p-2 rounded-lg bg-white/5", stat.color)}>
+                                <stat.icon className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <p className="text-2xl font-bold text-white leading-none">{stat.value}</p>
+                                <p className="text-[10px] font-bold uppercase text-slate-500 tracking-wider mt-1">{stat.label}</p>
+                            </div>
                         </CardContent>
                     </Card>
+                ))}
+            </div>
+
+            {/* Submissions List */}
+            <div className="space-y-4">
+                {analyses.length === 0 ? (
+                    <div className="text-center py-20 bg-slate-900/20 rounded-3xl border-2 border-dashed border-white/5">
+                        <Users className="h-12 w-12 text-slate-700 mx-auto mb-4" />
+                        <p className="text-slate-500 font-medium">No onboarding submissions found</p>
+                    </div>
                 ) : (
-                    analyses.map((analysis) => (
+                    analyses.map((submission) => (
                         <Card
-                            key={analysis.id}
+                            key={submission.id}
                             className={cn(
-                                "bg-[#020617] border-white/5 overflow-hidden transition-all duration-500 rounded-[40px] shadow-2xl",
-                                expandedId === analysis.id ? "ring-2 ring-pink-500/20 scale-[1.01]" : "hover:bg-slate-900/50"
+                                "bg-[#020617] border-white/5 overflow-hidden transition-all duration-300 rounded-2xl",
+                                expandedId === submission.id ? "ring-1 ring-primary/20" : "hover:bg-slate-900/40"
                             )}
                         >
                             <div
-                                className="p-8 cursor-pointer flex flex-col xl:flex-row items-start xl:items-center justify-between gap-8 h-full"
-                                onClick={() => setExpandedId(expandedId === analysis.id ? null : analysis.id)}
+                                className="p-6 cursor-pointer"
+                                onClick={() => setExpandedId(expandedId === submission.id ? null : submission.id)}
                             >
-                                <div className="flex items-center gap-8 flex-1">
-                                    <div className="h-16 w-16 rounded-[24px] bg-gradient-to-br from-pink-500 to-rose-700 flex items-center justify-center shrink-0 shadow-2xl shadow-pink-500/20">
-                                        <Briefcase className="h-8 w-8 text-white" />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <div className="flex flex-wrap items-center gap-3">
-                                            <h3 className="text-2xl font-black text-white italic uppercase tracking-tighter">
-                                                {analysis.responses?.full_name || "Anonymous Intake"}
+                                <div className="flex flex-col lg:flex-row gap-6">
+                                    {/* Left Side: Avatar & Basic Info */}
+                                    <div className="flex items-center gap-4 flex-1">
+                                        <div className="h-10 w-10 rounded-full bg-purple-500/20 flex items-center justify-center border border-purple-500/30">
+                                            <Users className="h-5 w-5 text-purple-400" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-sm font-bold text-white leading-none mb-1">
+                                                {submission.responses?.full_name || "N/A"}
                                             </h3>
-                                            {analysis.status !== 'pending' && (
-                                                <Badge className={cn(
-                                                    "text-[9px] uppercase font-black px-4 py-1.5 rounded-full border shadow-xl",
-                                                    analysis.status === 'proceed' ? "bg-emerald-500/20 text-emerald-400 border-emerald-400/20" :
-                                                        analysis.status === 'hold' ? "bg-amber-500/20 text-amber-400 border-amber-400/20" :
-                                                            "bg-rose-500/20 text-rose-400 border-rose-400/20"
-                                                )}>
-                                                    {analysis.status}
-                                                </Badge>
+                                            <p className="text-xs text-slate-500 font-medium">
+                                                {submission.responses?.firm_name || submission.responses?.company_name || "Independent"}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Middle: Contact Details (Icon Based) */}
+                                    <div className="flex flex-wrap items-center gap-x-8 gap-y-3 flex-[2]">
+                                        <div className="flex items-center gap-2 text-[11px] text-slate-400 font-medium">
+                                            <Mail className="h-3.5 w-3.5 text-purple-500" />
+                                            {submission.responses?.email || "N/A"}
+                                        </div>
+                                        <div className="flex items-center gap-2 text-[11px] text-slate-400 font-medium">
+                                            <Phone className="h-3.5 w-3.5 text-pink-500" />
+                                            {submission.responses?.phone || submission.responses?.phone_number || "N/A"}
+                                        </div>
+                                        <div className="flex items-center gap-2 text-[11px] text-slate-400 font-medium">
+                                            <div className="h-3.5 w-3.5 border border-purple-500/50 rounded flex items-center justify-center">
+                                                <div className="h-2 w-2 bg-purple-500 rounded-sm" />
+                                            </div>
+                                            {submission.responses?.whatsapp_number || submission.responses?.phone || submission.responses?.phone_number || "N/A"}
+                                        </div>
+                                        <div className="flex items-center gap-2 text-[11px] text-slate-400 font-medium">
+                                            <Clock className="h-3.5 w-3.5 text-yellow-500" />
+                                            {submission.responses?.preferred_call_time || "Not set"}
+                                        </div>
+                                    </div>
+
+                                    {/* Right: Badges & Time */}
+                                    <div className="flex items-center justify-between lg:justify-end gap-4 min-w-[200px]">
+                                        <div className="flex gap-2">
+                                            {submission.status === 'pending' && (
+                                                <Badge className="bg-purple-600/20 text-purple-400 border-purple-500/20 text-[9px] uppercase font-bold py-0.5 px-2">New</Badge>
+                                            )}
+                                            {submission.status === 'proceed' && (
+                                                <Badge className="bg-emerald-600/20 text-emerald-400 border-emerald-500/20 text-[9px] uppercase font-bold py-0.5 px-2">Converted</Badge>
+                                            )}
+                                            {submission.responses?.whatsapp_consent && (
+                                                <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/20 text-[9px] uppercase font-bold py-0.5 px-2">WhatsApp OK</Badge>
                                             )}
                                         </div>
-                                        <div className="flex flex-wrap items-center gap-6 text-[10px] text-slate-500 font-black uppercase tracking-widest">
-                                            <span className="flex items-center gap-2">
-                                                <Building className="h-3.5 w-3.5 text-pink-500" />
-                                                {analysis.responses?.firm_name || 'Independent HQ'}
-                                            </span>
-                                            <span className="flex items-center gap-2">
-                                                <Target className="h-3.5 w-3.5 text-blue-500" />
-                                                {analysis.responses?.product_focus_clarity || 'Universal'} Focus
-                                            </span>
-                                            <span className="flex items-center gap-2">
-                                                <Clock className="h-3.5 w-3.5 text-emerald-500" />
-                                                {analysis.responses?.timeline_to_start || 'Immediate'}
-                                            </span>
+                                        <div className="text-[10px] text-slate-600 font-bold whitespace-nowrap uppercase">
+                                            {format(new Date(submission.created_at), "MMM d, yyyy 'at' h:mm a")}
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="flex flex-wrap items-center gap-12 w-full xl:w-auto">
-                                    <div className="text-center xl:text-right">
-                                        <p className="text-[9px] uppercase font-black text-slate-600 mb-2 tracking-widest italic leading-none">Velo Probability</p>
-                                        <Badge className={cn("px-6 py-2 rounded-full border border-white/5 text-xs font-black italic shadow-2xl", getProbabilityColor(analysis.success_band))}>
-                                            <Zap className="h-3.5 w-3.5 mr-2 animate-pulse" />
-                                            {analysis.success_probability}% {analysis.success_band.split(' ')[0]}
-                                        </Badge>
-                                    </div>
-
-                                    <div className="flex gap-10">
-                                        {[
-                                            { label: 'Ops', val: analysis.operational_score, icon: Users, color: 'text-blue-400' },
-                                            { label: 'Budget', val: analysis.budget_score, icon: BarChart3, color: 'text-amber-400' },
-                                            { label: 'Growth', val: analysis.growth_score, icon: TrendingUp, color: 'text-emerald-400' },
-                                        ].map((score, i) => (
-                                            <div key={i} className="text-center">
-                                                <p className="text-[9px] uppercase font-black text-slate-600 mb-2 tracking-widest italic leading-none">{score.label}</p>
-                                                <div className={cn("font-black text-2xl italic tracking-tighter", score.color)}>
-                                                    {score.val}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    <div className="hidden sm:block">
-                                        {expandedId === analysis.id ? (
-                                            <ChevronDown className="h-6 w-6 text-slate-700" />
-                                        ) : (
-                                            <ChevronRight className="h-6 w-6 text-slate-700" />
-                                        )}
+                                {/* Accordion Trigger */}
+                                <div className="flex justify-center mt-4">
+                                    <div className="flex items-center gap-1 text-[10px] font-bold text-slate-600 uppercase tracking-widest group">
+                                        <ChevronDown className={cn("h-3 w-3 transition-transform", expandedId === submission.id && "rotate-180")} />
+                                        View Full Details
                                     </div>
                                 </div>
                             </div>
 
-                            {expandedId === analysis.id && (
-                                <div className="border-t border-white/[0.03] bg-white/[0.01] p-10 animate-in slide-in-from-top-4 duration-500">
-                                    <div className="grid lg:grid-cols-4 gap-12">
-                                        <div className="lg:col-span-3 space-y-12">
-                                            {/* Submission Details Section */}
-                                            <div className="space-y-10">
-                                                {/* Contact Details Row */}
-                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 p-8 bg-white/[0.02] rounded-[32px] border border-white/5 shadow-2xl">
-                                                    <div className="space-y-1 group">
-                                                        <p className="text-[9px] font-black uppercase text-slate-600 tracking-widest mb-2 flex items-center gap-2">
-                                                            <Mail className="h-3 w-3 text-pink-500" /> Elite Email
-                                                        </p>
-                                                        <span className="text-sm font-bold text-white italic truncate block group-hover:text-pink-400 transition-colors">{analysis.responses?.email || 'OFF-GRID'}</span>
-                                                    </div>
-                                                    <div className="space-y-1 group">
-                                                        <p className="text-[9px] font-black uppercase text-slate-600 tracking-widest mb-2 flex items-center gap-2">
-                                                            <Phone className="h-3 w-3 text-blue-500" /> Private Line
-                                                        </p>
-                                                        <span className="text-sm font-bold text-white italic block group-hover:text-blue-400 transition-colors">{analysis.responses?.phone_number || 'ENC-LOST'}</span>
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <p className="text-[9px] font-black uppercase text-slate-600 tracking-widest mb-2 flex items-center gap-2">
-                                                            <MapPin className="h-3 w-3 text-emerald-500" /> Operational Geo
-                                                        </p>
-                                                        <span className="text-sm font-bold text-white italic block">{analysis.responses?.geographic_focus_clarity || 'Global'}</span>
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <p className="text-[9px] font-black uppercase text-slate-600 tracking-widest mb-2 flex items-center gap-2">
-                                                            <Clock className="h-3 w-3 text-amber-500" /> Target Inception
-                                                        </p>
-                                                        <span className="text-sm font-bold text-white italic block">{analysis.responses?.timeline_to_start || 'ASAP'}</span>
-                                                    </div>
+                            {/* Expanded Content */}
+                            {expandedId === submission.id && (
+                                <div className="border-t border-white/[0.03] p-6 bg-white/[0.01] animate-in slide-in-from-top-2 duration-300">
+                                    <div className="grid lg:grid-cols-4 gap-8">
+                                        {/* Score Analysis */}
+                                        <div className="lg:col-span-1 space-y-6">
+                                            <div className="p-4 bg-slate-950/50 rounded-2xl border border-white/5 space-y-4 text-center">
+                                                <p className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Readiness Score</p>
+                                                <div className={cn("text-4xl font-black italic tracking-tighter leading-none", getProbabilityColor(submission.success_band))}>
+                                                    {submission.success_probability}%
                                                 </div>
-
-                                                <div className="grid md:grid-cols-2 gap-10">
-                                                    {/* Budget & Capacity */}
-                                                    <div className="space-y-6">
-                                                        <h4 className="text-xs font-black uppercase tracking-[0.3em] text-pink-500 italic flex items-center gap-3">
-                                                            <BarChart3 className="h-4 w-4" /> Capital & Throughput
-                                                        </h4>
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <div className="p-6 bg-white/[0.02] rounded-3xl border border-white/5 shadow-xl group hover:bg-white/[0.04] transition-all">
-                                                                <p className="text-[9px] uppercase text-slate-600 font-black tracking-widest mb-2 italic">Monthly Deployment</p>
-                                                                <p className="text-lg font-black text-white italic tracking-tighter">{analysis.responses?.monthly_lead_spend || '-'}</p>
-                                                            </div>
-                                                            <div className="p-6 bg-white/[0.02] rounded-3xl border border-white/5 shadow-xl group hover:bg-white/[0.04] transition-all">
-                                                                <p className="text-[9px] uppercase text-slate-600 font-black tracking-widest mb-2 italic">CPL Tolerance</p>
-                                                                <p className="text-lg font-black text-white italic tracking-tighter">{analysis.responses?.pricing_comfort || '-'}</p>
-                                                            </div>
-                                                            <div className="p-6 bg-white/[0.02] rounded-3xl border border-white/5 shadow-xl group hover:bg-white/[0.04] transition-all">
-                                                                <p className="text-[9px] uppercase text-slate-600 font-black tracking-widest mb-2 italic">Desired Inlet</p>
-                                                                <p className="text-lg font-black text-white italic tracking-tighter">{analysis.responses?.desired_leads_weekly || '-'}/WK</p>
-                                                            </div>
-                                                            <div className="p-6 bg-white/[0.02] rounded-3xl border border-white/5 shadow-xl group hover:bg-white/[0.04] transition-all">
-                                                                <p className="text-[9px] uppercase text-slate-600 font-black tracking-widest mb-2 italic">Absorption Cap</p>
-                                                                <p className="text-lg font-black text-white italic tracking-tighter">{analysis.responses?.max_capacity_weekly || '-'}/WK</p>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Systems & Process */}
-                                                    <div className="space-y-6">
-                                                        <h4 className="text-xs font-black uppercase tracking-[0.3em] text-blue-500 italic flex items-center gap-3">
-                                                            <Zap className="h-4 w-4" /> Operational Stack
-                                                        </h4>
-                                                        <div className="space-y-4">
-                                                            <div className="grid grid-cols-2 gap-4">
-                                                                <div className="p-6 bg-white/[0.02] rounded-3xl border border-white/5 shadow-xl">
-                                                                    <p className="text-[9px] uppercase text-slate-600 font-black tracking-widest mb-2 italic">CRM Protocol</p>
-                                                                    <p className="text-lg font-black text-white italic tracking-tighter truncate">{analysis.responses?.crm_usage || 'MANUAL'}</p>
-                                                                </div>
-                                                                <div className="p-6 bg-white/[0.02] rounded-3xl border border-white/5 shadow-xl">
-                                                                    <p className="text-[9px] uppercase text-slate-600 font-black tracking-widest mb-2 italic">Response Velocity</p>
-                                                                    <p className="text-lg font-black text-white italic tracking-tighter">{analysis.responses?.speed_to_contact || '-'}</p>
-                                                                </div>
-                                                            </div>
-                                                            <div className="p-6 bg-white/[0.02] rounded-3xl border border-white/5 shadow-xl">
-                                                                <p className="text-[9px] uppercase text-slate-600 font-black tracking-widest mb-2 italic">Engagement Strategy</p>
-                                                                <p className="text-sm text-slate-400 italic font-medium leading-relaxed">"{analysis.responses?.follow_up_process}"</p>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
+                                                <p className="text-[9px] font-bold uppercase text-slate-600 tracking-widest">{submission.success_band}</p>
                                             </div>
 
-                                            <div className="space-y-8 pt-6 border-t border-white/[0.03]">
-                                                <h4 className="text-xs font-black uppercase tracking-[0.4em] text-white flex items-center gap-4 italic mb-8">
-                                                    <Sparkles className="h-5 w-5 text-yellow-500" /> ELITE ARCHITECT SUMMARY (GEN-AI)
-                                                </h4>
-                                                <div className="p-10 rounded-[40px] bg-gradient-to-br from-indigo-500/5 to-transparent border border-indigo-500/10 text-slate-300 leading-relaxed italic text-lg shadow-[0_32px_64px_-24px_rgba(0,0,0,0.5)]">
-                                                    {analysis.ai_explanation || (
-                                                        <div className="flex items-center gap-4 text-slate-600">
-                                                            <Zap className="h-6 w-6 animate-pulse text-indigo-500" />
-                                                            Synthesizing multi-vector analysis...
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            <div className="grid md:grid-cols-2 gap-10">
-                                                <div className="space-y-6">
-                                                    <h4 className="text-xs font-black uppercase tracking-[0.3em] text-rose-500 flex items-center gap-3 italic">
-                                                        <AlertCircle className="h-4 w-4" /> Operational Fragility
-                                                    </h4>
-                                                    <div className="flex flex-wrap gap-3">
-                                                        {analysis.risk_flags.length > 0 ? (
-                                                            analysis.risk_flags.map((flag, i) => (
-                                                                <Badge key={i} className="bg-rose-500/10 text-rose-400 border-rose-500/20 py-3 px-6 rounded-2xl font-black uppercase text-[9px] tracking-widest shadow-xl">
-                                                                    {flag}
-                                                                </Badge>
-                                                            ))
-                                                        ) : (
-                                                            <span className="text-xs text-slate-600 font-black uppercase tracking-widest italic">Zero volatility detected in primary vectors.</span>
-                                                        )}
+                                            <div className="space-y-3">
+                                                {[
+                                                    { label: 'Operational', val: submission.operational_score, icon: Users, color: 'text-blue-400' },
+                                                    { label: 'Budget', val: submission.budget_score, icon: BarChart3, color: 'text-amber-400' },
+                                                    { label: 'Growth', val: submission.growth_score, icon: TrendingUp, color: 'text-emerald-400' },
+                                                ].map((score, i) => (
+                                                    <div key={i} className="flex items-center justify-between p-3 bg-white/[0.02] rounded-xl border border-white/5 text-[11px]">
+                                                        <span className="text-slate-500 font-bold uppercase tracking-wide">{score.label}</span>
+                                                        <span className={cn("font-black", score.color)}>{score.val}</span>
                                                     </div>
-                                                </div>
-
-                                                <div className="space-y-6">
-                                                    <h4 className="text-xs font-black uppercase tracking-[0.3em] text-emerald-500 flex items-center gap-3 italic">
-                                                        <Target className="h-4 w-4" /> Strategic Leverage Point
-                                                    </h4>
-                                                    <div className="p-8 rounded-[32px] bg-emerald-500/5 border border-emerald-500/10 shadow-2xl relative overflow-hidden group">
-                                                        <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                                                        <p className="font-black text-2xl text-emerald-400 italic tracking-tighter mb-2 relative z-10">{analysis.primary_sales_angle}</p>
-                                                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest italic relative z-10">Primary anchor for conversion cycle.</p>
-                                                    </div>
-                                                </div>
+                                                ))}
                                             </div>
                                         </div>
 
-                                        {/* Administration Control Panel */}
-                                        <div className="space-y-8 flex flex-col h-full">
-                                            <div className="p-8 rounded-[40px] bg-white/[0.02] border border-white/5 space-y-8 shadow-2xl sticky top-32">
-                                                <h4 className="text-xs font-black uppercase tracking-[0.3em] text-white italic text-center mb-4">Command Actions</h4>
+                                        {/* Application Details */}
+                                        <div className="lg:col-span-2 space-y-6">
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="p-4 bg-white/[0.02] rounded-xl border border-white/5">
+                                                    <p className="text-[10px] uppercase text-slate-600 font-black mb-1">CRM Usage</p>
+                                                    <p className="text-xs font-bold text-white">{submission.responses?.crm_usage || "None"}</p>
+                                                </div>
+                                                <div className="p-4 bg-white/[0.02] rounded-xl border border-white/5">
+                                                    <p className="text-[10px] uppercase text-slate-600 font-black mb-1">Monthly Budget</p>
+                                                    <p className="text-xs font-bold text-white">{submission.responses?.monthly_lead_spend || "N/A"}</p>
+                                                </div>
+                                                <div className="p-4 bg-white/[0.02] rounded-xl border border-white/5">
+                                                    <p className="text-[10px] uppercase text-slate-600 font-black mb-1">Weekly Desired</p>
+                                                    <p className="text-xs font-bold text-white">{submission.responses?.desired_leads_weekly || 0} Leads</p>
+                                                </div>
+                                                <div className="p-4 bg-white/[0.02] rounded-xl border border-white/5">
+                                                    <p className="text-[10px] uppercase text-slate-600 font-black mb-1">Team Size</p>
+                                                    <p className="text-xs font-bold text-white">{submission.responses?.team_size || "Solo"}</p>
+                                                </div>
+                                            </div>
 
-                                                <div className="space-y-6">
-                                                    <div className="space-y-4 bg-white/[0.03] p-6 rounded-3xl border border-white/5">
-                                                        <p className="text-[9px] font-black uppercase text-slate-600 tracking-widest italic mb-2">Assign Tier & Configuration</p>
-                                                        <select
-                                                            className="w-full bg-[#020617] border-white/10 rounded-xl h-12 px-4 text-xs font-black uppercase tracking-widest text-white focus:ring-pink-500/20 focus:border-pink-500/50 outline-none transition-all"
-                                                            value={selectedTier}
-                                                            onChange={(e) => setSelectedTier(e.target.value)}
-                                                        >
-                                                            <option value="Pilot">Pilot System</option>
-                                                            <option value="Bronze">Bronze Membership</option>
-                                                            <option value="Silver">Silver Elite</option>
-                                                            <option value="Gold">Gold Supremacy</option>
-                                                        </select>
+                                            <div className="p-4 bg-emerald-500/5 rounded-xl border border-emerald-500/10">
+                                                <p className="text-[10px] font-black uppercase text-emerald-500 mb-2 flex items-center gap-2">
+                                                    <Target className="h-3 w-3" /> Growth Focus
+                                                </p>
+                                                <p className="text-xs text-emerald-300 italic font-medium">
+                                                    {submission.primary_sales_angle}
+                                                </p>
+                                            </div>
 
-                                                        <div className="flex items-center justify-between pt-4">
-                                                            <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest italic">Lead Loading Status</span>
-                                                            <button
-                                                                onClick={() => setIsLeadLoading(!isLeadLoading)}
-                                                                className={cn(
-                                                                    "h-6 w-12 rounded-full transition-all duration-500 p-1 flex items-center shadow-xl",
-                                                                    isLeadLoading ? "bg-emerald-500" : "bg-slate-800"
-                                                                )}
-                                                            >
-                                                                <div className={cn("h-4 w-4 bg-white rounded-full transition-all transform", isLeadLoading ? "translate-x-6" : "translate-x-0")} />
-                                                            </button>
-                                                        </div>
-                                                    </div>
+                                            <div className="p-4 bg-indigo-500/5 rounded-xl border border-indigo-500/10 space-y-2">
+                                                <p className="text-[10px] font-black uppercase text-indigo-400 flex items-center gap-2">
+                                                    <Sparkles className="h-3 w-3" /> AI Summary
+                                                </p>
+                                                <p className="text-xs text-slate-400 italic leading-relaxed">
+                                                    {submission.ai_explanation || "No AI summary generated for this submission."}
+                                                </p>
+                                            </div>
+                                        </div>
 
-                                                    <Button
-                                                        size="lg"
-                                                        className="w-full bg-white text-black hover:bg-slate-200 rounded-[24px] h-16 font-black uppercase tracking-widest text-[10px] shadow-2xl shadow-white/5 group"
-                                                        onClick={() => handleCreatePremiumPortal(analysis)}
-                                                        disabled={analysis.status === 'proceed'}
+                                        {/* Provisioning Actions */}
+                                        <div className="lg:col-span-1 space-y-4">
+                                            <div className="p-5 bg-slate-900/50 rounded-2xl border border-white/5 space-y-4">
+                                                <h4 className="text-[10px] font-black uppercase tracking-wider text-white flex items-center gap-2">
+                                                    <Settings2 className="h-3.5 w-3.5 text-primary" /> Setup Portal
+                                                </h4>
+
+                                                <div className="space-y-2">
+                                                    <Label className="text-[10px] text-slate-500 uppercase font-black">Portal Tier</Label>
+                                                    <select
+                                                        className="w-full bg-slate-950 border border-white/10 rounded-lg h-9 px-3 text-xs text-white outline-none"
+                                                        value={selectedTier}
+                                                        onChange={(e) => setSelectedTier(e.target.value)}
                                                     >
-                                                        <Sparkles className="mr-3 h-5 w-5 group-hover:rotate-12 transition-transform" />
-                                                        Provision Portal
-                                                    </Button>
-
-                                                    <div className="grid grid-cols-2 gap-3">
-                                                        <Button
-                                                            variant="outline"
-                                                            className="border-white/5 bg-white/[0.02] text-slate-400 hover:text-white hover:bg-white/5 rounded-2xl h-14 font-black uppercase tracking-widest text-[9px] transition-all"
-                                                            onClick={() => handleAction(analysis.id, 'hold')}
-                                                            disabled={analysis.status === 'hold'}
-                                                        >
-                                                            <Clock className="mr-2 h-4 w-4" />
-                                                            Hold
-                                                        </Button>
-                                                        <Button
-                                                            variant="outline"
-                                                            className="border-white/5 bg-white/[0.02] text-slate-400 hover:text-rose-400 hover:bg-rose-500/5 rounded-2xl h-14 font-black uppercase tracking-widest text-[9px] transition-all"
-                                                            onClick={() => handleAction(analysis.id, 'decline')}
-                                                            disabled={analysis.status === 'decline'}
-                                                        >
-                                                            <XCircle className="mr-2 h-4 w-4" />
-                                                            Purge
-                                                        </Button>
-                                                    </div>
+                                                        <option value="Pilot">Pilot System</option>
+                                                        <option value="Bronze">Bronze Membership</option>
+                                                        <option value="Silver">Silver Elite</option>
+                                                        <option value="Gold">Gold Supremacy</option>
+                                                    </select>
                                                 </div>
 
-                                                <div className="space-y-4 pt-8 border-t border-white/[0.03]">
-                                                    <h4 className="text-[9px] font-black uppercase tracking-widest text-slate-600 flex items-center gap-3 italic">
-                                                        <MessageSquare className="h-4 w-4 text-pink-500" /> Dispatch Response
-                                                    </h4>
-                                                    <div className="relative group">
-                                                        <Textarea
-                                                            placeholder="Enter message for broker dashboard..."
-                                                            className="bg-[#020617] border-white/10 min-h-[100px] text-xs font-bold rounded-2xl p-4 focus:ring-pink-500/20 focus:border-pink-500/50 transition-all placeholder:text-slate-700"
-                                                            value={adminMsg}
-                                                            onChange={(e) => setAdminMsg(e.target.value)}
+                                                <div className="space-y-4 pt-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="space-y-0.5">
+                                                            <p className="text-[11px] font-bold text-white">Elite Dashboard</p>
+                                                            <p className="text-[9px] text-slate-500">Toggle premium UI</p>
+                                                        </div>
+                                                        <Switch
+                                                            checked={portalStyle === "Elite"}
+                                                            onCheckedChange={v => setPortalStyle(v ? "Elite" : "Standard")}
                                                         />
-                                                        <Button
-                                                            size="icon"
-                                                            className="absolute right-3 bottom-3 bg-pink-600 hover:bg-pink-700 h-8 w-8 rounded-xl shadow-xl shadow-pink-500/20"
-                                                            onClick={() => handleSendAdminNote(analysis.id)}
-                                                        >
-                                                            <ChevronRight className="h-4 w-4" />
-                                                        </Button>
+                                                    </div>
+
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="space-y-0.5">
+                                                            <p className="text-[11px] font-bold text-white">Lead Loading</p>
+                                                            <p className="text-[9px] text-slate-500">Enable queue</p>
+                                                        </div>
+                                                        <Switch checked={isLeadLoading} onCheckedChange={setIsLeadLoading} />
                                                     </div>
                                                 </div>
+
+                                                <Button
+                                                    className="w-full bg-primary hover:bg-primary/90 text-white font-bold h-10 rounded-xl shadow-lg shadow-primary/10"
+                                                    onClick={() => handleCreatePremiumPortal(submission)}
+                                                    disabled={submission.status === 'proceed'}
+                                                >
+                                                    {submission.status === 'proceed' ? 'Portal Active' : 'Provision Portal'}
+                                                </Button>
+                                            </div>
+
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    variant="outline"
+                                                    className="flex-1 bg-white/5 border-white/10 text-xs h-9 text-slate-400 hover:text-rose-400 hover:border-rose-500/30"
+                                                    onClick={() => handleAction(submission.id, 'decline')}
+                                                >
+                                                    Decline
+                                                </Button>
+                                                <Button
+                                                    variant="outline"
+                                                    className="flex-1 bg-white/5 border-white/10 text-xs h-9 text-slate-400 hover:text-white"
+                                                    onClick={() => handleAction(submission.id, 'hold')}
+                                                >
+                                                    Hold
+                                                </Button>
                                             </div>
                                         </div>
                                     </div>
@@ -526,6 +448,5 @@ const BrokerAnalysisDashboard = () => {
         </div>
     );
 };
-
 
 export default BrokerAnalysisDashboard;
