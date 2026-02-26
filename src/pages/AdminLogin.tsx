@@ -151,7 +151,7 @@ const AdminLogin = () => {
       <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-secondary/10" />
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-3xl" />
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-secondary/20 rounded-full blur-3xl" />
-      
+
       <Card className="w-full max-w-md border-primary/30 bg-card/95 backdrop-blur-xl relative z-10 shadow-2xl">
         <CardHeader className="space-y-4 text-center pb-2">
           <div className="mx-auto w-20 h-20 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/30">
@@ -172,7 +172,7 @@ const AdminLogin = () => {
                 <Input
                   id="resetEmail"
                   type="email"
-                  placeholder="admin@leadvelocity.co.za"
+                  placeholder="howzit@leadvelocity.co.za"
                   value={resetEmail}
                   onChange={(e) => setResetEmail(e.target.value)}
                   required
@@ -182,17 +182,17 @@ const AdminLogin = () => {
                   We'll send you a link to reset your password.
                 </p>
               </div>
-              <Button 
-                type="submit" 
-                className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90 transition-opacity" 
+              <Button
+                type="submit"
+                className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90 transition-opacity"
                 disabled={resetLoading}
               >
                 {resetLoading ? "Sending..." : "Send Reset Link"}
               </Button>
-              <Button 
-                type="button" 
-                variant="ghost" 
-                className="w-full text-muted-foreground hover:text-foreground" 
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full text-muted-foreground hover:text-foreground"
                 onClick={() => setShowForgotPassword(false)}
               >
                 Back to Login
@@ -205,7 +205,7 @@ const AdminLogin = () => {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="admin@leadvelocity.co.za"
+                  placeholder="howzit@leadvelocity.co.za"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -232,9 +232,9 @@ const AdminLogin = () => {
                   className="bg-muted/50 border-border focus:border-primary"
                 />
               </div>
-              <Button 
-                type="submit" 
-                className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90 transition-opacity" 
+              <Button
+                type="submit"
+                className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90 transition-opacity"
                 disabled={loading}
               >
                 <Lock className="w-4 h-4 mr-2" />
