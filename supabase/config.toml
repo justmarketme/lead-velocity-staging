@@ -1,4 +1,4 @@
-project_id = "jxrfcxfuzwnsojfasnnu"
+project_id = "cmsylaupctrbsvzrgzwy"
 
 [functions.send-admin-invite]
 verify_jwt = false
