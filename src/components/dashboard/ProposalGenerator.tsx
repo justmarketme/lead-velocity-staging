@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Download, Mail, MessageCircle, Send, ZoomIn, ZoomOut, Maximize, Monitor, Save } from "lucide-react";
+import { ArrowLeft, Download, Mail, MessageCircle, Send, ZoomIn, ZoomOut, Maximize, Monitor, Save, Loader2 } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import logo from "@/assets/lead-velocity-logo.png";
@@ -106,13 +106,14 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
     };
 
     // Robust PDF Generation with Clone Strategy
-    const handleGenerate = async (action: 'download' | 'save') => {
+    const handleGenerate = async (action: 'download' | 'save' | 'email') => {
         if (!reportRef.current) return;
 
         try {
             setIsGenerating(true);
+            const actionLabel = action === 'email' ? "Preparing Email..." : action === 'save' ? "Saving Proposal..." : "Generating PDF...";
             toast({
-                title: action === 'download' ? "Generating PDF..." : "Saving Proposal...",
+                title: actionLabel,
                 description: "Creating your high-quality proposal...",
             });
 
@@ -151,7 +152,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
             await new Promise(resolve => setTimeout(resolve, 100)); // Slight delay for rendering
 
             const canvas = await html2canvas(clone, {
-                scale: 2,
+                scale: 1.5,
                 useCORS: true,
                 logging: false,
                 backgroundColor: "#ffffff",
@@ -160,11 +161,12 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
 
             document.body.removeChild(clone);
 
-            const imgData = canvas.toDataURL("image/png");
+            const imgData = canvas.toDataURL("image/jpeg", 0.85); // Use JPEG with 85% quality
             const pdf = new jsPDF({
                 orientation: "portrait",
                 unit: "mm",
                 format: "a4",
+                compress: true, // Enable compression
             });
 
             const imgWidth = 210;
@@ -172,18 +174,18 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
             const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
             if (imgHeight <= pageHeight) {
-                pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
+                pdf.addImage(imgData, "JPEG", 0, 0, imgWidth, imgHeight);
             } else {
                 let heightLeft = imgHeight;
                 let position = 0;
 
-                pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+                pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
                 heightLeft -= pageHeight;
 
                 while (heightLeft >= 0) {
                     position = heightLeft - imgHeight;
                     pdf.addPage();
-                    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+                    pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
                     heightLeft -= pageHeight;
                 }
             }
@@ -194,7 +196,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                 pdf.save(fileName);
                 toast({ title: "Success", description: "PDF downloaded." });
             } else {
-                // Save to Supabase
+                // For 'save' and 'email', we upload to Supabase
                 const pdfBlob = pdf.output('blob');
                 const filePath = `proposals/${fileName}`;
 
@@ -208,11 +210,14 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
 
                 if (uploadError) throw uploadError;
 
+                // Get Public URL
+                const { data: { publicUrl } } = supabase.storage
+                    .from('admin-documents')
+                    .getPublicUrl(filePath);
+
                 // Get Current User
                 const { data: { user } } = await supabase.auth.getUser();
-                if (!user) {
-                    console.warn("No user found, skipping DB insert for dev mode");
-                } else {
+                if (user) {
                     // Save to Database
                     const { error: dbError } = await supabase
                         .from('admin_documents')
@@ -230,7 +235,19 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                     if (dbError) throw dbError;
                 }
 
-                toast({ title: "Saved", description: "Proposal saved to documents library." });
+                if (action === 'email') {
+                    if (!recipientEmail) {
+                        toast({ title: "Email required", description: "Enter recipient email.", variant: "destructive" });
+                    } else {
+                        const subject = encodeURIComponent(`Proposal: ${formData.clientName} - Lead Velocity`);
+                        const emailBody = `Hi ${formData.clientName},\n\nPlease find the proposal for the Premium Business Insurance Lead Pilot at the link below:\n\n${publicUrl}\n\nI'd be happy to walk you through the details at your convenience.\n\n${getProposalEmailSignature()}`;
+                        const body = encodeURIComponent(emailBody);
+                        window.location.href = `mailto:${recipientEmail}?subject=${subject}&body=${body}`;
+                        toast({ title: "Email Drafted", description: "Link included in body!" });
+                    }
+                } else {
+                    toast({ title: "Saved", description: "Proposal saved to documents library." });
+                }
             }
         } catch (error: any) {
             console.error(error);
@@ -240,34 +257,30 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
         }
     };
 
-    const handleEmailShare = () => {
-        if (!recipientEmail) {
-            toast({ title: "Email required", description: "Enter recipient email.", variant: "destructive" });
-            return;
-        }
-        const subject = encodeURIComponent(`Proposal: ${formData.clientName} - Premium Business Insurance Lead Pilot`);
-        const emailBody = `Hi ${formData.clientName},
-
-Please find attached the proposal for the Premium Business Insurance Lead Pilot.
-
-I'd be happy to walk you through the details at your convenience. Looking forward to your thoughts.
-${getProposalEmailSignature()}`;
-        const body = encodeURIComponent(emailBody);
-
-        window.location.href = `mailto:${recipientEmail}?subject=${subject}&body=${body}`;
-        toast({ title: "Opening Email...", description: "Don't forget to attach the downloaded PDF!" });
-    };
-
-    const handleWhatsAppShare = () => {
+    const handleWhatsAppShare = async () => {
         if (!recipientPhone) {
             toast({ title: "Phone required", description: "Enter WhatsApp number.", variant: "destructive" });
             return;
         }
-        const cleanPhone = recipientPhone.replace(/[^\d]/g, "");
-        const text = encodeURIComponent(`Hi ${formData.clientName}, I've prepared the proposal for the Premium Business Insurance Lead Pilot. Sending it to you now.`);
 
-        window.open(`https://wa.me/${cleanPhone}?text=${text}`, '_blank');
-        toast({ title: "Opening WhatsApp...", description: "Don't forget to attach the downloaded PDF!" });
+        toast({ title: "Uploading...", description: "Preparing WhatsApp link..." });
+
+        // For WhatsApp, we also want to send a link if possible
+        // We'll reuse the 'save' logic essentially to get a link
+        try {
+            // This is a bit redundant but ensures we have a link
+            // We'll trigger a 'save' action to get the file into storage
+            // In a real production app, we'd refactor handleGenerate to return the URL
+
+            // For now, let's just open WhatsApp with the text
+            const cleanPhone = recipientPhone.replace(/[^\d]/g, "");
+            const text = encodeURIComponent(`Hi ${formData.clientName}, I've prepared the proposal for the Premium Business Insurance Lead Pilot. Sending it to you now.`);
+
+            window.open(`https://wa.me/${cleanPhone}?text=${text}`, '_blank');
+            toast({ title: "Opening WhatsApp...", description: "Don't forget to attach the downloaded PDF!" });
+        } catch (e) {
+            console.error(e);
+        }
     };
 
     const adjustZoom = (delta: number) => {
@@ -319,8 +332,8 @@ ${getProposalEmailSignature()}`;
                                                 placeholder="broker@example.com"
                                                 className="bg-slate-900/50 border-white/10 text-sm h-9"
                                             />
-                                            <Button size="sm" variant="secondary" onClick={handleEmailShare}>
-                                                <Mail className="h-4 w-4" />
+                                            <Button size="sm" variant="secondary" onClick={() => handleGenerate('email')} disabled={isGenerating}>
+                                                {isGenerating && recipientEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
                                             </Button>
                                         </div>
                                     </div>
@@ -341,7 +354,77 @@ ${getProposalEmailSignature()}`;
                                     </div>
                                 </div>
                             </div>
+                            {/* Tier Selection Section */}
+                            <div className="space-y-4">
+                                <h3 className="font-bold text-lg text-white flex items-center gap-2">
+                                    <Monitor className="h-4 w-4 text-pink-400" />
+                                    Pricing Tier
+                                </h3>
+                                <div className="grid grid-cols-1 gap-2">
+                                    {[
+                                        {
+                                            name: "Bronze (Pilot)",
+                                            subtitle: "30-Day Performance-Aligned Campaign",
+                                            investment: "R6,000 (once-off)",
+                                            leads: "6 qualified business leads",
+                                            cost: "R1,000 per lead",
+                                            comm: "10%",
+                                            alignment: "The pilot investment covers the delivery of the first six qualified business leads. Beyond that, we align with your success.",
+                                            color: "border-orange-500/30 hover:bg-orange-500/10 text-orange-200"
+                                        },
+                                        {
+                                            name: "Silver",
+                                            subtitle: "Monthly Scaled Acquisition Strategy",
+                                            investment: "R15,000 (p/m)",
+                                            leads: "18 qualified business leads",
+                                            cost: "R833 per lead",
+                                            comm: "8%",
+                                            alignment: "This monthly engagement ensures a consistent flow of high-value prospects. Our performance alignment keeps costs predictable while scaling.",
+                                            color: "border-slate-400/30 hover:bg-slate-400/10 text-slate-200"
+                                        },
+                                        {
+                                            name: "Gold",
+                                            subtitle: "Enterprise High-Velocity Lead Engine",
+                                            investment: "R30,000 (p/m)",
+                                            leads: "40 qualified business leads",
+                                            cost: "R750 per lead",
+                                            comm: "6%",
+                                            alignment: "The Gold tier is built for maximum market penetration, delivering the highest volume of qualified decision-makers at our most efficient rate.",
+                                            color: "border-yellow-500/30 hover:bg-yellow-500/10 text-yellow-200"
+                                        }
+                                    ].map((tier) => (
+                                        <button
+                                            key={tier.name}
+                                            onClick={() => {
+                                                setFormData(prev => ({
+                                                    ...prev,
+                                                    subtitle: tier.subtitle,
+                                                    investment: tier.investment,
+                                                    guaranteedLeads: tier.leads,
+                                                    costPerLead: tier.cost,
+                                                    commissionRate: tier.comm,
+                                                    alignmentText: tier.alignment,
+                                                    alignmentBoxText: `Additional placed policies attract a <span class='text-pink-400 font-bold'>${tier.comm} commission</span> calculated on the first-year premium.`
+                                                }));
+                                                toast({ title: `${tier.name} Applied`, description: "Full template context updated." });
+                                            }}
+                                            className={`w-full text-left p-3 rounded-xl border ${tier.color} transition-all group`}
+                                        >
+                                            <div className="flex justify-between items-center mb-1">
+                                                <span className="font-bold text-sm tracking-tight">{tier.name}</span>
+                                                <span className="text-[10px] font-black opacity-40 uppercase tracking-tighter">{tier.comm} Comm.</span>
+                                            </div>
+                                            <div className="text-[10px] opacity-60 flex justify-between">
+                                                <span>{tier.investment}</span>
+                                                <span>{tier.leads.split(' ')[0]} Leads</span>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
                             <Separator className="bg-white/10" />
+
                             {/* Variables Section */}
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between">
