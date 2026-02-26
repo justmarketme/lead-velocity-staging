@@ -16,7 +16,7 @@ const Services = () => {
         "Consistent weekly delivery",
         "Industry-specific targeting",
       ],
-      link: "/contact",
+      link: "/onboarding",
     },
     {
       icon: Briefcase,
@@ -28,7 +28,7 @@ const Services = () => {
         "Investment advisory contacts",
         "High-net-worth targeting",
       ],
-      link: "/contact",
+      link: "/onboarding",
     },
     {
       icon: Sparkles,
