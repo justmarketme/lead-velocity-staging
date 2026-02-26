@@ -18,9 +18,23 @@ const Setup = () => {
     const { toast } = useToast();
     const adminEmail = "howzit@leadvelocity.co.za";
 
+    const clearLocalCache = () => {
+        localStorage.clear();
+        sessionStorage.clear();
+        toast({ title: "Cache Cleared", description: "Browser session data has been reset." });
+        setTimeout(() => window.location.reload(), 500);
+    }
+
     const handleWipeAndReset = async () => {
         setLoading(true);
         try {
+            // Check if we can reach the API
+            const { data: healthCheck, error: healthError } = await supabase.from('profiles').select('count', { count: 'exact', head: true });
+            if (healthError) {
+                console.error("Health check failed:", healthError);
+                throw new Error("Cannot connect to Database. Please verify the URL/API Key.");
+            }
+
             // 1. ATTEMPT SIGN UP (Standard way)
             const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
                 email: adminEmail,
@@ -41,7 +55,7 @@ const Setup = () => {
                 });
 
                 if (signInError) {
-                    throw new Error("User exists but password verification failed. If you forgot the password, we need to manually wipe the user in Supabase SQL editor first.");
+                    throw new Error("Account exists, but password doesn't match. Run the SQL WIPE script in Supabase first.");
                 }
                 userId = signInData.user.id;
             } else if (signUpError) {
@@ -100,13 +114,18 @@ const Setup = () => {
                 </CardHeader>
 
                 <CardContent className="space-y-6 pb-8">
+                    <div className="text-[9px] font-mono text-slate-500 bg-black/40 p-2 rounded-lg border border-white/5 space-y-1">
+                        <div className="flex justify-between"><span>PROJECT:</span> <span className="text-white">cmsylaupctrbsvzrgzwy</span></div>
+                        <div className="flex justify-between"><span>STATUS:</span> <span className="text-emerald-500">PROD-SYNC</span></div>
+                    </div>
+
                     <div className="p-4 bg-rose-500/5 border border-rose-500/20 rounded-2xl space-y-2">
                         <div className="flex items-center gap-2 text-rose-500 font-bold text-xs uppercase tracking-widest">
                             <Zap className="h-4 w-4" />
                             <span>System Protocol</span>
                         </div>
                         <p className="text-slate-300 text-xs leading-relaxed">
-                            This utility will verify your account status and inject the mandatory <span className="text-white font-bold">Admin Role</span>. If the account exists with a different password, it will prompt for a manual wipe.
+                            This utility will verify your account status and inject the mandatory <span className="text-white font-bold">Admin Role</span>. If you get "Invalid Credentials", you MUST run the SQL WIPE script in Supabase first.
                         </p>
                     </div>
 
@@ -139,10 +158,18 @@ const Setup = () => {
                                 </span>
                             ) : "Activate Admin Rights"}
                         </Button>
+
+                        <Button
+                            onClick={clearLocalCache}
+                            variant="ghost"
+                            className="w-full text-slate-500 hover:text-rose-400 text-[10px] uppercase tracking-widest"
+                        >
+                            Hard Reset Browser Cache
+                        </Button>
                     </div>
 
                     <p className="text-center text-[10px] text-slate-500 uppercase font-bold tracking-widest">
-                        Secure End-to-End Encryption Enabled
+                        SECURE CONNECTION: CMSYLAUPCTRBSVZRGZWY
                     </p>
                 </CardContent>
             </Card>
