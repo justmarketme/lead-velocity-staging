@@ -26,69 +26,68 @@ const Dashboard = () => {
   const setActiveTab = (tab: string) => setSearchParams({ tab });
   const navigate = useNavigate();
 
-  let isMounted = true;
+  useEffect(() => {
+    let isMounted = true;
 
-  const checkUserRole = async (userId: string) => {
-    // Check if user is an admin
-    const { data: isAdmin, error: roleError } = await supabase.rpc('has_role', {
-      _user_id: userId,
-      _role: 'admin'
-    });
+    const checkUserRole = async (userId: string) => {
+      const { data: isAdmin, error: roleError } = await supabase.rpc('has_role', {
+        _user_id: userId,
+        _role: 'admin'
+      });
 
-    if (roleError || !isAdmin) {
-      // Not an admin, check if they are a broker
-      const { data: brokerData } = await supabase
-        .from("brokers")
-        .select("id")
-        .eq("user_id", userId)
-        .single();
-
-      if (brokerData) {
-        navigate("/broker/dashboard");
-      } else {
-        // Neither admin nor broker - sign out and go to login
-        await supabase.auth.signOut();
-        navigate("/admin");
-      }
-      return;
-    }
-  };
-
-  // Check for existing session first
-  supabase.auth.getSession().then(async ({ data: { session } }) => {
-    if (!isMounted) return;
-
-    if (!session) {
-      setLoading(false);
-      navigate("/admin");
-    } else {
-      setSession(session);
-      await checkUserRole(session.user.id);
-      if (isMounted) setLoading(false);
-    }
-  });
-
-  // Set up auth state listener
-  const { data: { subscription } } = supabase.auth.onAuthStateChange(
-    async (event, session) => {
       if (!isMounted) return;
 
-      if (event === 'SIGNED_OUT') {
-        setSession(null);
+      if (roleError || !isAdmin) {
+        const { data: brokerData } = await supabase
+          .from("brokers")
+          .select("id")
+          .eq("user_id", userId)
+          .single();
+
+        if (brokerData) {
+          navigate("/broker/dashboard");
+        } else {
+          await supabase.auth.signOut();
+          navigate("/admin");
+        }
+        return;
+      }
+      setLoading(false);
+    };
+
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!isMounted) return;
+
+      if (!session) {
+        setLoading(false);
         navigate("/admin");
-      } else if (event === 'SIGNED_IN' && session) {
+      } else {
         setSession(session);
         await checkUserRole(session.user.id);
       }
-    }
-  );
+    });
 
-  return () => {
-    isMounted = false;
-    subscription.unsubscribe();
-  };
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (!isMounted) return;
 
-  if (loading) {
+        if (event === 'SIGNED_OUT') {
+          setSession(null);
+          navigate("/admin");
+        } else if (event === 'SIGNED_IN' && session) {
+          setSession(session);
+          await checkUserRole(session.user.id);
+        }
+      }
+    );
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, [navigate]);
+
+  if (loading || !session) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
@@ -97,10 +96,6 @@ const Dashboard = () => {
         </div>
       </div>
     );
-  }
-
-  if (!session) {
-    return null;
   }
 
   return (

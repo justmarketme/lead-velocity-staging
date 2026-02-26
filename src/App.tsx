@@ -31,6 +31,8 @@ import PremiumBrokerPortalPage from "./pages/PremiumBrokerPortalPage";
 
 import { HelmetProvider } from "react-helmet-async";
 
+import Setup from "./pages/Setup";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -42,6 +44,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/setup" element={<Setup />} />
             <Route path="/about" element={<About />} />
             <Route path="/services" element={<Services />} />
             <Route path="/pricing" element={<Pricing />} />
