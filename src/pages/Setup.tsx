@@ -7,11 +7,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { ShieldAlert, Zap } from "lucide-react";
 
-/**
- * EMERGENCY SETUP PAGE
- * This page uses the current 'Public access' RLS policies to initialize the first admin.
- * Once done, this route should be removed for security.
- */
 const Setup = () => {
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
@@ -21,7 +16,7 @@ const Setup = () => {
     const handleSetup = async () => {
         setLoading(true);
         try {
-            // 1. SIGN UP (this works with anon key)
+            // 1. SIGN UP
             const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
                 email: adminEmail,
                 password: password,
@@ -34,23 +29,38 @@ const Setup = () => {
                 throw signUpError;
             }
 
-            const userId = signUpData?.user?.id || (await supabase.auth.signInWithPassword({ email: adminEmail, password })).data?.user?.id;
+            let userId = signUpData?.user?.id;
 
             if (!userId) {
-                // If it already exists, let's try to just promote it
                 const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
                     email: adminEmail,
                     password: password
                 });
                 if (signInError) throw new Error("Could not verify user. Ensure the password matches if account exists.");
+                userId = signInData.user.id;
             }
 
-            // 2. PROMOTE - This only works if Public RLS is active on user_roles
+            // 2. PROMOTE - FALLBACK TO UPSERTING PROFILE IF USER_ROLES MISSING
+            console.log("Adding user to profiles...");
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .upsert({ user_id: userId, full_name: "Lead Velocity Admin" }, { onConflict: 'user_id' });
+
+            if (profileError) console.error("Profile error:", profileError);
+
+            // 3. TRY PROMOTE (handle missing table gracefully)
+            console.log("Attempting to assign admin role...");
             const { error: roleError } = await supabase
                 .from('user_roles')
-                .upsert({ user_id: userId, role: 'admin' }, { onConflict: 'user_id,role' });
+                .upsert({ user_id: userId, role: 'admin' as any }, { onConflict: 'user_id,role' });
 
-            if (roleError) throw roleError;
+            if (roleError) {
+                console.error("Role error:", roleError);
+                if (roleError.message.includes("relation \"public.user_roles\" does not exist")) {
+                    throw new Error("Your database is empty. Please run the SQL migration I provided in the Supabase SQL Editor first!");
+                }
+                throw roleError;
+            }
 
             toast({
                 title: "Setup Complete!",
@@ -84,7 +94,9 @@ const Setup = () => {
                     <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl">
                         <p className="text-amber-500 text-xs leading-relaxed font-medium">
                             <Zap className="h-3 w-3 inline mr-1" />
-                            This tool uses public registration rules to promote your email to Admin. Use a secure, permanent password.
+                            This tool promotes your account to Admin.
+                            <br /><br />
+                            <span className="font-bold text-rose-400 underline">IMPORTANT:</span> If you see more errors, you MUST run the SQL script in your Supabase SQL Editor first, then refresh this page.
                         </p>
                     </div>
 
