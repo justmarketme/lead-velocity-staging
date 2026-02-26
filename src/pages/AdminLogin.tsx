@@ -206,7 +206,7 @@ const AdminLogin = () => {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="howzit@leadvelocity.co.za"
+                  placeholder="admin@leadvelocity.co.za"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
