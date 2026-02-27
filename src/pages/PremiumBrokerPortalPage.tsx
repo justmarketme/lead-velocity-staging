@@ -28,6 +28,25 @@ import PremiumDocuments from "@/components/broker/PremiumDocuments";
 import { useToast } from "@/hooks/use-toast";
 import logo from "@/assets/lead-velocity-logo.png";
 
+// ─── DEV PREVIEW MODE ───────────────────────────────────────────────
+// Set this to false when you are ready to require real login
+const DEV_PREVIEW = true;
+const MOCK_BROKER = {
+    id: "dev-preview",
+    contact_person: "Alex Velocity",
+    firm_name: "Elite Financial Partners",
+    email: "alex@elitepartners.com",
+    phone: "+27 82 555 0199",
+    tier: "Gold",
+    is_lead_loading: true,
+    leads_used: 143,
+    lead_quota: 200,
+    status: "active",
+};
+const MOCK_STATS = { totalLeads: 143, willsCompleted: 38, referralsGenerated: 12, appointmentsScheduled: 7 };
+const MOCK_APPOINTMENTS: any[] = [];
+// ─────────────────────────────────────────────────────────────────────
+
 const PremiumBrokerPortalPage = () => {
     const [activeTab, setActiveTab] = useState("dashboard");
     const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -44,6 +63,14 @@ const PremiumBrokerPortalPage = () => {
     const { toast } = useToast();
 
     useEffect(() => {
+        if (DEV_PREVIEW) {
+            setBrokerData(MOCK_BROKER);
+            setStats(MOCK_STATS);
+            setAppointments(MOCK_APPOINTMENTS);
+            setLoading(false);
+            return;
+        }
+
         const initPortal = async () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) {
@@ -51,7 +78,6 @@ const PremiumBrokerPortalPage = () => {
                 return;
             }
 
-            // Fetch Broker Meta with Tier and Lead Loading info
             const { data: broker, error: brokerError } = await supabase
                 .from("brokers")
                 .select("*, broker_onboarding_responses(*)")
@@ -65,7 +91,6 @@ const PremiumBrokerPortalPage = () => {
                 return;
             }
 
-            // Mocking some missing fields if not yet in DB
             const enrichedBroker = {
                 ...broker,
                 tier: broker.tier || "Bronze",
@@ -76,7 +101,6 @@ const PremiumBrokerPortalPage = () => {
 
             setBrokerData(enrichedBroker);
 
-            // Check for first-login reset requirement (via user metadata)
             const { data: { user } } = await supabase.auth.getUser();
             if (user?.user_metadata?.must_reset_password) {
                 toast({

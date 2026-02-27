@@ -34,7 +34,7 @@ const BrokerPortal = () => {
           .select("id")
           .eq("user_id", session.user.id)
           .single();
-        
+
         if (broker) {
           navigate("/broker/dashboard");
         }
@@ -178,7 +178,7 @@ const BrokerPortal = () => {
                   Broker Portal
                 </h1>
                 <p className="text-xl text-muted-foreground">
-                  Your complete lead management solution. Track leads, monitor referrals, 
+                  Your complete lead management solution. Track leads, monitor referrals,
                   and grow your business with powerful analytics.
                 </p>
                 <div className="grid sm:grid-cols-2 gap-4">
@@ -225,10 +225,10 @@ const BrokerPortal = () => {
                       <Button type="submit" className="w-full" disabled={resetLoading}>
                         {resetLoading ? "Sending..." : "Send Reset Link"}
                       </Button>
-                      <Button 
-                        type="button" 
-                        variant="ghost" 
-                        className="w-full" 
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="w-full"
                         onClick={() => setShowForgotPassword(false)}
                       >
                         Back to Login
@@ -276,6 +276,17 @@ const BrokerPortal = () => {
                           Register as Broker
                         </Link>
                       </p>
+
+                      <div className="pt-4 border-t border-border/50">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full border-primary/20 hover:bg-primary/10"
+                          onClick={() => navigate('/broker/dashboard')}
+                        >
+                          Dev Mode: Bypass Login
+                        </Button>
+                      </div>
                     </form>
                   )}
                 </CardContent>

@@ -60,7 +60,7 @@ serve(async (req) => {
     // Get admin emails from auth.users
     const adminUserIds = adminRoles.map(r => r.user_id);
     const { data: { users }, error: usersError } = await supabase.auth.admin.listUsers();
-    
+
     if (usersError) {
       console.error('Error fetching users:', usersError);
       throw new Error('Failed to fetch user emails');
@@ -107,7 +107,7 @@ serve(async (req) => {
     const purposeLabel = call_purpose.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
     // Send email to all admins
-    const emailPromises = adminEmails.map(email => 
+    const emailPromises = adminEmails.map(email =>
       resend.emails.send({
         from: 'Lead Velocity <noreply@resend.dev>',
         to: [email],
@@ -150,8 +150,7 @@ serve(async (req) => {
                 </div>
                 
                 <p>Please review these changes and approve or reject them in the dashboard.</p>
-                
-                <a href="${supabaseUrl.replace('.supabase.co', '.lovable.app')}/dashboard" class="button">
+                <a href="https://velocity.leadvelocity.co.za/dashboard" class="button">
                   Review in Dashboard
                 </a>
               </div>
@@ -171,10 +170,10 @@ serve(async (req) => {
 
     console.log(`Sent ${successful} emails, ${failed} failed`);
 
-    return new Response(JSON.stringify({ 
-      success: true, 
+    return new Response(JSON.stringify({
+      success: true,
       emails_sent: successful,
-      emails_failed: failed 
+      emails_failed: failed
     }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
