@@ -85,6 +85,7 @@ const BrokerAnalysisDashboard = () => {
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
+            // @ts-ignore
             setAnalyses((data || []) as BrokerAnalysis[]);
         } catch (error: any) {
             toast({
@@ -121,7 +122,7 @@ const BrokerAnalysisDashboard = () => {
                     is_lead_loading: isLeadLoading,
                     portal_style: portalStyle,
                     status: 'Active'
-                }, { onConflict: 'email' })
+                } as any, { onConflict: 'email' })
                 .select()
                 .single();
 
@@ -305,137 +306,136 @@ const BrokerAnalysisDashboard = () => {
                             {/* Expanded Content */}
                             {expandedId === submission.id && (
                                 <div className="border-t border-white/[0.03] p-6 bg-white/[0.01] animate-in slide-in-from-top-2 duration-300">
-                                    <div className="grid lg:grid-cols-4 gap-8">
-                                        {/* Score Analysis */}
-                                        <div className="lg:col-span-1 space-y-6">
-                                            <div className="p-4 bg-slate-950/50 rounded-2xl border border-white/5 space-y-4 text-center">
-                                                <p className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Readiness Score</p>
-                                                <div className={cn("text-4xl font-black italic tracking-tighter leading-none", getProbabilityColor(submission.success_band))}>
-                                                    {submission.success_probability}%
+                                    <div className="w-full space-y-10 px-2 py-4">
+                                        {/* Budget & Capacity */}
+                                        <div className="space-y-6">
+                                            <h4 className="flex items-center gap-2 text-sm font-black text-pink-500">
+                                                <span className="text-lg leading-none">$</span> Budget & Capacity
+                                            </h4>
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                                                <div className="border-b border-white/5 pb-2">
+                                                    <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Monthly Budget</p>
+                                                    <p className="text-sm font-bold text-white">{submission.responses?.monthly_lead_spend || "N/A"}</p>
                                                 </div>
-                                                <p className="text-[9px] font-bold uppercase text-slate-600 tracking-widest">{submission.success_band}</p>
+                                                <div className="border-b border-white/5 pb-2">
+                                                    <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Comfort Per Lead</p>
+                                                    <p className="text-sm font-bold text-white">{submission.responses?.cpl_awareness || "N/A"}</p>
+                                                </div>
+                                                <div className="border-b border-white/5 pb-2">
+                                                    <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Ideal Leads/Week</p>
+                                                    <p className="text-sm font-bold text-white">{submission.responses?.desired_leads_weekly || 0}</p>
+                                                </div>
+                                                <div className="border-b border-white/5 pb-2">
+                                                    <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Max Capacity</p>
+                                                    <p className="text-sm font-bold text-white">{submission.responses?.max_capacity_weekly || 0}</p>
+                                                </div>
                                             </div>
+                                        </div>
 
-                                            <div className="space-y-3">
-                                                {[
-                                                    { label: 'Operational', val: submission.operational_score, icon: Users, color: 'text-blue-400' },
-                                                    { label: 'Budget', val: submission.budget_score, icon: BarChart3, color: 'text-amber-400' },
-                                                    { label: 'Growth', val: submission.growth_score, icon: TrendingUp, color: 'text-emerald-400' },
-                                                ].map((score, i) => (
-                                                    <div key={i} className="flex items-center justify-between p-3 bg-white/[0.02] rounded-xl border border-white/5 text-[11px]">
-                                                        <span className="text-slate-500 font-bold uppercase tracking-wide">{score.label}</span>
-                                                        <span className={cn("font-black", score.color)}>{score.val}</span>
+                                        {/* Target Market */}
+                                        <div className="space-y-6">
+                                            <h4 className="flex items-center gap-2 text-sm font-black text-amber-500">
+                                                <Target className="w-5 h-5 text-amber-500" /> Target Market
+                                            </h4>
+                                            <div className="flex gap-2 flex-wrap">
+                                                <Badge className="bg-transparent border-white/10 text-white font-medium px-4 py-1 hover:bg-white/5">Short-term Insurance</Badge>
+                                                <Badge className="bg-transparent border-white/10 text-white font-medium px-4 py-1 hover:bg-white/5">Funeral Cover</Badge>
+                                                <Badge className="bg-transparent border-white/10 text-white font-medium px-4 py-1 hover:bg-white/5">Business Insurance</Badge>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-4">
+                                                <div className="border-b border-white/5 pb-2">
+                                                    <p className="text-[10px] uppercase text-slate-500 font-bold mb-1 flex items-center gap-1"><MapPin className="w-3 h-3" /> Geographic Focus</p>
+                                                    <p className="text-sm font-bold text-white">{submission.responses?.geographic_focus_clarity || "N/A"}</p>
+                                                </div>
+                                                <div className="border-b border-white/5 pb-2">
+                                                    <p className="text-[10px] uppercase text-slate-500 font-bold mb-1 flex items-center gap-1"><Users className="w-3 h-3" /> Team Size</p>
+                                                    <p className="text-sm font-bold text-white">{submission.responses?.team_size || "Solo"}</p>
+                                                </div>
+                                            </div>
+                                            <div className="mt-4 border-b border-white/5 pb-2">
+                                                <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Ideal Client Profile</p>
+                                                <p className="text-sm font-medium text-white">{submission.responses?.product_focus_clarity || "N/A"}</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Systems & Process */}
+                                        <div className="space-y-6">
+                                            <h4 className="flex items-center gap-2 text-sm font-black text-purple-400">
+                                                <Settings2 className="w-5 h-5 text-purple-400" /> Systems & Process
+                                            </h4>
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                                <div className="border-b border-white/5 pb-2">
+                                                    <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">CRM Used</p>
+                                                    <p className="text-sm font-bold text-white">{submission.responses?.crm_usage || "N/A"}</p>
+                                                </div>
+                                                <div className="border-b border-white/5 pb-2">
+                                                    <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Speed to Contact</p>
+                                                    <p className="text-sm font-bold text-white">{submission.responses?.speed_to_contact || "N/A"}</p>
+                                                </div>
+                                                <div className="border-b border-white/5 pb-2">
+                                                    <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Monthly Target</p>
+                                                    <p className="text-sm font-bold text-white">{submission.responses?.growth_goal_clarity || "N/A"}</p>
+                                                </div>
+                                            </div>
+                                            <div className="mt-4 border-b border-white/5 pb-2">
+                                                <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Follow-up Process</p>
+                                                <p className="text-sm font-medium text-white">{submission.responses?.follow_up_process || "N/A"}</p>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-4">
+                                                <div className="border-b border-white/5 pb-2">
+                                                    <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Growth Goals</p>
+                                                    <p className="text-sm font-medium text-white">{submission.responses?.growth_goal_clarity || "N/A"}</p>
+                                                </div>
+                                                <div className="border-b border-white/5 pb-2">
+                                                    <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Status Probability Analysis</p>
+                                                    <p className={cn("text-sm font-black", getProbabilityColor(submission.success_band))}>
+                                                        {submission.success_probability}% - {submission.success_band}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Admin Actions */}
+                                        <div className="space-y-6 pt-6 border-t border-white/5">
+                                            <h4 className="flex items-center gap-2 text-sm font-black text-emerald-400">
+                                                <CheckCircle2 className="w-5 h-5 text-emerald-400" /> Admin Actions
+                                            </h4>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                                <div className="space-y-4">
+                                                    <div className="space-y-2">
+                                                        <Label className="text-[10px] uppercase text-slate-500 font-bold mb-1">Status</Label>
+                                                        <select
+                                                            className="w-full bg-[#020617] border border-white/10 rounded-lg h-10 px-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary/50"
+                                                            value={submission.status}
+                                                            onChange={(e) => handleAction(submission.id, e.target.value)}
+                                                        >
+                                                            <option value="pending">New</option>
+                                                            <option value="reviewing">Reviewing</option>
+                                                            <option value="hold">On Hold</option>
+                                                            <option value="proceed">Converted</option>
+                                                            <option value="decline">Declined</option>
+                                                        </select>
                                                     </div>
-                                                ))}
-                                            </div>
-                                        </div>
 
-                                        {/* Application Details */}
-                                        <div className="lg:col-span-2 space-y-6">
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div className="p-4 bg-white/[0.02] rounded-xl border border-white/5">
-                                                    <p className="text-[10px] uppercase text-slate-600 font-black mb-1">CRM Usage</p>
-                                                    <p className="text-xs font-bold text-white">{submission.responses?.crm_usage || "None"}</p>
+                                                    {submission.status !== 'proceed' && (
+                                                        <div className="pt-2">
+                                                            <Button
+                                                                className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold h-10 rounded-xl"
+                                                                onClick={() => handleCreatePremiumPortal(submission)}
+                                                            >
+                                                                Provision Portal
+                                                            </Button>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                                <div className="p-4 bg-white/[0.02] rounded-xl border border-white/5">
-                                                    <p className="text-[10px] uppercase text-slate-600 font-black mb-1">Monthly Budget</p>
-                                                    <p className="text-xs font-bold text-white">{submission.responses?.monthly_lead_spend || "N/A"}</p>
-                                                </div>
-                                                <div className="p-4 bg-white/[0.02] rounded-xl border border-white/5">
-                                                    <p className="text-[10px] uppercase text-slate-600 font-black mb-1">Weekly Desired</p>
-                                                    <p className="text-xs font-bold text-white">{submission.responses?.desired_leads_weekly || 0} Leads</p>
-                                                </div>
-                                                <div className="p-4 bg-white/[0.02] rounded-xl border border-white/5">
-                                                    <p className="text-[10px] uppercase text-slate-600 font-black mb-1">Team Size</p>
-                                                    <p className="text-xs font-bold text-white">{submission.responses?.team_size || "Solo"}</p>
-                                                </div>
-                                            </div>
-
-                                            <div className="p-4 bg-emerald-500/5 rounded-xl border border-emerald-500/10">
-                                                <p className="text-[10px] font-black uppercase text-emerald-500 mb-2 flex items-center gap-2">
-                                                    <Target className="h-3 w-3" /> Growth Focus
-                                                </p>
-                                                <p className="text-xs text-emerald-300 italic font-medium">
-                                                    {submission.primary_sales_angle}
-                                                </p>
-                                            </div>
-
-                                            <div className="p-4 bg-indigo-500/5 rounded-xl border border-indigo-500/10 space-y-2">
-                                                <p className="text-[10px] font-black uppercase text-indigo-400 flex items-center gap-2">
-                                                    <Sparkles className="h-3 w-3" /> AI Summary
-                                                </p>
-                                                <p className="text-xs text-slate-400 italic leading-relaxed">
-                                                    {submission.ai_explanation || "No AI summary generated for this submission."}
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        {/* Provisioning Actions */}
-                                        <div className="lg:col-span-1 space-y-4">
-                                            <div className="p-5 bg-slate-900/50 rounded-2xl border border-white/5 space-y-4">
-                                                <h4 className="text-[10px] font-black uppercase tracking-wider text-white flex items-center gap-2">
-                                                    <Settings2 className="h-3.5 w-3.5 text-primary" /> Setup Portal
-                                                </h4>
 
                                                 <div className="space-y-2">
-                                                    <Label className="text-[10px] text-slate-500 uppercase font-black">Portal Tier</Label>
-                                                    <select
-                                                        className="w-full bg-slate-950 border border-white/10 rounded-lg h-9 px-3 text-xs text-white outline-none"
-                                                        value={selectedTier}
-                                                        onChange={(e) => setSelectedTier(e.target.value)}
-                                                    >
-                                                        <option value="Pilot">Pilot System</option>
-                                                        <option value="Bronze">Bronze Membership</option>
-                                                        <option value="Silver">Silver Elite</option>
-                                                        <option value="Gold">Gold Supremacy</option>
-                                                    </select>
+                                                    <Label className="text-[10px] uppercase text-slate-500 font-bold mb-1">Admin Notes</Label>
+                                                    <Textarea
+                                                        placeholder="Add internal notes..."
+                                                        className="bg-[#020617] border-white/10 min-h-[100px] text-sm focus-visible:ring-primary/50 resize-none"
+                                                    />
                                                 </div>
-
-                                                <div className="space-y-4 pt-2">
-                                                    <div className="flex items-center justify-between">
-                                                        <div className="space-y-0.5">
-                                                            <p className="text-[11px] font-bold text-white">Elite Dashboard</p>
-                                                            <p className="text-[9px] text-slate-500">Toggle premium UI</p>
-                                                        </div>
-                                                        <Switch
-                                                            checked={portalStyle === "Elite"}
-                                                            onCheckedChange={v => setPortalStyle(v ? "Elite" : "Standard")}
-                                                        />
-                                                    </div>
-
-                                                    <div className="flex items-center justify-between">
-                                                        <div className="space-y-0.5">
-                                                            <p className="text-[11px] font-bold text-white">Lead Loading</p>
-                                                            <p className="text-[9px] text-slate-500">Enable queue</p>
-                                                        </div>
-                                                        <Switch checked={isLeadLoading} onCheckedChange={setIsLeadLoading} />
-                                                    </div>
-                                                </div>
-
-                                                <Button
-                                                    className="w-full bg-primary hover:bg-primary/90 text-white font-bold h-10 rounded-xl shadow-lg shadow-primary/10"
-                                                    onClick={() => handleCreatePremiumPortal(submission)}
-                                                    disabled={submission.status === 'proceed'}
-                                                >
-                                                    {submission.status === 'proceed' ? 'Portal Active' : 'Provision Portal'}
-                                                </Button>
-                                            </div>
-
-                                            <div className="flex gap-2">
-                                                <Button
-                                                    variant="outline"
-                                                    className="flex-1 bg-white/5 border-white/10 text-xs h-9 text-slate-400 hover:text-rose-400 hover:border-rose-500/30"
-                                                    onClick={() => handleAction(submission.id, 'decline')}
-                                                >
-                                                    Decline
-                                                </Button>
-                                                <Button
-                                                    variant="outline"
-                                                    className="flex-1 bg-white/5 border-white/10 text-xs h-9 text-slate-400 hover:text-white"
-                                                    onClick={() => handleAction(submission.id, 'hold')}
-                                                >
-                                                    Hold
-                                                </Button>
                                             </div>
                                         </div>
                                     </div>
