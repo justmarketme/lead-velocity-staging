@@ -37,11 +37,11 @@ ON CONFLICT (id) DO NOTHING;
 
 DO $$ 
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM storage.policies WHERE name = 'Public Access') THEN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'Public Access') THEN
         CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING (bucket_id = 'admin-documents');
     END IF;
     
-    IF NOT EXISTS (SELECT 1 FROM storage.policies WHERE name = 'Admin Upload') THEN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'Admin Upload') THEN
         CREATE POLICY "Admin Upload" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'admin-documents' AND public.has_role(auth.uid(), 'admin'));
     END IF;
 END $$;

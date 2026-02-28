@@ -194,8 +194,18 @@ export type Database = {
           broker_id: string | null
           full_name: string | null
           email: string | null
+          phone: string | null
           phone_number: string | null
           firm_name: string | null
+          company_name: string | null
+          preferred_call_time: string | null
+          whatsapp_number: string | null
+          whatsapp_consent: boolean | null
+          receives_leads_currently: boolean | null
+          current_lead_provider: string | null
+          current_monthly_spend: number | null
+          current_cpl: number | null
+          current_conversion_rate: string | null
           crm_usage: string
           speed_to_contact: string
           team_size: string
@@ -209,6 +219,7 @@ export type Database = {
           geographic_focus_clarity: string
           growth_goal_clarity: string
           timeline_to_start: string
+          monthly_sales_target: number | null
           created_at: string
           updated_at: string
         }
@@ -217,8 +228,18 @@ export type Database = {
           broker_id?: string | null
           full_name?: string | null
           email?: string | null
+          phone?: string | null
           phone_number?: string | null
           firm_name?: string | null
+          company_name?: string | null
+          preferred_call_time?: string | null
+          whatsapp_number?: string | null
+          whatsapp_consent?: boolean | null
+          receives_leads_currently?: boolean | null
+          current_lead_provider?: string | null
+          current_monthly_spend?: number | null
+          current_cpl?: number | null
+          current_conversion_rate?: string | null
           crm_usage: string
           speed_to_contact: string
           team_size: string
@@ -232,6 +253,7 @@ export type Database = {
           geographic_focus_clarity: string
           growth_goal_clarity: string
           timeline_to_start: string
+          monthly_sales_target?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -240,8 +262,18 @@ export type Database = {
           broker_id?: string | null
           full_name?: string | null
           email?: string | null
+          phone?: string | null
           phone_number?: string | null
           firm_name?: string | null
+          company_name?: string | null
+          preferred_call_time?: string | null
+          whatsapp_number?: string | null
+          whatsapp_consent?: boolean | null
+          receives_leads_currently?: boolean | null
+          current_lead_provider?: string | null
+          current_monthly_spend?: number | null
+          current_cpl?: number | null
+          current_conversion_rate?: string | null
           crm_usage?: string
           speed_to_contact?: string
           team_size?: string
@@ -255,6 +287,7 @@ export type Database = {
           geographic_focus_clarity?: string
           growth_goal_clarity?: string
           timeline_to_start?: string
+          monthly_sales_target?: number | null
           created_at?: string
           updated_at?: string
         }

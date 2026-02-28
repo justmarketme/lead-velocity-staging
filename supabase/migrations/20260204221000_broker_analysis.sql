@@ -4,7 +4,7 @@ DROP TABLE IF EXISTS public.broker_onboarding_responses;
 
 -- 2. Create Onboarding Table (Corrected Link)
 CREATE TABLE public.broker_onboarding_responses (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     -- LINK TO PROFILES, NOT AUTH.USERS
     broker_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
     
@@ -35,7 +35,7 @@ CREATE TABLE public.broker_onboarding_responses (
 
 -- 3. Create Analysis Table (Corrected Link)
 CREATE TABLE public.broker_analysis (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     response_id UUID REFERENCES public.broker_onboarding_responses(id) ON DELETE CASCADE,
     -- LINK TO PROFILES, NOT AUTH.USERS
     broker_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,

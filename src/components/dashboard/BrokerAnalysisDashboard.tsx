@@ -307,6 +307,33 @@ const BrokerAnalysisDashboard = () => {
                             {expandedId === submission.id && (
                                 <div className="border-t border-white/[0.03] p-6 bg-white/[0.01] animate-in slide-in-from-top-2 duration-300">
                                     <div className="w-full space-y-10 px-2 py-4">
+                                        {/* Current Lead Generation */}
+                                        {submission.responses?.receives_leads_currently && (
+                                            <div className="space-y-6">
+                                                <h4 className="flex items-center gap-2 text-sm font-black text-cyan-500">
+                                                    <Target className="w-5 h-5 text-cyan-500" /> Current Lead Gen
+                                                </h4>
+                                                <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                                                    <div className="border-b border-white/5 pb-2">
+                                                        <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Provider</p>
+                                                        <p className="text-sm font-bold text-white">{submission.responses?.current_lead_provider || "N/A"}</p>
+                                                    </div>
+                                                    <div className="border-b border-white/5 pb-2">
+                                                        <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Monthly Spend</p>
+                                                        <p className="text-sm font-bold text-white">R{submission.responses?.current_monthly_spend || 0}</p>
+                                                    </div>
+                                                    <div className="border-b border-white/5 pb-2">
+                                                        <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Current CPL</p>
+                                                        <p className="text-sm font-bold text-white">R{submission.responses?.current_cpl || 0}</p>
+                                                    </div>
+                                                    <div className="border-b border-white/5 pb-2">
+                                                        <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Conversion Rate</p>
+                                                        <p className="text-sm font-bold text-white">{submission.responses?.current_conversion_rate || "N/A"}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
                                         {/* Budget & Capacity */}
                                         <div className="space-y-6">
                                             <h4 className="flex items-center gap-2 text-sm font-black text-pink-500">
@@ -314,8 +341,8 @@ const BrokerAnalysisDashboard = () => {
                                             </h4>
                                             <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
                                                 <div className="border-b border-white/5 pb-2">
-                                                    <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Monthly Budget</p>
-                                                    <p className="text-sm font-bold text-white">{submission.responses?.monthly_lead_spend || "N/A"}</p>
+                                                    <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Desired Budget</p>
+                                                    <p className="text-sm font-bold text-white">R{submission.responses?.monthly_lead_spend || 0}</p>
                                                 </div>
                                                 <div className="border-b border-white/5 pb-2">
                                                     <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Comfort Per Lead</p>
@@ -373,8 +400,7 @@ const BrokerAnalysisDashboard = () => {
                                                     <p className="text-sm font-bold text-white">{submission.responses?.speed_to_contact || "N/A"}</p>
                                                 </div>
                                                 <div className="border-b border-white/5 pb-2">
-                                                    <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Monthly Target</p>
-                                                    <p className="text-sm font-bold text-white">{submission.responses?.growth_goal_clarity || "N/A"}</p>
+                                                    {/* Placeholder if needed */}
                                                 </div>
                                             </div>
                                             <div className="mt-4 border-b border-white/5 pb-2">
@@ -383,14 +409,27 @@ const BrokerAnalysisDashboard = () => {
                                             </div>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-4">
                                                 <div className="border-b border-white/5 pb-2">
-                                                    <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Growth Goals</p>
-                                                    <p className="text-sm font-medium text-white">{submission.responses?.growth_goal_clarity || "N/A"}</p>
-                                                </div>
-                                                <div className="border-b border-white/5 pb-2">
                                                     <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Status Probability Analysis</p>
                                                     <p className={cn("text-sm font-black", getProbabilityColor(submission.success_band))}>
                                                         {submission.success_probability}% - {submission.success_band}
                                                     </p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Goals & Targets */}
+                                        <div className="space-y-6">
+                                            <h4 className="flex items-center gap-2 text-sm font-black text-rose-400">
+                                                <TrendingUp className="w-5 h-5 text-rose-400" /> Goals & Targets
+                                            </h4>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-4">
+                                                <div className="border-b border-white/5 pb-2">
+                                                    <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Monthly Sales Target</p>
+                                                    <p className="text-sm font-bold text-white">R{submission.responses?.monthly_sales_target || 0}</p>
+                                                </div>
+                                                <div className="border-b border-white/5 pb-2">
+                                                    <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Growth Goals (3-6 Mos)</p>
+                                                    <p className="text-sm font-medium text-white">{submission.responses?.growth_goal_clarity || "N/A"}</p>
                                                 </div>
                                             </div>
                                         </div>
