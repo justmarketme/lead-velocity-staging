@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowRight, Database, BarChart3, Users, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import logo from "@/assets/lead-velocity-logo.png";
+import logo from "@/assets/lead-velocity-logo.webp";
 import { z } from "zod";
 import SEO from "@/components/SEO";
 

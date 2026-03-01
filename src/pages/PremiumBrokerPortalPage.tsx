@@ -21,7 +21,7 @@ import PremiumDashboard from "@/components/broker/PremiumDashboard";
 import PremiumCalendar from "@/components/broker/PremiumCalendar";
 import PremiumDocuments from "@/components/broker/PremiumDocuments";
 import { useToast } from "@/hooks/use-toast";
-import logo from "@/assets/lead-velocity-logo.png";
+import logo from "@/assets/lead-velocity-logo.webp";
 import SEO from "@/components/SEO";
 
 const PremiumBrokerPortalPage = () => {

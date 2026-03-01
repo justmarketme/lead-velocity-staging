@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "react-router-dom";
 import { FileText, Shield, Users, RefreshCw, Phone, CheckCircle } from "lucide-react";
-import dashboardNeon from "@/assets/dashboard-neon.png";
+import dashboardNeon from "@/assets/dashboard-neon.webp";
 import SEO from "@/components/SEO";
 
 const SpecializedServices = () => {

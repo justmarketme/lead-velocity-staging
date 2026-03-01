@@ -1,7 +1,7 @@
 import { ArrowRight, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import heroVelocity from "@/assets/hero-velocity.png";
+import heroVelocity from "@/assets/hero-velocity.webp";
 
 const Hero = () => {
   return (

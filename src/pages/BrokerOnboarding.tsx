@@ -23,14 +23,14 @@ import { useNavigate } from "react-router-dom";
 import { calculateScores, OnboardingData } from "@/lib/scoring";
 import { supabase } from "@/integrations/supabase/client";
 import SEO from "@/components/SEO";
-import einsteinGeniusNeon from "@/assets/einstein-hero-new.png";
-import einsteinPointing from "@/assets/einstein-solution-new.png";
-import missionControlNeon from "@/assets/einstein-targeting-new.png";
-import precisionTargeting from "@/assets/einstein-qualified-new.png";
-import einsteinRetention from "@/assets/einstein-roi-new.png";
-import einsteinCalls from "@/assets/einstein-expectation-new.png";
-import einsteinCta from "@/assets/einstein-join-now-final.png";
-import leadVelocityLogo from "@/assets/lead-velocity-logo.png";
+import einsteinGeniusNeon from "@/assets/einstein-hero-new.webp";
+import einsteinPointing from "@/assets/einstein-solution-new.webp";
+import missionControlNeon from "@/assets/einstein-targeting-new.webp";
+import precisionTargeting from "@/assets/einstein-qualified-new.webp";
+import einsteinRetention from "@/assets/einstein-roi-new.webp";
+import einsteinCalls from "@/assets/einstein-expectation-new.webp";
+import einsteinCta from "@/assets/einstein-join-now-final.webp";
+import leadVelocityLogo from "@/assets/lead-velocity-logo.webp";
 import { Textarea } from "@/components/ui/textarea"; // Assuming Textarea is also needed
 
 const BrokerOnboarding = () => {

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { LayoutDashboard, Users, Upload, BarChart3, Menu, X, LogOut, Database, UserPlus, FolderOpen, UserCheck, Calendar, FileText, Bot, Workflow, Sparkles, Target } from "lucide-react";
-import logo from "@/assets/lead-velocity-logo.png";
+import logo from "@/assets/lead-velocity-logo.webp";
 import { useToast } from "@/hooks/use-toast";
 import NotificationBell from "@/components/notifications/NotificationBell";
 

@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { Shield, AlertCircle, CheckCircle } from "lucide-react";
 import { z } from "zod";
-import logo from "@/assets/lead-velocity-logo.png";
+import logo from "@/assets/lead-velocity-logo.webp";
 import {
   Select,
   SelectContent,

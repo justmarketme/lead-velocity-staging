@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Menu, X } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import leadVelocityLogo from "@/assets/lead-velocity-logo.png";
+import leadVelocityLogo from "@/assets/lead-velocity-logo.webp";
 
 const Navigation = () => {
   const [isOpen, setIsOpen] = useState(false);

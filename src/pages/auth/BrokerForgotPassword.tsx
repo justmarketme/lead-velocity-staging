@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { ShieldQuestion, AlertCircle, Mail, Send, ArrowLeft, CheckCircle2 } from "lucide-react";
-import logo from "@/assets/lead-velocity-logo.png";
+import logo from "@/assets/lead-velocity-logo.webp";
 
 const BrokerForgotPassword = () => {
     const navigate = useNavigate();
