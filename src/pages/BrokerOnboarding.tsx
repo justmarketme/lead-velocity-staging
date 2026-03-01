@@ -393,18 +393,19 @@ const BrokerOnboarding = () => {
                     <div className="container mx-auto px-6 relative z-10">
                         <div className="grid lg:grid-cols-2 gap-12 items-center">
                             {/* Left Column - Text */}
-                            <div className="space-y-6">
-                                <p className="text-sm font-medium tracking-[0.25em] uppercase text-primary/90 flex items-center gap-2">
-                                    <Zap className="w-4 h-4" /> For Insurance Brokers
-                                </p>
+                            <div className="space-y-6 order-1">
                                 <h1 className="text-4xl lg:text-6xl font-bold tracking-tight leading-[1.1] text-white font-inter">
                                     Consistent Leads <br />
                                     <span className="gradient-text-epiphany">Delivered Weekly</span>
                                 </h1>
+                                <p className="text-sm font-medium tracking-[0.25em] uppercase text-primary/90 flex items-center gap-2">
+                                    <Zap className="w-4 h-4" /> For Insurance Brokers
+                                </p>
                                 <p className="text-lg text-slate-400 leading-relaxed">
                                     This page walks you through exactly how Lead Velocity works, how pricing is structured, and whether it's a fit for your business.
                                 </p>
-                                <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                                {/* Desktop Buttons */}
+                                <div className="hidden lg:flex flex-col sm:flex-row gap-4 pt-4">
                                     <Button
                                         size="lg"
                                         className="bg-primary hover:bg-primary/80 text-white transition-all duration-300 hover:scale-105 active:scale-95 px-6 py-6 text-base rounded-xl shadow-lg shadow-primary/20"
@@ -423,7 +424,7 @@ const BrokerOnboarding = () => {
                                 </div>
                             </div>
                             {/* Right Column - Einstein Rocket Image */}
-                            <div className="relative flex justify-center lg:justify-end">
+                            <div className="relative flex justify-center lg:justify-end order-2">
                                 <div className="relative">
                                     <div className="absolute inset-0 bg-gradient-to-tr from-pink-500/30 via-purple-500/30 to-violet-500/30 rounded-3xl blur-3xl"></div>
                                     <img
@@ -433,6 +434,24 @@ const BrokerOnboarding = () => {
                                     />
                                 </div>
                             </div>
+                            {/* Mobile Buttons */}
+                            <div className="flex lg:hidden flex-col gap-4 pt-4 order-3">
+                                <Button
+                                    size="lg"
+                                    className="bg-primary hover:bg-primary/80 text-white transition-all duration-300 hover:scale-105 active:scale-95 px-6 py-6 text-base rounded-xl shadow-lg shadow-primary/20"
+                                    onClick={() => document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" })}
+                                >
+                                    See How It Works <ArrowRight className="ml-2 h-4 w-4" />
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="lg"
+                                    className="border-primary/30 text-white hover:bg-primary/10 px-6 py-6 text-base rounded-xl"
+                                    onClick={() => document.getElementById("strategy-form")?.scrollIntoView({ behavior: "smooth" })}
+                                >
+                                    Skip to Form <ArrowRight className="ml-2 h-4 w-4" />
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 </header>
@@ -441,8 +460,19 @@ const BrokerOnboarding = () => {
                 <section className="py-20 border-b border-white/5 bg-slate-900/30" ref={problemAnim.ref}>
                     <div className={`container mx-auto px-6 transition-all duration-700 ${problemAnim.isVisible ? "scroll-fade-up" : "scroll-hidden"}`}>
                         <div className="grid lg:grid-cols-2 gap-16 items-center mb-16">
-                            {/* Left Column - Image */}
-                            <div className="relative flex justify-center">
+                            {/* Text Column */}
+                            <div className="order-1 lg:order-2">
+                                <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-4 text-white font-inter">
+                                    The Frustration You <br />
+                                    <span className="gradient-text-epiphany">Already Know</span>
+                                </h2>
+                                <p className="text-sm font-medium tracking-[0.25em] uppercase text-pink-400 flex items-center gap-2 mb-6">
+                                    <Sparkles className="w-4 h-4" /> The Problem
+                                </p>
+                                <p className="text-lg text-slate-400">Most brokers have been burned by lead generation before. Here's what they tell us:</p>
+                            </div>
+                            {/* Image Column */}
+                            <div className="relative flex justify-center order-2 lg:order-1">
                                 <div className="relative">
                                     <div className="absolute inset-0 bg-gradient-to-tr from-pink-500/20 via-purple-500/20 to-rose-500/20 rounded-[2rem] blur-3xl"></div>
                                     <img
@@ -451,17 +481,6 @@ const BrokerOnboarding = () => {
                                         className="relative w-full max-w-sm rounded-2xl"
                                     />
                                 </div>
-                            </div>
-                            {/* Right Column - Text */}
-                            <div>
-                                <p className="text-sm font-medium tracking-[0.25em] uppercase text-pink-400 flex items-center gap-2 mb-4">
-                                    <Sparkles className="w-4 h-4" /> The Problem
-                                </p>
-                                <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-6 text-white font-inter">
-                                    The Frustration You <br />
-                                    <span className="gradient-text-epiphany">Already Know</span>
-                                </h2>
-                                <p className="text-lg text-slate-400">Most brokers have been burned by lead generation before. Here's what they tell us:</p>
                             </div>
                         </div>
 
@@ -493,14 +512,24 @@ const BrokerOnboarding = () => {
                 <section id="how-it-works" className="py-24 border-b border-white/5" ref={mechanismAnim.ref}>
                     <div className={`container mx-auto px-6 transition-all duration-700 ${mechanismAnim.isVisible ? "scroll-fade-up" : "scroll-hidden"}`}>
                         <div className="grid lg:grid-cols-2 gap-16 items-center">
-                            <div>
-                                <p className="text-sm font-medium tracking-[0.25em] uppercase text-primary/90 flex items-center gap-2 mb-4">
-                                    <Zap className="w-4 h-4" /> The Mechanism
-                                </p>
-                                <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-8 text-white font-inter">
+                            <div className="order-1">
+                                <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-4 text-white font-inter">
                                     How <span className="gradient-text-epiphany">Lead Velocity</span> Works
                                 </h2>
+                                <p className="text-sm font-medium tracking-[0.25em] uppercase text-primary/90 flex items-center gap-2 mb-6">
+                                    <Zap className="w-4 h-4" /> The Mechanism
+                                </p>
                                 <p className="text-lg text-slate-400 mb-8">A structured approach to lead generation that puts you in control.</p>
+
+                                {/* Mobile Image */}
+                                <div className="relative block lg:hidden w-full mb-12">
+                                    <div className="absolute inset-0 bg-gradient-to-tr from-primary/20 via-purple-500/20 to-pink-500/20 rounded-3xl blur-3xl"></div>
+                                    <img
+                                        src={missionControlNeon}
+                                        alt="Lead Velocity Mission Control"
+                                        className="relative w-full rounded-3xl shadow-2xl shadow-purple-500/20 border border-white/10"
+                                    />
+                                </div>
 
                                 <div className="space-y-8">
                                     {[
@@ -521,7 +550,8 @@ const BrokerOnboarding = () => {
                                     ))}
                                 </div>
                             </div>
-                            <div className="relative">
+                            {/* Desktop Image */}
+                            <div className="relative hidden lg:block order-2">
                                 <div className="absolute inset-0 bg-gradient-to-tr from-primary/20 via-purple-500/20 to-pink-500/20 rounded-3xl blur-3xl"></div>
                                 <img
                                     src={missionControlNeon}
@@ -537,17 +567,17 @@ const BrokerOnboarding = () => {
                 <section className="py-20 border-b border-white/5 bg-slate-900/30" ref={qualityAnim.ref}>
                     <div className={`container mx-auto px-6 transition-all duration-700 ${qualityAnim.isVisible ? "scroll-fade-up" : "scroll-hidden"}`}>
                         <div className="grid lg:grid-cols-2 gap-12 items-center mb-16">
-                            <div>
-                                <p className="text-sm font-medium tracking-[0.25em] uppercase text-cyan-400 flex items-center gap-2 mb-4">
-                                    <CheckCircle2 className="w-4 h-4" /> Quality Defined
-                                </p>
+                            <div className="order-1">
                                 <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-4 text-white font-inter">
                                     What "Qualified" <br />
                                     <span className="gradient-text-epiphany">Actually Means</span>
                                 </h2>
+                                <p className="text-sm font-medium tracking-[0.25em] uppercase text-cyan-400 flex items-center gap-2 mb-6">
+                                    <CheckCircle2 className="w-4 h-4" /> Quality Defined
+                                </p>
                                 <p className="text-lg text-slate-400">We're specific about this because vague definitions waste everyone's time.</p>
                             </div>
-                            <div className="relative flex justify-center">
+                            <div className="relative flex justify-center order-2">
                                 <div className="relative">
                                     <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500/30 via-blue-500/30 to-purple-500/30 rounded-full blur-3xl"></div>
                                     <img
@@ -605,26 +635,28 @@ const BrokerOnboarding = () => {
                 <section className="py-20 border-b border-white/5" ref={investmentAnim.ref}>
                     <div className={`container mx-auto px-6 transition-all duration-700 ${investmentAnim.isVisible ? "scroll-fade-up" : "scroll-hidden"}`}>
                         <div className="grid lg:grid-cols-2 gap-12 items-center">
-                            {/* Left - Image */}
-                            <div className="relative flex justify-center order-2 lg:order-1">
-                                <div className="relative">
-                                    <div className="absolute inset-0 bg-gradient-to-tr from-amber-500/30 via-orange-500/30 to-pink-500/30 rounded-3xl blur-3xl"></div>
-                                    <img
-                                        src={einsteinRetention}
-                                        alt="Einstein showing ROI growth"
-                                        className="relative w-full max-w-sm rounded-2xl"
-                                    />
-                                </div>
-                            </div>
-                            {/* Right - Content */}
+                            {/* Content */}
                             <div className="order-1 lg:order-2">
-                                <p className="text-sm font-medium tracking-[0.25em] uppercase text-amber-400 mb-4 flex items-center gap-2">
-                                    <BarChart2 className="w-4 h-4" /> Investment Reality
-                                </p>
-                                <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-8 text-white font-inter">
+                                <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-4 text-white font-inter">
                                     Understanding <br />
                                     <span className="gradient-text-epiphany">Cost & Volume</span>
                                 </h2>
+                                <p className="text-sm font-medium tracking-[0.25em] uppercase text-amber-400 mb-8 flex items-center gap-2">
+                                    <BarChart2 className="w-4 h-4" /> Investment Reality
+                                </p>
+
+                                {/* Mobile Image */}
+                                <div className="relative flex justify-center block lg:hidden mb-12">
+                                    <div className="relative">
+                                        <div className="absolute inset-0 bg-gradient-to-tr from-amber-500/30 via-orange-500/30 to-pink-500/30 rounded-3xl blur-3xl"></div>
+                                        <img
+                                            src={einsteinRetention}
+                                            alt="Einstein showing ROI growth"
+                                            className="relative w-full max-w-sm rounded-2xl"
+                                        />
+                                    </div>
+                                </div>
+
                                 <div className="space-y-6">
                                     <div className="p-6 bg-slate-900/60 rounded-2xl border border-white/5">
                                         <h3 className="text-lg font-bold text-white mb-2">Why Lead Costs Vary</h3>
@@ -639,6 +671,17 @@ const BrokerOnboarding = () => {
                                     </div>
                                 </div>
                             </div>
+                            {/* Desktop Image */}
+                            <div className="relative hidden lg:flex justify-center order-2 lg:order-1">
+                                <div className="relative">
+                                    <div className="absolute inset-0 bg-gradient-to-tr from-amber-500/30 via-orange-500/30 to-pink-500/30 rounded-3xl blur-3xl"></div>
+                                    <img
+                                        src={einsteinRetention}
+                                        alt="Einstein showing ROI growth"
+                                        className="relative w-full max-w-sm rounded-2xl"
+                                    />
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -647,17 +690,17 @@ const BrokerOnboarding = () => {
                 <section className="py-20 border-b border-white/5 bg-slate-900/30" ref={partnershipAnim.ref}>
                     <div className={`container mx-auto px-6 transition-all duration-700 ${partnershipAnim.isVisible ? "scroll-fade-up" : "scroll-hidden"}`}>
                         <div className="grid lg:grid-cols-2 gap-12 items-center mb-12">
-                            <div>
-                                <p className="text-sm font-medium tracking-[0.25em] uppercase text-purple-400 mb-4 flex items-center gap-2">
-                                    <Users className="w-4 h-4" /> Partnership
-                                </p>
+                            <div className="order-1">
                                 <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-4 text-white font-inter">
                                     What We Expect <br />
                                     <span className="gradient-text-epiphany">From You</span>
                                 </h2>
+                                <p className="text-sm font-medium tracking-[0.25em] uppercase text-purple-400 mb-6 flex items-center gap-2">
+                                    <Users className="w-4 h-4" /> Partnership
+                                </p>
                                 <p className="text-lg text-slate-400">Lead Velocity delivers. But delivery without action is waste.</p>
                             </div>
-                            <div className="relative flex justify-center">
+                            <div className="relative flex justify-center order-2">
                                 <div className="relative">
                                     <div className="absolute inset-0 bg-gradient-to-tr from-purple-500/30 via-violet-500/30 to-pink-500/30 rounded-3xl blur-3xl"></div>
                                     <img
@@ -716,6 +759,14 @@ const BrokerOnboarding = () => {
                 >
                     <div className="container mx-auto px-6">
                         <div className="grid lg:grid-cols-2 gap-12 items-center mb-12">
+                            <div className="order-1 lg:order-2">
+                                <h2 className="text-3xl md:text-5xl font-bold mb-4 text-white font-inter">
+                                    Lead Readiness & <br />
+                                    <span className="gradient-text-epiphany">Strategy Snapshot</span>
+                                </h2>
+                                <p className="text-sm font-medium tracking-[0.25em] uppercase text-emerald-400 mb-6">Strategy Diagnostic</p>
+                                <p className="text-slate-400">Complete this diagnostic to help us prepare for your strategy call.</p>
+                            </div>
                             <div className="relative flex justify-center order-2 lg:order-1">
                                 <div className="relative">
                                     <div className="absolute inset-0 bg-gradient-to-tr from-green-500/30 via-emerald-500/30 to-cyan-500/30 rounded-3xl blur-3xl"></div>
@@ -725,14 +776,6 @@ const BrokerOnboarding = () => {
                                         className="relative w-full max-w-sm rounded-2xl"
                                     />
                                 </div>
-                            </div>
-                            <div className="order-1 lg:order-2">
-                                <p className="text-sm font-medium tracking-[0.25em] uppercase text-emerald-400 mb-4">Strategy Diagnostic</p>
-                                <h2 className="text-3xl md:text-5xl font-bold mb-4 text-white font-inter">
-                                    Lead Readiness & <br />
-                                    <span className="gradient-text-epiphany">Strategy Snapshot</span>
-                                </h2>
-                                <p className="text-slate-400">Complete this diagnostic to help us prepare for your strategy call.</p>
                             </div>
                         </div>
 
