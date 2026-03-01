@@ -9,6 +9,7 @@ import { ArrowRight, Database, BarChart3, Users, CheckCircle } from "lucide-reac
 import { useToast } from "@/hooks/use-toast";
 import logo from "@/assets/lead-velocity-logo.png";
 import { z } from "zod";
+import SEO from "@/components/SEO";
 
 const loginSchema = z.object({
   email: z.string().trim().email("Invalid email address"),
@@ -157,6 +158,7 @@ const BrokerPortal = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+      <SEO title="Broker Portal" description="Lead Velocity broker portal login." noIndex />
       {/* Hero Section */}
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 bg-grid-white/[0.02] bg-[size:50px_50px]" />

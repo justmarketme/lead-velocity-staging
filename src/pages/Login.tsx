@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import logo from "@/assets/lead-velocity-logo.png";
 import type { Session } from "@supabase/supabase-js";
 import { z } from "zod";
+import SEO from "@/components/SEO";
 
 const loginSchema = z.object({
   email: z.string().trim().email("Invalid email address"),
@@ -126,6 +127,7 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
+      <SEO title="Broker Sign In" description="Sign in to your Lead Velocity broker portal." noIndex />
       <Card className="w-full max-w-md border-border/50 bg-background/95 backdrop-blur">
         <CardHeader className="space-y-4 text-center">
           <img src={logo} alt="Lead Velocity" className="h-20 w-auto mx-auto" />

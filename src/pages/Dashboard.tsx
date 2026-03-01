@@ -18,6 +18,7 @@ import WorkflowManagement from "@/components/dashboard/WorkflowManagement";
 import MarketingHub from "@/components/dashboard/MarketingHub";
 import BrokerAnalysisDashboard from "@/components/dashboard/BrokerAnalysisDashboard";
 import type { Session } from "@supabase/supabase-js";
+import SEO from "@/components/SEO";
 
 const Dashboard = () => {
   const [session, setSession] = useState<Session | null>(null);
@@ -108,6 +109,7 @@ const Dashboard = () => {
 
   return (
     <DashboardLayout activeTab={activeTab} setActiveTab={setActiveTab}>
+      <SEO title="Admin Dashboard" description="Lead Velocity admin dashboard." noIndex />
       {activeTab === "overview" && <DashboardOverview />}
       {activeTab === "workflow" && <WorkflowManagement />}
       {activeTab === "leads" && <LeadsTable />}

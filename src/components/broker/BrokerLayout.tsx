@@ -6,6 +6,7 @@ import { LayoutDashboard, Database, BarChart3, Menu, X, LogOut, FolderOpen, User
 import logo from "@/assets/lead-velocity-logo.png";
 import { useToast } from "@/hooks/use-toast";
 import NotificationBell from "@/components/notifications/NotificationBell";
+import SEO from "@/components/SEO";
 
 interface BrokerLayoutProps {
   children: React.ReactNode;
@@ -40,6 +41,7 @@ const BrokerLayout = ({ children }: BrokerLayoutProps) => {
 
   return (
     <div className="min-h-screen bg-background">
+      <SEO title="Broker Portal" description="Lead Velocity broker portal." noIndex />
       {/* Top Navbar */}
       <nav className="fixed top-0 w-full z-50 bg-background/95 backdrop-blur-lg border-b border-border">
         <div className="px-4 sm:px-6 lg:px-8">
@@ -67,9 +69,8 @@ const BrokerLayout = ({ children }: BrokerLayoutProps) => {
 
       {/* Sidebar */}
       <aside
-        className={`fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-card border-r border-border transition-transform duration-300 z-40 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        }`}
+        className={`fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-card border-r border-border transition-transform duration-300 z-40 ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          }`}
       >
         <nav className="p-4 space-y-2">
           {menuItems.map((item) => {
@@ -82,11 +83,10 @@ const BrokerLayout = ({ children }: BrokerLayoutProps) => {
                   navigate(item.path);
                   setSidebarOpen(false);
                 }}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                  isActive
+                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${isActive
                     ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                }`}
+                  }`}
               >
                 <Icon size={20} />
                 <span>{item.label}</span>

@@ -5,14 +5,6 @@ import BrokerLayout from "@/components/broker/BrokerLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Database, FileText, Users, Calendar } from "lucide-react";
 
-const DEV_PREVIEW = true;
-const MOCK_STATS = {
-  totalLeads: 45,
-  willsCompleted: 12,
-  referralsGenerated: 8,
-  appointmentsScheduled: 3,
-};
-
 const BrokerDashboard = () => {
   const [stats, setStats] = useState({
     totalLeads: 0,
@@ -24,30 +16,21 @@ const BrokerDashboard = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (DEV_PREVIEW) {
-      setStats(MOCK_STATS);
-      setLoading(false);
-      return;
-    }
-
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        navigate("/login");
+        navigate("/broker");
         return;
       }
-
       // Verify broker role
       const { data: hasRole } = await supabase.rpc('has_role', {
         _user_id: session.user.id,
         _role: 'broker'
       });
-
       if (!hasRole) {
-        navigate("/login");
+        navigate("/broker");
         return;
       }
-
       fetchStats(session.user.id);
     };
     checkAuth();

@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Shield, Lock, Eye, EyeOff } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { z } from "zod";
+import SEO from "@/components/SEO";
 
 const loginSchema = z.object({
   email: z.string().trim().email("Invalid email address"),
@@ -148,6 +149,7 @@ const AdminLogin = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
+      <SEO title="Admin Login" description="Lead Velocity administrator portal." noIndex />
       {/* Background effects */}
       <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-secondary/10" />
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-3xl" />

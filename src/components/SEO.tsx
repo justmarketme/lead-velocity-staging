@@ -6,6 +6,7 @@ interface SEOProps {
     keywords?: string;
     canonicalUrl?: string;
     ogImage?: string;
+    noIndex?: boolean;
 }
 
 const SEO = ({
@@ -13,16 +14,20 @@ const SEO = ({
     description,
     keywords = "business insurance leads, qualified leads, insurance broker leads, south africa insurance leads",
     canonicalUrl,
-    ogImage = "https://www.leadvelocity.co.za/og-image.png" // Replace with actual default OG image if available
+    ogImage = "https://www.leadvelocity.co.za/og-image.png",
+    noIndex = false
 }: SEOProps) => {
     const fullTitle = `${title} | Lead Velocity`;
 
     return (
         <Helmet>
+            {/* Block indexing for private/admin pages */}
+            {noIndex && <meta name="robots" content="noindex, nofollow" />}
+
             {/* Standard Metadata */}
             <title>{fullTitle}</title>
             <meta name="description" content={description} />
-            <meta name="keywords" content={keywords} />
+            {!noIndex && <meta name="keywords" content={keywords} />}
             {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
 
             {/* Open Graph / Facebook */}
