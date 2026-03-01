@@ -152,10 +152,10 @@ const Login = () => {
               <Button type="submit" className="w-full" disabled={resetLoading}>
                 {resetLoading ? "Sending..." : "Send Reset Link"}
               </Button>
-              <Button 
-                type="button" 
-                variant="ghost" 
-                className="w-full" 
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full"
                 onClick={() => setShowForgotPassword(false)}
               >
                 Back to Login
@@ -177,13 +177,12 @@ const Login = () => {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">Password</Label>
-                  <button
-                    type="button"
-                    onClick={() => setShowForgotPassword(true)}
+                  <Link
+                    to="/broker/forgot-password"
                     className="text-xs text-primary hover:underline"
                   >
                     Forgot password?
-                  </button>
+                  </Link>
                 </div>
                 <Input
                   id="password"
@@ -197,12 +196,7 @@ const Login = () => {
                 {loading ? "Signing in..." : "Sign In"}
               </Button>
 
-              <p className="text-sm text-center text-muted-foreground">
-                Don't have an account?{" "}
-                <Link to="/signup" className="text-primary hover:underline">
-                  Sign up
-                </Link>
-              </p>
+
             </form>
           )}
         </CardContent>

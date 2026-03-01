@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Mail, Phone, MapPin, Send, MessageCircle } from "lucide-react";
 import { z } from "zod";
+import SEO from "@/components/SEO";
 
 const contactSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100),
@@ -84,14 +85,20 @@ const Contact = () => {
 
   return (
     <div className="min-h-screen">
+      <SEO
+        title="Contact Us — Get Your Insurance Lead Generation Started"
+        description="Get in touch with Lead Velocity. Reach our team by email, phone or WhatsApp and start building a consistent pipeline of qualified insurance leads."
+        canonicalUrl="https://www.leadvelocity.co.za/contact"
+        keywords="contact lead velocity, insurance leads south africa, broker lead enquiry, lead generation contact"
+      />
       <Navigation />
-      
+
       {/* Hero Section */}
       <section className="pt-24 sm:pt-32 pb-12 sm:pb-16 relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-0 right-1/4 w-48 sm:w-96 h-48 sm:h-96 bg-secondary/10 rounded-full blur-3xl"></div>
         </div>
-        
+
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="max-w-3xl mx-auto text-center space-y-4 sm:space-y-6">
             <h1 className="text-3xl sm:text-5xl lg:text-6xl font-bold">

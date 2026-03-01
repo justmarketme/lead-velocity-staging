@@ -1,0 +1,1 @@
+ALTER TABLE public.broker_onboarding_responses ADD COLUMN IF NOT EXISTS product_focus text[];

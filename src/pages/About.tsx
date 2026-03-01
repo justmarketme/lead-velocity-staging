@@ -1,6 +1,7 @@
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import { Users, Award, Globe, Rocket } from "lucide-react";
+import SEO from "@/components/SEO";
 
 const About = () => {
   const values = [
@@ -28,6 +29,12 @@ const About = () => {
 
   return (
     <div className="min-h-screen">
+      <SEO
+        title="About Lead Velocity"
+        description="Learn about Lead Velocity — built by former brokers who experienced the pain of poor-quality leads. We created a better system for South African insurance and financial advisors."
+        canonicalUrl="https://www.leadvelocity.co.za/about"
+        keywords="about lead velocity, insurance lead generation company, south africa lead gen, broker lead specialists"
+      />
       <Navigation />
 
       {/* Hero Section */}

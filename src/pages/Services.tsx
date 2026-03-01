@@ -3,6 +3,7 @@ import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { Check, Sparkles, Users, Briefcase, ArrowRight } from "lucide-react";
+import SEO from "@/components/SEO";
 
 const Services = () => {
   const services = [
@@ -46,6 +47,12 @@ const Services = () => {
 
   return (
     <div className="min-h-screen">
+      <SEO
+        title="Lead Generation Services for Insurance Brokers"
+        description="Explore Lead Velocity's lead generation services for insurance brokers and financial advisors in South Africa. Pre-qualified, verified, and delivered consistently."
+        canonicalUrl="https://www.leadvelocity.co.za/services"
+        keywords="insurance broker lead generation, financial advisor leads, south africa insurance leads, pre-qualified leads"
+      />
       <Navigation />
 
       {/* Hero Section */}

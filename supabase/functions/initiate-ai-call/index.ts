@@ -141,9 +141,9 @@ serve(async (req) => {
     // Create TwiML for the call with text-to-speech
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Joanna" language="en-US">${personalizedScript}</Say>
+  <Say voice="Polly.Ayanda" language="en-ZA">${personalizedScript}</Say>
   <Pause length="2"/>
-  <Say voice="Polly.Joanna" language="en-US">Please leave a message after the beep, or press any key to speak with a representative.</Say>
+  <Say voice="Polly.Ayanda" language="en-ZA">Please leave a message after the beep, or press any key to speak with a representative.</Say>
   <Record maxLength="120" action="${supabaseUrl}/functions/v1/handle-ai-call-recording?callRequestId=${callRequest.id}" transcribe="true" transcribeCallback="${supabaseUrl}/functions/v1/handle-ai-call-transcription?callRequestId=${callRequest.id}"/>
 </Response>`;
 

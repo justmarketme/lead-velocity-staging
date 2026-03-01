@@ -3,8 +3,9 @@ import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "react-router-dom";
-import { FileText, Shield, Users, RefreshCw, Phone, TrendingUp, CheckCircle } from "lucide-react";
+import { FileText, Shield, Users, RefreshCw, Phone, CheckCircle } from "lucide-react";
 import dashboardNeon from "@/assets/dashboard-neon.png";
+import SEO from "@/components/SEO";
 
 const SpecializedServices = () => {
   const services = [
@@ -82,15 +83,21 @@ const SpecializedServices = () => {
 
   return (
     <div className="min-h-screen">
+      <SEO
+        title="Specialized Broker Services — Wills, Retentions & Referrals"
+        description="Lead Velocity's specialized services help insurance brokers grow with will drafting via Capital Legacy, retention management, after-sales calls, and referral generation from your existing book."
+        canonicalUrl="https://www.leadvelocity.co.za/specialized-services"
+        keywords="will drafting broker, capital legacy partner, insurance retention management, broker referral generation, after sales calls"
+      />
       <Navigation />
-      
+
       {/* Hero Section */}
       <section className="pt-24 sm:pt-32 pb-12 sm:pb-16 relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-0 left-1/3 w-48 sm:w-96 h-48 sm:h-96 bg-accent/10 rounded-full blur-3xl"></div>
           <div className="absolute bottom-0 right-1/3 w-48 sm:w-96 h-48 sm:h-96 bg-primary/10 rounded-full blur-3xl"></div>
         </div>
-        
+
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="max-w-4xl mx-auto text-center space-y-4 sm:space-y-6">
             <h1 className="text-3xl sm:text-5xl lg:text-6xl font-bold">
@@ -118,7 +125,7 @@ const SpecializedServices = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="aspect-video rounded-lg overflow-hidden neon-border bg-gradient-to-br from-primary/20 via-secondary/20 to-accent/20">
-                  <img 
+                  <img
                     src={dashboardNeon}
                     alt="Lead Velocity Dashboard showing neon-themed analytics and lead tracking interface"
                     className="w-full h-full object-cover"
@@ -139,10 +146,7 @@ const SpecializedServices = () => {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-8 max-w-7xl mx-auto">
             {services.map((service, index) => (
-              <Card
-                key={index}
-                className="neon-border bg-card hover:bg-card/80 transition-all glow-hover"
-              >
+              <Card key={index} className="neon-border bg-card hover:bg-card/80 transition-all glow-hover">
                 <CardHeader className="p-4 sm:p-6">
                   <div className="w-12 sm:w-16 h-12 sm:h-16 rounded-xl bg-gradient-to-br from-primary via-secondary to-accent flex items-center justify-center mb-3 sm:mb-4">
                     <service.icon className="w-6 sm:w-8 h-6 sm:h-8 text-primary-foreground" />
@@ -184,10 +188,7 @@ const SpecializedServices = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {growthSteps.map((step) => (
-                <div
-                  key={step.step}
-                  className="relative p-4 sm:p-6 rounded-xl neon-border bg-card space-y-2 sm:space-y-3"
-                >
+                <div key={step.step} className="relative p-4 sm:p-6 rounded-xl neon-border bg-card space-y-2 sm:space-y-3">
                   <div className="w-10 sm:w-12 h-10 sm:h-12 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-primary-foreground font-bold text-lg sm:text-xl">
                     {step.step}
                   </div>
@@ -251,10 +252,7 @@ const SpecializedServices = () => {
               Let us help you unlock the full potential of your client book.
             </p>
             <Link to="/contact">
-              <Button 
-                size="lg"
-                className="bg-gradient-to-r from-primary via-secondary to-accent text-primary-foreground hover:opacity-90 transition-all glow-hover text-sm sm:text-base"
-              >
+              <Button size="lg" className="bg-gradient-to-r from-primary via-secondary to-accent text-primary-foreground hover:opacity-90 transition-all glow-hover text-sm sm:text-base">
                 Get Started Today
               </Button>
             </Link>

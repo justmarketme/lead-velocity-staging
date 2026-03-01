@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Download, Mail, ZoomIn, ZoomOut, Maximize, Monitor, Plus, Trash2, Save, Mic, MicOff, Bot, Sparkles, Check, X, Loader2 } from "lucide-react";
+import { ArrowLeft, Download, Mail, ZoomIn, ZoomOut, Maximize, Monitor, Plus, Trash2, Save, Mic, MicOff, Bot, Sparkles, Check, X, Loader2, Paperclip, AudioLines, SendHorizonal } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import logo from "@/assets/lead-velocity-logo.png";
@@ -10,6 +10,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { getInvoiceEmailSignature } from "@/utils/emailSignature";
+import { BrokerSelector } from "./BrokerSelector";
+import { callLegalAI } from "@/utils/legalAI";
 
 interface InvoiceGeneratorProps {
     onBack: () => void;
@@ -57,10 +59,14 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
     const [isGenerating, setIsGenerating] = useState(false);
 
     // AI & Voice State
-    const [isListening, setIsListening] = useState(false);
-    const [aiInput, setAiInput] = useState("");
     const [isSpeaking, setIsSpeaking] = useState(false);
+    const [isConversational, setIsConversational] = useState(false);
     const [aiResponse, setAiResponse] = useState("");
+    const [aiSuggestions, setAiSuggestions] = useState<string[]>([
+        "Ensure standard payment terms",
+        "Add a late fee clause",
+        "Make it sound more professional"
+    ]);
     const [pendingChanges, setPendingChanges] = useState<any>(null);
 
     const [invoiceData, setInvoiceData] = useState({
@@ -91,8 +97,50 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
             setInvoiceData(initialData);
         }
     }, [initialData]);
-
     const [recipientEmail, setRecipientEmail] = useState("");
+
+    const handleBrokerSelect = (broker: any) => {
+        const name = broker.full_name || "Client Name";
+        const company = broker.firm_name || broker.company_name || "";
+        const clientName = company || name;
+
+        const weeklyLeads = broker.desired_leads_weekly || 6;
+        const monthlyLeads = Math.round(weeklyLeads * 4.33);
+        let itemDescription = "Lead Generation Pilot Campaign (30 Days)";
+        let itemPrice = 6000;
+
+        if (monthlyLeads <= 6) {
+            itemDescription = "Lead Generation Pilot Campaign (30 Days)";
+            itemPrice = 6000;
+        } else if (monthlyLeads <= 20) {
+            itemDescription = "Growth Starter Lead Strategy (Bronze)";
+            itemPrice = 8500;
+        } else if (monthlyLeads <= 32) {
+            itemDescription = "Scale & Optimise Lead Engine (Silver)";
+            itemPrice = 10500;
+        } else {
+            itemDescription = "Performance Partner Enterprise Tier (Gold)";
+            itemPrice = 16500;
+        }
+
+        setInvoiceData(prev => ({
+            ...prev,
+            clientName,
+            clientAddress: broker.office_address || "To be updated",
+            clientVat: "VAT: To be updated",
+            items: [
+                { description: itemDescription, quantity: 1, price: itemPrice },
+                { description: "Platform Setup & Configuration", quantity: 1, price: 0 }
+            ]
+        }));
+
+        if (broker.email) setRecipientEmail(broker.email);
+
+        toast({
+            title: "Broker Data Applied",
+            description: `Auto-filled details and set item to ${itemPrice} based on ${monthlyLeads} leads/mo.`,
+        });
+    };
 
     const updateField = (field: string, value: string) => {
         setInvoiceData(prev => ({ ...prev, [field]: value }));
@@ -120,25 +168,65 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
         return invoiceData.items.reduce((acc, item) => acc + (item.quantity * item.price), 0);
     };
 
-    // Voice Synthesis (TTS) - SA Female Persona
+    // Voice Synthesis (TTS) - Improved Voice Selection (Hand-picked for ZA)
     const speak = (text: string) => {
-        if ('speechSynthesis' in window) {
-            window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(text);
+        if (!('speechSynthesis' in window)) return;
+
+        window.speechSynthesis.cancel();
+
+        const getPreferredVoice = () => {
             const voices = window.speechSynthesis.getVoices();
-            let voice = voices.find(v => v.lang === 'en-ZA' && (v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('google')));
-            if (!voice) voice = voices.find(v => v.lang === 'en-ZA');
-            if (!voice) voice = voices.find(v => v.lang.includes('en-GB') && v.name.toLowerCase().includes('female'));
+            if (voices.length === 0) return null;
+
+            // Strict Priority: 
+            // 1. Natural Google/Microsoft ZA voices 
+            // 2. High quality English Female (Natural)
+            // 3. Any ZA voice
+            // 4. Any Female English voice
+
+            const naturalZA = voices.find(v => (v.name.toLowerCase().includes('natural') || v.name.toLowerCase().includes('google')) && v.lang === 'en-ZA');
+            if (naturalZA) return naturalZA;
+
+            const premiumFemale = voices.find(v => (v.name.toLowerCase().includes('ayanda') || v.name.toLowerCase().includes('hazel') || v.name.toLowerCase().includes('zira') || v.name.toLowerCase().includes('susan')));
+            if (premiumFemale) return premiumFemale;
+
+            const femaleZA = voices.find(v => v.lang === 'en-ZA' && v.name.toLowerCase().includes('female'));
+            if (femaleZA) return femaleZA;
+
+            const anyZA = voices.find(v => v.lang === 'en-ZA');
+            if (anyZA) return anyZA;
+
+            const genericNaturalFemale = voices.find(v => v.name.toLowerCase().includes('natural') && v.name.toLowerCase().includes('female'));
+            if (genericNaturalFemale) return genericNaturalFemale;
+
+            return voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female')) || voices[0];
+        };
+
+        const executeSpeak = () => {
+            const voice = getPreferredVoice();
+            const utterance = new SpeechSynthesisUtterance(text);
+
             if (voice) {
                 utterance.voice = voice;
-                if (!voice.lang.includes('ZA')) {
-                    utterance.pitch = 1.1;
-                    utterance.rate = 0.95;
+                // Humanize the standard voices if not using a "Natural" one
+                if (!voice.name.toLowerCase().includes('natural') && !voice.name.toLowerCase().includes('google')) {
+                    utterance.pitch = 1.05;
+                    utterance.rate = 0.92;
                 }
             }
+
             utterance.onstart = () => setIsSpeaking(true);
             utterance.onend = () => setIsSpeaking(false);
             window.speechSynthesis.speak(utterance);
+        };
+
+        if (window.speechSynthesis.getVoices().length > 0) {
+            executeSpeak();
+        } else {
+            window.speechSynthesis.onvoiceschanged = () => {
+                executeSpeak();
+                window.speechSynthesis.onvoiceschanged = null;
+            };
         }
     };
 
@@ -171,37 +259,30 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
         recognition.start();
     };
 
-    const processAICommand = (command: string) => {
-        const lowerCmd = command.toLowerCase();
-        let response = "I've analyzed your invoice request.";
-        let changes: any = {};
+    const processAICommand = async (command: string) => {
+        setIsThinking(true);
+        setAiResponse("Let me review the invoice...");
+        try {
+            const result = await callLegalAI(command, invoiceData, "Invoice");
+            const { response, changes, suggestions } = result;
 
-        if (lowerCmd.includes("change client to") || lowerCmd.includes("client name is")) {
-            const newName = command.replace(/change client to|client name is/i, "").trim();
-            changes = { clientName: newName };
-            response = `I've prepared a draft with ${newName} as the client. Shall I apply these changes?`;
-        }
-        else if (lowerCmd.includes("invoice number")) {
-            const match = command.match(/INV-\d+/i) || command.match(/\d+/);
-            if (match) {
-                const newNum = match[0].toString().startsWith("INV-") ? match[0].toUpperCase() : `INV-${match[0]}`;
-                changes = { invoiceNumber: newNum, reference: newNum };
-                response = `Drafting update for invoice number to ${newNum}. Confirm to save.`;
+            setAiResponse(response || "I've reviewed the request.");
+            if (changes && Object.keys(changes).length > 0) {
+                setPendingChanges(changes);
             }
+            if (suggestions && Array.isArray(suggestions) && suggestions.length > 0) {
+                setAiSuggestions(suggestions);
+            }
+            if (response && isConversational) speak(response);
+            if (response && !isConversational) setAiResponse(response);
+        } catch (error: any) {
+            console.error("AI Assistant Error:", error);
+            const errorMsg = "I'm sorry, I couldn't connect to the AI. Please check your internet connection.";
+            setAiResponse(errorMsg);
+            toast({ title: "AI Error", description: error.message, variant: "destructive" });
+        } finally {
+            setIsThinking(false);
         }
-        else if (lowerCmd.includes("add item") || lowerCmd.includes("line item")) {
-            response = "I've added a new line item for you to fill in. You can also tell me 'Set price to R5000'.";
-            addItem();
-        }
-        else {
-            response = "I can help you update client details, invoice numbers, or line items. Try 'Change client to Nexus'.";
-        }
-
-        setAiResponse(response);
-        if (Object.keys(changes).length > 0) {
-            setPendingChanges(changes);
-        }
-        speak(response);
     };
 
     const applyPendingChanges = () => {
@@ -404,6 +485,8 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
                 <div className="lg:col-span-4 xl:col-span-3 h-full flex flex-col gap-4 overflow-hidden">
                     <Card className="bg-slate-900/50 border-white/5 flex-1 overflow-y-auto custom-scrollbar">
                         <CardContent className="p-6 space-y-6">
+                            <BrokerSelector onSelect={handleBrokerSelect} />
+
                             <div className="space-y-4">
                                 <h3 className="font-bold text-slate-100 text-sm uppercase tracking-widest">Invoice Meta</h3>
                                 <div className="space-y-1">
@@ -435,56 +518,114 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
                         </CardContent>
                     </Card>
 
-                    {/* AI Assistant (Invoice Specialized) */}
-                    <Card className="bg-gradient-to-br from-slate-900 via-slate-950 to-black border-green-500/20 shadow-2xl overflow-hidden shrink-0">
-                        <div className="bg-green-500/10 px-4 py-2 border-b border-green-500/20 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <Bot className="h-4 w-4 text-green-400" />
-                                <span className="text-[10px] font-bold text-green-400 uppercase tracking-tighter">AI Finance Assistant (ZA)</span>
-                            </div>
-                            {isSpeaking && <div className="flex gap-0.5 items-end h-3">
-                                <div className="w-1 h-3 bg-green-500 animate-pulse" />
-                                <div className="w-1 h-2 bg-green-500 animate-pulse delay-75" />
-                                <div className="w-1 h-2.5 bg-green-500 animate-pulse delay-150" />
-                            </div>}
-                        </div>
+                    {/* Premium AI Assistant UI (Grok Style) */}
+                    <Card className="bg-[#151719]/80 backdrop-blur-xl border border-white/5 shadow-2xl overflow-hidden shrink-0 rounded-2xl">
                         <CardContent className="p-4 space-y-4">
-                            {aiResponse && (
+                            {/* AI Message Bubble */}
+                            {(aiResponse || isThinking) && (
                                 <div className="animate-in slide-in-from-bottom-2 duration-300">
-                                    <p className="text-xs text-slate-300 leading-relaxed bg-white/5 p-3 rounded-lg border-l-2 border-green-500">
-                                        "{aiResponse}"
-                                    </p>
+                                    <div className="flex gap-3">
+                                        <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
+                                            <Bot className="h-3.5 w-3.5 text-green-500" />
+                                        </div>
+                                        <div className="flex-1 space-y-2">
+                                            {isThinking ? (
+                                                <div className="flex gap-1 items-center py-1">
+                                                    <div className="w-1.5 h-1.5 bg-green-500/50 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                                                    <div className="w-1.5 h-1.5 bg-green-500/50 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                                                    <div className="w-1.5 h-1.5 bg-green-500/50 rounded-full animate-bounce" />
+                                                </div>
+                                            ) : (
+                                                <p className="text-xs text-slate-200 leading-relaxed font-medium">
+                                                    {aiResponse}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+
                                     {pendingChanges && (
-                                        <div className="flex gap-2 mt-2">
-                                            <Button size="sm" onClick={applyPendingChanges} className="flex-1 bg-green-600 hover:bg-green-700 h-8 text-[11px] font-bold">
-                                                <Check className="h-3 w-3 mr-1" /> Submit Changes
+                                        <div className="flex gap-2 mt-4 ml-9">
+                                            <Button size="sm" onClick={applyPendingChanges} className="flex-1 bg-green-600 hover:bg-green-700 h-9 text-[11px] font-bold rounded-xl shadow-lg shadow-green-600/20 border-t border-white/10">
+                                                Commit Changes
                                             </Button>
-                                            <Button size="sm" variant="outline" onClick={() => setPendingChanges(null)} className="h-8 border-white/10 text-slate-400 hover:text-white">
-                                                <X className="h-3 w-3" />
+                                            <Button size="sm" variant="ghost" onClick={() => setPendingChanges(null)} className="h-9 w-9 p-0 rounded-xl hover:bg-white/5 text-slate-400">
+                                                <X className="h-4 w-4" />
                                             </Button>
                                         </div>
                                     )}
                                 </div>
                             )}
-                            <form onSubmit={handleAISubmit} className="relative group">
-                                <Input
-                                    value={aiInput}
-                                    onChange={(e) => setAiInput(e.target.value)}
-                                    placeholder="Change client, number, or items..."
-                                    className="bg-black/60 border-white/10 text-xs pr-12 focus-visible:ring-green-500/30 h-10 transition-all group-hover:border-green-500/20"
-                                />
-                                <div className="absolute right-1 top-1 flex gap-1">
-                                    <Button
-                                        type="button"
-                                        size="icon"
-                                        variant="ghost"
-                                        className={`h-8 w-8 transition-colors ${isListening ? 'bg-red-500/20 text-red-500' : 'text-slate-500 hover:text-white'}`}
-                                        onClick={toggleListening}
-                                    >
-                                        {isListening ? <MicOff className="h-4 w-4 animate-pulse" /> : <Mic className="h-4 w-4" />}
-                                    </Button>
+
+                            {/* Contextual Suggestions Pills */}
+                            {aiSuggestions.length > 0 && !isThinking && (
+                                <div className="flex flex-wrap gap-2 animate-in fade-in duration-500">
+                                    {aiSuggestions.map((suggestion, idx) => (
+                                        <button
+                                            key={idx}
+                                            type="button"
+                                            onClick={() => {
+                                                setAiInput(suggestion);
+                                                processAICommand(suggestion);
+                                            }}
+                                            className="text-[10px] bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-white/5 rounded-full px-3 py-1.5 transition-all duration-200"
+                                        >
+                                            {suggestion}
+                                        </button>
+                                    ))}
                                 </div>
-                            </form>
+                            )}
+
+                            {/* Premium Input Bar */}
+                            <div className="relative group mt-2 bg-black/40 rounded-2xl border border-white/5 p-1.5 transition-all duration-300 focus-within:border-green-500/30 focus-within:bg-black/60 shadow-inner">
+                                <form onSubmit={handleAISubmit} className="flex items-center gap-1">
+                                    <div className="flex items-center gap-0.5 px-2 text-slate-500">
+                                        <Paperclip className="h-4 w-4 hover:text-slate-300 cursor-pointer transition-colors" />
+                                    </div>
+
+                                    <Input
+                                        value={aiInput}
+                                        onChange={(e) => setAiInput(e.target.value)}
+                                        placeholder="Ask the finance assistant..."
+                                        className="bg-transparent border-none text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-9 text-slate-200 placeholder:text-slate-600 shadow-none px-1"
+                                    />
+
+                                    <div className="flex items-center gap-1 pr-1">
+                                        {/* Conversational Toggle */}
+                                        <Button
+                                            type="button"
+                                            size="icon"
+                                            variant="ghost"
+                                            onClick={() => setIsConversational(!isConversational)}
+                                            className={`h-8 w-8 rounded-xl transition-all ${isConversational ? 'bg-green-500/20 text-green-500 shadow-lg shadow-green-500/10' : 'text-slate-500 hover:text-slate-200'}`}
+                                            title="Conversational Mode"
+                                        >
+                                            <AudioLines className={`h-4 w-4 ${isSpeaking ? 'animate-pulse scale-110' : ''}`} />
+                                        </Button>
+
+                                        {/* STT Toggle */}
+                                        <Button
+                                            type="button"
+                                            size="icon"
+                                            variant="ghost"
+                                            onClick={toggleListening}
+                                            className={`h-8 w-8 rounded-xl transition-all ${isListening ? 'bg-red-500/20 text-red-500 shadow-lg shadow-red-500/10' : 'text-slate-500 hover:text-slate-200'}`}
+                                            title="Voice Input"
+                                        >
+                                            <Mic className={`h-4 w-4 ${isListening ? 'animate-pulse' : ''}`} />
+                                        </Button>
+
+                                        {/* Submit Button */}
+                                        <Button
+                                            type="submit"
+                                            size="icon"
+                                            disabled={!aiInput.trim() || isThinking}
+                                            className={`h-8 w-8 rounded-xl transition-all ${aiInput.trim() ? 'bg-white text-black hover:bg-white/90 scale-105 shadow-xl' : 'bg-white/5 text-slate-700'}`}
+                                        >
+                                            <SendHorizonal className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </form>
+                            </div>
                         </CardContent>
                     </Card>
                 </div>

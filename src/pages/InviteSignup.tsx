@@ -9,6 +9,13 @@ import { useToast } from "@/hooks/use-toast";
 import { Shield, AlertCircle, CheckCircle } from "lucide-react";
 import { z } from "zod";
 import logo from "@/assets/lead-velocity-logo.png";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const signupSchema = z.object({
   email: z.string().trim().email("Please enter a valid email address"),
@@ -18,7 +25,21 @@ const signupSchema = z.object({
     .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
     .regex(/[0-9]/, "Password must contain at least one number"),
   fullName: z.string().trim().min(2, "Full name is required"),
+  securityQuestion1: z.string().min(1, "Please select a security question"),
+  securityAnswer1: z.string().trim().min(2, "Security answer is required"),
+  securityQuestion2: z.string().min(1, "Please select a 2nd security question"),
+  securityAnswer2: z.string().trim().min(2, "2nd security answer is required"),
 });
+
+const SECURITY_QUESTIONS = [
+  "What was the name of your first pet?",
+  "In what city were you born?",
+  "What was the name of your first school?",
+  "What is your mother's maiden name?",
+  "What was your first car?",
+  "What is your favorite movie?",
+  "What was the name of the street you grew up on?",
+];
 
 const InviteSignup = () => {
   const { token } = useParams<{ token: string }>();
@@ -28,6 +49,10 @@ const InviteSignup = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [securityQuestion1, setSecurityQuestion1] = useState("");
+  const [securityAnswer1, setSecurityAnswer1] = useState("");
+  const [securityQuestion2, setSecurityQuestion2] = useState("");
+  const [securityAnswer2, setSecurityAnswer2] = useState("");
   const [loading, setLoading] = useState(false);
   const [validating, setValidating] = useState(true);
   const [isValid, setIsValid] = useState(false);
@@ -80,7 +105,15 @@ const InviteSignup = () => {
 
     try {
       // Validate input
-      signupSchema.parse({ email, password, fullName });
+      signupSchema.parse({
+        email,
+        password,
+        fullName,
+        securityQuestion1,
+        securityAnswer1,
+        securityQuestion2,
+        securityAnswer2
+      });
 
       // Create user account
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -91,6 +124,10 @@ const InviteSignup = () => {
           data: {
             full_name: fullName,
             user_type: "admin",
+            security_question_1: securityQuestion1,
+            security_answer_1: securityAnswer1.toLowerCase(),
+            security_question_2: securityQuestion2,
+            security_answer_2: securityAnswer2.toLowerCase(),
           },
         },
       });
@@ -127,7 +164,7 @@ const InviteSignup = () => {
       }, 2000);
     } catch (error: any) {
       console.error("Signup error:", error);
-      
+
       if (error instanceof z.ZodError) {
         toast({
           title: "Validation Error",
@@ -195,9 +232,9 @@ const InviteSignup = () => {
                 <p className="text-sm text-muted-foreground">
                   An account with this email already exists. Please log in instead.
                 </p>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => navigate("/login")}
                   className="mt-2"
                 >
@@ -262,6 +299,70 @@ const InviteSignup = () => {
               />
               <p className="text-xs text-muted-foreground">
                 8+ characters, 1 uppercase, 1 number
+              </p>
+            </div>
+
+            <div className="space-y-4 pt-4 border-t border-border">
+              <div className="flex items-center gap-2 mb-2 text-primary font-medium">
+                <Shield className="h-4 w-4" />
+                <span className="text-sm">Security Questions</span>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Security Question 1</Label>
+                <Select
+                  value={securityQuestion1}
+                  onValueChange={setSecurityQuestion1}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a question" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SECURITY_QUESTIONS.map((q) => (
+                      <SelectItem key={q} value={q} disabled={q === securityQuestion2}>
+                        {q}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  placeholder="Your answer"
+                  value={securityAnswer1}
+                  onChange={(e) => setSecurityAnswer1(e.target.value)}
+                  required
+                  className="mt-1"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Security Question 2</Label>
+                <Select
+                  value={securityQuestion2}
+                  onValueChange={setSecurityQuestion2}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a question" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SECURITY_QUESTIONS.map((q) => (
+                      <SelectItem key={q} value={q} disabled={q === securityQuestion1}>
+                        {q}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  placeholder="Your answer"
+                  value={securityAnswer2}
+                  onChange={(e) => setSecurityAnswer2(e.target.value)}
+                  required
+                  className="mt-1"
+                />
+              </div>
+              <p className="text-[10px] text-muted-foreground italic">
+                Note: Answers are case-insensitive. You'll need these to reset your password.
               </p>
             </div>
 

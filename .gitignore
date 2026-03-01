@@ -24,3 +24,8 @@ dist-ssr
 *.sw?
 .vercel
 .env*.local
+
+# Environment files — NEVER commit these
+.env
+.env.*
+!.env.example

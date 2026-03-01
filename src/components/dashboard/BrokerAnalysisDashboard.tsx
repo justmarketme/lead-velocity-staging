@@ -44,6 +44,12 @@ interface BrokerAnalysis {
         preferred_call_time: string | null;
         whatsapp_number: string | null;
         whatsapp_consent: boolean;
+        receives_leads_currently: boolean | null;
+        current_lead_provider: string | null;
+        current_monthly_spend: number | null;
+        current_cpl: number | null;
+        current_conversion_rate: string | null;
+        monthly_sales_target: number | null;
         product_focus_clarity: string;
         geographic_focus_clarity: string;
         timeline_to_start: string;
@@ -57,6 +63,7 @@ interface BrokerAnalysis {
         pricing_comfort: string;
         growth_goal_clarity: string;
         cpl_awareness: string;
+        product_focus: string[] | null;
     } | null;
 }
 
@@ -365,9 +372,17 @@ const BrokerAnalysisDashboard = () => {
                                                 <Target className="w-5 h-5 text-amber-500" /> Target Market
                                             </h4>
                                             <div className="flex gap-2 flex-wrap">
-                                                <Badge className="bg-transparent border-white/10 text-white font-medium px-4 py-1 hover:bg-white/5">Short-term Insurance</Badge>
-                                                <Badge className="bg-transparent border-white/10 text-white font-medium px-4 py-1 hover:bg-white/5">Funeral Cover</Badge>
-                                                <Badge className="bg-transparent border-white/10 text-white font-medium px-4 py-1 hover:bg-white/5">Business Insurance</Badge>
+                                                {submission.responses?.product_focus && submission.responses.product_focus.length > 0 ? (
+                                                    submission.responses.product_focus.map((product, idx) => (
+                                                        <Badge key={idx} className="bg-transparent border-white/10 text-white font-medium px-4 py-1 hover:bg-white/5">
+                                                            {product}
+                                                        </Badge>
+                                                    ))
+                                                ) : (
+                                                    <Badge className="bg-transparent border-white/10 text-slate-500 font-medium px-4 py-1 hover:bg-white/5 italic">
+                                                        Not Specified
+                                                    </Badge>
+                                                )}
                                             </div>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-4">
                                                 <div className="border-b border-white/5 pb-2">
@@ -382,6 +397,10 @@ const BrokerAnalysisDashboard = () => {
                                             <div className="mt-4 border-b border-white/5 pb-2">
                                                 <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Ideal Client Profile</p>
                                                 <p className="text-sm font-medium text-white">{submission.responses?.product_focus_clarity || "N/A"}</p>
+                                            </div>
+                                            <div className="mt-4 border-b border-white/5 pb-2">
+                                                <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Timeline To Start</p>
+                                                <p className="text-sm font-bold text-white uppercase tracking-wider">{submission.responses?.timeline_to_start || "N/A"}</p>
                                             </div>
                                         </div>
 
@@ -400,7 +419,13 @@ const BrokerAnalysisDashboard = () => {
                                                     <p className="text-sm font-bold text-white">{submission.responses?.speed_to_contact || "N/A"}</p>
                                                 </div>
                                                 <div className="border-b border-white/5 pb-2">
-                                                    {/* Placeholder if needed */}
+                                                    <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Pricing Comfort</p>
+                                                    <p className="text-sm font-bold text-white uppercase tracking-wider">
+                                                        {submission.responses?.pricing_comfort === 'sensitive' ? 'Price Sensitive' :
+                                                            submission.responses?.pricing_comfort === 'value' ? 'Value Driven' :
+                                                                submission.responses?.pricing_comfort === 'premium' ? 'Premium Seeking' :
+                                                                    submission.responses?.pricing_comfort || "N/A"}
+                                                    </p>
                                                 </div>
                                             </div>
                                             <div className="mt-4 border-b border-white/5 pb-2">

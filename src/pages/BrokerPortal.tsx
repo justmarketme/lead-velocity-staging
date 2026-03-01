@@ -250,13 +250,12 @@ const BrokerPortal = () => {
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <Label htmlFor="password">Password</Label>
-                          <button
-                            type="button"
-                            onClick={() => setShowForgotPassword(true)}
+                          <Link
+                            to="/broker/forgot-password"
                             className="text-xs text-primary hover:underline"
                           >
                             Forgot password?
-                          </button>
+                          </Link>
                         </div>
                         <Input
                           id="password"
@@ -270,12 +269,7 @@ const BrokerPortal = () => {
                         {loading ? "Signing in..." : "Sign In"}
                       </Button>
 
-                      <p className="text-sm text-center text-muted-foreground">
-                        Don't have an account?{" "}
-                        <Link to="/signup" className="text-primary hover:underline">
-                          Register as Broker
-                        </Link>
-                      </p>
+
 
                       <div className="pt-4 border-t border-border/50">
                         <Button

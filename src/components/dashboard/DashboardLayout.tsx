@@ -33,6 +33,7 @@ const DashboardLayout = ({ children, activeTab, setActiveTab }: DashboardLayoutP
     { id: "team", label: "Team Management", icon: Users },
     { id: "analytics", label: "Analytics", icon: BarChart3 },
     { id: "invites", label: "Admin Invites", icon: UserPlus },
+    { id: "broker-invites", label: "Broker Invites", icon: UserPlus },
   ];
 
   const handleLogout = async () => {

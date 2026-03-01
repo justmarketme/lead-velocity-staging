@@ -11,7 +11,6 @@ import Contact from "./pages/Contact";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import AdminLogin from "./pages/AdminLogin";
-import Signup from "./pages/auth/Signup";
 import Dashboard from "./pages/Dashboard";
 import BrokerPortal from "./pages/BrokerPortal";
 import BrokerDashboard from "./pages/broker/BrokerDashboard";
@@ -22,6 +21,8 @@ import BrokerDocuments from "./pages/broker/BrokerDocuments";
 import BrokerReferrals from "./pages/broker/BrokerReferrals";
 import BrokerCalendar from "./pages/broker/BrokerCalendar";
 import InviteSignup from "./pages/InviteSignup";
+import BrokerSetup from "./pages/BrokerSetup";
+import BrokerForgotPassword from "./pages/auth/BrokerForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import NotificationHistory from "./pages/NotificationHistory";
 import BrokerOnboarding from "./pages/BrokerOnboarding";
@@ -54,7 +55,6 @@ const App = () => (
             <Route path="/broker" element={<BrokerPortal />} />
             <Route path="/login" element={<Login />} />
             <Route path="/admin" element={<AdminLogin />} />
-            <Route path="/signup" element={<Signup />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/broker/dashboard" element={<BrokerDashboard />} />
             <Route path="/broker/leads" element={<BrokerLeads />} />
@@ -64,6 +64,8 @@ const App = () => (
             <Route path="/broker/calendar" element={<BrokerCalendar />} />
             <Route path="/broker/reports" element={<BrokerReports />} />
             <Route path="/invite/:token" element={<InviteSignup />} />
+            <Route path="/broker-setup/:token" element={<BrokerSetup />} />
+            <Route path="/broker/forgot-password" element={<BrokerForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/notifications" element={<NotificationHistory />} />
             <Route path="/onboarding" element={<BrokerOnboarding />} />

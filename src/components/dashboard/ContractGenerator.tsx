@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Download, Mail, ZoomIn, ZoomOut, Maximize, Monitor, Save, Mic, MicOff, Bot, Check, X, Loader2 } from "lucide-react";
+import { ArrowLeft, Download, Mail, MessageCircle, Send, ZoomIn, ZoomOut, Maximize, Monitor, Save, Loader2, Mic, MicOff, Bot, Check, X, Paperclip, AudioLines, SendHorizonal } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import logo from "@/assets/lead-velocity-logo.png";
@@ -10,6 +10,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { getContractEmailSignature } from "@/utils/emailSignature";
+import { BrokerSelector } from "./BrokerSelector";
+import { callLegalAI } from "@/utils/legalAI";
 
 interface ContractGeneratorProps {
     onBack: () => void;
@@ -58,7 +60,14 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
     const [isListening, setIsListening] = useState(false);
     const [aiInput, setAiInput] = useState("");
     const [isSpeaking, setIsSpeaking] = useState(false);
+    const [isThinking, setIsThinking] = useState(false);
+    const [isConversational, setIsConversational] = useState(false);
     const [aiResponse, setAiResponse] = useState("");
+    const [aiSuggestions, setAiSuggestions] = useState<string[]>([
+        "Make this more formal",
+        "Simplify the terms",
+        "Ensure South African legal compliance"
+    ]);
     const [pendingChanges, setPendingChanges] = useState<any>(null);
 
     const [contractData, setContractData] = useState({
@@ -78,16 +87,16 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
         clientRepresentativeLine: "Represented by: Authorised Signatory",
         effectiveDate: new Date().toLocaleDateString('en-ZA', { day: '2-digit', month: '2-digit', year: 'numeric' }),
         endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-ZA', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-        serviceFee: "R6,000",
+        serviceFee: "R6,000 (once-off)",
         leadTarget: "6 Qualified Leads",
-        commissionText: "In addition to the guaranteed lead deliverables set out above, the Client agrees to pay Lead Velocity a commission of ten percent (10%) of the gross premium value of any insurance policy or financial product sold as a direct or indirect result of Lead Velocity's lead generation efforts. This commission obligation shall extend to: (a) any policies sold to leads delivered in excess of the six (6) guaranteed qualified leads; (b) any policies sold to referrals obtained from clients originally sourced through Lead Velocity; and (c) any secondary or tertiary sales arising from relationships initiated by Lead Velocity's efforts. This commission obligation shall survive the termination of this Agreement and shall remain in effect for a period of twenty-four (24) months following the delivery of the relevant lead.",
+        commissionText: "In addition to the guaranteed lead deliverables set out above, the Client agrees to pay Lead Velocity a commission of ten percent (10%) of the gross premium value of any insurance policy or financial product sold as a direct or indirect result of Lead Velocity's lead generation efforts. This commission obligation shall extend to: (a) any policies sold to leads delivered in excess of the guaranteed qualified leads; (b) any policies sold to referrals obtained from clients originally sourced through Lead Velocity; and (c) any secondary or tertiary sales arising from relationships initiated by Lead Velocity's efforts. This commission obligation shall survive the termination of this Agreement and shall remain in effect for a period of twenty-four (24) months following the delivery of the relevant lead.",
         bankName: "First National Bank",
         accountHolder: "Lead Velocity",
         accountNumber: "63174286724",
         branchCode: "250655",
         title: "Service Level Agreement",
-        subtitle: "Lead Generation Pilot Campaign",
-        scopeText: "Lead Velocity agrees to provide lead generation services focusing on identifying and qualifying B2B decision-makers in the logistics and engineering sectors.",
+        subtitle: "Pilot Phase: Where we prove consistency",
+        scopeText: "Lead Velocity agrees to provide lead generation services focusing on identifying and qualifying B2B decision-makers in the logistics and engineering sectors to prove consistency in deal flow.",
         deliverablesText: "1. Setup of multi-channel outreach campaigns.\n2. Qualification of prospects against agreed criteria.\n3. Delivery of 6 qualified meeting-ready leads.\n4. Weekly performance reporting.",
         termsText: "This Agreement shall commence on the Effective Date and shall remain in force for a period of thirty (30) calendar days ('Contract Period'). The Service Fee is payable in full upfront prior to campaign commencement. Lead Velocity guarantees the replacement of any leads that do not meet the agreed qualification criteria, provided such dispute is raised in writing within 48 hours of lead delivery.",
         breachText: "In the event of a material breach of this Agreement by the Client, including but not limited to: (a) failure to provide necessary cooperation or information; (b) disparagement of Lead Velocity; (c) direct solicitation of Lead Velocity's sources or methods; or (d) termination by the Client prior to the expiry of the Contract Period, no refund of the Service Fee shall be due or payable. Lead Velocity reserves the right to immediately terminate this Agreement and retain all fees paid.",
@@ -95,7 +104,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
         confidentialityText: "Both parties agree to treat all shared information, including but not limited to business strategies, client lists, pricing structures, and proprietary methodologies, as strictly confidential. This obligation shall survive the termination of this Agreement for a period of two (2) years. Client data remains the sole property of the Client.",
         disputeText: "Any dispute arising from this Agreement shall be governed by the laws of the Republic of South Africa. The parties agree to attempt resolution through mediation before pursuing litigation. The jurisdiction for any legal proceedings shall be the High Court of South Africa, Gauteng Division.",
         pilotEligibilityText: "This Pilot Campaign is a once-off introductory offer available exclusively to first-time clients of Lead Velocity. The discounted pilot rate and terms contained herein are not available to existing or returning clients and may not be combined with any other offer or promotion.",
-        renewalText: "Upon successful completion of the 30-day Pilot Campaign, the Client shall have the option to upgrade to one of Lead Velocity's standard service tiers (Bronze, Silver, Gold, or Bespoke). Standard tier pricing and terms shall apply to any ongoing engagement. Lead Velocity will provide tier recommendations based on pilot performance data. There is no obligation to continue after the pilot period.",
+        renewalText: "Upon successful completion of the 30-day Pilot Campaign, the Client shall have the option to upgrade to one of Lead Velocity's standard service tiers (Bronze, Silver, or Gold). Standard tier pricing and terms shall apply to any ongoing engagement. Lead Velocity will provide tier recommendations based on pilot performance data. There is no obligation to continue after the pilot period.",
         forceMajeureText: "Neither party shall be liable for any failure or delay in performing their obligations where such failure or delay results from circumstances beyond the reasonable control of that party, including but not limited to acts of God, natural disasters, war, terrorism, riots, embargoes, acts of civil or military authorities, fire, floods, accidents, pandemic, strikes, or shortages of transportation, facilities, fuel, energy, labour, or materials.",
         liabilityText: "To the maximum extent permitted by law, Lead Velocity's total liability under this Agreement shall not exceed the total Service Fee paid by the Client. In no event shall Lead Velocity be liable for any indirect, incidental, special, consequential, or punitive damages, including but not limited to loss of profits, revenue, business opportunities, or goodwill, regardless of whether such damages were foreseeable.",
         indemnityText: "The Client agrees to indemnify, defend, and hold harmless Lead Velocity, its directors, employees, and agents from and against any and all claims, liabilities, damages, losses, and expenses (including reasonable legal fees) arising out of or in connection with: (a) the Client's breach of this Agreement; (b) the Client's use of leads provided; or (c) any third-party claims relating to the Client's business operations.",
@@ -121,25 +130,142 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
         }
     }, [initialData]);
 
+    const handleBrokerSelect = (broker: any) => {
+        const name = broker.full_name || "Valued Partner";
+        const company = broker.firm_name || broker.company_name || "";
+        const clientName = name;
+        const clientCompany = company || "Independent Broker";
+
+        let newContractData = {
+            ...contractData,
+            clientName,
+            clientCompany,
+            clientEmailLine: `Email: ${broker.email || ""} `,
+            clientPhoneLine: `Tel: ${broker.phone_number || broker.phone || broker.whatsapp_number || ""} `,
+        };
+
+        const weeklyLeads = broker.desired_leads_weekly || 6;
+        const monthlyLeads = Math.round(weeklyLeads * 4.33);
+        let tierLabel = "Pilot Phase";
+
+        if (monthlyLeads <= 6) {
+            tierLabel = "Pilot Phase";
+            newContractData = {
+                ...newContractData,
+                subtitle: "Pilot Phase: Where we prove consistency",
+                serviceFee: "R6,000 (once-off)",
+                leadTarget: "6 Qualified Leads",
+                scopeText: "Lead Velocity agrees to provide lead generation services focusing on identifying and qualifying B2B decision-makers in the logistics and engineering sectors to prove consistency in deal flow.",
+                commissionText: "In addition to the guaranteed lead deliverables set out above, the Client agrees to pay Lead Velocity a commission of ten percent (10%) of the gross premium value of any insurance policy or financial product sold as a direct or indirect result of Lead Velocity's lead generation efforts. This commission obligation shall extend to: (a) any policies sold to leads delivered in excess of the guaranteed qualified leads; (b) any policies sold to referrals obtained from clients originally sourced through Lead Velocity; and (c) any secondary or tertiary sales arising from relationships initiated by Lead Velocity's efforts. This commission obligation shall survive the termination of this Agreement and shall remain in effect for a period of twenty-four (24) months following the delivery of the relevant lead.",
+                renewalText: "Upon successful completion of the 30-day Pilot Campaign, the Client shall have the option to upgrade to one of Lead Velocity's standard service tiers (Bronze, Silver, or Gold). Standard tier pricing and terms shall apply to any ongoing engagement. Lead Velocity will provide tier recommendations based on pilot performance data. There is no obligation to continue after the pilot period.",
+            };
+        } else if (monthlyLeads <= 20) {
+            tierLabel = "Bronze";
+            newContractData = {
+                ...newContractData,
+                subtitle: "Bronze: Growth Starter",
+                serviceFee: "R8,500 (p/m)",
+                leadTarget: "± 17 Qualified Leads",
+                scopeText: "Lead Velocity agrees to provide lead generation services focusing on identifying and qualifying SME decision-makers, providing a solid foundation for growth through consistent deal flow.",
+                commissionText: "In addition to the guaranteed lead deliverables, the Client agrees to a performance-aligned commission of nine percent (9%) of the gross premium value of policies sold. This aligns our efforts with your actual growth objectives.",
+                renewalText: "The Bronze tier is designed as an entry point. As production increases, the Client may upgrade to Silver or Gold to benefit from lower cost-per-lead and advanced filters. Upgrade options are available monthly.",
+            };
+        } else if (monthlyLeads <= 32) {
+            tierLabel = "Silver";
+            newContractData = {
+                ...newContractData,
+                subtitle: "Silver: Scale & Optimise",
+                serviceFee: "R10,500 (p/m)",
+                leadTarget: "± 26 Qualified Leads",
+                scopeText: "Lead Velocity provides higher volume leads with ongoing optimisation and messaging testing. This tier is designed to make lead results predictable and scalable.",
+                commissionText: "In addition to the guaranteed lead deliverables, the Client agrees to a performance-aligned commission of eight percent (8%) of the gross premium value of policies sold. This balanced model rewards scaling efficiency.",
+                renewalText: "Clients on the Silver tier typically progress to Gold when ready to dominate their niche as a revenue partner. Continuous optimisation data informs the progression path.",
+            };
+        } else {
+            tierLabel = "Gold";
+            newContractData = {
+                ...newContractData,
+                subtitle: "Gold: Performance Partner",
+                serviceFee: "R16,500 (p/m)",
+                leadTarget: "40 Qualified Leads",
+                scopeText: "Our most advanced tier where we operate as a full revenue partner. Includes maximum lead volume, advanced filters, and dedicated campaign management.",
+                commissionText: "In addition to the guaranteed lead deliverables, the Client agrees to a performance-aligned commission of six percent (6%) of the gross premium value of policies sold, reflecting our partnership in dominating the market.",
+                renewalText: "The Gold tier represents the pinnacle of our service partnership. Ongoing strategy and conversion support are provided to maintain market leadership.",
+            };
+        }
+
+        setContractData(newContractData);
+        if (broker.email) setRecipientEmail(broker.email);
+
+        toast({
+            title: "Broker Data Applied",
+            description: `Auto-filled details and set tier to ${tierLabel} based on ${monthlyLeads} leads/mo.`,
+        });
+    };
+
     const updateField = (field: string, value: string) => {
         setContractData(prev => ({ ...prev, [field]: value }));
     };
 
+    // Voice Synthesis (TTS) - Improved Voice Selection (Hand-picked for ZA)
     const speak = (text: string) => {
-        if ('speechSynthesis' in window) {
-            window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(text);
+        if (!('speechSynthesis' in window)) return;
+
+        window.speechSynthesis.cancel();
+
+        const getPreferredVoice = () => {
             const voices = window.speechSynthesis.getVoices();
-            let voice = voices.find(v => v.lang === 'en-ZA');
-            if (!voice) voice = voices.find(v => v.lang.includes('en-GB'));
+            if (voices.length === 0) return null;
+
+            // Strict Priority: 
+            // 1. Natural Google/Microsoft ZA voices 
+            // 2. High quality English Female (Natural)
+            // 3. Any ZA voice
+            // 4. Any Female English voice
+
+            const naturalZA = voices.find(v => (v.name.toLowerCase().includes('natural') || v.name.toLowerCase().includes('google')) && v.lang === 'en-ZA');
+            if (naturalZA) return naturalZA;
+
+            const premiumFemale = voices.find(v => (v.name.toLowerCase().includes('ayanda') || v.name.toLowerCase().includes('hazel') || v.name.toLowerCase().includes('zira') || v.name.toLowerCase().includes('susan')));
+            if (premiumFemale) return premiumFemale;
+
+            const femaleZA = voices.find(v => v.lang === 'en-ZA' && v.name.toLowerCase().includes('female'));
+            if (femaleZA) return femaleZA;
+
+            const anyZA = voices.find(v => v.lang === 'en-ZA');
+            if (anyZA) return anyZA;
+
+            const genericNaturalFemale = voices.find(v => v.name.toLowerCase().includes('natural') && v.name.toLowerCase().includes('female'));
+            if (genericNaturalFemale) return genericNaturalFemale;
+
+            return voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female')) || voices[0];
+        };
+
+        const executeSpeak = () => {
+            const voice = getPreferredVoice();
+            const utterance = new SpeechSynthesisUtterance(text);
+
             if (voice) {
                 utterance.voice = voice;
-                utterance.pitch = 1.1;
-                utterance.rate = 0.95;
+                // Humanize the standard voices if not using a "Natural" one
+                if (!voice.name.toLowerCase().includes('natural') && !voice.name.toLowerCase().includes('google')) {
+                    utterance.pitch = 1.05;
+                    utterance.rate = 0.92;
+                }
             }
+
             utterance.onstart = () => setIsSpeaking(true);
             utterance.onend = () => setIsSpeaking(false);
             window.speechSynthesis.speak(utterance);
+        };
+
+        if (window.speechSynthesis.getVoices().length > 0) {
+            executeSpeak();
+        } else {
+            window.speechSynthesis.onvoiceschanged = () => {
+                executeSpeak();
+                window.speechSynthesis.onvoiceschanged = null;
+            };
         }
     };
 
@@ -164,40 +290,30 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
         recognition.start();
     };
 
-    const processAICommand = (command: string) => {
-        const lowerCmd = command.toLowerCase();
-        let response = "I've noted your request.";
-        let changes: any = {};
+    const processAICommand = async (command: string) => {
+        setIsThinking(true);
+        setAiResponse("Let me review the contract...");
+        try {
+            const result = await callLegalAI(command, contractData, "Contract");
+            const { response, changes, suggestions } = result;
 
-        if (lowerCmd.includes("change client to") || lowerCmd.includes("client name is")) {
-            const newName = command.replace(/change client to|client name is/i, "").trim();
-            changes = { clientName: newName, clientCompany: `${newName} (Pty) Ltd` };
-            response = `I've drafted the client name as "${newName}". Click Submit to apply.`;
-        } else if (lowerCmd.includes("fee") || lowerCmd.includes("price")) {
-            const match = command.match(/(\d+(?:,\d{3})*(?:\.\d+)?)/);
-            if (match) {
-                changes = { serviceFee: `R${match[0]}` };
-                response = `Service fee drafted as R${match[0]}. Submit to confirm.`;
+            setAiResponse(response || "I've reviewed the request.");
+            if (changes && Object.keys(changes).length > 0) {
+                setPendingChanges(changes);
             }
-        } else if (lowerCmd.includes("formal")) {
-            changes = {
-                scopeText: contractData.scopeText.replace("agrees to provide", "hereby covenants to render professional"),
-                termsText: contractData.termsText.replace("valid for", "shall remain in full force and effect for")
-            };
-            response = "I've made the language more formal. Submit to apply.";
-        } else if (lowerCmd.includes("simplify")) {
-            changes = {
-                scopeText: "Lead Velocity will provide lead generation services to find decision-makers.",
-                termsText: "This agreement lasts for 30 days. You pay upfront. We replace bad leads within 48 hours."
-            };
-            response = "Simplified the contract. Submit to confirm.";
-        } else {
-            response = "Try 'Change client to...' or 'Set fee to R5000'.";
+            if (suggestions && Array.isArray(suggestions) && suggestions.length > 0) {
+                setAiSuggestions(suggestions);
+            }
+            if (response && isConversational) speak(response);
+            if (response && !isConversational) setAiResponse(response);
+        } catch (error: any) {
+            console.error("AI Assistant Error:", error);
+            const errorMsg = "I'm sorry, I couldn't connect to the AI. Please check your internet connection.";
+            setAiResponse(errorMsg);
+            toast({ title: "AI Error", description: error.message, variant: "destructive" });
+        } finally {
+            setIsThinking(false);
         }
-
-        setAiResponse(response);
-        if (Object.keys(changes).length > 0) setPendingChanges(changes);
-        speak(response);
     };
 
     const applyPendingChanges = () => {
@@ -234,10 +350,10 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
             // Add page-break styles to prevent content from being cut
             const style = document.createElement('style');
             style.textContent = `
-                section { page-break-inside: avoid !important; break-inside: avoid !important; margin-bottom: 8px !important; }
-                .signature-section { page-break-inside: avoid !important; break-inside: avoid !important; }
-                header { page-break-after: avoid !important; }
-                h1, h2, h3 { page-break-after: avoid !important; }
+                section { page-break-inside: avoid!important; break-inside: avoid!important; margin-bottom: 8px!important; }
+                .signature-section { page-break-inside: avoid!important; break-inside: avoid!important; }
+                header { page-break-after: avoid!important; }
+                h1, h2, h3 { page-break-after: avoid!important; }
             `;
             clone.appendChild(style);
 
@@ -322,7 +438,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                         toast({ title: "Email Required", variant: "destructive" });
                     } else {
                         const subject = encodeURIComponent(`Contract: ${contractData.title} - ${contractData.clientCompany}`);
-                        const emailBody = `Dear ${contractData.clientName},\n\nPlease find the Service Level Agreement for your review at the link below:\n\n${publicUrl}\n\nWe look forward to a successful partnership.\n\n${getContractEmailSignature()}`;
+                        const emailBody = `Dear ${contractData.clientName}, \n\nPlease find the Service Level Agreement for your review at the link below: \n\n${publicUrl} \n\nWe look forward to a successful partnership.\n\n${getContractEmailSignature()} `;
                         const body = encodeURIComponent(emailBody);
                         window.location.href = `mailto:${recipientEmail}?subject=${subject}&body=${body}`;
                         toast({ title: "Email Drafted", description: "Link included in body!" });
@@ -361,6 +477,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                 <div className="lg:col-span-4 xl:col-span-3 h-full flex flex-col gap-4 overflow-hidden">
                     <Card className="bg-slate-900/50 border-white/5 flex-1 overflow-y-auto custom-scrollbar">
                         <CardContent className="p-6 space-y-6">
+                            <BrokerSelector onSelect={handleBrokerSelect} />
                             <div className="space-y-4">
                                 <h3 className="font-bold text-slate-100 text-sm uppercase tracking-widest">Contract Details</h3>
                                 <div className="space-y-1">
@@ -378,39 +495,120 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                     <Input value={recipientEmail} onChange={(e) => setRecipientEmail(e.target.value)} placeholder="client@company.co.za" className="bg-slate-950/50 border-white/10 h-9 text-sm" />
                                 </div>
                             </div>
+                            {/* Premium AI Assistant UI (Grok Style) */}
+                            <Card className="bg-[#151719]/80 backdrop-blur-xl border border-white/5 shadow-2xl overflow-hidden shrink-0 rounded-2xl">
+                                <CardContent className="p-4 space-y-4">
+                                    {/* AI Message Bubble */}
+                                    {(aiResponse || isThinking) && (
+                                        <div className="animate-in slide-in-from-bottom-2 duration-300">
+                                            <div className="flex gap-3">
+                                                <div className="w-6 h-6 rounded-full bg-pink-500/20 flex items-center justify-center shrink-0">
+                                                    <Bot className="h-3.5 w-3.5 text-pink-500" />
+                                                </div>
+                                                <div className="flex-1 space-y-2">
+                                                    {isThinking ? (
+                                                        <div className="flex gap-1 items-center py-1">
+                                                            <div className="w-1.5 h-1.5 bg-pink-500/50 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                                                            <div className="w-1.5 h-1.5 bg-pink-500/50 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                                                            <div className="w-1.5 h-1.5 bg-pink-500/50 rounded-full animate-bounce" />
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-xs text-slate-200 leading-relaxed font-medium">
+                                                            {aiResponse}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {pendingChanges && (
+                                                <div className="flex gap-2 mt-4 ml-9">
+                                                    <Button size="sm" onClick={applyPendingChanges} className="flex-1 bg-pink-600 hover:bg-pink-700 h-9 text-[11px] font-bold rounded-xl shadow-lg shadow-pink-600/20 border-t border-white/10">
+                                                        Commit Changes
+                                                    </Button>
+                                                    <Button size="sm" variant="ghost" onClick={() => setPendingChanges(null)} className="h-9 w-9 p-0 rounded-xl hover:bg-white/5 text-slate-400">
+                                                        <X className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Contextual Suggestions Pills */}
+                                    {aiSuggestions.length > 0 && !isThinking && (
+                                        <div className="flex flex-wrap gap-2 animate-in fade-in duration-500">
+                                            {aiSuggestions.map((suggestion, idx) => (
+                                                <button
+                                                    key={idx}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setAiInput(suggestion);
+                                                        processAICommand(suggestion);
+                                                    }}
+                                                    className="text-[10px] bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-white/5 rounded-full px-3 py-1.5 transition-all duration-200"
+                                                >
+                                                    {suggestion}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* Premium Input Bar */}
+                                    <div className="relative group mt-2 bg-black/40 rounded-2xl border border-white/5 p-1.5 transition-all duration-300 focus-within:border-pink-500/30 focus-within:bg-black/60 shadow-inner">
+                                        <form onSubmit={handleAISubmit} className="flex items-center gap-1">
+                                            <div className="flex items-center gap-0.5 px-2 text-slate-500">
+                                                <Paperclip className="h-4 w-4 hover:text-slate-300 cursor-pointer transition-colors" />
+                                            </div>
+
+                                            <Input
+                                                value={aiInput}
+                                                onChange={(e) => setAiInput(e.target.value)}
+                                                placeholder="What's on your mind?"
+                                                className="bg-transparent border-none text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-9 text-slate-200 placeholder:text-slate-600 shadow-none px-1"
+                                            />
+
+                                            <div className="flex items-center gap-1 pr-1">
+                                                {/* Conversational Toggle */}
+                                                <Button
+                                                    type="button"
+                                                    size="icon"
+                                                    variant="ghost"
+                                                    onClick={() => setIsConversational(!isConversational)}
+                                                    className={`h-8 w-8 rounded-xl transition-all ${isConversational ? 'bg-pink-500/20 text-pink-500 shadow-lg shadow-pink-500/10' : 'text-slate-500 hover:text-slate-200'}`}
+                                                    title="Conversational Mode"
+                                                >
+                                                    <AudioLines className={`h-4 w-4 ${isSpeaking ? 'animate-pulse scale-110' : ''}`} />
+                                                </Button>
+
+                                                {/* STT Toggle */}
+                                                <Button
+                                                    type="button"
+                                                    size="icon"
+                                                    variant="ghost"
+                                                    onClick={toggleListening}
+                                                    className={`h-8 w-8 rounded-xl transition-all ${isListening ? 'bg-red-500/20 text-red-500 shadow-lg shadow-red-500/10' : 'text-slate-500 hover:text-slate-200'}`}
+                                                    title="Voice Input"
+                                                >
+                                                    <Mic className={`h-4 w-4 ${isListening ? 'animate-pulse' : ''}`} />
+                                                </Button>
+
+                                                {/* Submit Button */}
+                                                <Button
+                                                    type="submit"
+                                                    size="icon"
+                                                    disabled={!aiInput.trim() || isThinking}
+                                                    className={`h-8 w-8 rounded-xl transition-all ${aiInput.trim() ? 'bg-white text-black hover:bg-white/90 scale-105 shadow-xl' : 'bg-white/5 text-slate-700'}`}
+                                                >
+                                                    <SendHorizonal className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </CardContent>
+                            </Card>
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-gradient-to-br from-slate-900 via-slate-950 to-black border-pink-500/20 shadow-2xl shrink-0">
-                        <div className="bg-pink-500/10 px-4 py-2 border-b border-pink-500/20 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <Bot className="h-4 w-4 text-pink-400" />
-                                <span className="text-[10px] font-bold text-pink-400 uppercase">AI Legal Assistant (ZA)</span>
-                            </div>
-                            {isSpeaking && <div className="flex gap-0.5 items-end h-3"><div className="w-1 h-3 bg-pink-500 animate-pulse" /><div className="w-1 h-2 bg-pink-500 animate-pulse delay-75" /><div className="w-1 h-2.5 bg-pink-500 animate-pulse delay-150" /></div>}
-                        </div>
-                        <CardContent className="p-4 space-y-4">
-                            {aiResponse && (
-                                <div className="animate-in slide-in-from-bottom-2 duration-300">
-                                    <p className="text-xs text-slate-300 leading-relaxed bg-white/5 p-3 rounded-lg border-l-2 border-pink-500">"{aiResponse}"</p>
-                                    {pendingChanges && (
-                                        <div className="flex gap-2 mt-2">
-                                            <Button size="sm" onClick={applyPendingChanges} className="flex-1 bg-pink-600 hover:bg-pink-700 h-8 text-[11px] font-bold"><Check className="h-3 w-3 mr-1" /> Submit Changes</Button>
-                                            <Button size="sm" variant="outline" onClick={() => setPendingChanges(null)} className="h-8 border-white/10 text-slate-400 hover:text-white"><X className="h-3 w-3" /></Button>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                            <form onSubmit={handleAISubmit} className="relative group">
-                                <Input value={aiInput} onChange={(e) => setAiInput(e.target.value)} placeholder="Change client, fee, or tone..." className="bg-black/60 border-white/10 text-xs pr-12 focus-visible:ring-pink-500/30 h-10" />
-                                <div className="absolute right-1 top-1 flex gap-1">
-                                    <Button type="button" size="icon" variant="ghost" className={`h-8 w-8 ${isListening ? 'bg-red-500/20 text-red-500' : 'text-slate-500 hover:text-white'}`} onClick={toggleListening}>
-                                        {isListening ? <MicOff className="h-4 w-4 animate-pulse" /> : <Mic className="h-4 w-4" />}
-                                    </Button>
-                                </div>
-                            </form>
-                        </CardContent>
-                    </Card>
+
                 </div>
 
                 <div className="lg:col-span-8 xl:col-span-9 h-full flex flex-col bg-slate-950 rounded-xl border border-white/5 overflow-hidden relative group">

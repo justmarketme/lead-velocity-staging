@@ -230,6 +230,7 @@ const BrokerOnboarding = () => {
                     growth_goal_clarity: scoringData.growthGoalClarity,
                     timeline_to_start: scoringData.timeline,
                     monthly_sales_target: parseFloat(goalsTargetsForm.monthlySalesTarget) || null,
+                    product_focus: targetMarketForm.productFocus,
                 }])
                 .select()
                 .single();
