@@ -384,7 +384,7 @@ const BrokerOnboarding = () => {
                 {/* 1. Hero Section */}
                 <header
                     ref={heroAnim.ref}
-                    className={`relative py-16 lg:py-24 overflow-hidden bg-black border-b border-white/5 transition-all duration-700 ${heroAnim.isVisible ? "scroll-fade-up" : "scroll-hidden"}`}
+                    className={`relative pt-32 pb-16 lg:pt-40 lg:pb-24 overflow-hidden bg-black border-b border-white/5 transition-all duration-700 ${heroAnim.isVisible ? "scroll-fade-up" : "scroll-hidden"}`}
                 >
                     <div className="absolute inset-0 overflow-hidden pointer-events-none">
                         <div className="absolute top-1/4 left-1/4 w-64 md:w-96 h-64 md:h-96 bg-primary/10 rounded-full blur-3xl hero-orb hero-orb-1"></div>
