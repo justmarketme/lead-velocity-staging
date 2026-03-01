@@ -270,19 +270,6 @@ const BrokerPortal = () => {
                       <Button type="submit" className="w-full" disabled={loading}>
                         {loading ? "Signing in..." : "Sign In"}
                       </Button>
-
-
-
-                      <div className="pt-4 border-t border-border/50">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="w-full border-primary/20 hover:bg-primary/10"
-                          onClick={() => navigate('/broker/dashboard')}
-                        >
-                          Dev Mode: Bypass Login
-                        </Button>
-                      </div>
                     </form>
                   )}
                 </CardContent>

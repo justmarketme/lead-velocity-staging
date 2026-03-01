@@ -51,8 +51,6 @@ const Dashboard = () => {
 
           if (brokerData) {
             navigate("/broker/dashboard");
-          } else {
-            console.log("Dev Bypass: Stay on dashboard");
           }
           return;
         }
@@ -67,7 +65,6 @@ const Dashboard = () => {
 
       if (!session) {
         setLoading(false);
-        console.log("Dev Bypass: Session null, stay on dashboard");
       } else {
         setSession(session);
         checkUserRole(session.user.id);
@@ -80,7 +77,6 @@ const Dashboard = () => {
 
         if (event === 'SIGNED_OUT') {
           setSession(null);
-          console.log("Dev Bypass: Signed out, stay on dashboard");
         } else if (event === 'SIGNED_IN' && session) {
           setSession(session);
           // Do not await the checkUserRole here to prevent hangs
