@@ -55,6 +55,36 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
     const reportRef = useRef<HTMLDivElement>(null);
     const [zoom, setZoom] = useState(0.55);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [sidebarWidth, setSidebarWidth] = useState(340);
+    const isDraggingRef = useRef(false);
+    const dragStartXRef = useRef(0);
+    const dragStartWidthRef = useRef(0);
+
+    const handleDividerMouseDown = (e: React.MouseEvent) => {
+        isDraggingRef.current = true;
+        dragStartXRef.current = e.clientX;
+        dragStartWidthRef.current = sidebarWidth;
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isDraggingRef.current) return;
+            const delta = e.clientX - dragStartXRef.current;
+            const newWidth = Math.max(260, Math.min(600, dragStartWidthRef.current + delta));
+            setSidebarWidth(newWidth);
+        };
+
+        const handleMouseUp = () => {
+            isDraggingRef.current = false;
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+    };
 
     const [isListening, setIsListening] = useState(false);
     const [aiInput, setAiInput] = useState("");
@@ -452,8 +482,9 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                 </div>
             </div>
 
-            <div className="grid lg:grid-cols-12 gap-6 flex-1 overflow-hidden">
-                <div className="lg:col-span-4 xl:col-span-3 h-full flex flex-col gap-4 overflow-hidden">
+            <div className="flex flex-1 overflow-hidden gap-0">
+                {/* Sidebar Panel */}
+                <div style={{ width: sidebarWidth, minWidth: 260, maxWidth: 600, flexShrink: 0 }} className="h-full flex flex-col gap-4 overflow-hidden">
                     <Card className="bg-slate-900/50 border-white/5 flex-1 overflow-y-auto custom-scrollbar">
                         <CardContent className="p-6 space-y-6">
                             <BrokerSelector onSelect={handleBrokerSelect} />
@@ -590,7 +621,22 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
 
                 </div>
 
-                <div className="lg:col-span-8 xl:col-span-9 h-full flex flex-col bg-slate-950 rounded-xl border border-white/5 overflow-hidden relative group">
+                {/* Resizable Divider Bar */}
+                <div
+                    onMouseDown={handleDividerMouseDown}
+                    className="w-1.5 flex-shrink-0 cursor-col-resize bg-white/5 hover:bg-pink-500/40 active:bg-pink-500/60 transition-colors duration-150 relative group"
+                    title="Drag to resize"
+                >
+                    <div className="absolute inset-y-0 -left-1 -right-1" />
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="w-0.5 h-3 bg-pink-400/60 rounded-full" />
+                        <div className="w-0.5 h-3 bg-pink-400/60 rounded-full" />
+                        <div className="w-0.5 h-3 bg-pink-400/60 rounded-full" />
+                    </div>
+                </div>
+
+                {/* Document Preview Panel */}
+                <div className="flex-1 h-full flex flex-col bg-slate-950 rounded-xl border border-white/5 overflow-hidden relative group">
                     <div className="absolute top-4 right-4 z-50 bg-slate-900/90 backdrop-blur-md border border-white/10 rounded-full flex items-center px-4 py-1.5 shadow-2xl space-x-3 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-white" onClick={() => adjustZoom(-0.1)}><ZoomOut className="h-4 w-4" /></Button>
                         <span className="text-[10px] font-mono font-bold text-slate-500">{Math.round(zoom * 100)}%</span>

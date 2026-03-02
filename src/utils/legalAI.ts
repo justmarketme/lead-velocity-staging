@@ -4,7 +4,6 @@
  */
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 interface AIAssistantResult {
     response: string;
@@ -21,7 +20,18 @@ export async function callLegalAI(
         throw new Error("VITE_GEMINI_API_KEY is not set in your .env file.");
     }
 
-    const prompt = `You are an expert AI assistant who specialises in business documentation and South African law.
+    const modelConfigs = [
+        { name: "gemini-2.0-flash", version: "v1beta" },
+        { name: "gemini-1.5-flash", version: "v1" },
+        { name: "gemini-1.5-flash-8b", version: "v1" }
+    ];
+
+    let lastError: any = null;
+
+    for (const config of modelConfigs) {
+        try {
+            const url = `https://generativelanguage.googleapis.com/${config.version}/models/${config.name}:generateContent?key=${GEMINI_API_KEY}`;
+            const prompt = `You are an expert AI assistant who specialises in business documentation and South African law.
 You are helping a user draft/refine a ${documentType}. The user will provide the current ${documentType} state and a command, request, or general "vibe" they want to achieve.
 
 Your job is to:
@@ -41,31 +51,57 @@ ${JSON.stringify(currentState, null, 2)}
 User Command/Intent:
 "${command}"`;
 
-    const response = await fetch(GEMINI_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-                temperature: 0.2,
-                responseMimeType: "application/json",
-            },
-        }),
-    });
+            const response = await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: {
+                        temperature: 0.2,
+                        responseMimeType: "application/json",
+                    },
+                }),
+            });
 
-    if (!response.ok) {
-        const errText = await response.text();
-        console.error("Gemini API Error:", errText);
-        throw new Error(`Gemini API error: ${response.status} - ${errText}`);
+            if (response.status === 429) {
+                console.warn(`Model ${config.name} rate limited (429). Trying fallback...`);
+                lastError = new Error("429");
+                continue;
+            }
+
+            if (response.status === 404) {
+                console.warn(`Model ${config.name} not found on ${config.version} (404). Trying next...`);
+                lastError = new Error("404");
+                continue;
+            }
+
+            if (!response.ok) {
+                const errText = await response.text();
+                throw new Error(`Gemini API error: ${response.status} - ${errText}`);
+            }
+
+            const data = await response.json();
+            const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+            if (!aiText) {
+                throw new Error("No response from Gemini API.");
+            }
+
+            return JSON.parse(aiText) as AIAssistantResult;
+        } catch (error: any) {
+            console.error(`Error with model ${config.name}:`, error);
+            lastError = error;
+            if (error.message === "429" || error.message === "404") continue;
+            // For other errors, we could also continue or break.
+        }
     }
 
-    const data = await response.json();
-    const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!aiText) {
-        console.error("Empty Gemini response:", JSON.stringify(data));
-        throw new Error("No response from Gemini API.");
+    // Comprehensive error messaging
+    if (lastError?.message === "429" || lastError?.message?.includes("429")) {
+        throw new Error("The AI is currently at capacity due to high demand. Please wait about 30 seconds and try again.");
     }
-
-    return JSON.parse(aiText) as AIAssistantResult;
+    if (lastError?.message === "404" || lastError?.message?.includes("404")) {
+        throw new Error("AI service temporarily unavailable. Please try again in a moment.");
+    }
+    throw lastError || new Error("Failed to connect to AI Assistant.");
 }
