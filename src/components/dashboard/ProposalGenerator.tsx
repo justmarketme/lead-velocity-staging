@@ -112,28 +112,28 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
         commissionRate: "9%",
 
         // Static Text Blocks
-        // UPDATED: Standard Bronze Tier as initial default
+        // Token Model Aligned
         title: "Your <span class='text-[#D035D0]'>Mission</span> <span class='text-[#F48C57]'>Control</span> for Growth",
         subtitle: "Growth Starter Lead Strategy (Bronze Tier)",
 
         purposeTitle: "Strategic Lead Generation",
-        purposeText: "Our core solution is designed to provide a <strong class='text-pink-900 bg-pink-50 px-1 rounded'>consistent, high-quality lead engine</strong> delivering qualified business prospects directly to your sales pipeline on a month-to-month basis.",
-        purposeSubText: "Lead Velocity operates as a <strong>performance-aligned partner</strong>, focusing on delivering qualified business decision-makers rather than generic enquiries. We align our success with yours through a hybrid model of service fees and performance commissions.",
+        purposeText: "Our core solution provides a <strong class='text-pink-900 bg-pink-50 px-1 rounded'>Lead Token</strong> engine delivering qualified business prospects. Allocation is monthly, with delivery managed on a performance-aligned weekly schedule.",
+        purposeSubText: "Should you exhaust your monthly allocation early, you can Top-Up at <strong>R500 per additional lead</strong> (requires 1 week's notice).",
 
         overviewTitle: "Campaign Overview",
-        quoteText: `"We guarantee conservatively and aim to overdeliver rather than inflate volume at the expense of lead quality."`,
+        quoteText: `"We work via a Token Model — each qualified lead is one token. If you run out, we top you up on a week's notice."`,
 
         criteriaTitle: "Qualification Criteria",
         criteria1: "<strong>Decision Maker:</strong> Business owner, director, or key decision-maker.",
-        criteria2: "<strong>SME Value Threshold:</strong> Contents cover of <strong>R1,000,000 or more</strong> or Building value of <strong>R4,000,000 or more</strong>.",
-        criteria3: "<strong>Target Sectors:</strong> Logistics, Engineering, and established SMEs.",
+        criteria2: "<strong>SME Value Threshold:</strong> Contents cover of <strong>R1,000,000+</strong> or Building value of <strong>R4,000,000+</strong>.",
+        criteria3: "<strong>Target Sectors:</strong> Logistics, Engineering, and Established SMEs.",
 
         excludedTitle: "Strictly Excluded",
         excludedText: "Personal lines, micro businesses below threshold, and qualified price-shopping generic enquiries.",
 
         alignmentTitle: "Performance Alignment",
-        alignmentText: "This monthly engagement ensures a consistent flow of high-value prospects. Our performance alignment keeps costs predictable while scaling.",
-        alignmentBoxText: "Additional placed policies attract a <span class='text-pink-400 font-bold'>9% commission</span> calculated on the first-year premium."
+        alignmentText: "Tokens are paid monthly in advance. Top-Ups require one (1) week's written notice and advance payment.",
+        alignmentBoxText: "Additional placed policies attract a <span class='text-pink-400 font-bold'>9% commission</span> on the first-year premium."
     });
 
     useEffect(() => {
