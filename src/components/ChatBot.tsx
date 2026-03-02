@@ -10,7 +10,6 @@ import ReactMarkdown from "react-markdown";
 import einsteinAvatar from "@/assets/einstein-chatbot-avatar.webp";
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
-const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
 // Routes where the chatbot should NOT appear
 const EXCLUDED_ROUTES = [
@@ -69,6 +68,19 @@ export function ChatBot() {
     const [isOpen, setIsOpen] = useState(false);
     const [input, setInput] = useState("");
     const [isListening, setIsListening] = useState(false);
+    const aiRef = useRef<any>(null);
+
+    // Lazily initialize the AI client on first use to avoid module-level crash
+    const getAI = () => {
+        if (!aiRef.current && GEMINI_API_KEY) {
+            try {
+                aiRef.current = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+            } catch (e) {
+                console.error("GoogleGenAI init error:", e);
+            }
+        }
+        return aiRef.current;
+    };
 
     // Live Audio State
     const [isLiveActive, setIsLiveActive] = useState(false);
@@ -186,7 +198,13 @@ export function ChatBot() {
             audioContexts.current = { input: inputAudioContext, output: outputAudioContext };
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-            const sessionPromise = ai.live.connect({
+            const aiClient = getAI();
+            if (!aiClient) {
+                setIsConnectingLive(false);
+                addMessage({ id: Date.now().toString(), role: "bot", content: "Voice systems offline. API key not configured." });
+                return;
+            }
+            const sessionPromise = aiClient.live.connect({
                 model: 'gemini-2.5-flash-native-audio-preview-12-2025',
                 config: {
                     responseModalities: [Modality.AUDIO],
