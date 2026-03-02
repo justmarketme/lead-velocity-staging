@@ -5,7 +5,7 @@ import heroVelocity from "@/assets/hero-velocity.webp";
 
 const Hero = () => {
   return (
-    <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20 pb-12 md:pb-0">
+    <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-28 pb-12 md:pb-0">
       {/* Animated background elements with parallax */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-64 md:w-96 h-64 md:h-96 bg-primary/20 rounded-full blur-3xl hero-orb hero-orb-1"></div>
