@@ -9,8 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { getProposalEmailSignature } from "@/utils/emailSignature";
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { callLegalAI } from "@/utils/legalAI";
+import { BrokerSelector } from "./BrokerSelector";
 
 interface ProposalGeneratorProps {
     onBack: () => void;
@@ -56,8 +56,37 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
     const reportRef = useRef<HTMLDivElement>(null);
     const [zoom, setZoom] = useState(0.65);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [sidebarWidth, setSidebarWidth] = useState(340);
+    const isDraggingRef = useRef(false);
+    const dragStartXRef = useRef(0);
+    const dragStartWidthRef = useRef(0);
 
-    // AI State
+    const handleDividerMouseDown = (e: React.MouseEvent) => {
+        isDraggingRef.current = true;
+        dragStartXRef.current = e.clientX;
+        dragStartWidthRef.current = sidebarWidth;
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isDraggingRef.current) return;
+            const delta = e.clientX - dragStartXRef.current;
+            const newWidth = Math.max(260, Math.min(600, dragStartWidthRef.current + delta));
+            setSidebarWidth(newWidth);
+        };
+
+        const handleMouseUp = () => {
+            isDraggingRef.current = false;
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+    };
+
     const [isListening, setIsListening] = useState(false);
     const [aiInput, setAiInput] = useState("");
     const [isSpeaking, setIsSpeaking] = useState(false);
@@ -118,6 +147,15 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
 
     const updateField = (field: string, value: string) => {
         setFormData(prev => ({ ...prev, [field]: value }));
+    };
+
+    // Broker selector populate
+    const handleBrokerSelect = (broker: any) => {
+        const name = broker.full_name || "Valued Partner";
+        setFormData(prev => ({ ...prev, clientName: name }));
+        if (broker.email) setRecipientEmail(broker.email);
+        if (broker.phone_number || broker.phone) setRecipientPhone(broker.phone_number || broker.phone);
+        toast({ title: "Broker Loaded", description: `Proposal pre-filled for ${name}.` });
     };
 
     // Robust PDF Generation with Clone Strategy
@@ -407,12 +445,15 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                 </div>
             </div>
 
-            <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden">
-                {/* Editor Panel */}
-                <ResizablePanel defaultSize={28} minSize={15} maxSize={60} className="h-full">
+            <div className="flex flex-1 overflow-hidden gap-0">
+                {/* Sidebar */}
+                <div style={{ width: sidebarWidth, minWidth: 260, maxWidth: 600, flexShrink: 0 }} className="h-full flex flex-col gap-4 overflow-hidden">
                     <div className="h-full overflow-y-auto pr-2 custom-scrollbar">
                         <Card className="bg-slate-900/50 border-white/10 h-fit">
-                            <CardContent className="p-6 space-y-8">
+                            <CardContent className="p-4 space-y-6">
+                                {/* Broker Selector */}
+                                <BrokerSelector onSelect={handleBrokerSelect} />
+
                                 {/* Customization Section */}
                                 <div className="space-y-4">
                                     <h3 className="font-bold text-lg text-white flex items-center gap-2">
@@ -666,16 +707,22 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                             </CardContent>
                         </Card>
                     </div>
-                </ResizablePanel>
 
-                <ResizableHandle
-                    withHandle
-                    className="w-2 mx-1 bg-white/5 hover:bg-white/15 active:bg-cyan-500/30 transition-colors duration-150 rounded-full data-[resize-handle-active]:bg-cyan-500/40"
-                />
+                    {/* Resizable Divider Bar */}
+                    <div
+                        onMouseDown={handleDividerMouseDown}
+                        className="w-1.5 mx-1 cursor-col-resize bg-white/5 hover:bg-pink-500/40 active:bg-pink-500/60 transition-colors duration-150 relative group"
+                    >
+                        <div className="absolute inset-y-0 -left-1 -right-1" />
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="w-0.5 h-3 bg-pink-400/60 rounded-full" />
+                            <div className="w-0.5 h-3 bg-pink-400/60 rounded-full" />
+                            <div className="w-0.5 h-3 bg-pink-400/60 rounded-full" />
+                        </div>
+                    </div>
 
-                {/* Live Preview Area - TIGHTER LAYOUT FOR 1-PAGE FIT */}
-                <ResizablePanel defaultSize={72} minSize={30} className="h-full">
-                    <div className="h-full flex flex-col bg-slate-900/30 rounded-xl border border-white/10 overflow-hidden relative group">
+                    {/* Live Preview Area */}
+                    <div className="flex-1 h-full flex flex-col bg-slate-950 rounded-xl border border-white/5 overflow-hidden relative group">
                         <div className="absolute top-4 right-4 z-50 bg-slate-900/90 backdrop-blur border border-white/10 rounded-lg flex items-center p-1.5 shadow-xl space-x-1">
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-white" onClick={() => adjustZoom(-0.1)}><ZoomOut className="h-4 w-4" /></Button>
                             <span className="text-xs font-mono font-bold text-white w-12 text-center">{Math.round(zoom * 100)}%</span>
@@ -818,8 +865,9 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                             </div>
                         </div>
                     </div>
-                </ResizablePanel>
-            </ResizablePanelGroup>
+                </div>
+                {/* End Live Preview */}
+            </div>
         </div>
     );
 };
