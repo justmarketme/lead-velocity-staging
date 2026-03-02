@@ -32,14 +32,14 @@ const Navigation = () => {
       : 'bg-background/60 backdrop-blur-md border-b border-border/50'
       }`}>
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className={`flex items-center justify-between transition-all duration-500 ${scrolled ? 'h-20' : 'h-24'
+        <div className={`flex items-center justify-between transition-all duration-500 ${scrolled ? 'h-28' : 'h-32'
           }`}>
           {/* Logo — shown on all screen sizes */}
           <Link to="/" className="flex items-center py-1">
             <img
               src={leadVelocityLogo}
               alt="Lead Velocity"
-              className="h-10 md:h-16 w-auto transition-all duration-500"
+              className="h-10 md:h-24 w-auto transition-all duration-500"
             />
           </Link>
 
