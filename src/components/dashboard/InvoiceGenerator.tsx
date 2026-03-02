@@ -112,7 +112,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
             { description: "Growth Starter Lead Strategy (Bronze Tier)", quantity: 1, price: 8500 },
             { description: "Platform Setup & Configuration", quantity: 1, price: 0 }
         ],
-        notes: "Thank you for your business. We work on a week-to-week or month-to-month payment model. Please ensure payment is made in advance of each delivery cycle.",
+        notes: "Term: Month-to-month. Notice: 1 calendar month (Failure to provide notice incurs a 50% penalty). Top-Ups: R500/lead (Min 5 tokens). Payment in advance.",
         bankName: "First National Bank",
         accountName: "Lead Velocity Pty Ltd",
         accountNumber: "63174286724", // Updated to match requested banking details

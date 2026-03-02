@@ -116,12 +116,11 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
         title: "Your <span class='text-[#D035D0]'>Mission</span> <span class='text-[#F48C57]'>Control</span> for Growth",
         subtitle: "Growth Starter Lead Strategy (Bronze Tier)",
 
-        purposeTitle: "Strategic Lead Generation",
-        purposeText: "Our core solution provides a <strong class='text-pink-900 bg-pink-50 px-1 rounded'>Lead Token</strong> engine delivering qualified business prospects. Allocation is monthly, with delivery managed on a performance-aligned weekly schedule.",
-        purposeSubText: "Should you exhaust your monthly allocation early, you can Top-Up at <strong>R500 per additional lead</strong> (requires 1 week's notice).",
+        purposeText: "Our core solution provides a <strong class='text-pink-900 bg-pink-50 px-1 rounded'>Lead Token</strong> engine. If you exhaust your tokens early, you can Top-Up at <strong>R500 per lead (minimum 5 tokens / R2,500)</strong> with 1 week's notice.",
+        purposeSubText: "Engagement is month-to-month. Exit requires one calendar month's notice; failure to provide full notice or immediate exit incurs a <strong>50% breach penalty</strong> of the tier value.",
 
         overviewTitle: "Campaign Overview",
-        quoteText: `"We work via a Token Model — each qualified lead is one token. If you run out, we top you up on a week's notice."`,
+        quoteText: `"Each qualified lead is one token. Minimum top-up is 5 tokens. Cancellation requires 30 days notice or a 50% penalty applies."`,
 
         criteriaTitle: "Qualification Criteria",
         criteria1: "<strong>Decision Maker:</strong> Business owner, director, or key decision-maker.",
@@ -129,10 +128,10 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
         criteria3: "<strong>Target Sectors:</strong> Logistics, Engineering, and Established SMEs.",
 
         excludedTitle: "Strictly Excluded",
-        excludedText: "Personal lines, micro businesses below threshold, and qualified price-shopping generic enquiries.",
+        excludedText: "Personal lines, micro businesses below threshold, and qualified enquiry replacements.",
 
         alignmentTitle: "Performance Alignment",
-        alignmentText: "Tokens are paid monthly in advance. Top-Ups require one (1) week's written notice and advance payment.",
+        alignmentText: "Tokens are paid monthly in advance. Top-Ups require one (1) week's notice. Early exit carries a 50% penalty.",
         alignmentBoxText: "Additional placed policies attract a <span class='text-pink-400 font-bold'>9% commission</span> on the first-year premium."
     });
 

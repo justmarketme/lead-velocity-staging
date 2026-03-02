@@ -182,9 +182,9 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                 subtitle: "Promotional Pilot Plan — Once-Off Introductory Campaign",
                 serviceFee: "R6,000 (once-off, paid in full upfront)",
                 leadTarget: "6 Qualified Leads (Guaranteed)",
-                scopeText: "Lead Velocity shall provide a once-off 30-day introductory lead generation campaign targeting B2B decision-makers in the Client's specified sectors. This Pilot Plan is an exclusive once-off offer for first-time clients to demonstrate campaign quality, lead qualification standards, and consistency of delivery before committing to an ongoing service tier.",
-                termsText: "This Agreement is for a fixed term of thirty (30) calendar days ('Pilot Period'). The Service Fee is payable in full upfront. Delivery follows a 'Lead Token' model where the 6 leads are allocated as tokens for the month. Should the Client exhaust their tokens early, additional leads may be requested as 'Top-Ups' at R500 per lead, provided one (1) week's written notice is given and payment is made in advance. At the conclusion of the Pilot Period, this Agreement terminates automatically.",
-                terminationText: "This Agreement terminates automatically at the end of the 30-day Pilot Period. Early termination does not entitle the Client to a refund. Clauses relating to commissions, intellectual property, and non-disclosure survive termination.",
+                scopeText: "Lead Velocity shall provide a once-off introductory campaign. Delivery follows a 'Lead Token' model; Top-Ups may be requested (minimum 5 tokens at R2,500) with 1 week notice.",
+                termsText: "Agreement fixed for 30 days. Service Fee is payable upfront. Lead Top-Ups (min 5) require 1 week's notice. Termination of the Pilot is automatic at the end of the term.",
+                terminationText: "This Agreement terminates automatically at the end of the term. Early termination results in no refund. Any further engagement is subject to the 50% breach penalty of ongoing tiers.",
             };
         } else if (leads <= 18) {
             tierLabel = "Bronze";
@@ -193,12 +193,12 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                 subtitle: "Bronze Tier — Growth Starter Strategy",
                 serviceFee: "R8,500 per month (Paid monthly in advance)",
                 leadTarget: "17 Qualified Lead Tokens per Month",
-                scopeText: "Lead Velocity shall provide 17 qualified 'Lead Tokens' per month. Delivery is managed on a weekly schedule. If the Client exhausts their monthly tokens before the end of the billing cycle, they may purchase Top-Up leads at a fixed rate of R500 per lead. All Top-Ups require one (1) week's written notice and payment in advance.",
-                commissionText: "In addition to the Service Fee, the Client agrees to pay Lead Velocity a commission of nine percent (9%) of the gross first-year premium value of any insurance policy sold as a direct or indirect result of Lead Velocity's lead generation efforts. This obligation survives termination for twenty-four (24) months.",
-                pilotEligibilityText: "The Bronze tier is a month-to-month engagement with a one (1) calendar month cancellation notice requirement. Upgrades to Silver or Gold are available at the start of any billing cycle.",
-                renewalText: "This Agreement continues on a month-to-month basis. Cancellation requires one (1) calendar month's written notice. Notice must be delivered via email and takes effect at the end of the following full delivery cycle.",
-                termsText: "This Agreement commences on the Effective Date and continues month-to-month. The Monthly Service Fee is due in advance of each cycle. Lead delivery is tracked via the Token Model. Any leads delivered above the monthly allocation are billed as Top-Ups at R500 each, payable one week in advance.",
-                terminationText: "Either Party may terminate this Agreement by giving not less than one (1) calendar month's written notice. Notice takes effect at the end of the monthly cycle following the notice period. All outstanding fees and commission obligations survive termination.",
+                scopeText: "Lead Velocity provides 17 'Lead Tokens' per month. If exhausted, Top-Up leads are available at R500 per lead (minimum 5 tokens / R2,500) with one week's notice and advance payment.",
+                commissionText: "Client agrees to pay a 9% commission on first-year premiums. This obligation survives termination for twenty-four (24) months.",
+                pilotEligibilityText: "Engagement is month-to-month. Cancellation requires one (1) calendar month's written notice. Failure to provide notice or immediate exit incurs a 50% breach penalty of the tier value (R4,250).",
+                renewalText: "Notice must be delivered via email. Immediate termination make the client liable for 50% of the monthly service fee as a penalty.",
+                termsText: "Monthly fees are payable in advance. The token model applies. Top-Ups (min 5 tokens per R2,500) require 1 week notice. Replacing leads must be requested within 48 hours of delivery.",
+                terminationText: "Termination requires one (1) calendar month's notice. Failure to comply with the 30-day notice period renders the Client liable for a 50% Breach Penalty (R4,250) due immediately.",
             };
         } else if (leads <= 32) {
             tierLabel = "Silver";
@@ -207,12 +207,12 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                 subtitle: "Silver Tier — Scale & Optimise Engine",
                 serviceFee: "R10,500 per month (Paid monthly in advance)",
                 leadTarget: "26 Qualified Lead Tokens per Month",
-                scopeText: "Lead Velocity shall provide 26 qualified 'Lead Tokens' per month, delivered weekly. Should the Client exhaust their tokens early, they may purchase Top-Up leads at R500 per lead. Top-Ups require one (1) week's written notice and payment in full prior to delivery.",
-                commissionText: "In addition to the Service Fee, a commission of eight percent (8%) of the gross first-year premium value applies to all policies sold. This obligation survives termination for twenty-four (24) months from the date of the last lead delivery.",
-                pilotEligibilityText: "The Silver tier includes bi-weekly performance reviews and messaging optimisation. This Agreement is month-to-month with a one (1) calendar month cancellation notice requirement.",
-                renewalText: "This Agreement continues on a month-to-month basis. Cancellation requires one (1) calendar month's written notice. Upgrades to Gold are available upon written request at the start of any new billing cycle.",
-                termsText: "Agreement continues month-to-month from the Effective Date. Monthly Service Fees are payable in advance. The 'Lead Token' system governs delivery. Top-Up leads (R500/lead) require one week's notice and advance payment. We guarantee replacement of leads not meeting qualification criteria if disputed within 48 hours.",
-                terminationText: "Either Party may terminate by giving one (1) calendar month's written notice. Termination is effective at the end of the cycle following the notice period. Commissions and non-solicitation clauses survive termination.",
+                scopeText: "Lead Velocity provides 26 tokens per month. Top-Ups are available at R500 per lead (minimum 5 tokens / R2,500) with one week's notice and full payment upfront.",
+                commissionText: "A commission of 8% applies to first-year premiums. Obligation survives for twenty-four (24) months.",
+                pilotEligibilityText: "Month-to-month engagement. Cancellation requires one (1) calendar month's notice. Early exit or failure to provide notice carries a 50% Breach Penalty of the tier value (R5,250).",
+                renewalText: "Immediate termination or failure to provide notice makes the client liable for 50% of the monthly fee as a penalty.",
+                termsText: "Fees payable in advance. Token system governs delivery. Top-Ups (min 5 tokens) require 1 week notice. Replacements must be requested within 48 hours.",
+                terminationText: "Termination requires 1 calendar month notice. Failure to follow the notice period renders the Client liable for a 50% Breach Penalty (R5,250) due immediately.",
             };
         } else {
             tierLabel = "Gold";
@@ -221,12 +221,12 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                 subtitle: "Gold Tier — Performance Partnership",
                 serviceFee: "R16,500+ per month (Paid monthly in advance)",
                 leadTarget: "40+ Qualified Lead Tokens per Month",
-                scopeText: "Lead Velocity operates as a full revenue partner, providing 40+ 'Lead Tokens' per month with advanced targeting. If tokens are exhausted before month-end, Top-Up leads are available at R500 per lead, requiring one (1) week's notice and payment in advance.",
-                commissionText: "In addition to the Service Fee, a commission of six percent (6%) of the gross first-year premium value applies. This obligation survives termination for twenty-four (24) months.",
-                pilotEligibilityText: "Premium tier with dedicated campaign management and priority lead delivery. Month-to-month engagement with a one (1) calendar month notice requirement for cancellation.",
-                renewalText: "Continues month-to-month. Sector or geographic exclusivity may be negotiated separately after 6 months of consistent performance. Cancellation requires one (1) calendar month's written notice.",
-                termsText: "Agreement starts on Effective Date and continues month-to-month. Fees are paid monthly in advance. Lead delivery is managed via the Token Model. Top-Ups are billed at R500 each, requiring one week's advance notice and payment. Lead replacements must be requested within 48 business hours of delivery.",
-                terminationText: "Either Party may terminate with one (1) calendar month's written notice. Upon termination, all fees for delivered leads are due, and commission clauses remain in effect for the specified survival period.",
+                scopeText: "Lead Velocity operates as a revenue partner providing 40+ tokens. Top-Up leads at R500 per lead (min 5 tokens / R2,500) with 1 week notice and advance payment.",
+                commissionText: "A 6% commission applies to first-year premiums. Obligation survives for twenty-four (24) months.",
+                pilotEligibilityText: "Premium tier. Cancellation requires one (1) calendar month's notice. Failure to provide notice or immediate exit carries a 50% breach penalty (min R8,250).",
+                renewalText: "Immediate termination or failing the notice period renders client liable for 50% of the monthly fee.",
+                termsText: "Fees paid upfront. Token Model applies. Top-Ups (min 5) require 1 week notice. Replacements requested within 48 business hours.",
+                terminationText: "Termination requires one (1) calendar month's notice. Failure to comply with the 30-day notice period renders the Client liable for a 50% Breach Penalty.",
             };
         }
 
