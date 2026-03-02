@@ -234,20 +234,49 @@ const BrokerOnboarding = () => {
 
             console.log("Onboarding Payload:", payload);
 
-            const { data: responseData, error: responseError } = await supabase
-                .from('broker_onboarding_responses')
-                .insert([payload])
-                .select()
-                .single();
+            const { data: responseId, error: responseError } = await supabase
+                .rpc('submit_broker_onboarding', {
+                    p_broker_id: payload.broker_id,
+                    p_full_name: payload.full_name,
+                    p_email: payload.email,
+                    p_phone_number: payload.phone_number,
+                    p_firm_name: payload.firm_name,
+                    p_preferred_call_time: payload.preferred_call_time,
+                    p_whatsapp_number: payload.whatsapp_number,
+                    p_whatsapp_consent: payload.whatsapp_consent,
+                    p_receives_leads_currently: payload.receives_leads_currently,
+                    p_current_lead_provider: payload.current_lead_provider,
+                    p_current_monthly_spend: payload.current_monthly_spend,
+                    p_current_cpl: payload.current_cpl,
+                    p_current_conversion_rate: payload.current_conversion_rate,
+                    p_crm_usage: payload.crm_usage,
+                    p_speed_to_contact: payload.speed_to_contact,
+                    p_team_size: payload.team_size,
+                    p_follow_up_process: payload.follow_up_process,
+                    p_monthly_lead_spend: payload.monthly_lead_spend,
+                    p_cpl_awareness: payload.cpl_awareness,
+                    p_pricing_comfort: payload.pricing_comfort,
+                    p_desired_leads_weekly: payload.desired_leads_weekly,
+                    p_max_capacity_weekly: payload.max_capacity_weekly,
+                    p_product_focus_clarity: payload.product_focus_clarity,
+                    p_geographic_focus_clarity: payload.geographic_focus_clarity,
+                    p_growth_goal_clarity: payload.growth_goal_clarity,
+                    p_timeline_to_start: payload.timeline_to_start,
+                    p_monthly_sales_target: payload.monthly_sales_target,
+                    p_product_focus: payload.product_focus,
+                });
 
             if (responseError) {
                 console.error("Supabase Onboarding Response Error:", responseError);
                 throw responseError;
             }
 
+            const newResponseId = responseId as string;
+            console.log("Onboarding response saved with ID:", newResponseId);
+
             // 3. Save calculated results
             const analysisPayload = {
-                response_id: responseData.id,
+                response_id: newResponseId,
                 broker_id: user?.id || null,
                 operational_score: results.operationalScore,
                 budget_score: results.budgetScore,
@@ -262,23 +291,29 @@ const BrokerOnboarding = () => {
             console.log("Analysis Payload:", analysisPayload);
 
             const { error: analysisError } = await supabase
-                .from('broker_analysis')
-                .insert([analysisPayload]);
+                .rpc('submit_broker_analysis', {
+                    p_response_id: analysisPayload.response_id,
+                    p_broker_id: analysisPayload.broker_id,
+                    p_operational_score: analysisPayload.operational_score,
+                    p_budget_score: analysisPayload.budget_score,
+                    p_growth_score: analysisPayload.growth_score,
+                    p_intent_score: analysisPayload.intent_score,
+                    p_success_probability: analysisPayload.success_probability,
+                    p_risk_flags: analysisPayload.risk_flags,
+                    p_primary_sales_angle: analysisPayload.primary_sales_angle,
+                    p_success_band: analysisPayload.success_band,
+                });
 
             if (analysisError) {
                 console.error("Supabase Analysis Error:", analysisError);
                 throw analysisError;
             }
 
-            // 4. Trigger AI Analysis
-            try {
-                // This is a placeholder for the actual Edge Function call
-                // In a real scenario, this would trigger an async process
-                console.log("Triggering AI analysis for:", responseData.id);
-                // await supabase.functions.invoke('analyze-broker-score', { ... });
-            } catch (aiError) {
-                console.error("AI Analysis trigger failed:", aiError);
-            }
+            console.log("Analysis saved successfully");
+
+            // 4. Trigger AI Analysis (placeholder)
+            console.log("Triggering AI analysis for:", newResponseId);
+
 
             setSubmitted(true);
             toast({
@@ -287,9 +322,10 @@ const BrokerOnboarding = () => {
             });
             window.scrollTo({ top: 0, behavior: "smooth" });
         } catch (error: any) {
+            console.error("Submission catch-all error:", error);
             toast({
                 title: "Submission Error",
-                description: "There was a problem submitting your application. Please try again.",
+                description: `Error: ${error?.message || "There was a problem submitting your application. Please try again."}`,
                 variant: "destructive"
             });
         } finally {
