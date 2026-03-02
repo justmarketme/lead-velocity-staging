@@ -152,8 +152,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
     // Broker selector populate
     const handleBrokerSelect = (broker: any) => {
         const name = broker.full_name || "Valued Partner";
-        const weeklyLeads = broker.desired_leads_weekly || 4; // Default to Bronze-level leads
-        const monthlyLeads = Math.round(weeklyLeads * 4.33);
+        const leads = broker.desired_leads_weekly || 17; // Raw count for tiering
 
         // Tier Data Map
         const tiers = [
@@ -170,7 +169,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                 purposeSubText: "Lead Velocity operates as a lead partner focused on qualified decision-makers."
             },
             {
-                threshold: 20,
+                threshold: 18,
                 subtitle: "Growth Starter Lead Strategy (Bronze Tier)",
                 investment: "R8,500 (p/m)",
                 leads: "± 17 qualified business leads",
@@ -182,11 +181,11 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                 purposeSubText: "We align our success with yours through a hybrid model of service fees and performance commissions."
             },
             {
-                threshold: 32,
+                threshold: 30, // 20 leads maps here (Silver)
                 subtitle: "Scale & Optimise Lead Engine (Silver Tier)",
-                investment: "R14,500 (p/m)", // Updated to match ContractGenerator pricing
-                leads: "± 26 qualified business leads",
-                cost: "R550 per lead",
+                investment: "R10,500 (p/m)",
+                leads: "± 23–26 qualified business leads",
+                cost: "R400-R450 per lead",
                 comm: "8%",
                 alignment: "Where results become predictable. This tier ensures higher volume with bi-weekly performance reviews and messaging optimisation.",
                 purposeTitle: "Predictable Scaling",
@@ -196,9 +195,9 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
             {
                 threshold: 999,
                 subtitle: "Performance Partner Enterprise (Gold Tier)",
-                investment: "R24,500 (p/m)", // Updated to match ContractGenerator pricing
-                leads: "± 40 qualified business leads",
-                cost: "R612 per lead",
+                investment: "R16,500+ (p/m)",
+                leads: "33-40+ qualified business leads",
+                cost: "R400-R500 per lead",
                 comm: "6%",
                 alignment: "The Gold tier delivers maximum market penetration with dedicated campaign management and advanced lead qualification filters.",
                 purposeTitle: "Revenue Partnership",
@@ -208,7 +207,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
         ];
 
         // Find correct tier
-        const tier = tiers.find(t => monthlyLeads <= t.threshold) || tiers[tiers.length - 1];
+        const tier = tiers.find(t => leads <= t.threshold) || tiers[tiers.length - 1];
 
         setFormData(prev => ({
             ...prev,
@@ -227,7 +226,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
 
         if (broker.email) setRecipientEmail(broker.email);
         if (broker.phone_number || broker.phone) setRecipientPhone(broker.phone_number || broker.phone);
-        toast({ title: "Broker & Tier Loaded", description: `Selected ${tier.subtitle.split(' ')[0]} based on ${monthlyLeads} leads/mo.` });
+        toast({ title: "Broker & Tier Loaded", description: `Selected ${tier.subtitle.split(' ')[0]} based on ${leads} leads.` });
     };
 
     // Robust PDF Generation with Clone Strategy

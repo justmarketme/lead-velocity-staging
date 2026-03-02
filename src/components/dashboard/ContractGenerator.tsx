@@ -172,11 +172,10 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
             clientPhoneLine: `Tel: ${broker.phone_number || broker.phone || broker.whatsapp_number || ""} `,
         };
 
-        const weeklyLeads = broker.desired_leads_weekly || 6;
-        const monthlyLeads = Math.round(weeklyLeads * 4.33);
+        const leads = broker.desired_leads_weekly || 17; // Use raw count directly to match pricing tiers
         let tierLabel = "Pilot Phase";
 
-        if (monthlyLeads <= 6) {
+        if (leads <= 6) {
             tierLabel = "Pilot Phase";
             newContractData = {
                 ...newContractData,
@@ -191,7 +190,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                 breachText: "In the event of a material breach of this Agreement by the Client — including but not limited to failure to pay the Service Fee, failure to cooperate, or disparagement of Lead Velocity — no refund of the once-off Service Fee shall be due or payable. Lead Velocity reserves the right to immediately terminate this Agreement and retain all fees paid.",
                 terminationText: "This Agreement terminates automatically at the end of the thirty (30) day Pilot Period. Early termination by the Client shall not entitle the Client to a refund of the Service Fee. Lead Velocity may terminate early if the Client materially breaches this Agreement and fails to remedy such breach within seven (7) Business Days of written notice. Clauses relating to confidentiality, commission obligations, intellectual property, and limitation of liability survive termination.",
             };
-        } else if (monthlyLeads <= 20) {
+        } else if (leads <= 18) {
             tierLabel = "Bronze";
             newContractData = {
                 ...newContractData,
@@ -205,7 +204,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                 termsText: "This Agreement commences on the Effective Date and continues on a month-to-month basis until terminated in accordance with clause 12. The Service Fee is payable in advance of each Delivery Cycle (weekly or monthly as agreed). Lead Velocity guarantees replacement of any lead that does not meet the agreed qualification criteria, provided the dispute is raised in writing within 48 Business Hours of delivery.",
                 terminationText: "Either Party may terminate this Agreement by giving not less than one (1) calendar month's written notice to the other Party. Notice must be delivered to the other Party's registered email address and takes effect from the date of confirmed receipt. Termination is effective at the end of the Delivery Cycle following expiry of the notice period. Upon termination: (i) all fees for leads already delivered are immediately due; (ii) clauses on confidentiality, commissions, intellectual property, non-solicitation, and liability survive termination.",
             };
-        } else if (monthlyLeads <= 32) {
+        } else if (leads <= 32) {
             tierLabel = "Silver";
             newContractData = {
                 ...newContractData,

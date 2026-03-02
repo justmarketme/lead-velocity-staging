@@ -136,18 +136,17 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
         const company = broker.firm_name || broker.company_name || "";
         const clientName = company || name;
 
-        const weeklyLeads = broker.desired_leads_weekly || 4; // Default to Bronze-level leads
-        const monthlyLeads = Math.round(weeklyLeads * 4.33);
+        const leads = broker.desired_leads_weekly || 17; // Use raw count directly
         let itemDescription = "Growth Starter Lead Strategy (Bronze)";
         let itemPrice = 8500;
 
-        if (monthlyLeads <= 6) {
+        if (leads <= 6) {
             itemDescription = "Lead Generation Pilot Campaign (30 Days)";
             itemPrice = 6000;
-        } else if (monthlyLeads <= 20) {
+        } else if (leads <= 18) {
             itemDescription = "Growth Starter Lead Strategy (Bronze)";
             itemPrice = 8500;
-        } else if (monthlyLeads <= 32) {
+        } else if (leads <= 30) {
             itemDescription = "Scale & Optimise Lead Engine (Silver)";
             itemPrice = 10500;
         } else {
