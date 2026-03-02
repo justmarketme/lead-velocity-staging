@@ -92,9 +92,24 @@ export function ChatBot() {
     const nextStartTime = useRef(0);
     const sources = useRef(new Set<AudioBufferSourceNode>());
 
+    const [permissionStatus, setPermissionStatus] = useState<PermissionState | 'prompt'>('prompt');
     const recognitionRef = useRef<any>(null);
     const location = useLocation();
     const { messages, isLoading, sendMessage, addMessage, scrollRef } = useChatbot();
+
+    // Check permission on mount and when chat is opened
+    useEffect(() => {
+        if (navigator.permissions && (navigator.permissions as any).query) {
+            navigator.permissions.query({ name: 'microphone' as any })
+                .then((status) => {
+                    setPermissionStatus(status.state);
+                    status.onchange = () => setPermissionStatus(status.state);
+                })
+                .catch(err => {
+                    console.warn("Permissions API not fully supported:", err);
+                });
+        }
+    }, []);
 
     // Check if we are on an excluded route
     const isExcluded = EXCLUDED_ROUTES.some((route) =>
@@ -205,7 +220,7 @@ export function ChatBot() {
                 return;
             }
             const sessionPromise = aiClient.live.connect({
-                model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+                model: 'gemini-2.0-flash-exp',
                 config: {
                     responseModalities: [Modality.AUDIO],
                     speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Charon' } } },
@@ -341,10 +356,35 @@ Keep voice responses to 2-4 sentences max. Be warm, witty, and genuinely helpful
                 }
             });
             liveSessionRef.current = await sessionPromise;
-        } catch (err) {
+        } catch (err: any) {
             console.error("Live Audio Error:", err);
             setIsConnectingLive(false);
-            addMessage({ id: Date.now().toString(), role: "bot", content: "Voice systems offline. Please check your microphone permissions." });
+
+            let errorMessage = "Voice systems offline. Please try again later.";
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                setPermissionStatus('denied');
+                errorMessage = "Einstein can't hear you! Please click the lock icon in your browser address bar and set Microphone to 'Allow'.";
+            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                errorMessage = "No microphone detected. Please plug in a mic and try again.";
+            } else if (err.message?.includes('model')) {
+                errorMessage = "Einstein's neural link is updating (Model not found). Text chat is still active!";
+            }
+
+            addMessage({ id: Date.now().toString(), role: "bot", content: errorMessage });
+        }
+    };
+
+    const requestPermission = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            stream.getTracks().forEach(track => track.stop()); // Just to trigger prompt
+            setPermissionStatus('granted');
+            addMessage({ id: Date.now().toString(), role: "bot", content: "Excellent! My voice systems are now online. Click the audio icon to start speaking." });
+        } catch (err: any) {
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                setPermissionStatus('denied');
+                addMessage({ id: Date.now().toString(), role: "bot", content: "Permission denied. Please click the lock icon in your address bar to allow microphone access manually." });
+            }
         }
     };
 
@@ -459,6 +499,30 @@ Keep voice responses to 2-4 sentences max. Be warm, witty, and genuinely helpful
                                             <p className="text-xs text-slate-300 relative z-10 font-medium">"{liveTranscription}..."</p>
                                         ) : (
                                             <p className="text-xs text-slate-500 relative z-10 animate-pulse">Scanning spacetime... Speak near your microphone.</p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {permissionStatus !== 'granted' && !isLiveActive && !isConnectingLive && (
+                                <div className="flex justify-start">
+                                    <div className="max-w-[85%] rounded-2xl rounded-bl-none px-4 py-3 bg-pink-950/30 border border-pink-500/10 flex flex-col gap-3">
+                                        <div className="flex items-center gap-2">
+                                            <AudioLines className="w-4 h-4 text-pink-400" />
+                                            <span className="text-xs text-slate-300 font-medium">Einstein's Voice System</span>
+                                        </div>
+                                        <p className="text-[11px] text-slate-400 leading-relaxed text-center">
+                                            {permissionStatus === 'denied'
+                                                ? "Microphone access is blocked. Please enable it in your browser settings to speak with Einstein."
+                                                : "Ready to hear your thoughts? Click below to enable Einstein's interactive voice mode."}
+                                        </p>
+                                        {permissionStatus !== 'denied' && (
+                                            <Button
+                                                onClick={requestPermission}
+                                                className="bg-pink-600 hover:bg-pink-500 text-white text-[10px] h-8 font-bold uppercase tracking-wider rounded-lg shadow-lg shadow-pink-500/20"
+                                            >
+                                                Enable Einstein's Voice
+                                            </Button>
                                         )}
                                     </div>
                                 </div>
