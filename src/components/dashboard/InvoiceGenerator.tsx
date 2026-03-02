@@ -109,10 +109,10 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
         clientAddress: "123 Client Street, City, Country",
         clientVat: "VAT: 4000123456",
         items: [
-            { description: "Lead Generation Pilot Campaign (30 Days)", quantity: 1, price: 6000 },
+            { description: "Growth Starter Lead Strategy (Bronze Tier)", quantity: 1, price: 8500 },
             { description: "Platform Setup & Configuration", quantity: 1, price: 0 }
         ],
-        notes: "Thank you for your business. Payment is due within 7 days.",
+        notes: "Thank you for your business. We work on a week-to-week or month-to-month payment model. Please ensure payment is made in advance of each delivery cycle.",
         bankName: "First National Bank",
         accountName: "Lead Velocity Pty Ltd",
         accountNumber: "63174286724", // Updated to match requested banking details
@@ -136,10 +136,10 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
         const company = broker.firm_name || broker.company_name || "";
         const clientName = company || name;
 
-        const weeklyLeads = broker.desired_leads_weekly || 6;
+        const weeklyLeads = broker.desired_leads_weekly || 4; // Default to Bronze-level leads
         const monthlyLeads = Math.round(weeklyLeads * 4.33);
-        let itemDescription = "Lead Generation Pilot Campaign (30 Days)";
-        let itemPrice = 6000;
+        let itemDescription = "Growth Starter Lead Strategy (Bronze)";
+        let itemPrice = 8500;
 
         if (monthlyLeads <= 6) {
             itemDescription = "Lead Generation Pilot Campaign (30 Days)";

@@ -104,23 +104,23 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
         // Variables
         clientName: "Valued Partner",
         date: new Date().toLocaleDateString('en-ZA', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-        investment: "R6,000 (once-off)",
-        guaranteedLeads: "6 qualified business leads",
-        costPerLead: "R1,000 per lead",
+        investment: "R8,500 (p/m)",
+        guaranteedLeads: "± 17 qualified business leads",
+        costPerLead: "R500 per lead",
         contentsCover: "R1,000,000 or more",
         buildingValue: "R4,000,000 or more",
-        commissionRate: "10%",
+        commissionRate: "9%",
 
         // Static Text Blocks
-        // UPDATED: Exact colour match for Mission Control
+        // UPDATED: Standard Bronze Tier as initial default
         title: "Your <span class='text-[#D035D0]'>Mission</span> <span class='text-[#F48C57]'>Control</span> for Growth",
-        subtitle: "30-Day Performance-Aligned Campaign",
+        subtitle: "Growth Starter Lead Strategy (Bronze Tier)",
 
-        purposeTitle: "Purpose of the Pilot",
-        purposeText: "This 30-day pilot is designed to provide a <strong class='text-pink-900 bg-pink-50 px-1 rounded'>structured, low-risk starting point</strong> while generating enough <strong class='text-pink-900'>real performance data</strong> to assess lead quality, conversion potential, and return on investment.",
-        purposeSubText: "Lead Velocity operates as a <strong>performance-aligned lead partner</strong>, focused on delivering qualified decision-makers rather than high-volume, unfiltered enquiries.",
+        purposeTitle: "Strategic Lead Generation",
+        purposeText: "Our core solution is designed to provide a <strong class='text-pink-900 bg-pink-50 px-1 rounded'>consistent, high-quality lead engine</strong> delivering qualified business prospects directly to your sales pipeline on a month-to-month basis.",
+        purposeSubText: "Lead Velocity operates as a <strong>performance-aligned partner</strong>, focusing on delivering qualified business decision-makers rather than generic enquiries. We align our success with yours through a hybrid model of service fees and performance commissions.",
 
-        overviewTitle: "Pilot Overview",
+        overviewTitle: "Campaign Overview",
         quoteText: `"We guarantee conservatively and aim to overdeliver rather than inflate volume at the expense of lead quality."`,
 
         criteriaTitle: "Qualification Criteria",
@@ -132,8 +132,8 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
         excludedText: "Personal lines, micro businesses below threshold, and qualified price-shopping generic enquiries.",
 
         alignmentTitle: "Performance Alignment",
-        alignmentText: "The pilot investment covers the delivery of the first six qualified business leads. Beyond that, we align with your success.",
-        alignmentBoxText: "Additional placed policies attract a <span class='text-pink-400 font-bold'>10% commission</span> calculated on the first-year premium."
+        alignmentText: "This monthly engagement ensures a consistent flow of high-value prospects. Our performance alignment keeps costs predictable while scaling.",
+        alignmentBoxText: "Additional placed policies attract a <span class='text-pink-400 font-bold'>9% commission</span> calculated on the first-year premium."
     });
 
     useEffect(() => {
@@ -152,10 +152,82 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
     // Broker selector populate
     const handleBrokerSelect = (broker: any) => {
         const name = broker.full_name || "Valued Partner";
-        setFormData(prev => ({ ...prev, clientName: name }));
+        const weeklyLeads = broker.desired_leads_weekly || 4; // Default to Bronze-level leads
+        const monthlyLeads = Math.round(weeklyLeads * 4.33);
+
+        // Tier Data Map
+        const tiers = [
+            {
+                threshold: 6,
+                subtitle: "Promotional Pilot Plan — Once-Off Campaign",
+                investment: "R6,000 (once-off)",
+                leads: "6 qualified business leads",
+                cost: "R1,000 per lead",
+                comm: "10%",
+                alignment: "The pilot investment covers the delivery of the first six qualified business leads. Beyond that, we align with your success.",
+                purposeTitle: "Purpose of the Pilot",
+                purposeText: "This 30-day pilot is designed to provide a <strong>structured, low-risk starting point</strong> while generating enough real performance data to assess quality and ROI.",
+                purposeSubText: "Lead Velocity operates as a lead partner focused on qualified decision-makers."
+            },
+            {
+                threshold: 20,
+                subtitle: "Growth Starter Lead Strategy (Bronze Tier)",
+                investment: "R8,500 (p/m)",
+                leads: "± 17 qualified business leads",
+                cost: "R500 per lead",
+                comm: "9%",
+                alignment: "This monthly engagement ensures a consistent flow of high-value prospects. Our performance alignment keeps costs predictable while scaling.",
+                purposeTitle: "Strategic Lead Generation",
+                purposeText: "Our core solution provides a consistent lead engine delivering qualified prospects directly to your sales pipeline on a month-to-month basis.",
+                purposeSubText: "We align our success with yours through a hybrid model of service fees and performance commissions."
+            },
+            {
+                threshold: 32,
+                subtitle: "Scale & Optimise Lead Engine (Silver Tier)",
+                investment: "R14,500 (p/m)", // Updated to match ContractGenerator pricing
+                leads: "± 26 qualified business leads",
+                cost: "R550 per lead",
+                comm: "8%",
+                alignment: "Where results become predictable. This tier ensures higher volume with bi-weekly performance reviews and messaging optimisation.",
+                purposeTitle: "Predictable Scaling",
+                purposeText: "The Silver tier is where results become consistently predictable, allowing for higher lead volumes and deeper campaign optimization.",
+                purposeSubText: "Designed for brokers ready to scale their business insurance portfolio systematically."
+            },
+            {
+                threshold: 999,
+                subtitle: "Performance Partner Enterprise (Gold Tier)",
+                investment: "R24,500 (p/m)", // Updated to match ContractGenerator pricing
+                leads: "± 40 qualified business leads",
+                cost: "R612 per lead",
+                comm: "6%",
+                alignment: "The Gold tier delivers maximum market penetration with dedicated campaign management and advanced lead qualification filters.",
+                purposeTitle: "Revenue Partnership",
+                purposeText: "Our premium tier where we operate as a full revenue partner, providing the highest volume of qualified decision-makers.",
+                purposeSubText: "Includes advanced targeting and dedicated management for enterprise-level growth."
+            }
+        ];
+
+        // Find correct tier
+        const tier = tiers.find(t => monthlyLeads <= t.threshold) || tiers[tiers.length - 1];
+
+        setFormData(prev => ({
+            ...prev,
+            clientName: name,
+            subtitle: tier.subtitle,
+            investment: tier.investment,
+            guaranteedLeads: tier.leads,
+            costPerLead: tier.cost,
+            commissionRate: tier.comm,
+            alignmentText: tier.alignment,
+            purposeTitle: tier.purposeTitle,
+            purposeText: tier.purposeText,
+            purposeSubText: tier.purposeSubText,
+            alignmentBoxText: `Additional placed policies attract a <span class='text-pink-400 font-bold'>${tier.comm} commission</span> calculated on the first-year premium.`
+        }));
+
         if (broker.email) setRecipientEmail(broker.email);
         if (broker.phone_number || broker.phone) setRecipientPhone(broker.phone_number || broker.phone);
-        toast({ title: "Broker Loaded", description: `Proposal pre-filled for ${name}.` });
+        toast({ title: "Broker & Tier Loaded", description: `Selected ${tier.subtitle.split(' ')[0]} based on ${monthlyLeads} leads/mo.` });
     };
 
     // Robust PDF Generation with Clone Strategy
