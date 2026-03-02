@@ -1,8 +1,12 @@
 import { useState, useRef, useEffect } from "react";
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-// Using gemini-2.5-flash for speed as recommended
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+
+const MODEL_CONFIGS = [
+    { name: "gemini-2.0-flash", version: "v1beta" },
+    { name: "gemini-1.5-flash", version: "v1" },
+    { name: "gemini-1.5-flash-8b", version: "v1" },
+];
 
 export interface Message {
     id: string;
@@ -128,35 +132,54 @@ export function useChatbot() {
             }
 
             const prompt = SYSTEM_PROMPT + "\n\nUser Message: " + content;
+            let lastError: any = null;
 
-            const response = await fetch(GEMINI_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: {
-                        temperature: 0.7,
-                    },
-                }),
-            });
+            for (const config of MODEL_CONFIGS) {
+                try {
+                    const url = `https://generativelanguage.googleapis.com/${config.version}/models/${config.name}:generateContent?key=${GEMINI_API_KEY}`;
+                    const response = await fetch(url, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: prompt }] }],
+                            generationConfig: { temperature: 0.7 },
+                        }),
+                    });
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error("Gemini Error:", errorText);
-                throw new Error("Failed to communicate with the orbital station.");
+                    if (response.status === 429 || response.status === 404) {
+                        console.warn(`Model ${config.name} returned ${response.status}. Trying fallback...`);
+                        lastError = new Error(`${response.status}`);
+                        continue;
+                    }
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error("Gemini Error:", errorText);
+                        throw new Error("Failed to communicate with the orbital station.");
+                    }
+
+                    const data = await response.json();
+                    const botResponseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                    if (botResponseText) {
+                        setMessages((prev) => [
+                            ...prev,
+                            { id: (Date.now() + 1).toString(), role: "bot", content: botResponseText },
+                        ]);
+                        return; // success — exit loop
+                    } else {
+                        throw new Error("Empty transmission received.");
+                    }
+                } catch (err: any) {
+                    lastError = err;
+                    if (err.message === "429" || err.message === "404") continue;
+                    throw err; // non-rate-limit error — bail immediately
+                }
             }
 
-            const data = await response.json();
-            const botResponseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            // All models failed
+            throw lastError || new Error("All AI models unavailable.");
 
-            if (botResponseText) {
-                setMessages((prev) => [
-                    ...prev,
-                    { id: (Date.now() + 1).toString(), role: "bot", content: botResponseText },
-                ]);
-            } else {
-                throw new Error("Empty transmission received.");
-            }
         } catch (error) {
             console.error(error);
             setMessages((prev) => [
@@ -169,6 +192,7 @@ export function useChatbot() {
             ]);
         } finally {
             setIsLoading(false);
+
         }
     };
 
