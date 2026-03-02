@@ -58,9 +58,10 @@ const TeamManagement = () => {
     firmName: "",
     contactPerson: "",
     email: "",
-    tier: "Pilot",
+    tier: "Bronze",
+    portalType: "Lead Growth", // New: Distinguish between generating leads vs dialing their book
     isLeadLoading: true,
-    leadQuota: 6,
+    leadQuota: 17,
     tempPassword: "",
   });
 
@@ -125,6 +126,7 @@ const TeamManagement = () => {
             contact_person: formData.contactPerson,
             email: formData.email,
             tier: formData.tier,
+            portal_type: formData.portalType, // Map to new field
             is_lead_loading: formData.isLeadLoading,
             lead_quota: formData.leadQuota,
             status: 'Active'
@@ -252,8 +254,8 @@ const TeamManagement = () => {
                         <div className="flex flex-col">
                           <span className="font-bold text-white text-sm">{broker.firm_name}</span>
                           <span className={`text-[10px] font-black uppercase tracking-tighter ${broker.tier === 'Gold' ? 'text-yellow-500' :
-                              broker.tier === 'Silver' ? 'text-slate-400' :
-                                broker.tier === 'Bronze' ? 'text-orange-500' : 'text-slate-500'
+                            broker.tier === 'Silver' ? 'text-slate-400' :
+                              broker.tier === 'Bronze' ? 'text-orange-500' : 'text-slate-500'
                             }`}>{broker.tier}</span>
                         </div>
                       </td>
@@ -303,8 +305,8 @@ const TeamManagement = () => {
       <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
         <DialogContent className="bg-slate-950 border-white/10 text-white max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-black">Elite Broker Onboarding</DialogTitle>
-            <DialogDescription className="text-slate-400">Deploy a new professional portal instance and credentials.</DialogDescription>
+            <DialogTitle className="text-2xl font-black">Broker Portal Provisioning</DialogTitle>
+            <DialogDescription className="text-slate-400">Configure the service model and access credentials for this partner.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-6 pt-4">
@@ -326,32 +328,57 @@ const TeamManagement = () => {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase text-slate-500">Portal Tier</Label>
-                <Select value={formData.tier} onValueChange={v => setFormData({ ...formData, tier: v })}>
-                  <SelectTrigger className="bg-slate-900 border-white/10">
+                <Label className="text-xs font-bold uppercase text-slate-500">Service Model (Portal Type)</Label>
+                <Select value={formData.portalType} onValueChange={v => setFormData({ ...formData, portalType: v })}>
+                  <SelectTrigger className="bg-slate-900 border-white/10 overflow-hidden">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-900 border-white/10 text-white">
-                    <SelectItem value="Pilot">Pilot (Free Trial)</SelectItem>
-                    <SelectItem value="Bronze">Bronze (Entry)</SelectItem>
-                    <SelectItem value="Silver">Silver (Mid-Scale)</SelectItem>
-                    <SelectItem value="Gold">Gold (Enterprise)</SelectItem>
+                    <SelectItem value="Lead Growth">Lead Growth (We Generate)</SelectItem>
+                    <SelectItem value="Dialing Engine">Dialing Engine (Your Book)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase text-slate-500">Lead Quota</Label>
-                <Input value={formData.leadQuota} onChange={e => setFormData({ ...formData, leadQuota: parseInt(e.target.value) || 0 })} type="number" className="bg-slate-900 border-white/10" />
+                <Label className="text-xs font-bold uppercase text-slate-500">Service Tier</Label>
+                <Select value={formData.tier} onValueChange={v => {
+                  const quota = v === 'Gold' ? 40 : v === 'Silver' ? 26 : v === 'Bronze' ? 17 : 6;
+                  setFormData({ ...formData, tier: v, leadTargetQuota: quota });
+                }}>
+                  <SelectTrigger className="bg-slate-900 border-white/10">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-900 border-white/10 text-white">
+                    <SelectItem value="Pilot">Pilot Plan</SelectItem>
+                    <SelectItem value="Bronze">Bronze Tier</SelectItem>
+                    <SelectItem value="Silver">Silver Tier</SelectItem>
+                    <SelectItem value="Gold">Gold Tier</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
-            <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/10">
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase text-slate-500">Lead Target Quota</Label>
+              <div className="flex items-center gap-3">
+                <Input value={formData.leadQuota} onChange={e => setFormData({ ...formData, leadQuota: parseInt(e.target.value) || 0 })} type="number" className="bg-slate-900 border-white/10 flex-1" />
+                <Badge variant="outline" className="text-[10px] h-9 border-white/5 bg-white/5 px-3">
+                  {formData.portalType === 'Lead Growth' ? 'Monthly Lead Tokens' : 'Monthly Records Capability'}
+                </Badge>
+              </div>
+            </div>
+
+            <div className={`flex items-center justify-between p-4 rounded-xl border transition-all ${formData.isLeadLoading ? 'bg-emerald-500/10 border-emerald-500/20 shadow-lg shadow-emerald-500/5' : 'bg-white/5 border-white/10'}`}>
               <div className="space-y-1">
                 <p className="text-sm font-bold text-white flex items-center gap-2">
                   <Zap className={`w-4 h-4 ${formData.isLeadLoading ? 'text-emerald-400' : 'text-slate-600'}`} />
-                  Lead Loading Mode
+                  {formData.portalType === 'Lead Growth' ? 'Lead Distribution Mode' : 'Dialer Activation Mode'}
                 </p>
-                <p className="text-[10px] text-slate-500">Enable automated lead distribution for this partner.</p>
+                <p className="text-[10px] text-slate-500">
+                  {formData.isLeadLoading
+                    ? (formData.portalType === 'Lead Growth' ? 'ON: Automatically routing incoming leads to this partner.' : 'ON: Dialer interface active for client\'s uploaded book.')
+                    : (formData.portalType === 'Lead Growth' ? 'OFF: Manual lead assignment only. Partner is on standby.' : 'OFF: Dialer deactivated. Review only mode.')}
+                </p>
               </div>
               <Switch checked={formData.isLeadLoading} onCheckedChange={v => setFormData({ ...formData, isLeadLoading: v })} />
             </div>

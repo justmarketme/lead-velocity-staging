@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -149,6 +150,26 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
         noticesText: "All notices, requests, and communications under this Agreement shall be in writing and shall be deemed delivered: (a) immediately upon personal delivery; (b) upon written confirmation of receipt if sent by email; or (c) five (5) Business Days after posting if sent by registered mail. Notices shall be addressed to the contact details set out in the Parties section of this Agreement, or to such other address as a Party designates by written notice.",
         relationshipText: "Nothing in this Agreement shall be construed as creating a partnership, joint venture, agency, franchise, or employment relationship between the Parties. Lead Velocity acts as an independent contractor and shall have sole control over the manner and means of performing the Services. Neither Party has authority to bind the other or to incur any obligation on behalf of the other without prior written consent.",
     });
+
+    const [searchParams] = useSearchParams();
+    const globalBrokerId = searchParams.get("brokerId");
+
+    useEffect(() => {
+        if (globalBrokerId) {
+            const fetchGlobalBroker = async () => {
+                const { data, error } = await supabase
+                    .from('broker_onboarding_responses')
+                    .select('*')
+                    .eq('id', globalBrokerId)
+                    .single();
+
+                if (data && !error) {
+                    handleBrokerSelect(data);
+                }
+            };
+            fetchGlobalBroker();
+        }
+    }, [globalBrokerId]);
 
     const [recipientEmail, setRecipientEmail] = useState("");
 

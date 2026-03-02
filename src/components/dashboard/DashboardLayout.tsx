@@ -7,6 +7,17 @@ import logo from "@/assets/lead-velocity-logo.webp";
 import { useToast } from "@/hooks/use-toast";
 import NotificationBell from "@/components/notifications/NotificationBell";
 
+import { useSearchParams } from "react-router-dom";
+import { useEffect } from "react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
+import { Search } from "lucide-react";
+
 interface DashboardLayoutProps {
   children: React.ReactNode;
   activeTab: string;
@@ -15,8 +26,31 @@ interface DashboardLayoutProps {
 
 const DashboardLayout = ({ children, activeTab, setActiveTab }: DashboardLayoutProps) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [brokers, setBrokers] = useState<any[]>([]);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const selectedBrokerId = searchParams.get("brokerId") || "all";
+
+  useEffect(() => {
+    fetchBrokers();
+  }, []);
+
+  const fetchBrokers = async () => {
+    const { data } = await supabase.from("broker_onboarding_responses").select("*").order("created_at", { ascending: false });
+    setBrokers(data || []);
+  };
+
+  const handleBrokerChange = (value: string) => {
+    const params = new URLSearchParams(searchParams);
+    if (value === "all") {
+      params.delete("brokerId");
+    } else {
+      params.set("brokerId", value);
+    }
+    setSearchParams(params);
+  };
 
   const menuItems = [
     { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -63,7 +97,25 @@ const DashboardLayout = ({ children, activeTab, setActiveTab }: DashboardLayoutP
                 {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
               </button>
               <img src={logo} alt="Lead Velocity" className="h-10 w-auto" />
-              <span className="text-xl font-bold gradient-text hidden sm:inline">Dashboard</span>
+              <div className="hidden md:flex items-center gap-2 border-l border-white/10 pl-4 ml-4">
+                <Search className="h-4 w-4 text-slate-500" />
+                <Select value={selectedBrokerId} onValueChange={handleBrokerChange}>
+                  <SelectTrigger className="w-[240px] h-9 bg-slate-900/50 border-white/10 text-xs font-bold ring-0 focus:ring-0">
+                    <SelectValue placeholder="Global Partner Filter" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-950 border-white/10 text-white w-[300px]">
+                    <SelectItem value="all">Global Admin View</SelectItem>
+                    {brokers.map(b => (
+                      <SelectItem key={b.id} value={b.id}>
+                        <div className="flex flex-col py-1">
+                          <span className="font-bold">{b.firm_name || b.company_name || 'Independent Partner'}</span>
+                          <span className="text-[10px] text-slate-500">{b.full_name}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <NotificationBell userRole="admin" onNavigateToAICalls={() => setActiveTab('ai-calls')} />
