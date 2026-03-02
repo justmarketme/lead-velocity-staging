@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Download, Mail, MessageCircle, Send, ZoomIn, ZoomOut, Maximize, Monitor, Save, Loader2 } from "lucide-react";
+import { ArrowLeft, Download, Mail, MessageCircle, Send, ZoomIn, ZoomOut, Maximize, Monitor, Save, Loader2, Mic, MicOff, Bot, Check, X, Paperclip, AudioLines, SendHorizonal } from "lucide-react";
 import { generateSmartPDF } from "@/utils/pdfUtils";
 import logo from "@/assets/lead-velocity-logo.webp";
 import { useToast } from "@/hooks/use-toast";
@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { getProposalEmailSignature } from "@/utils/emailSignature";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import { callLegalAI } from "@/utils/legalAI";
 
 interface ProposalGeneratorProps {
     onBack: () => void;
@@ -55,6 +56,20 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
     const reportRef = useRef<HTMLDivElement>(null);
     const [zoom, setZoom] = useState(0.65);
     const [isGenerating, setIsGenerating] = useState(false);
+
+    // AI State
+    const [isListening, setIsListening] = useState(false);
+    const [aiInput, setAiInput] = useState("");
+    const [isSpeaking, setIsSpeaking] = useState(false);
+    const [isThinking, setIsThinking] = useState(false);
+    const [isConversational, setIsConversational] = useState(false);
+    const [aiResponse, setAiResponse] = useState("");
+    const [aiSuggestions, setAiSuggestions] = useState<string[]>([
+        "Make it sound more premium",
+        "Shorten the qualification criteria",
+        "Emphasize the performance guarantee"
+    ]);
+    const [pendingChanges, setPendingChanges] = useState<any>(null);
 
     const [formData, setFormData] = useState({
         // Variables
@@ -251,6 +266,123 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
         setZoom(prev => Math.max(0.3, Math.min(1.5, prev + delta)));
     };
 
+    // Voice Synthesis (TTS) - Improved Voice Selection (Hand-picked for ZA)
+    const speak = (text: string) => {
+        if (!('speechSynthesis' in window)) return;
+
+        window.speechSynthesis.cancel();
+
+        const getPreferredVoice = () => {
+            const voices = window.speechSynthesis.getVoices();
+            if (voices.length === 0) return null;
+
+            const naturalZA = voices.find(v => (v.name.toLowerCase().includes('natural') || v.name.toLowerCase().includes('google')) && v.lang === 'en-ZA');
+            if (naturalZA) return naturalZA;
+
+            const premiumFemale = voices.find(v => (v.name.toLowerCase().includes('ayanda') || v.name.toLowerCase().includes('hazel') || v.name.toLowerCase().includes('zira') || v.name.toLowerCase().includes('susan')));
+            if (premiumFemale) return premiumFemale;
+
+            const femaleZA = voices.find(v => v.lang === 'en-ZA' && v.name.toLowerCase().includes('female'));
+            if (femaleZA) return femaleZA;
+
+            const anyZA = voices.find(v => v.lang === 'en-ZA');
+            if (anyZA) return anyZA;
+
+            const genericNaturalFemale = voices.find(v => v.name.toLowerCase().includes('natural') && v.name.toLowerCase().includes('female'));
+            if (genericNaturalFemale) return genericNaturalFemale;
+
+            return voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female')) || voices[0];
+        };
+
+        const executeSpeak = () => {
+            const voice = getPreferredVoice();
+            const utterance = new SpeechSynthesisUtterance(text);
+
+            if (voice) {
+                utterance.voice = voice;
+                if (!voice.name.toLowerCase().includes('natural') && !voice.name.toLowerCase().includes('google')) {
+                    utterance.pitch = 1.05;
+                    utterance.rate = 0.92;
+                }
+            }
+
+            utterance.onstart = () => setIsSpeaking(true);
+            utterance.onend = () => setIsSpeaking(false);
+            window.speechSynthesis.speak(utterance);
+        };
+
+        if (window.speechSynthesis.getVoices().length > 0) {
+            executeSpeak();
+        } else {
+            window.speechSynthesis.onvoiceschanged = () => {
+                executeSpeak();
+                window.speechSynthesis.onvoiceschanged = null;
+            };
+        }
+    };
+
+    const toggleListening = () => {
+        if (isListening) { setIsListening(false); return; }
+        // @ts-ignore
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            toast({ title: "Not Supported", description: "Voice input is not supported.", variant: "destructive" });
+            return;
+        }
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'en-ZA';
+        recognition.onstart = () => { setIsListening(true); toast({ title: "Listening..." }); };
+        recognition.onresult = (event: any) => {
+            const transcript = event.results[0][0].transcript;
+            setAiInput(transcript);
+            processAICommand(transcript);
+        };
+        recognition.onerror = () => setIsListening(false);
+        recognition.onend = () => setIsListening(false);
+        recognition.start();
+    };
+
+    const processAICommand = async (command: string) => {
+        setIsThinking(true);
+        setAiResponse("Let me review the proposal...");
+        try {
+            const result = await callLegalAI(command, formData, "Proposal");
+            const { response, changes, suggestions } = result;
+
+            setAiResponse(response || "I've reviewed the request.");
+            if (changes && Object.keys(changes).length > 0) {
+                setPendingChanges(changes);
+            }
+            if (suggestions && Array.isArray(suggestions) && suggestions.length > 0) {
+                setAiSuggestions(suggestions);
+            }
+            if (response && isConversational) speak(response);
+            if (response && !isConversational) setAiResponse(response);
+        } catch (error: any) {
+            console.error("AI Assistant Error:", error);
+            const errorMsg = "I'm sorry, I couldn't connect to the AI. Please check your internet connection.";
+            setAiResponse(errorMsg);
+            toast({ title: "AI Error", description: error.message, variant: "destructive" });
+        } finally {
+            setIsThinking(false);
+        }
+    };
+
+    const applyPendingChanges = () => {
+        if (!pendingChanges) return;
+        setFormData(prev => ({ ...prev, ...pendingChanges }));
+        setPendingChanges(null);
+        setAiResponse("Changes applied to the proposal.");
+        toast({ title: "Applied", description: "Proposal updated." });
+    };
+
+    const handleAISubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!aiInput.trim()) return;
+        processAICommand(aiInput);
+        setAiInput("");
+    };
+
     return (
         <div className="space-y-6 animate-in fade-in duration-500 h-[calc(100vh-100px)] flex flex-col">
             <div className="flex items-center justify-between shrink-0">
@@ -417,6 +549,120 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                                         </div>
                                     </div>
                                 </div>
+
+                                <Separator className="bg-white/10" />
+
+                                {/* Premium AI Assistant UI (Grok Style) */}
+                                <Card className="bg-[#151719]/80 backdrop-blur-xl border border-white/5 shadow-2xl overflow-hidden shrink-0 rounded-2xl">
+                                    <CardContent className="p-4 space-y-4">
+                                        {/* AI Message Bubble */}
+                                        {(aiResponse || isThinking) && (
+                                            <div className="animate-in slide-in-from-bottom-2 duration-300">
+                                                <div className="flex gap-3">
+                                                    <div className="w-6 h-6 rounded-full bg-pink-500/20 flex items-center justify-center shrink-0">
+                                                        <Bot className="h-3.5 w-3.5 text-pink-500" />
+                                                    </div>
+                                                    <div className="flex-1 space-y-2">
+                                                        {isThinking ? (
+                                                            <div className="flex gap-1 items-center py-1">
+                                                                <div className="w-1.5 h-1.5 bg-pink-500/50 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                                                                <div className="w-1.5 h-1.5 bg-pink-500/50 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                                                                <div className="w-1.5 h-1.5 bg-pink-500/50 rounded-full animate-bounce" />
+                                                            </div>
+                                                        ) : (
+                                                            <p className="text-xs text-slate-200 leading-relaxed font-medium">
+                                                                {aiResponse}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {pendingChanges && (
+                                                    <div className="flex gap-2 mt-4 ml-9">
+                                                        <Button size="sm" onClick={applyPendingChanges} className="flex-1 bg-pink-600 hover:bg-pink-700 h-9 text-[11px] font-bold rounded-xl shadow-lg shadow-pink-600/20 border-t border-white/10">
+                                                            Commit Changes
+                                                        </Button>
+                                                        <Button size="sm" variant="ghost" onClick={() => setPendingChanges(null)} className="h-9 w-9 p-0 rounded-xl hover:bg-white/5 text-slate-400">
+                                                            <X className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Contextual Suggestions Pills */}
+                                        {aiSuggestions.length > 0 && !isThinking && (
+                                            <div className="flex flex-wrap gap-2 animate-in fade-in duration-500">
+                                                {aiSuggestions.map((suggestion, idx) => (
+                                                    <button
+                                                        key={idx}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setAiInput(suggestion);
+                                                            processAICommand(suggestion);
+                                                        }}
+                                                        className="text-[10px] bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-white/5 rounded-full px-3 py-1.5 transition-all duration-200"
+                                                    >
+                                                        {suggestion}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Premium Input Bar */}
+                                        <div className="relative group mt-2 bg-black/40 rounded-2xl border border-white/5 p-1.5 transition-all duration-300 focus-within:border-pink-500/30 focus-within:bg-black/60 shadow-inner">
+                                            <form onSubmit={handleAISubmit} className="flex items-center gap-1">
+                                                <div className="flex items-center gap-0.5 px-2 text-slate-500">
+                                                    <Paperclip className="h-4 w-4 hover:text-slate-300 cursor-pointer transition-colors" />
+                                                </div>
+
+                                                <Input
+                                                    value={aiInput}
+                                                    onChange={(e) => setAiInput(e.target.value)}
+                                                    placeholder="Vibe code this proposal..."
+                                                    className="bg-transparent border-none text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-9 text-slate-200 placeholder:text-slate-600 shadow-none px-1"
+                                                />
+
+                                                <div className="flex items-center gap-1 pr-1">
+                                                    {/* Conversational Toggle */}
+                                                    <Button
+                                                        type="button"
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        onClick={() => setIsConversational(!isConversational)}
+                                                        className={`h-8 w-8 rounded-xl transition-all ${isConversational ? 'bg-pink-500/20 text-pink-500 shadow-lg shadow-pink-500/10' : 'text-slate-500 hover:text-slate-200'}`}
+                                                        title="Conversational Mode"
+                                                    >
+                                                        <AudioLines className={`h-4 w-4 ${isSpeaking ? 'animate-pulse scale-110' : ''}`} />
+                                                    </Button>
+
+                                                    {/* STT Toggle */}
+                                                    <Button
+                                                        type="button"
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        onClick={toggleListening}
+                                                        className={`h-8 w-8 rounded-xl transition-all ${isListening ? 'bg-red-500/20 text-red-500 shadow-lg shadow-red-500/10' : 'text-slate-500 hover:text-slate-200'}`}
+                                                        title="Voice Input"
+                                                    >
+                                                        <Mic className={`h-4 w-4 ${isListening ? 'animate-pulse' : ''}`} />
+                                                    </Button>
+
+                                                    {/* Submit Button */}
+                                                    <Button
+                                                        type="submit"
+                                                        size="icon"
+                                                        disabled={!aiInput.trim() || isThinking}
+                                                        className={`h-8 w-8 rounded-xl transition-all ${aiInput.trim() ? 'bg-white text-black hover:bg-white/90 scale-105 shadow-xl' : 'bg-white/5 text-slate-700'}`}
+                                                    >
+                                                        <SendHorizonal className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+
                             </CardContent>
                         </Card>
                     </div>

@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import logo from "@/assets/lead-velocity-logo.webp";
 import type { Session } from "@supabase/supabase-js";
 import { z } from "zod";
+import { Eye, EyeOff } from "lucide-react";
 import SEO from "@/components/SEO";
 
 const loginSchema = z.object({
@@ -19,6 +20,7 @@ const loginSchema = z.object({
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -186,13 +188,23 @@ const Login = () => {
                     Forgot password?
                   </Link>
                 </div>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Signing in..." : "Sign In"}

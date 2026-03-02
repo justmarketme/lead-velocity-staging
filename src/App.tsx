@@ -33,6 +33,7 @@ import PremiumBrokerPortalPage from "./pages/PremiumBrokerPortalPage";
 import { HelmetProvider } from "react-helmet-async";
 
 import Setup from "./pages/Setup";
+import { ChatBot } from "./components/ChatBot";
 
 const queryClient = new QueryClient();
 
@@ -43,6 +44,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <ChatBot />
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/setup" element={<Setup />} />

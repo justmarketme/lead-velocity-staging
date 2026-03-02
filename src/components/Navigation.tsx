@@ -27,27 +27,20 @@ const Navigation = () => {
   const isActive = (path: string) => location.pathname === path;
 
   return (
-    <nav className={`fixed top-0 w-full z-50 transition-all duration-500 ease-out ${
-      scrolled 
-        ? 'bg-background/90 backdrop-blur-xl border-b border-primary/20 shadow-[0_4px_30px_rgba(0,0,0,0.3)]' 
-        : 'bg-background/60 backdrop-blur-md border-b border-border/50'
-    }`}>
+    <nav className={`fixed top-0 w-full z-50 transition-all duration-500 ease-out ${scrolled
+      ? 'bg-background/90 backdrop-blur-xl border-b border-primary/20 shadow-[0_4px_30px_rgba(0,0,0,0.3)]'
+      : 'bg-background/60 backdrop-blur-md border-b border-border/50'
+      }`}>
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className={`flex items-center justify-between transition-all duration-500 ${
-          scrolled ? 'h-16' : 'h-20'
-        }`}>
-          {/* Logo */}
+        <div className={`flex items-center justify-between transition-all duration-500 ${scrolled ? 'h-16' : 'h-20'
+          }`}>
+          {/* Logo — shown on all screen sizes */}
           <Link to="/" className="flex items-center space-x-2">
-            {/* Logo image on mobile */}
-            <img 
-              src={leadVelocityLogo} 
-              alt="Lead Velocity" 
-              className="h-12 w-auto md:hidden"
+            <img
+              src={leadVelocityLogo}
+              alt="Lead Velocity"
+              className="h-10 md:h-20 w-auto"
             />
-            {/* Text on desktop */}
-            <div className="hidden md:block text-2xl font-bold gradient-text">
-              Lead Velocity
-            </div>
           </Link>
 
           {/* Desktop Navigation */}
@@ -56,11 +49,10 @@ const Navigation = () => {
               <Link
                 key={link.path}
                 to={link.path}
-                className={`text-sm font-medium transition-colors ${
-                  isActive(link.path)
-                    ? "text-primary"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                className={`text-sm font-medium transition-colors ${isActive(link.path)
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+                  }`}
               >
                 {link.name}
               </Link>
@@ -89,11 +81,10 @@ const Navigation = () => {
                 key={link.path}
                 to={link.path}
                 onClick={() => setIsOpen(false)}
-                className={`block text-sm font-medium transition-colors ${
-                  isActive(link.path)
-                    ? "text-primary"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                className={`block text-sm font-medium transition-colors ${isActive(link.path)
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+                  }`}
               >
                 {link.name}
               </Link>

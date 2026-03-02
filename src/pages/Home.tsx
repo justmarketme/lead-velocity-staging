@@ -1,4 +1,4 @@
- import Hero from "@/components/Hero";
+import Hero from "@/components/Hero";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import ParticleBackground from "@/components/ParticleBackground";
@@ -122,6 +122,18 @@ const Home = () => {
                 <p className="text-base sm:text-lg lg:text-xl text-muted-foreground leading-relaxed text-center lg:text-left">
                   We spent years in the field as brokers. We know the frustration of spending thousands on "hot leads" that turned out to be cold numbers. We realized that the industry didn't need faster bots—it needed a system built by people who have actually sold a policy. We combined our broker expertise with smart technology to build what we always wished we had.
                 </p>
+
+                {/* Mobile Image */}
+                <div className="relative block lg:hidden w-full max-w-sm mx-auto overflow-hidden rounded-2xl my-8">
+                  <div className="absolute inset-0 bg-gradient-to-br from-secondary/30 via-primary/30 to-accent/30 blur-3xl rounded-full pointer-events-none"></div>
+                  <img
+                    src={einsteinGeniusNeon}
+                    alt="Einstein as futuristic genius scientist representing breakthrough innovation in lead generation"
+                    className="relative z-10 w-full h-auto rounded-2xl neon-border"
+                    loading="lazy"
+                  />
+                </div>
+
                 <div className="space-y-4">
                   <div className="flex items-start space-x-4 p-4 rounded-xl bg-card/80 backdrop-blur-sm border border-border/50">
                     <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center flex-shrink-0">
@@ -144,10 +156,10 @@ const Home = () => {
                 </div>
               </div>
 
-              {/* Image - Before content on mobile for visual hierarchy */}
+              {/* Desktop Image */}
               <div
                 ref={brandStoryImageAnim.ref}
-                className={`w-full order-1 lg:order-2 transition-all duration-700 ${brandStoryImageAnim.isVisible ? 'scroll-fade-left' : 'scroll-hidden'
+                className={`w-full hidden lg:block lg:order-2 transition-all duration-700 ${brandStoryImageAnim.isVisible ? 'scroll-fade-left' : 'scroll-hidden'
                   }`}
               >
                 <div className="relative max-w-xs sm:max-w-sm md:max-w-md mx-auto lg:max-w-none overflow-hidden rounded-2xl">
@@ -191,6 +203,18 @@ const Home = () => {
                 <p className="text-base sm:text-lg lg:text-xl text-muted-foreground leading-relaxed text-center lg:text-left">
                   Navigate the complex world of lead generation with confidence. Our team monitors, optimizes, and delivers results while you focus on closing deals.
                 </p>
+
+                {/* Mobile Image */}
+                <div className="relative block lg:hidden w-full max-w-sm mx-auto overflow-hidden rounded-2xl my-8">
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/30 via-accent/30 to-secondary/30 blur-3xl rounded-full pointer-events-none"></div>
+                  <img
+                    src={missionControlNeon}
+                    alt="Futuristic mission control cockpit with analytics dashboards representing business growth management"
+                    className="relative z-10 w-full h-auto rounded-2xl neon-border"
+                    loading="lazy"
+                  />
+                </div>
+
                 <ul className="space-y-3">
                   {[
                     { color: 'primary', text: 'Real-time lead tracking and analytics' },
@@ -212,10 +236,10 @@ const Home = () => {
                 </ul>
               </div>
 
-              {/* Image - First on mobile for visual hierarchy */}
+              {/* Desktop Image */}
               <div
                 ref={missionControlImageAnim.ref}
-                className={`w-full order-1 lg:order-2 transition-all duration-700 ${missionControlImageAnim.isVisible ? 'scroll-fade-right' : 'scroll-hidden'
+                className={`w-full hidden lg:block lg:order-2 transition-all duration-700 ${missionControlImageAnim.isVisible ? 'scroll-fade-right' : 'scroll-hidden'
                   }`}
               >
                 <div className="relative max-w-xs sm:max-w-sm md:max-w-md mx-auto lg:max-w-none overflow-hidden rounded-2xl">

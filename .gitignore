@@ -29,3 +29,9 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# Local debug & admin scripts — contain hardcoded credentials, never commit
+test-db.js
+test-login.js
+run-sql.js
+reset-admin.js
