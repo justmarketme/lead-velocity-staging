@@ -182,6 +182,7 @@ const BrokerOnboarding = () => {
         setStepErrors(null);
 
         try {
+            console.log("Submitting onboarding data...");
             const scoringData: OnboardingData = {
                 ...defaultScoringData,
                 monthlySpend: budgetCapacityForm.monthlySpend as any,
@@ -200,60 +201,74 @@ const BrokerOnboarding = () => {
             const results = calculateScores(scoringData);
             const { data: { user } } = await supabase.auth.getUser();
 
+            const payload = {
+                broker_id: user?.id || null,
+                full_name: contactForm.fullName.trim() || null,
+                email: contactForm.email.trim() || null,
+                phone_number: contactForm.phone.trim() || null,
+                firm_name: contactForm.companyName.trim() || null,
+                preferred_call_time: contactForm.preferredCallTime || null,
+                whatsapp_number: contactForm.whatsappNumber.trim() || null,
+                whatsapp_consent: contactForm.whatsappConsent,
+                receives_leads_currently: receivesLeadsCurrently,
+                current_lead_provider: receivesLeadsCurrently ? currentLeadGenerationForm.provider : null,
+                current_monthly_spend: receivesLeadsCurrently ? (parseFloat(currentLeadGenerationForm.monthlySpend) || 0) : null,
+                current_cpl: receivesLeadsCurrently ? (parseFloat(currentLeadGenerationForm.cpl) || 0) : null,
+                current_conversion_rate: receivesLeadsCurrently ? currentLeadGenerationForm.conversionRate : null,
+                crm_usage: scoringData.crmUsage,
+                speed_to_contact: scoringData.speedToContact,
+                team_size: scoringData.teamSize,
+                follow_up_process: scoringData.followUpClarity,
+                monthly_lead_spend: scoringData.monthlySpend,
+                cpl_awareness: scoringData.cplAwareness,
+                pricing_comfort: scoringData.pricingComfort,
+                desired_leads_weekly: scoringData.desiredLeadsWeekly,
+                max_capacity_weekly: scoringData.maxCapacityWeekly,
+                product_focus_clarity: scoringData.productFocusClarity,
+                geographic_focus_clarity: scoringData.geographicFocusClarity,
+                growth_goal_clarity: scoringData.growthGoalClarity,
+                timeline_to_start: scoringData.timeline,
+                monthly_sales_target: parseFloat(goalsTargetsForm.monthlySalesTarget) || null,
+                product_focus: targetMarketForm.productFocus || [],
+            };
+
+            console.log("Onboarding Payload:", payload);
+
             const { data: responseData, error: responseError } = await supabase
                 .from('broker_onboarding_responses')
-                .insert([{
-                    broker_id: user?.id,
-                    full_name: contactForm.fullName.trim() || null,
-                    email: contactForm.email.trim() || null,
-                    phone_number: contactForm.phone.trim() || null,
-                    firm_name: contactForm.companyName.trim() || null,
-                    preferred_call_time: contactForm.preferredCallTime || null,
-                    whatsapp_number: contactForm.whatsappNumber.trim() || null,
-                    whatsapp_consent: contactForm.whatsappConsent,
-                    receives_leads_currently: receivesLeadsCurrently,
-                    current_lead_provider: receivesLeadsCurrently ? currentLeadGenerationForm.provider : null,
-                    current_monthly_spend: receivesLeadsCurrently ? parseFloat(currentLeadGenerationForm.monthlySpend) : null,
-                    current_cpl: receivesLeadsCurrently ? parseFloat(currentLeadGenerationForm.cpl) : null,
-                    current_conversion_rate: receivesLeadsCurrently ? currentLeadGenerationForm.conversionRate : null,
-                    crm_usage: scoringData.crmUsage,
-                    speed_to_contact: scoringData.speedToContact,
-                    team_size: scoringData.teamSize,
-                    follow_up_process: scoringData.followUpClarity,
-                    monthly_lead_spend: scoringData.monthlySpend,
-                    cpl_awareness: scoringData.cplAwareness,
-                    pricing_comfort: scoringData.pricingComfort,
-                    desired_leads_weekly: scoringData.desiredLeadsWeekly,
-                    max_capacity_weekly: scoringData.maxCapacityWeekly,
-                    product_focus_clarity: scoringData.productFocusClarity,
-                    geographic_focus_clarity: scoringData.geographicFocusClarity,
-                    growth_goal_clarity: scoringData.growthGoalClarity,
-                    timeline_to_start: scoringData.timeline,
-                    monthly_sales_target: parseFloat(goalsTargetsForm.monthlySalesTarget) || null,
-                    product_focus: targetMarketForm.productFocus,
-                }])
+                .insert([payload])
                 .select()
                 .single();
 
-            if (responseError) throw responseError;
+            if (responseError) {
+                console.error("Supabase Onboarding Response Error:", responseError);
+                throw responseError;
+            }
 
             // 3. Save calculated results
+            const analysisPayload = {
+                response_id: responseData.id,
+                broker_id: user?.id || null,
+                operational_score: results.operationalScore,
+                budget_score: results.budgetScore,
+                growth_score: results.growthScore,
+                intent_score: results.intentScore,
+                success_probability: results.successProbability,
+                risk_flags: results.riskFlags || [],
+                primary_sales_angle: results.primarySalesAngle,
+                success_band: results.successBand,
+            };
+
+            console.log("Analysis Payload:", analysisPayload);
+
             const { error: analysisError } = await supabase
                 .from('broker_analysis')
-                .insert([{
-                    response_id: responseData.id,
-                    broker_id: user?.id,
-                    operational_score: results.operationalScore,
-                    budget_score: results.budgetScore,
-                    growth_score: results.growthScore,
-                    intent_score: results.intentScore,
-                    success_probability: results.successProbability,
-                    risk_flags: results.riskFlags,
-                    primary_sales_angle: results.primarySalesAngle,
-                    success_band: results.successBand,
-                }]);
+                .insert([analysisPayload]);
 
-            if (analysisError) throw analysisError;
+            if (analysisError) {
+                console.error("Supabase Analysis Error:", analysisError);
+                throw analysisError;
+            }
 
             // 4. Trigger AI Analysis
             try {
