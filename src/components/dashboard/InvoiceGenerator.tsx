@@ -483,7 +483,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
     };
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500 h-[calc(100vh-100px)] flex flex-col font-sans">
+        <div className="-m-4 sm:-m-6 lg:-m-8 h-[calc(100vh-64px)] flex flex-col font-sans animate-in fade-in duration-500">
             <div className="flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-4">
                     <Button variant="ghost" size="icon" onClick={onBack}>
