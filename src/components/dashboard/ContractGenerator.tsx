@@ -129,12 +129,12 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
         scopeText: "Lead Velocity shall provide qualified lead tokens as specified in the selected tier. Allocation is paid monthly in advance. Additional leads can be Top-Ups (min 5 tokens) at R500 each.",
         deliverablesText: "1. Weekly delivery of qualified decision-maker contact details. 2. Brief business profile for each prospect. 3. Monthly performance report summarizing lead volume and feedback trends.",
         termsText: "Terms and Payment: Fees are due upfront for each monthly cycle. Delivery is on a Lead Token basis. Top-Up tokens require one week's notice.",
-        breachText: "Should the Client breach any material term of this Agreement, including non-payment for delivered leads or violation of commission obligations, the Client shall be liable for an immediate 50% Breach Penalty (R4,250). Lead Velocity reserves the right to immediately suspend and pause all campaigns until the breach is remedied. Service will only resume upon receipt of the outstanding penalty amount.",
+        breachText: "Should the Client breach any material term of this Agreement, including non-payment for delivered leads or violation of commission obligations, lead delivery will be immediately suspended. Service is paused until the account is settled in full.",
         refundText: "No refunds are provided for service fees or pre-purchased Lead Tokens in the event of premature cancellation within an active 30-day cycle, as these allocations cover the variable cost of digital inventory.",
         confidentialityText: "Both Parties agree to maintain strict confidentiality regarding all non-public information, lead data, and proprietary campaign methodologies. This NDA remains in force for 36 months following termination.",
         disputeText: "Disputes regarding lead qualification must be submitted in writing within 48 business hours. Valid disputes will be resolved via a replacement token within 5 business days.",
         pilotEligibilityText: "",
-        renewalText: "Continues month-to-month. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon next payment.",
+        renewalText: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment.",
         forceMajeureText: "Lead Velocity is not liable for delays caused by national infrastructure failures (load shedding), civil unrest, or major digital platform outages (Meta/Google).",
         liabilityText: "Maximum liability of Lead Velocity is limited to the fees paid by the Client in the month preceding the claim. We are not liable for lost profit or indirect business damages.",
         indemnityText: "The Client indemnifies Lead Velocity against any claims arising from the Client's conduct after receiving a lead or from the Client's advice provided to prospects.",
@@ -190,10 +190,10 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
             target: "± 17 Qualified Leads per Month",
             comm: "",
             pilot: "",
-            breach: "Should the Client breach material terms (non-payment or commission violations), an immediate 50% Breach Penalty of R4,250 applies. Lead Velocity reserves the right to immediately suspend all active campaigns until the breach is settled in full.",
+            breach: "Should the Client breach material terms (non-payment or commission violations), lead delivery will be immediately suspended. Service is paused until the account is settled in full.",
             scope: "17 tokens per month. Top-Ups (min 5) at R500 each. Delivery managed on a weekly schedule. Minimum 5-token Top-Up applies.",
-            renewal: "Month-to-month. Pause anytime by allowing the current cycle to lapse. Resume anytime by making the next payment.",
-            termination: "Terminal at end of any cycle. Premature cancellation incurs no refund. Existing lead and commission obligations survive.",
+            renewal: "Month-to-month. Subscription pauses automatically upon non-payment. Resume anytime by making the next payment.",
+            termination: "Effective at the end of the current 30-day cycle upon cessation of payment. Premature cancellation within a cycle is non-refundable.",
             color: "Bronze"
         };
 
@@ -206,7 +206,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                 pilot: "Promotion: Once-off pilot plan for first-time clients. Not available for recurring accounts. Participants must upgrade to Bronze or higher to continue service.",
                 breach: "Once-off introductory plan. Premature cancellation before token depletion is non-refundable. Commission obligations survive termination.",
                 scope: "Once-off introductory campaign. Delivery follows a 'Lead Token' model; Top-Ups may be requested (minimum 5 tokens at R2,500).",
-                renewal: "Terminates automatically after 30 days or lead completion. No refund for early exit. Standard NDA and POPIA apply.",
+                renewal: "Terminates automatically after 30 days or lead completion. Non-refundable. Standard NDA and POPIA apply.",
                 termination: "Terminates automatically after 30 days. No refund for early exit. Commission and NDA obligations survive for 24 months.",
                 color: "Pilot"
             };
@@ -217,10 +217,10 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                 target: "33-40+ Qualified Leads per Month",
                 comm: "",
                 pilot: "",
-                breach: "Should the Client breach material terms (non-payment or commission violations), an immediate 50% Breach Penalty of R8,250 applies. Campaigns will be suspended until settled.",
+                breach: "Should the Client breach material terms (non-payment or commission violations), lead delivery will be suspended immediately. Service resumes once the account is settled.",
                 scope: "40+ tokens per month. Top-Ups (min 5) at R500 each. Advanced targeting and dedicated management included.",
-                renewal: "Month-to-month. Pause at cycle-end without penalty. Resume anytime. Early exit within cycle is non-refundable.",
-                termination: "Effective at end of current cycle. Premature exit is non-refundable. Survival of data and commission clauses applies.",
+                renewal: "Month-to-month. Account pauses automatically if the current cycle ends without payment. Resume anytime by renewing payment.",
+                termination: "Subscription ends at the conclusion of the paid 30-day period. Premature exit within a cycle is non-refundable.",
                 color: "Gold"
             };
         } else if (leads >= 20) {
@@ -230,10 +230,10 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                 target: "± 23-26 Qualified Leads per Month",
                 comm: "",
                 pilot: "",
-                breach: "Should the Client breach material terms (non-payment or commission violations), an immediate 50% Breach Penalty of R5,250 applies. Suspension applies until settled.",
+                breach: "Should the Client breach material terms (non-payment or commission violations), lead delivery will be immediately suspended until the account is settled in full.",
                 scope: "23-26 tokens per month. Top-Ups (min 5) at R500 each. Includes bi-weekly performance updates and messaging optimisation.",
-                renewal: "Month-to-month. Subscription pauses upon non-payment. Continue where you left off by resuming payment at any time.",
-                termination: "Termination effective at cycle end. No refunds for premature exit within an active 30-day period.",
+                renewal: "Month-to-month. Subscription pauses upon non-payment at the end of a cycle. Continue service by resuming payment at any time.",
+                termination: "Effective at the conclusion of the active cycle. No refunds for premature exit within an active 30-day period.",
                 color: "Silver"
             };
         }

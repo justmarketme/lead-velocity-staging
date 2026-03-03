@@ -119,10 +119,10 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
 
         purposeTitle: "Strategic Lead Generation",
         purposeText: "Our core solution provides a <strong class='text-pink-900 bg-pink-50 px-1 rounded'>Lead Token</strong> engine. If you exhaust your tokens early, you can Top-Up at <strong>R500 per lead (minimum 5 tokens / R2,500)</strong> with 1 week's notice.",
-        purposeSubText: "Engagement is month-to-month. Exit requires one calendar month's notice; failure to provide full notice or immediate exit incurs a <strong>50% breach penalty</strong> of the tier value.",
+        purposeSubText: "Engagement is month-to-month. Subscription pauses automatically upon non-payment at the end of a cycle. Resume anytime by renewing payment. Premature cancellation within a cycle is non-refundable.",
 
         overviewTitle: "Campaign Overview",
-        quoteText: `"Each qualified lead is one token. Minimum top-up is 5 tokens. Cancellation requires 30 days notice or a 50% penalty applies."`,
+        quoteText: `"Each qualified lead is one token. Minimum top-up is 5 tokens. Cancellation is immediate upon cessation of payment with no-refund policy for the active cycle."`,
 
         criteriaTitle: "Qualification Criteria",
         criteria1: "<strong>Decision Maker:</strong> Business owner, director, or key decision-maker.",
@@ -133,7 +133,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
         excludedText: "Personal lines, micro businesses below threshold, and qualified enquiry replacements.",
 
         alignmentTitle: "Performance Alignment",
-        alignmentText: "Tokens are paid monthly in advance. Top-Ups require one (1) week's notice. Early exit carries a 50% penalty.",
+        alignmentText: "Tokens are paid monthly in advance. Top-Ups require one (1) week's notice. Service pauses automatically if not renewed.",
         alignmentBoxText: "Additional placed policies attract a <span class='text-pink-400 font-bold'>9% commission</span> on the first-year premium."
     });
 
@@ -185,7 +185,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
             alignment: "Where we prove consistency. Qualified SME decision-maker leads, core targeting & messaging, monthly performance check-in.",
             purposeTitle: "Strategic Lead Generation",
             purposeText: "Our core solution provides a consistent lead engine delivering qualified prospects directly to your sales pipeline. We operate on a Lead Token model (paid monthly in advance).",
-            purposeSubText: "Month-to-month engagement. Exit requires one full calendar month's written notice. Failure to provide notice triggers a 50% breach penalty on the tier value."
+            purposeSubText: "Month-to-month engagement. Subscription pauses automatically upon non-payment. Premature cancellation within a 30-day cycle is non-refundable."
         };
 
         if (leads <= 6 && leads > 0) {
@@ -210,7 +210,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                 alignment: "Where we operate as a revenue partner. Maximum lead volume, advanced qualification, and dedicated campaign management.",
                 purposeTitle: "Revenue Partnership",
                 purposeText: "Our premium tier where we operate as a full revenue partner. Token-based delivery ensures consistent ROI and inventory management.",
-                purposeSubText: "Month-to-month engagement. Exit requires one full calendar month's written notice. Non-compliance with notice triggers a 50% breach penalty."
+                purposeSubText: "Month-to-month engagement. Account pauses automatically if the current cycle ends without payment. Early exit within a cycle is non-refundable."
             };
         } else if (leads >= 20) {
             tierData = {
@@ -222,7 +222,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                 alignment: "Where results become predictable. Higher lead volume, ongoing optimisation, messaging testing, and bi-weekly reviews.",
                 purposeTitle: "Predictable Scaling",
                 purposeText: "The Silver tier provides systematic growth for scaling brokers. Delivery follows the Lead Token model, ensuring transparency and inventory control.",
-                purposeSubText: "Month-to-month engagement. Exit requires one full calendar month's written notice. Breach of notice period triggers a 50% penalty (R5,250)."
+                purposeSubText: "Month-to-month engagement. Subscription pauses upon non-payment at cycle-end. Resume anytime by renewing payment. No refunds for early exit."
             };
         }
 
