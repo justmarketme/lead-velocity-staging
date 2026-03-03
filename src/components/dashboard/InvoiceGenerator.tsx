@@ -110,7 +110,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
         clientAddress: "123 Client Street, City, Country",
         clientVat: "VAT: 4000123456",
         items: [
-            { description: "Growth Starter Lead Strategy (Bronze Tier)", quantity: 1, price: 8500 },
+            { description: "Lead Generation Strategy (Bronze Tier)", quantity: 1, price: 8500 },
             { description: "Platform Setup & Configuration", quantity: 1, price: 0 }
         ],
         notes: "Term: Month-to-month. Notice: 1 calendar month (Failure to provide notice incurs a 50% penalty). Top-Ups: R500/lead (Min 5 tokens). Payment in advance.",
@@ -155,33 +155,26 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
     const handleBrokerSelect = (broker: any) => {
         const clientName = broker.full_name || "Valued Partner";
         const clientCompany = broker.firm_name || broker.company_name || "Independent Broker";
-        const leads = broker.desired_leads_weekly || 17;
+        const leads = broker.desired_leads_weekly || 0;
+        const monthlyLeads = Math.ceil(leads * 4.33);
 
         let tierPrice = 8500;
-        let tierName = "Bronze Tier";
-        let leadCount = 17;
-        let breachPenalty = 4250;
+        let tierDesc = "Lead Generation Strategy (Bronze Tier)";
 
-        if (leads <= 6) {
+        if (monthlyLeads <= 6 && monthlyLeads > 0) {
             tierPrice = 6000;
-            tierName = "Pilot Plan";
-            leadCount = 6;
-            breachPenalty = 3000;
-        } else if (leads <= 18) {
-            tierPrice = 8500;
-            tierName = "Bronze Tier";
-            leadCount = 17;
-            breachPenalty = 4250;
-        } else if (leads <= 32) {
-            tierPrice = 10500;
-            tierName = "Silver Tier";
-            leadCount = 26;
-            breachPenalty = 5250;
-        } else {
+            tierDesc = "Lead Generation Pilot Strategy (R1k/lead)";
+        } else if (monthlyLeads > 32) {
             tierPrice = 16500;
-            tierName = "Gold Tier";
-            leadCount = 40;
-            breachPenalty = 8250;
+            tierDesc = "Performance Partner Strategy (Gold Tier)";
+        } else if (monthlyLeads >= 21) {
+            tierPrice = 10500;
+            tierDesc = "Scale & Optimise Strategy (Silver Tier)";
+        }
+
+        const newItems = [...invoiceData.items];
+        if (newItems.length > 0) {
+            newItems[0] = { ...newItems[0], description: tierDesc, price: tierPrice };
         }
 
         setInvoiceData(prev => ({
@@ -549,21 +542,27 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
                                     <div className="grid grid-cols-1 gap-2">
                                         {[
                                             {
-                                                name: "Bronze (Pilot)",
-                                                desc: "Lead Generation Pilot Strategy (Bronze)",
+                                                name: "Pilot Phase",
+                                                desc: "Lead Generation Pilot Strategy (R1k/lead)",
                                                 price: 6000,
+                                                color: "border-pink-500/20 hover:bg-pink-500/10 text-pink-200"
+                                            },
+                                            {
+                                                name: "Bronze",
+                                                desc: "Growth Starter Lead Strategy (Bronze)",
+                                                price: 8500,
                                                 color: "border-orange-500/20 hover:bg-orange-500/10 text-orange-200"
                                             },
                                             {
                                                 name: "Silver",
-                                                desc: "Scaled Acquisition Strategy (Silver Tier)",
-                                                price: 15000,
+                                                desc: "Scale & Optimise Strategy (Silver)",
+                                                price: 10500,
                                                 color: "border-slate-400/20 hover:bg-slate-400/10 text-slate-200"
                                             },
                                             {
                                                 name: "Gold",
-                                                desc: "Enterprise Lead Engine (Gold Tier)",
-                                                price: 30000,
+                                                desc: "Performance Partner Strategy (Gold)",
+                                                price: 16500,
                                                 color: "border-yellow-500/20 hover:bg-yellow-500/10 text-yellow-200"
                                             }
                                         ].map((tier) => (

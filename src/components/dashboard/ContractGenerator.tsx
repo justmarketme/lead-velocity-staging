@@ -125,7 +125,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
         accountNumber: "63174286724",
         branchCode: "250655",
         title: "Service Level Agreement",
-        subtitle: "Bronze Tier: Where We Prove Consistency",
+        subtitle: "Bronze: Growth Starter",
         scopeText: "Lead Velocity shall provide qualified lead tokens as specified in the selected tier. Allocation is paid monthly in advance. Additional leads can be Top-Ups (min 5 tokens) at R500 each.",
         deliverablesText: "1. Weekly delivery of qualified decision-maker contact details. 2. Brief business profile for each prospect. 3. Monthly performance report summarizing lead volume and feedback trends.",
         termsText: "Terms and Payment: Fees are due upfront for each monthly cycle. Delivery is on a Lead Token basis. Top-Up tokens require one week's notice.",
@@ -180,84 +180,74 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
     }, [initialData]);
 
     const handleBrokerSelect = (broker: any) => {
-        const name = broker.full_name || "Valued Partner";
-        const company = broker.firm_name || broker.company_name || "";
-        const clientName = name;
-        const clientCompany = company || "Independent Broker";
+        const clientName = broker.full_name || "Valued Partner";
+        const clientCompany = broker.firm_name || broker.company_name || "Client Company (Pty) Ltd";
+        const leads = broker.desired_leads_weekly || 0;
+        const monthlyLeads = Math.ceil(leads * 4.33);
 
-        let newContractData = {
-            ...contractData,
-            clientName,
-            clientCompany,
-            clientEmailLine: `Email: ${broker.email || ""} `,
-            clientPhoneLine: `Tel: ${broker.phone_number || broker.phone || broker.whatsapp_number || ""} `,
+        let tierData = {
+            subtitle: "Bronze: Growth Starter",
+            fee: "R8,500 (p/m)",
+            target: "± 17 Qualified Leads per Month",
+            comm: "nine percent (9%)",
+            scope: "17 tokens per month. Top-Ups (min 5) at R500 each. 1 week notice for additional leads. Delivery managed on a weekly schedule. Minimum 5-token Top-Up applies.",
+            renewal: "Continues month-to-month. Termination requires 1 full calendar month notice in writing. Breach of notice period triggers a 50% penalty (R4,250).",
+            termination: "1 calendar month notice required. Immediate exit incurs 50% Breach Penalty (R4,250). All delivered leads remain payable.",
+            color: "Bronze"
         };
 
-        const leads = broker.desired_leads_weekly || 17; // Use raw count directly to match pricing tiers
-        let tierLabel = "Pilot Phase";
-
-        if (leads <= 6) {
-            tierLabel = "Pilot Phase";
-            newContractData = {
-                ...newContractData,
-                subtitle: "Promotional Pilot Plan — Once-Off Introductory Campaign",
-                serviceFee: "R6,000 (once-off, paid in full upfront)",
-                leadTarget: "6 Qualified Leads (Guaranteed)",
-                scopeText: "Lead Velocity shall provide a once-off introductory campaign. Delivery follows a 'Lead Token' model; Top-Ups may be requested (minimum 5 tokens at R2,500) with 1 week notice.",
-                termsText: "Delivery follows a 'Lead Token' model (6 tokens). Top-Ups (min 5) require 1 week notice. All engagement is subject to the Standard Protection Clauses (Confidentiality, Non-Solicitation, and Liability) detailed below.",
-                terminationText: "Terminates automatically after 30 days. No refund for early exit. Commission obligations survive for 24 months. Standard 3-year NDA and POPIA compliance applies.",
+        if (monthlyLeads <= 6 && monthlyLeads > 0) {
+            tierData = {
+                subtitle: "Pilot Phase: Where We Prove Consistency",
+                fee: "R6,000 (once-off)",
+                target: "± 6 Qualified Leads (Once-off)",
+                comm: "ten percent (10%)",
+                scope: "Once-off introductory campaign. Delivery follows a 'Lead Token' model; Top-Ups may be requested (minimum 5 tokens at R2,500) with 1 week notice.",
+                renewal: "Terminates automatically after 30 days. No refund for early exit. Commission obligations survive for 24 months. Standard 3-year NDA and POPIA compliance applies.",
+                termination: "Terminates automatically after 30 days. No refund for early exit. Commission obligations survive for 24 months. Standard 3-year NDA and POPIA compliance applies.",
+                color: "Pilot"
             };
-        } else if (leads <= 18) {
-            tierLabel = "Bronze";
-            newContractData = {
-                ...newContractData,
-                subtitle: "Bronze Tier — Growth Starter Strategy",
-                serviceFee: "R8,500 per month (Paid monthly in advance)",
-                leadTarget: "17 Qualified Lead Tokens per Month",
-                scopeText: "17 tokens per month. Top-Ups (min 5) at R500 each. 1 week notice for additional leads. Delivery managed on a weekly schedule. Minimum 5-token Top-Up applies.",
-                commissionText: "9% commission on first-year premiums. Obligation survives termination for 24 months. Monthly performance reviews included.",
-                pilotEligibilityText: "Standard entry tier. One calendar month cancellation notice. 50% breach penalty for immediate exit or failure to provide notice.",
-                renewalText: "Continues month-to-month. Termination requires 1 full calendar month notice in writing. Breach of notice period triggers a 50% penalty (R4,250).",
-                termsText: "Token model governs delivery. Lead replacements must be disputed within 48 hours. Subject to Standard Protection Clauses including POPIA and NDA.",
-                terminationText: "1 calendar month notice required. Immediate exit incurs 50% Breach Penalty (R4,250). All delivered leads remain payable.",
+        } else if (monthlyLeads > 32) {
+            tierData = {
+                subtitle: "Gold: Performance Partner",
+                fee: "R16,500+ (p/m)",
+                target: "33-40+ Qualified Leads per Month",
+                comm: "six percent (6%)",
+                scope: "40+ tokens per month. Top-Ups (min 5) at R500 each. Advanced targeting, dedicated campaign management, and conversion support.",
+                renewal: "Continues month-to-month. Termination requires 1 full calendar month notice in writing. Breach triggers a 50% penalty of the monthly service fee.",
+                termination: "1 calendar month notice required. Immediate exit incurs 50% Breach Penalty (min R8,250). All data protection clauses survive.",
+                color: "Gold"
             };
-        } else if (leads <= 32) {
-            tierLabel = "Silver";
-            newContractData = {
-                ...newContractData,
-                subtitle: "Silver Tier — Scale & Optimise Engine",
-                serviceFee: "R10,500 per month (Paid monthly in advance)",
-                leadTarget: "26 Qualified Lead Tokens per Month",
-                scopeText: "26 tokens per month. Top-Ups (min 5) at R500 each. 1 week notice for additional leads. Includes bi-weekly performance updates and messaging optimisation.",
-                commissionText: "8% commission on first-year premiums. Obligation survives termination for 24 months. Bi-weekly strategic reviews included.",
-                pilotEligibilityText: "Recommended scaling tier. One calendar month notice. 50% breach penalty applies for non-compliance with notice periods.",
-                renewalText: "Continues month-to-month. Termination requires 1 full calendar month notice in writing. Breach of notice triggers a 50% penalty (R5,250).",
-                termsText: "Token model governs delivery. Bi-weekly reviews included. Subject to Standard Protection Clauses including Non-Solicitation and POPIA.",
-                terminationText: "1 calendar month notice required. Immediate exit incurs 50% Breach Penalty (R5,250). Outstanding commissions survive.",
-            };
-        } else {
-            tierLabel = "Gold";
-            newContractData = {
-                ...newContractData,
-                subtitle: "Gold Tier — Performance Partnership",
-                serviceFee: "R16,500+ per month (Paid monthly in advance)",
-                leadTarget: "40+ Qualified Lead Tokens per Month",
-                scopeText: "40+ tokens per month. Top-Ups (min 5) at R500 each. Advanced targeting, dedicated campaign management, and conversion support.",
-                commissionText: "6% commission on first-year premiums. Obligation survives termination for 24 months. Weekly strategy check-ins.",
-                pilotEligibilityText: "Premium partnership tier. One calendar month notice. 50% breach penalty for early exit or breach of notice.",
-                renewalText: "Continues month-to-month. Termination requires 1 full calendar month notice in writing. Breach triggers a 50% penalty of the monthly service fee.",
-                termsText: "Token model governs delivery. Priority access to new lead sources. Subject to Standard Protection Clauses (NDA, IP, and Non-Solicitation).",
-                terminationText: "1 calendar month notice required. Immediate exit incurs 50% Breach Penalty (min R8,250). All data protection clauses survive.",
+        } else if (monthlyLeads >= 21) {
+            tierData = {
+                subtitle: "Silver: Scale & Optimise",
+                fee: "R10,500 (p/m)",
+                target: "± 23-26 Qualified Leads per Month",
+                comm: "eight percent (8%)",
+                scope: "23-26 tokens per month. Top-Ups (min 5) at R500 each. 1 week notice for additional leads. Includes bi-weekly performance updates and messaging optimisation.",
+                renewal: "Continues month-to-month. Termination requires 1 full calendar month notice in writing. Breach of notice triggers a 50% penalty (R5,250).",
+                termination: "1 calendar month notice required. Immediate exit incurs 50% Breach Penalty (R5,250). Outstanding commissions survive.",
+                color: "Silver"
             };
         }
 
-        setContractData(newContractData);
-        if (broker.email) setRecipientEmail(broker.email);
+        setContractData(prev => ({
+            ...prev,
+            clientName,
+            clientCompany,
+            subtitle: tierData.subtitle,
+            serviceFee: tierData.fee,
+            leadTarget: tierData.target,
+            scopeText: tierData.scope,
+            renewalText: tierData.renewal,
+            terminationText: tierData.termination,
+            commissionText: `In addition to the monthly service fee, the Client agrees to pay Lead Velocity a commission of ${tierData.comm} of the gross first-year premium value of any insurance policy sold as a direct or indirect result of Lead Velocity's lead generation efforts. This commission obligation applies to: (a) all policies placed on leads delivered under this Agreement; (b) any policies placed on referrals obtained from leads sourced through Lead Velocity; and (c) any secondary sales arising from relationships initiated through Lead Velocity's efforts. This commission obligation shall survive the termination of this Agreement for a period of twenty-four (24) months following the last lead delivered.`,
+            clientEmailLine: `Email: ${broker.email || ""} `,
+            clientPhoneLine: `Tel: ${broker.phone_number || broker.phone || broker.whatsapp_number || ""} `,
+        }));
 
-        toast({
-            title: "Broker Data Applied",
-            description: `Auto-filled details and set tier to ${tierLabel} based on ${leads} leads.`,
-        });
+        if (broker.email) setRecipientEmail(broker.email);
+        toast({ title: "Broker & Tier Loaded", description: `Selected ${tierData.color} based on ${monthlyLeads} monthly leads.` });
     };
 
     const updateField = (field: string, value: string) => {
@@ -534,26 +524,34 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                     <div className="grid grid-cols-1 gap-2">
                                         {[
                                             {
-                                                name: "Bronze (Pilot)",
+                                                name: "Pilot Phase",
                                                 fee: "R6,000 (once-off)",
                                                 target: "± 6 Qualified Leads (Once-off)",
                                                 subtitle: "Pilot Phase: Where We Prove Consistency",
                                                 comm: "ten percent (10%)",
+                                                color: "border-pink-500/20 hover:bg-pink-500/10 text-pink-200"
+                                            },
+                                            {
+                                                name: "Bronze",
+                                                fee: "R8,500 (p/m)",
+                                                target: "± 17 Qualified Leads per Month",
+                                                subtitle: "Bronze: Growth Starter",
+                                                comm: "nine percent (9%)",
                                                 color: "border-orange-500/20 hover:bg-orange-500/10 text-orange-200"
                                             },
                                             {
                                                 name: "Silver",
-                                                fee: "R15,000 (p/m)",
-                                                target: "± 18 Qualified Leads per Month",
-                                                subtitle: "Silver Tier: Scale & Optimise",
+                                                fee: "R10,500 (p/m)",
+                                                target: "± 23-26 Qualified Leads per Month",
+                                                subtitle: "Silver: Scale & Optimise",
                                                 comm: "eight percent (8%)",
                                                 color: "border-slate-400/20 hover:bg-slate-400/10 text-slate-200"
                                             },
                                             {
                                                 name: "Gold",
-                                                fee: "R30,000 (p/m)",
-                                                target: "± 40 Qualified Leads per Month",
-                                                subtitle: "Gold Tier: Performance Partner",
+                                                fee: "R16,500+ (p/m)",
+                                                target: "33-40+ Qualified Leads per Month",
+                                                subtitle: "Gold: Performance Partner",
                                                 comm: "six percent (6%)",
                                                 color: "border-yellow-500/20 hover:bg-yellow-500/10 text-yellow-200"
                                             }

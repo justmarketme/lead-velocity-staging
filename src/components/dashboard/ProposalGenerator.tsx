@@ -171,82 +171,80 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
 
     // Broker selector populate
     const handleBrokerSelect = (broker: any) => {
-        const name = broker.full_name || "Valued Partner";
-        const leads = broker.desired_leads_weekly || 17; // Raw count for tiering
+        const clientName = broker.full_name || "Valued Partner";
+        const clientCompany = broker.firm_name || broker.company_name || "Client Company (Pty) Ltd";
+        const leads = broker.desired_leads_weekly || 0;
+        const monthlyLeads = Math.ceil(leads * 4.33);
 
-        // Tier Data Map
-        const tiers = [
-            {
-                threshold: 6,
-                subtitle: "Promotional Pilot Plan — Once-Off Campaign",
+        let tierData = {
+            subtitle: "Bronze: Growth Starter",
+            investment: "R8,500 (p/m)",
+            leads: "± 17 qualified business leads",
+            cost: "± R500",
+            comm: "9%",
+            alignment: "Where we prove consistency. Qualified SME decision-maker leads, core targeting & messaging, monthly performance check-in.",
+            purposeTitle: "Strategic Lead Generation",
+            purposeText: "Our core solution provides a consistent lead engine delivering qualified prospects directly to your sales pipeline. We operate on a Lead Token model (paid monthly in advance).",
+            purposeSubText: "Month-to-month engagement. Exit requires one full calendar month's written notice. Failure to provide notice triggers a 50% breach penalty on the tier value."
+        };
+
+        if (monthlyLeads <= 6 && monthlyLeads > 0) {
+            tierData = {
+                subtitle: "Pilot Phase: Where We Prove Consistency",
                 investment: "R6,000 (once-off)",
-                leads: "6 qualified business leads",
-                cost: "R1,000 per lead",
+                leads: "± 6 qualified business leads",
+                cost: "R1,000",
                 comm: "10%",
                 alignment: "The pilot investment covers the delivery of the first six qualified business leads. Beyond that, we align with your success.",
                 purposeTitle: "Purpose of the Pilot",
-                purposeText: "This 30-day pilot is designed to provide a <strong>structured, low-risk starting point</strong> while generating enough real performance data to assess quality and ROI.",
+                purposeText: "This 30-day pilot is designed to provide a structured, low-risk starting point while generating enough real performance data to assess quality and ROI.",
                 purposeSubText: "Lead Velocity operates as a lead partner focused on qualified decision-makers."
-            },
-            {
-                threshold: 18,
-                subtitle: "Growth Starter Lead Strategy (Bronze Tier)",
-                investment: "R8,500 (p/m)",
-                leads: "± 17 qualified business leads",
-                cost: "R500 per lead",
-                comm: "9%",
-                alignment: "This monthly engagement ensures a consistent flow of high-value prospects. Our Lead Token model requires a minimum 5-token top-up (R2,500) with 1 week notice. Cancellation requires 1 full calendar month notice, or a 50% breach penalty (R4,250) applies.",
-                purposeTitle: "Strategic Lead Generation",
-                purposeText: "Our core solution provides a consistent lead engine delivering qualified prospects directly to your sales pipeline. We operate on a Lead Token model (paid monthly in advance).",
-                purposeSubText: "Month-to-month engagement. Exit requires one full calendar month's written notice. Failure to provide notice triggers a 50% breach penalty on the tier value."
-            },
-            {
-                threshold: 30, // 20 leads maps here (Silver)
-                subtitle: "Scale & Optimise Lead Engine (Silver Tier)",
-                investment: "R10,500 (p/m)",
-                leads: "± 23–26 qualified business leads",
-                cost: "R400-R450 per lead",
-                comm: "8%",
-                alignment: "Where results become predictable. Token model applies (min 5 token top-up / R2,500). Cancellation requires 1 full calendar month notice, or a 50% breach penalty (R5,250) applies.",
-                purposeTitle: "Predictable Scaling",
-                purposeText: "The Silver tier provides systematic growth for scaling brokers. Delivery follows the Lead Token model, ensuring transparency and inventory control.",
-                purposeSubText: "Month-to-month engagement. Exit requires one full calendar month's written notice. Breach of notice period triggers a 50% penalty (R5,250)."
-            },
-            {
-                threshold: 999,
-                subtitle: "Performance Partner Enterprise (Gold Tier)",
+            };
+        } else if (monthlyLeads > 32) {
+            tierData = {
+                subtitle: "Gold: Performance Partner",
                 investment: "R16,500+ (p/m)",
                 leads: "33-40+ qualified business leads",
-                cost: "R400-R500 per lead",
+                cost: "± R350-R400",
                 comm: "6%",
-                alignment: "The Gold tier delivers maximum market penetration. Standard token model (min 5 token top-up) applies. Cancellation requires 1 full calendar month notice, or a 50% breach penalty (R8,250+) applies.",
+                alignment: "Where we operate as a revenue partner. Maximum lead volume, advanced qualification, and dedicated campaign management.",
                 purposeTitle: "Revenue Partnership",
                 purposeText: "Our premium tier where we operate as a full revenue partner. Token-based delivery ensures consistent ROI and inventory management.",
                 purposeSubText: "Month-to-month engagement. Exit requires one full calendar month's written notice. Non-compliance with notice triggers a 50% breach penalty."
-            }
-        ];
-
-        // Find correct tier
-        const tier = tiers.find(t => leads <= t.threshold) || tiers[tiers.length - 1];
+            };
+        } else if (monthlyLeads >= 21) {
+            tierData = {
+                subtitle: "Silver: Scale & Optimise",
+                investment: "R10,500 (p/m)",
+                leads: "± 23-26 qualified business leads",
+                cost: "± R400-R450",
+                comm: "8%",
+                alignment: "Where results become predictable. Higher lead volume, ongoing optimisation, messaging testing, and bi-weekly reviews.",
+                purposeTitle: "Predictable Scaling",
+                purposeText: "The Silver tier provides systematic growth for scaling brokers. Delivery follows the Lead Token model, ensuring transparency and inventory control.",
+                purposeSubText: "Month-to-month engagement. Exit requires one full calendar month's written notice. Breach of notice period triggers a 50% penalty (R5,250)."
+            };
+        }
 
         setFormData(prev => ({
             ...prev,
-            clientName: name,
-            subtitle: tier.subtitle,
-            investment: tier.investment,
-            guaranteedLeads: tier.leads,
-            costPerLead: tier.cost,
-            commissionRate: tier.comm,
-            alignmentText: tier.alignment,
-            purposeTitle: tier.purposeTitle,
-            purposeText: tier.purposeText,
-            purposeSubText: tier.purposeSubText,
-            alignmentBoxText: `Additional placed policies attract a <span class='text-pink-400 font-bold'>${tier.comm} commission</span> calculated on the first-year premium.`
+            clientName,
+            clientCompany,
+            subtitle: tierData.subtitle,
+            investment: tierData.investment,
+            guaranteedLeads: tierData.leads,
+            costPerLead: tierData.cost,
+            commissionRate: tierData.comm,
+            alignmentText: tierData.alignment,
+            purposeTitle: tierData.purposeTitle,
+            purposeText: tierData.purposeText,
+            purposeSubText: tierData.purposeSubText,
+            alignmentBoxText: `Additional placed policies attract a <span class='text-pink-400 font-bold'>${tierData.comm} commission</span> calculated on the first-year premium.`
         }));
 
         if (broker.email) setRecipientEmail(broker.email);
         if (broker.phone_number || broker.phone) setRecipientPhone(broker.phone_number || broker.phone);
-        toast({ title: "Broker & Tier Loaded", description: `Selected ${tier.subtitle.split(' ')[0]} based on ${leads} leads.` });
+        toast({ title: "Broker & Tier Loaded", description: `Selected ${tierData.subtitle.split(':')[0]} based on ${monthlyLeads} monthly leads.` });
     };
 
     // Robust PDF Generation with Clone Strategy
@@ -592,33 +590,43 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                                     <div className="grid grid-cols-1 gap-2">
                                         {[
                                             {
-                                                name: "Bronze (Pilot)",
-                                                subtitle: "30-Day Performance-Aligned Campaign",
+                                                name: "Pilot Phase",
+                                                subtitle: "Pilot Phase: Where We Prove Consistency",
                                                 investment: "R6,000 (once-off)",
-                                                leads: "6 qualified business leads",
-                                                cost: "R1,000 per lead",
+                                                leads: "± 6 qualified business leads",
+                                                cost: "R1,000",
                                                 comm: "10%",
                                                 alignment: "The pilot investment covers the delivery of the first six qualified business leads. Beyond that, we align with your success.",
+                                                color: "border-pink-500/30 hover:bg-pink-500/10 text-pink-200"
+                                            },
+                                            {
+                                                name: "Bronze",
+                                                subtitle: "Bronze: Growth Starter",
+                                                investment: "R8,500 (p/m)",
+                                                leads: "± 17 qualified business leads",
+                                                cost: "± R500",
+                                                comm: "9%",
+                                                alignment: "Where we prove consistency. Qualified SME decision-maker leads, core targeting & messaging, monthly performance check-in.",
                                                 color: "border-orange-500/30 hover:bg-orange-500/10 text-orange-200"
                                             },
                                             {
                                                 name: "Silver",
-                                                subtitle: "Monthly Scaled Acquisition Strategy",
-                                                investment: "R15,000 (p/m)",
-                                                leads: "18 qualified business leads",
-                                                cost: "R833 per lead",
+                                                subtitle: "Silver: Scale & Optimise",
+                                                investment: "R10,500 (p/m)",
+                                                leads: "± 23-26 qualified business leads",
+                                                cost: "± R400-R450",
                                                 comm: "8%",
-                                                alignment: "This monthly engagement ensures a consistent flow of high-value prospects. Our performance alignment keeps costs predictable while scaling.",
+                                                alignment: "Where results become predictable. Higher lead volume, ongoing optimisation, messaging testing, and bi-weekly reviews.",
                                                 color: "border-slate-400/30 hover:bg-slate-400/10 text-slate-200"
                                             },
                                             {
                                                 name: "Gold",
-                                                subtitle: "Enterprise High-Velocity Lead Engine",
-                                                investment: "R30,000 (p/m)",
-                                                leads: "40 qualified business leads",
-                                                cost: "R750 per lead",
+                                                subtitle: "Gold: Performance Partner",
+                                                investment: "R16,500+ (p/m)",
+                                                leads: "33-40+ qualified business leads",
+                                                cost: "± R350-R400",
                                                 comm: "6%",
-                                                alignment: "The Gold tier is built for maximum market penetration, delivering the highest volume of qualified decision-makers at our most efficient rate.",
+                                                alignment: "Where we operate as a revenue partner. Maximum lead volume, advanced qualification, and dedicated campaign management.",
                                                 color: "border-yellow-500/30 hover:bg-yellow-500/10 text-yellow-200"
                                             }
                                         ].map((tier) => (
