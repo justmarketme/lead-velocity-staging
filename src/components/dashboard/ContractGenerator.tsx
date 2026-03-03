@@ -183,7 +183,6 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
         const clientName = broker.full_name || "Valued Partner";
         const clientCompany = broker.firm_name || broker.company_name || "Client Company (Pty) Ltd";
         const leads = broker.desired_leads_weekly || 0;
-        const monthlyLeads = Math.ceil(leads * 4.33);
 
         let tierData = {
             subtitle: "Bronze: Growth Starter",
@@ -196,7 +195,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
             color: "Bronze"
         };
 
-        if (monthlyLeads <= 6 && monthlyLeads > 0) {
+        if (leads <= 6 && leads > 0) {
             tierData = {
                 subtitle: "Pilot Phase: Where We Prove Consistency",
                 fee: "R6,000 (once-off)",
@@ -207,7 +206,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                 termination: "Terminates automatically after 30 days. No refund for early exit. Commission obligations survive for 24 months. Standard 3-year NDA and POPIA compliance applies.",
                 color: "Pilot"
             };
-        } else if (monthlyLeads > 32) {
+        } else if (leads > 32) {
             tierData = {
                 subtitle: "Gold: Performance Partner",
                 fee: "R16,500+ (p/m)",
@@ -218,7 +217,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                 termination: "1 calendar month notice required. Immediate exit incurs 50% Breach Penalty (min R8,250). All data protection clauses survive.",
                 color: "Gold"
             };
-        } else if (monthlyLeads >= 21) {
+        } else if (leads >= 21) {
             tierData = {
                 subtitle: "Silver: Scale & Optimise",
                 fee: "R10,500 (p/m)",
@@ -247,7 +246,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
         }));
 
         if (broker.email) setRecipientEmail(broker.email);
-        toast({ title: "Broker & Tier Loaded", description: `Selected ${tierData.color} based on ${monthlyLeads} monthly leads.` });
+        toast({ title: "Broker & Tier Loaded", description: `Selected ${tierData.color} based on ${leads} leads.` });
     };
 
     const updateField = (field: string, value: string) => {

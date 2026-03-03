@@ -156,18 +156,17 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
         const clientName = broker.full_name || "Valued Partner";
         const clientCompany = broker.firm_name || broker.company_name || "Independent Broker";
         const leads = broker.desired_leads_weekly || 0;
-        const monthlyLeads = Math.ceil(leads * 4.33);
 
         let tierPrice = 8500;
         let tierDesc = "Lead Generation Strategy (Bronze Tier)";
 
-        if (monthlyLeads <= 6 && monthlyLeads > 0) {
+        if (leads <= 6 && leads > 0) {
             tierPrice = 6000;
             tierDesc = "Lead Generation Pilot Strategy (R1k/lead)";
-        } else if (monthlyLeads > 32) {
+        } else if (leads > 32) {
             tierPrice = 16500;
             tierDesc = "Performance Partner Strategy (Gold Tier)";
-        } else if (monthlyLeads >= 21) {
+        } else if (leads >= 21) {
             tierPrice = 10500;
             tierDesc = "Scale & Optimise Strategy (Silver Tier)";
         }

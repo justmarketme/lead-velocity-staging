@@ -117,6 +117,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
         title: "Your <span class='text-[#D035D0]'>Mission</span> <span class='text-[#F48C57]'>Control</span> for Growth",
         subtitle: "Growth Starter Lead Strategy (Bronze Tier)",
 
+        purposeTitle: "Strategic Lead Generation",
         purposeText: "Our core solution provides a <strong class='text-pink-900 bg-pink-50 px-1 rounded'>Lead Token</strong> engine. If you exhaust your tokens early, you can Top-Up at <strong>R500 per lead (minimum 5 tokens / R2,500)</strong> with 1 week's notice.",
         purposeSubText: "Engagement is month-to-month. Exit requires one calendar month's notice; failure to provide full notice or immediate exit incurs a <strong>50% breach penalty</strong> of the tier value.",
 
@@ -174,7 +175,6 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
         const clientName = broker.full_name || "Valued Partner";
         const clientCompany = broker.firm_name || broker.company_name || "Client Company (Pty) Ltd";
         const leads = broker.desired_leads_weekly || 0;
-        const monthlyLeads = Math.ceil(leads * 4.33);
 
         let tierData = {
             subtitle: "Bronze: Growth Starter",
@@ -188,7 +188,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
             purposeSubText: "Month-to-month engagement. Exit requires one full calendar month's written notice. Failure to provide notice triggers a 50% breach penalty on the tier value."
         };
 
-        if (monthlyLeads <= 6 && monthlyLeads > 0) {
+        if (leads <= 6 && leads > 0) {
             tierData = {
                 subtitle: "Pilot Phase: Where We Prove Consistency",
                 investment: "R6,000 (once-off)",
@@ -200,7 +200,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                 purposeText: "This 30-day pilot is designed to provide a structured, low-risk starting point while generating enough real performance data to assess quality and ROI.",
                 purposeSubText: "Lead Velocity operates as a lead partner focused on qualified decision-makers."
             };
-        } else if (monthlyLeads > 32) {
+        } else if (leads > 32) {
             tierData = {
                 subtitle: "Gold: Performance Partner",
                 investment: "R16,500+ (p/m)",
@@ -212,7 +212,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                 purposeText: "Our premium tier where we operate as a full revenue partner. Token-based delivery ensures consistent ROI and inventory management.",
                 purposeSubText: "Month-to-month engagement. Exit requires one full calendar month's written notice. Non-compliance with notice triggers a 50% breach penalty."
             };
-        } else if (monthlyLeads >= 21) {
+        } else if (leads >= 21) {
             tierData = {
                 subtitle: "Silver: Scale & Optimise",
                 investment: "R10,500 (p/m)",
@@ -244,7 +244,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
 
         if (broker.email) setRecipientEmail(broker.email);
         if (broker.phone_number || broker.phone) setRecipientPhone(broker.phone_number || broker.phone);
-        toast({ title: "Broker & Tier Loaded", description: `Selected ${tierData.subtitle.split(':')[0]} based on ${monthlyLeads} monthly leads.` });
+        toast({ title: "Broker & Tier Loaded", description: `Selected ${tierData.subtitle.split(':')[0]} based on ${leads} leads.` });
     };
 
     // Robust PDF Generation with Clone Strategy
