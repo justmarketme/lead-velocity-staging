@@ -551,9 +551,9 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                                 subtitle: "Bronze: Growth Starter",
                                                 comm: "",
                                                 pilot: "",
-                                                breach: "Should the Client breach material terms (non-payment or commission violations), an immediate 50% Breach Penalty of R4,250 applies. Lead Velocity reserves the right to immediately suspend all active campaigns until the breach is settled in full.",
-                                                renewal: "Month-to-month. Pause anytime by allowing the current cycle to lapse. Resume anytime by making the next payment.",
-                                                termination: "Terminal at end of any cycle. Premature cancellation incurs no refund. Existing lead and commission obligations survive.",
+                                                breach: "Should the Client breach material terms (non-payment or commission violations), lead delivery will be immediately suspended. Service is paused until the account is settled in full.",
+                                                renewal: "Month-to-month. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment.",
+                                                termination: "Effective at the conclusion of the paid 30-day cycle. Premature cancellation within an active cycle is non-refundable.",
                                                 color: "border-orange-500/20 hover:bg-orange-500/10 text-orange-200"
                                             },
                                             {
@@ -563,9 +563,9 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                                 subtitle: "Silver: Scale & Optimise",
                                                 comm: "",
                                                 pilot: "",
-                                                breach: "Should the Client breach material terms (non-payment or commission violations), an immediate 50% Breach Penalty of R5,250 applies. Suspension applies until settled.",
-                                                renewal: "Month-to-month. Subscription pauses upon non-payment. Continue where you left off by resuming payment at any time.",
-                                                termination: "Termination effective at cycle end. No refunds for premature exit within an active 30-day period.",
+                                                breach: "Should the Client breach material terms (non-payment or commission violations), lead delivery will be immediately suspended until the account is settled in full.",
+                                                renewal: "Month-to-month. Subscription pauses upon non-payment at the end of a cycle. Continue service by resuming payment at any time.",
+                                                termination: "Effective at the conclusion of the active cycle. No refunds for premature exit within an active 30-day period.",
                                                 color: "border-slate-400/20 hover:bg-slate-400/10 text-slate-200"
                                             },
                                             {
@@ -575,9 +575,9 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                                 subtitle: "Gold: Performance Partner",
                                                 comm: "",
                                                 pilot: "",
-                                                breach: "Should the Client breach material terms (non-payment or commission violations), an immediate 50% Breach Penalty of R8,250 applies. Campaigns will be suspended until settled.",
-                                                renewal: "Month-to-month. Pause at cycle-end without penalty. Resume anytime. Early exit within cycle is non-refundable.",
-                                                termination: "Effective at end of current cycle. Premature exit is non-refundable. Survival of data and commission clauses applies.",
+                                                breach: "Should the Client breach material terms (non-payment or commission violations), lead delivery will be suspended immediately. Service resumes once the account is settled.",
+                                                renewal: "Month-to-month. Pause at cycle-end without penalty by electing not to renew payment. Resume anytime by making the next payment.",
+                                                termination: "Subscription ends at the conclusion of the paid 30-day period. Premature exit within a cycle is non-refundable.",
                                                 color: "border-yellow-500/20 hover:bg-yellow-500/10 text-yellow-200"
                                             }
                                         ].map((tier) => (
