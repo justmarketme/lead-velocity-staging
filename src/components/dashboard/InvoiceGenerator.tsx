@@ -113,7 +113,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
             { description: "Lead Generation Strategy (Bronze Tier)", quantity: 1, price: 8500 },
             { description: "Platform Setup & Configuration", quantity: 1, price: 0 }
         ],
-        notes: "Terms: Paid in advance for each monthly delivery cycle. Delivery follows a 'Lead Token' model. Top-Ups (min 5 tokens at R2,500) require 1 week notice. Engagement is month-to-month. Termination or pause effective at end of 30-day cycle.",
+        notes: "Terms: Paid monthly in advance. Should the Client breach material terms (non-payment or commission violations), lead delivery will be suspended until re-activated. No refunds are provided for premature cancellation within an active 30-day cycle, as allocations cover digital inventory costs.",
         bankName: "First National Bank",
         accountName: "Lead Velocity Pty Ltd",
         accountNumber: "63174286724", // Updated to match requested banking details
@@ -167,6 +167,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
         }
     }, [globalBrokerId]);
     const [recipientEmail, setRecipientEmail] = useState("");
+    const [selectedBrokerId, setSelectedBrokerId] = useState<string | null>(null);
 
     const handleBrokerSelect = (broker: any) => {
         const clientName = broker.full_name || "Valued Partner";
@@ -217,11 +218,15 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
                     price: 0,
                 }
             ],
-            notes: `Terms: Paid in advance for each monthly delivery cycle. Delivery follows a 'Lead Token' model. Top-Ups (min 5 tokens at R2,500) require 1 week notice. Engagement is month-to-month. Subscription pauses automatically upon non-payment at end of cycle.`
+            notes: `Terms: Paid in advance for each monthly delivery cycle. Delivery follows a 'Lead Token' model. Top-Ups (min 5 tokens at R2,500) require 1 week notice. Engagement is month-to-month. Subscription pauses automatically upon non-payment at end of cycle. Cancellation during an active cycle is effective immediately but is subject to a strict no-refund policy.`
         }));
 
-        if (broker.email) setRecipientEmail(broker.email);
-
+        if (broker.email) {
+            setRecipientEmail(broker.email);
+        }
+        if (broker.id) {
+            setSelectedBrokerId(broker.id);
+        }
         toast({
             title: "Broker Data Applied",
             description: `Auto-filled details based on ${leads} leads/wk.`,
@@ -494,13 +499,15 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
                             body: {
                                 channel: 'email',
                                 recipient_contact: recipientEmail,
-                                recipient_type: 'lead',
+                                recipient_type: selectedBrokerId ? 'broker' : 'lead',
+                                broker_id: selectedBrokerId || undefined,
                                 subject: subject,
                                 content: emailBody,
                                 attachments: [
                                     {
+                                        content: base64Pdf,
                                         filename: fileName,
-                                        content: base64Pdf
+                                        type: 'application/pdf'
                                     }
                                 ]
                             }

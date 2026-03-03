@@ -30,6 +30,8 @@ import {
   PhoneOff,
   Volume2,
   VolumeX,
+  Paperclip,
+  X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -59,6 +61,12 @@ interface MessageTemplate {
   category: string;
 }
 
+interface Attachment {
+  filename: string;
+  content: string; // base64
+  type: string;
+}
+
 interface UnifiedCommunicationHubProps {
   recipientType: 'lead' | 'referral' | 'broker';
   recipientId: string;
@@ -82,6 +90,7 @@ export function UnifiedCommunicationHub({
   const [content, setContent] = useState('');
   const [subject, setSubject] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
 
   // Call-specific state
   const [isCallActive, setIsCallActive] = useState(false);
@@ -192,6 +201,35 @@ export function UnifiedCommunicationHub({
     toast.success(`Template "${template.name}" applied`);
   };
 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File size must be under 5MB");
+      return;
+    }
+
+    try {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = (reader.result as string).split(',')[1];
+        setAttachments(prev => [...prev, {
+          filename: file.name,
+          content: base64String,
+          type: file.type
+        }]);
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      toast.error("Failed to read file");
+    }
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
   const getFilteredTemplates = () => {
     if (activeTab === 'call') return [];
     return templates.filter((t) => t.channel === activeTab || t.channel === 'all');
@@ -226,6 +264,7 @@ export function UnifiedCommunicationHub({
         referral_id: recipientType === 'referral' ? recipientId : undefined,
         broker_id: recipientType === 'broker' ? recipientId : undefined,
         subject: activeTab === 'email' ? subject || `Message for ${recipientContact.name || 'you'}` : undefined,
+        attachments: activeTab === 'email' ? attachments : undefined,
       };
 
       const response = await supabase.functions.invoke('send-communication', {
@@ -238,6 +277,7 @@ export function UnifiedCommunicationHub({
       setContent('');
       setSubject('');
       setSelectedTemplate('');
+      setAttachments([]);
       fetchCommunications();
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -580,13 +620,47 @@ export function UnifiedCommunicationHub({
               onChange={(e) => setContent(e.target.value)}
               rows={4}
             />
+            {attachments.length > 0 && (
+              <div className="flex flex-wrap gap-2 py-2">
+                {attachments.map((file, idx) => (
+                  <Badge key={idx} variant="secondary" className="gap-1 pr-1">
+                    <span className="truncate max-w-[150px]">{file.filename}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-4 w-4 p-0 hover:bg-transparent"
+                      onClick={() => removeAttachment(idx)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </Badge>
+                ))}
+              </div>
+            )}
             <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">To: {recipientContact.email || 'No email'}</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="file"
+                  id="file-upload"
+                  className="hidden"
+                  onChange={handleFileSelect}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9"
+                  onClick={() => document.getElementById('file-upload')?.click()}
+                >
+                  <Paperclip className="h-4 w-4 mr-2" />
+                  Attach File
+                </Button>
+              </div>
               <Button onClick={sendCommunication} disabled={sending || !recipientContact.email}>
                 {sending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
                 Send Email
               </Button>
             </div>
+            <p className="text-[10px] text-muted-foreground">To: {recipientContact.email || 'No email'}</p>
           </TabsContent>
 
           {/* SMS TAB */}
@@ -707,18 +781,18 @@ export function UnifiedCommunicationHub({
                     </div>
                     {comm.subject && <p className="text-sm font-medium">{comm.subject}</p>}
                     <p className="text-sm text-muted-foreground line-clamp-2">{comm.content || 'No content'}</p>
-                    
+
                     {/* Call Recording Playback with Transcript */}
                     {comm.channel === 'call' && comm.call_recording_url && (
                       <div className="mt-2">
-                        <CallRecordingPlayer 
-                          recordingUrl={comm.call_recording_url} 
+                        <CallRecordingPlayer
+                          recordingUrl={comm.call_recording_url}
                           transcript={
-                            typeof comm.metadata === 'object' && comm.metadata !== null && 'transcript' in comm.metadata 
-                              ? String((comm.metadata as { transcript?: string }).transcript) 
+                            typeof comm.metadata === 'object' && comm.metadata !== null && 'transcript' in comm.metadata
+                              ? String((comm.metadata as { transcript?: string }).transcript)
                               : comm.content
                           }
-                          compact 
+                          compact
                         />
                       </div>
                     )}

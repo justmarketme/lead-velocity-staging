@@ -11,7 +11,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, FileText, Download, Trash2, FolderOpen, FileSpreadsheet, Share2, Users, FileCheck, Receipt, Eye, Edit3 } from "lucide-react";
+import { Upload, FileText, Download, Trash2, FolderOpen, FileSpreadsheet, Share2, Users, FileCheck, Receipt, Eye, Edit3, Mail } from "lucide-react";
+import { blobToBase64 } from "@/utils/pdfUtils";
+import { BrokerSelector } from "./BrokerSelector";
 import { format } from "date-fns";
 import ProposalGenerator from "./ProposalGenerator";
 import InvoiceGenerator from "./InvoiceGenerator";
@@ -59,6 +61,9 @@ const AdminDocuments = () => {
   const [description, setDescription] = useState("");
   const [sharingDocId, setSharingDocId] = useState<string | null>(null);
   const [selectedBrokers, setSelectedBrokers] = useState<string[]>([]);
+  const [emailingDoc, setEmailingDoc] = useState<Document | null>(null);
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailRecipient, setEmailRecipient] = useState<{ name: string, email: string } | null>(null);
 
   // Generators State
   const [showProposalGenerator, setShowProposalGenerator] = useState(false);
@@ -96,6 +101,66 @@ const AdminDocuments = () => {
         shares[share.document_id].push(share.broker_id);
       });
       setDocumentShares(shares);
+    }
+  };
+
+  const handleEmailDocument = async () => {
+    if (!emailingDoc || !emailRecipient || !emailRecipient.email) {
+      toast({
+        title: "Recipient Required",
+        description: "Please select a broker to email.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setEmailSending(true);
+    try {
+      // 1. Fetch file from storage
+      const { data: fileData, error: downloadError } = await supabase.storage
+        .from('admin-documents')
+        .download(emailingDoc.file_path);
+
+      if (downloadError) throw downloadError;
+
+      // 2. Convert to base64
+      const base64Content = await blobToBase64(fileData);
+
+      // 3. Send via communication hub
+      const { error: fnError } = await supabase.functions.invoke('send-communication', {
+        body: {
+          channel: 'email',
+          recipient_contact: emailRecipient.email,
+          recipient_type: 'broker',
+          subject: `Document: ${emailingDoc.name}`,
+          content: `<p>Dear ${emailRecipient.name},</p><p>Please find the following document attached: <strong>${emailingDoc.name}</strong></p><p>Best regards,<br/>Lead Velocity Team</p>`,
+          attachments: [
+            {
+              content: base64Content,
+              filename: emailingDoc.name.endsWith('.pdf') ? emailingDoc.name : `${emailingDoc.name}.pdf`,
+              type: 'application/pdf'
+            }
+          ]
+        }
+      });
+
+      if (fnError) throw fnError;
+
+      toast({
+        title: "Email Sent!",
+        description: `Successfully sent "${emailingDoc.name}" to ${emailRecipient.email}.`
+      });
+      setEmailingDoc(null);
+      setEmailRecipient(null);
+    } catch (error: any) {
+      console.error("Error emailing document:", error);
+      toast({
+        title: "Email Failed",
+        description: error.message || "Failed to send email attachment.",
+        variant: "destructive"
+      });
+    } finally {
+      setEmailSending(false);
     }
   };
 
@@ -718,6 +783,15 @@ const AdminDocuments = () => {
                         <Button
                           variant="ghost"
                           size="sm"
+                          onClick={() => setEmailingDoc(doc)}
+                          title="Email as attachment"
+                          className="text-blue-500 hover:text-blue-600 hover:bg-blue-500/10"
+                        >
+                          <Mail className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => handleDelete(doc)}
                           className="text-destructive hover:text-destructive"
                         >
@@ -732,6 +806,48 @@ const AdminDocuments = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Email Document Dialog */}
+      <Dialog open={!!emailingDoc} onOpenChange={(open) => !open && setEmailingDoc(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mail className="h-5 w-5 text-blue-500" />
+              Email Document
+            </DialogTitle>
+            <CardDescription>
+              This will send "{emailingDoc?.name}" as a direct PDF attachment.
+            </CardDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Select Broker Recipient</Label>
+              <BrokerSelector onSelect={(b) => setEmailRecipient({
+                name: b.full_name || b.firm_name || 'Broker',
+                email: b.email || ''
+              })} />
+            </div>
+
+            {emailRecipient && (
+              <div className="p-3 bg-muted rounded-lg border text-sm">
+                <p><strong>To:</strong> {emailRecipient.name}</p>
+                <p><strong>Email:</strong> {emailRecipient.email}</p>
+                {!emailRecipient.email && <p className="text-destructive font-bold">Error: No email address found for this broker.</p>}
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end gap-3 pt-4">
+            <Button variant="outline" onClick={() => setEmailingDoc(null)}>Cancel</Button>
+            <Button
+              onClick={handleEmailDocument}
+              disabled={emailSending || !emailRecipient?.email}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {emailSending ? "Sending..." : "Send with Attachment"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div >
   );
 };

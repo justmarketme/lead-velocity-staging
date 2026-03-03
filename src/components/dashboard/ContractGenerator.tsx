@@ -129,7 +129,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
         scopeText: "Lead Velocity shall provide qualified lead tokens as specified in the selected tier. Allocation is paid monthly in advance. Additional leads can be Top-Ups (min 5 tokens) at R500 each.",
         deliverablesText: "1. Weekly delivery of qualified decision-maker contact details. 2. Brief business profile for each prospect. 3. Monthly performance report summarizing lead volume and feedback trends.",
         termsText: "Terms and Payment: Fees are due upfront for each monthly cycle. Delivery is on a Lead Token basis. Top-Up tokens require one week's notice.",
-        breachText: "Should the Client breach any material term of this Agreement, including non-payment for delivered leads or violation of commission obligations (where applicable), lead delivery will be immediately suspended. Service is paused until the account is settled in full.",
+        breachText: "Should the Client breach material terms (non-payment or commission violations where applicable), lead delivery will be immediately suspended until the subscription is re-activated.",
         refundText: "No refunds are provided for service fees or pre-purchased Lead Tokens in the event of premature cancellation within an active 30-day cycle, as these allocations cover the variable cost of digital inventory.",
         confidentialityText: "Both Parties agree to maintain strict confidentiality regarding all non-public information, lead data, and proprietary campaign methodologies. This NDA remains in force for 36 months following termination.",
         disputeText: "Disputes regarding lead qualification must be submitted in writing within 48 business hours. Valid disputes will be resolved via a replacement token within 5 business days.",
@@ -188,6 +188,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
     }, [globalBrokerId]);
 
     const [recipientEmail, setRecipientEmail] = useState("");
+    const [selectedBrokerId, setSelectedBrokerId] = useState<string | null>(null);
 
     useEffect(() => {
         if (initialData) {
@@ -271,8 +272,17 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
             clientPhoneLine: `Tel: ${broker.phone_number || broker.phone || broker.whatsapp_number || ""} `,
         }));
 
-        if (broker.email) setRecipientEmail(broker.email);
-        toast({ title: "Broker & Tier Loaded", description: `Selected ${tierData.color} based on ${leads} leads.` });
+        if (broker.email) {
+            setRecipientEmail(broker.email);
+        }
+        if (broker.id) {
+            setSelectedBrokerId(broker.id);
+        }
+
+        toast({
+            title: "Broker Data Applied",
+            description: `Auto-filled details based on ${leads} leads/wk.`,
+        });
     };
 
     const updateField = (field: string, value: string) => {
@@ -501,13 +511,15 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                             body: {
                                 channel: 'email',
                                 recipient_contact: recipientEmail,
-                                recipient_type: 'lead',
+                                recipient_type: selectedBrokerId ? 'broker' : 'lead',
+                                broker_id: selectedBrokerId || undefined,
                                 subject: subject,
                                 content: emailBody,
                                 attachments: [
                                     {
+                                        content: base64Pdf,
                                         filename: fileName,
-                                        content: base64Pdf
+                                        type: 'application/pdf'
                                     }
                                 ]
                             }

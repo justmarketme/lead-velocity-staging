@@ -119,10 +119,10 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
 
         purposeTitle: "Strategic Lead Generation",
         purposeText: "Our core solution provides a <strong class='text-pink-900 bg-pink-50 px-1 rounded'>Lead Token</strong> engine. If you exhaust your tokens early, you can Top-Up at <strong>R500 per lead (minimum 5 tokens / R2,500)</strong> with 1 week's notice.",
-        purposeSubText: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment.",
+        purposeSubText: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment. Cancellation during an active cycle is effective immediately but is subject to a strict no-refund policy.",
 
         overviewTitle: "Campaign Overview",
-        quoteText: `"Each qualified lead is one token. Minimum top-up is 5 tokens. Cancellation is immediate upon cessation of payment with no-refund policy for the active cycle."`,
+        quoteText: `"Each qualified lead is one token. Minimum top-up is 5 tokens. Should the Client breach material terms (non-payment or commission violations), lead delivery will be suspended until re-activated. No refunds are provided for premature cancellation within an active 30-day cycle."`,
 
         criteriaTitle: "Qualification Criteria",
         criteria1: "<strong>Decision Maker:</strong> Business owner, director, or key decision-maker.",
@@ -183,6 +183,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
     }, [globalBrokerId]);
 
     const [recipientEmail, setRecipientEmail] = useState("");
+    const [selectedBrokerId, setSelectedBrokerId] = useState<string | null>(null);
     const [recipientPhone, setRecipientPhone] = useState("");
 
     const updateField = (field: string, value: string) => {
@@ -204,7 +205,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
             alignment: "Where we prove consistency. Qualified SME decision-maker leads, core targeting & messaging, monthly performance check-in.",
             purposeTitle: "Strategic Lead Generation",
             purposeText: "Our core solution provides a consistent lead engine delivering qualified prospects directly to your sales pipeline. We operate on a Lead Token model (paid monthly in advance).",
-            purposeSubText: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment."
+            purposeSubText: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment. Cancellation during an active cycle is effective immediately but is subject to a strict no-refund policy."
         };
 
         if (leads <= 10 && leads > 0) {
@@ -217,7 +218,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                 alignment: "The pilot investment covers the delivery of the first ten qualified business leads. Beyond that, we align with your success.",
                 purposeTitle: "Purpose of the Pilot",
                 purposeText: "This 30-day pilot is designed to provide a structured, low-risk starting point while generating enough real performance data to assess quality and ROI.",
-                purposeSubText: "Terminates automatically after 30 days or lead completion. No refund for early exit. Commission and NDA obligations survive for 24 months."
+                purposeSubText: "Terminates automatically after 30 days or lead completion. Cancellation during an active cycle is effective immediately but is subject to a strict no-refund policy. Commission and NDA obligations survive for 24 months."
             };
         } else if (leads > 32) {
             tierData = {
@@ -229,7 +230,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                 alignment: "Where we operate as a revenue partner. Maximum lead volume, advanced qualification, and dedicated campaign management.",
                 purposeTitle: "Revenue Partnership",
                 purposeText: "Our premium tier where we operate as a full revenue partner. Token-based delivery ensures consistent ROI and inventory management.",
-                purposeSubText: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment."
+                purposeSubText: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment. Cancellation during an active cycle is effective immediately but is subject to a strict no-refund policy."
             };
         } else if (leads >= 20) {
             tierData = {
@@ -241,7 +242,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                 alignment: "Where results become predictable. Higher lead volume, ongoing optimisation, messaging testing, and bi-weekly reviews.",
                 purposeTitle: "Predictable Scaling",
                 purposeText: "The Silver tier provides systematic growth for scaling brokers. Delivery follows the Lead Token model, ensuring transparency and inventory control.",
-                purposeSubText: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment."
+                purposeSubText: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment. Cancellation during an active cycle is effective immediately but is subject to a strict no-refund policy."
             };
         }
 
@@ -261,7 +262,12 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
             alignmentBoxText: tierData.comm !== "0%" ? `Additional placed policies attract a <span class='text-pink-400 font-bold'>${tierData.comm} commission</span> calculated on the first-year premium.` : ""
         }));
 
-        if (broker.email) setRecipientEmail(broker.email);
+        if (broker.email) {
+            setRecipientEmail(broker.email);
+        }
+        if (broker.id) {
+            setSelectedBrokerId(broker.id);
+        }
         if (broker.phone_number || broker.phone) setRecipientPhone(broker.phone_number || broker.phone);
         toast({ title: "Broker & Tier Loaded", description: `Selected ${tierData.subtitle.split(':')[0]} based on ${leads} leads.` });
     };
@@ -376,13 +382,15 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                             body: {
                                 channel: 'email',
                                 recipient_contact: recipientEmail,
-                                recipient_type: 'lead',
+                                recipient_type: selectedBrokerId ? 'broker' : 'lead',
+                                broker_id: selectedBrokerId || undefined,
                                 subject: subject,
                                 content: emailBody,
                                 attachments: [
                                     {
+                                        content: base64Pdf,
                                         filename: fileName,
-                                        content: base64Pdf
+                                        type: 'application/pdf'
                                     }
                                 ]
                             }
