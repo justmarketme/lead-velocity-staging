@@ -483,7 +483,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
     };
 
     return (
-        <div className="-m-4 sm:-m-6 lg:-m-8 h-[calc(100vh-64px)] flex flex-col font-sans animate-in fade-in duration-500">
+        <div className="relative -m-4 sm:-m-6 lg:-m-8 h-[calc(100vh-64px)] flex flex-col font-sans animate-in fade-in duration-500 overflow-hidden">
             <div className="flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-4">
                     <Button variant="ghost" size="icon" onClick={onBack}>
@@ -510,7 +510,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
                 </div>
             </div>
 
-            <div className="flex flex-1 overflow-hidden gap-0">
+            <div className="flex flex-row flex-1 overflow-hidden gap-0 min-h-0">
                 {/* Editor Panel */}
                 <div style={{ width: sidebarWidth, minWidth: 260, maxWidth: 600, flexShrink: 0 }} className="h-full flex flex-col gap-4 overflow-hidden">
                     <Card className="bg-slate-900/50 border-white/5 flex-1 overflow-y-auto custom-scrollbar">
@@ -731,7 +731,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
                 </div>
 
                 {/* Preview Engine */}
-                <div className="flex-1 h-full flex flex-col bg-slate-950 rounded-xl border border-white/5 overflow-hidden relative group">
+                <div className="flex-1 h-full min-h-0 flex flex-col bg-slate-950 rounded-xl border border-white/5 overflow-hidden relative group">
                     <div className="absolute top-4 right-4 z-50 bg-slate-900/90 backdrop-blur-md border border-white/10 rounded-full flex items-center px-4 py-1.5 shadow-2xl space-x-3 transition-opacity opacity-0 group-hover:opacity-100">
                         <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-white" onClick={() => adjustZoom(-0.1)}><ZoomOut className="h-4 w-4" /></Button>
                         <span className="text-[10px] font-mono font-bold text-slate-500">{Math.round(zoom * 100)}%</span>

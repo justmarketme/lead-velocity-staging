@@ -511,7 +511,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
     };
 
     return (
-        <div className="-m-4 sm:-m-6 lg:-m-8 h-[calc(100vh-64px)] flex flex-col animate-in fade-in duration-500">
+        <div className="relative -m-4 sm:-m-6 lg:-m-8 h-[calc(100vh-64px)] flex flex-col animate-in fade-in duration-500 overflow-hidden">
             <div className="flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-4">
                     <Button variant="ghost" size="icon" onClick={onBack}>
@@ -534,7 +534,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                 </div>
             </div>
 
-            <div className="flex flex-1 overflow-hidden gap-0">
+            <div className="flex flex-row flex-1 overflow-hidden gap-0 min-h-0">
                 {/* Sidebar */}
                 <div style={{ width: sidebarWidth, minWidth: 260, maxWidth: 600, flexShrink: 0 }} className="h-full flex flex-col gap-4 overflow-hidden">
                     <div className="h-full overflow-y-auto pr-2 custom-scrollbar">
@@ -822,7 +822,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                     </div>
 
                     {/* Live Preview Area */}
-                    <div className="flex-1 h-full flex flex-col bg-slate-950 rounded-xl border border-white/5 overflow-hidden relative group">
+                    <div className="flex-1 h-full min-h-0 flex flex-col bg-slate-950 rounded-xl border border-white/5 overflow-hidden relative group">
                         <div className="absolute top-4 right-4 z-50 bg-slate-900/90 backdrop-blur border border-white/10 rounded-lg flex items-center p-1.5 shadow-xl space-x-1">
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-white" onClick={() => adjustZoom(-0.1)}><ZoomOut className="h-4 w-4" /></Button>
                             <span className="text-xs font-mono font-bold text-white w-12 text-center">{Math.round(zoom * 100)}%</span>
