@@ -216,8 +216,8 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                 comm: "",
                 pilot: "",
                 scope: "40+ tokens per month. Top-Ups (min 5) at R500 each. Advanced targeting, dedicated campaign management, and conversion support.",
-                renewal: "Continues month-to-month. Termination requires 1 full calendar month notice in writing. Breach triggers a 50% penalty of the monthly service fee.",
-                termination: "1 calendar month notice required. Immediate exit incurs 50% Breach Penalty (min R8,250). All data protection clauses survive.",
+                renewal: "Continues month-to-month. Termination requires 1 full calendar month notice in writing. Breach triggers a 50% penalty (R8,250).",
+                termination: "1 calendar month notice required. Immediate exit incurs 50% Breach Penalty (R8,250). All data protection clauses survive.",
                 color: "Gold"
             };
         } else if (leads >= 21) {
@@ -543,6 +543,8 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                                 subtitle: "Bronze: Growth Starter",
                                                 comm: "",
                                                 pilot: "",
+                                                renewal: "Continues month-to-month. Termination requires 1 full calendar month notice in writing. Breach of notice period triggers a 50% penalty (R4,250).",
+                                                termination: "1 calendar month notice required. Immediate exit incurs 50% Breach Penalty (R4,250). All delivered leads remain payable.",
                                                 color: "border-orange-500/20 hover:bg-orange-500/10 text-orange-200"
                                             },
                                             {
@@ -552,6 +554,8 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                                 subtitle: "Silver: Scale & Optimise",
                                                 comm: "",
                                                 pilot: "",
+                                                renewal: "Continues month-to-month. Termination requires 1 full calendar month notice in writing. Breach of notice triggers a 50% penalty (R5,250).",
+                                                termination: "1 calendar month notice required. Immediate exit incurs 50% Breach Penalty (R5,250). Outstanding commissions survive.",
                                                 color: "border-slate-400/20 hover:bg-slate-400/10 text-slate-200"
                                             },
                                             {
@@ -561,6 +565,8 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                                 subtitle: "Gold: Performance Partner",
                                                 comm: "",
                                                 pilot: "",
+                                                renewal: "Continues month-to-month. Termination requires 1 full calendar month notice in writing. Breach triggers a 50% penalty (R8,250).",
+                                                termination: "1 calendar month notice required. Immediate exit incurs 50% Breach Penalty (R8,250). All data protection clauses survive.",
                                                 color: "border-yellow-500/20 hover:bg-yellow-500/10 text-yellow-200"
                                             }
                                         ].map((tier) => (
@@ -573,6 +579,8 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                                         leadTarget: tier.target,
                                                         subtitle: tier.subtitle,
                                                         pilotEligibilityText: tier.pilot || "",
+                                                        renewalText: tier.renewal || prev.renewalText,
+                                                        terminationText: tier.termination || prev.terminationText,
                                                         commissionText: tier.comm ? `In addition to the monthly service fee, the Client agrees to pay Lead Velocity a commission of ${tier.comm} of the gross first-year premium value of any insurance policy sold as a direct or indirect result of Lead Velocity's lead generation efforts. This commission obligation applies to: (a) all policies placed on leads delivered under this Agreement; (b) any policies placed on referrals obtained from leads sourced through Lead Velocity; and (c) any secondary sales arising from relationships initiated through Lead Velocity's efforts. This commission obligation shall survive the termination of this Agreement for a period of twenty-four (24) months following the last lead delivered.` : ""
                                                     }));
                                                     toast({ title: `${tier.name} Applied`, description: "Contract terms updated." });
