@@ -133,7 +133,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
         refundText: "No refunds are provided for service fees or pre-purchased Lead Tokens, as these allocations cover the variable cost of digital inventory and campaign management.",
         confidentialityText: "Both Parties agree to maintain strict confidentiality regarding all non-public information, lead data, and proprietary campaign methodologies. This NDA remains in force for 36 months following termination.",
         disputeText: "Disputes regarding lead qualification must be submitted in writing within 48 business hours. Valid disputes will be resolved via a replacement token within 5 business days.",
-        pilotEligibilityText: "Promotion: Once-off pilot plan for first-time clients. Not available for recurring accounts. Participants must upgrade to Bronze or higher to continue service.",
+        pilotEligibilityText: "",
         renewalText: "Month-to-month. Requires one (1) full calendar month notice for exit. Failure to provide notice incurs the 50% Breach Penalty.",
         forceMajeureText: "Lead Velocity is not liable for delays caused by national infrastructure failures (load shedding), civil unrest, or major digital platform outages (Meta/Google).",
         liabilityText: "Maximum liability of Lead Velocity is limited to the fees paid by the Client in the month preceding the claim. We are not liable for lost profit or indirect business damages.",
