@@ -129,12 +129,12 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
         scopeText: "Lead Velocity shall provide qualified lead tokens as specified in the selected tier. Allocation is paid monthly in advance. Additional leads can be Top-Ups (min 5 tokens) at R500 each.",
         deliverablesText: "1. Weekly delivery of qualified decision-maker contact details. 2. Brief business profile for each prospect. 3. Monthly performance report summarizing lead volume and feedback trends.",
         termsText: "Terms and Payment: Fees are due upfront for each monthly cycle. Delivery is on a Lead Token basis. Top-Up tokens require one week's notice.",
-        breachText: "Should the Client terminate this Agreement without providing the full 30-day (one calendar month) written notice, the Client shall be liable for an immediate 50% Breach Penalty (R4,250) based on their current tier value. Upon breach, Lead Velocity reserves the right to immediately suspend and pause all active campaigns and lead delivery until the Breach Penalty has been settled in full. Service will only resume upon receipt of the outstanding penalty amount.",
-        refundText: "No refunds are provided for service fees or pre-purchased Lead Tokens, as these allocations cover the variable cost of digital inventory and campaign management.",
+        breachText: "Should the Client breach any material term of this Agreement, including non-payment for delivered leads or violation of commission obligations, the Client shall be liable for an immediate 50% Breach Penalty (R4,250). Lead Velocity reserves the right to immediately suspend and pause all campaigns until the breach is remedied. Service will only resume upon receipt of the outstanding penalty amount.",
+        refundText: "No refunds are provided for service fees or pre-purchased Lead Tokens in the event of premature cancellation within an active 30-day cycle, as these allocations cover the variable cost of digital inventory.",
         confidentialityText: "Both Parties agree to maintain strict confidentiality regarding all non-public information, lead data, and proprietary campaign methodologies. This NDA remains in force for 36 months following termination.",
         disputeText: "Disputes regarding lead qualification must be submitted in writing within 48 business hours. Valid disputes will be resolved via a replacement token within 5 business days.",
         pilotEligibilityText: "",
-        renewalText: "Month-to-month. Requires one (1) full calendar month notice for exit. Failure to provide notice incurs the 50% Breach Penalty.",
+        renewalText: "Continues month-to-month. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon next payment.",
         forceMajeureText: "Lead Velocity is not liable for delays caused by national infrastructure failures (load shedding), civil unrest, or major digital platform outages (Meta/Google).",
         liabilityText: "Maximum liability of Lead Velocity is limited to the fees paid by the Client in the month preceding the claim. We are not liable for lost profit or indirect business damages.",
         indemnityText: "The Client indemnifies Lead Velocity against any claims arising from the Client's conduct after receiving a lead or from the Client's advice provided to prospects.",
@@ -145,7 +145,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
         dataProtectionText: "POPIA Compliance: Lead Velocity warrants that all lead generation activities are compliant with the Protection of Personal Information Act. Both parties agree to handle prospect data securely.",
         nonSolicitationText: "The Client shall not solicit or hire any Lead Velocity personnel or recurring contractors for 12 months following termination without written consent and a placement fee.",
         warrantiesText: "Lead Velocity warrants that it has the legal right to provide the services. Use of services is at the Client's own risk beyond the agreed lead qualification criteria.",
-        terminationText: "Either Party may terminate this Agreement by giving the other Party not less than one (1) calendar month's written notice. Notice of termination must be delivered to the other Party's registered email address and is effective from the date of confirmed receipt. Termination shall take effect at the end of the then-current Delivery Cycle following expiry of the notice period. Upon termination: (i) all outstanding fees for leads already delivered become immediately due and payable; (ii) clauses relating to confidentiality, intellectual property, non-solicitation, commission obligations, and limitation of liability shall survive termination.",
+        terminationText: "Either Party may terminate or pause this Agreement at the end of any 30-day cycle. Cancellation during an active cycle is effective immediately but is subject to a strict no-refund policy. Upon termination: (i) all delivered leads remain payable; (ii) commission and confidentiality obligations survive for 24 months.",
         assignmentText: "Neither Party may assign, transfer, or delegate any of its rights or obligations under this Agreement without the prior written consent of the other Party, which consent shall not be unreasonably withheld. Notwithstanding the foregoing, Lead Velocity may assign this Agreement to any affiliate or successor entity without requiring the Client's consent, provided the Client is notified in writing within 30 days of such assignment. Any purported assignment in contravention of this clause shall be null and void.",
         noticesText: "All notices, requests, and communications under this Agreement shall be in writing and shall be deemed delivered: (a) immediately upon personal delivery; (b) upon written confirmation of receipt if sent by email; or (c) five (5) Business Days after posting if sent by registered mail. Notices shall be addressed to the contact details set out in the Parties section of this Agreement, or to such other address as a Party designates by written notice.",
         relationshipText: "Nothing in this Agreement shall be construed as creating a partnership, joint venture, agency, franchise, or employment relationship between the Parties. Lead Velocity acts as an independent contractor and shall have sole control over the manner and means of performing the Services. Neither Party has authority to bind the other or to incur any obligation on behalf of the other without prior written consent.",
@@ -190,10 +190,10 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
             target: "± 17 Qualified Leads per Month",
             comm: "",
             pilot: "",
-            breach: "Should the Client terminate this Agreement without providing the full 30-day (one calendar month) written notice, the Client shall be liable for an immediate 50% Breach Penalty of R4,250. Upon breach, Lead Velocity reserves the right to immediately suspend and pause all active campaigns and lead delivery until the Breach Penalty has been settled in full. Service will only resume upon receipt of the outstanding penalty amount.",
-            scope: "17 tokens per month. Top-Ups (min 5) at R500 each. 1 week notice for additional leads. Delivery managed on a weekly schedule. Minimum 5-token Top-Up applies.",
-            renewal: "Continues month-to-month. Termination requires 1 full calendar month notice in writing. Breach of notice period triggers a 50% penalty (R4,250).",
-            termination: "1 calendar month notice required. Immediate exit incurs 50% Breach Penalty (R4,250). All delivered leads remain payable.",
+            breach: "Should the Client breach material terms (non-payment or commission violations), an immediate 50% Breach Penalty of R4,250 applies. Lead Velocity reserves the right to immediately suspend all active campaigns until the breach is settled in full.",
+            scope: "17 tokens per month. Top-Ups (min 5) at R500 each. Delivery managed on a weekly schedule. Minimum 5-token Top-Up applies.",
+            renewal: "Month-to-month. Pause anytime by allowing the current cycle to lapse. Resume anytime by making the next payment.",
+            termination: "Terminal at end of any cycle. Premature cancellation incurs no refund. Existing lead and commission obligations survive.",
             color: "Bronze"
         };
 
@@ -204,10 +204,10 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                 target: "± 6 Qualified Leads (Once-off)",
                 comm: "ten percent (10%)",
                 pilot: "Promotion: Once-off pilot plan for first-time clients. Not available for recurring accounts. Participants must upgrade to Bronze or higher to continue service.",
-                breach: "This is a once-off engagement. Should the Client request early cancellation, no refund is applicable. All delivered leads are payable in full. Commission obligations survive termination for 24 months.",
-                scope: "Once-off introductory campaign. Delivery follows a 'Lead Token' model; Top-Ups may be requested (minimum 5 tokens at R2,500) with 1 week notice.",
-                renewal: "Terminates automatically after 30 days. No refund for early exit. Commission obligations survive for 24 months. Standard 3-year NDA and POPIA compliance applies.",
-                termination: "Terminates automatically after 30 days. No refund for early exit. Commission obligations survive for 24 months. Standard 3-year NDA and POPIA compliance applies.",
+                breach: "Once-off introductory plan. Premature cancellation before token depletion is non-refundable. Commission obligations survive termination.",
+                scope: "Once-off introductory campaign. Delivery follows a 'Lead Token' model; Top-Ups may be requested (minimum 5 tokens at R2,500).",
+                renewal: "Terminates automatically after 30 days or lead completion. No refund for early exit. Standard NDA and POPIA apply.",
+                termination: "Terminates automatically after 30 days. No refund for early exit. Commission and NDA obligations survive for 24 months.",
                 color: "Pilot"
             };
         } else if (leads > 32) {
@@ -217,10 +217,10 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                 target: "33-40+ Qualified Leads per Month",
                 comm: "",
                 pilot: "",
-                breach: "Should the Client terminate this Agreement without providing the full 30-day (one calendar month) written notice, the Client shall be liable for an immediate 50% Breach Penalty of R8,250. Upon breach, Lead Velocity reserves the right to immediately suspend and pause all active campaigns and lead delivery until the Breach Penalty has been settled in full. Service will only resume upon receipt of the outstanding penalty amount.",
-                scope: "40+ tokens per month. Top-Ups (min 5) at R500 each. Advanced targeting, dedicated campaign management, and conversion support.",
-                renewal: "Continues month-to-month. Termination requires 1 full calendar month notice in writing. Breach triggers a 50% penalty (R8,250).",
-                termination: "1 calendar month notice required. Immediate exit incurs 50% Breach Penalty (R8,250). All data protection clauses survive.",
+                breach: "Should the Client breach material terms (non-payment or commission violations), an immediate 50% Breach Penalty of R8,250 applies. Campaigns will be suspended until settled.",
+                scope: "40+ tokens per month. Top-Ups (min 5) at R500 each. Advanced targeting and dedicated management included.",
+                renewal: "Month-to-month. Pause at cycle-end without penalty. Resume anytime. Early exit within cycle is non-refundable.",
+                termination: "Effective at end of current cycle. Premature exit is non-refundable. Survival of data and commission clauses applies.",
                 color: "Gold"
             };
         } else if (leads >= 20) {
@@ -230,10 +230,10 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                 target: "± 23-26 Qualified Leads per Month",
                 comm: "",
                 pilot: "",
-                breach: "Should the Client terminate this Agreement without providing the full 30-day (one calendar month) written notice, the Client shall be liable for an immediate 50% Breach Penalty of R5,250. Upon breach, Lead Velocity reserves the right to immediately suspend and pause all active campaigns and lead delivery until the Breach Penalty has been settled in full. Service will only resume upon receipt of the outstanding penalty amount.",
-                scope: "23-26 tokens per month. Top-Ups (min 5) at R500 each. 1 week notice for additional leads. Includes bi-weekly performance updates and messaging optimisation.",
-                renewal: "Continues month-to-month. Termination requires 1 full calendar month notice in writing. Breach of notice triggers a 50% penalty (R5,250).",
-                termination: "1 calendar month notice required. Immediate exit incurs 50% Breach Penalty (R5,250). Outstanding commissions survive.",
+                breach: "Should the Client breach material terms (non-payment or commission violations), an immediate 50% Breach Penalty of R5,250 applies. Suspension applies until settled.",
+                scope: "23-26 tokens per month. Top-Ups (min 5) at R500 each. Includes bi-weekly performance updates and messaging optimisation.",
+                renewal: "Month-to-month. Subscription pauses upon non-payment. Continue where you left off by resuming payment at any time.",
+                termination: "Termination effective at cycle end. No refunds for premature exit within an active 30-day period.",
                 color: "Silver"
             };
         }
@@ -539,6 +539,9 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                                 subtitle: "Pilot Phase: Where We Prove Consistency",
                                                 comm: "ten percent (10%)",
                                                 pilot: "Promotion: Once-off pilot plan for first-time clients. Not available for recurring accounts. Participants must upgrade to Bronze or higher to continue service.",
+                                                breach: "Once-off introductory plan. Premature cancellation before token depletion is non-refundable. Commission obligations survive termination.",
+                                                renewal: "Terminates automatically after 30 days or lead completion. No refund for early exit. Standard NDA and POPIA apply.",
+                                                termination: "Terminates automatically after 30 days. No refund for early exit. Commission and NDA obligations survive for 24 months.",
                                                 color: "border-pink-500/20 hover:bg-pink-500/10 text-pink-200"
                                             },
                                             {
@@ -548,9 +551,9 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                                 subtitle: "Bronze: Growth Starter",
                                                 comm: "",
                                                 pilot: "",
-                                                breach: "Should the Client terminate this Agreement without providing the full 30-day (one calendar month) written notice, the Client shall be liable for an immediate 50% Breach Penalty of R4,250. Upon breach, Lead Velocity reserves the right to immediately suspend and pause all active campaigns and lead delivery until the Breach Penalty has been settled in full. Service will only resume upon receipt of the outstanding penalty amount.",
-                                                renewal: "Continues month-to-month. Termination requires 1 full calendar month notice in writing. Breach of notice period triggers a 50% penalty (R4,250).",
-                                                termination: "1 calendar month notice required. Immediate exit incurs 50% Breach Penalty (R4,250). All delivered leads remain payable.",
+                                                breach: "Should the Client breach material terms (non-payment or commission violations), an immediate 50% Breach Penalty of R4,250 applies. Lead Velocity reserves the right to immediately suspend all active campaigns until the breach is settled in full.",
+                                                renewal: "Month-to-month. Pause anytime by allowing the current cycle to lapse. Resume anytime by making the next payment.",
+                                                termination: "Terminal at end of any cycle. Premature cancellation incurs no refund. Existing lead and commission obligations survive.",
                                                 color: "border-orange-500/20 hover:bg-orange-500/10 text-orange-200"
                                             },
                                             {
@@ -560,9 +563,9 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                                 subtitle: "Silver: Scale & Optimise",
                                                 comm: "",
                                                 pilot: "",
-                                                breach: "Should the Client terminate this Agreement without providing the full 30-day (one calendar month) written notice, the Client shall be liable for an immediate 50% Breach Penalty of R5,250. Upon breach, Lead Velocity reserves the right to immediately suspend and pause all active campaigns and lead delivery until the Breach Penalty has been settled in full. Service will only resume upon receipt of the outstanding penalty amount.",
-                                                renewal: "Continues month-to-month. Termination requires 1 full calendar month notice in writing. Breach of notice triggers a 50% penalty (R5,250).",
-                                                termination: "1 calendar month notice required. Immediate exit incurs 50% Breach Penalty (R5,250). Outstanding commissions survive.",
+                                                breach: "Should the Client breach material terms (non-payment or commission violations), an immediate 50% Breach Penalty of R5,250 applies. Suspension applies until settled.",
+                                                renewal: "Month-to-month. Subscription pauses upon non-payment. Continue where you left off by resuming payment at any time.",
+                                                termination: "Termination effective at cycle end. No refunds for premature exit within an active 30-day period.",
                                                 color: "border-slate-400/20 hover:bg-slate-400/10 text-slate-200"
                                             },
                                             {
@@ -572,9 +575,9 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                                 subtitle: "Gold: Performance Partner",
                                                 comm: "",
                                                 pilot: "",
-                                                breach: "Should the Client terminate this Agreement without providing the full 30-day (one calendar month) written notice, the Client shall be liable for an immediate 50% Breach Penalty of R8,250. Upon breach, Lead Velocity reserves the right to immediately suspend and pause all active campaigns and lead delivery until the Breach Penalty has been settled in full. Service will only resume upon receipt of the outstanding penalty amount.",
-                                                renewal: "Continues month-to-month. Termination requires 1 full calendar month notice in writing. Breach triggers a 50% penalty (R8,250).",
-                                                termination: "1 calendar month notice required. Immediate exit incurs 50% Breach Penalty (R8,250). All data protection clauses survive.",
+                                                breach: "Should the Client breach material terms (non-payment or commission violations), an immediate 50% Breach Penalty of R8,250 applies. Campaigns will be suspended until settled.",
+                                                renewal: "Month-to-month. Pause at cycle-end without penalty. Resume anytime. Early exit within cycle is non-refundable.",
+                                                termination: "Effective at end of current cycle. Premature exit is non-refundable. Survival of data and commission clauses applies.",
                                                 color: "border-yellow-500/20 hover:bg-yellow-500/10 text-yellow-200"
                                             }
                                         ].map((tier) => (
