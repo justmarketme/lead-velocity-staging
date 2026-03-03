@@ -207,14 +207,14 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
             purposeSubText: "Month-to-month engagement. Subscription pauses automatically upon non-payment. Premature cancellation within a 30-day cycle is non-refundable."
         };
 
-        if (leads <= 6 && leads > 0) {
+        if (leads <= 10 && leads > 0) {
             tierData = {
                 subtitle: "Pilot Phase: Where We Prove Consistency",
                 investment: "R6,000 (once-off)",
-                leads: "± 6 qualified business leads",
-                cost: "R1,000",
+                leads: "± 10 qualified business leads",
+                cost: "R600",
                 comm: "10%",
-                alignment: "The pilot investment covers the delivery of the first six qualified business leads. Beyond that, we align with your success.",
+                alignment: "The pilot investment covers the delivery of the first ten qualified business leads. Beyond that, we align with your success.",
                 purposeTitle: "Purpose of the Pilot",
                 purposeText: "This 30-day pilot is designed to provide a structured, low-risk starting point while generating enough real performance data to assess quality and ROI.",
                 purposeSubText: "Lead Velocity operates as a lead partner focused on qualified decision-makers."
@@ -613,10 +613,10 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                                             name: "Pilot Phase",
                                             subtitle: "Pilot Phase: Where We Prove Consistency",
                                             investment: "R6,000 (once-off)",
-                                            leads: "± 6 qualified business leads",
-                                            cost: "R1,000",
+                                            leads: "± 10 qualified business leads",
+                                            cost: "R600",
                                             comm: "10%",
-                                            alignment: "The pilot investment covers the delivery of the first six qualified business leads. Beyond that, we align with your success.",
+                                            alignment: "The pilot investment covers the delivery of the first ten qualified business leads. Beyond that, we align with your success.",
                                             purposeTitle: "Purpose of the Pilot",
                                             purposeText: "This 30-day pilot is designed to provide a structured, low-risk starting point while generating enough real performance data to assess quality and ROI.",
                                             purposeSubText: "Lead Velocity operates as a lead partner focused on qualified decision-makers.",
@@ -832,20 +832,20 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                             )}
 
                         </CardContent>
-                    </Card>
-                </div>
+                    </Card >
+                </div >
 
                 {/* Resizable Divider Bar */}
-                <div
+                < div
                     onMouseDown={handleDividerMouseDown}
                     className="w-1.5 flex-shrink-0 cursor-col-resize bg-white/5 hover:bg-pink-500/40 active:bg-pink-500/60 transition-colors duration-150 relative group mx-1 rounded-full"
                     title="Drag to resize"
                 >
                     <div className="absolute inset-y-0 -left-1 -right-1" />
-                </div>
+                </div >
 
                 {/* Live Preview Area */}
-                <div className="flex-1 h-full min-h-0 flex flex-col bg-slate-950/80 rounded-2xl border border-white/5 overflow-hidden relative group">
+                < div className="flex-1 h-full min-h-0 flex flex-col bg-slate-950/80 rounded-2xl border border-white/5 overflow-hidden relative group" >
                     <div className="absolute top-4 right-4 z-50 bg-slate-900/90 backdrop-blur border border-white/10 rounded-xl flex items-center p-1.5 shadow-2xl space-x-1">
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-white" onClick={() => adjustZoom(-0.1)}><ZoomOut className="h-4 w-4" /></Button>
                         <span className="text-xs font-mono font-bold text-white w-12 text-center">{Math.round(zoom * 100)}%</span>
@@ -986,9 +986,9 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                             </div>
                         </div>
                     </div>
-                </div>
-            </div>
-        </div>
+                </div >
+            </div >
+        </div >
     );
 };
 

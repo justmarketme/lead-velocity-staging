@@ -213,11 +213,11 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
             color: "Bronze"
         };
 
-        if (leads <= 6 && leads > 0) {
+        if (leads <= 10 && leads > 0) {
             tierData = {
                 subtitle: "Pilot Phase: Where We Prove Consistency",
                 fee: "R6,000 (once-off)",
-                target: "± 6 Qualified Leads (Once-off)",
+                target: "± 10 Qualified Leads (Once-off)",
                 comm: "ten percent (10%)",
                 pilot: "Promotion: Once-off pilot plan for first-time clients. Not available for recurring accounts. Participants must upgrade to Bronze or higher to continue service.",
                 breach: "Once-off introductory plan. Premature cancellation before token depletion is non-refundable. Commission obligations survive termination.",
@@ -573,7 +573,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                             {
                                                 name: "Pilot Phase",
                                                 fee: "R6,000 (once-off)",
-                                                target: "± 6 Qualified Leads (Once-off)",
+                                                target: "± 10 Qualified Leads (Once-off)",
                                                 subtitle: "Pilot Phase: Where We Prove Consistency",
                                                 comm: "ten percent (10%)",
                                                 pilot: "Promotion: Once-off pilot plan for first-time clients. Not available for recurring accounts. Participants must upgrade to Bronze or higher to continue service.",

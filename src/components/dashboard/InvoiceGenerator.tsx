@@ -174,18 +174,24 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
         const leads = broker.desired_leads_weekly || 0;
 
         let tierPrice = 8500;
-        let tierDesc = "Lead Generation Strategy (Bronze Tier)";
+        let tierName = "Bronze Tier";
+        let leadCount = 17;
 
-        if (leads <= 6 && leads > 0) {
+        if (leads <= 10 && leads > 0) {
             tierPrice = 6000;
-            tierDesc = "Lead Generation Pilot Strategy (R1k/lead)";
+            tierName = "Pilot Phase";
+            leadCount = 10;
         } else if (leads > 32) {
             tierPrice = 16500;
-            tierDesc = "Performance Partner Strategy (Gold Tier)";
+            tierName = "Gold Tier";
+            leadCount = 40;
         } else if (leads >= 21) {
             tierPrice = 10500;
-            tierDesc = "Scale & Optimise Strategy (Silver Tier)";
+            tierName = "Silver Tier";
+            leadCount = 26;
         }
+
+        const breachPenalty = Math.round(tierPrice * 0.5);
 
         const newItems = [...invoiceData.items];
         if (newItems.length > 0) {
@@ -580,7 +586,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
                                         {[
                                             {
                                                 name: "Pilot Phase",
-                                                desc: "Lead Generation Pilot Strategy (R1k/lead)",
+                                                desc: "Lead Generation Pilot Strategy (10 Leads)",
                                                 price: 6000,
                                                 color: "border-pink-500/20 hover:bg-pink-500/10 text-pink-200"
                                             },
