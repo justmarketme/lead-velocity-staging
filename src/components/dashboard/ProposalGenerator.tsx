@@ -806,169 +806,171 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                             </CardContent>
                         </Card>
                     </div>
+                </div>
+            </div>
 
-                    {/* Resizable Divider Bar */}
-                    <div
-                        onMouseDown={handleDividerMouseDown}
-                        className="w-1.5 flex-shrink-0 mx-1 cursor-col-resize bg-white/5 hover:bg-pink-500/40 active:bg-pink-500/60 transition-colors duration-150 relative group"
-                        title="Drag to resize"
-                    >
-                        <div className="absolute inset-y-0 -left-1 -right-1" />
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <div className="w-0.5 h-3 bg-pink-400/60 rounded-full" />
-                            <div className="w-0.5 h-3 bg-pink-400/60 rounded-full" />
-                            <div className="w-0.5 h-3 bg-pink-400/60 rounded-full" />
-                        </div>
-                    </div>
+            {/* Resizable Divider Bar */}
+            <div
+                onMouseDown={handleDividerMouseDown}
+                className="w-1.5 flex-shrink-0 mx-1 cursor-col-resize bg-white/5 hover:bg-pink-500/40 active:bg-pink-500/60 transition-colors duration-150 relative group"
+                title="Drag to resize"
+            >
+                <div className="absolute inset-y-0 -left-1 -right-1" />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="w-0.5 h-3 bg-pink-400/60 rounded-full" />
+                    <div className="w-0.5 h-3 bg-pink-400/60 rounded-full" />
+                    <div className="w-0.5 h-3 bg-pink-400/60 rounded-full" />
+                </div>
+            </div>
 
-                    {/* Live Preview Area */}
-                    <div className="flex-1 h-full min-h-0 flex flex-col bg-slate-950 rounded-xl border border-white/5 overflow-hidden relative group">
-                        <div className="absolute top-4 right-4 z-50 bg-slate-900/90 backdrop-blur border border-white/10 rounded-lg flex items-center p-1.5 shadow-xl space-x-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-white" onClick={() => adjustZoom(-0.1)}><ZoomOut className="h-4 w-4" /></Button>
-                            <span className="text-xs font-mono font-bold text-white w-12 text-center">{Math.round(zoom * 100)}%</span>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-white" onClick={() => adjustZoom(0.1)}><ZoomIn className="h-4 w-4" /></Button>
-                            <Separator orientation="vertical" className="h-4 mx-2 bg-white/20" />
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-white" onClick={() => setZoom(0.55)} title="Fit to Screen"><Monitor className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-white" onClick={() => setZoom(1.0)} title="Actual Size"><Maximize className="h-4 w-4" /></Button>
-                        </div>
+            {/* Live Preview Area */}
+            <div className="flex-1 h-full min-h-0 flex flex-col bg-slate-950 rounded-xl border border-white/5 overflow-hidden relative group">
+                <div className="absolute top-4 right-4 z-50 bg-slate-900/90 backdrop-blur border border-white/10 rounded-lg flex items-center p-1.5 shadow-xl space-x-1">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-white" onClick={() => adjustZoom(-0.1)}><ZoomOut className="h-4 w-4" /></Button>
+                    <span className="text-xs font-mono font-bold text-white w-12 text-center">{Math.round(zoom * 100)}%</span>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-white" onClick={() => adjustZoom(0.1)}><ZoomIn className="h-4 w-4" /></Button>
+                    <Separator orientation="vertical" className="h-4 mx-2 bg-white/20" />
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-white" onClick={() => setZoom(0.55)} title="Fit to Screen"><Monitor className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-white" onClick={() => setZoom(1.0)} title="Actual Size"><Maximize className="h-4 w-4" /></Button>
+                </div>
 
-                        <div className="flex-1 overflow-auto p-8 flex justify-center items-start custom-scrollbar">
-                            <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top center', transition: 'transform 0.2s ease-out' }} className="shrink-0">
-                                <div ref={reportRef} className="w-[210mm] font-inter bg-white text-slate-900 shadow-2xl relative overflow-hidden flex flex-col" style={{ minHeight: '297mm' }}>
-                                    {/* Top Accent - REMOVED ORANGE */}
-                                    <div className="h-2 w-full bg-gradient-to-r from-pink-600 via-purple-600 to-pink-600"></div>
+                <div className="flex-1 overflow-auto p-8 flex justify-center items-start custom-scrollbar">
+                    <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top center', transition: 'transform 0.2s ease-out' }} className="shrink-0">
+                        <div ref={reportRef} className="w-[210mm] font-inter bg-white text-slate-900 shadow-2xl relative overflow-hidden flex flex-col" style={{ minHeight: '297mm' }}>
+                            {/* Top Accent - REMOVED ORANGE */}
+                            <div className="h-2 w-full bg-gradient-to-r from-pink-600 via-purple-600 to-pink-600"></div>
 
-                                    <div className="p-[20mm] py-[15mm] flex-1 flex flex-col">
-                                        {/* Header - Reduced top padding */}
-                                        <header className="border-b-2 border-slate-100 pb-6 mb-8 flex justify-between items-end">
+                            <div className="p-[20mm] py-[15mm] flex-1 flex flex-col">
+                                {/* Header - Reduced top padding */}
+                                <header className="border-b-2 border-slate-100 pb-6 mb-8 flex justify-between items-end">
+                                    <div>
+                                        <div className="flex items-center gap-3 mb-6">
+                                            <img src={logo} alt="Lead Velocity" className="h-20 w-auto object-contain" />
+                                        </div>
+                                        <Editable tag="h1" html={true} className="text-3xl font-extrabold text-[#0F172A] tracking-tight leading-tight" value={formData.title} onChange={(val) => updateField('title', val)} />
+                                        <Editable tag="p" className="text-slate-500 font-medium mt-1" value={formData.subtitle} onChange={(val) => updateField('subtitle', val)} />
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="bg-slate-50 px-4 py-2 rounded-lg border border-slate-100">
+                                            <p className="text-xs uppercase tracking-widest text-slate-400 font-bold mb-1">Prepared For</p>
+                                            <Editable tag="p" className="font-bold text-lg text-slate-900" value={formData.clientName} onChange={(val) => updateField('clientName', val)} />
+                                            <Editable tag="p" className="text-sm text-slate-500 font-medium" value={formData.date} onChange={(val) => updateField('date', val)} />
+                                        </div>
+                                    </div>
+                                </header>
+
+                                {/* Content - Compacted Spacing */}
+                                <main className="space-y-6 text-[15px] leading-relaxed text-slate-600 font-medium flex-1">
+
+                                    {/* Purpose */}
+                                    <section>
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <div className="h-6 w-1 bg-pink-600 rounded-full"></div>
+                                            <Editable tag="h2" className="text-lg font-bold text-[#0F172A]" value={formData.purposeTitle} onChange={(val) => updateField('purposeTitle', val)} />
+                                        </div>
+                                        <Editable tag="div" html={true} className="mb-2" value={formData.purposeText} onChange={(val) => updateField('purposeText', val)} />
+                                        <Editable tag="div" html={true} value={formData.purposeSubText} onChange={(val) => updateField('purposeSubText', val)} />
+                                    </section>
+
+                                    {/* Overview Grid - Compact Padding */}
+                                    <section className="bg-slate-50 rounded-xl p-6 border border-slate-100">
+                                        <Editable tag="h3" className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4" value={formData.overviewTitle} onChange={(val) => updateField('overviewTitle', val)} />
+                                        <div className="grid grid-cols-2 gap-y-4 gap-x-8">
                                             <div>
-                                                <div className="flex items-center gap-3 mb-6">
-                                                    <img src={logo} alt="Lead Velocity" className="h-20 w-auto object-contain" />
-                                                </div>
-                                                <Editable tag="h1" html={true} className="text-3xl font-extrabold text-[#0F172A] tracking-tight leading-tight" value={formData.title} onChange={(val) => updateField('title', val)} />
-                                                <Editable tag="p" className="text-slate-500 font-medium mt-1" value={formData.subtitle} onChange={(val) => updateField('subtitle', val)} />
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Duration</p>
+                                                <p className="text-slate-900 font-semibold text-base">30 Days</p>
                                             </div>
-                                            <div className="text-right">
-                                                <div className="bg-slate-50 px-4 py-2 rounded-lg border border-slate-100">
-                                                    <p className="text-xs uppercase tracking-widest text-slate-400 font-bold mb-1">Prepared For</p>
-                                                    <Editable tag="p" className="font-bold text-lg text-slate-900" value={formData.clientName} onChange={(val) => updateField('clientName', val)} />
-                                                    <Editable tag="p" className="text-sm text-slate-500 font-medium" value={formData.date} onChange={(val) => updateField('date', val)} />
-                                                </div>
-                                            </div>
-                                        </header>
-
-                                        {/* Content - Compacted Spacing */}
-                                        <main className="space-y-6 text-[15px] leading-relaxed text-slate-600 font-medium flex-1">
-
-                                            {/* Purpose */}
-                                            <section>
-                                                <div className="flex items-center gap-3 mb-2">
-                                                    <div className="h-6 w-1 bg-pink-600 rounded-full"></div>
-                                                    <Editable tag="h2" className="text-lg font-bold text-[#0F172A]" value={formData.purposeTitle} onChange={(val) => updateField('purposeTitle', val)} />
-                                                </div>
-                                                <Editable tag="div" html={true} className="mb-2" value={formData.purposeText} onChange={(val) => updateField('purposeText', val)} />
-                                                <Editable tag="div" html={true} value={formData.purposeSubText} onChange={(val) => updateField('purposeSubText', val)} />
-                                            </section>
-
-                                            {/* Overview Grid - Compact Padding */}
-                                            <section className="bg-slate-50 rounded-xl p-6 border border-slate-100">
-                                                <Editable tag="h3" className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4" value={formData.overviewTitle} onChange={(val) => updateField('overviewTitle', val)} />
-                                                <div className="grid grid-cols-2 gap-y-4 gap-x-8">
-                                                    <div>
-                                                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Duration</p>
-                                                        <p className="text-slate-900 font-semibold text-base">30 Days</p>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Investment</p>
-                                                        <Editable className="text-pink-600 font-bold text-xl" value={formData.investment} onChange={(val) => updateField('investment', val)} />
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Guaranteed Output</p>
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-pink-100 text-pink-700 text-[10px] font-bold">✓</span>
-                                                            <Editable className="text-slate-900 font-bold" value={formData.guaranteedLeads} onChange={(val) => updateField('guaranteedLeads', val)} />
-                                                        </div>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Est. Cost per Lead</p>
-                                                        <Editable className="text-slate-900 font-semibold" value={formData.costPerLead} onChange={(val) => updateField('costPerLead', val)} />
-                                                    </div>
-                                                </div>
-                                            </section>
-
-                                            <div className="border-l-4 border-pink-500 pl-4 py-1 bg-gradient-to-r from-pink-50 to-transparent">
-                                                <Editable tag="p" className="italic text-slate-700 text-sm font-medium" value={formData.quoteText} onChange={(val) => updateField('quoteText', val)} />
-                                            </div>
-
-                                            {/* Criteria & Exclusions - Compact Listing */}
-                                            <div className="grid grid-cols-3 gap-6 align-top">
-                                                <div className="col-span-2">
-                                                    <div className="flex items-center gap-3 mb-2">
-                                                        <div className="h-6 w-1 bg-pink-600 rounded-full"></div>
-                                                        <Editable tag="h2" className="text-lg font-bold text-[#0F172A]" value={formData.criteriaTitle} onChange={(val) => updateField('criteriaTitle', val)} />
-                                                    </div>
-                                                    <ul className="space-y-2">
-                                                        <li className="flex items-start gap-2">
-                                                            <div className="mt-1.5 h-1 w-1 rounded-full bg-pink-600 shrink-0" />
-                                                            <Editable html tag="span" value={formData.criteria1} onChange={(val) => updateField('criteria1', val)} />
-                                                        </li>
-                                                        <li className="flex items-start gap-2">
-                                                            <div className="mt-1.5 h-1 w-1 rounded-full bg-pink-600 shrink-0" />
-                                                            <Editable html tag="span" value={formData.criteria2} onChange={(val) => updateField('criteria2', val)} />
-                                                        </li>
-                                                        <li className="flex items-start gap-2">
-                                                            <div className="mt-1.5 h-1 w-1 rounded-full bg-pink-600 shrink-0" />
-                                                            <Editable html tag="span" value={formData.criteria3} onChange={(val) => updateField('criteria3', val)} />
-                                                        </li>
-                                                    </ul>
-                                                </div>
-
-                                                {/* REVERTED TO ROSE (RED) */}
-                                                <div className="bg-rose-50 p-4 rounded-xl border border-rose-100 h-fit">
-                                                    <Editable tag="h4" className="text-rose-700 font-bold uppercase text-[10px] tracking-wider mb-2" value={formData.excludedTitle} onChange={(val) => updateField('excludedTitle', val)} />
-                                                    <Editable tag="p" className="text-xs text-rose-900/80 leading-snug" value={formData.excludedText} onChange={(val) => updateField('excludedText', val)} />
-                                                </div>
-                                            </div>
-
-                                            {/* Performance Alignment */}
-                                            <section>
-                                                <div className="bg-[#0F172A] text-white p-6 rounded-xl relative overflow-hidden">
-                                                    <div className="absolute top-0 right-0 p-8 opacity-10">
-                                                        <svg width="150" height="150" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" /></svg>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 mb-2 relative z-10">
-                                                        <span className="text-pink-400 text-lg">⚡</span>
-                                                        <Editable tag="h2" className="text-lg font-bold text-white" value={formData.alignmentTitle} onChange={(val) => updateField('alignmentTitle', val)} />
-                                                    </div>
-                                                    <Editable tag="p" className="text-slate-300 text-sm mb-4 relative z-10 font-normal" value={formData.alignmentText} onChange={(val) => updateField('alignmentText', val)} />
-                                                    <div className="bg-white/10 backdrop-blur-sm p-3 rounded-lg border border-white/10 relative z-10">
-                                                        <Editable tag="p" html={true} className="font-medium text-white text-sm" value={formData.alignmentBoxText} onChange={(val) => updateField('alignmentBoxText', val)} />
-                                                    </div>
-                                                </div>
-                                            </section>
-                                        </main>
-
-                                        {/* Footer */}
-                                        <div className="mt-8 pt-6 border-t-2 border-slate-100 flex justify-between items-center text-xs text-slate-500">
                                             <div>
-                                                <p className="font-bold text-[#0F172A]">Lead Velocity Team</p>
-                                                <p>Performance-First Business Insurance Leads</p>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Investment</p>
+                                                <Editable className="text-pink-600 font-bold text-xl" value={formData.investment} onChange={(val) => updateField('investment', val)} />
                                             </div>
-                                            <div className="text-right">
-                                                <p className="text-pink-600 font-bold mb-1">www.leadvelocity.co.za</p>
-                                                <p>confidential proposal</p>
+                                            <div>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Guaranteed Output</p>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-pink-100 text-pink-700 text-[10px] font-bold">✓</span>
+                                                    <Editable className="text-slate-900 font-bold" value={formData.guaranteedLeads} onChange={(val) => updateField('guaranteedLeads', val)} />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Est. Cost per Lead</p>
+                                                <Editable className="text-slate-900 font-semibold" value={formData.costPerLead} onChange={(val) => updateField('costPerLead', val)} />
                                             </div>
                                         </div>
-                                        <div className="h-2 w-full bg-[#0F172A] mt-4 rounded-full"></div>
+                                    </section>
+
+                                    <div className="border-l-4 border-pink-500 pl-4 py-1 bg-gradient-to-r from-pink-50 to-transparent">
+                                        <Editable tag="p" className="italic text-slate-700 text-sm font-medium" value={formData.quoteText} onChange={(val) => updateField('quoteText', val)} />
+                                    </div>
+
+                                    {/* Criteria & Exclusions - Compact Listing */}
+                                    <div className="grid grid-cols-3 gap-6 align-top">
+                                        <div className="col-span-2">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <div className="h-6 w-1 bg-pink-600 rounded-full"></div>
+                                                <Editable tag="h2" className="text-lg font-bold text-[#0F172A]" value={formData.criteriaTitle} onChange={(val) => updateField('criteriaTitle', val)} />
+                                            </div>
+                                            <ul className="space-y-2">
+                                                <li className="flex items-start gap-2">
+                                                    <div className="mt-1.5 h-1 w-1 rounded-full bg-pink-600 shrink-0" />
+                                                    <Editable html tag="span" value={formData.criteria1} onChange={(val) => updateField('criteria1', val)} />
+                                                </li>
+                                                <li className="flex items-start gap-2">
+                                                    <div className="mt-1.5 h-1 w-1 rounded-full bg-pink-600 shrink-0" />
+                                                    <Editable html tag="span" value={formData.criteria2} onChange={(val) => updateField('criteria2', val)} />
+                                                </li>
+                                                <li className="flex items-start gap-2">
+                                                    <div className="mt-1.5 h-1 w-1 rounded-full bg-pink-600 shrink-0" />
+                                                    <Editable html tag="span" value={formData.criteria3} onChange={(val) => updateField('criteria3', val)} />
+                                                </li>
+                                            </ul>
+                                        </div>
+
+                                        {/* REVERTED TO ROSE (RED) */}
+                                        <div className="bg-rose-50 p-4 rounded-xl border border-rose-100 h-fit">
+                                            <Editable tag="h4" className="text-rose-700 font-bold uppercase text-[10px] tracking-wider mb-2" value={formData.excludedTitle} onChange={(val) => updateField('excludedTitle', val)} />
+                                            <Editable tag="p" className="text-xs text-rose-900/80 leading-snug" value={formData.excludedText} onChange={(val) => updateField('excludedText', val)} />
+                                        </div>
+                                    </div>
+
+                                    {/* Performance Alignment */}
+                                    <section>
+                                        <div className="bg-[#0F172A] text-white p-6 rounded-xl relative overflow-hidden">
+                                            <div className="absolute top-0 right-0 p-8 opacity-10">
+                                                <svg width="150" height="150" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" /></svg>
+                                            </div>
+                                            <div className="flex items-center gap-2 mb-2 relative z-10">
+                                                <span className="text-pink-400 text-lg">⚡</span>
+                                                <Editable tag="h2" className="text-lg font-bold text-white" value={formData.alignmentTitle} onChange={(val) => updateField('alignmentTitle', val)} />
+                                            </div>
+                                            <Editable tag="p" className="text-slate-300 text-sm mb-4 relative z-10 font-normal" value={formData.alignmentText} onChange={(val) => updateField('alignmentText', val)} />
+                                            <div className="bg-white/10 backdrop-blur-sm p-3 rounded-lg border border-white/10 relative z-10">
+                                                <Editable tag="p" html={true} className="font-medium text-white text-sm" value={formData.alignmentBoxText} onChange={(val) => updateField('alignmentBoxText', val)} />
+                                            </div>
+                                        </div>
+                                    </section>
+                                </main>
+
+                                {/* Footer */}
+                                <div className="mt-8 pt-6 border-t-2 border-slate-100 flex justify-between items-center text-xs text-slate-500">
+                                    <div>
+                                        <p className="font-bold text-[#0F172A]">Lead Velocity Team</p>
+                                        <p>Performance-First Business Insurance Leads</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-pink-600 font-bold mb-1">www.leadvelocity.co.za</p>
+                                        <p>confidential proposal</p>
                                     </div>
                                 </div>
+                                <div className="h-2 w-full bg-[#0F172A] mt-4 rounded-full"></div>
                             </div>
                         </div>
                     </div>
                 </div>
-                {/* End Live Preview */}
             </div>
         </div>
+                {/* End Live Preview */ }
+            </div >
+        </div >
     );
 };
 
