@@ -527,6 +527,61 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                     <Input value={contractData.serviceFee} onChange={(e) => updateField('serviceFee', e.target.value)} className="bg-slate-950/50 border-white/10 h-9 text-sm" />
                                 </div>
                                 <Separator className="bg-white/5" />
+
+                                {/* Tier Selection Section */}
+                                <div className="space-y-3">
+                                    <h3 className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Apply Preset Tier</h3>
+                                    <div className="grid grid-cols-1 gap-2">
+                                        {[
+                                            {
+                                                name: "Bronze (Pilot)",
+                                                fee: "R6,000 (once-off)",
+                                                target: "± 6 Qualified Leads (Once-off)",
+                                                subtitle: "Pilot Phase: Where We Prove Consistency",
+                                                comm: "ten percent (10%)",
+                                                color: "border-orange-500/20 hover:bg-orange-500/10 text-orange-200"
+                                            },
+                                            {
+                                                name: "Silver",
+                                                fee: "R15,000 (p/m)",
+                                                target: "± 18 Qualified Leads per Month",
+                                                subtitle: "Silver Tier: Scale & Optimise",
+                                                comm: "eight percent (8%)",
+                                                color: "border-slate-400/20 hover:bg-slate-400/10 text-slate-200"
+                                            },
+                                            {
+                                                name: "Gold",
+                                                fee: "R30,000 (p/m)",
+                                                target: "± 40 Qualified Leads per Month",
+                                                subtitle: "Gold Tier: Performance Partner",
+                                                comm: "six percent (6%)",
+                                                color: "border-yellow-500/20 hover:bg-yellow-500/10 text-yellow-200"
+                                            }
+                                        ].map((tier) => (
+                                            <button
+                                                key={tier.name}
+                                                onClick={() => {
+                                                    setContractData(prev => ({
+                                                        ...prev,
+                                                        serviceFee: tier.fee,
+                                                        leadTarget: tier.target,
+                                                        subtitle: tier.subtitle,
+                                                        commissionText: `In addition to the monthly service fee, the Client agrees to pay Lead Velocity a commission of ${tier.comm} of the gross first-year premium value of any insurance policy sold as a direct or indirect result of Lead Velocity's lead generation efforts. This commission obligation applies to: (a) all policies placed on leads delivered under this Agreement; (b) any policies placed on referrals obtained from leads sourced through Lead Velocity; and (c) any secondary sales arising from relationships initiated through Lead Velocity's efforts. This commission obligation shall survive the termination of this Agreement for a period of twenty-four (24) months following the last lead delivered.`
+                                                    }));
+                                                    toast({ title: `${tier.name} Applied`, description: "Contract terms updated." });
+                                                }}
+                                                className={`w-full text-left p-2.5 rounded-xl border ${tier.color} transition-all text-xs font-medium`}
+                                            >
+                                                <div className="flex justify-between items-center">
+                                                    <span>{tier.name}</span>
+                                                    <span className="opacity-60 font-normal">{tier.fee.split(' ')[0]}</span>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <Separator className="bg-white/5" />
                                 <h3 className="font-bold text-slate-100 text-sm uppercase tracking-widest">Dispatch</h3>
                                 <div className="space-y-1">
                                     <label className="text-[10px] text-slate-500 uppercase font-bold">Recipient Email</label>

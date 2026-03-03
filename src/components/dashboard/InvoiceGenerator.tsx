@@ -542,6 +542,56 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
                                     </div>
                                 </div>
                                 <Separator className="bg-white/5" />
+
+                                {/* Tier Selection Section */}
+                                <div className="space-y-3">
+                                    <h3 className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Apply Preset Tier</h3>
+                                    <div className="grid grid-cols-1 gap-2">
+                                        {[
+                                            {
+                                                name: "Bronze (Pilot)",
+                                                desc: "Lead Generation Pilot Strategy (Bronze)",
+                                                price: 6000,
+                                                color: "border-orange-500/20 hover:bg-orange-500/10 text-orange-200"
+                                            },
+                                            {
+                                                name: "Silver",
+                                                desc: "Scaled Acquisition Strategy (Silver Tier)",
+                                                price: 15000,
+                                                color: "border-slate-400/20 hover:bg-slate-400/10 text-slate-200"
+                                            },
+                                            {
+                                                name: "Gold",
+                                                desc: "Enterprise Lead Engine (Gold Tier)",
+                                                price: 30000,
+                                                color: "border-yellow-500/20 hover:bg-yellow-500/10 text-yellow-200"
+                                            }
+                                        ].map((tier) => (
+                                            <button
+                                                key={tier.name}
+                                                onClick={() => {
+                                                    const newItems = [...invoiceData.items];
+                                                    if (newItems.length > 0) {
+                                                        newItems[0] = { ...newItems[0], description: tier.desc, price: tier.price };
+                                                    }
+                                                    setInvoiceData(prev => ({
+                                                        ...prev,
+                                                        items: newItems
+                                                    }));
+                                                    toast({ title: `${tier.name} Applied`, description: "Line item updated." });
+                                                }}
+                                                className={`w-full text-left p-2.5 rounded-xl border ${tier.color} transition-all text-xs font-medium`}
+                                            >
+                                                <div className="flex justify-between items-center">
+                                                    <span>{tier.name}</span>
+                                                    <span className="opacity-60 font-normal">R{tier.price.toLocaleString()}</span>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <Separator className="bg-white/5" />
                                 <h3 className="font-bold text-slate-100 text-sm uppercase tracking-widest">Dispatch</h3>
                                 <div className="space-y-1">
                                     <label className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Recipient Email</label>
