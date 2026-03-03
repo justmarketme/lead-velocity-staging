@@ -8,6 +8,7 @@ import { Copy, UserPlus, Clock, CheckCircle, XCircle, Link2, Mail, Send, Refresh
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
+import { BrokerSelector } from "./BrokerSelector";
 
 interface BrokerInviteData {
     id: string;
@@ -36,6 +37,12 @@ const BrokerInvite = () => {
     const [loading, setLoading] = useState(false);
     const [generatedLink, setGeneratedLink] = useState("");
     const { toast } = useToast();
+
+    const handleBrokerSelect = (broker: any) => {
+        setBrokerName(broker.full_name || "");
+        setFirmName(broker.firm_name || broker.company_name || "");
+        setBrokerEmail(broker.email || "");
+    };
 
     useEffect(() => {
         fetchInvites();
@@ -239,6 +246,7 @@ const BrokerInvite = () => {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
+                        <BrokerSelector onSelect={handleBrokerSelect} />
                         <form onSubmit={handleInvite} className="space-y-4">
                             <div className="grid sm:grid-cols-2 gap-4">
                                 <div className="space-y-2">

@@ -15,6 +15,7 @@ interface CommunicationPayload {
   lead_id?: string;
   referral_id?: string;
   broker_id?: string;
+  attachments?: any[];
 }
 
 serve(async (req) => {
@@ -37,7 +38,7 @@ serve(async (req) => {
 
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
+
     if (authError || !user) {
       return new Response(JSON.stringify({ error: 'Invalid token' }), {
         status: 401,
@@ -46,7 +47,7 @@ serve(async (req) => {
     }
 
     const payload: CommunicationPayload = await req.json();
-    const { channel, recipient_contact, recipient_type, content, subject, lead_id, referral_id, broker_id } = payload;
+    const { channel, recipient_contact, recipient_type, content, subject, lead_id, referral_id, broker_id, attachments } = payload;
 
     // Find the most recent unanswered inbound communication for response time tracking
     let responseTimeSeconds: number | null = null;
@@ -84,7 +85,7 @@ serve(async (req) => {
 
     switch (channel) {
       case 'email':
-        result = await sendEmail(recipient_contact, subject || 'Message from Lead Velocity', content || '');
+        result = await sendEmail(recipient_contact, subject || 'Message from Lead Velocity', content || '', attachments);
         break;
       case 'sms':
         result = await sendSMS(recipient_contact, content || '');
@@ -125,11 +126,11 @@ serve(async (req) => {
     if (respondedToId && newComm) {
       await supabase
         .from('communications')
-        .update({ 
-          metadata: { 
+        .update({
+          metadata: {
             responded_at: new Date().toISOString(),
-            response_comm_id: newComm.id 
-          } 
+            response_comm_id: newComm.id
+          }
         })
         .eq('id', respondedToId);
     }
@@ -202,25 +203,30 @@ serve(async (req) => {
   }
 });
 
-async function sendEmail(to: string, subject: string, content: string) {
+async function sendEmail(to: string, subject: string, content: string, attachments?: any[]) {
   const resendApiKey = Deno.env.get('RESEND_API_KEY');
   if (!resendApiKey) {
     return { success: false, error: 'RESEND_API_KEY not configured' };
   }
 
   try {
+    const payload: any = {
+      from: 'Lead Velocity <noreply@resend.dev>',
+      to: [to],
+      subject,
+      html: content,
+    };
+    if (attachments && attachments.length > 0) {
+      payload.attachments = attachments;
+    }
+
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${resendApiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        from: 'Lead Velocity <noreply@resend.dev>',
-        to: [to],
-        subject,
-        html: content,
-      }),
+      body: JSON.stringify(payload),
     });
 
     const data = await response.json();
