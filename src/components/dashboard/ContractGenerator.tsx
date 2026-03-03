@@ -189,6 +189,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
             fee: "R8,500 (p/m)",
             target: "± 17 Qualified Leads per Month",
             comm: "",
+            pilot: "",
             scope: "17 tokens per month. Top-Ups (min 5) at R500 each. 1 week notice for additional leads. Delivery managed on a weekly schedule. Minimum 5-token Top-Up applies.",
             renewal: "Continues month-to-month. Termination requires 1 full calendar month notice in writing. Breach of notice period triggers a 50% penalty (R4,250).",
             termination: "1 calendar month notice required. Immediate exit incurs 50% Breach Penalty (R4,250). All delivered leads remain payable.",
@@ -201,6 +202,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                 fee: "R6,000 (once-off)",
                 target: "± 6 Qualified Leads (Once-off)",
                 comm: "ten percent (10%)",
+                pilot: "Promotion: Once-off pilot plan for first-time clients. Not available for recurring accounts. Participants must upgrade to Bronze or higher to continue service.",
                 scope: "Once-off introductory campaign. Delivery follows a 'Lead Token' model; Top-Ups may be requested (minimum 5 tokens at R2,500) with 1 week notice.",
                 renewal: "Terminates automatically after 30 days. No refund for early exit. Commission obligations survive for 24 months. Standard 3-year NDA and POPIA compliance applies.",
                 termination: "Terminates automatically after 30 days. No refund for early exit. Commission obligations survive for 24 months. Standard 3-year NDA and POPIA compliance applies.",
@@ -212,6 +214,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                 fee: "R16,500+ (p/m)",
                 target: "33-40+ Qualified Leads per Month",
                 comm: "",
+                pilot: "",
                 scope: "40+ tokens per month. Top-Ups (min 5) at R500 each. Advanced targeting, dedicated campaign management, and conversion support.",
                 renewal: "Continues month-to-month. Termination requires 1 full calendar month notice in writing. Breach triggers a 50% penalty of the monthly service fee.",
                 termination: "1 calendar month notice required. Immediate exit incurs 50% Breach Penalty (min R8,250). All data protection clauses survive.",
@@ -223,6 +226,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                 fee: "R10,500 (p/m)",
                 target: "± 23-26 Qualified Leads per Month",
                 comm: "",
+                pilot: "",
                 scope: "23-26 tokens per month. Top-Ups (min 5) at R500 each. 1 week notice for additional leads. Includes bi-weekly performance updates and messaging optimisation.",
                 renewal: "Continues month-to-month. Termination requires 1 full calendar month notice in writing. Breach of notice triggers a 50% penalty (R5,250).",
                 termination: "1 calendar month notice required. Immediate exit incurs 50% Breach Penalty (R5,250). Outstanding commissions survive.",
@@ -240,6 +244,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
             scopeText: tierData.scope,
             renewalText: tierData.renewal,
             terminationText: tierData.termination,
+            pilotEligibilityText: tierData.pilot || "",
             commissionText: tierData.comm ? `In addition to the monthly service fee, the Client agrees to pay Lead Velocity a commission of ${tierData.comm} of the gross first-year premium value of any insurance policy sold as a direct or indirect result of Lead Velocity's lead generation efforts. This commission obligation applies to: (a) all policies placed on leads delivered under this Agreement; (b) any policies placed on referrals obtained from leads sourced through Lead Velocity; and (c) any secondary sales arising from relationships initiated through Lead Velocity's efforts. This commission obligation shall survive the termination of this Agreement for a period of twenty-four (24) months following the last lead delivered.` : "",
             clientEmailLine: `Email: ${broker.email || ""} `,
             clientPhoneLine: `Tel: ${broker.phone_number || broker.phone || broker.whatsapp_number || ""} `,
@@ -528,6 +533,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                                 target: "± 6 Qualified Leads (Once-off)",
                                                 subtitle: "Pilot Phase: Where We Prove Consistency",
                                                 comm: "ten percent (10%)",
+                                                pilot: "Promotion: Once-off pilot plan for first-time clients. Not available for recurring accounts. Participants must upgrade to Bronze or higher to continue service.",
                                                 color: "border-pink-500/20 hover:bg-pink-500/10 text-pink-200"
                                             },
                                             {
@@ -536,6 +542,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                                 target: "± 17 Qualified Leads per Month",
                                                 subtitle: "Bronze: Growth Starter",
                                                 comm: "",
+                                                pilot: "",
                                                 color: "border-orange-500/20 hover:bg-orange-500/10 text-orange-200"
                                             },
                                             {
@@ -544,6 +551,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                                 target: "± 23-26 Qualified Leads per Month",
                                                 subtitle: "Silver: Scale & Optimise",
                                                 comm: "",
+                                                pilot: "",
                                                 color: "border-slate-400/20 hover:bg-slate-400/10 text-slate-200"
                                             },
                                             {
@@ -552,6 +560,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                                 target: "33-40+ Qualified Leads per Month",
                                                 subtitle: "Gold: Performance Partner",
                                                 comm: "",
+                                                pilot: "",
                                                 color: "border-yellow-500/20 hover:bg-yellow-500/10 text-yellow-200"
                                             }
                                         ].map((tier) => (
@@ -563,6 +572,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                                         serviceFee: tier.fee,
                                                         leadTarget: tier.target,
                                                         subtitle: tier.subtitle,
+                                                        pilotEligibilityText: tier.pilot || "",
                                                         commissionText: tier.comm ? `In addition to the monthly service fee, the Client agrees to pay Lead Velocity a commission of ${tier.comm} of the gross first-year premium value of any insurance policy sold as a direct or indirect result of Lead Velocity's lead generation efforts. This commission obligation applies to: (a) all policies placed on leads delivered under this Agreement; (b) any policies placed on referrals obtained from leads sourced through Lead Velocity; and (c) any secondary sales arising from relationships initiated through Lead Velocity's efforts. This commission obligation shall survive the termination of this Agreement for a period of twenty-four (24) months following the last lead delivered.` : ""
                                                     }));
                                                     toast({ title: `${tier.name} Applied`, description: "Contract terms updated." });
