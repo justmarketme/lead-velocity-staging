@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, Download, Mail, MessageCircle, Send, ZoomIn, ZoomOut, Maximize, Monitor, Save, Loader2, Mic, MicOff, Bot, Check, X, Paperclip, AudioLines, SendHorizonal } from "lucide-react";
-import { generateSmartPDF } from "@/utils/pdfUtils";
+import { generateSmartPDF, blobToBase64 } from "@/utils/pdfUtils";
 import logo from "@/assets/lead-velocity-logo.webp";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
@@ -142,6 +142,25 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
             setFormData(initialData);
         }
     }, [initialData]);
+
+    const [history, setHistory] = useState<any[]>([]);
+
+    const fetchHistory = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data, error } = await supabase
+            .from('admin_documents')
+            .select('*')
+            .eq('category', 'proposals')
+            .eq('uploaded_by', user.id)
+            .order('created_at', { ascending: false })
+            .limit(5);
+        if (data && !error) setHistory(data);
+    };
+
+    useEffect(() => {
+        fetchHistory();
+    }, []);
 
     const [searchParams] = useSearchParams();
     const globalBrokerId = searchParams.get("brokerId");
@@ -339,17 +358,39 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                         });
 
                     if (dbError) throw dbError;
+
+                    fetchHistory(); // Refresh history
                 }
 
                 if (action === 'email') {
                     if (!recipientEmail) {
                         toast({ title: "Email required", description: "Enter recipient email.", variant: "destructive" });
                     } else {
-                        const subject = encodeURIComponent(`Proposal: ${formData.clientName} - Lead Velocity`);
-                        const emailBody = `Hi ${formData.clientName},\n\nPlease find the proposal for the Premium Business Insurance Lead Pilot at the link below:\n\n${publicUrl}\n\nI'd be happy to walk you through the details at your convenience.\n\n${getProposalEmailSignature()}`;
-                        const body = encodeURIComponent(emailBody);
-                        window.location.href = `mailto:${recipientEmail}?subject=${subject}&body=${body}`;
-                        toast({ title: "Email Drafted", description: "Link included in body!" });
+                        toast({ title: "Sending Email", description: "Attaching PDF to email..." });
+                        const base64Pdf = await blobToBase64(pdfBlob);
+
+                        const subject = `Proposal: ${formData.clientName} - Lead Velocity`;
+                        const emailBody = `<p>Hi ${formData.clientName},</p><p>Please find the proposal for the Premium Business Insurance Lead Pilot attached to this email.</p><p>I'd be happy to walk you through the details at your convenience.</p><br/>${getProposalEmailSignature()}`;
+
+                        const { error: fnError } = await supabase.functions.invoke('send-communication', {
+                            body: {
+                                channel: 'email',
+                                recipient_contact: recipientEmail,
+                                recipient_type: 'lead',
+                                subject: subject,
+                                content: emailBody,
+                                attachments: [
+                                    {
+                                        filename: fileName,
+                                        content: base64Pdf
+                                    }
+                                ]
+                            }
+                        });
+
+                        if (fnError) throw new Error("Failed to send email. Ensure the edge function is deployed.");
+
+                        toast({ title: "Email Sent!", description: "Document sent successfully with attachment." });
                     }
                 } else {
                     toast({ title: "Saved", description: "Proposal saved to documents library." });
@@ -765,6 +806,31 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                                     </div>
                                 </CardContent>
                             </Card>
+                            {/* Document History */}
+                            {history.length > 0 && (
+                                <div className="space-y-3 mt-6">
+                                    <h3 className="font-bold text-slate-100 text-sm uppercase tracking-widest flex items-center gap-2">
+                                        <Save className="h-4 w-4 text-pink-400" />
+                                        Saved History
+                                    </h3>
+                                    <div className="space-y-2">
+                                        {history.map((doc, idx) => (
+                                            <div key={idx} className="bg-slate-950/40 p-3 rounded-xl border border-white/5 flex flex-col gap-1 text-sm">
+                                                <div className="flex justify-between items-start">
+                                                    <span className="font-medium text-slate-200 truncate pr-2">{doc.name}</span>
+                                                    <a href={`${supabase.storage.from('admin-documents').getPublicUrl(doc.file_path).data.publicUrl}`} target="_blank" rel="noreferrer" className="text-pink-400 hover:text-pink-300 shrink-0 bg-pink-400/10 px-2 py-0.5 rounded cursor-pointer whitespace-nowrap text-xs">
+                                                        View PDF
+                                                    </a>
+                                                </div>
+                                                <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
+                                                    {new Date(doc.created_at).toLocaleString('en-ZA', { dateStyle: 'medium', timeStyle: 'short' })}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                         </CardContent>
                     </Card>
                 </div>

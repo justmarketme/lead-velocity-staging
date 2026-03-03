@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, Download, Mail, ZoomIn, ZoomOut, Maximize, Monitor, Plus, Trash2, Save, Mic, MicOff, Bot, Sparkles, Check, X, Loader2, Paperclip, AudioLines, SendHorizonal } from "lucide-react";
-import { generateSmartPDF } from "@/utils/pdfUtils";
+import { generateSmartPDF, blobToBase64 } from "@/utils/pdfUtils";
 import logo from "@/assets/lead-velocity-logo.webp";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
@@ -125,10 +125,26 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
         companyRegNumber: "Reg: 2024/123456/07"
     });
 
+    const [history, setHistory] = useState<any[]>([]);
+
+    const fetchHistory = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data, error } = await supabase
+            .from('admin_documents')
+            .select('*')
+            .eq('category', 'invoices')
+            .eq('uploaded_by', user.id)
+            .order('created_at', { ascending: false })
+            .limit(5);
+        if (data && !error) setHistory(data);
+    };
+
     useEffect(() => {
         if (initialData) {
             setInvoiceData(initialData);
         }
+        fetchHistory();
     }, [initialData]);
 
     const [searchParams] = useSearchParams();
@@ -185,7 +201,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
             clientAddress: broker.office_address || "Address: To be updated",
             items: [
                 {
-                    description: `Monthly Service Fee - ${tierName} (${leadCount} Lead Tokens)`,
+                    description: `Monthly Service Fee - ${tierDesc} (${leads} Lead Tokens)`,
                     quantity: 1,
                     price: tierPrice,
                 },
@@ -195,14 +211,14 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
                     price: 0,
                 }
             ],
-            notes: `Terms: Paid in advance for each monthly delivery cycle. Delivery follows a 'Lead Token' model. Top-Ups (min 5 tokens at R2,500) require 1 week notice. Engagement is month-to-month. Termination requires 1 full calendar month's written notice. Failure to provide notice or immediate exit incurs a 50% Breach Penalty (R${breachPenalty}).`
+            notes: `Terms: Paid in advance for each monthly delivery cycle. Delivery follows a 'Lead Token' model. Top-Ups (min 5 tokens at R2,500) require 1 week notice. Engagement is month-to-month. Termination requires 1 full calendar month's written notice.`
         }));
 
         if (broker.email) setRecipientEmail(broker.email);
 
         toast({
             title: "Broker Data Applied",
-            description: `Auto-filled details for ${tierName} based on ${leads} leads/wk.`,
+            description: `Auto-filled details based on ${leads} leads/wk.`,
         });
     };
 
@@ -454,17 +470,39 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
                         });
 
                     if (dbError) throw dbError;
+
+                    fetchHistory();
                 }
 
                 if (action === 'email') {
                     if (!recipientEmail) {
                         toast({ title: "Email Required", description: "Please enter a recipient email address in the sidebar.", variant: "destructive" });
                     } else {
-                        const subject = encodeURIComponent(`Invoice: ${invoiceData.invoiceNumber} from Lead Velocity`);
-                        const emailBody = `Hi ${invoiceData.clientName},\n\nPlease find the invoice ${invoiceData.invoiceNumber} at the link below:\n\n${publicUrl}\n\nTotal Due: R${calculateTotal().toLocaleString()}\nDue Date: ${invoiceData.dueDate}\n\nThank you for your business.\n\n${getInvoiceEmailSignature()}`;
-                        const body = encodeURIComponent(emailBody);
-                        window.location.href = `mailto:${recipientEmail}?subject=${subject}&body=${body}`;
-                        toast({ title: "Email Drafted", description: "Link included in body!" });
+                        toast({ title: "Sending Email", description: "Attaching PDF to email..." });
+                        const base64Pdf = await blobToBase64(pdfBlob);
+
+                        const subject = `Invoice: ${invoiceData.invoiceNumber} from Lead Velocity`;
+                        const emailBody = `<p>Hi ${invoiceData.clientName},</p><p>Please find the invoice ${invoiceData.invoiceNumber} attached to this email.</p><p>Total Due: R${calculateTotal().toLocaleString()}</p><p>Due Date: ${invoiceData.dueDate}</p><p>Thank you for your business.</p><br/>${getInvoiceEmailSignature()}`;
+
+                        const { error: fnError } = await supabase.functions.invoke('send-communication', {
+                            body: {
+                                channel: 'email',
+                                recipient_contact: recipientEmail,
+                                recipient_type: 'lead',
+                                subject: subject,
+                                content: emailBody,
+                                attachments: [
+                                    {
+                                        filename: fileName,
+                                        content: base64Pdf
+                                    }
+                                ]
+                            }
+                        });
+
+                        if (fnError) throw new Error("Failed to send email. Ensure the edge function is deployed.");
+
+                        toast({ title: "Email Sent!", description: "Document sent successfully with attachment." });
                     }
                 } else {
                     toast({ title: "Saved", description: "Invoice saved to documents library." });
@@ -601,6 +639,32 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
                                     />
                                 </div>
                             </div>
+
+                            {/* Document History */}
+                            {history.length > 0 && (
+                                <div className="space-y-3 mt-6 animate-in fade-in duration-500">
+                                    <h3 className="font-bold text-slate-100 text-sm uppercase tracking-widest flex items-center gap-2">
+                                        <Save className="h-4 w-4 text-green-400" />
+                                        Saved History
+                                    </h3>
+                                    <div className="space-y-2">
+                                        {history.map((doc, idx) => (
+                                            <div key={idx} className="bg-slate-950/40 p-3 rounded-xl border border-white/5 flex flex-col gap-1 text-sm">
+                                                <div className="flex justify-between items-start">
+                                                    <span className="font-medium text-slate-200 truncate pr-2">{doc.name}</span>
+                                                    <a href={`${supabase.storage.from('admin-documents').getPublicUrl(doc.file_path).data.publicUrl}`} target="_blank" rel="noreferrer" className="text-green-400 hover:text-green-300 shrink-0 bg-green-400/10 px-2 py-0.5 rounded cursor-pointer whitespace-nowrap text-xs">
+                                                        View PDF
+                                                    </a>
+                                                </div>
+                                                <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
+                                                    {new Date(doc.created_at).toLocaleString('en-ZA', { dateStyle: 'medium', timeStyle: 'short' })}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                         </CardContent>
                     </Card>
 

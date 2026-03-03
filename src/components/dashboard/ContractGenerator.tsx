@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, Download, Mail, MessageCircle, Send, ZoomIn, ZoomOut, Maximize, Monitor, Save, Loader2, Mic, MicOff, Bot, Check, X, Paperclip, AudioLines, SendHorizonal } from "lucide-react";
-import { generateSmartPDF } from "@/utils/pdfUtils";
+import { generateSmartPDF, blobToBase64 } from "@/utils/pdfUtils";
 import logo from "@/assets/lead-velocity-logo.webp";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
@@ -138,6 +138,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
         forceMajeureText: "Lead Velocity is not liable for delays caused by national infrastructure failures (load shedding), civil unrest, or major digital platform outages (Meta/Google).",
         liabilityText: "Maximum liability of Lead Velocity is limited to the fees paid by the Client in the month preceding the claim. We are not liable for lost profit or indirect business damages.",
         indemnityText: "The Client indemnifies Lead Velocity against any claims arising from the Client's conduct after receiving a lead or from the Client's advice provided to prospects.",
+        jurisdictionText: "This Agreement shall be governed by the laws of the Republic of South Africa. Any disputes shall be resolved in the jurisdiction of Pretoria, Gauteng.",
         entireAgreementText: "This document constitutes the entire agreement between the parties and supersedes all prior verbal or written understandings.",
         recitalsText: "WHEREAS the Service Provider is in the business of providing professional lead generation and business development services; AND WHEREAS the Client wishes to engage the Service Provider to provide such services on the terms and conditions set out herein; NOW THEREFORE, in consideration of the mutual covenants hereinafter set forth and for other good and valuable consideration, the receipt and sufficiency of which are hereby acknowledged, the Parties agree as follows:",
         definitionsText: "Qualified Business Lead: Initial business enquiry from a South African registered entity meeting the agreed minimum revenue or insurance cover threshold. Lead Tokens: Pre-purchased credits representing the delivery of a singular qualified business lead. Top-Up: Additional tokens purchased above the monthly tier allocation.",
@@ -150,6 +151,21 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
         noticesText: "All notices, requests, and communications under this Agreement shall be in writing and shall be deemed delivered: (a) immediately upon personal delivery; (b) upon written confirmation of receipt if sent by email; or (c) five (5) Business Days after posting if sent by registered mail. Notices shall be addressed to the contact details set out in the Parties section of this Agreement, or to such other address as a Party designates by written notice.",
         relationshipText: "Nothing in this Agreement shall be construed as creating a partnership, joint venture, agency, franchise, or employment relationship between the Parties. Lead Velocity acts as an independent contractor and shall have sole control over the manner and means of performing the Services. Neither Party has authority to bind the other or to incur any obligation on behalf of the other without prior written consent.",
     });
+
+    const [history, setHistory] = useState<any[]>([]);
+
+    const fetchHistory = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data, error } = await supabase
+            .from('admin_documents')
+            .select('*')
+            .eq('category', 'contracts')
+            .eq('uploaded_by', user.id)
+            .order('created_at', { ascending: false })
+            .limit(5);
+        if (data && !error) setHistory(data);
+    };
 
     const [searchParams] = useSearchParams();
     const globalBrokerId = searchParams.get("brokerId");
@@ -467,17 +483,39 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                         });
 
                     if (dbError) throw dbError;
+
+                    fetchHistory();
                 }
 
                 if (action === 'email') {
                     if (!recipientEmail) {
                         toast({ title: "Email Required", variant: "destructive" });
                     } else {
-                        const subject = encodeURIComponent(`Contract: ${contractData.title} - ${contractData.clientCompany}`);
-                        const emailBody = `Dear ${contractData.clientName}, \n\nPlease find the Service Level Agreement for your review at the link below: \n\n${publicUrl} \n\nWe look forward to a successful partnership.\n\n${getContractEmailSignature()} `;
-                        const body = encodeURIComponent(emailBody);
-                        window.location.href = `mailto:${recipientEmail}?subject=${subject}&body=${body}`;
-                        toast({ title: "Email Drafted", description: "Link included in body!" });
+                        toast({ title: "Sending Email", description: "Attaching PDF to email..." });
+                        const base64Pdf = await blobToBase64(pdfBlob);
+
+                        const subject = `Contract: ${contractData.title} - ${contractData.clientCompany}`;
+                        const emailBody = `<p>Dear ${contractData.clientName},</p><p>Please find the Service Level Agreement for your review attached to this email.</p><p>We look forward to a successful partnership.</p><br/>${getContractEmailSignature()}`;
+
+                        const { error: fnError } = await supabase.functions.invoke('send-communication', {
+                            body: {
+                                channel: 'email',
+                                recipient_contact: recipientEmail,
+                                recipient_type: 'lead',
+                                subject: subject,
+                                content: emailBody,
+                                attachments: [
+                                    {
+                                        filename: fileName,
+                                        content: base64Pdf
+                                    }
+                                ]
+                            }
+                        });
+
+                        if (fnError) throw new Error("Failed to send email. Ensure the edge function is deployed.");
+
+                        toast({ title: "Email Sent!", description: "Document sent successfully with attachment." });
                     }
                 } else {
                     toast({ title: "Saved to Library" });
@@ -725,6 +763,31 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                     </div>
                                 </CardContent>
                             </Card>
+
+                            {/* Document History */}
+                            {history.length > 0 && (
+                                <div className="space-y-3 mt-6 animate-in fade-in duration-500">
+                                    <h3 className="font-bold text-slate-100 text-sm uppercase tracking-widest flex items-center gap-2">
+                                        <Save className="h-4 w-4 text-pink-400" />
+                                        Saved History
+                                    </h3>
+                                    <div className="space-y-2">
+                                        {history.map((doc, idx) => (
+                                            <div key={idx} className="bg-slate-950/40 p-3 rounded-xl border border-white/5 flex flex-col gap-1 text-sm">
+                                                <div className="flex justify-between items-start">
+                                                    <span className="font-medium text-slate-200 truncate pr-2">{doc.name}</span>
+                                                    <a href={`${supabase.storage.from('admin-documents').getPublicUrl(doc.file_path).data.publicUrl}`} target="_blank" rel="noreferrer" className="text-pink-400 hover:text-pink-300 shrink-0 bg-pink-400/10 px-2 py-0.5 rounded cursor-pointer whitespace-nowrap text-xs">
+                                                        View PDF
+                                                    </a>
+                                                </div>
+                                                <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
+                                                    {new Date(doc.created_at).toLocaleString('en-ZA', { dateStyle: 'medium', timeStyle: 'short' })}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 
