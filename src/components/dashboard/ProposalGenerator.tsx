@@ -212,7 +212,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                 purposeText: "Our premium tier where we operate as a full revenue partner. Token-based delivery ensures consistent ROI and inventory management.",
                 purposeSubText: "Month-to-month engagement. Exit requires one full calendar month's written notice. Non-compliance with notice triggers a 50% breach penalty."
             };
-        } else if (leads >= 21) {
+        } else if (leads >= 20) {
             tierData = {
                 subtitle: "Silver: Scale & Optimise",
                 investment: "R10,500 (p/m)",
@@ -966,11 +966,9 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                         </div>
                     </div>
                 </div>
+                {/* End Live Preview */}
             </div>
         </div>
-                {/* End Live Preview */ }
-            </div >
-        </div >
     );
 };
 
