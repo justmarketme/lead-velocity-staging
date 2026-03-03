@@ -38,6 +38,7 @@ const BrokerSetup = () => {
     const [a2, setA2] = useState("");
     const [q3, setQ3] = useState("");
     const [a3, setA3] = useState("");
+    const [isSuccess, setIsSuccess] = useState(false);
 
     useEffect(() => {
         const verifyToken = async () => {
@@ -134,6 +135,7 @@ const BrokerSetup = () => {
                 firm_name: invite.firm_name || "Independent",
                 contact_person: invite.broker_name || invite.email,
                 email: invite.email,
+                portal_type: invite.portal_type || "referral",
                 status: "Active"
             });
 
@@ -148,7 +150,7 @@ const BrokerSetup = () => {
                 description: "Your broker account has been created successfully.",
             });
 
-            navigate("/broker");
+            setIsSuccess(true);
         } catch (error: any) {
             console.error("Setup error:", error);
             toast({
@@ -178,23 +180,56 @@ const BrokerSetup = () => {
                     </div>
                     <CardTitle className="text-2xl font-bold">Broker Account Setup</CardTitle>
                     <CardDescription>
-                        {step === 1
-                            ? `Hello ${invite?.broker_name || 'there'}, let's secure your account with a password.`
-                            : "Finally, choose security questions to help you recover your account if you forget your password."}
+                        {isSuccess
+                            ? "Your account is now ready. You can log in to access your portal."
+                            : step === 1
+                                ? `Hello ${invite?.broker_name || 'there'}, let's secure your account with a password.`
+                                : "Finally, choose security questions to help you recover your account if you forget your password."}
                     </CardDescription>
                 </CardHeader>
 
                 <CardContent>
-                    <div className="flex justify-center mb-8">
-                        <div className="flex items-center">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${step >= 1 ? 'bg-primary border-primary text-white' : 'border-muted'}`}>1</div>
-                            <div className={`w-12 h-1 ${step >= 2 ? 'bg-primary' : 'bg-muted'}`} />
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${step >= 2 ? 'bg-primary border-primary text-white' : 'border-muted'}`}>2</div>
+                    {!isSuccess && (
+                        <div className="flex justify-center mb-8">
+                            <div className="flex items-center">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${step >= 1 ? 'bg-primary border-primary text-white' : 'border-muted'}`}>1</div>
+                                <div className={`w-12 h-1 ${step >= 2 ? 'bg-primary' : 'bg-muted'}`} />
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${step >= 2 ? 'bg-primary border-primary text-white' : 'border-muted'}`}>2</div>
+                            </div>
                         </div>
-                    </div>
+                    )}
 
-                    {step === 1 ? (
+                    {isSuccess ? (
+                        <div className="flex flex-col items-center justify-center py-8 space-y-6 animate-in zoom-in-95 duration-500">
+                            <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center">
+                                <CheckCircle2 className="h-12 w-12 text-green-500" />
+                            </div>
+                            <div className="text-center space-y-2">
+                                <h3 className="text-xl font-semibold">Registration Successful!</h3>
+                                <p className="text-muted-foreground">
+                                    Your profile has been created and secured.
+                                </p>
+                            </div>
+                            <Button
+                                className="w-full h-12 text-lg font-bold"
+                                onClick={() => navigate("/login")}
+                            >
+                                Go to Login
+                            </Button>
+                        </div>
+                    ) : step === 1 ? (
                         <form onSubmit={handleSetPassword} className="space-y-4 animate-in slide-in-from-right-4 duration-300">
+                            <div className="space-y-2">
+                                <Label htmlFor="email">Email Address</Label>
+                                <Input
+                                    id="email"
+                                    type="email"
+                                    value={invite?.email || ""}
+                                    disabled
+                                    className="bg-muted text-muted-foreground cursor-not-allowed"
+                                />
+                                <p className="text-[10px] text-muted-foreground">Email is pre-filled from your invitation.</p>
+                            </div>
                             <div className="space-y-2">
                                 <Label htmlFor="password">Create Password</Label>
                                 <Input

@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { BrokerSelector } from "./BrokerSelector";
+import { Switch } from "@/components/ui/switch";
+import { Info } from "lucide-react";
 
 interface BrokerInviteData {
     id: string;
@@ -19,6 +21,7 @@ interface BrokerInviteData {
     created_at: string;
     expires_at: string;
     used_at: string | null;
+    portal_type: 'referral' | 'marketing';
 }
 
 interface ResetRequestData {
@@ -34,6 +37,7 @@ const BrokerInvite = () => {
     const [brokerEmail, setBrokerEmail] = useState("");
     const [brokerName, setBrokerName] = useState("");
     const [firmName, setFirmName] = useState("");
+    const [portalType, setPortalType] = useState<'referral' | 'marketing'>('referral');
     const [loading, setLoading] = useState(false);
     const [generatedLink, setGeneratedLink] = useState("");
     const { toast } = useToast();
@@ -82,7 +86,7 @@ const BrokerInvite = () => {
         return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
     };
 
-    const createInvite = async (email: string, name: string, firm: string) => {
+    const createInvite = async (email: string, name: string, firm: string, type: 'referral' | 'marketing' = 'referral') => {
         const token = generateToken();
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + 7);
@@ -94,6 +98,7 @@ const BrokerInvite = () => {
                 email,
                 broker_name: name,
                 firm_name: firm,
+                portal_type: type,
                 expires_at: expiresAt.toISOString(),
             });
 
@@ -116,7 +121,7 @@ const BrokerInvite = () => {
 
         setLoading(true);
         try {
-            const { token, expiresAt } = await createInvite(brokerEmail, brokerName, firmName);
+            const { token, expiresAt } = await createInvite(brokerEmail, brokerName, firmName, portalType);
             const inviteLink = `${getInviteBaseUrl()}/broker-setup/${token}`;
 
             // Optionally send email via Edge Function
@@ -126,6 +131,7 @@ const BrokerInvite = () => {
                     brokerName: brokerName,
                     inviteLink,
                     expiresAt,
+                    portalType: portalType
                 },
             });
 
@@ -269,6 +275,27 @@ const BrokerInvite = () => {
                                     />
                                 </div>
                             </div>
+                            <div className="space-y-4 p-4 bg-muted/30 rounded-lg border border-border/50">
+                                <div className="flex items-center justify-between">
+                                    <div className="space-y-0.5">
+                                        <Label className="text-base">Portal Type</Label>
+                                        <p className="text-xs text-muted-foreground">
+                                            {portalType === 'referral'
+                                                ? "Referral/Classic: Broker has leads; we work referrals."
+                                                : "Marketing/Elite: We generate leads & enter into their calendar."}
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-background p-1 rounded-md border">
+                                        <span className={`text-[10px] px-2 py-1 rounded transition-colors ${portalType === 'referral' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>REFERRAL</span>
+                                        <Switch
+                                            checked={portalType === 'marketing'}
+                                            onCheckedChange={(checked) => setPortalType(checked ? 'marketing' : 'referral')}
+                                        />
+                                        <span className={`text-[10px] px-2 py-1 rounded transition-colors ${portalType === 'marketing' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>ELITE</span>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div className="space-y-2">
                                 <Label htmlFor="broker-email">Email Address</Label>
                                 <div className="flex gap-3">
@@ -377,7 +404,14 @@ const BrokerInvite = () => {
                                             </Badge>
                                             <div>
                                                 <p className="font-medium text-sm">{invite.broker_name || invite.email}</p>
-                                                <p className="text-xs text-muted-foreground">{invite.email} • {invite.firm_name || 'No Firm'}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-xs text-muted-foreground">{invite.email} • {invite.firm_name || 'No Firm'}</p>
+                                                    {invite.portal_type && (
+                                                        <Badge variant="outline" className="text-[10px] h-4 py-0">
+                                                            {invite.portal_type.toUpperCase()}
+                                                        </Badge>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                         <div className="text-right">

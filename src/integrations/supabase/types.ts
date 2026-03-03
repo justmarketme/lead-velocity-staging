@@ -10,13 +10,14 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
+    PostgrestVersion: "14.1"
   }
   public: {
     Tables: {
       admin_documents: {
         Row: {
           category: string | null
+          content_data: Json | null
           created_at: string
           description: string | null
           file_path: string
@@ -29,6 +30,7 @@ export type Database = {
         }
         Insert: {
           category?: string | null
+          content_data?: Json | null
           created_at?: string
           description?: string | null
           file_path: string
@@ -41,6 +43,7 @@ export type Database = {
         }
         Update: {
           category?: string | null
+          content_data?: Json | null
           created_at?: string
           description?: string | null
           file_path?: string
@@ -152,201 +155,111 @@ export type Database = {
         }
         Relationships: []
       }
-      brokers: {
+      appointments: {
         Row: {
-          contact_person: string
+          appointment_date: string
+          broker_id: string | null
+          client_id: string | null
           created_at: string | null
-          email: string | null
-          firm_name: string
           id: string
-          phone_number: string | null
+          reason: string | null
+          reason_notes: string | null
           status: string | null
           updated_at: string | null
-          user_id: string
         }
         Insert: {
-          contact_person: string
+          appointment_date: string
+          broker_id?: string | null
+          client_id?: string | null
           created_at?: string | null
-          email?: string | null
-          firm_name: string
           id?: string
-          phone_number?: string | null
+          reason?: string | null
+          reason_notes?: string | null
           status?: string | null
           updated_at?: string | null
-          user_id: string
         }
         Update: {
-          contact_person?: string
+          appointment_date?: string
+          broker_id?: string | null
+          client_id?: string | null
           created_at?: string | null
-          email?: string | null
-          firm_name?: string
           id?: string
-          phone_number?: string | null
+          reason?: string | null
+          reason_notes?: string | null
           status?: string | null
           updated_at?: string | null
-          user_id?: string
         }
-        Relationships: []
-      }
-      broker_onboarding_responses: {
-        Row: {
-          id: string
-          broker_id: string | null
-          full_name: string | null
-          email: string | null
-          phone: string | null
-          phone_number: string | null
-          firm_name: string | null
-          company_name: string | null
-          preferred_call_time: string | null
-          whatsapp_number: string | null
-          whatsapp_consent: boolean | null
-          receives_leads_currently: boolean | null
-          current_lead_provider: string | null
-          current_monthly_spend: number | null
-          current_cpl: number | null
-          current_conversion_rate: string | null
-          crm_usage: string
-          speed_to_contact: string
-          team_size: string
-          follow_up_process: string
-          monthly_lead_spend: string
-          cpl_awareness: string
-          pricing_comfort: string
-          desired_leads_weekly: number
-          max_capacity_weekly: number
-          product_focus_clarity: string
-          geographic_focus_clarity: string
-          growth_goal_clarity: string
-          timeline_to_start: string
-          monthly_sales_target: number | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          broker_id?: string | null
-          full_name?: string | null
-          email?: string | null
-          phone?: string | null
-          phone_number?: string | null
-          firm_name?: string | null
-          company_name?: string | null
-          preferred_call_time?: string | null
-          whatsapp_number?: string | null
-          whatsapp_consent?: boolean | null
-          receives_leads_currently?: boolean | null
-          current_lead_provider?: string | null
-          current_monthly_spend?: number | null
-          current_cpl?: number | null
-          current_conversion_rate?: string | null
-          crm_usage: string
-          speed_to_contact: string
-          team_size: string
-          follow_up_process: string
-          monthly_lead_spend: string
-          cpl_awareness: string
-          pricing_comfort: string
-          desired_leads_weekly: number
-          max_capacity_weekly: number
-          product_focus_clarity: string
-          geographic_focus_clarity: string
-          growth_goal_clarity: string
-          timeline_to_start: string
-          monthly_sales_target?: number | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          broker_id?: string | null
-          full_name?: string | null
-          email?: string | null
-          phone?: string | null
-          phone_number?: string | null
-          firm_name?: string | null
-          company_name?: string | null
-          preferred_call_time?: string | null
-          whatsapp_number?: string | null
-          whatsapp_consent?: boolean | null
-          receives_leads_currently?: boolean | null
-          current_lead_provider?: string | null
-          current_monthly_spend?: number | null
-          current_cpl?: number | null
-          current_conversion_rate?: string | null
-          crm_usage?: string
-          speed_to_contact?: string
-          team_size?: string
-          follow_up_process?: string
-          monthly_lead_spend?: string
-          cpl_awareness?: string
-          pricing_comfort?: string
-          desired_leads_weekly?: number
-          max_capacity_weekly?: number
-          product_focus_clarity?: string
-          geographic_focus_clarity?: string
-          growth_goal_clarity?: string
-          timeline_to_start?: string
-          monthly_sales_target?: number | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "appointments_broker_id_fkey"
+            columns: ["broker_id"]
+            isOneToOne: false
+            referencedRelation: "brokers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       broker_analysis: {
         Row: {
-          id: string
-          response_id: string | null
-          broker_id: string | null
-          operational_score: number
-          budget_score: number
-          growth_score: number
-          intent_score: number
-          success_probability: number
-          risk_flags: string[]
-          primary_sales_angle: string
-          success_band: string
-          ai_explanation: string | null
-          status: string | null
           admin_notes: string | null
-          created_at: string
-          updated_at: string
+          ai_explanation: string | null
+          broker_id: string | null
+          budget_score: number
+          created_at: string | null
+          growth_score: number
+          id: string
+          intent_score: number
+          operational_score: number
+          primary_sales_angle: string
+          response_id: string | null
+          risk_flags: string[] | null
+          status: string | null
+          success_band: string
+          success_probability: number
+          updated_at: string | null
         }
         Insert: {
-          id?: string
-          response_id?: string | null
-          broker_id?: string | null
-          operational_score: number
-          budget_score: number
-          growth_score: number
-          intent_score: number
-          success_probability: number
-          risk_flags?: string[]
-          primary_sales_angle: string
-          success_band: string
-          ai_explanation?: string | null
-          status?: string | null
           admin_notes?: string | null
-          created_at?: string
-          updated_at?: string
+          ai_explanation?: string | null
+          broker_id?: string | null
+          budget_score?: number
+          created_at?: string | null
+          growth_score?: number
+          id?: string
+          intent_score?: number
+          operational_score?: number
+          primary_sales_angle?: string
+          response_id?: string | null
+          risk_flags?: string[] | null
+          status?: string | null
+          success_band?: string
+          success_probability?: number
+          updated_at?: string | null
         }
         Update: {
-          id?: string
-          response_id?: string | null
-          broker_id?: string | null
-          operational_score?: number
-          budget_score?: number
-          growth_score?: number
-          intent_score?: number
-          success_probability?: number
-          risk_flags?: string[]
-          primary_sales_angle?: string
-          success_band?: string
-          ai_explanation?: string | null
-          status?: string | null
           admin_notes?: string | null
-          created_at?: string
-          updated_at?: string
+          ai_explanation?: string | null
+          broker_id?: string | null
+          budget_score?: number
+          created_at?: string | null
+          growth_score?: number
+          id?: string
+          intent_score?: number
+          operational_score?: number
+          primary_sales_angle?: string
+          response_id?: string | null
+          risk_flags?: string[] | null
+          status?: string | null
+          success_band?: string
+          success_probability?: number
+          updated_at?: string | null
         }
         Relationships: [
           {
@@ -358,7 +271,302 @@ export type Database = {
           },
         ]
       }
-
+      broker_invites: {
+        Row: {
+          broker_name: string | null
+          created_at: string | null
+          created_by: string | null
+          email: string
+          expires_at: string
+          firm_name: string | null
+          id: string
+          portal_type: string | null
+          token: string
+          used_at: string | null
+        }
+        Insert: {
+          broker_name?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          email: string
+          expires_at: string
+          firm_name?: string | null
+          id?: string
+          portal_type?: string | null
+          token: string
+          used_at?: string | null
+        }
+        Update: {
+          broker_name?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          email?: string
+          expires_at?: string
+          firm_name?: string | null
+          id?: string
+          portal_type?: string | null
+          token?: string
+          used_at?: string | null
+        }
+        Relationships: []
+      }
+      broker_notes: {
+        Row: {
+          author_id: string | null
+          author_role: string | null
+          content: string
+          created_at: string | null
+          id: string
+          is_read: boolean | null
+          lead_id: string | null
+        }
+        Insert: {
+          author_id?: string | null
+          author_role?: string | null
+          content: string
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          lead_id?: string | null
+        }
+        Update: {
+          author_id?: string | null
+          author_role?: string | null
+          content?: string
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          lead_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "broker_notes_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      broker_onboarding_responses: {
+        Row: {
+          broker_id: string | null
+          company_name: string | null
+          cpl_awareness: string
+          created_at: string | null
+          crm_usage: string
+          current_conversion_rate: string | null
+          current_cpl: number | null
+          current_lead_provider: string | null
+          current_monthly_spend: number | null
+          desired_leads_weekly: number
+          email: string | null
+          firm_name: string | null
+          follow_up_process: string
+          full_name: string | null
+          geographic_focus_clarity: string
+          growth_goal_clarity: string
+          id: string
+          max_capacity_weekly: number
+          monthly_lead_spend: string
+          monthly_sales_target: number | null
+          phone_number: string | null
+          preferred_call_time: string | null
+          pricing_comfort: string
+          product_focus: string[] | null
+          product_focus_clarity: string
+          receives_leads_currently: boolean | null
+          speed_to_contact: string
+          team_size: string
+          timeline_to_start: string
+          updated_at: string | null
+          whatsapp_consent: boolean | null
+          whatsapp_number: string | null
+        }
+        Insert: {
+          broker_id?: string | null
+          company_name?: string | null
+          cpl_awareness: string
+          created_at?: string | null
+          crm_usage: string
+          current_conversion_rate?: string | null
+          current_cpl?: number | null
+          current_lead_provider?: string | null
+          current_monthly_spend?: number | null
+          desired_leads_weekly: number
+          email?: string | null
+          firm_name?: string | null
+          follow_up_process: string
+          full_name?: string | null
+          geographic_focus_clarity: string
+          growth_goal_clarity: string
+          id?: string
+          max_capacity_weekly: number
+          monthly_lead_spend: string
+          monthly_sales_target?: number | null
+          phone_number?: string | null
+          preferred_call_time?: string | null
+          pricing_comfort: string
+          product_focus?: string[] | null
+          product_focus_clarity: string
+          receives_leads_currently?: boolean | null
+          speed_to_contact: string
+          team_size: string
+          timeline_to_start: string
+          updated_at?: string | null
+          whatsapp_consent?: boolean | null
+          whatsapp_number?: string | null
+        }
+        Update: {
+          broker_id?: string | null
+          company_name?: string | null
+          cpl_awareness?: string
+          created_at?: string | null
+          crm_usage?: string
+          current_conversion_rate?: string | null
+          current_cpl?: number | null
+          current_lead_provider?: string | null
+          current_monthly_spend?: number | null
+          desired_leads_weekly?: number
+          email?: string | null
+          firm_name?: string | null
+          follow_up_process?: string
+          full_name?: string | null
+          geographic_focus_clarity?: string
+          growth_goal_clarity?: string
+          id?: string
+          max_capacity_weekly?: number
+          monthly_lead_spend?: string
+          monthly_sales_target?: number | null
+          phone_number?: string | null
+          preferred_call_time?: string | null
+          pricing_comfort?: string
+          product_focus?: string[] | null
+          product_focus_clarity?: string
+          receives_leads_currently?: boolean | null
+          speed_to_contact?: string
+          team_size?: string
+          timeline_to_start?: string
+          updated_at?: string | null
+          whatsapp_consent?: boolean | null
+          whatsapp_number?: string | null
+        }
+        Relationships: []
+      }
+      broker_reset_requests: {
+        Row: {
+          created_at: string | null
+          email: string
+          id: string
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
+      broker_security_questions: {
+        Row: {
+          answer_1: string
+          answer_2: string
+          answer_3: string
+          created_at: string | null
+          id: string
+          question_1: string
+          question_2: string
+          question_3: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          answer_1: string
+          answer_2: string
+          answer_3: string
+          created_at?: string | null
+          id?: string
+          question_1: string
+          question_2: string
+          question_3: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          answer_1?: string
+          answer_2?: string
+          answer_3?: string
+          created_at?: string | null
+          id?: string
+          question_1?: string
+          question_2?: string
+          question_3?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      brokers: {
+        Row: {
+          contact_person: string
+          created_at: string | null
+          email: string | null
+          firm_name: string
+          id: string
+          is_lead_loading: boolean | null
+          phone_number: string | null
+          portal_style: string | null
+          portal_type: string | null
+          status: string | null
+          tier: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          contact_person: string
+          created_at?: string | null
+          email?: string | null
+          firm_name: string
+          id?: string
+          is_lead_loading?: boolean | null
+          phone_number?: string | null
+          portal_style?: string | null
+          portal_type?: string | null
+          status?: string | null
+          tier?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          contact_person?: string
+          created_at?: string | null
+          email?: string | null
+          firm_name?: string
+          id?: string
+          is_lead_loading?: boolean | null
+          phone_number?: string | null
+          portal_style?: string | null
+          portal_type?: string | null
+          status?: string | null
+          tier?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       communications: {
         Row: {
           broker_id: string | null
@@ -702,6 +910,10 @@ export type Database = {
           created_at: string | null
           full_name: string | null
           id: string
+          security_answer_1: string | null
+          security_answer_2: string | null
+          security_question_1: string | null
+          security_question_2: string | null
           updated_at: string | null
           user_id: string
         }
@@ -709,6 +921,10 @@ export type Database = {
           created_at?: string | null
           full_name?: string | null
           id?: string
+          security_answer_1?: string | null
+          security_answer_2?: string | null
+          security_question_1?: string | null
+          security_question_2?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -716,6 +932,10 @@ export type Database = {
           created_at?: string | null
           full_name?: string | null
           id?: string
+          security_answer_1?: string | null
+          security_answer_2?: string | null
+          security_question_1?: string | null
+          security_question_2?: string | null
           updated_at?: string | null
           user_id?: string
         }
@@ -999,6 +1219,54 @@ export type Database = {
         }
         Returns: boolean
       }
+      submit_broker_analysis: {
+        Args: {
+          p_broker_id: string
+          p_budget_score: number
+          p_growth_score: number
+          p_intent_score: number
+          p_operational_score: number
+          p_primary_sales_angle: string
+          p_response_id: string
+          p_risk_flags: string[]
+          p_success_band: string
+          p_success_probability: number
+        }
+        Returns: string
+      }
+      submit_broker_onboarding: {
+        Args: {
+          p_broker_id: string
+          p_cpl_awareness: string
+          p_crm_usage: string
+          p_current_conversion_rate: string
+          p_current_cpl: number
+          p_current_lead_provider: string
+          p_current_monthly_spend: number
+          p_desired_leads_weekly: number
+          p_email: string
+          p_firm_name: string
+          p_follow_up_process: string
+          p_full_name: string
+          p_geographic_focus_clarity: string
+          p_growth_goal_clarity: string
+          p_max_capacity_weekly: number
+          p_monthly_lead_spend: string
+          p_monthly_sales_target: number
+          p_phone_number: string
+          p_preferred_call_time: string
+          p_pricing_comfort: string
+          p_product_focus: string[]
+          p_product_focus_clarity: string
+          p_receives_leads_currently: boolean
+          p_speed_to_contact: string
+          p_team_size: string
+          p_timeline_to_start: string
+          p_whatsapp_consent: boolean
+          p_whatsapp_number: string
+        }
+        Returns: string
+      }
       use_admin_invite: {
         Args: { invite_token: string; new_user_id: string }
         Returns: boolean
@@ -1023,116 +1291,116 @@ type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
-  | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-  : never = never,
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
-  ? R
-  : never
+    ? R
+    : never
   : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-    DefaultSchema["Views"])
-  ? (DefaultSchema["Tables"] &
-    DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-      Row: infer R
-    }
-  ? R
-  : never
-  : never
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-  | keyof DefaultSchema["Tables"]
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-    Insert: infer I
-  }
-  ? I
-  : never
+      Insert: infer I
+    }
+    ? I
+    : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-    Insert: infer I
-  }
-  ? I
-  : never
-  : never
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-  | keyof DefaultSchema["Tables"]
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-    Update: infer U
-  }
-  ? U
-  : never
+      Update: infer U
+    }
+    ? U
+    : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-    Update: infer U
-  }
-  ? U
-  : never
-  : never
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-  | keyof DefaultSchema["Enums"]
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-  ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-  : never
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-  | keyof DefaultSchema["CompositeTypes"]
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-  ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-  : never
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
 
 export const Constants = {
   public: {

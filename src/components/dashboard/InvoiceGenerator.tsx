@@ -113,7 +113,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
             { description: "Lead Generation Strategy (Bronze Tier)", quantity: 1, price: 8500 },
             { description: "Platform Setup & Configuration", quantity: 1, price: 0 }
         ],
-        notes: "Term: Month-to-month. Notice: 1 calendar month (Failure to provide notice incurs a 50% penalty). Top-Ups: R500/lead (Min 5 tokens). Payment in advance.",
+        notes: "Terms: Paid in advance for each monthly delivery cycle. Delivery follows a 'Lead Token' model. Top-Ups (min 5 tokens at R2,500) require 1 week notice. Engagement is month-to-month. Termination or pause effective at end of 30-day cycle.",
         bankName: "First National Bank",
         accountName: "Lead Velocity Pty Ltd",
         accountNumber: "63174286724", // Updated to match requested banking details
@@ -191,7 +191,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
             leadCount = 26;
         }
 
-        const breachPenalty = Math.round(tierPrice * 0.5);
+        const tierDesc = tierName;
 
         const newItems = [...invoiceData.items];
         if (newItems.length > 0) {
@@ -207,7 +207,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
             clientAddress: broker.office_address || "Address: To be updated",
             items: [
                 {
-                    description: `Monthly Service Fee - ${tierDesc} (${leads} Lead Tokens)`,
+                    description: `Monthly Service Fee - ${tierDesc} (${leadCount} Lead Tokens)`,
                     quantity: 1,
                     price: tierPrice,
                 },
@@ -217,7 +217,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
                     price: 0,
                 }
             ],
-            notes: `Terms: Paid in advance for each monthly delivery cycle. Delivery follows a 'Lead Token' model. Top-Ups (min 5 tokens at R2,500) require 1 week notice. Engagement is month-to-month. Termination requires 1 full calendar month's written notice.`
+            notes: `Terms: Paid in advance for each monthly delivery cycle. Delivery follows a 'Lead Token' model. Top-Ups (min 5 tokens at R2,500) require 1 week notice. Engagement is month-to-month. Subscription pauses automatically upon non-payment at end of cycle.`
         }));
 
         if (broker.email) setRecipientEmail(broker.email);
@@ -592,19 +592,19 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
                                             },
                                             {
                                                 name: "Bronze",
-                                                desc: "Growth Starter Lead Strategy (Bronze)",
+                                                desc: "Growth Starter Lead Strategy (17 Leads)",
                                                 price: 8500,
                                                 color: "border-orange-500/20 hover:bg-orange-500/10 text-orange-200"
                                             },
                                             {
                                                 name: "Silver",
-                                                desc: "Scale & Optimise Strategy (Silver)",
+                                                desc: "Scale & Optimise Strategy (23-26 Leads)",
                                                 price: 10500,
                                                 color: "border-slate-400/20 hover:bg-slate-400/10 text-slate-200"
                                             },
                                             {
                                                 name: "Gold",
-                                                desc: "Performance Partner Strategy (Gold)",
+                                                desc: "Performance Partner Strategy (33-40+ Leads)",
                                                 price: 16500,
                                                 color: "border-yellow-500/20 hover:bg-yellow-500/10 text-yellow-200"
                                             }

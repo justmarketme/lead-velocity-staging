@@ -110,7 +110,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
         costPerLead: "R500 per lead",
         contentsCover: "R1,000,000 or more",
         buildingValue: "R4,000,000 or more",
-        commissionRate: "9%",
+        commissionRate: "0%",
 
         // Static Text Blocks
         // Token Model Aligned
@@ -119,7 +119,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
 
         purposeTitle: "Strategic Lead Generation",
         purposeText: "Our core solution provides a <strong class='text-pink-900 bg-pink-50 px-1 rounded'>Lead Token</strong> engine. If you exhaust your tokens early, you can Top-Up at <strong>R500 per lead (minimum 5 tokens / R2,500)</strong> with 1 week's notice.",
-        purposeSubText: "Engagement is month-to-month. Subscription pauses automatically upon non-payment at the end of a cycle. Resume anytime by renewing payment. Premature cancellation within a cycle is non-refundable.",
+        purposeSubText: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment.",
 
         overviewTitle: "Campaign Overview",
         quoteText: `"Each qualified lead is one token. Minimum top-up is 5 tokens. Cancellation is immediate upon cessation of payment with no-refund policy for the active cycle."`,
@@ -134,7 +134,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
 
         alignmentTitle: "Performance Alignment",
         alignmentText: "Tokens are paid monthly in advance. Top-Ups require one (1) week's notice. Service pauses automatically if not renewed.",
-        alignmentBoxText: "Additional placed policies attract a <span class='text-pink-400 font-bold'>9% commission</span> on the first-year premium."
+        alignmentBoxText: ""
     });
 
     useEffect(() => {
@@ -200,11 +200,11 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
             investment: "R8,500 (p/m)",
             leads: "± 17 qualified business leads",
             cost: "± R500",
-            comm: "9%",
+            comm: "0%",
             alignment: "Where we prove consistency. Qualified SME decision-maker leads, core targeting & messaging, monthly performance check-in.",
             purposeTitle: "Strategic Lead Generation",
             purposeText: "Our core solution provides a consistent lead engine delivering qualified prospects directly to your sales pipeline. We operate on a Lead Token model (paid monthly in advance).",
-            purposeSubText: "Month-to-month engagement. Subscription pauses automatically upon non-payment. Premature cancellation within a 30-day cycle is non-refundable."
+            purposeSubText: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment."
         };
 
         if (leads <= 10 && leads > 0) {
@@ -217,7 +217,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                 alignment: "The pilot investment covers the delivery of the first ten qualified business leads. Beyond that, we align with your success.",
                 purposeTitle: "Purpose of the Pilot",
                 purposeText: "This 30-day pilot is designed to provide a structured, low-risk starting point while generating enough real performance data to assess quality and ROI.",
-                purposeSubText: "Lead Velocity operates as a lead partner focused on qualified decision-makers."
+                purposeSubText: "Terminates automatically after 30 days or lead completion. No refund for early exit. Commission and NDA obligations survive for 24 months."
             };
         } else if (leads > 32) {
             tierData = {
@@ -225,11 +225,11 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                 investment: "R16,500+ (p/m)",
                 leads: "33-40+ qualified business leads",
                 cost: "± R350-R400",
-                comm: "6%",
+                comm: "0%",
                 alignment: "Where we operate as a revenue partner. Maximum lead volume, advanced qualification, and dedicated campaign management.",
                 purposeTitle: "Revenue Partnership",
                 purposeText: "Our premium tier where we operate as a full revenue partner. Token-based delivery ensures consistent ROI and inventory management.",
-                purposeSubText: "Month-to-month engagement. Account pauses automatically if the current cycle ends without payment. Early exit within a cycle is non-refundable."
+                purposeSubText: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment."
             };
         } else if (leads >= 20) {
             tierData = {
@@ -237,11 +237,11 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                 investment: "R10,500 (p/m)",
                 leads: "± 23-26 qualified business leads",
                 cost: "± R400-R450",
-                comm: "8%",
+                comm: "0%",
                 alignment: "Where results become predictable. Higher lead volume, ongoing optimisation, messaging testing, and bi-weekly reviews.",
                 purposeTitle: "Predictable Scaling",
                 purposeText: "The Silver tier provides systematic growth for scaling brokers. Delivery follows the Lead Token model, ensuring transparency and inventory control.",
-                purposeSubText: "Month-to-month engagement. Subscription pauses upon non-payment at cycle-end. Resume anytime by renewing payment. No refunds for early exit."
+                purposeSubText: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment."
             };
         }
 
@@ -258,7 +258,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
             purposeTitle: tierData.purposeTitle,
             purposeText: tierData.purposeText,
             purposeSubText: tierData.purposeSubText,
-            alignmentBoxText: `Additional placed policies attract a <span class='text-pink-400 font-bold'>${tierData.comm} commission</span> calculated on the first-year premium.`
+            alignmentBoxText: tierData.comm !== "0%" ? `Additional placed policies attract a <span class='text-pink-400 font-bold'>${tierData.comm} commission</span> calculated on the first-year premium.` : ""
         }));
 
         if (broker.email) setRecipientEmail(broker.email);
@@ -619,7 +619,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                                             alignment: "The pilot investment covers the delivery of the first ten qualified business leads. Beyond that, we align with your success.",
                                             purposeTitle: "Purpose of the Pilot",
                                             purposeText: "This 30-day pilot is designed to provide a structured, low-risk starting point while generating enough real performance data to assess quality and ROI.",
-                                            purposeSubText: "Lead Velocity operates as a lead partner focused on qualified decision-makers.",
+                                            purposeSubText: "Terminates automatically after 30 days or lead completion. No refund for early exit. Commission and NDA obligations survive for 24 months.",
                                             color: "border-pink-500/20 hover:border-pink-500/50 hover:bg-pink-500/10 text-pink-200"
                                         },
                                         {
@@ -628,11 +628,11 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                                             investment: "R8,500 (p/m)",
                                             leads: "± 17 qualified business leads",
                                             cost: "± R500",
-                                            comm: "9%",
+                                            comm: "0%",
                                             alignment: "Where we prove consistency. Qualified SME decision-maker leads, core targeting & messaging, monthly performance check-in.",
                                             purposeTitle: "Strategic Lead Generation",
                                             purposeText: "Our core solution provides a consistent lead engine delivering qualified prospects directly to your sales pipeline. We operate on a Lead Token model (paid monthly in advance).",
-                                            purposeSubText: "Month-to-month engagement. Subscription pauses automatically upon non-payment. Premature cancellation within a 30-day cycle is non-refundable.",
+                                            purposeSubText: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment.",
                                             color: "border-orange-500/20 hover:border-orange-500/50 hover:bg-orange-500/10 text-orange-200"
                                         },
                                         {
@@ -641,11 +641,11 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                                             investment: "R10,500 (p/m)",
                                             leads: "± 23-26 qualified business leads",
                                             cost: "± R400-R450",
-                                            comm: "8%",
+                                            comm: "0%",
                                             alignment: "Where results become predictable. Higher lead volume, ongoing optimisation, messaging testing, and bi-weekly reviews.",
                                             purposeTitle: "Predictable Scaling",
                                             purposeText: "The Silver tier provides systematic growth for scaling brokers. Delivery follows the Lead Token model, ensuring transparency and inventory control.",
-                                            purposeSubText: "Month-to-month engagement. Subscription pauses upon non-payment at cycle-end. Resume anytime by renewing payment. No refunds for early exit.",
+                                            purposeSubText: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment.",
                                             color: "border-slate-400/20 hover:border-slate-400/50 hover:bg-slate-400/10 text-slate-200"
                                         },
                                         {
@@ -654,11 +654,11 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                                             investment: "R16,500+ (p/m)",
                                             leads: "33-40+ qualified business leads",
                                             cost: "± R350-R400",
-                                            comm: "6%",
+                                            comm: "0%",
                                             alignment: "Where we operate as a revenue partner. Maximum lead volume, advanced qualification, and dedicated campaign management.",
                                             purposeTitle: "Revenue Partnership",
                                             purposeText: "Our premium tier where we operate as a full revenue partner. Token-based delivery ensures consistent ROI and inventory management.",
-                                            purposeSubText: "Month-to-month engagement. Account pauses automatically if the current cycle ends without payment. Early exit within a cycle is non-refundable.",
+                                            purposeSubText: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment.",
                                             color: "border-yellow-500/20 hover:border-yellow-500/50 hover:bg-yellow-500/10 text-yellow-200"
                                         }
                                     ].map((tier) => (
@@ -676,7 +676,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                                                     purposeTitle: tier.purposeTitle,
                                                     purposeText: tier.purposeText,
                                                     purposeSubText: tier.purposeSubText,
-                                                    alignmentBoxText: `Additional placed policies attract a <span class='text-pink-400 font-bold'>${tier.comm} commission</span> calculated on the first-year premium.`
+                                                    alignmentBoxText: tier.comm !== "0%" ? `Additional placed policies attract a <span class='text-pink-400 font-bold'>${tier.comm} commission</span> calculated on the first-year premium.` : ""
                                                 }));
                                                 toast({ title: `${tier.name} Applied`, description: "Proposal template updated." });
                                             }}
