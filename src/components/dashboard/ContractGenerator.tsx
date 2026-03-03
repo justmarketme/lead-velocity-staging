@@ -220,7 +220,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                 termination: "1 calendar month notice required. Immediate exit incurs 50% Breach Penalty (R8,250). All data protection clauses survive.",
                 color: "Gold"
             };
-        } else if (leads >= 21) {
+        } else if (leads >= 20) {
             tierData = {
                 subtitle: "Silver: Scale & Optimise",
                 fee: "R10,500 (p/m)",
