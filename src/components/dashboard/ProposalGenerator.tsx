@@ -329,7 +329,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
             document.body.appendChild(clone);
 
             console.log("Proposal PDF: Starting generateSmartPDF...");
-            const pdf = await generateSmartPDF(clone, { scale: 2.0, quality: 0.92 });
+            const pdf = await generateSmartPDF(clone, { scale: 1.5, quality: 0.90 });
             console.log("Proposal PDF: generateSmartPDF complete.");
 
             document.body.removeChild(clone);
