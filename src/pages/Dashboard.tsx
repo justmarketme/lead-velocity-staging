@@ -45,12 +45,16 @@ const Dashboard = () => {
         if (roleError || !isAdmin) {
           const { data: brokerData } = await supabase
             .from("brokers")
-            .select("id")
+            .select("id, portal_type")
             .eq("user_id", userId)
             .single();
 
           if (brokerData) {
-            navigate("/broker/dashboard");
+            if (brokerData.portal_type === 'marketing' || brokerData.portal_type === 'premium') {
+              navigate("/broker-elite");
+            } else {
+              navigate("/broker/dashboard");
+            }
           }
           return;
         }

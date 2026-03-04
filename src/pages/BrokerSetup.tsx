@@ -70,6 +70,15 @@ const BrokerSetup = () => {
         verifyToken();
     }, [token, navigate, toast]);
 
+    useEffect(() => {
+        if (isSuccess) {
+            const timer = setTimeout(() => {
+                navigate("/dashboard");
+            }, 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [isSuccess, navigate]);
+
     const handleSetPassword = async (e: React.FormEvent) => {
         e.preventDefault();
         if (password !== confirmPassword) {
@@ -209,14 +218,14 @@ const BrokerSetup = () => {
                             <div className="text-center space-y-2">
                                 <h3 className="text-xl font-semibold">Registration Successful!</h3>
                                 <p className="text-muted-foreground">
-                                    Your profile has been created and secured.
+                                    Your profile has been created and secured. Redirecting you to your portal in 3 seconds...
                                 </p>
                             </div>
                             <Button
-                                className="w-full h-12 text-lg font-bold"
-                                onClick={() => navigate("/login")}
+                                className="w-full h-12 text-lg font-bold bg-primary hover:bg-primary/90"
+                                onClick={() => navigate("/dashboard")}
                             >
-                                Go to Login
+                                Enter Your Portal
                             </Button>
                         </div>
                     ) : step === 1 ? (

@@ -33,12 +33,16 @@ const BrokerPortal = () => {
       if (session) {
         const { data: broker } = await supabase
           .from("brokers")
-          .select("id")
+          .select("id, portal_type")
           .eq("user_id", session.user.id)
           .single();
 
         if (broker) {
-          navigate("/broker/dashboard");
+          if (broker.portal_type === 'marketing' || broker.portal_type === 'premium') {
+            navigate("/broker-elite");
+          } else {
+            navigate("/broker/dashboard");
+          }
         }
       }
     };
