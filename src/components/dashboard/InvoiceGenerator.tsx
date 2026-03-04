@@ -424,11 +424,16 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
             // Add page-break styles to prevent content from being cut
             const style = document.createElement('style');
             style.textContent = `
-                section, .invoice-section { page-break-inside: avoid !important; break-inside: avoid !important; }
-                table { page-break-inside: avoid !important; break-inside: avoid !important; }
-                tr { page-break-inside: avoid !important; break-inside: avoid !important; }
-                header { page-break-after: avoid !important; }
-                h1, h2, h3 { page-break-after: avoid !important; }
+                header { page-break-after: avoid!important; break-after: avoid!important; }
+                h1, h2, h3, h4 { page-break-after: avoid!important; break-after: avoid!important; }
+                section, .invoice-section, table, .bg-slate-50, .border, .bg-red-50, .bg-amber-50, .bg-green-50, .bg-blue-50, .bg-purple-50, .bg-orange-50 { 
+                    page-break-inside: avoid!important; 
+                    break-inside: avoid!important; 
+                    margin-bottom: 12px!important; 
+                    display: block!important;
+                }
+                tr { page-break-inside: avoid!important; break-inside: avoid!important; }
+                p { orphans: 3; widows: 3; }
             `;
             clone.appendChild(style);
 

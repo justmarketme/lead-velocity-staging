@@ -11,7 +11,7 @@ import jsPDF from "jspdf";
 
 const A4_WIDTH_PX = 794;          // windowWidth used for html2canvas
 const A4_RATIO = 297 / 210;       // A4 height/width ratio
-const A4_HEIGHT_PX = Math.round(A4_WIDTH_PX * A4_RATIO); // ~1122px per page
+const A4_HEIGHT_PX = Math.floor((A4_WIDTH_PX * 297) / 210); // Exactly 1122.9 -> 1122px
 
 export interface SmartPDFOptions {
     scale?: number;
@@ -37,8 +37,9 @@ async function injectPageBreakSpacers(clone: HTMLElement): Promise<HTMLElement[]
     // Up to 8 passes — each pass fixes one split, then re-measures from scratch
     for (let pass = 0; pass < 8; pass++) {
         // Target the semantic content blocks used in all three generators
+        // Including .bg-slate-50, .border, .bg-red-50, etc.
         const blocks = Array.from(
-            clone.querySelectorAll("section, table, thead, tbody, tr, h1, h2, h3, h4, p")
+            clone.querySelectorAll("section, table, thead, tbody, tr, h1, h2, h3, h4, p, div[class*='bg-'], div.border")
         ) as HTMLElement[];
 
         let foundSplit = false;

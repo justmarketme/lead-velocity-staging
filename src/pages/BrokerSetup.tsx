@@ -38,6 +38,7 @@ const BrokerSetup = () => {
     const [a2, setA2] = useState("");
     const [q3, setQ3] = useState("");
     const [a3, setA3] = useState("");
+    const [editableEmail, setEditableEmail] = useState("");
     const [isSuccess, setIsSuccess] = useState(false);
 
     useEffect(() => {
@@ -61,6 +62,7 @@ const BrokerSetup = () => {
                 navigate("/broker");
             } else {
                 setInvite(data);
+                setEditableEmail(data.email);
             }
             setLoading(false);
         };
@@ -92,7 +94,7 @@ const BrokerSetup = () => {
         try {
             // 1. Create the user in Auth
             const { data: authData, error: authError } = await supabase.auth.signUp({
-                email: invite.email,
+                email: editableEmail || invite.email,
                 password: password,
                 options: {
                     data: {
@@ -224,11 +226,11 @@ const BrokerSetup = () => {
                                 <Input
                                     id="email"
                                     type="email"
-                                    value={invite?.email || ""}
-                                    disabled
-                                    className="bg-muted text-muted-foreground cursor-not-allowed"
+                                    value={editableEmail}
+                                    onChange={(e) => setEditableEmail(e.target.value)}
+                                    className="bg-background"
                                 />
-                                <p className="text-[10px] text-muted-foreground">Email is pre-filled from your invitation.</p>
+                                <p className="text-[10px] text-muted-foreground">You can update your email if it has changed.</p>
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="password">Create Password</Label>
