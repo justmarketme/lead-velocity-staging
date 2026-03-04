@@ -12,13 +12,26 @@ This document outlines the core architecture and technologies used in the Veloci
 - **Voice Interaction**: Web Speech API (STT/TTS).
 - **Communications**: SendGrid (Email) and Twilio (Future Voice/SMS).
 
-## 🛠 AI Assistant Tools (MCPs & Skills)
+## 🛠 Assistant Requirements (MCPs & Skills)
 
-If you are using an agentic AI (like Antigravity or a custom Cursor setup), these are the key "powers" we've utilized:
+For an AI assistant (like Antigravity or Cursor) to work effectively on this specific build, it needs the following "powers":
 
-1.  **Supabase MCP**: Essential for managing the database schema, executing migrations, and deploying Edge Functions.
-2.  **Integration Engineer Skill**: Used for configuring complex 3rd-party APIs (Twilio/SendGrid).
-3.  **PDF Spacer Strategy**: A custom approach to document generation.
+### 1. Model Context Protocol (MCP)
+- **`supabase-mcp-server`**: This is **CRITICAL**. The assistant must be able to:
+    - Run SQL queries to understand/modify the schema.
+    - Deploy and view Edge Functions (`supabase/functions`).
+    - Read database logs for debugging.
+    - Check RLS (Row Level Security) policies.
+- **`search_docs`**: Access to Supabase and React documentation.
+
+### 2. Specialized Skills
+- **`integration_engineer`**: Essential for handling the complexity of Twilio and SendGrid integrations.
+- **`web_application_development`**: Guidelines for the "Clean UI" and "Premium Aesthetics" we've maintained (dark mode, glassmorphism).
+
+### 3. Knowledge Base Strategy
+- **`KNOWLEDGE_TRANSFER.md`**: The primary anchor for architectural patterns.
+- **Artifacts**: If using a system that supports them, review `task.md`, `walkthrough.md`, and `implementation_plan.md` from previous phases.
+- **Supabase Docs**: Always search the docs before modifying database logic or edge functions.
 
 ## 📄 Document Generation Logic (`pdfUtils.ts`)
 
