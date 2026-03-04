@@ -90,40 +90,68 @@ export async function generateSmartPDF(
     clone: HTMLElement,
     options: SmartPDFOptions = {}
 ): Promise<jsPDF> {
-    const { scale = 1.3, quality = 0.90 } = options;
+    const { scale = 1.5, quality = 0.92 } = options;
     const startTime = Date.now();
 
-    console.log("PDF DEBUG: Starting emergency fast generation...");
+    console.log("PDF DEBUG: generateSmartPDF v3 starting...");
 
-    // Position clone off-screen but OPAQUE for capture (opacity 0 leads to blank PDFs)
+    // CRITICAL: Force exact pixel width and full visibility
+    clone.style.width = `${A4_WIDTH_PX}px`;
+    clone.style.maxWidth = `${A4_WIDTH_PX}px`;
+    clone.style.position = "absolute";
+    clone.style.top = "0px";
+    clone.style.left = "-9999px";
+    clone.style.zIndex = "-9999";
+    clone.style.opacity = "1";
     clone.style.visibility = "visible";
     clone.style.display = "block";
     clone.style.pointerEvents = "none";
-    clone.style.position = "fixed";
-    clone.style.top = "0";
-    clone.style.left = "-10000px"; // Move far left instead of top to avoid some scroll issues
-    clone.style.opacity = "1";
+    clone.style.overflow = "visible";
+    clone.style.backgroundColor = "#ffffff";
 
-    // Step 1: Wait for browser to paint the clone
-    console.log("PDF DEBUG: Waiting for paint...");
-    await new Promise((r) => setTimeout(r, 500));
+    // Ensure clone is in the DOM
+    if (!clone.parentElement) {
+        document.body.appendChild(clone);
+    }
 
-    console.log(`PDF DEBUG: Starting html2canvas render (scale: ${scale})...`);
+    // Wait for paint — requestAnimationFrame + setTimeout guarantees it
+    await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+            setTimeout(resolve, 300);
+        });
+    });
+
+    const cloneRect = clone.getBoundingClientRect();
+    console.log(`PDF DEBUG: Clone dimensions: ${cloneRect.width}x${cloneRect.height}`);
+
+    if (cloneRect.height < 10) {
+        console.error("PDF DEBUG: Clone has no height! Content may not have rendered.");
+    }
+
+    console.log(`PDF DEBUG: html2canvas starting (scale=${scale}, windowWidth=${A4_WIDTH_PX})...`);
     const canvas = await html2canvas(clone, {
         scale,
         useCORS: true,
         backgroundColor: "#ffffff",
         windowWidth: A4_WIDTH_PX,
-        logging: false // Faster without logs
+        logging: false,
+        allowTaint: true,
+        onclone: (doc: Document, el: HTMLElement) => {
+            // Force all images to render
+            el.querySelectorAll("img").forEach((img) => {
+                img.style.maxWidth = "100%";
+                img.crossOrigin = "anonymous";
+            });
+        }
     });
 
+    console.log(`PDF DEBUG: Canvas created: ${canvas.width}x${canvas.height}`);
+
     if (!canvas || canvas.width === 0 || canvas.height === 0) {
-        throw new Error("PDF Generation Failed: Empty canvas.");
+        throw new Error("PDF Generation Failed: html2canvas produced empty canvas.");
     }
 
-    console.log(`PDF DEBUG: Render complete. Time: ${Date.now() - startTime}ms`);
-
-    // Step 2: Build PDF
+    // Build the PDF
     const pdf = new jsPDF({
         orientation: "portrait",
         unit: "mm",
@@ -136,17 +164,17 @@ export async function generateSmartPDF(
     const pageHeightMM = 297;
     const imgHeightMM = (canvas.height * imgWidthMM) / canvas.width;
 
+    console.log(`PDF DEBUG: Image dimensions in mm: ${imgWidthMM} x ${imgHeightMM}`);
+
     if (imgHeightMM <= pageHeightMM) {
         pdf.addImage(imgData, "JPEG", 0, 0, imgWidthMM, imgHeightMM);
     } else {
         let heightLeft = imgHeightMM;
         let position = 0;
 
-        // Add first page
         pdf.addImage(imgData, "JPEG", 0, position, imgWidthMM, imgHeightMM);
         heightLeft -= pageHeightMM;
 
-        // Add subsequent pages (simple slicing)
         while (heightLeft > 0) {
             position = heightLeft - imgHeightMM;
             pdf.addPage();
@@ -155,7 +183,9 @@ export async function generateSmartPDF(
         }
     }
 
-    console.log(`PDF DEBUG: Success! Total Time: ${Date.now() - startTime}ms`);
+    const elapsed = Date.now() - startTime;
+    const pageCount = pdf.getNumberOfPages();
+    console.log(`PDF DEBUG: SUCCESS — ${pageCount} pages, ${elapsed}ms total`);
     return pdf;
 }
 
