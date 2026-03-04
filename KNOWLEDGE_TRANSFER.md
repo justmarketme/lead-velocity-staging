@@ -28,10 +28,22 @@ For an AI assistant (like Antigravity or Cursor) to work effectively on this spe
 - **`integration_engineer`**: Essential for handling the complexity of Twilio and SendGrid integrations.
 - **`web_application_development`**: Guidelines for the "Clean UI" and "Premium Aesthetics" we've maintained (dark mode, glassmorphism).
 
-### 3. Knowledge Base Strategy
-- **`KNOWLEDGE_TRANSFER.md`**: The primary anchor for architectural patterns.
-- **Artifacts**: If using a system that supports them, review `task.md`, `walkthrough.md`, and `implementation_plan.md` from previous phases.
-- **Supabase Docs**: Always search the docs before modifying database logic or edge functions.
+## 🚀 Colleague's Pre-flight Checklist
+
+Before starting work in Cursor, ensure the following is configured:
+
+1.  **Pull Latest**: Run `git pull origin master`.
+2.  **MCP Setup**: Verify these MCPs are active:
+    - [ ] `supabase-mcp-server` (Configured with Project ID: `cmsylaupctrbsvzrgzwy`)
+    - [ ] `github-mcp-server` (For branch management)
+    - [ ] `vercel-mcp-server` (For deployment monitoring)
+3.  **Skill Context**: Inform the AI about these core patterns:
+    - [ ] "Always use the Smart PDF engine in `src/utils/pdfUtils.ts`."
+    - [ ] "Check `src/utils/legalAI.ts` for AI integration patterns."
+    - [ ] "Follow the dark-mode aesthetic defined in `index.css`."
+4.  **Knowledge Base**: 
+    - [ ] Add `KNOWLEDGE_TRANSFER.md` to the AI's "Always Reference" list.
+    - [ ] Read the last 3 entries in `task.md` for current project status.
 
 ## 📄 Document Generation Logic (`pdfUtils.ts`)
 
