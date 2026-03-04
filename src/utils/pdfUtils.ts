@@ -95,16 +95,19 @@ export async function generateSmartPDF(
 
     console.log("PDF DEBUG: Starting emergency fast generation...");
 
-    // Position clone off-screen but visible for capture
+    // Position clone off-screen but OPAQUE for capture (opacity 0 leads to blank PDFs)
     clone.style.visibility = "visible";
     clone.style.display = "block";
     clone.style.pointerEvents = "none";
     clone.style.position = "fixed";
-    clone.style.top = "-10000px";
-    clone.style.left = "0";
-    clone.style.opacity = "0";
+    clone.style.top = "0";
+    clone.style.left = "-10000px"; // Move far left instead of top to avoid some scroll issues
+    clone.style.opacity = "1";
 
-    // Step 1: Instant snapshot (no heavy iteration)
+    // Step 1: Wait for browser to paint the clone
+    console.log("PDF DEBUG: Waiting for paint...");
+    await new Promise((r) => setTimeout(r, 500));
+
     console.log(`PDF DEBUG: Starting html2canvas render (scale: ${scale})...`);
     const canvas = await html2canvas(clone, {
         scale,
