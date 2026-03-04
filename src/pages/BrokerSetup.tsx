@@ -70,14 +70,6 @@ const BrokerSetup = () => {
         verifyToken();
     }, [token, navigate, toast]);
 
-    useEffect(() => {
-        if (isSuccess) {
-            const timer = setTimeout(() => {
-                navigate("/dashboard");
-            }, 3000);
-            return () => clearTimeout(timer);
-        }
-    }, [isSuccess, navigate]);
 
     const handleSetPassword = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -132,6 +124,16 @@ const BrokerSetup = () => {
             });
 
             setIsSuccess(true);
+
+            // Determine portal path for immediate redirect button
+            const portalPath = (invite.portal_type === 'marketing' || invite.portal_type === 'premium')
+                ? "/broker-elite"
+                : "/broker/dashboard";
+
+            const timer = setTimeout(() => {
+                navigate(portalPath);
+            }, 3000);
+            return () => clearTimeout(timer);
         } catch (error: any) {
             console.error("Setup error:", error);
             toast({
@@ -193,7 +195,12 @@ const BrokerSetup = () => {
                             </div>
                             <Button
                                 className="w-full h-12 text-lg font-bold bg-primary hover:bg-primary/90"
-                                onClick={() => navigate("/dashboard")}
+                                onClick={() => {
+                                    const portalPath = (invite?.portal_type === 'marketing' || invite?.portal_type === 'premium')
+                                        ? "/broker-elite"
+                                        : "/broker/dashboard";
+                                    navigate(portalPath);
+                                }}
                             >
                                 Enter Your Portal
                             </Button>

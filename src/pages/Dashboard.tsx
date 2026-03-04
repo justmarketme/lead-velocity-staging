@@ -55,6 +55,10 @@ const Dashboard = () => {
             } else {
               navigate("/broker/dashboard");
             }
+          } else {
+            // No admin role and no broker record - redirect to login
+            console.warn("No role or broker record found, redirecting to login");
+            navigate("/login");
           }
           return;
         }
