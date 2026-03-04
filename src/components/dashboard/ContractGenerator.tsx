@@ -434,14 +434,18 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
             style.textContent = `
                 header { page-break-after: avoid!important; break-after: avoid!important; }
                 h1, h2, h3, h4 { page-break-after: avoid!important; break-after: avoid!important; }
-                section, .bg-slate-50, .border, .bg-red-50, .bg-amber-50, .bg-green-50, .bg-blue-50, .bg-purple-50, .bg-orange-50 { 
+                section, .document-section, .bg-slate-50, .border, .bg-red-50, .bg-amber-50, .bg-green-50, .bg-blue-50, .bg-purple-50, .bg-orange-50 { 
                     page-break-inside: avoid!important; 
                     break-inside: avoid!important; 
-                    margin-bottom: 12px!important; 
+                    margin-bottom: 24px!important; 
                     display: block!important;
+                    position: relative!important;
                 }
-                .signature-section { page-break-inside: avoid!important; break-inside: avoid!important; }
-                p { orphans: 3; widows: 3; }
+                tr { page-break-inside: avoid!important; break-inside: avoid!important; }
+                p { orphans: 4; widows: 4; line-height: 1.6!important; }
+                table { border-collapse: collapse!important; width: 100%!important; page-break-inside: auto!important; }
+                .grid { display: block!important; } /* Force block for grids to respect page breaks in PDF */
+                .flex { display: block!important; } /* Force block for small flex containers */
             `;
             clone.appendChild(style);
 

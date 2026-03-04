@@ -39,7 +39,7 @@ async function injectPageBreakSpacers(clone: HTMLElement): Promise<HTMLElement[]
         // Target the semantic content blocks used in all three generators
         // Including .bg-slate-50, .border, .bg-red-50, etc.
         const blocks = Array.from(
-            clone.querySelectorAll("section, table, thead, tbody, tr, h1, h2, h3, h4, p, div[class*='bg-'], div.border")
+            clone.querySelectorAll("section, table, thead, tbody, tr, h1, h2, h3, h4, p, div[class*='bg-'], div.border, .invoice-section, .document-section")
         ) as HTMLElement[];
 
         let foundSplit = false;
@@ -47,7 +47,7 @@ async function injectPageBreakSpacers(clone: HTMLElement): Promise<HTMLElement[]
         for (const block of blocks) {
             if (block.dataset.pdfSpacer) continue;               // skip our own spacers
             const height = block.getBoundingClientRect().height;
-            if (height < 10 || height >= A4_HEIGHT_PX) continue; // skip tiny/full-page elements
+            if (height < 20 || height >= A4_HEIGHT_PX * 0.9) continue; // skip tiny or nearly full-page elements
 
             const top = getTopRelativeToClone(block, clone);
             const bottom = top + height;
@@ -56,11 +56,12 @@ async function injectPageBreakSpacers(clone: HTMLElement): Promise<HTMLElement[]
             const breakY = (pageNum + 1) * A4_HEIGHT_PX;
 
             // Does this block span the next page boundary?
-            if (top < breakY && bottom > breakY) {
-                const spacerHeight = Math.ceil(breakY - top) + 2; // +2px buffer
+            // Apply a larger safety margin (20px) to ensure no slicing
+            if (top < breakY && bottom > (breakY - 20)) {
+                const spacerHeight = Math.ceil(breakY - top) + 5; // +5px buffer
 
                 const spacer = document.createElement("div");
-                spacer.style.cssText = `height:${spacerHeight}px;min-height:${spacerHeight}px;display:block;flex-shrink:0;width:100%;`;
+                spacer.style.cssText = `height:${spacerHeight}px;min-height:${spacerHeight}px;display:block;flex-shrink:0;width:100%;background:white;`;
                 spacer.dataset.pdfSpacer = "true";
 
                 block.parentElement?.insertBefore(spacer, block);
