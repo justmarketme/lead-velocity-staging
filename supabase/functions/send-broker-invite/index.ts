@@ -105,7 +105,7 @@ const handler = async (req: Request): Promise<Response> => {
                 Authorization: `Bearer ${RESEND_API_KEY}`,
             },
             body: JSON.stringify({
-                from: "Lead Velocity <howzit@leadvelocity.co.za>",
+                from: "Lead Velocity <noreply@resend.dev>",
                 to: [email],
                 subject: "You've Been Invited to the Broker Portal - Lead Velocity",
                 html: `

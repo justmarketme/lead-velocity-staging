@@ -102,59 +102,29 @@ const BrokerSetup = () => {
         setSubmitting(true);
         try {
             // 1. Create the user in Auth
+            // Everything else (brokers, user_roles, security_questions) is handled by the handle_new_broker database trigger
             const { data: authData, error: authError } = await supabase.auth.signUp({
                 email: editableEmail || invite.email,
                 password: password,
                 options: {
                     data: {
+                        user_type: 'broker',
                         full_name: invite.broker_name,
                         firm_name: invite.firm_name,
+                        portal_type: invite.portal_type || 'referral',
+                        token: token,
+                        q1: q1,
+                        a1: a1.toLowerCase().trim(),
+                        q2: q2,
+                        a2: a2.toLowerCase().trim(),
+                        q3: q3,
+                        a3: a3.toLowerCase().trim(),
                     }
                 }
             });
 
             if (authError) throw authError;
             if (!authData.user) throw new Error("Failed to create user");
-
-            // 2. Sign in (SignUp might auto-sign in depending on config, but let's be safe)
-            // Note: If email confirmation is ON, we might need a different flow. 
-            // Assuming auto-confirm for now as per "genenerate login details for them" requirement.
-
-            // 3. Store Security Questions
-            const { error: sqError } = await supabase
-                .from("broker_security_questions")
-                .insert({
-                    user_id: authData.user.id,
-                    question_1: q1,
-                    answer_1: a1.toLowerCase().trim(),
-                    question_2: q2,
-                    answer_2: a2.toLowerCase().trim(),
-                    question_3: q3,
-                    answer_3: a3.toLowerCase().trim(),
-                });
-
-            if (sqError) throw sqError;
-
-            // 4. Create Broker Record & Role
-            await supabase.from("user_roles").insert({
-                user_id: authData.user.id,
-                role: "broker"
-            });
-
-            await supabase.from("brokers").insert({
-                user_id: authData.user.id,
-                firm_name: invite.firm_name || "Independent",
-                contact_person: invite.broker_name || invite.email,
-                email: invite.email,
-                portal_type: invite.portal_type || "referral",
-                status: "Active"
-            });
-
-            // 5. Mark invite as used
-            await supabase
-                .from("broker_invites")
-                .update({ used_at: new Date().toISOString() })
-                .eq("token", token);
 
             toast({
                 title: "Setup Complete!",

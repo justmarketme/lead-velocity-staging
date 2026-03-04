@@ -29,6 +29,7 @@ import BrokerOnboarding from "./pages/BrokerOnboarding";
 import Pricing from "./pages/Pricing";
 import Promotions from "./pages/Promotions";
 import PremiumBrokerPortalPage from "./pages/PremiumBrokerPortalPage";
+import HealthCheck from "./pages/HealthCheck";
 
 import { HelmetProvider } from "react-helmet-async";
 
@@ -71,6 +72,7 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/notifications" element={<NotificationHistory />} />
             <Route path="/onboarding" element={<BrokerOnboarding />} />
+            <Route path="/health" element={<HealthCheck />} />
             <Route path="/broker-elite" element={<PremiumBrokerPortalPage />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
