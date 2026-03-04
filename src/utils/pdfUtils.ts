@@ -90,27 +90,48 @@ export async function generateSmartPDF(
     clone: HTMLElement,
     options: SmartPDFOptions = {}
 ): Promise<jsPDF> {
-    const { scale = 1.5, quality = 0.85 } = options;
+    const { scale = 2.0, quality = 0.92 } = options;
+
+    console.log("PDF DEBUG: Starting smart generation process...");
+
+    // Ensure the clone is visible for measurement but off-screen
+    clone.style.visibility = "visible";
+    clone.style.display = "block";
+    clone.style.pointerEvents = "none";
 
     // Step 1: Inject spacers to guarantee page breaks fall in white space
+    console.log("PDF DEBUG: Starting spacer injection...");
     const spacers = await injectPageBreakSpacers(clone);
+    console.log(`PDF DEBUG: Injected ${spacers.length} spacers.`);
 
     // Step 2: Small pause for final layout settle
-    await new Promise((r) => setTimeout(r, 100));
+    await new Promise((r) => setTimeout(r, 150));
 
     // Step 3: Render the full document to canvas
+    console.log("PDF DEBUG: Starting html2canvas render...");
     const canvas = await html2canvas(clone, {
         scale,
         useCORS: true,
-        logging: false,
+        logging: true, // Enable logging for debugging
         backgroundColor: "#ffffff",
         windowWidth: A4_WIDTH_PX,
+        onclone: (doc) => {
+            console.log("PDF DEBUG: html2canvas onclone callback triggered.");
+        }
     });
 
-    // Step 4: Remove spacers (before returning control to caller who removes the clone)
+    if (!canvas || canvas.width === 0 || canvas.height === 0) {
+        console.error("PDF ERROR: html2canvas failed to produce a valid canvas.");
+        throw new Error("PDF Generation Failed: Empty canvas produced.");
+    }
+
+    console.log(`PDF DEBUG: html2canvas render complete. Canvas size: ${canvas.width}x${canvas.height}`);
+
+    // Step 4: Remove spacers
     spacers.forEach((s) => s.remove());
 
     // Step 5: Build PDF — slice the canvas at A4 page intervals
+    console.log("PDF DEBUG: Starting jsPDF build...");
     const pdf = new jsPDF({
         orientation: "portrait",
         unit: "mm",
@@ -123,21 +144,29 @@ export async function generateSmartPDF(
     const pageHeightMM = 297;
     const imgHeightMM = (canvas.height * imgWidthMM) / canvas.width;
 
+    console.log(`PDF DEBUG: Total document height in MM: ${imgHeightMM}`);
+
     if (imgHeightMM <= pageHeightMM) {
         pdf.addImage(imgData, "JPEG", 0, 0, imgWidthMM, imgHeightMM);
     } else {
         let heightLeft = imgHeightMM;
         let position = 0;
+
+        // Add first page
         pdf.addImage(imgData, "JPEG", 0, position, imgWidthMM, imgHeightMM);
         heightLeft -= pageHeightMM;
+
+        // Add subsequent pages
         while (heightLeft > 0) {
             position = heightLeft - imgHeightMM;
             pdf.addPage();
             pdf.addImage(imgData, "JPEG", 0, position, imgWidthMM, imgHeightMM);
             heightLeft -= pageHeightMM;
+            console.log(`PDF DEBUG: Added page. Remaining height: ${heightLeft}mm`);
         }
     }
 
+    console.log("PDF DEBUG: jsPDF build complete.");
     return pdf;
 }
 

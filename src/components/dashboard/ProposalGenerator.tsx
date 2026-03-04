@@ -297,6 +297,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
             clone.style.minHeight = "297mm";
             clone.style.height = "auto";
             clone.style.zIndex = "-9999";
+            clone.style.backgroundColor = "#ffffff";
 
             // Remove interactive styles
             const editables = clone.querySelectorAll('[contenteditable]');
@@ -327,7 +328,9 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
 
             document.body.appendChild(clone);
 
-            const pdf = await generateSmartPDF(clone);
+            console.log("Proposal PDF: Starting generateSmartPDF...");
+            const pdf = await generateSmartPDF(clone, { scale: 2.0, quality: 0.92 });
+            console.log("Proposal PDF: generateSmartPDF complete.");
 
             document.body.removeChild(clone);
 

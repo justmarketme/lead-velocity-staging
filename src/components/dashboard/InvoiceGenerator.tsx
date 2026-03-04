@@ -410,6 +410,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
             clone.style.minHeight = "297mm";
             clone.style.height = "auto";
             clone.style.zIndex = "-9999";
+            clone.style.backgroundColor = "#ffffff";
 
             const editables = clone.querySelectorAll('[contenteditable]');
             editables.forEach(el => {
@@ -443,7 +444,9 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
 
             document.body.appendChild(clone);
 
-            const pdf = await generateSmartPDF(clone);
+            console.log("Invoice PDF: Starting generateSmartPDF...");
+            const pdf = await generateSmartPDF(clone, { scale: 2.0, quality: 0.92 });
+            console.log("Invoice PDF: generateSmartPDF complete.");
 
             document.body.removeChild(clone);
 

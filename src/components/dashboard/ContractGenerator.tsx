@@ -428,6 +428,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
             clone.style.width = "210mm";
             clone.style.minHeight = "297mm";
             clone.style.zIndex = "-9999";
+            clone.style.backgroundColor = "#ffffff"; // Ensure solid background
 
             // Add page-break styles to prevent content from being cut
             const style = document.createElement('style');
@@ -456,11 +457,14 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
 
             document.body.appendChild(clone);
 
-            const pdf = await generateSmartPDF(clone);
+            console.log("Contract PDF: Starting generateSmartPDF...");
+            const pdf = await generateSmartPDF(clone, { scale: 2.0, quality: 0.92 });
+            console.log("Contract PDF: generateSmartPDF complete.");
 
             document.body.removeChild(clone);
 
             const fileName = `Contract_${contractData.clientCompany.replace(/\s+/g, "_")}_${Date.now()}.pdf`;
+            console.log(`Contract PDF: Attempting to save ${fileName}`);
 
             if (action === 'download') {
                 pdf.save(fileName);
