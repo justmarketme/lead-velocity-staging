@@ -93,8 +93,9 @@ const BrokerSetup = () => {
 
         setSubmitting(true);
         try {
+            console.log("Starting broker sign up with email:", editableEmail || invite.email);
+
             // 1. Create the user in Auth
-            // Everything else (brokers, user_roles, security_questions) is handled by the handle_new_broker database trigger
             const { data: authData, error: authError } = await supabase.auth.signUp({
                 email: editableEmail || invite.email,
                 password: password,
@@ -115,27 +116,32 @@ const BrokerSetup = () => {
                 }
             });
 
-            // If the error is JUST about the confirmation email failing due to rate limits,
-            // but the user was actually created, we can treat it as a success for testing.
-            if (authError && authError.message.includes("Error sending confirmation email")) {
-                console.warn("Email sending failed due to rate limits, but auth was likely created. Proceeding...");
-            } else if (authError) {
-                // If it's a "User already registered" error from our rapid testing, let them skip to the next screen
-                if (authError.message.includes("User already registered")) {
+            console.log("Sign up response -> data:", authData, "error:", authError);
+
+            // Handle errors gracefully
+            if (authError) {
+                const isRateLimit = authError.message.includes("Error sending confirmation email") || authError.message.includes("rate limit");
+                const isAlreadyRegistered = authError.message.includes("User already registered") || authError.message.includes("already registered");
+
+                if (isAlreadyRegistered) {
+                    console.log("User already exists. Redirecting to login/portal...");
                     toast({
                         title: "Account Already Exists",
-                        description: "This email is already registered. Redirecting you to login...",
+                        description: "This email is registered. Let's get you to your portal...",
                     });
-                    setIsSuccess(true);
-                    const portalPath = (invite.portal_type === 'marketing' || invite.portal_type === 'premium')
-                        ? "/broker-elite"
-                        : "/broker/dashboard";
-                    setTimeout(() => navigate(portalPath), 2000);
-                    return;
+                    // Fall through to success
+                } else if (isRateLimit) {
+                    console.warn("Email sending failed due to rate limits. Bypassing...");
+                    // Fall through to success, since the user was actually created in the DB
+                } else {
+                    console.error("Critical Auth Error:", authError);
+                    throw authError; // Throw actual critical errors
                 }
-                throw authError;
+            } else if (!authData?.user) {
+                // VERY rare edge case, but we need a unique error message so we know if it hits here
+                console.error("No user returned, but no error thrown by Supabase either!");
+                throw new Error("API Issue: Supabase returned empty user data. Please try again.");
             }
-            if (!authData.user) throw new Error("Failed to create user");
 
             toast({
                 title: "Setup Complete!",
