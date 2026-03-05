@@ -34,39 +34,12 @@ function getTopRelativeToClone(el: Element, clone: HTMLElement): number {
 async function injectPageBreakSpacers(clone: HTMLElement): Promise<HTMLElement[]> {
     const spacers: HTMLElement[] = [];
 
-    // Handle manual page breaks FIRST
-    const manualBreaks = Array.from(clone.querySelectorAll(".pdf-page-break-before")) as HTMLElement[];
-    let manualBreakInjected = false;
-    for (const mb of manualBreaks) {
-        const top = getTopRelativeToClone(mb, clone);
-        const pageNum = Math.floor(top / A4_HEIGHT_PX);
-        const breakY = (pageNum + 1) * A4_HEIGHT_PX;
-
-        const distanceToNextPage = breakY - top;
-        // Only push to next page if it's not already within the first ~20px of a new page
-        if (distanceToNextPage < A4_HEIGHT_PX - 20 && distanceToNextPage > 0) {
-            // Use exact distance — Section 13 starts exactly at the page boundary.
-            // Top margin removal is handled separately via JS after injection.
-            const spacerHeight = Math.ceil(distanceToNextPage);
-            const spacer = document.createElement("div");
-            spacer.style.cssText = `height:${spacerHeight}px;min-height:${spacerHeight}px;display:block;flex-shrink:0;width:100%;margin:0;padding:0;background:white;`;
-            spacer.dataset.pdfSpacer = "true";
-            mb.parentElement?.insertBefore(spacer, mb);
-            spacers.push(spacer);
-            manualBreakInjected = true;
-        }
-    }
-
-    if (manualBreakInjected) {
-        await new Promise((r) => setTimeout(r, 40)); // Allow browser to re-layout
-    }
-
     // Up to 8 passes — each pass fixes one split, then re-measures from scratch
     for (let pass = 0; pass < 8; pass++) {
         // Target the semantic content blocks used in all three generators
-        // We avoid table-internal tags (tr, thead, etc) for spacer injection as they break DOM structure
+        // Including .bg-slate-50, .border, .bg-red-50, etc.
         const blocks = Array.from(
-            clone.querySelectorAll("section, .pdf-block, .document-section, .invoice-section, table, h1, h2, h3")
+            clone.querySelectorAll("section, table, thead, tbody, tr, h1, h2, h3, h4, p, div[class*='bg-'], div.border, .invoice-section, .document-section")
         ) as HTMLElement[];
 
         let foundSplit = false;
@@ -74,7 +47,7 @@ async function injectPageBreakSpacers(clone: HTMLElement): Promise<HTMLElement[]
         for (const block of blocks) {
             if (block.dataset.pdfSpacer) continue;               // skip our own spacers
             const height = block.getBoundingClientRect().height;
-            if (height < 30 || height >= A4_HEIGHT_PX * 0.9) continue; // skip tiny or nearly full-page elements
+            if (height < 20 || height >= A4_HEIGHT_PX * 0.9) continue; // skip tiny or nearly full-page elements
 
             const top = getTopRelativeToClone(block, clone);
             const bottom = top + height;
@@ -83,9 +56,9 @@ async function injectPageBreakSpacers(clone: HTMLElement): Promise<HTMLElement[]
             const breakY = (pageNum + 1) * A4_HEIGHT_PX;
 
             // Does this block span the next page boundary?
-            // Apply a larger safety margin (25px) to ensure no slicing
-            if (top < breakY && bottom > (breakY - 25)) {
-                const spacerHeight = Math.ceil(breakY - top) + 10; // +10px buffer
+            // Apply a larger safety margin (20px) to ensure no slicing
+            if (top < breakY && bottom > (breakY - 20)) {
+                const spacerHeight = Math.ceil(breakY - top) + 5; // +5px buffer
 
                 const spacer = document.createElement("div");
                 spacer.style.cssText = `height:${spacerHeight}px;min-height:${spacerHeight}px;display:block;flex-shrink:0;width:100%;background:white;`;
@@ -103,65 +76,7 @@ async function injectPageBreakSpacers(clone: HTMLElement): Promise<HTMLElement[]
         await new Promise((r) => setTimeout(r, 40)); // Allow browser to re-layout
     }
 
-    // Step 1.5: Surgical removal of top-of-page whitespace for manual breaks
-    await collapseTopGapsAfterManualBreaks(clone);
-
     return spacers;
-}
-
-/**
- * After all spacers have been injected, this step precisely measures the
- * remaining gap between the page boundary and the first element on each
- * new page (following a manual .pdf-page-break-before marker), then
- * collapses that gap via a negative margin-top. This fixes the large
- * white space at the top of Section 13's page without affecting other pages.
- */
-async function collapseTopGapsAfterManualBreaks(clone: HTMLElement): Promise<void> {
-    await new Promise((r) => setTimeout(r, 40)); // wait for layout after spacer injection
-
-    const manualBreaks = Array.from(clone.querySelectorAll('.pdf-page-break-before')) as HTMLElement[];
-
-    for (const mb of manualBreaks) {
-        const nextSection = mb.nextElementSibling as HTMLElement | null;
-        if (!nextSection) continue;
-
-        const sectionTop = getTopRelativeToClone(nextSection, clone);
-        const pageNum = Math.ceil(sectionTop / A4_HEIGHT_PX); // page this section is ON
-        const pageStartY = (pageNum - 1) * A4_HEIGHT_PX; // top of that page in pixels
-
-        const gap = sectionTop - pageStartY;
-
-        // If there's a gap between the page start and the section, collapse it effectively
-        if (gap > 2) {
-            // Slightly over-pull (+2px) to ensure it clears any hidden parent padding
-            nextSection.style.setProperty('margin-top', `-${Math.floor(gap) + 2}px`, 'important');
-            console.log(`PDF DEBUG: Collapsed gap of ${gap}px above section after manual break.`);
-        }
-    }
-}
-
-/**
- * Converts an image element or URL to a JPEG data URL.
- * Ensures consistent rendering and removes transparency issues.
- */
-async function imageToJPEG(img: HTMLImageElement): Promise<string | null> {
-    try {
-        const canvas = document.createElement("canvas");
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return null;
-
-        // Fill white background for transparency
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0);
-
-        return canvas.toDataURL("image/jpeg", 0.95);
-    } catch (e) {
-        console.error("PDF DEBUG: imageToJPEG failed", e);
-        return null;
-    }
 }
 
 /**
@@ -175,93 +90,50 @@ export async function generateSmartPDF(
     clone: HTMLElement,
     options: SmartPDFOptions = {}
 ): Promise<jsPDF> {
-    const { scale = 1.5, quality = 0.92 } = options;
+    const { scale = 1.3, quality = 0.90 } = options;
     const startTime = Date.now();
 
-    console.log("PDF DEBUG: generateSmartPDF v3 starting...");
+    console.log("PDF DEBUG: Starting smart generation process...");
 
-    // CRITICAL: Force exact pixel width and full visibility
-    clone.style.width = `${A4_WIDTH_PX}px`;
-    clone.style.maxWidth = `${A4_WIDTH_PX}px`;
-    clone.style.position = "absolute";
-    clone.style.top = "0px";
-    clone.style.left = "-9999px";
-    clone.style.zIndex = "-9999";
-    clone.style.opacity = "1";
+    // Ensure the clone is visible for measurement but off-screen/non-intrusive
     clone.style.visibility = "visible";
     clone.style.display = "block";
     clone.style.pointerEvents = "none";
-    clone.style.overflow = "visible";
-    clone.style.backgroundColor = "#ffffff";
+    clone.style.position = "fixed";
+    clone.style.top = "-10000px";
+    clone.style.left = "0";
+    clone.style.opacity = "0";
 
-    // Ensure clone is in the DOM
-    if (!clone.parentElement) {
-        document.body.appendChild(clone);
-    }
+    // Step 1: Inject spacers
+    console.log("PDF DEBUG: Starting spacer injection...");
+    const spacers = await injectPageBreakSpacers(clone);
+    console.log(`PDF DEBUG: Injected ${spacers.length} spacers. Elapsed: ${Date.now() - startTime}ms`);
 
-    // Step 0: Prepare Images (Convert SVGs/PNGs to JPEGs where possible to avoid corruption)
-    const images = clone.querySelectorAll("img");
-    for (const img of Array.from(images)) {
-        img.style.maxWidth = "100%";
-        img.crossOrigin = "anonymous";
+    // Step 2: Small pause for layout settle
+    await new Promise((r) => setTimeout(r, 200));
 
-        // Convert to solid JPEG if it's a small asset or logo
-        // Wait for it to load first
-        if (!img.complete) {
-            await new Promise((resolve) => {
-                img.onload = resolve;
-                img.onerror = resolve;
-            });
-        }
-
-        const jpegData = await imageToJPEG(img);
-        if (jpegData) {
-            img.src = jpegData;
-        }
-    }
-
-    // Step 1: Inject Spacers to prevent mid-content page breaks
-    console.log("PDF DEBUG: Injecting page break spacers...");
-    const injectedSpacers = await injectPageBreakSpacers(clone);
-    console.log(`PDF DEBUG: Injected ${injectedSpacers.length} spacers.`);
-
-    // Wait for paint — requestAnimationFrame + setTimeout guarantees it
-    await new Promise<void>((resolve) => {
-        requestAnimationFrame(() => {
-            setTimeout(resolve, 400); // 400ms buffer for layout stability
-        });
-    });
-
-    const cloneRect = clone.getBoundingClientRect();
-    console.log(`PDF DEBUG: Clone dimensions: ${cloneRect.width}x${cloneRect.height}`);
-
-    if (cloneRect.height < 10) {
-        console.error("PDF DEBUG: Clone has no height! Content may not have rendered.");
-    }
-
-    console.log(`PDF DEBUG: html2canvas starting (scale=${scale}, windowWidth=${A4_WIDTH_PX})...`);
+    // Step 3: Render the full document to canvas
+    console.log(`PDF DEBUG: Starting html2canvas render (scale: ${scale})...`);
     const canvas = await html2canvas(clone, {
         scale,
         useCORS: true,
+        logging: true,
         backgroundColor: "#ffffff",
         windowWidth: A4_WIDTH_PX,
-        logging: false,
-        allowTaint: true,
-        onclone: (doc: Document, el: HTMLElement) => {
-            // Final check on cloned document
-        }
     });
 
-    // Step 2: Cleanup spacers immediately after canvas is created
-    injectedSpacers.forEach(s => s.remove());
-
-    console.log(`PDF DEBUG: Canvas created: ${canvas.width}x${canvas.height}`);
-
     if (!canvas || canvas.width === 0 || canvas.height === 0) {
-        throw new Error("PDF Generation Failed: html2canvas produced empty canvas.");
+        console.error("PDF ERROR: html2canvas produced empty canvas.");
+        throw new Error("PDF Generation Failed: Empty canvas produced.");
     }
 
-    // Build the PDF
+    console.log(`PDF DEBUG: html2canvas complete. Canvas: ${canvas.width}x${canvas.height}. Elapsed: ${Date.now() - startTime}ms`);
+
+    // Step 4: Remove spacers
+    spacers.forEach((s) => s.remove());
+
+    // Step 5: Build PDF
+    console.log("PDF DEBUG: Starting jsPDF build...");
     const pdf = new jsPDF({
         orientation: "portrait",
         unit: "mm",
@@ -270,11 +142,11 @@ export async function generateSmartPDF(
     });
 
     const imgData = canvas.toDataURL("image/jpeg", quality);
+    console.log(`PDF DEBUG: toDataURL complete. Length: ${imgData.length}. Elapsed: ${Date.now() - startTime}ms`);
+
     const imgWidthMM = 210;
     const pageHeightMM = 297;
     const imgHeightMM = (canvas.height * imgWidthMM) / canvas.width;
-
-    console.log(`PDF DEBUG: Image dimensions in mm: ${imgWidthMM} x ${imgHeightMM}`);
 
     if (imgHeightMM <= pageHeightMM) {
         pdf.addImage(imgData, "JPEG", 0, 0, imgWidthMM, imgHeightMM);
@@ -282,9 +154,11 @@ export async function generateSmartPDF(
         let heightLeft = imgHeightMM;
         let position = 0;
 
+        // Add first page
         pdf.addImage(imgData, "JPEG", 0, position, imgWidthMM, imgHeightMM);
         heightLeft -= pageHeightMM;
 
+        // Add subsequent pages
         while (heightLeft > 0) {
             position = heightLeft - imgHeightMM;
             pdf.addPage();
@@ -293,9 +167,7 @@ export async function generateSmartPDF(
         }
     }
 
-    const elapsed = Date.now() - startTime;
-    const pageCount = pdf.getNumberOfPages();
-    console.log(`PDF DEBUG: SUCCESS — ${pageCount} pages, ${elapsed}ms total`);
+    console.log(`PDF DEBUG: jsPDF generation complete. Total Time: ${Date.now() - startTime}ms`);
     return pdf;
 }
 

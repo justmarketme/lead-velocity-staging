@@ -180,7 +180,7 @@ const BrokerInvite = () => {
             const { token, expiresAt } = await createInvite(email, name, "");
             const inviteLink = `${getInviteBaseUrl()}/broker-setup/${token}`;
 
-            await supabase.functions.invoke("send-broker-invite", {
+            const { error: funcError } = await supabase.functions.invoke("send-broker-invite", {
                 body: {
                     email,
                     brokerName: name,
@@ -189,16 +189,58 @@ const BrokerInvite = () => {
                 },
             });
 
-            toast({
-                title: "Reset Link Sent",
-                description: `A new setup link has been sent to ${email}.`,
-            });
+            if (funcError) {
+                setGeneratedLink(inviteLink);
+                toast({
+                    title: "Status Link Updated",
+                    description: "Failed to send email, but setup link is ready to copy.",
+                    variant: "destructive",
+                });
+            } else {
+                toast({
+                    title: "Reset Link Sent",
+                    description: `A new setup link has been sent to ${email}.`,
+                });
+            }
             fetchResetRequests();
             fetchInvites();
         } catch (error: any) {
             toast({
                 title: "Error",
                 description: error.message,
+                variant: "destructive",
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleResendEmail = async (invite: BrokerInviteData) => {
+        setLoading(true);
+        try {
+            const inviteLink = `${getInviteBaseUrl()}/broker-setup/${invite.token}`;
+
+            const { error: funcError } = await supabase.functions.invoke("send-broker-invite", {
+                body: {
+                    email: invite.email,
+                    brokerName: invite.broker_name,
+                    inviteLink,
+                    expiresAt: invite.expires_at,
+                    portalType: invite.portal_type
+                },
+            });
+
+            if (funcError) throw funcError;
+
+            toast({
+                title: "Email Sent",
+                description: `Invitation email resent to ${invite.email}.`,
+            });
+        } catch (error: any) {
+            console.error("Error resending email:", error);
+            toast({
+                title: "Failed to send",
+                description: "Could not send the email. Please check Resend API configuration.",
                 variant: "destructive",
             });
         } finally {
@@ -419,10 +461,22 @@ const BrokerInvite = () => {
                                                 {invite.used_at ? `Used: ${new Date(invite.used_at).toLocaleDateString()}` : `Expires: ${new Date(invite.expires_at).toLocaleDateString()}`}
                                             </p>
                                             {!invite.used_at && (
-                                                <Button variant="ghost" size="sm" onClick={() => copyToClipboard(`${getInviteBaseUrl()}/broker-setup/${invite.token}`)}>
-                                                    <Copy className="h-3 w-3 mr-1" />
-                                                    Copy Link
-                                                </Button>
+                                                <div className="flex gap-2">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => handleResendEmail(invite)}
+                                                        disabled={loading}
+                                                        className="border-primary/30 text-primary hover:bg-primary/10"
+                                                    >
+                                                        <Mail className="h-3 w-3 mr-1" />
+                                                        Resend Email
+                                                    </Button>
+                                                    <Button variant="ghost" size="sm" onClick={() => copyToClipboard(`${getInviteBaseUrl()}/broker-setup/${invite.token}`)}>
+                                                        <Copy className="h-3 w-3 mr-1" />
+                                                        Copy Link
+                                                    </Button>
+                                                </div>
                                             )}
                                         </div>
                                     </div>

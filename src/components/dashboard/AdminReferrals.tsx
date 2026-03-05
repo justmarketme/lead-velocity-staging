@@ -238,6 +238,95 @@ const AdminReferrals = () => {
     }
   };
 
+  const handleResendWelcome = async (referral: Referral) => {
+    if (!referral.email) return;
+
+    setLoading(true);
+    try {
+      const currentReason = referral.will_status?.includes('|')
+        ? referral.will_status.split('|')[0]
+        : 'estate_planning';
+
+      await supabase.functions.invoke('send-referral-welcome', {
+        body: {
+          referralName: referral.first_name,
+          referralEmail: referral.email,
+          referralReason: currentReason,
+          originClientName: `${referral.lead?.first_name || ''} ${referral.lead?.last_name || ''}`.trim() || 'Origin Client',
+          brokerName: referral.lead?.brokers?.contact_person || 'Assigned Broker',
+          brokerFirm: referral.lead?.brokers?.firm_name || 'Partner Firm',
+        }
+      });
+
+      toast({
+        title: "Welcome Email Sent",
+        description: `Successfully resent welcome email to ${referral.email}`,
+      });
+
+      // Log it
+      await supabase.from('communications').insert({
+        referral_id: referral.id,
+        channel: 'email',
+        direction: 'outbound',
+        sender_type: 'system',
+        recipient_type: 'referral',
+        recipient_contact: referral.email,
+        subject: "Welcome to Lead Velocity (Resend)",
+        content: "Manually resent welcome email.",
+        status: 'sent'
+      });
+    } catch (error: any) {
+      toast({
+        title: "Resend Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendSuccess = async (referral: Referral) => {
+    setLoading(true);
+    try {
+      await supabase.functions.invoke('send-referral-success', {
+        body: {
+          referralName: referral.first_name,
+          brokerEmail: referral.lead?.brokers?.email,
+          brokerName: referral.lead?.brokers?.contact_person || 'Assigned Broker',
+          brokerFirm: referral.lead?.brokers?.firm_name || 'Partner Firm',
+          leadName: `${referral.lead?.first_name || ''} ${referral.lead?.last_name || ''}`.trim() || 'Origin Client',
+        }
+      });
+
+      toast({
+        title: "Success Email Sent",
+        description: `Confirmation resent to broker and admin.`,
+      });
+
+      // Log it
+      await supabase.from('communications').insert({
+        referral_id: referral.id,
+        channel: 'email',
+        direction: 'outbound',
+        sender_type: 'system',
+        recipient_type: 'broker',
+        recipient_contact: referral.lead?.brokers?.email || 'admin@leadvelocity.co.za',
+        subject: `Referral Converted: ${referral.first_name} (Resend)`,
+        content: "Manually resent success notification.",
+        status: 'sent'
+      });
+    } catch (error: any) {
+      toast({
+        title: "Resend Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const scheduleAppointment = async (referralId: string) => {
     if (!appointmentDate) {
       toast({
@@ -613,6 +702,21 @@ const AdminReferrals = () => {
                             <DropdownMenuItem onClick={() => setDialerOpen(true)}>
                               <Keyboard className="h-4 w-4 mr-2" />
                               Manual Dialer
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => handleResendWelcome(referral)}
+                              disabled={!referral.email || loading}
+                            >
+                              <Mail className="h-4 w-4 mr-2 text-indigo-500" />
+                              Resend Welcome Email
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleResendSuccess(referral)}
+                              disabled={loading}
+                            >
+                              <Mail className="h-4 w-4 mr-2 text-emerald-500" />
+                              Resend Success Email
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
