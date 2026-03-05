@@ -3,9 +3,8 @@
 
 const https = require('https');
 
-const SUPABASE_URL = 'https://jxrfcxfuzwnsojfasnnu.supabase.co';
-// Using the anon key from .env - note this won't work for DDL statements
-// We need to use the Supabase dashboard SQL editor instead
+// Set SUPABASE_URL in env or pass when running; never commit real project URLs.
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://your-project.supabase.co';
 
 const sql = `
 -- Fix onboarding schema: allow anonymous submissions with contact info

@@ -16,6 +16,7 @@ dist-ssr
 .vscode/*
 !.vscode/extensions.json
 .idea
+.cursor
 .DS_Store
 *.suo
 *.ntvs*
@@ -30,8 +31,11 @@ dist-ssr
 .env.*
 !.env.example
 
-# Local debug & admin scripts — contain hardcoded credentials, never commit
+# Local debug & admin scripts — may contain credentials
 test-db.js
 test-login.js
 run-sql.js
 reset-admin.js
+
+# Cursor / IDE config that may contain tokens (e.g. MCP, GitHub PAT)
+.cursor/

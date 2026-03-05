@@ -117,43 +117,59 @@ const BrokerInvite = () => {
 
     const handleInvite = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!brokerEmail) return;
+        if (!brokerEmail?.trim()) return;
+        await doInvite(true);
+    };
 
+    const handleGenerateLinkOnly = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!brokerEmail?.trim()) {
+            toast({ title: "Email required", description: "Enter the broker's email to generate a link.", variant: "destructive" });
+            return;
+        }
+        await doInvite(false);
+    };
+
+    const doInvite = async (sendEmail: boolean) => {
         setLoading(true);
+        const recipientEmail = brokerEmail.trim();
         try {
-            const { token, expiresAt } = await createInvite(brokerEmail, brokerName, firmName, portalType);
+            const { token, expiresAt } = await createInvite(recipientEmail, brokerName, firmName, portalType);
             const inviteLink = `${getInviteBaseUrl()}/broker-setup/${token}`;
+            setGeneratedLink(inviteLink);
 
-            // Optionally send email via Edge Function
-            const { error: funcError } = await supabase.functions.invoke("send-broker-invite", {
-                body: {
-                    email: brokerEmail,
-                    brokerName: brokerName,
-                    inviteLink,
-                    expiresAt,
-                    portalType: portalType
-                },
-            });
-
-            if (funcError) {
-                console.warn("Failed to send automated email:", funcError);
-                setGeneratedLink(inviteLink);
-                toast({
-                    title: "Invite Created (Email failed)",
-                    description: "Link generated but failed to send email. You can copy it manually.",
-                    variant: "destructive",
+            if (sendEmail) {
+                const { error: funcError } = await supabase.functions.invoke("send-broker-invite", {
+                    body: {
+                        email: recipientEmail,
+                        brokerName: brokerName,
+                        inviteLink,
+                        expiresAt,
+                        portalType: portalType
+                    },
                 });
+                if (funcError) {
+                    console.warn("Failed to send automated email:", funcError);
+                    toast({
+                        title: "Invite Created (Email failed)",
+                        description: "Link generated. Copy the link below to send to the broker.",
+                        variant: "destructive",
+                    });
+                } else {
+                    toast({
+                        title: "Invite Sent",
+                        description: `Email sent to ${recipientEmail}. Copy the link below to send manually if needed.`,
+                    });
+                }
+                setBrokerEmail("");
+                setBrokerName("");
+                setFirmName("");
             } else {
-                setGeneratedLink("");
                 toast({
-                    title: "Invite Sent",
-                    description: `Invitation email sent to ${brokerEmail}.`,
+                    title: "Link Generated",
+                    description: "Copy the link below and send it to the broker (e.g. WhatsApp).",
                 });
             }
-
-            setBrokerEmail("");
-            setBrokerName("");
-            setFirmName("");
             fetchInvites();
         } catch (error: any) {
             console.error("Error creating invite:", error);
@@ -340,44 +356,61 @@ const BrokerInvite = () => {
 
                             <div className="space-y-2">
                                 <Label htmlFor="broker-email">Email Address</Label>
-                                <div className="flex gap-3">
+                                <div className="flex flex-wrap gap-2">
                                     <Input
                                         id="broker-email"
                                         type="email"
                                         placeholder="broker@example.com"
                                         value={brokerEmail}
                                         onChange={(e) => setBrokerEmail(e.target.value)}
-                                        className="flex-1"
+                                        className="flex-1 min-w-[200px]"
                                         required
                                     />
                                     <Button type="submit" disabled={loading}>
+                                        <Send className="h-4 w-4 mr-1" />
                                         {loading ? "Sending..." : "Send Invite"}
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        disabled={loading}
+                                        onClick={handleGenerateLinkOnly}
+                                    >
+                                        <Link2 className="h-4 w-4 mr-1" />
+                                        Generate Link Only
                                     </Button>
                                 </div>
                             </div>
 
-                            {generatedLink && (
-                                <div className="p-4 bg-accent/50 rounded-lg border border-primary/30 animate-in fade-in slide-in-from-top-2">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <Link2 className="h-4 w-4 text-primary" />
-                                        <span className="text-sm font-medium text-foreground">Manual Link (Use if email fails)</span>
-                                    </div>
-                                    <div className="flex gap-2">
+                            {/* Generated link: always show this section so admin can copy link for client */}
+                            <div className="p-4 rounded-lg border border-border bg-muted/30 space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <Link2 className="h-4 w-4 text-primary" />
+                                    <span className="text-sm font-medium text-foreground">Setup link for broker</span>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Use &quot;Send Invite&quot; to email the broker, or &quot;Generate Link Only&quot; to create a link to copy and send yourself (e.g. WhatsApp).
+                                </p>
+                                {generatedLink ? (
+                                    <div className="flex gap-2 animate-in fade-in slide-in-from-top-2">
                                         <Input
                                             value={generatedLink}
                                             readOnly
-                                            className="flex-1 text-xs bg-background"
+                                            className="flex-1 text-xs bg-background font-mono"
                                         />
                                         <Button
                                             variant="outline"
-                                            size="icon"
+                                            size="sm"
                                             onClick={() => copyToClipboard(generatedLink)}
                                         >
-                                            <Copy className="h-4 w-4" />
+                                            <Copy className="h-4 w-4 mr-1" />
+                                            Copy Link
                                         </Button>
                                     </div>
-                                </div>
-                            )}
+                                ) : (
+                                    <p className="text-xs text-muted-foreground italic">Send an invite or click &quot;Generate Link Only&quot; to create a link.</p>
+                                )}
+                            </div>
                         </form>
                     </CardContent>
                 </Card>

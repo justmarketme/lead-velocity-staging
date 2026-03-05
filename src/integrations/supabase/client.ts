@@ -2,11 +2,12 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-// VERIFIED PRODUCTION CREDENTIALS (Hardcoded as reliable fallbacks)
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://cmsylaupctrbsvzrgzwy.supabase.co';
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNtc3lsYXVwY3RyYnN2enJnend5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE4NTI0ODgsImV4cCI6MjA4NzQyODQ4OH0.Yw__SmIqyMNNoqMarEl-xX_Na5BxHeuod5tidEPA4qI';
-
-console.log("Supabase Client connecting to:", SUPABASE_URL);
+// Use only env vars — never commit real values. See .env.example.
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+  throw new Error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY in .env');
+}
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {

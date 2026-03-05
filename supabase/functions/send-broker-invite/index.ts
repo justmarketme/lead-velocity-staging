@@ -80,12 +80,14 @@ const handler = async (req: Request): Promise<Response> => {
 
         if (!email || !inviteLink || !expiresAt) {
             return new Response(
-                JSON.stringify({ success: false, error: 'Missing required fields' }),
+                JSON.stringify({ success: false, error: 'Missing required fields (email, inviteLink, expiresAt)' }),
                 { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
         }
 
-        console.log("Sending broker invite to:", email, "portal type:", portalType);
+        const toAddress = email.trim().toLowerCase();
+        const FROM_ADDRESS = "Lead Velocity <howzit@leadvelocity.co.za>";
+        console.log("Sending broker invite from", FROM_ADDRESS, "to:", toAddress, "portal type:", portalType);
 
         const expiryDate = new Date(expiresAt).toLocaleDateString("en-US", {
             month: "long",
@@ -106,9 +108,9 @@ const handler = async (req: Request): Promise<Response> => {
                 Authorization: `Bearer ${RESEND_API_KEY}`,
             },
             body: JSON.stringify({
-                // FIX: Use verified sender domain (was wrongly using noreply@resend.dev sandbox)
-                from: "Lead Velocity <howzit@leadvelocity.co.za>",
-                to: [email],
+                from: FROM_ADDRESS,
+                to: [toAddress],
+                reply_to: "howzit@leadvelocity.co.za",
                 subject: `You've Been Invited to the ${portalLabel} — Lead Velocity`,
                 html: `<!DOCTYPE html>
 <html>
@@ -163,7 +165,7 @@ const handler = async (req: Request): Promise<Response> => {
             throw new Error(data.message || "Failed to send email");
         }
 
-        console.log("Broker invite email sent successfully to:", email);
+        console.log("Broker invite email sent successfully to:", toAddress);
 
         return new Response(JSON.stringify({ success: true, data }), {
             status: 200,

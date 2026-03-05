@@ -43,26 +43,59 @@ const BrokerSetup = () => {
 
     useEffect(() => {
         const verifyToken = async () => {
-            if (!token) return;
+            if (!token) {
+                setLoading(false);
+                toast({
+                    title: "Invalid Link",
+                    description: "This invite link is missing the setup token. Please use the full link from your invitation email.",
+                    variant: "destructive",
+                });
+                navigate("/broker");
+                return;
+            }
 
-            const { data, error } = await supabase
-                .from("broker_invites")
-                .select("*")
-                .eq("token", token)
-                .is("used_at", null)
-                .gt("expires_at", new Date().toISOString())
-                .single();
+            // Prefer Edge Function (works without DB migration); fallback to RPC
+            let data: any = null;
+            let err: { message?: string; code?: string } | null = null;
 
-            if (error || !data) {
+            const { data: fnData, error: fnError } = await supabase.functions.invoke("get-broker-invite-by-token", {
+                body: { token },
+            });
+            if (fnError) {
+                err = fnError;
+                const { data: rpcData, error: rpcError } = await supabase.rpc("get_broker_invite_by_token", {
+                    invite_token: token,
+                });
+                if (!rpcError && rpcData) {
+                    data = rpcData;
+                    err = null;
+                }
+            } else if (fnData && !fnData.error) {
+                data = fnData;
+            } else if (fnData?.error) {
+                err = { message: fnData.error };
+            }
+
+            if (err) {
+                console.error("Broker invite validation error:", err);
+                toast({
+                    title: "Setup Link Error",
+                    description: err.message?.includes("function") || (err as any).code === "42883"
+                        ? "Invite system may need a database update. Please contact your administrator."
+                        : "This invitation link could not be validated. Please contact your administrator.",
+                    variant: "destructive",
+                });
+                navigate("/broker");
+            } else if (!data) {
                 toast({
                     title: "Invalid or Expired Link",
-                    description: "This invitation link is no longer valid. Please contact your administrator.",
+                    description: "This invitation link is no longer valid or has expired. Ask your administrator to send a new invite.",
                     variant: "destructive",
                 });
                 navigate("/broker");
             } else {
                 setInvite(data);
-                setEditableEmail(data.email);
+                setEditableEmail(data.email ?? "");
             }
             setLoading(false);
         };
@@ -145,18 +178,15 @@ const BrokerSetup = () => {
 
             toast({
                 title: "Setup Complete!",
-                description: "Your broker account has been created successfully.",
+                description: "Your broker account has been created successfully. You can now log in.",
             });
 
             setIsSuccess(true);
 
-            // Determine portal path for immediate redirect button
-            const portalPath = (invite.portal_type === 'marketing' || invite.portal_type === 'premium')
-                ? "/broker-elite"
-                : "/broker/dashboard";
-
+            // After setup, send brokers to the broker login page with their email pre-filled
+            const loginEmail = editableEmail || invite?.email || "";
             const timer = setTimeout(() => {
-                navigate(portalPath);
+                navigate("/broker", { state: { email: loginEmail } });
             }, 3000);
             return () => clearTimeout(timer);
         } catch (error: any) {
@@ -215,19 +245,17 @@ const BrokerSetup = () => {
                             <div className="text-center space-y-2">
                                 <h3 className="text-xl font-semibold">Registration Successful!</h3>
                                 <p className="text-muted-foreground">
-                                    Your profile has been created and secured. Redirecting you to your portal in 3 seconds...
+                                    Your profile has been created and secured. Redirecting you to the broker login page in 3 seconds...
                                 </p>
                             </div>
                             <Button
                                 className="w-full h-12 text-lg font-bold bg-primary hover:bg-primary/90"
                                 onClick={() => {
-                                    const portalPath = (invite?.portal_type === 'marketing' || invite?.portal_type === 'premium')
-                                        ? "/broker-elite"
-                                        : "/broker/dashboard";
-                                    navigate(portalPath);
+                                    const loginEmail = editableEmail || invite?.email || "";
+                                    navigate("/broker", { state: { email: loginEmail } });
                                 }}
                             >
-                                Enter Your Portal
+                                Go to Broker Login
                             </Button>
                         </div>
                     ) : step === 1 ? (

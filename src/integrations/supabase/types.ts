@@ -1275,6 +1275,10 @@ export type Database = {
         Args: { invite_token: string }
         Returns: boolean
       }
+      get_broker_invite_by_token: {
+        Args: { invite_token: string }
+        Returns: Database["public"]["Tables"]["broker_invites"]["Row"] | null
+      }
     }
     Enums: {
       app_role: "admin" | "broker"

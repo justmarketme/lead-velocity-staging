@@ -3,8 +3,9 @@ import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Download, Mail, MessageCircle, Send, ZoomIn, ZoomOut, Maximize, Monitor, Save, Loader2, Mic, MicOff, Bot, Check, X, Paperclip, AudioLines, SendHorizonal } from "lucide-react";
+import { ArrowLeft, Download, Mail, MessageCircle, Send, ZoomIn, ZoomOut, Maximize, Monitor, Save, Loader2, Mic, MicOff, Bot, Check, X, Paperclip, AudioLines, SendHorizonal, FileText } from "lucide-react";
 import { generateSmartPDF, blobToBase64 } from "@/utils/pdfUtils";
+import { buildContractDocx } from "@/utils/contractToDocx";
 import logo from "@/assets/lead-velocity-logo.webp";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
@@ -413,14 +414,42 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
         setAiInput("");
     };
 
-    const handleGenerate = async (action: 'download' | 'save' | 'email') => {
-        if (!reportRef.current) return;
+    const handleGenerate = async (action: 'download' | 'save' | 'email' | 'downloadWord') => {
         try {
             setIsGenerating(true);
-            toast({ title: action === 'email' ? "Emailing..." : action === 'save' ? "Saving..." : "Generating..." });
+            const toastTitles: Record<typeof action, string> = {
+                email: "Emailing...",
+                save: "Saving...",
+                download: "Generating PDF...",
+                downloadWord: "Generating Word...",
+            };
+            toast({ title: toastTitles[action] });
+
+            if (action === 'downloadWord') {
+                const blob = await buildContractDocx(contractData, { logoUrl: logo });
+                const safeCompany = contractData.clientCompany
+                    .replace(/[\s/\\:*?"<>|]/g, "_")
+                    .replace(/_+/g, "_")
+                    .replace(/^_|_$/g, "") || "Contract";
+                const fileName = `Contract_${safeCompany}_${Date.now()}.docx`;
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                toast({ title: "Downloaded", description: fileName });
+                setIsGenerating(false);
+                return;
+            }
+
+            if (!reportRef.current) return;
 
             const element = reportRef.current;
             const clone = element.cloneNode(true) as HTMLElement;
+            clone.classList.remove('overflow-hidden');
             clone.style.transform = "none";
             clone.style.position = "fixed";
             clone.style.top = "-9999px";
@@ -430,23 +459,20 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
             clone.style.zIndex = "-9999";
             clone.style.backgroundColor = "#ffffff"; // Ensure solid background
 
-            // Add page-break styles to prevent content from being cut
+            // Add page-break styles only where needed — do NOT force .flex/.grid to block (breaks layout and can cause blank PDF)
             const style = document.createElement('style');
             style.textContent = `
                 header { page-break-after: avoid!important; break-after: avoid!important; }
                 h1, h2, h3, h4 { page-break-after: avoid!important; break-after: avoid!important; }
-                section, .document-section, .bg-slate-50, .border, .bg-red-50, .bg-amber-50, .bg-green-50, .bg-blue-50, .bg-purple-50, .bg-orange-50 { 
-                    page-break-inside: avoid!important; 
-                    break-inside: avoid!important; 
-                    margin-bottom: 24px!important; 
-                    display: block!important;
+                section, .document-section, .bg-slate-50, .border, .bg-red-50, .bg-amber-50, .bg-green-50, .bg-blue-50, .bg-purple-50, .bg-orange-50 {
+                    page-break-inside: avoid!important;
+                    break-inside: avoid!important;
+                    margin-bottom: 24px!important;
                     position: relative!important;
                 }
                 tr { page-break-inside: avoid!important; break-inside: avoid!important; }
                 p { orphans: 4; widows: 4; line-height: 1.6!important; }
                 table { border-collapse: collapse!important; width: 100%!important; page-break-inside: auto!important; }
-                .grid { display: block!important; } /* Force block for grids to respect page breaks in PDF */
-                .flex { display: block!important; } /* Force block for small flex containers */
             `;
             clone.appendChild(style);
 
@@ -457,18 +483,69 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
 
             document.body.appendChild(clone);
 
+            // PDF only: spacing adjustments (preview unchanged)
+            const recitalsSection = clone.querySelector('.pdf-page-break-before')?.nextElementSibling;
+            if (recitalsSection instanceof HTMLElement) recitalsSection.style.setProperty('margin-top', '270px', 'important');
+            // Remove gap between 2. Deliverables and Commercial Terms by zeroing the margins that create it (no overlap)
+            const deliverablesSection = clone.querySelector('[data-pdf-deliverables-section]');
+            if (deliverablesSection instanceof HTMLElement) deliverablesSection.style.setProperty('margin-bottom', '0', 'important');
+            const commercialTermsSection = clone.querySelector('[data-pdf-commercial-terms]');
+            if (commercialTermsSection instanceof HTMLElement) commercialTermsSection.style.setProperty('margin-top', '16px', 'important');
+            // Pull 3. Terms & Conditions up into the white space above it (red box area)
+            const termsSection = clone.querySelector('[data-pdf-terms-section]');
+            if (termsSection instanceof HTMLElement) termsSection.style.setProperty('margin-top', '-40px', 'important');
+            // Non-pilot only: reduce space between 3. Terms & Conditions and 4. Confidentiality by 5px
+            if (!contractData.pilotEligibilityText) {
+                const confidentialitySection = clone.querySelector('[data-pdf-confidentiality-section]');
+                if (confidentialitySection instanceof HTMLElement) confidentialitySection.style.setProperty('margin-top', '-5px', 'important');
+            }
+            // Reduce gap between 11 and 12: remove space below 11 and pull 12 up slightly
+            const section11 = clone.querySelector('[data-pdf-section-11]');
+            if (section11 instanceof HTMLElement) section11.style.setProperty('margin-bottom', '0', 'important');
+            const section12 = clone.querySelector('[data-pdf-section-12]');
+            const section13 = clone.querySelector('[data-pdf-section-13]');
+            if (section12 instanceof HTMLElement) section12.style.setProperty('margin-top', '-24px', 'important');
+            if (section13 instanceof HTMLElement) section13.style.setProperty('margin-top', '0', 'important');
+            if (section12 instanceof HTMLElement) section12.style.setProperty('margin-bottom', '0', 'important');
+            const section14 = clone.querySelector('[data-pdf-section-14]');
+            if (section14 instanceof HTMLElement) section14.style.setProperty('margin-top', '80px', 'important');
+            const section17 = clone.querySelector('[data-pdf-section-17]');
+            if (section17 instanceof HTMLElement) section17.style.setProperty('margin-top', '28px', 'important');
+            const section18 = clone.querySelector('[data-pdf-section-18]');
+            const section19 = clone.querySelector('[data-pdf-section-19]');
+            if (section18 instanceof HTMLElement) section18.style.setProperty('margin-bottom', '0', 'important');
+            if (section19 instanceof HTMLElement) section19.style.setProperty('margin-top', '-80px', 'important');
+            const section19Body = clone.querySelector('[data-pdf-section-19-body]');
+            if (section19Body instanceof HTMLElement) section19Body.style.setProperty('margin-top', '28px', 'important');
+
+            // Allow layout to reflow so spacers and margins are applied before capture
+            await new Promise((r) => setTimeout(r, 100));
+
             console.log("Contract PDF: Starting generateSmartPDF...");
             const pdf = await generateSmartPDF(clone, { scale: 1.5, quality: 0.90 });
             console.log("Contract PDF: generateSmartPDF complete.");
 
             document.body.removeChild(clone);
 
-            const fileName = `Contract_${contractData.clientCompany.replace(/\s+/g, "_")}_${Date.now()}.pdf`;
-            console.log(`Contract PDF: Attempting to save ${fileName}`);
+            // Safe filename: strip invalid chars and ensure .pdf
+            const safeCompany = contractData.clientCompany
+                .replace(/[\s/\\:*?"<>|]/g, "_")
+                .replace(/_+/g, "_")
+                .replace(/^_|_$/g, "") || "Contract";
+            const fileName = `Contract_${safeCompany}_${Date.now()}.pdf`;
+            console.log(`Contract PDF: Attempting to download ${fileName}`);
 
             if (action === 'download') {
-                pdf.save(fileName);
-                toast({ title: "Downloaded" });
+                const blob = pdf.output('blob');
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                toast({ title: "Downloaded", description: fileName });
             } else {
                 // For 'save' and 'email', we upload to Supabase
                 const pdfBlob = pdf.output('blob');
@@ -569,7 +646,8 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                 <div className="flex items-center gap-2">
                     <Button variant="outline" className="border-pink-500/20 text-slate-300" onClick={() => handleGenerate('email')} disabled={isGenerating}><Mail className="mr-2 h-4 w-4" />Email</Button>
                     <Button variant="outline" className="border-white/10 text-slate-300" onClick={() => handleGenerate('save')} disabled={isGenerating}><Save className="mr-2 h-4 w-4" />Save</Button>
-                    <Button onClick={() => handleGenerate('download')} disabled={isGenerating} className="bg-pink-600 hover:bg-pink-700"><Download className="mr-2 h-4 w-4" />Download</Button>
+                    <Button onClick={() => handleGenerate('download')} disabled={isGenerating} className="bg-pink-600 hover:bg-pink-700"><Download className="mr-2 h-4 w-4" />Download PDF</Button>
+                    <Button onClick={() => handleGenerate('downloadWord')} disabled={isGenerating} className="bg-pink-600 hover:bg-pink-700"><FileText className="mr-2 h-4 w-4" />Download Word</Button>
                 </div>
             </div>
 
@@ -851,22 +929,22 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                 <div className="h-2 w-full bg-gradient-to-r from-pink-600 via-purple-600 to-pink-600" />
                                 <div className="p-[20mm] flex-1 flex flex-col">
                                     <header className="border-b-2 border-slate-100 pb-6 mb-8 flex justify-between items-end">
-                                        <div>
-                                            <img src={logo} alt="Lead Velocity" className="h-20 w-auto object-contain mb-4" />
-                                            <Editable tag="h1" className="text-3xl font-extrabold text-slate-900" value={contractData.title} onChange={(val) => updateField('title', val)} />
-                                            <Editable tag="p" className="text-slate-500 font-medium mt-1" value={contractData.subtitle} onChange={(val) => updateField('subtitle', val)} />
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="bg-slate-50 px-4 py-2 rounded-lg border">
-                                                <p className="text-xs uppercase tracking-widest text-slate-400 font-bold mb-1">The Client</p>
-                                                <Editable tag="p" className="font-bold text-lg text-slate-900" value={contractData.clientName} onChange={(val) => updateField('clientName', val)} />
-                                                <Editable tag="p" className="text-sm text-slate-500" value={contractData.clientCompany} onChange={(val) => updateField('clientCompany', val)} />
+                                            <div>
+                                                <img src={logo} alt="Lead Velocity" className="h-20 w-auto object-contain mb-4" />
+                                                <Editable tag="h1" className="text-3xl font-extrabold text-slate-900" value={contractData.title} onChange={(val) => updateField('title', val)} />
+                                                <Editable tag="p" className="text-slate-500 font-medium mt-1" value={contractData.subtitle} onChange={(val) => updateField('subtitle', val)} />
                                             </div>
-                                        </div>
-                                    </header>
+                                            <div className="text-right">
+                                                <div className="bg-slate-50 px-4 py-2 rounded-lg border">
+                                                    <p className="text-xs uppercase tracking-widest text-slate-400 font-bold mb-1">The Client</p>
+                                                    <Editable tag="p" className="font-bold text-lg text-slate-900" value={contractData.clientName} onChange={(val) => updateField('clientName', val)} />
+                                                    <Editable tag="p" className="text-sm text-slate-500" value={contractData.clientCompany} onChange={(val) => updateField('clientCompany', val)} />
+                                                </div>
+                                            </div>
+                                        </header>
 
-                                    <main className="space-y-6 text-[15px] leading-relaxed text-slate-600 flex-1">
-                                        <section className="bg-slate-50 border rounded-xl p-6" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+                                    <main className="space-y-4 text-[14px] leading-relaxed text-slate-600 flex-1">
+                                        <section className="bg-slate-50 border rounded-xl p-5" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                                             <div className="flex items-center gap-3 mb-4"><div className="h-6 w-1 bg-pink-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">Parties to this Agreement</h2></div>
                                             <p className="text-sm text-slate-500 mb-4">This Service Level Agreement ("Agreement") is entered into as of the Effective Date set out below, by and between:</p>
 
@@ -899,6 +977,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                             <p className="text-sm text-slate-600 mt-4 pt-4 border-t border-slate-200">The Service Provider and the Client are collectively referred to as "the Parties" and individually as a "Party".</p>
                                         </section>
 
+                                        <div className="pdf-page-break-before" />
                                         <section className="bg-slate-50 border border-slate-200 rounded-xl p-5" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                                             <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-slate-500 rounded-full" /><h2 className="text-lg font-bold text-slate-900">Recitals</h2></div>
                                             <Editable tag="p" className="text-slate-700 text-sm italic" value={contractData.recitalsText} onChange={(val) => updateField('recitalsText', val)} />
@@ -914,12 +993,12 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                             <Editable tag="p" className="pl-4" value={contractData.scopeText} onChange={(val) => updateField('scopeText', val)} />
                                         </section>
 
-                                        <section>
+                                        <section data-pdf-deliverables-section>
                                             <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-pink-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">2. Deliverables</h2></div>
                                             <Editable tag="p" className="pl-4 whitespace-pre-wrap" value={contractData.deliverablesText} onChange={(val) => updateField('deliverablesText', val)} />
                                         </section>
 
-                                        <section className="bg-slate-50 rounded-xl p-6 border" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+                                        <section className="bg-slate-50 rounded-xl p-6 border" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }} data-pdf-commercial-terms>
                                             <h3 className="text-xs font-black text-slate-400 uppercase mb-4">Commercial Terms</h3>
                                             <div className="grid grid-cols-3 gap-8 mb-4">
                                                 <div><p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Service Fee</p><Editable className="text-pink-600 font-bold text-xl" value={contractData.serviceFee} onChange={(val) => updateField('serviceFee', val)} /></div>
@@ -934,12 +1013,12 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                             )}
                                         </section>
 
-                                        <section>
+                                        <section data-pdf-terms-section>
                                             <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-pink-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">3. Terms & Conditions</h2></div>
                                             <Editable tag="p" className="pl-4" value={contractData.termsText} onChange={(val) => updateField('termsText', val)} />
                                         </section>
 
-                                        <section>
+                                        <section data-pdf-confidentiality-section>
                                             <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-pink-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">4. Confidentiality</h2></div>
                                             <Editable tag="p" className="pl-4" value={contractData.confidentialityText} onChange={(val) => updateField('confidentialityText', val)} />
                                         </section>
@@ -979,22 +1058,22 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                             <Editable tag="p" className="pl-4 text-sm" value={contractData.liabilityText} onChange={(val) => updateField('liabilityText', val)} />
                                         </section>
 
-                                        <section>
+                                        <section data-pdf-section-11>
                                             <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-pink-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">11. Indemnification</h2></div>
                                             <Editable tag="p" className="pl-4 text-sm" value={contractData.indemnityText} onChange={(val) => updateField('indemnityText', val)} />
                                         </section>
 
-                                        <section className="bg-slate-100 border rounded-xl p-5" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+                                        <section className="bg-slate-100 border rounded-xl p-5" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }} data-pdf-section-12>
                                             <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-slate-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">12. General Provisions</h2></div>
                                             <Editable tag="p" className="text-slate-700 text-sm" value={contractData.entireAgreementText} onChange={(val) => updateField('entireAgreementText', val)} />
                                         </section>
 
-                                        <section>
+                                        <section data-pdf-section-13>
                                             <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-pink-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">13. Intellectual Property</h2></div>
                                             <Editable tag="p" className="pl-4 text-sm" value={contractData.intellectualPropertyText} onChange={(val) => updateField('intellectualPropertyText', val)} />
                                         </section>
 
-                                        <section className="bg-blue-50 border border-blue-200 rounded-xl p-5" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+                                        <section data-pdf-section-14 className="bg-blue-50 border border-blue-200 rounded-xl p-5" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                                             <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-blue-600 rounded-full" /><h2 className="text-lg font-bold text-blue-900">14. Data Protection & POPIA Compliance</h2></div>
                                             <Editable tag="p" className="text-blue-800 text-sm" value={contractData.dataProtectionText} onChange={(val) => updateField('dataProtectionText', val)} />
                                         </section>
@@ -1004,26 +1083,29 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                             <Editable tag="p" className="text-purple-800 text-sm" value={contractData.nonSolicitationText} onChange={(val) => updateField('nonSolicitationText', val)} />
                                         </section>
 
-                                        <section>
+                                        <section data-pdf-section-16>
                                             <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-pink-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">16. Warranties & Representations</h2></div>
                                             <Editable tag="p" className="pl-4 text-sm" value={contractData.warrantiesText} onChange={(val) => updateField('warrantiesText', val)} />
                                         </section>
 
-                                        <section className="bg-orange-50 border border-orange-200 rounded-xl p-5" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+                                        <section data-pdf-section-17 className="bg-orange-50 border border-orange-200 rounded-xl p-5" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                                             <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-orange-600 rounded-full" /><h2 className="text-lg font-bold text-orange-900">17. Termination</h2></div>
                                             <Editable tag="p" className="text-orange-800 text-sm" value={contractData.terminationText} onChange={(val) => updateField('terminationText', val)} />
                                         </section>
 
-                                        <section>
+                                        <section data-pdf-section-18>
                                             <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-pink-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">18. Assignment</h2></div>
                                             <Editable tag="p" className="pl-4 text-sm" value={contractData.assignmentText} onChange={(val) => updateField('assignmentText', val)} />
                                         </section>
 
-                                        <section>
+                                        <section data-pdf-section-19>
                                             <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-pink-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">19. Notices</h2></div>
-                                            <Editable tag="p" className="pl-4 text-sm" value={contractData.noticesText} onChange={(val) => updateField('noticesText', val)} />
+                                            <div data-pdf-section-19-body>
+                                                <Editable tag="p" className="pl-4 text-sm" value={contractData.noticesText} onChange={(val) => updateField('noticesText', val)} />
+                                            </div>
                                         </section>
 
+                                        <div className="pdf-page-break-before" />
                                         <section>
                                             <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-pink-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">20. Relationship of Parties</h2></div>
                                             <Editable tag="p" className="pl-4 text-sm" value={contractData.relationshipText} onChange={(val) => updateField('relationshipText', val)} />
@@ -1055,7 +1137,6 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                         </section>
                                     </main>
                                 </div>
-                                <div className="h-2 w-full bg-slate-900 mt-auto" />
                             </div>
                         </div>
                     </div>

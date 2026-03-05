@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ const loginSchema = z.object({
 });
 
 const BrokerPortal = () => {
+  const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -26,6 +27,14 @@ const BrokerPortal = () => {
   const [resetLoading, setResetLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // Pre-fill email when coming from broker setup (same email as in admin's Broker Invites form)
+  useEffect(() => {
+    const stateEmail = (location.state as { email?: string })?.email;
+    if (stateEmail && typeof stateEmail === "string") {
+      setEmail(stateEmail.trim());
+    }
+  }, [location.state]);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -68,15 +77,19 @@ const BrokerPortal = () => {
           variant: "destructive",
         });
       } else if (data.session) {
-        // Check if user is a broker
+        // Check if user is a broker and send to correct portal
         const { data: broker } = await supabase
           .from("brokers")
-          .select("id")
+          .select("id, portal_type")
           .eq("user_id", data.session.user.id)
           .single();
 
         if (broker) {
-          navigate("/broker/dashboard");
+          if (broker.portal_type === "marketing" || broker.portal_type === "premium") {
+            navigate("/broker-elite");
+          } else {
+            navigate("/broker/dashboard");
+          }
         } else {
           await supabase.auth.signOut();
           toast({
@@ -248,7 +261,7 @@ const BrokerPortal = () => {
                         <Input
                           id="email"
                           type="email"
-                          placeholder="broker@example.com"
+                          placeholder="Use the email from your invite"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           required
