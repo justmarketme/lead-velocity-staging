@@ -26,18 +26,17 @@ interface BrokerInviteRequest {
     brokerName: string;
     inviteLink: string;
     expiresAt: string;
+    portalType?: 'referral' | 'marketing';
 }
 
 const handler = async (req: Request): Promise<Response> => {
     const corsHeaders = getCorsHeaders(req);
 
-    // Handle CORS preflight requests
     if (req.method === "OPTIONS") {
         return new Response(null, { headers: corsHeaders });
     }
 
     try {
-        // Verify authentication
         const authHeader = req.headers.get('Authorization');
         if (!authHeader) {
             console.error("No authorization header provided");
@@ -47,14 +46,12 @@ const handler = async (req: Request): Promise<Response> => {
             );
         }
 
-        // Create Supabase client with user's auth context
         const supabaseClient = createClient(
             Deno.env.get('SUPABASE_URL') ?? '',
             Deno.env.get('SUPABASE_ANON_KEY') ?? '',
             { global: { headers: { Authorization: authHeader } } }
         );
 
-        // Verify user is authenticated
         const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
         if (authError || !user) {
             console.error("Authentication failed:", authError?.message);
@@ -64,7 +61,6 @@ const handler = async (req: Request): Promise<Response> => {
             );
         }
 
-        // Verify user has admin role
         const { data: roleData, error: roleError } = await supabaseClient
             .from('user_roles')
             .select('role')
@@ -80,9 +76,8 @@ const handler = async (req: Request): Promise<Response> => {
             );
         }
 
-        const { email, brokerName, inviteLink, expiresAt }: BrokerInviteRequest = await req.json();
+        const { email, brokerName, inviteLink, expiresAt, portalType }: BrokerInviteRequest = await req.json();
 
-        // Input validation
         if (!email || !inviteLink || !expiresAt) {
             return new Response(
                 JSON.stringify({ success: false, error: 'Missing required fields' }),
@@ -90,13 +85,19 @@ const handler = async (req: Request): Promise<Response> => {
             );
         }
 
-        console.log("Sending broker invite to:", email, "by admin:", user.id);
+        console.log("Sending broker invite to:", email, "portal type:", portalType);
 
         const expiryDate = new Date(expiresAt).toLocaleDateString("en-US", {
             month: "long",
             day: "numeric",
             year: "numeric",
         });
+
+        const isMarketing = portalType === 'marketing';
+        const portalLabel = isMarketing ? 'Elite Marketing Portal' : 'Referral Broker Portal';
+        const portalDescription = isMarketing
+            ? 'We generate leads and book them directly into your calendar — all you do is close.'
+            : 'Upload your leads and track every referral in real-time through your dedicated portal.';
 
         const res = await fetch("https://api.resend.com/emails", {
             method: "POST",
@@ -105,69 +106,53 @@ const handler = async (req: Request): Promise<Response> => {
                 Authorization: `Bearer ${RESEND_API_KEY}`,
             },
             body: JSON.stringify({
-                from: "Lead Velocity <noreply@resend.dev>",
+                // FIX: Use verified sender domain (was wrongly using noreply@resend.dev sandbox)
+                from: "Lead Velocity <howzit@leadvelocity.co.za>",
                 to: [email],
-                subject: "You've Been Invited to the Broker Portal - Lead Velocity",
-                html: `
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          </head>
-          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
-              <h1 style="color: white; margin: 0; font-size: 24px;">Lead Velocity Broker Portal</h1>
-            </div>
-            
-            <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
-              <p style="font-size: 16px; margin-bottom: 20px;">Hello ${brokerName || ''},</p>
-              
-              <p style="font-size: 16px; margin-bottom: 20px;">
-                You've been invited to join the <strong>Lead Velocity Broker Portal</strong>. 
-                This platform will allow you to manage leads, track referrals, and access powerful analytics.
-              </p>
-              
-              <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 25px 0;">
-                <h3 style="margin: 0 0 15px 0; color: #6366f1;">How to Get Started:</h3>
-                <ol style="margin: 0; padding-left: 20px;">
-                  <li style="margin-bottom: 10px;">Click the button below to access your setup link</li>
-                  <li style="margin-bottom: 10px;">Create your password and setup security questions</li>
-                  <li style="margin-bottom: 10px;">Access your broker dashboard!</li>
-                </ol>
-              </div>
-              
-              <div style="text-align: center; margin: 30px 0;">
-                <a href="${inviteLink}" 
-                   style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); 
-                          color: white; 
-                          padding: 14px 32px; 
-                          text-decoration: none; 
-                          border-radius: 8px; 
-                          font-weight: 600;
-                          font-size: 16px;
-                          display: inline-block;">
-                  Setup Your Account
-                </a>
-              </div>
-              
-              <p style="font-size: 14px; color: #6b7280; margin-top: 25px;">
-                <strong>Note:</strong> This invitation expires on <strong>${expiryDate}</strong>. 
-                If the button doesn't work, copy and paste this URL into your browser:
-              </p>
-              <p style="font-size: 12px; color: #9ca3af; word-break: break-all; background: #f3f4f6; padding: 10px; border-radius: 4px;">
-                ${inviteLink}
-              </p>
-              
-              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 25px 0;">
-              
-              <p style="font-size: 12px; color: #9ca3af; text-align: center; margin: 0;">
-                If you didn't expect this invitation, you can safely ignore this email.
-              </p>
-            </div>
-          </body>
-          </html>
-        `,
+                subject: `You've Been Invited to the ${portalLabel} — Lead Velocity`,
+                html: `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">Lead Velocity — ${portalLabel}</h1>
+  </div>
+  <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+    <p style="font-size: 16px; margin-bottom: 20px;">Hello ${brokerName || ''},</p>
+    <p style="font-size: 16px; margin-bottom: 20px;">
+      You've been invited to join the <strong>Lead Velocity ${portalLabel}</strong>.<br/>
+      ${portalDescription}
+    </p>
+    <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 25px 0;">
+      <h3 style="margin: 0 0 15px 0; color: #6366f1;">How to Get Started:</h3>
+      <ol style="margin: 0; padding-left: 20px;">
+        <li style="margin-bottom: 10px;">Click the button below to access your setup link</li>
+        <li style="margin-bottom: 10px;">Create your password and set up security questions</li>
+        <li style="margin-bottom: 10px;">Access your broker dashboard and start tracking!</li>
+      </ol>
+    </div>
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${inviteLink}" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; display: inline-block;">
+        Setup Your Account
+      </a>
+    </div>
+    <p style="font-size: 14px; color: #6b7280; margin-top: 25px;">
+      <strong>Note:</strong> This invitation expires on <strong>${expiryDate}</strong>.
+      If the button doesn't work, copy and paste this URL into your browser:
+    </p>
+    <p style="font-size: 12px; color: #9ca3af; word-break: break-all; background: #f3f4f6; padding: 10px; border-radius: 4px;">
+      ${inviteLink}
+    </p>
+    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 25px 0;">
+    <p style="font-size: 12px; color: #9ca3af; text-align: center; margin: 0;">
+      If you didn't expect this invitation, you can safely ignore this email.
+    </p>
+  </div>
+</body>
+</html>`,
             }),
         });
 
@@ -177,6 +162,8 @@ const handler = async (req: Request): Promise<Response> => {
             console.error("Resend API error:", data);
             throw new Error(data.message || "Failed to send email");
         }
+
+        console.log("Broker invite email sent successfully to:", email);
 
         return new Response(JSON.stringify({ success: true, data }), {
             status: 200,

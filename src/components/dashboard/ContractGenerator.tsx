@@ -430,29 +430,75 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
             clone.style.zIndex = "-9999";
             clone.style.backgroundColor = "#ffffff"; // Ensure solid background
 
-            // Add page-break styles to prevent content from being cut
+            // Add page-break styles to ensure html2canvas clones have proper block context
             const style = document.createElement('style');
             style.textContent = `
-                header { page-break-after: avoid!important; break-after: avoid!important; }
-                h1, h2, h3, h4 { page-break-after: avoid!important; break-after: avoid!important; }
-                section, .document-section, .bg-slate-50, .border, .bg-red-50, .bg-amber-50, .bg-green-50, .bg-blue-50, .bg-purple-50, .bg-orange-50 { 
-                    page-break-inside: avoid!important; 
-                    break-inside: avoid!important; 
-                    margin-bottom: 24px!important; 
-                    display: block!important;
-                    position: relative!important;
+                /* Avoid breaking specific structural wrappers */
+                section, .document-section, .pdf-block { 
+                    page-break-inside: avoid !important; 
+                    break-inside: avoid !important; 
+                    margin-bottom: 8px !important;  /* Further reduced to ensure 6-12 fit nicely on one page */
+                    display: block !important;
+                    position: relative !important;
                 }
-                tr { page-break-inside: avoid!important; break-inside: avoid!important; }
-                p { orphans: 4; widows: 4; line-height: 1.6!important; }
-                table { border-collapse: collapse!important; width: 100%!important; page-break-inside: auto!important; }
-                .grid { display: block!important; } /* Force block for grids to respect page breaks in PDF */
-                .flex { display: block!important; } /* Force block for small flex containers */
+                
+                /* Ensure tables and rows don't split awkwardly */
+                tr, thead, tbody { page-break-inside: avoid !important; break-inside: avoid !important; }
+                table { page-break-inside: auto !important; margin-bottom: 20px !important; }
+
+                /* Keep text flow clean */
+                p, li { orphans: 3; widows: 3; }
+                
+                /* DO NOT force display: block on .flex or .grid as it breaks headers and side-by-side elements */
+                
+                /* Ensure background colors are preserved */
+                * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                
+                /* Remove top spacing on sections that follow a manual page break —
+                   this pulls Section 13 up to the true top of its page without 
+                   shortening the spacer (which would bleed Section 12 back in) */
+                .pdf-page-break-before + section,
+                .pdf-page-break-before + div,
+                .pdf-page-break-before + * {
+                    margin-top: 0 !important;
+                    padding-top: 6px !important;
+                }
             `;
             clone.appendChild(style);
 
+            // Force semantic tags or classes on key sections for pdfUtils detection
+            clone.querySelectorAll('.bg-slate-50, .border, .document-section, section').forEach(el => {
+                el.classList.add('pdf-block');
+            });
+
             clone.querySelectorAll('[contenteditable]').forEach(el => {
                 el.removeAttribute('contenteditable');
+                (el as HTMLElement).style.backgroundColor = 'transparent';
                 el.className = el.className.replace(/hover:\S+/g, '').replace(/focus:\S+/g, '');
+            });
+
+            // DIRECT JS: Reduce the space-y gap on <main> in the clone so sections 6-12
+            // have enough room to fit on one page without Section 12 being cut off.
+            const mainEl = clone.querySelector('main') as HTMLElement | null;
+            if (mainEl) {
+                mainEl.style.setProperty('gap', '4px', 'important');
+                // Override Tailwind space-y-6 (which adds 24px margin-top to every child)
+                Array.from(mainEl.children).forEach((child, i) => {
+                    if (i > 0) {
+                        (child as HTMLElement).style.setProperty('margin-top', '4px', 'important');
+                    }
+                });
+            }
+
+            // DIRECT JS: Strip top margin from elements immediately after manual page break
+            // markers — CSS sibling selectors don't work after spacer divs are injected.
+            // This prevents the large white gap at the top of the Section 13 page.
+            clone.querySelectorAll('.pdf-page-break-before').forEach(marker => {
+                const next = marker.nextElementSibling as HTMLElement | null;
+                if (next) {
+                    next.style.setProperty('margin-top', '0px', 'important');
+                    next.style.setProperty('padding-top', '2px', 'important');
+                }
             });
 
             document.body.appendChild(clone);
@@ -899,6 +945,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                             <p className="text-sm text-slate-600 mt-4 pt-4 border-t border-slate-200">The Service Provider and the Client are collectively referred to as "the Parties" and individually as a "Party".</p>
                                         </section>
 
+                                        <div className="pdf-page-break-before" />
                                         <section className="bg-slate-50 border border-slate-200 rounded-xl p-5" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                                             <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-slate-500 rounded-full" /><h2 className="text-lg font-bold text-slate-900">Recitals</h2></div>
                                             <Editable tag="p" className="text-slate-700 text-sm italic" value={contractData.recitalsText} onChange={(val) => updateField('recitalsText', val)} />
@@ -919,6 +966,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                             <Editable tag="p" className="pl-4 whitespace-pre-wrap" value={contractData.deliverablesText} onChange={(val) => updateField('deliverablesText', val)} />
                                         </section>
 
+                                        <div className="pdf-page-break-before" />
                                         <section className="bg-slate-50 rounded-xl p-6 border" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                                             <h3 className="text-xs font-black text-slate-400 uppercase mb-4">Commercial Terms</h3>
                                             <div className="grid grid-cols-3 gap-8 mb-4">
@@ -952,19 +1000,20 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                             </div>
                                         </section>
 
+                                        <div className="pdf-page-break-before" />
                                         <section>
                                             <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-pink-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">6. Governing Law & Disputes</h2></div>
                                             <Editable tag="p" className="pl-4" value={contractData.disputeText} onChange={(val) => updateField('disputeText', val)} />
                                         </section>
 
                                         {contractData.pilotEligibilityText && (
-                                            <section className="bg-amber-50 border border-amber-200 rounded-xl p-5" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+                                            <section className="bg-amber-50 border border-amber-200 rounded-xl p-4" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                                                 <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-amber-600 rounded-full" /><h2 className="text-lg font-bold text-amber-900">7. Pilot Eligibility</h2></div>
                                                 <Editable tag="p" className="text-amber-800 text-sm" value={contractData.pilotEligibilityText} onChange={(val) => updateField('pilotEligibilityText', val)} />
                                             </section>
                                         )}
 
-                                        <section className="bg-green-50 border border-green-200 rounded-xl p-5" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+                                        <section className="bg-green-50 border border-green-200 rounded-xl p-4" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                                             <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-green-600 rounded-full" /><h2 className="text-lg font-bold text-green-900">8. Renewal & Upgrade Options</h2></div>
                                             <Editable tag="p" className="text-green-800 text-sm" value={contractData.renewalText} onChange={(val) => updateField('renewalText', val)} />
                                         </section>
@@ -984,11 +1033,12 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                             <Editable tag="p" className="pl-4 text-sm" value={contractData.indemnityText} onChange={(val) => updateField('indemnityText', val)} />
                                         </section>
 
-                                        <section className="bg-slate-100 border rounded-xl p-5" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+                                        <section className="bg-slate-100 border rounded-xl p-4" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                                             <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-slate-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">12. General Provisions</h2></div>
                                             <Editable tag="p" className="text-slate-700 text-sm" value={contractData.entireAgreementText} onChange={(val) => updateField('entireAgreementText', val)} />
                                         </section>
 
+                                        <div className="pdf-page-break-before" />
                                         <section>
                                             <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-pink-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">13. Intellectual Property</h2></div>
                                             <Editable tag="p" className="pl-4 text-sm" value={contractData.intellectualPropertyText} onChange={(val) => updateField('intellectualPropertyText', val)} />
@@ -1019,6 +1069,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                             <Editable tag="p" className="pl-4 text-sm" value={contractData.assignmentText} onChange={(val) => updateField('assignmentText', val)} />
                                         </section>
 
+                                        <div className="pdf-page-break-before" />
                                         <section>
                                             <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-pink-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">19. Notices</h2></div>
                                             <Editable tag="p" className="pl-4 text-sm" value={contractData.noticesText} onChange={(val) => updateField('noticesText', val)} />
