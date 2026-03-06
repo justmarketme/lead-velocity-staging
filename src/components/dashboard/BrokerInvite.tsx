@@ -6,11 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { Copy, UserPlus, Clock, CheckCircle, XCircle, Link2, Mail, Send, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { BrokerSelector } from "./BrokerSelector";
 import { Switch } from "@/components/ui/switch";
-import { Info } from "lucide-react";
 
 interface BrokerInviteData {
     id: string;
@@ -148,26 +146,28 @@ const BrokerInvite = () => {
                         portalType: portalType
                     },
                 });
+
                 if (funcError) {
                     console.warn("Failed to send automated email:", funcError);
                     toast({
-                        title: "Invite Created (Email failed)",
-                        description: "Link generated. Copy the link below to send to the broker.",
+                        title: "Record Created (Email Pending)",
+                        description: "The invite is in the system, but the email couldn't be sent automatically. Please copy the link below.",
                         variant: "destructive",
                     });
                 } else {
                     toast({
-                        title: "Invite Sent",
-                        description: `Email sent to ${recipientEmail}. Copy the link below to send manually if needed.`,
+                        title: "Success! Email Sent",
+                        description: `Broker invitation has been sent to ${recipientEmail}.`,
                     });
+                    // Clear form only on full success
+                    setBrokerEmail("");
+                    setBrokerName("");
+                    setFirmName("");
                 }
-                setBrokerEmail("");
-                setBrokerName("");
-                setFirmName("");
             } else {
                 toast({
-                    title: "Link Generated",
-                    description: "Copy the link below and send it to the broker (e.g. WhatsApp).",
+                    title: "Link Ready",
+                    description: "The unique setup link has been generated. Copy it below.",
                 });
             }
             fetchInvites();
@@ -186,13 +186,11 @@ const BrokerInvite = () => {
     const handleResolveRequest = async (id: string, email: string, name: string) => {
         setLoading(true);
         try {
-            // 1. Mark request as resolved
             await supabase
                 .from("broker_reset_requests")
                 .update({ status: 'resolved', resolved_at: new Date().toISOString() })
                 .eq("id", id);
 
-            // 2. Create and send new invite
             const { token, expiresAt } = await createInvite(email, name, "");
             const inviteLink = `${getInviteBaseUrl()}/broker-setup/${token}`;
 
@@ -255,8 +253,8 @@ const BrokerInvite = () => {
         } catch (error: any) {
             console.error("Error resending email:", error);
             toast({
-                title: "Failed to send",
-                description: "Could not send the email. Please check Resend API configuration.",
+                title: "Send Failed",
+                description: "Could not deliver the email. You might need to copy the link manually.",
                 variant: "destructive",
             });
         } finally {
@@ -303,10 +301,10 @@ const BrokerInvite = () => {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <UserPlus className="h-5 w-5 text-primary" />
-                            Invite New Broker
+                            Step 1: Invite New Broker
                         </CardTitle>
                         <CardDescription>
-                            Brokers will receive an email to set their password and security questions.
+                            Create a secure onboarding link and optionally send it via automated email.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -333,14 +331,15 @@ const BrokerInvite = () => {
                                     />
                                 </div>
                             </div>
+
                             <div className="space-y-4 p-4 bg-muted/30 rounded-lg border border-border/50">
                                 <div className="flex items-center justify-between">
                                     <div className="space-y-0.5">
                                         <Label className="text-base">Portal Type</Label>
                                         <p className="text-xs text-muted-foreground">
                                             {portalType === 'referral'
-                                                ? "Referral/Classic: Broker has leads; we work referrals."
-                                                : "Marketing/Elite: We generate leads & enter into their calendar."}
+                                                ? "Referral: They have leads; we work referrals."
+                                                : "Elite: We generate leads for them."}
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-2 bg-background p-1 rounded-md border">
@@ -356,61 +355,61 @@ const BrokerInvite = () => {
 
                             <div className="space-y-2">
                                 <Label htmlFor="broker-email">Email Address</Label>
-                                <div className="flex flex-wrap gap-2">
-                                    <Input
-                                        id="broker-email"
-                                        type="email"
-                                        placeholder="broker@example.com"
-                                        value={brokerEmail}
-                                        onChange={(e) => setBrokerEmail(e.target.value)}
-                                        className="flex-1 min-w-[200px]"
-                                        required
-                                    />
-                                    <Button type="submit" disabled={loading}>
-                                        <Send className="h-4 w-4 mr-1" />
-                                        {loading ? "Sending..." : "Send Invite"}
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        disabled={loading}
-                                        onClick={handleGenerateLinkOnly}
-                                    >
-                                        <Link2 className="h-4 w-4 mr-1" />
-                                        Generate Link Only
-                                    </Button>
-                                </div>
+                                <Input
+                                    id="broker-email"
+                                    type="email"
+                                    placeholder="broker@example.com"
+                                    value={brokerEmail}
+                                    onChange={(e) => setBrokerEmail(e.target.value)}
+                                    required
+                                />
                             </div>
 
-                            {/* Generated link: always show this section so admin can copy link for client */}
-                            <div className="p-4 rounded-lg border border-border bg-muted/30 space-y-3">
-                                <div className="flex items-center gap-2">
-                                    <Link2 className="h-4 w-4 text-primary" />
-                                    <span className="text-sm font-medium text-foreground">Setup link for broker</span>
-                                </div>
-                                <p className="text-xs text-muted-foreground">
-                                    Use &quot;Send Invite&quot; to email the broker, or &quot;Generate Link Only&quot; to create a link to copy and send yourself (e.g. WhatsApp).
-                                </p>
-                                {generatedLink ? (
-                                    <div className="flex gap-2 animate-in fade-in slide-in-from-top-2">
-                                        <Input
-                                            value={generatedLink}
-                                            readOnly
-                                            className="flex-1 text-xs bg-background font-mono"
-                                        />
+                            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                                <Button type="submit" disabled={loading} className="flex-1">
+                                    <Mail className="h-4 w-4 mr-2" />
+                                    {loading ? "Sending..." : "Invite via Email"}
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    disabled={loading}
+                                    onClick={handleGenerateLinkOnly}
+                                    className="flex-1"
+                                >
+                                    <Link2 className="h-4 w-4 mr-2" />
+                                    Generate Link Only
+                                </Button>
+                            </div>
+
+                            {/* Generated link section */}
+                            {generatedLink && (
+                                <div className="p-4 mt-4 rounded-lg border border-primary/20 bg-primary/5 space-y-3 animate-in fade-in slide-in-from-top-2">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <Link2 className="h-4 w-4 text-primary" />
+                                            <span className="text-sm font-semibold">Ready to share</span>
+                                        </div>
                                         <Button
-                                            variant="outline"
+                                            variant="ghost"
                                             size="sm"
                                             onClick={() => copyToClipboard(generatedLink)}
+                                            className="h-8 px-2 text-primary"
                                         >
                                             <Copy className="h-4 w-4 mr-1" />
-                                            Copy Link
+                                            Copy
                                         </Button>
                                     </div>
-                                ) : (
-                                    <p className="text-xs text-muted-foreground italic">Send an invite or click &quot;Generate Link Only&quot; to create a link.</p>
-                                )}
-                            </div>
+                                    <Input
+                                        value={generatedLink}
+                                        readOnly
+                                        className="text-xs bg-background font-mono h-8"
+                                    />
+                                    <p className="text-[10px] text-muted-foreground italic">
+                                        You can share this link directly via WhatsApp or SMS if the email doesn't arrive.
+                                    </p>
+                                </div>
+                            )}
                         </form>
                     </CardContent>
                 </Card>
@@ -420,16 +419,17 @@ const BrokerInvite = () => {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-orange-500">
                             <RefreshCw className="h-5 w-5" />
-                            Reset Requests
+                            Step 2: Reset Requests
                         </CardTitle>
                         <CardDescription>
-                            Brokers requesting manual password resets because they forgot their security questions.
+                            Brokers who forgot their access can be resent a new link here.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
                         {resetRequests.length === 0 ? (
-                            <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
-                                No pending reset requests
+                            <div className="text-center py-12 text-muted-foreground border-2 border-dashed rounded-lg bg-orange-500/[0.02]">
+                                <Clock className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                                <p>No pending reset requests</p>
                             </div>
                         ) : (
                             <div className="space-y-3">
@@ -444,7 +444,7 @@ const BrokerInvite = () => {
                                             onClick={() => handleResolveRequest(request.id, request.email, request.email.split('@')[0])}
                                             disabled={loading}
                                         >
-                                            Resend Setup Link
+                                            Resend Setup
                                         </Button>
                                     </div>
                                 ))}
@@ -459,57 +459,67 @@ const BrokerInvite = () => {
                 <CardHeader>
                     <CardTitle>Invitation History</CardTitle>
                     <CardDescription>
-                        Recent broker invitations and their current usage status
+                        Track the status of the last 5 invitations.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="space-y-3">
                         {invites.length === 0 ? (
-                            <p className="text-center py-8 text-muted-foreground">No invitations found</p>
+                            <p className="text-center py-8 text-muted-foreground italic">No invitation history yet.</p>
                         ) : (
                             invites.slice(0, 5).map((invite) => {
                                 const status = getInviteStatus(invite);
                                 const Icon = status.icon;
                                 return (
-                                    <div key={invite.id} className="flex items-center justify-between p-3 bg-card hover:bg-accent/50 transition-colors border rounded-lg">
+                                    <div key={invite.id} className="grid grid-cols-1 md:grid-cols-3 items-center p-4 bg-card hover:bg-accent/30 transition-colors border rounded-xl gap-4">
                                         <div className="flex gap-4 items-center">
-                                            <Badge variant={status.variant}>
-                                                <Icon className="h-3 w-3 mr-1" />
+                                            <Badge variant={status.variant} className="w-20 justify-center">
                                                 {status.label}
                                             </Badge>
                                             <div>
-                                                <p className="font-medium text-sm">{invite.broker_name || invite.email}</p>
-                                                <div className="flex items-center gap-2">
-                                                    <p className="text-xs text-muted-foreground">{invite.email} • {invite.firm_name || 'No Firm'}</p>
-                                                    {invite.portal_type && (
-                                                        <Badge variant="outline" className="text-[10px] h-4 py-0">
-                                                            {invite.portal_type.toUpperCase()}
-                                                        </Badge>
-                                                    )}
-                                                </div>
+                                                <p className="font-semibold text-sm">{invite.broker_name || invite.email}</p>
+                                                <p className="text-[10px] text-muted-foreground font-mono">{invite.firm_name || 'Individual Broker'}</p>
                                             </div>
                                         </div>
-                                        <div className="text-right">
-                                            <p className="text-xs text-muted-foreground">
-                                                {invite.used_at ? `Used: ${new Date(invite.used_at).toLocaleDateString()}` : `Expires: ${new Date(invite.expires_at).toLocaleDateString()}`}
-                                            </p>
+
+                                        <div className="flex items-center md:justify-center gap-2">
+                                            <Badge variant="outline" className="text-[9px] h-5 px-1.5 font-bold tracking-wider">
+                                                {invite.portal_type.toUpperCase()}
+                                            </Badge>
+                                            <span className="text-[10px] text-muted-foreground tabular-nums">
+                                                Ref: {invite.token.substring(0, 6)}...
+                                            </span>
+                                        </div>
+
+                                        <div className="flex items-center justify-end gap-2">
                                             {!invite.used_at && (
-                                                <div className="flex gap-2">
+                                                <>
                                                     <Button
                                                         variant="outline"
                                                         size="sm"
                                                         onClick={() => handleResendEmail(invite)}
                                                         disabled={loading}
-                                                        className="border-primary/30 text-primary hover:bg-primary/10"
+                                                        className="h-8 text-[11px] border-primary/20 text-primary hover:bg-primary/5"
                                                     >
-                                                        <Mail className="h-3 w-3 mr-1" />
+                                                        <Mail className="h-3 w-3 mr-1.5" />
                                                         Resend Email
                                                     </Button>
-                                                    <Button variant="ghost" size="sm" onClick={() => copyToClipboard(`${getInviteBaseUrl()}/broker-setup/${invite.token}`)}>
-                                                        <Copy className="h-3 w-3 mr-1" />
-                                                        Copy Link
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => copyToClipboard(`${getInviteBaseUrl()}/broker-setup/${invite.token}`)}
+                                                        className="h-8 text-[11px]"
+                                                    >
+                                                        <Copy className="h-3 w-3 mr-1.5" />
+                                                        Link
                                                     </Button>
-                                                </div>
+                                                </>
+                                            )}
+                                            {invite.used_at && (
+                                                <span className="text-[10px] text-green-600 font-medium flex items-center bg-green-50 px-2 py-1 rounded">
+                                                    <CheckCircle className="h-3 w-3 mr-1" />
+                                                    Setup Complete
+                                                </span>
                                             )}
                                         </div>
                                     </div>

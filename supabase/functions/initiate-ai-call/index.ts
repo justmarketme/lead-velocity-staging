@@ -16,14 +16,14 @@ interface AICallRequest {
 }
 
 const CALL_SCRIPTS: Record<string, string> = {
-  "appointment_scheduling": `Hello {name}, this is an automated call from Lead Velocity on behalf of {broker}. I'm calling to schedule an appointment with you. Would you have time available this week? Please let me know your preferred date and time.`,
-  "appointment_rescheduling": `Hello {name}, this is an automated call from Lead Velocity. I'm calling regarding your upcoming appointment with {broker}. We need to reschedule. What alternative date and time would work best for you?`,
-  "follow_up": `Hello {name}, this is an automated call from Lead Velocity. I'm following up on your recent interaction with {broker}. I wanted to check in and see if you have any questions or if there's anything we can help you with.`,
-  "voice_note": `Hello, this is an automated message from Lead Velocity on behalf of {broker}. We wanted to reach out and let you know that we're here to assist you. Please call us back at your earliest convenience.`,
-  "general_inquiry": `Hello {name}, this is an automated call from Lead Velocity. We're reaching out on behalf of {broker} to learn more about your needs and how we can assist you. Do you have a few minutes to chat?`,
-  "reminder": `Hello {name}, this is a friendly reminder from Lead Velocity about your upcoming appointment with {broker}. Please confirm your attendance or contact us if you need to make any changes.`,
-  "referral_generation": `Hello {name}, this is an automated call from Lead Velocity on behalf of {broker}. We recently helped you with your policy, and we'd love to help your friends or family too. If you have 5 people in mind who could benefit from our service, please stay on the line to provide their details or leave a message after the beep.`,
-  "policy_review": `Hello {name}, this is a courtesy call from Lead Velocity for {broker}. We're conducting annual policy reviews to ensure your coverage is still the best fit for your needs. Would you like to schedule a 5-minute review call this week?`,
+  "appointment_scheduling": `Wunderbar! {name}, this is Einstein-77 from Lead Velocity on behalf of {broker}. I am calling to orchestrate ze spacetime of your calendar. Would you have a moment this week for a brief discovery interaction? Please let me know your preferred coordinates in time.`,
+  "appointment_rescheduling": `Greeting {name}, Einstein-77 here. We have a relativity issue with your upcoming appointment with {broker}. We must shift ze timeline. What alternative date and time would be most efficient for you?`,
+  "follow_up": `Wunderbar! Hello {name}, Einstein-77 checking in. I was calculating ze progress of your interaction with {broker} and wanted to see if any new variables have emerged. Is there anything Einstein can assist with?`,
+  "voice_note": `Greeting! This is ze Einstein-77 automated module for {broker}. We wanted to reach across ze digital divide to say we are here to assist. Please return our engagement at your earliest convenience.`,
+  "general_inquiry": `Hello {name}, Einstein-77 from Lead Velocity here. We are analyzing how to best assist you on behalf of {broker}. Do you have a few minutes for a brief intellectual exchange?`,
+  "reminder": `Greeting {name}. Einstein-77 reminding you that your interaction with {broker} is approaching in spacetime. Please confirm your attendance so we may keep ze universe in order.`,
+  "referral_generation": `Wunderbar! {name}, Einstein-77 here for {broker}. We have successfully optimized your policy. Now, which 5 individuals in your network deserve such high-status assistance? Stay on ze line to provide their coordinates.`,
+  "policy_review": `Hello {name}, Einstein-77 here for {broker}. It is time for a seasonal review of your coverage variables. Shall we schedule a 5-minute quantum audit call this week?`,
 };
 
 serve(async (req) => {
@@ -138,13 +138,37 @@ serve(async (req) => {
       .replace(/\{name\}/g, recipient_name || 'there')
       .replace(/\{broker\}/g, brokerName);
 
-    // Create TwiML for the call with text-to-speech
+    // Create a record in the communications table for history
+    const { data: communicationRecord, error: commError } = await supabase
+      .from('communications')
+      .insert({
+        channel: 'call',
+        direction: 'outbound',
+        sender_id: user.id,
+        sender_type: 'admin',
+        recipient_type,
+        recipient_contact: recipient_phone,
+        lead_id: recipient_type === 'lead' ? recipient_id : null,
+        referral_id: recipient_type === 'referral' ? recipient_id : null,
+        broker_id: recipient_type === 'broker' ? recipient_id : null,
+        status: 'pending',
+        content: `AI Call: ${call_purpose.replace(/_/g, ' ')}`,
+        metadata: { ai_call_request_id: callRequest.id, script: personalizedScript }
+      })
+      .select()
+      .single();
+
+    if (commError) {
+      console.error('Error creating communication record:', commError);
+    }
+
+    // Create TwiML for the call with text-to-speech - Using a slightly more sophisticated voice if available
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="Polly.Ayanda" language="en-ZA">${personalizedScript}</Say>
-  <Pause length="2"/>
-  <Say voice="Polly.Ayanda" language="en-ZA">Please leave a message after the beep, or press any key to speak with a representative.</Say>
-  <Record maxLength="120" action="${supabaseUrl}/functions/v1/handle-ai-call-recording?callRequestId=${callRequest.id}" transcribe="true" transcribeCallback="${supabaseUrl}/functions/v1/handle-ai-call-transcription?callRequestId=${callRequest.id}"/>
+  <Pause length="1"/>
+  <Say voice="Polly.Ayanda" language="en-ZA">Einstein out. Please leave a message after ze beep.</Say>
+  <Record maxLength="120" action="${supabaseUrl}/functions/v1/handle-ai-call-recording?callRequestId=${callRequest.id}${communicationRecord ? `&communicationId=${communicationRecord.id}` : ''}" transcribe="true" transcribeCallback="${supabaseUrl}/functions/v1/handle-ai-call-transcription?callRequestId=${callRequest.id}${communicationRecord ? `&communicationId=${communicationRecord.id}` : ''}"/>
 </Response>`;
 
     // Initiate the call via Twilio
@@ -160,7 +184,7 @@ serve(async (req) => {
           To: recipient_phone,
           From: fromNumber,
           Twiml: twiml,
-          StatusCallback: `${supabaseUrl}/functions/v1/handle-ai-call-status?callRequestId=${callRequest.id}`,
+          StatusCallback: `${supabaseUrl}/functions/v1/handle-ai-call-status?callRequestId=${callRequest.id}${communicationRecord ? `&communicationId=${communicationRecord.id}` : ''}`,
           StatusCallbackEvent: 'initiated ringing answered completed',
           StatusCallbackMethod: 'POST',
         }),

@@ -18,6 +18,7 @@ serve(async (req) => {
 
     const url = new URL(req.url);
     const callRequestId = url.searchParams.get('callRequestId');
+    const communicationId = url.searchParams.get('communicationId');
 
     if (!callRequestId) {
       return new Response('Missing callRequestId', { status: 400 });
@@ -29,7 +30,7 @@ serve(async (req) => {
     const callDuration = formData.get('CallDuration') as string;
     const recordingUrl = formData.get('RecordingUrl') as string;
 
-    console.log('Call status update:', { callRequestId, callStatus, callDuration, recordingUrl });
+    console.log('Call status update:', { callRequestId, communicationId, callStatus, callDuration, recordingUrl });
 
     // Map Twilio status to our status
     let status = 'in_progress';
@@ -65,6 +66,20 @@ serve(async (req) => {
 
     if (error) {
       console.error('Error updating call status:', error);
+    }
+
+    // Sync to communications table if ID provided
+    if (communicationId) {
+      const commUpdate: Record<string, any> = {
+        status: status,
+      };
+      if (callDuration) commUpdate.call_duration = parseInt(callDuration, 10);
+      if (recordingUrl) commUpdate.call_recording_url = recordingUrl;
+
+      await supabase
+        .from('communications')
+        .update(commUpdate)
+        .eq('id', communicationId);
     }
 
     return new Response('OK', { status: 200 });

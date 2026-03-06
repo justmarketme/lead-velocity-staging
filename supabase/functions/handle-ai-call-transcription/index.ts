@@ -18,6 +18,7 @@ serve(async (req) => {
 
     const url = new URL(req.url);
     const callRequestId = url.searchParams.get('callRequestId');
+    const communicationId = url.searchParams.get('communicationId');
 
     if (!callRequestId) {
       return new Response('Missing callRequestId', { status: 400 });
@@ -28,7 +29,7 @@ serve(async (req) => {
     const transcriptionText = formData.get('TranscriptionText') as string;
     const transcriptionStatus = formData.get('TranscriptionStatus') as string;
 
-    console.log('Transcription received:', { callRequestId, transcriptionStatus, transcriptionText });
+    console.log('Transcription received:', { callRequestId, communicationId, transcriptionStatus, transcriptionText });
 
     if (transcriptionStatus === 'completed' && transcriptionText) {
       // Get the existing call request
@@ -41,11 +42,11 @@ serve(async (req) => {
       if (callRequest) {
         // Analyze the transcription for proposed changes
         const proposedChanges = analyzeTranscription(transcriptionText, callRequest.call_purpose);
-        
+
         // Create a summary
         const summary = generateSummary(transcriptionText, callRequest.call_purpose, proposedChanges);
 
-        const { error } = await supabase
+        await supabase
           .from('ai_call_requests')
           .update({
             call_summary: summary,
@@ -55,8 +56,19 @@ serve(async (req) => {
           })
           .eq('id', callRequestId);
 
-        if (error) {
-          console.error('Error updating transcription:', error);
+        // Sync to communications table if ID provided
+        if (communicationId) {
+          await supabase
+            .from('communications')
+            .update({
+              content: summary,
+              metadata: {
+                ...(callRequest.metadata || {}),
+                transcript: transcriptionText,
+                proposed_changes: proposedChanges
+              }
+            })
+            .eq('id', communicationId);
         }
 
         // Send email notification if there are proposed changes
@@ -153,12 +165,12 @@ function analyzeTranscription(text: string, purpose: string): Record<string, unk
 
 function generateSummary(text: string, purpose: string, changes: Record<string, unknown> | null): string {
   let summary = `AI Call Summary\n\nPurpose: ${purpose.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}\n\n`;
-  
+
   summary += `Transcription:\n"${text}"\n\n`;
 
   if (changes) {
     summary += `Detected Actions/Changes:\n`;
-    
+
     if (changes.suggested_date) {
       summary += `• Suggested Date: ${changes.suggested_date}\n`;
     }
@@ -173,7 +185,7 @@ function generateSummary(text: string, purpose: string, changes: Record<string, 
       };
       summary += `• Action: ${actionLabels[changes.action as string] || changes.action}\n`;
     }
-    
+
     summary += `\n⏳ Admin approval required for any changes.`;
   } else {
     summary += `No specific actions or changes detected.`;

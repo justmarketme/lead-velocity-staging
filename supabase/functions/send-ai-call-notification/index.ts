@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { notifyAdmins } from "../_shared/discord.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -163,6 +164,29 @@ serve(async (req) => {
         `,
       })
     );
+
+    // --- DISCORD NOTIFICATION ---
+    try {
+      const discordMessage = `🤖 **AI Call Completed**\n` +
+        `**Recipient:** ${recipient_name}\n` +
+        `**Purpose:** ${purposeLabel}\n\n` +
+        `⚠️ **Changes Proposed:**\n` +
+        Object.entries(proposed_changes).map(([k, v]) => `- ${k.replace(/_/g, ' ')}: ${v}`).join('\n') +
+        `\n\n📝 **Summary:** ${call_summary.substring(0, 500)}...`;
+
+      const discordComponents = [{
+        type: 1,
+        components: [
+          { type: 2, style: 3, label: "✅ Approve Changes", custom_id: `approve:aicall:${call_request_id}` },
+          { type: 2, style: 4, label: "❌ Ignore", custom_id: `reject:aicall:${call_request_id}` }
+        ]
+      }];
+
+      await notifyAdmins(discordMessage, discordComponents);
+    } catch (discordErr) {
+      console.error("Failed to send discord notification:", discordErr);
+    }
+    // ----------------------------
 
     const results = await Promise.allSettled(emailPromises);
     const successful = results.filter(r => r.status === 'fulfilled').length;

@@ -37,6 +37,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { CallRecordingPlayer } from "./CallRecordingPlayer";
+import { AICallDialog } from "@/components/calls/AICallDialog";
+import { Bot, Sparkles } from "lucide-react";
+import { EinsteinLiveVoice } from "../voice/EinsteinLiveVoice";
 
 interface Communication {
   id: string;
@@ -101,10 +104,13 @@ export function UnifiedCommunicationHub({
   const [phoneNumber, setPhoneNumber] = useState(recipientContact.phone || '');
   const [isInitiatingCall, setIsInitiatingCall] = useState(false);
   const [manualCallDuration, setManualCallDuration] = useState('');
+  const [aiCallDialogOpen, setAiCallDialogOpen] = useState(false);
+  const [brokerDetails, setBrokerDetails] = useState<{ name: string; phone: string } | null>(null);
 
   useEffect(() => {
     fetchCommunications();
     fetchTemplates();
+    fetchBrokerDetails();
 
     // Set up realtime subscription
     const channel = supabase
@@ -163,6 +169,34 @@ export function UnifiedCommunicationHub({
       console.error('Error fetching communications:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchBrokerDetails = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      const { data: broker } = await supabase
+        .from('brokers')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (profile || broker) {
+        setBrokerDetails({
+          name: profile?.full_name || broker?.contact_person || 'Admin',
+          phone: broker?.phone_number || (user.user_metadata?.phone as string) || ''
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching broker details:', error);
     }
   };
 
@@ -411,6 +445,71 @@ export function UnifiedCommunicationHub({
     }
   };
 
+  const handleApproveAction = async (comm: Communication) => {
+    const metadata = comm.metadata as any;
+    if (!metadata?.proposed_changes) return;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+
+      const changes = metadata.proposed_changes;
+
+      // Handle Appointment Scheduling
+      if (changes.suggested_date || changes.suggested_time) {
+        // Construct a date string - this is a simplification
+        const dateStr = changes.suggested_date || 'Future';
+        const timeStr = changes.suggested_time || 'TBD';
+
+        const { error: appError } = await supabase
+          .from('appointments')
+          .insert({
+            client_id: comm.lead_id,
+            broker_id: comm.broker_id || session.user.id,
+            appointment_date: new Date().toISOString(), // Fallback
+            reason: `AI Suggested: ${changes.action || 'Call Follow-up'}`,
+            reason_notes: `Detected from AI Call Transcript: ${dateStr} at ${timeStr}`
+          });
+
+        if (appError) throw appError;
+        toast.success("Einstein has synchronized ze appointment with ze spacetime of your calendar!");
+      }
+
+      // Handle Status Updates
+      if (changes.action === 'cancellation_requested') {
+        if (comm.lead_id) {
+          await supabase.from('leads').update({ current_status: 'disqualified' }).eq('id', comm.lead_id);
+          toast.success("Lead status updated to disqualified per AI analysis.");
+        }
+      }
+
+      // Mark as approved in both tables
+      if (metadata.ai_call_request_id) {
+        await supabase
+          .from('ai_call_requests')
+          .update({ changes_approved: true, changes_approved_by: session.user.id })
+          .eq('id', metadata.ai_call_request_id);
+      }
+
+      // Update communication metadata to reflect approval
+      await supabase
+        .from('communications')
+        .update({
+          metadata: {
+            ...metadata,
+            proposed_changes: null, // Clear it so it doesn't show again
+            approved_at: new Date().toISOString()
+          }
+        })
+        .eq('id', comm.id);
+
+      fetchCommunications();
+    } catch (error: any) {
+      console.error('Error approving action:', error);
+      toast.error(`Quantum failure: ${error.message}`);
+    }
+  };
+
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -586,6 +685,31 @@ export function UnifiedCommunicationHub({
                       Log Call
                     </Button>
                   </div>
+                </div>
+
+                <div className="pt-2">
+                  <Button
+                    variant="outline"
+                    className="w-full flex items-center justify-center gap-2 py-6 border-dashed border-primary/50 hover:border-primary hover:bg-primary/5"
+                    onClick={() => setAiCallDialogOpen(true)}
+                  >
+                    <Bot className="h-5 w-5 text-primary" />
+                    <div className="text-left">
+                      <p className="text-sm font-semibold">Initiate AI Voice Call</p>
+                      <p className="text-xs text-muted-foreground">Let Einstein handle the initial contact</p>
+                    </div>
+                  </Button>
+                </div>
+
+                <div className="border-t border-dashed pt-4 mt-2">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Sparkles className="h-4 w-4 text-pink-500" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Einstein Co-pilot</span>
+                  </div>
+                  <EinsteinLiveVoice className="w-full" size="md" />
+                  <p className="text-[10px] text-muted-foreground mt-2 text-center italic">
+                    Talk to Einstein about ze best strategy for this {recipientType}.
+                  </p>
                 </div>
               </div>
             )}
@@ -782,17 +906,72 @@ export function UnifiedCommunicationHub({
                     {comm.subject && <p className="text-sm font-medium">{comm.subject}</p>}
                     <p className="text-sm text-muted-foreground line-clamp-2">{comm.content || 'No content'}</p>
 
+                    {/* Proposed Changes / Suggested Actions */}
+                    {typeof comm.metadata === 'object' && comm.metadata !== null && 'proposed_changes' in comm.metadata && comm.metadata.proposed_changes && (
+                      <div className="mt-3 p-3 rounded-lg bg-pink-500/5 border border-pink-500/20 animate-in fade-in zoom-in-95 duration-500">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Sparkles className="h-3.5 w-3.5 text-pink-500" />
+                          <span className="text-[10px] font-black uppercase tracking-widest text-pink-500">Einstein Suggested Action</span>
+                        </div>
+
+                        <div className="space-y-2">
+                          {Object.entries(comm.metadata.proposed_changes as Record<string, any>).map(([key, value]) => (
+                            <div key={key} className="flex items-center gap-2 text-xs">
+                              <Badge variant="outline" className="text-[9px] uppercase h-4 px-1 border-pink-500/30 text-pink-400 capitalize">
+                                {key.replace('_', ' ')}
+                              </Badge>
+                              <span className="font-medium text-slate-300">{String(value)}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="flex gap-2 mt-3">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-[10px] font-bold uppercase border-pink-500/20 hover:bg-pink-500/10 hover:text-pink-400 group"
+                            onClick={() => handleApproveAction(comm)}
+                          >
+                            Approve Action
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-[10px] font-bold uppercase text-slate-500 hover:text-slate-400"
+                            onClick={async () => {
+                              const metadata = comm.metadata as any;
+                              await supabase
+                                .from('communications')
+                                .update({
+                                  metadata: {
+                                    ...metadata,
+                                    proposed_changes: null,
+                                    ignored_at: new Date().toISOString()
+                                  }
+                                })
+                                .eq('id', comm.id);
+                              fetchCommunications();
+                            }}
+                          >
+                            Ignore
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Call Recording Playback with Transcript */}
                     {comm.channel === 'call' && comm.call_recording_url && (
                       <div className="mt-2">
                         <CallRecordingPlayer
                           recordingUrl={comm.call_recording_url}
+                          communicationId={comm.id}
                           transcript={
                             typeof comm.metadata === 'object' && comm.metadata !== null && 'transcript' in comm.metadata
                               ? String((comm.metadata as { transcript?: string }).transcript)
                               : comm.content
                           }
                           compact
+                          onTranscriptGenerated={() => fetchCommunications()}
                         />
                       </div>
                     )}
@@ -802,6 +981,17 @@ export function UnifiedCommunicationHub({
             )}
           </ScrollArea>
         </div>
+
+        <AICallDialog
+          open={aiCallDialogOpen}
+          onOpenChange={setAiCallDialogOpen}
+          recipientType={recipientType}
+          recipientId={recipientId}
+          recipientName={recipientContact.name || 'Unknown'}
+          recipientPhone={phoneNumber}
+          brokerName={brokerDetails?.name}
+          brokerPhone={brokerDetails?.phone}
+        />
       </CardContent>
     </Card>
   );

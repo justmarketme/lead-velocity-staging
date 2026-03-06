@@ -14,6 +14,7 @@ serve(async (req) => {
     try {
         const url = new URL(req.url);
         const callRequestId = url.searchParams.get('callRequestId');
+        const communicationId = url.searchParams.get('communicationId');
 
         if (!callRequestId) {
             return new Response(JSON.stringify({ error: 'callRequestId is required' }), {
@@ -26,7 +27,7 @@ serve(async (req) => {
         const recordingUrl = formData.get('RecordingUrl');
         const recordingDuration = formData.get('RecordingDuration');
 
-        console.log(`Handling recording for callRequestId: ${callRequestId}`);
+        console.log(`Handling recording for callRequestId: ${callRequestId}, communicationId: ${communicationId}`);
         console.log(`Recording URL: ${recordingUrl}, Duration: ${recordingDuration}`);
 
         const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -48,6 +49,18 @@ serve(async (req) => {
                 status: 500,
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             });
+        }
+
+        // Sync to communications table if ID provided
+        if (communicationId) {
+            await supabase
+                .from('communications')
+                .update({
+                    call_recording_url: recordingUrl,
+                    call_duration: recordingDuration ? parseInt(recordingDuration.toString()) : null,
+                    status: 'completed'
+                })
+                .eq('id', communicationId);
         }
 
         // TwiML response to hang up after recording

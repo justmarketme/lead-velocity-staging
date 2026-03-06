@@ -13,7 +13,9 @@ import {
     ChevronRight,
     ArrowUpRight,
     Bell,
-    Sparkles
+    Sparkles,
+    CreditCard,
+    Activity
 } from "lucide-react";
 import {
     BarChart,
@@ -235,6 +237,50 @@ const PremiumDashboard = ({ brokerData, stats, leadsData }: PremiumDashboardProp
                     </Card>
                 ))}
             </div>
+
+            {/* Live Intelligence Feed */}
+            <Card className="bg-[#020617] border-white/5 backdrop-blur-3xl rounded-[40px] shadow-2xl overflow-hidden border-t-pink-500/20">
+                <CardHeader className="p-8 border-b border-white/[0.03]">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className="bg-emerald-500/10 p-3 rounded-2xl animate-pulse">
+                                <Activity className="w-6 h-6 text-emerald-500" />
+                            </div>
+                            <div>
+                                <CardTitle className="text-2xl font-black text-white italic tracking-tighter uppercase">Live Comms Archive</CardTitle>
+                                <CardDescription className="text-slate-500 font-bold text-[10px] uppercase tracking-widest">Real-time system event log</CardDescription>
+                            </div>
+                        </div>
+                        <Badge className="bg-white/5 text-slate-400 border-white/10 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest">
+                            {new Date().toLocaleDateString()}
+                        </Badge>
+                    </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                    <div className="divide-y divide-white/[0.03]">
+                        {[
+                            { time: "09:42", event: "High-Priority Lead Inbound", location: "Cape Town Central", type: "lead", icon: Zap, color: "text-pink-500" },
+                            { time: "10:15", event: "Client Engagement Confirmed", location: "Secure Bridge - Line 4", type: "meeting", icon: Users, color: "text-blue-500" },
+                            { time: "11:30", event: "Will Ledger Optimized", location: "Central Vault", type: "document", icon: FileText, color: "text-emerald-500" },
+                            { time: "14:20", event: "Intelligence Threshold Reached", location: "Market Scanner", type: "system", icon: Sparkles, color: "text-yellow-500" },
+                        ].map((log, i) => (
+                            <div key={i} className="flex items-center gap-8 p-6 hover:bg-white/[0.02] transition-all group">
+                                <div className="text-xs font-black text-slate-600 uppercase tracking-widest w-16">{log.time}</div>
+                                <div className={`p-3 rounded-xl bg-white/[0.03] border border-white/5 ${log.color} group-hover:scale-110 transition-transform`}>
+                                    <log.icon className="w-5 h-5" />
+                                </div>
+                                <div className="flex-1">
+                                    <h4 className="text-sm font-black text-white uppercase tracking-tight italic">{log.event}</h4>
+                                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{log.location}</p>
+                                </div>
+                                <Button variant="ghost" size="sm" className="text-slate-600 hover:text-white hover:bg-white/5 opacity-0 group-hover:opacity-100 transition-all rounded-xl">
+                                    View Intel <ChevronRight className="ml-2 w-3 h-3" />
+                                </Button>
+                            </div>
+                        ))}
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     );
 };

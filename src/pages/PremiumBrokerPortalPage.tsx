@@ -178,8 +178,15 @@ const PremiumBrokerPortalPage = () => {
     ];
 
     return (
-        <div className="min-h-screen bg-[#020617] text-slate-200 font-sans selection:bg-pink-500 selection:text-white">
+        <div className="min-h-screen bg-[#020617] text-slate-200 font-sans selection:bg-pink-500 selection:text-white relative overflow-hidden">
             <SEO title="Broker Elite Portal" description="Lead Velocity broker elite portal." noIndex />
+
+            {/* Cyber Grid Background */}
+            <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+                <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[500px] bg-pink-500/10 blur-[120px] rounded-full opacity-30" />
+            </div>
+
             {/* Sidebar */}
             <aside className={`fixed left-0 top-0 h-screen bg-[#020617] border-r border-white/5 transition-all duration-500 z-50 ${sidebarOpen ? 'w-80' : 'w-24'}`}>
                 <div className="flex flex-col h-full p-8">
@@ -207,16 +214,20 @@ const PremiumBrokerPortalPage = () => {
                     </nav>
 
                     <div className="pt-8 border-t border-white/5 space-y-3">
+                        <div className="px-5 py-4 mb-4 bg-emerald-500/5 rounded-2xl border border-emerald-500/10 flex items-center gap-3">
+                            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+                            {sidebarOpen && <span className="text-[10px] font-black uppercase text-emerald-500 tracking-widest leading-none">System Operational</span>}
+                        </div>
                         <button className="w-full flex items-center gap-5 px-5 py-4 text-slate-500 hover:text-white transition-all group">
                             <Settings className="w-5 h-5 group-hover:rotate-90 transition-transform duration-700" />
-                            {sidebarOpen && <span className="text-sm font-black uppercase">Elite Setup</span>}
+                            {sidebarOpen && <span className="text-sm font-black uppercase tracking-tight">Elite Setup</span>}
                         </button>
                         <button
                             onClick={handleLogout}
                             className="w-full flex items-center gap-5 px-5 py-4 text-rose-500/70 hover:text-rose-400 transition-all group bg-rose-500/5 rounded-2xl border border-rose-500/10"
                         >
                             <LogOut className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-                            {sidebarOpen && <span className="text-sm font-black uppercase tracking-wider">Terminate</span>}
+                            {sidebarOpen && <span className="text-sm font-black uppercase tracking-widest">Terminate</span>}
                         </button>
                     </div>
                 </div>

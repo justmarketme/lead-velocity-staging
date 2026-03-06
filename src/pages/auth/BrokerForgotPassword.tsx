@@ -121,9 +121,19 @@ const BrokerForgotPassword = () => {
         try {
             const { error } = await supabase
                 .from("broker_reset_requests")
-                .insert({ email });
+                .insert({ email })
+                .select()
+                .single();
 
             if (error) throw error;
+
+            // Trigger Discord Alert
+            await supabase.functions.invoke("trigger-discord-alert", {
+                body: {
+                    type: "broker_reset",
+                    data: { id: data.id, email: data.email }
+                }
+            });
 
             toast({
                 title: "Request Sent",

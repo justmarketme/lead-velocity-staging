@@ -5,11 +5,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, Database, BarChart3, Users, CheckCircle, Eye, EyeOff } from "lucide-react";
+import { Database, FileText, BarChart3, Lock, Eye, EyeOff, Sparkles, Crown, ShieldCheck } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import Navigation from "@/components/Navigation";
+import ParticleBackground from "@/components/ParticleBackground";
 import { useToast } from "@/hooks/use-toast";
 import logo from "@/assets/lead-velocity-logo.webp";
 import { z } from "zod";
 import SEO from "@/components/SEO";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 const loginSchema = z.object({
   email: z.string().trim().email("Invalid email address"),
@@ -22,7 +33,6 @@ const BrokerPortal = () => {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
   const navigate = useNavigate();
@@ -135,7 +145,6 @@ const BrokerPortal = () => {
           title: "Password Reset Email Sent",
           description: "Check your email for a link to reset your password.",
         });
-        setShowForgotPassword(false);
         setResetEmail("");
       }
     } catch (error) {
@@ -158,7 +167,7 @@ const BrokerPortal = () => {
       description: "Upload and track your entire lead database in one centralized location",
     },
     {
-      icon: Users,
+      icon: FileText,
       title: "Referral Tracking",
       description: "Monitor referrals generated from each lead with real-time updates",
     },
@@ -168,138 +177,133 @@ const BrokerPortal = () => {
       description: "Visualize your conversion funnel and optimize your process",
     },
     {
-      icon: CheckCircle,
+      icon: Lock,
       title: "Will Completion",
       description: "Track will status and appointment scheduling seamlessly",
     },
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+    <div className="min-h-screen relative overflow-hidden">
       <SEO title="Broker Portal" description="Lead Velocity broker portal login." noIndex />
-      {/* Hero Section */}
-      <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-grid-white/[0.02] bg-[size:50px_50px]" />
-        <div className="relative">
-          <nav className="container mx-auto px-4 py-6">
-            <div className="flex items-center justify-between">
-              <img src={logo} alt="Lead Velocity" className="h-12 w-auto" />
-              <Link to="/">
-                <Button variant="ghost">Home</Button>
-              </Link>
-            </div>
-          </nav>
-
-          <div className="container mx-auto px-4 py-12">
-            <div className="grid lg:grid-cols-2 gap-12 items-center">
-              {/* Left side - Info */}
-              <div className="space-y-8">
-                <h1 className="text-5xl md:text-6xl font-bold gradient-text animate-fade-in">
-                  Broker Portal
-                </h1>
-                <p className="text-xl text-muted-foreground">
-                  Your complete lead management solution. Track leads, monitor referrals,
-                  and grow your business with powerful analytics.
-                </p>
-                <div className="grid sm:grid-cols-2 gap-4">
-                  {features.map((feature) => {
-                    const Icon = feature.icon;
-                    return (
-                      <div key={feature.title} className="flex items-start space-x-3">
-                        <div className="p-2 rounded-lg bg-primary/10">
-                          <Icon className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-sm">{feature.title}</h3>
-                          <p className="text-xs text-muted-foreground">{feature.description}</p>
-                        </div>
-                      </div>
-                    );
-                  })}
+      <ParticleBackground />
+      <div className="relative z-10">
+        <Navigation />
+        <div className="container mx-auto px-4 py-20 lg:py-32">
+          <div className="grid lg:grid-cols-2 gap-12 items-center max-w-6xl mx-auto">
+            {/* Left Content */}
+            <div className="space-y-8 animate-in fade-in slide-in-from-left duration-700">
+              <div className="space-y-4">
+                <div className="flex flex-wrap gap-3">
+                  <Badge variant="outline" className="bg-pink-500/10 text-pink-500 border-pink-500/20 px-3 py-1 font-bold tracking-wider uppercase text-[10px]">
+                    <Sparkles className="w-3 h-3 mr-2" /> VIP Invite Only
+                  </Badge>
+                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 px-3 py-1 font-bold tracking-wider uppercase text-[10px]">
+                    <ShieldCheck className="w-3 h-3 mr-2" /> Encrypted Access
+                  </Badge>
                 </div>
+                <h1 className="text-6xl md:text-8xl font-bold text-white tracking-tighter uppercase leading-none">
+                  Velo <span className="gradient-text">Pro</span>
+                </h1>
+                <p className="text-xl text-muted-foreground font-medium leading-relaxed max-w-lg">
+                  The high-velocity intelligence hub for elite brokers. Track leads,
+                  monitor referrals, and scale your firm with institutional-grade tools.
+                </p>
               </div>
 
-              {/* Right side - Login Form */}
-              <Card className="w-full max-w-md mx-auto border-border/50 bg-background/95 backdrop-blur">
-                <CardHeader className="space-y-2 text-center">
-                  <CardTitle className="text-2xl">Broker Sign In</CardTitle>
-                  <CardDescription>Access your broker dashboard</CardDescription>
+              <div className="grid sm:grid-cols-2 gap-6">
+                {features.map((feature, index) => {
+                  const Icon = feature.icon;
+                  return (
+                    <div key={index} className="flex gap-4 p-4 rounded-xl bg-card/40 backdrop-blur-md border border-border/50 hover:border-pink-500/30 transition-all group">
+                      <div className="w-10 h-10 rounded-lg bg-pink-500/10 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                        <Icon className="w-5 h-5 text-pink-500" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-white text-sm uppercase tracking-tight mb-1">{feature.title}</h3>
+                        <p className="text-xs text-muted-foreground leading-relaxed">{feature.description}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Right Form */}
+            <div className="animate-in fade-in slide-in-from-right duration-700 [animation-delay:200ms]">
+              <Card className="bg-[#020617]/40 backdrop-blur-2xl border-white/5 shadow-2xl overflow-hidden rounded-3xl relative">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-pink-500 to-transparent opacity-50" />
+                <CardHeader className="pt-10 pb-6 text-center">
+                  <div className="w-16 h-16 bg-pink-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-pink-500/20 shadow-lg shadow-pink-500/10">
+                    <Crown className="w-8 h-8 text-pink-500" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-3xl font-bold text-white tracking-tighter uppercase">Broker Sign In</CardTitle>
+                    <CardDescription className="text-muted-foreground font-medium uppercase tracking-widest text-[10px] mt-2">Access your elite intelligence dashboard</CardDescription>
+                  </div>
                 </CardHeader>
-                <CardContent>
-                  {showForgotPassword ? (
-                    <form onSubmit={handleForgotPassword} className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="resetEmail">Email Address</Label>
+                <CardContent className="px-8 pb-10">
+                  <form onSubmit={handleLogin} className="space-y-6">
+                    <div className="space-y-2">
+                      <label htmlFor="email" className="text-xs font-bold uppercase tracking-widest text-slate-400 ml-1">Email</label>
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="Use the email from your invite"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        className="bg-card/50 border-border h-12 rounded-xl focus:ring-primary/20 focus:border-primary/50 transition-all font-medium"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between ml-1">
+                        <label htmlFor="password" className="text-xs font-bold uppercase tracking-widest text-slate-400">Password</label>
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <button type="button" className="text-[10px] font-bold uppercase tracking-widest text-pink-500 hover:text-pink-400 transition-colors">Forgot password?</button>
+                          </DialogTrigger>
+                          <DialogContent className="bg-card border-border sm:max-w-[425px]">
+                            <DialogHeader>
+                              <DialogTitle className="text-2xl font-bold uppercase tracking-tighter">Reset Password</DialogTitle>
+                              <CardDescription>Enter your email to receive a password reset link.</CardDescription>
+                            </DialogHeader>
+                            <form onSubmit={handleForgotPassword} className="space-y-4 pt-4">
+                              <Input
+                                placeholder="name@company.com"
+                                value={resetEmail}
+                                onChange={(e) => setResetEmail(e.target.value)}
+                                className="bg-muted focus:ring-primary/20"
+                              />
+                              <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={resetLoading}>
+                                {resetLoading ? "Sending..." : "Send Reset Link"}
+                              </Button>
+                            </form>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
+                      <div className="relative">
                         <Input
-                          id="resetEmail"
-                          type="email"
-                          placeholder="Enter your email"
-                          value={resetEmail}
-                          onChange={(e) => setResetEmail(e.target.value)}
+                          id="password"
+                          type={showPassword ? "text" : "password"}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
                           required
+                          className="bg-card/50 border-border h-12 rounded-xl focus:ring-primary/20 focus:border-primary/50 transition-all font-medium pr-10"
                         />
-                        <p className="text-xs text-muted-foreground">
-                          We'll send you a link to reset your password.
-                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
+                        >
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
                       </div>
-                      <Button type="submit" className="w-full" disabled={resetLoading}>
-                        {resetLoading ? "Sending..." : "Send Reset Link"}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="w-full"
-                        onClick={() => setShowForgotPassword(false)}
-                      >
-                        Back to Login
-                      </Button>
-                    </form>
-                  ) : (
-                    <form onSubmit={handleLogin} className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="email">Email</Label>
-                        <Input
-                          id="email"
-                          type="email"
-                          placeholder="Use the email from your invite"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label htmlFor="password">Password</Label>
-                          <Link
-                            to="/broker/forgot-password"
-                            className="text-xs text-primary hover:underline"
-                          >
-                            Forgot password?
-                          </Link>
-                        </div>
-                        <div className="relative">
-                          <Input
-                            id="password"
-                            type={showPassword ? "text" : "password"}
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            required
-                            className="pr-10"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                          >
-                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                          </button>
-                        </div>
-                      </div>
-                      <Button type="submit" className="w-full" disabled={loading}>
-                        {loading ? "Signing in..." : "Sign In"}
-                      </Button>
-                    </form>
-                  )}
+                    </div>
+                    <Button type="submit" className="w-full h-14 bg-primary hover:bg-primary/90 text-primary-foreground font-bold uppercase tracking-widest text-xs rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-[0.98] disabled:opacity-50 btn-glow-pulse" disabled={loading}>
+                      {loading ? "Decrypting..." : "Initiate Access"}
+                    </Button>
+                  </form>
                 </CardContent>
               </Card>
             </div>
@@ -308,7 +312,7 @@ const BrokerPortal = () => {
       </div>
 
       {/* Footer */}
-      <footer className="border-t border-border/50 py-8 mt-12">
+      <footer className="border-t border-border/50 py-8 relative z-10">
         <div className="container mx-auto px-4 text-center text-muted-foreground text-sm">
           <p>© 2025 Lead Velocity. All rights reserved.</p>
         </div>

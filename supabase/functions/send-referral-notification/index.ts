@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { notifyAdmins } from "../_shared/discord.ts";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -84,6 +85,21 @@ const handler = async (req: Request): Promise<Response> => {
         </div>
       `,
     });
+
+    // --- DISCORD NOTIFICATION ---
+    try {
+      const discordMessage = `🤝 **New Referral Added**\n` +
+        `**By Firm:** ${brokerFirm}\n` +
+        `**Broker:** ${brokerName}\n\n` +
+        `👤 **Referral:** ${referralName}\n` +
+        `📱 **Phone:** ${referralPhone}\n` +
+        `🏢 **Client Origin:** ${leadName}`;
+
+      await notifyAdmins(discordMessage);
+    } catch (discordErr) {
+      console.error("Failed to send discord notification:", discordErr);
+    }
+    // ----------------------------
 
     console.log("Referral notification email sent successfully:", emailResponse);
 

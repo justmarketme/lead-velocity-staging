@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Phone, Bot, User, Loader2, Calendar, RefreshCw, MessageSquare, Bell, HelpCircle } from "lucide-react";
+import { Phone, Bot, User, Loader2, Calendar, RefreshCw, MessageSquare, Bell, HelpCircle, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useEffect } from "react";
@@ -65,7 +65,7 @@ export function AICallDialog({
   brokerName,
   brokerPhone,
 }: AICallDialogProps) {
-  const [callType, setCallType] = useState<'manual' | 'ai'>('manual');
+  const [callType, setCallType] = useState<'manual' | 'ai' | 'bridge'>('manual');
   const [callTarget, setCallTarget] = useState<'client' | 'broker'>('client');
   const [callPurpose, setCallPurpose] = useState<string>('');
   const [additionalDetails, setAdditionalDetails] = useState('');
@@ -91,6 +91,34 @@ export function AICallDialog({
     const fullNumber = `${fullCountryCode}${basePhone}`.replace(/\s/g, '');
     window.open(`tel:${fullNumber}`, '_self');
     onOpenChange(false);
+  };
+
+  const handleBridgeCall = async () => {
+    setIsInitiating(true);
+    try {
+      const basePhone = callTarget === 'broker' && brokerPhone ? brokerPhone : editedPhone;
+      const fullCountryCode = callTarget === 'broker' ? '' : countryCode;
+      const fullNumber = `${fullCountryCode}${basePhone}`.replace(/\s/g, '');
+
+      const { data, error } = await supabase.functions.invoke('initiate-browser-call', {
+        body: {
+          to_number: fullNumber,
+          recipient_id: recipientId,
+          recipient_type: callTarget === 'broker' ? 'broker' : recipientType,
+          recipient_name: recipientName,
+        },
+      });
+
+      if (error) throw error;
+
+      toast.success(data.message || 'Einstein is connecting your phone now...');
+      onOpenChange(false);
+    } catch (error: any) {
+      console.error('Error initiating bridge call:', error);
+      toast.error(`Failed to connect: ${error.message}`);
+    } finally {
+      setIsInitiating(false);
+    }
   };
 
   const handleAICall = async () => {
@@ -151,33 +179,56 @@ export function AICallDialog({
             <Label>How would you like to call?</Label>
             <RadioGroup
               value={callType}
-              onValueChange={(value: 'manual' | 'ai') => setCallType(value)}
-              className="grid grid-cols-2 gap-4"
+              onValueChange={(value: 'manual' | 'ai' | 'bridge') => setCallType(value)}
+              className="grid grid-cols-3 gap-2"
             >
               <div>
                 <RadioGroupItem value="manual" id="manual" className="peer sr-only" />
                 <Label
                   htmlFor="manual"
-                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-transparent p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-transparent p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer text-center h-full"
                 >
-                  <User className="mb-3 h-6 w-6" />
-                  <span className="font-medium">Manual Call</span>
-                  <span className="text-xs text-muted-foreground mt-1">Call yourself</span>
+                  <User className="mb-2 h-5 w-5" />
+                  <span className="font-medium text-xs">Direct Link</span>
+                </Label>
+              </div>
+              <div>
+                <RadioGroupItem value="bridge" id="bridge" className="peer sr-only" />
+                <Label
+                  htmlFor="bridge"
+                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-transparent p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer text-center h-full"
+                >
+                  <Phone className="mb-2 h-5 w-5 text-blue-500" />
+                  <span className="font-medium text-xs">Einstein Connect</span>
                 </Label>
               </div>
               <div>
                 <RadioGroupItem value="ai" id="ai" className="peer sr-only" />
                 <Label
                   htmlFor="ai"
-                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-transparent p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-transparent p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer text-center h-full"
                 >
-                  <Bot className="mb-3 h-6 w-6" />
-                  <span className="font-medium">AI Agent</span>
-                  <span className="text-xs text-muted-foreground mt-1">Automated call</span>
+                  <Bot className="mb-2 h-5 w-5 text-pink-500" />
+                  <span className="font-medium text-xs">Einstein Flow</span>
                 </Label>
               </div>
             </RadioGroup>
           </div>
+
+          {/* Info for Einstein Connect */}
+          {callType === 'bridge' && (
+            <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 p-3 text-[11px] space-y-2 animate-in fade-in slide-in-from-top-1 duration-300">
+              <p className="font-bold text-blue-500 flex items-center gap-1">
+                <Sparkles className="h-3 w-3" /> Einstein Connect
+              </p>
+              <p className="text-muted-foreground leading-relaxed">
+                Einstein will dial your profile phone number first. Once answered, he will instantly bridge the call to <strong>{recipientName}</strong>.
+              </p>
+              <p className="italic text-blue-400">
+                Wunderbar! It acts like a digital bridge through spacetime!
+              </p>
+            </div>
+          )}
 
           {/* Who to Call */}
           <div className="space-y-3">
@@ -311,7 +362,16 @@ export function AICallDialog({
           {callType === 'manual' ? (
             <Button onClick={handleManualCall}>
               <Phone className="h-4 w-4 mr-2" />
-              Call Now
+              Open Link
+            </Button>
+          ) : callType === 'bridge' ? (
+            <Button onClick={handleBridgeCall} disabled={isInitiating}>
+              {isInitiating ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4 mr-2 text-blue-400" />
+              )}
+              {isInitiating ? 'Connecting...' : 'Einstein Connect'}
             </Button>
           ) : (
             <Button onClick={handleAICall} disabled={isInitiating || !callPurpose}>

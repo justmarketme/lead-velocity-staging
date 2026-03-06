@@ -6,6 +6,7 @@ import { LayoutDashboard, Database, BarChart3, Menu, X, LogOut, FolderOpen, User
 import logo from "@/assets/lead-velocity-logo.webp";
 import { useToast } from "@/hooks/use-toast";
 import NotificationBell from "@/components/notifications/NotificationBell";
+import { EinsteinLiveVoice } from "@/components/voice/EinsteinLiveVoice";
 import SEO from "@/components/SEO";
 
 interface BrokerLayoutProps {
@@ -56,12 +57,15 @@ const BrokerLayout = ({ children }: BrokerLayoutProps) => {
               <img src={logo} alt="Lead Velocity" className="h-10 w-auto" />
               <span className="text-xl font-bold gradient-text hidden sm:inline">Broker Portal</span>
             </div>
-            <div className="flex items-center gap-2">
-              <NotificationBell userRole="broker" />
-              <Button variant="ghost" size="sm" onClick={handleLogout}>
-                <LogOut className="mr-2 h-4 w-4" />
-                Logout
-              </Button>
+            <div className="flex items-center gap-4">
+              <EinsteinLiveVoice />
+              <div className="flex items-center gap-2">
+                <NotificationBell userRole="broker" />
+                <Button variant="ghost" size="sm" onClick={handleLogout}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Logout
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -84,8 +88,8 @@ const BrokerLayout = ({ children }: BrokerLayoutProps) => {
                   setSidebarOpen(false);
                 }}
                 className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${isActive
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
                   }`}
               >
                 <Icon size={20} />

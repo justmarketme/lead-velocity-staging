@@ -111,12 +111,10 @@ export function ChatBot() {
         }
     }, []);
 
-    // Check if we are on an excluded route
+    // Check if we are on an excluded route - Logic preserved, but early return removed to satisfy React Hook rules
     const isExcluded = EXCLUDED_ROUTES.some((route) =>
         location.pathname === route || location.pathname.startsWith(`${route}/`)
     );
-
-    if (isExcluded) return null;
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -414,6 +412,8 @@ Keep voice responses to 2-4 sentences max. Be warm, witty, and genuinely helpful
             </>
         );
     };
+
+    if (isExcluded) return null;
 
     return (
         <div className="fixed bottom-10 right-8 sm:bottom-12 sm:right-10 z-[100] flex flex-col items-end">
