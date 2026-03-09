@@ -13,7 +13,13 @@ import {
     Settings,
     Sparkles,
     Crown,
+    UserCircle,
+    MessageSquare,
+    ShieldCheck,
+    CheckCircle2,
+    RefreshCw,
 } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -85,17 +91,54 @@ const PremiumBrokerPortalPage = () => {
         const initPortal = async () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) {
+                // ==========================================
+                // DEV BYPASS: Allow viewing without login
+                // ==========================================
+                if (import.meta.env.DEV) {
+                    console.warn("DEV MODE: Bypassing auth for Premium Broker Portal");
+                    setBrokerData({
+                        id: "dev-bypass-id",
+                        tier: "Silver",
+                        is_lead_loading: true,
+                        leads_used: 12,
+                        lead_quota: 50,
+                        portal_type: "premium",
+                        contact_person: "Dev User",
+                    });
+                    setStats({
+                        totalLeads: 142,
+                        willsCompleted: 15,
+                        referralsGenerated: 8,
+                        appointmentsScheduled: 3,
+                    });
+                    setLoading(false);
+                    return;
+                }
+
                 navigate("/broker");
                 return;
             }
 
             const { data: broker, error: brokerError } = await supabase
                 .from("brokers")
-                .select("*, broker_onboarding_responses(*)")
+                .select("*, broker_onboarding_responses(*), profiles(*)")
                 .eq("user_id", session.user.id)
                 .single();
 
             if (brokerError || !broker) {
+                // Also allow bypass here if logged in but no broker profile linked
+                if (import.meta.env.DEV) {
+                    setBrokerData({
+                        id: "dev-bypass-id-logged-in",
+                        tier: "Silver",
+                        is_lead_loading: true,
+                        leads_used: 42,
+                        lead_quota: 100,
+                    });
+                    setLoading(false);
+                    return;
+                }
+
                 console.error("Broker fetch error:", brokerError);
                 toast({ title: "Profile Error", description: "Broker profile not found or access denied.", variant: "destructive" });
                 navigate("/broker");
@@ -106,8 +149,8 @@ const PremiumBrokerPortalPage = () => {
                 ...broker,
                 tier: broker.tier || "Bronze",
                 is_lead_loading: broker.is_lead_loading !== undefined ? broker.is_lead_loading : true,
-                leads_used: broker.leads_used || 42,
-                lead_quota: broker.lead_quota || (broker.tier === "Gold" ? 200 : broker.tier === "Silver" ? 100 : 50)
+                leads_used: (broker as any).leads_used || 42,
+                lead_quota: (broker as any).lead_quota || (broker.tier === "Gold" ? 200 : broker.tier === "Silver" ? 100 : 50)
             };
 
             setBrokerData(enrichedBroker);
@@ -175,6 +218,7 @@ const PremiumBrokerPortalPage = () => {
         { id: "leads", label: "Premium Leads", icon: Database },
         { id: "calendar", label: "Appointment Center", icon: CalendarIcon },
         { id: "documents", label: "Vault & Ledger", icon: FolderOpen },
+        { id: "settings", label: "Elite Setup", icon: Settings },
     ];
 
     return (
@@ -218,8 +262,11 @@ const PremiumBrokerPortalPage = () => {
                             <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
                             {sidebarOpen && <span className="text-[10px] font-black uppercase text-emerald-500 tracking-widest leading-none">System Operational</span>}
                         </div>
-                        <button className="w-full flex items-center gap-5 px-5 py-4 text-slate-500 hover:text-white transition-all group">
-                            <Settings className="w-5 h-5 group-hover:rotate-90 transition-transform duration-700" />
+                        <button
+                            onClick={() => setActiveTab('settings')}
+                            className={`w-full flex items-center gap-5 px-5 py-4 transition-all group ${activeTab === 'settings' ? 'text-white' : 'text-slate-500 hover:text-white'}`}
+                        >
+                            <Settings className={`w-5 h-5 group-hover:rotate-90 transition-transform duration-700 ${activeTab === 'settings' ? 'text-pink-500' : ''}`} />
                             {sidebarOpen && <span className="text-sm font-black uppercase tracking-tight">Elite Setup</span>}
                         </button>
                         <button
@@ -277,6 +324,138 @@ const PremiumBrokerPortalPage = () => {
                     {activeTab === 'dashboard' && <PremiumDashboard brokerData={brokerData} stats={stats} leadsData={[]} />}
                     {activeTab === 'calendar' && <PremiumCalendar appointments={appointments} onUpdateStatus={handleUpdateAppointment} />}
                     {activeTab === 'documents' && <PremiumDocuments documents={[]} />}
+                    {activeTab === 'settings' && <div className="animate-in fade-in slide-in-from-bottom duration-500">
+                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                            {/* Discord Card */}
+                            <Card className="bg-slate-900/40 backdrop-blur-3xl border-white/5 p-8 rounded-3xl">
+                                <CardHeader className="p-0 mb-6">
+                                    <div className="flex items-center gap-4">
+                                        <div className="p-3 bg-pink-500/10 rounded-2xl border border-pink-500/20">
+                                            <MessageSquare className="w-6 h-6 text-pink-500" />
+                                        </div>
+                                        <div>
+                                            <CardTitle className="text-2xl font-black text-white italic uppercase tracking-tighter">DISCORD LINK</CardTitle>
+                                            <CardDescription className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Secure Admin Command & Control</CardDescription>
+                                        </div>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="p-0 space-y-8">
+                                    {(brokerData as any)?.profiles?.discord_enabled ? (
+                                        <div className="flex items-center gap-4 p-5 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl text-emerald-500">
+                                            <CheckCircle2 className="w-6 h-6" />
+                                            <span className="font-black uppercase tracking-widest text-xs italic">SYSTEM LINK ESTABLISHED</span>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-6">
+                                            <div className="p-6 bg-white/[0.03] rounded-3xl border border-white/5 relative group overflow-hidden">
+                                                <div className="absolute inset-0 bg-gradient-to-br from-pink-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-4 italic">AUTHORIZATION CODE</label>
+                                                <div className="flex items-center justify-between relative z-10">
+                                                    <span className="text-4xl font-black tracking-[0.2em] text-white">
+                                                        {(brokerData as any)?.profiles?.discord_pairing_code || "------"}
+                                                    </span>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={async () => {
+                                                            const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+                                                            const { error } = await supabase.from("profiles").update({ discord_pairing_code: newCode }).eq("id", (brokerData as any).user_id);
+                                                            if (!error) {
+                                                                setBrokerData({ ...brokerData, profiles: { ...(brokerData as any).profiles, discord_pairing_code: newCode } });
+                                                                toast({ title: "Signal Generated", description: "Encryption code refreshed." });
+                                                            }
+                                                        }}
+                                                        className="h-12 w-12 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all"
+                                                    >
+                                                        <RefreshCw className="w-5 h-5" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            {/* Telegram Card */}
+                            <Card className="bg-slate-900/40 backdrop-blur-3xl border-white/5 p-8 rounded-3xl shadow-2xl shadow-sky-500/5">
+                                <CardHeader className="p-0 mb-6">
+                                    <div className="flex items-center gap-4">
+                                        <div className="p-3 bg-sky-500/10 rounded-2xl border border-sky-500/20">
+                                            <MessageSquare className="w-6 h-6 text-sky-500" />
+                                        </div>
+                                        <div>
+                                            <CardTitle className="text-2xl font-black text-white italic uppercase tracking-tighter">TELEGRAM LINK</CardTitle>
+                                            <CardDescription className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Instant Insight Transmissions</CardDescription>
+                                        </div>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="p-0 space-y-8">
+                                    {(brokerData as any)?.profiles?.telegram_enabled ? (
+                                        <div className="flex items-center gap-4 p-5 bg-sky-500/5 border border-sky-500/10 rounded-2xl text-sky-500">
+                                            <CheckCircle2 className="w-6 h-6" />
+                                            <span className="font-black uppercase tracking-widest text-xs italic">SECURE FEED CONNECTED</span>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-6">
+                                            <div className="p-6 bg-white/[0.03] rounded-3xl border border-white/5 relative group overflow-hidden">
+                                                <div className="absolute inset-0 bg-gradient-to-br from-sky-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-4 italic">TELEGRAM UNIQUE SIGNATURE</label>
+                                                <div className="flex items-center justify-between relative z-10">
+                                                    <span className="text-4xl font-black tracking-[0.2em] text-white">
+                                                        {(brokerData as any)?.profiles?.telegram_pairing_code || "------"}
+                                                    </span>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={async () => {
+                                                            const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+                                                            const { error } = await supabase.from("profiles").update({ telegram_pairing_code: newCode }).eq("id", (brokerData as any).user_id);
+                                                            if (!error) {
+                                                                setBrokerData({ ...brokerData, profiles: { ...(brokerData as any).profiles, telegram_pairing_code: newCode } });
+                                                                toast({ title: "Frequency Tuned", description: "Telegram auth signature cycled." });
+                                                            }
+                                                        }}
+                                                        className="h-12 w-12 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all"
+                                                    >
+                                                        <RefreshCw className="w-5 h-5" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            <Card className="bg-slate-900/40 backdrop-blur-3xl border-white/5 p-8 rounded-3xl">
+                                <CardHeader className="p-0 mb-6">
+                                    <div className="flex items-center gap-4">
+                                        <div className="p-3 bg-pink-500/10 rounded-2xl border border-pink-500/20">
+                                            <ShieldCheck className="w-6 h-6 text-pink-500" />
+                                        </div>
+                                        <div>
+                                            <CardTitle className="text-2xl font-black text-white italic uppercase tracking-tighter">ELITE ID</CardTitle>
+                                            <CardDescription className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Secure Profile Information</CardDescription>
+                                        </div>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="p-0 space-y-8">
+                                    <div className="space-y-6">
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2 italic">FULL IDENTITY</label>
+                                            <div className="text-xl font-black text-white tracking-tight uppercase">{brokerData?.contact_person}</div>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2 italic">SECURITY CLEARANCE</label>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-2 h-2 bg-pink-500 rounded-full shadow-[0_0_10px_rgba(236,72,153,0.5)]" />
+                                                <span className="text-sm font-black text-pink-500 uppercase tracking-widest italic">{brokerData?.tier} BROKER ELITE</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    </div>}
 
                     {activeTab === 'leads' && (
                         <div className="bg-slate-900/30 border border-white/5 rounded-[40px] p-24 text-center backdrop-blur-3xl relative overflow-hidden group">

@@ -1,8 +1,10 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { Bot, webhookCallback, InlineKeyboard } from "https://deno.land/x/grammy/mod.ts";
+import { Bot, webhookCallback } from "https://deno.land/x/grammy/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { WEBSITE_KNOWLEDGE, EINSTEIN_PERSONALITY } from "../_shared/knowledge.ts";
 
 const bot = new Bot(Deno.env.get("TELEGRAM_BOT_TOKEN") || "");
+const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")!;
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -18,7 +20,8 @@ const corsHeaders = {
 bot.command("start", (ctx) => {
     return ctx.reply(
         "👋 Welcome to Lead Velocity Admin Bot!\n\n" +
-        "To manage the system via Telegram, you must first link your admin account.\n\n" +
+        "I am Einstein-77, your orbital business intelligence assistant.\n\n" +
+        "To access my specialized knowledge of your brokerage, you must first link your account:\n\n" +
         "1. Log in to the Lead Velocity Dashboard\n" +
         "2. Go to your **Profile Settings**\n" +
         "3. Find your **Telegram Linking Code**\n" +
@@ -27,38 +30,33 @@ bot.command("start", (ctx) => {
 });
 
 // 🔐 Auth: Pair the bot with a Supabase user via a code
-// (Assumes you have a pairing table or temp column for code)
 bot.command("auth", async (ctx) => {
     const code = ctx.match;
     if (!code) return ctx.reply("❌ Please provide your code: `/auth 123456`", { parse_mode: "Markdown" });
 
     try {
-        // 1. Find the user with this pairing code (I am assuming we'll add this to profiles or a new table)
-        // For now, let's use a simple lookup (you can add a pairing_code col in migration if needed)
-        // SEARCH: In a real app, you'd store pairing codes with expiry
         const { data: profile, error } = await supabase
             .from('profiles')
             .select('id, user_id, full_name')
-            .eq('telegram_pairing_code', code) // We'll add this column for security
+            .eq('telegram_pairing_code', code)
             .single();
 
         if (error || !profile) {
             return ctx.reply("❌ Invalid or expired code. Please generate a new one in the dashboard.");
         }
 
-        // 2. Pair the Chat ID with the user
         const { error: updateError } = await supabase
             .from('profiles')
             .update({
                 telegram_chat_id: ctx.chat.id.toString(),
                 telegram_enabled: true,
-                telegram_pairing_code: null // Clear code after use
+                telegram_pairing_code: null
             })
             .eq('id', profile.id);
 
         if (updateError) throw updateError;
 
-        return ctx.reply(`✅ Authentication Successful! Welcome, ${profile.full_name}.\n\nYou can now receive real-time alerts and manage requests here.`);
+        return ctx.reply(`✅ Authentication Successful! Welcome, ${profile.full_name}.\n\nYou can now ask me anything about Lead Velocity or your business stats!`);
 
     } catch (err) {
         console.error("Auth error:", err);
@@ -69,28 +67,24 @@ bot.command("auth", async (ctx) => {
 // 📋 Pending: List all action items needing attention
 bot.command("pending", async (ctx) => {
     try {
-        // Check if this chat is authorized
         const { data: profile } = await supabase
             .from('profiles')
-            .select('id')
+            .select('id, user_id')
             .eq('telegram_chat_id', ctx.chat.id.toString())
             .single();
 
-        if (!profile) return ctx.reply("⚠️ unauthorized. Please link your account first with `/auth`.");
+        if (!profile) return ctx.reply("⚠️ Unauthorized. Please link your account first with `/auth`.");
 
-        // Fetch reset requests
-        const { data: resets } = await supabase
-            .from('broker_reset_requests')
-            .select('*')
-            .eq('status', 'pending')
-            .limit(5);
+        // Check for admin role
+        const { data: isAdmin } = await supabase.rpc('has_role', {
+            _user_id: profile.user_id,
+            _role: 'admin'
+        });
 
-        // Fetch AI call changes
-        const { data: aiReqs } = await supabase
-            .from('ai_call_requests')
-            .select('*')
-            .is('approved', null)
-            .limit(5);
+        if (!isAdmin) return ctx.reply("🚫 This command is reserved for system administrators.");
+
+        const { data: resets } = await supabase.from('broker_reset_requests').select('*').eq('status', 'pending').limit(5);
+        const { data: aiReqs } = await supabase.from('ai_call_requests').select('*').is('approved', null).limit(5);
 
         let message = "📋 **Pending Admin Actions**\n\n";
         let hasWork = false;
@@ -116,6 +110,71 @@ bot.command("pending", async (ctx) => {
     }
 });
 
+// --- AI Chat Logic ---
+
+bot.on("message:text", async (ctx) => {
+    const query = ctx.message.text;
+    if (query.startsWith('/')) return; // Ignore other commands
+
+    try {
+        // 1. Identify User
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .eq('telegram_chat_id', ctx.chat.id.toString())
+            .single();
+
+        let role = "public";
+        let context = "PUBLIC MODE: Provide only general Lead Velocity info.";
+
+        if (profile) {
+            const { data: isAdmin } = await supabase.rpc('has_role', {
+                _user_id: profile.id,
+                _role: 'admin'
+            });
+
+            if (isAdmin) {
+                const { count: leadCount } = await supabase.from('leads').select('*', { count: 'exact', head: true });
+                const { count: brokerCount } = await supabase.from('brokers').select('*', { count: 'exact', head: true });
+                context = `ADMIN MODE: You have global access.
+                Stats: ${leadCount} leads, ${brokerCount} brokers.`;
+            } else {
+                const { data: broker } = await supabase.from('brokers').select('id, tier, contact_person').eq('user_id', profile.id).single();
+                if (broker) {
+                    const { count: myLeads } = await supabase.from('leads').select('*', { count: 'exact', head: true }).eq('broker_id', broker.id);
+                    context = `BROKER MODE: Assisting ${broker.contact_person}.
+                    Tier: ${broker.tier}, Total Leads: ${myLeads}.`;
+                }
+            }
+        }
+
+        // 2. Build Prompt
+        const systemPrompt = `${EINSTEIN_PERSONALITY}\n\n${WEBSITE_KNOWLEDGE}\n\n${context}\n\nUser is asking via Telegram. Be concise.`;
+
+        // 3. Call Gemini
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [
+                    { role: "user", parts: [{ text: systemPrompt }] },
+                    { role: "user", parts: [{ text: query }] }
+                ],
+                generationConfig: { temperature: 0.7 }
+            })
+        });
+
+        const geminiData = await res.json();
+        const responseText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "Static interference detected...";
+
+        return ctx.reply(responseText, { parse_mode: "Markdown" });
+
+    } catch (err) {
+        console.error("AI Error:", err);
+        return ctx.reply("Einstein is currently offline in this sector. Please try again later.");
+    }
+});
+
 // --- Action Callback Handlers ---
 
 // Handle Button Clicks
@@ -128,12 +187,7 @@ bot.on("callback_query:data", async (ctx) => {
     try {
         if (type === "reset") {
             if (action === "approve") {
-                // Resolve reset request
                 await supabase.from('broker_reset_requests').update({ status: 'resolved' }).eq('id', id);
-
-                // Actually resend the email via Edge Function
-                // In a real flow, you might invoke 'send-broker-invite' here too
-
                 await ctx.answerCallbackQuery("✅ Reset Request Approved!");
                 await ctx.editMessageText(ctx.msg?.text + "\n\n✅ **Approved via Telegram**", { parse_mode: "Markdown" });
             }

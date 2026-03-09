@@ -2,13 +2,11 @@ import { useState } from "react";
 import {
     Rocket,
     Search,
-    MessageSquare,
     TrendingUp,
     Calendar,
     Download,
     Sparkles,
     Bot,
-    Globe,
     Plus,
     Send,
     Mic,
@@ -16,18 +14,52 @@ import {
     Trash2,
     Edit3,
     Share2,
-    Zap
+    Globe,
+    Zap,
+    Facebook,
+    Layout,
+    BarChart,
+    Shield,
+    MessageSquare,
+    Eye,
+    Target,
+    Activity,
+    Database,
+    Binary,
+    ArrowRight,
+    Instagram,
+    Twitter,
+    Linkedin,
+    Phone,
+    Video,
+    Image as ImageIcon,
+    Coins,
+    Layers,
+    Cpu,
+    Briefcase,
+    PieChart,
+    Trophy,
+    Users
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { Switch } from "@/components/ui/switch";
+import einsteinMascot from "@/assets/marketing-einstein.png";
 
 const MarketingHub = () => {
     const { toast } = useToast();
@@ -37,6 +69,21 @@ const MarketingHub = () => {
     const [isScraping, setIsScraping] = useState(false);
     const [scraperLogs, setScraperLogs] = useState<string[]>([]);
     const [industry, setIndustry] = useState("");
+    const [scraperProvider, setScraperProvider] = useState<"firecrawl" | "apify">("firecrawl");
+    const [scraperCredits, setScraperCredits] = useState({ firecrawl: 500, apify: 5.00 });
+    const [detectedLeads, setDetectedLeads] = useState([]);
+
+    // --- Media Engine State ---
+    const [activeMediaEngine, setActiveMediaEngine] = useState<"veo3" | "nano" | "visual">("veo3");
+
+    // --- Google Ads State ---
+    const [googleSearchIntent, setGoogleSearchIntent] = useState([]);
+    const [isGoogleArchitecting, setIsGoogleArchitecting] = useState(false);
+    const [googleNegativeList, setGoogleNegativeList] = useState([]);
+
+    // --- Platform State (IG, WA, X, LI) ---
+    const [platformBrainLoading, setPlatformBrainLoading] = useState({});
+    const [platformBlueprints, setPlatformBlueprints] = useState({});
 
     // --- Creative Studio State ---
     const [chatInput, setChatInput] = useState("");
@@ -44,7 +91,7 @@ const MarketingHub = () => {
         { role: "bot", content: "Hello! I'm your Creative AI Agent. I'm connected to Nano Banana, Veo3, and Gemini 3 Flash. What kind of viral content should we create today?" }
     ]);
     const [isGenerating, setIsGenerating] = useState(false);
-    const [generatedDrops, setGeneratedDrops] = useState<any[]>([
+    const [generatedDrops, setGeneratedDrops] = useState([
         { title: "Weekly Ad Pack", type: "Visuals", date: "Today" },
         { title: "Onboarding Sequence", type: "Email", date: "Today" },
     ]);
@@ -56,78 +103,255 @@ const MarketingHub = () => {
     const [sigPhone, setSigPhone] = useState("+27 XX XXX XXXX");
 
     // --- Planner State ---
-    const [calendarData, setCalendarData] = useState<any>({});
+    const [calendarData, setCalendarData] = useState({});
     const [isFilling, setIsFilling] = useState(false);
+    const [isAiSchedulerEnabled, setIsAiSchedulerEnabled] = useState(false);
+    const [aiInsights, setAiInsights] = useState<string[]>([]);
+
+    // --- Facebook / Meta Center State ---
+    const [fbAdPrompt, setFbAdPrompt] = useState("");
+    const [isFbGenerating, setIsFbGenerating] = useState(false);
+    const [fbAdVariants, setFbAdVariants] = useState([]);
+    const [metaCampaignGoal, setMetaCampaignGoal] = useState("leads");
+    const [metaVibeScore, setMetaVibeScore] = useState(88);
+
+    // --- CEO Coach State ---
+    const [ceoBriefing, setCeoBriefing] = useState(null);
+    const [weeklyAim, setWeeklyAim] = useState("Scale high-intent life insurance lead acquisition by 15%.");
+    const [isBriefingLoading, setIsBriefingLoading] = useState(false);
+    const [kpiTargets, setKpiTargets] = useState({
+        leads: { current: 142, target: 200, trend: "+12%" },
+        appointments: { current: 38, target: 50, trend: "+8%" },
+        conversion: { current: 4.2, target: 5.5, trend: "+0.5%" }
+    });
 
     // --- Handlers ---
-    const handleScrape = () => {
+    const handleScrape = async () => {
         if (!industry) return;
         setIsScraping(true);
         setScraperLogs([]);
+        setDetectedLeads([]);
+
         const steps = [
             `Initializing scraping agents for "${industry}"...`,
-            "Connecting to LinkedIn Recruiter API...",
-            "Scanning global web directories...",
-            "Filtering for high-intent leads...",
-            "Validating contact details via proxy...",
-            `Success! Found 142 new potential leads for ${industry}.`
+            "Connecting to Stealth Web Proxies...",
+            "Scanning specialized directories...",
+            "Analyzing entity intent metrics...",
+            "Validating contact accessibility...",
+            `Synthesis in progress for ${industry}...`
         ];
 
-        steps.forEach((step, i) => {
-            setTimeout(() => {
-                setScraperLogs(prev => [...prev, step]);
-                if (i === steps.length - 1) setIsScraping(false);
-            }, (i + 1) * 1500);
-        });
+        let currentStep = 0;
+        const logInterval = setInterval(() => {
+            if (currentStep < steps.length) {
+                setScraperLogs(prev => [...prev, steps[currentStep]]);
+                currentStep++;
+            } else {
+                clearInterval(logInterval);
+            }
+        }, 1000);
+
+        try {
+            const { data, error } = await supabase.functions.invoke('marketing-ai', {
+                body: { action: 'prospect-leads', payload: { industry, provider: scraperProvider } }
+            });
+
+            if (error) throw error;
+
+            setDetectedLeads(data.map((l, i) => ({ id: i + 1, ...l })));
+            setScraperLogs(prev => [...prev, `Success! Found high-performance entities for ${industry}.`]);
+            toast({
+                title: "Lead Acquisition Complete",
+                description: `Entities synchronized for ${industry}.`
+            });
+        } catch (error) {
+            console.error(error);
+            toast({
+                title: "Acquisition Neural Link Failed",
+                description: "The data engine encountered static.",
+                variant: "destructive"
+            });
+        } finally {
+            setIsScraping(false);
+            clearInterval(logInterval);
+        }
     };
 
-    const handleSendMessage = () => {
-        if (!chatInput.trim()) return;
-        const newMsg = { role: "user", content: chatInput };
-        setMessages(prev => [...prev, newMsg]);
-        setChatInput("");
-        setIsGenerating(true);
+    const handleGoogleArchitect = async () => {
+        setIsGoogleArchitecting(true);
+        try {
+            const { data, error } = await supabase.functions.invoke('marketing-ai', {
+                body: { action: 'ad-architect', payload: { prompt: "insurance broker south africa", platform: 'google-search' } }
+            });
 
-        setTimeout(() => {
-            const botResponse = {
-                role: "bot",
-                content: `Analyzing your request for "${newMsg.content}"... I've synchronized with Veo3 for visual aesthetic and Gemini 3 Flash for the copy. I've generated a 5-part campaign strategy for you.`
-            };
-            setMessages(prev => [...prev, botResponse]);
-            setIsGenerating(false);
+            if (error) throw error;
 
-            // Add a "Drop"
-            const newDrop = {
-                id: Date.now(),
-                type: "Instagram Reel",
-                title: "Viral Hook: The Future of Finance",
-                status: "Ready"
-            };
-            setGeneratedDrops(prev => [newDrop, ...prev]);
-        }, 2000);
+            setGoogleSearchIntent(data.map(d => ({ k: d.hook, volume: d.estimated_reach, competition: "Optimized", score: d.sentiment_score })));
+            setGoogleNegativeList(["cheap insurance", "free insurance", "job insurance", "complaints"]);
+            toast({
+                title: "Google Ad Blueprint Ready",
+                description: "Strategy synthesized from global search vectors."
+            });
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setIsGoogleArchitecting(false);
+        }
+    };
+
+    const handleInitializePlatform = async (platform) => {
+        setPlatformBrainLoading(prev => ({ ...prev, [platform]: true }));
+        try {
+            const { data, error } = await supabase.functions.invoke('marketing-ai', {
+                body: { action: 'platform-blueprint', payload: { platform } }
+            });
+
+            if (error) throw error;
+
+            setPlatformBlueprints(prev => ({
+                ...prev,
+                [platform]: data
+            }));
+
+            toast({
+                title: `${platform.toUpperCase()} Brain Initialized`,
+                description: "Strategy blueprint synthesized from raw market data."
+            });
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setPlatformBrainLoading(prev => ({ ...prev, [platform]: false }));
+        }
+    };
+
+    const handleGetCeoBriefing = async () => {
+        setIsBriefingLoading(true);
+        try {
+            const { data, error } = await supabase.functions.invoke('marketing-ai', {
+                body: {
+                    action: 'ceo-briefing',
+                    payload: {
+                        weeklyAim,
+                        kpiTargets
+                    }
+                }
+            });
+
+            if (error) throw error;
+
+            setCeoBriefing(data);
+            toast({
+                title: "Morning Briefing Synthesized",
+                description: "Your executive SWOT and strategy pulse is ready."
+            });
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setIsBriefingLoading(false);
+        }
     };
 
     const handleAutoFill = () => {
         setIsFilling(true);
-        const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-        const fullData: any = {};
+        setAiInsights([]);
+
+        const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+        const fullData = {};
 
         days.forEach(day => {
-            fullData[day] = Array.from({ length: 5 }).map((_, i) => ({
-                time: `${8 + i * 3}:00 ${i + 8 < 12 ? 'AM' : 'PM'}`,
-                platform: ['IG', 'FB', 'X', 'LI'][Math.floor(Math.random() * 4)],
-                title: `Campaign Drop #${i + 1}`,
-                progress: 100
-            }));
+            if (isAiSchedulerEnabled) {
+                // Target market peaks
+                const times = day === 'Mon' || day === 'Wed' ? ['08:30 AM', '12:15 PM', '06:00 PM'] :
+                    day === 'Tue' || day === 'Thu' ? ['09:00 AM', '02:00 PM', '07:30 PM'] :
+                        day === 'Fri' ? ['08:00 AM', '01:00 PM', '04:00 PM'] :
+                            ['10:00 AM', '03:00 PM'];
+
+                fullData[day] = times.map((t, i) => ({
+                    time: t,
+                    platform: ['IG', 'LI', 'FB', 'X'][Math.floor(Math.random() * 4)],
+                    title: `Targeted Ad Concept #${i + 1}`,
+                    progress: 100
+                }));
+            } else {
+                fullData[day] = Array.from({ length: 5 }).map((_, i) => ({
+                    time: `${8 + i * 3}:00 ${i + 8 < 12 ? 'AM' : 'PM'}`,
+                    platform: ['IG', 'FB', 'X', 'LI'][Math.floor(Math.random() * 4)],
+                    title: `Campaign Drop #${i + 1}`,
+                    progress: 100
+                }));
+            }
         });
 
         setTimeout(() => {
             setCalendarData(fullData);
+            if (isAiSchedulerEnabled) {
+                setAiInsights([
+                    "Audience Peak: Target market active early mornings (08:30 AM - 09:30 AM).",
+                    "Platform Match: Highest converting IG placements at 06:00 PM for commute.",
+                    "Frequency Limit: Reduced weekend frequency to maintain ROI."
+                ]);
+            }
             setIsFilling(false);
+            toast({
+                title: isAiSchedulerEnabled ? "AI Active: Schedule Optimized" : "Standard Schedule Filled",
+                description: isAiSchedulerEnabled ? "Optimal posting times arranged based on target tracking." : "Week populated sequentially."
+            });
         }, 2000);
     };
 
-    const SectionHeader = ({ title, subtitle, icon: Icon }: any) => (
+    const handleSendMessage = async () => {
+        if (!chatInput.trim()) return;
+
+        setIsGenerating(true);
+        const userMsg = { role: "user", content: chatInput };
+        setMessages(prev => [...prev, userMsg]);
+        setChatInput("");
+
+        try {
+            const { data, error } = await supabase.functions.invoke('einstein-ai', {
+                body: { query: chatInput, history: messages }
+            });
+
+            if (error) throw error;
+
+            setMessages(prev => [...prev, {
+                role: "bot",
+                content: data.text
+            }]);
+        } catch (error) {
+            console.error(error);
+            setMessages(prev => [...prev, {
+                role: "bot",
+                content: "Ach! Static interference from the Meta-Gird. Please repeat that, ja?"
+            }]);
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    const handleGenerateFbAd = async () => {
+        if (!fbAdPrompt.trim()) return;
+        setIsFbGenerating(true);
+        try {
+            const { data, error } = await supabase.functions.invoke('marketing-ai', {
+                body: { action: 'ad-architect', payload: { prompt: fbAdPrompt, platform: 'facebook' } }
+            });
+
+            if (error) throw error;
+
+            setFbAdVariants(data);
+            toast({
+                title: "Ad Variants Synthesized",
+                description: "AI has architected 2 high-converting Meta ad options."
+            });
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setIsFbGenerating(false);
+        }
+    };
+
+    const SectionHeader = ({ title, subtitle, icon: Icon }) => (
         <div className="flex items-center gap-4 mb-8">
             <div className="p-3 rounded-2xl bg-primary/10 border border-primary/20">
                 <Icon className="h-6 w-6 text-primary" />
@@ -143,127 +367,372 @@ const MarketingHub = () => {
         <div className="space-y-8 p-1 animate-in fade-in slide-in-from-bottom-4 duration-700 h-full overflow-y-auto">
             {/* Premium Header */}
             <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 to-slate-950 border border-white/5 p-8 shadow-2xl">
-                <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-                    <Rocket className="h-64 w-64 -rotate-12 translate-x-1/4 -translate-y-1/4" />
+                <div className="absolute top-0 right-0 p-4 opacity-40 pointer-events-none group">
+                    <img
+                        src={einsteinMascot}
+                        alt="Cyberpunk Einstein"
+                        className="h-80 w-80 object-contain -translate-y-12 translate-x-12 blur-[2px] group-hover:blur-0 group-hover:scale-110 transition-all duration-700"
+                    />
                 </div>
                 <div className="relative z-10 max-w-2xl space-y-4">
                     <Badge className="bg-primary/20 text-primary border-primary/30 px-3 py-1 mb-2 hover:bg-primary/30 transition-colors">
                         <Bot className="h-3.5 w-3.5 mr-2 animate-pulse" />
-                        Empowered by Gemini 3 Flash & Veo3
+                        AI Architect: Genius Mode v2.4
                     </Badge>
                     <h1 className="text-4xl lg:text-5xl font-extrabold tracking-tighter text-white">
                         Marketing <span className="bg-gradient-to-r from-blue-400 to-teal-400 bg-clip-text text-transparent">Command Center</span>
                     </h1>
                     <p className="text-slate-400 text-lg leading-relaxed">
-                        Harness the power of multi-agent AI to scrape leads, create award-winning content, and dominate your market presence across every platform.
+                        Harness the power of multi-agent AI to architect campaigns, reverse-engineer rivals, and dominate the insurance vertical.
                     </p>
                 </div>
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-                <TabsList className="grid grid-cols-2 md:grid-cols-4 h-14 bg-slate-900/50 border border-white/5 p-1 rounded-2xl backdrop-blur-xl">
-                    <TabsTrigger value="prospector" className="rounded-xl data-[state=active]:bg-primary/20 data-[state=active]:text-primary gap-2">
-                        <Search className="h-4 w-4" />
-                        <span>Lead Prospector</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="studio" className="rounded-xl data-[state=active]:bg-primary/20 data-[state=active]:text-primary gap-2">
-                        <MessageSquare className="h-4 w-4" />
-                        <span>Creative Studio</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="intelligence" className="rounded-xl data-[state=active]:bg-primary/20 data-[state=active]:text-primary gap-2">
-                        <TrendingUp className="h-4 w-4" />
-                        <span>Intelligence</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="planner" className="rounded-xl data-[state=active]:bg-primary/20 data-[state=active]:text-primary gap-2">
-                        <Calendar className="h-4 w-4" />
-                        <span>Planner</span>
-                    </TabsTrigger>
-                </TabsList>
+                <ScrollArea className="w-full whitespace-nowrap rounded-2xl border border-white/5 bg-slate-900/50 backdrop-blur-xl mb-6">
+                    <TabsList className="inline-flex h-14 items-center justify-start rounded-none bg-transparent p-1">
+                        <TabsTrigger value="ceo-coach" className="rounded-xl data-[state=active]:bg-primary/20 data-[state=active]:text-primary gap-2 px-4 border border-primary/20 bg-primary/5">
+                            <Trophy className="h-4 w-4 animate-bounce" />
+                            <span className="font-bold">CEO Architect</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="prospector" className="rounded-xl data-[state=active]:bg-primary/20 data-[state=active]:text-primary gap-2 px-4">
+                            <Search className="h-4 w-4" />
+                            <span>Lead Prospector</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="studio" className="rounded-xl data-[state=active]:bg-primary/20 data-[state=active]:text-primary gap-2 px-4">
+                            <MessageSquare className="h-4 w-4" />
+                            <span>Creative Studio</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="intelligence" className="rounded-xl data-[state=active]:bg-primary/20 data-[state=active]:text-primary gap-2 px-4">
+                            <TrendingUp className="h-4 w-4" />
+                            <span>Intelligence</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="planner" className="rounded-xl data-[state=active]:bg-primary/20 data-[state=active]:text-primary gap-2 px-4">
+                            <Calendar className="h-4 w-4" />
+                            <span>Planner</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="facebook" className="rounded-xl data-[state=active]:bg-primary/20 data-[state=active]:text-primary gap-2 px-4">
+                            <Facebook className="h-4 w-4" />
+                            <span>Meta Ad Center</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="google-ads" className="rounded-xl data-[state=active]:bg-primary/20 data-[state=active]:text-primary gap-2 px-4">
+                            <Search className="h-4 w-4" />
+                            <span>Google Ads</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="instagram" className="rounded-xl data-[state=active]:bg-primary/20 data-[state=active]:text-primary gap-2 px-4">
+                            <Instagram className="h-4 w-4" />
+                            <span>Instagram</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="whatsapp" className="rounded-xl data-[state=active]:bg-primary/20 data-[state=active]:text-primary gap-2 px-4">
+                            <Phone className="h-4 w-4" />
+                            <span>WhatsApp</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="twitter" className="rounded-xl data-[state=active]:bg-primary/20 data-[state=active]:text-primary gap-2 px-4">
+                            <Twitter className="h-4 w-4" />
+                            <span>Twitter</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="linkedin" className="rounded-xl data-[state=active]:bg-primary/20 data-[state=active]:text-primary gap-2 px-4">
+                            <Linkedin className="h-4 w-4" />
+                            <span>LinkedIn</span>
+                        </TabsTrigger>
+                    </TabsList>
+                    <ScrollBar orientation="horizontal" />
+                </ScrollArea>
+
+                {/* CEO Architect Section */}
+                <TabsContent value="ceo-coach">
+                    <div className="grid lg:grid-cols-12 gap-8">
+                        {/* Weekly Mentor Hub */}
+                        <div className="lg:col-span-4 space-y-8">
+                            <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl p-8 rounded-3xl relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                                    <Trophy className="h-40 w-40" />
+                                </div>
+                                <SectionHeader
+                                    title="Strategic Aim"
+                                    subtitle="Define your objective for the operational week."
+                                    icon={Briefcase}
+                                />
+                                <div className="space-y-6">
+                                    <div className="space-y-2">
+                                        <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Target Objective</Label>
+                                        <Textarea
+                                            value={weeklyAim}
+                                            onChange={(e) => setWeeklyAim(e.target.value)}
+                                            className="bg-white/5 border-white/10 rounded-2xl min-h-[100px] text-sm focus:ring-primary/20"
+                                            placeholder="What is the singular focus for this week?"
+                                        />
+                                    </div>
+                                    <Button
+                                        className="w-full bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30 rounded-2xl h-12 gap-2"
+                                        onClick={() => toast({ title: "Objective Synchronized", description: "Your weekly aim has been saved to the vault." })}
+                                    >
+                                        <Zap className="h-4 w-4" />
+                                        Commit to Week
+                                    </Button>
+                                </div>
+                            </Card>
+
+                            <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl p-8 rounded-3xl">
+                                <div className="flex items-center justify-between mb-8">
+                                    <h3 className="font-bold flex items-center gap-2">
+                                        <Activity className="h-4 w-4 text-primary" /> KPI Health Pulse
+                                    </h3>
+                                    <Badge className="bg-emerald-500/20 text-emerald-400 border-none text-[9px] uppercase">Stable Ops</Badge>
+                                </div>
+                                <div className="space-y-6">
+                                    {Object.entries(kpiTargets).map(([key, data]) => (
+                                        <div key={key} className="space-y-2">
+                                            <div className="flex justify-between items-center text-[10px] font-bold uppercase text-slate-500">
+                                                <span>{key}</span>
+                                                <span className="text-white">{data.current} / {data.target}</span>
+                                            </div>
+                                            <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                                                <div
+                                                    className="h-full bg-primary rounded-full transition-all duration-1000"
+                                                    style={{ width: `${(data.current / data.target) * 100}%` }}
+                                                />
+                                            </div>
+                                            <div className="text-[9px] text-emerald-400 font-mono flex items-center gap-1">
+                                                <TrendingUp className="h-2.5 w-2.5" />
+                                                {data.trend} vs last week
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </Card>
+                        </div>
+
+                        {/* Morning Briefing / SWOT Area */}
+                        <div className="lg:col-span-8 space-y-8">
+                            <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl rounded-3xl overflow-hidden min-h-[600px] flex flex-col">
+                                <CardHeader className="p-8 border-b border-white/5 bg-slate-950/40">
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                                        <SectionHeader
+                                            title="Executive Morning Briefing"
+                                            subtitle="08:00 AM AI Intelligence Report & SWOT Analysis."
+                                            icon={Bot}
+                                        />
+                                        <Button
+                                            onClick={handleGetCeoBriefing}
+                                            disabled={isBriefingLoading}
+                                            className="bg-gradient-to-r from-primary to-purple-600 hover:scale-105 transition-all px-8 h-14 rounded-2xl gap-3 shadow-xl shadow-primary/20"
+                                        >
+                                            {isBriefingLoading ? (
+                                                <Cpu className="h-5 w-5 animate-spin" />
+                                            ) : (
+                                                <Sparkles className="h-5 w-5" />
+                                            )}
+                                            {isBriefingLoading ? "Synthesizing..." : "Initialize Briefing"}
+                                        </Button>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="flex-1 p-8">
+                                    {!ceoBriefing && !isBriefingLoading ? (
+                                        <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-40">
+                                            <div className="w-20 h-20 rounded-full border-2 border-dashed border-slate-500 flex items-center justify-center">
+                                                <Bot className="h-10 w-10 text-slate-500" />
+                                            </div>
+                                            <div>
+                                                <p className="text-xl font-bold">Waiting for Initialization</p>
+                                                <p className="text-sm">Click the button above to synthesize your daily executive briefing.</p>
+                                            </div>
+                                        </div>
+                                    ) : isBriefingLoading ? (
+                                        <div className="space-y-8 animate-pulse p-4">
+                                            <div className="h-12 bg-white/5 rounded-2xl w-1/3" />
+                                            <div className="grid grid-cols-2 gap-6">
+                                                <div className="h-40 bg-white/5 rounded-3xl" />
+                                                <div className="h-40 bg-white/5 rounded-3xl" />
+                                            </div>
+                                            <div className="h-60 bg-white/5 rounded-3xl" />
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                            {/* SWOT Grid */}
+                                            <div className="grid md:grid-cols-4 gap-4">
+                                                {['Strengths', 'Weaknesses', 'Opportunities', 'Threats'].map((type, i) => {
+                                                    const colors = [
+                                                        "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+                                                        "bg-rose-500/10 text-rose-400 border-rose-500/20",
+                                                        "bg-blue-500/10 text-blue-400 border-blue-500/20",
+                                                        "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                                                    ];
+                                                    return (
+                                                        <div key={type} className={cn("p-4 rounded-2xl border flex flex-col gap-2", colors[i])}>
+                                                            <span className="text-[10px] font-black uppercase tracking-tighter">{type}</span>
+                                                            <p className="text-xs font-medium leading-relaxed">
+                                                                {ceoBriefing.swot[type.toLowerCase()]}
+                                                            </p>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            {/* Executive summary */}
+                                            <div className="p-8 bg-slate-950/50 rounded-3xl border border-white/5 space-y-4">
+                                                <h4 className="text-xs font-black uppercase text-primary tracking-widest flex items-center gap-2">
+                                                    <Zap className="h-3 w-3" /> Core Strategic Pulse
+                                                </h4>
+                                                <p className="text-lg text-slate-200 leading-relaxed italic font-serif">
+                                                    "{ceoBriefing.summary}"
+                                                </p>
+                                            </div>
+
+                                            {/* Daily Checklist */}
+                                            <div className="space-y-4">
+                                                <h4 className="text-xs font-black uppercase text-slate-500 tracking-widest flex items-center gap-2">
+                                                    <Layout className="h-3 w-3" /> CEO Daily Action Matrix
+                                                </h4>
+                                                <div className="grid md:grid-cols-2 gap-4">
+                                                    {ceoBriefing.actions.map((action, i) => (
+                                                        <div key={i} className="p-4 bg-white/5 border border-white/5 rounded-2xl flex items-center justify-between group hover:bg-white/10 cursor-pointer transition-all">
+                                                            <span className="text-sm text-slate-300 group-hover:text-white">{action}</span>
+                                                            <ArrowRight className="h-4 w-4 text-slate-700 group-hover:text-primary transition-colors" />
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <div className="pt-8 border-t border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
+                                                        <Phone className="h-4 w-4" />
+                                                    </div>
+                                                    <p className="text-[10px] font-black uppercase text-slate-500">Sync status: <span className="text-emerald-400">Telegram Link Active</span></p>
+                                                </div>
+                                                <Button variant="ghost" className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white">
+                                                    Push to Executive Telegram Channel
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </div>
+                    </div>
+                </TabsContent>
 
                 {/* Lead Prospector Section */}
                 <TabsContent value="prospector">
-                    <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl overflow-hidden rounded-3xl">
-                        <CardContent className="p-8">
-                            <SectionHeader
-                                title="AI Lead Prospector"
-                                subtitle="Intelligent scraping agents scanning LinkedIn and the global web."
-                                icon={Search}
-                            />
-                            <div className="grid md:grid-cols-3 gap-6">
-                                <div className="md:col-span-2 space-y-6">
-                                    <div className="flex gap-4 p-4 bg-white/5 rounded-2xl border border-white/10 ring-1 ring-white/5">
+                    <div className="grid lg:grid-cols-3 gap-6">
+                        <div className="space-y-6">
+                            <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl p-6 rounded-3xl">
+                                <h3 className="font-bold flex items-center gap-2 mb-4">
+                                    <Target className="h-4 w-4 text-primary" /> Target Parameters
+                                </h3>
+                                <div className="space-y-4">
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs uppercase font-bold text-slate-500">Industry / Niche</Label>
                                         <Input
+                                            placeholder="e.g. Life Insurance Brokers"
                                             value={industry}
                                             onChange={(e) => setIndustry(e.target.value)}
-                                            placeholder="Target Industries, Roles, or Company Names..."
-                                            className="bg-transparent border-none focus-visible:ring-0 text-lg h-12"
+                                            className="bg-white/5 border-white/10"
                                         />
-                                        <Button
-                                            size="lg"
-                                            className="rounded-xl px-8 shadow-lg shadow-primary/20"
-                                            onClick={handleScrape}
-                                            disabled={isScraping || !industry}
-                                        >
-                                            {isScraping ? <Sparkles className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
-                                            {isScraping ? "Scraping..." : "Scrape Leads"}
-                                        </Button>
                                     </div>
-                                    <div className="space-y-4">
-                                        <h3 className="text-sm font-semibold uppercase tracking-widest text-slate-500">Live Scraper Activity</h3>
-                                        <div className="space-y-3">
-                                            {scraperLogs.length === 0 && !isScraping && (
-                                                <div className="p-8 text-center border border-dashed border-white/10 rounded-2xl text-slate-500 text-sm">
-                                                    Enter a target industry to begin deep-web prospecting
-                                                </div>
-                                            )}
-                                            {scraperLogs.map((log, i) => (
-                                                <div key={i} className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/10 animate-in fade-in slide-in-from-left-2 duration-500">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={cn(
-                                                            "h-2 w-2 rounded-full animate-pulse",
-                                                            log.includes("Success") ? "bg-emerald-500" : "bg-primary"
-                                                        )} />
-                                                        <span className="text-slate-300">{log}</span>
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs uppercase font-bold text-slate-500">Data Engine</Label>
+                                        <Select value={scraperProvider} onValueChange={setScraperProvider}>
+                                            <SelectTrigger className="bg-white/5 border-white/10">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="firecrawl">Firecrawl (Deep Web)</SelectItem>
+                                                <SelectItem value="apify">Apify (Social/Maps)</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="p-3 bg-slate-950/50 rounded-xl border border-white/5 flex justify-between items-center">
+                                        <span className="text-[10px] uppercase font-bold text-slate-500">Active Engine Credits</span>
+                                        <span className="font-mono text-sm text-primary">
+                                            {scraperProvider === 'firecrawl' ? scraperCredits.firecrawl.toLocaleString() : `$${scraperCredits.apify.toFixed(2)}`}
+                                        </span>
+                                    </div>
+                                    <Button
+                                        className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-12 mt-2"
+                                        onClick={handleScrape}
+                                        disabled={isScraping || !industry}
+                                    >
+                                        {isScraping ? <Activity className="h-4 w-4 mr-2 animate-pulse" /> : <Search className="h-4 w-4 mr-2" />}
+                                        {isScraping ? "Synthesizing Leads..." : "Initiate Prospecting sequence"}
+                                    </Button>
+                                </div>
+                            </Card>
+
+                            <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl p-6 rounded-3xl h-[300px] flex flex-col">
+                                <h3 className="font-bold text-sm uppercase text-slate-500 mb-4 flex items-center gap-2">
+                                    <Terminal className="h-4 w-4" /> Live Scraper Log
+                                </h3>
+                                <ScrollArea className="flex-1 bg-black/40 rounded-xl border border-white/5 p-4 font-mono text-[10px]">
+                                    {scraperLogs.map((log, i) => (
+                                        <div key={i} className="text-emerald-400 mb-1 opacity-80 animate-in fade-in" style={{ animationDelay: `${i * 100}ms` }}>
+                                            <span className="text-slate-600 mr-2">{'>'}</span> {log}
+                                        </div>
+                                    ))}
+                                    {isScraping && (
+                                        <div className="flex gap-1 mt-2">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce" />
+                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce delay-100" />
+                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce delay-200" />
+                                        </div>
+                                    )}
+                                </ScrollArea>
+                            </Card>
+                        </div>
+
+                        <div className="lg:col-span-2">
+                            <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl rounded-3xl overflow-hidden h-full flex flex-col">
+                                <div className="p-6 border-b border-white/5 flex gap-4 items-center justify-between bg-slate-900/60">
+                                    <div>
+                                        <h3 className="font-bold text-lg text-white">Acquired Entities</h3>
+                                        <p className="text-sm text-slate-500">Live multi-platform scrape results</p>
+                                    </div>
+                                    <Badge className="bg-primary/20 text-primary px-3 py-1 text-xs">{detectedLeads.length} Synced</Badge>
+                                </div>
+                                <div className="p-6 flex-1 overflow-y-auto">
+                                    {detectedLeads.length > 0 ? (
+                                        <div className="space-y-4">
+                                            {detectedLeads.map((lead) => (
+                                                <div key={lead.id} className="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between hover:bg-white/10 transition-colors cursor-pointer group animate-in slide-in-from-bottom-2">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-lg ring-2 ring-primary/30 shadow-[0_0_15px_rgba(var(--primary),0.3)]">
+                                                            {lead.name.charAt(0)}
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-bold text-white text-md">{lead.name}</p>
+                                                            <p className="text-xs text-slate-400">{lead.role} <span className="text-primary/70">@</span> {lead.company}</p>
+                                                            <p className="text-[11px] text-slate-500 mt-1 font-mono">{lead.email}</p>
+                                                        </div>
                                                     </div>
-                                                    <Badge variant="outline" className="text-[10px] text-slate-500">Real-time</Badge>
+                                                    <div className="flex flex-col items-end">
+                                                        <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-400 border-none mb-2 font-black tracking-widest text-[9px]">
+                                                            Vibe {lead.vibe}%
+                                                        </Badge>
+                                                        <Button size="sm" variant="ghost" className="h-7 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity uppercase font-bold tracking-wider">
+                                                            Queue Campaign
+                                                        </Button>
+                                                    </div>
                                                 </div>
                                             ))}
-                                            {isScraping && scraperLogs.length < 5 && (
-                                                <div className="p-4 flex items-center gap-3 opacity-50 italic text-slate-500 animate-pulse">
-                                                    Agent searching...
-                                                </div>
-                                            )}
                                         </div>
-                                    </div>
+                                    ) : (
+                                        <div className="h-full flex flex-col items-center justify-center text-slate-500">
+                                            <Search className="h-16 w-16 mb-4 opacity-20" />
+                                            <p className="text-lg font-bold">No active entities detected</p>
+                                            <p className="text-sm mt-1">Initiate prospector sequence to populate.</p>
+                                        </div>
+                                    )}
                                 </div>
-                                <div className="bg-primary/5 rounded-3xl border border-primary/10 p-6 space-y-6">
-                                    <h3 className="font-bold flex items-center gap-2">
-                                        <Globe className="h-4 w-4 text-primary" />
-                                        Target Intelligence
-                                    </h3>
-                                    <div className="space-y-4">
-                                        <div className="p-4 bg-slate-950/50 rounded-2xl border border-white/5">
-                                            <p className="text-xs text-slate-500 mb-1">Estimated Matches</p>
-                                            <p className="text-2xl font-black text-white">{isScraping ? "..." : "4,281"}</p>
-                                        </div>
-                                        <div className="p-4 bg-slate-950/50 rounded-2xl border border-white/5">
-                                            <p className="text-xs text-slate-500 mb-1">Scraping Accuracy</p>
-                                            <p className="text-2xl font-black text-white">{isScraping ? "Analyzing" : "98.4%"}</p>
-                                        </div>
-                                        <Button variant="outline" className="w-full rounded-xl border-white/10 hover:bg-white/5">
-                                            Configure Filters
-                                        </Button>
-                                    </div>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
+                            </Card>
+                        </div>
+                    </div>
                 </TabsContent>
 
                 {/* Creative Studio Section */}
                 <TabsContent value="studio">
-                    <div className="grid lg:grid-cols-12 gap-6 h-[700px]">
-                        <div className="lg:col-span-4 space-y-6 overflow-y-auto pr-2 custom-scrollbar">
+                    <div className="grid lg:grid-cols-12 gap-6 h-full">
+                        <div className="lg:col-span-4 space-y-6">
                             <Card className="bg-slate-900/40 border-white/5 backdrop-blur-xl p-6 rounded-3xl">
                                 <h3 className="font-bold flex items-center gap-2 mb-6 text-primary">
                                     <Zap className="h-4 w-4" /> Signature Designer
@@ -372,23 +841,27 @@ const MarketingHub = () => {
                                             <h4 className="text-xs font-black uppercase text-primary tracking-widest mb-6">Live Signature Preview</h4>
                                             <div className="p-8 bg-slate-950/50 rounded-2xl border border-white/5 ring-1 ring-white/5 flex justify-center overflow-x-auto">
                                                 <table border={0} cellPadding={0} cellSpacing={0} style={{ borderCollapse: "collapse", fontFamily: "Arial, sans-serif", fontSize: "14px", color: "#e2e8f0", minWidth: "350px", backgroundColor: "#030712", border: "1px solid #1e293b", borderRadius: "12px", overflow: "hidden" }}>
-                                                    <tr>
-                                                        <td colSpan={2} style={{ background: "linear-gradient(135deg, #b247f5, #f547a4, #f5c947)", padding: "2px" }}>
-                                                            <div style={{ backgroundColor: "#030712", padding: "15px", textAlign: "center" }}>
-                                                                <div style={{ color: "#ffffff", fontSize: "18px", fontWeight: 800, letterSpacing: "-0.025em" }}>LEAD VELOCITY</div>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td style={{ padding: "25px", verticalAlign: "top" }}>
-                                                            <strong style={{ fontSize: "16px", color: "#ffffff" }}>{sigName}</strong><br />
-                                                            <span style={{ color: "#b247f5", fontWeight: 600, fontSize: "12px" }}>{sigRole}</span><br /><br />
-                                                            <div style={{ fontSize: "12px", color: "#94a3b8", lineHeight: "1.6" }}>
-                                                                {sigEmail}<br />
-                                                                {sigPhone}
-                                                            </div>
-                                                        </td>
-                                                    </tr>
+                                                    <thead>
+                                                        <tr>
+                                                            <td colSpan={2} style={{ background: "linear-gradient(135deg, #b247f5, #f547a4, #f5c947)", padding: "2px" }}>
+                                                                <div style={{ backgroundColor: "#030712", padding: "15px", textAlign: "center" }}>
+                                                                    <div style={{ color: "#ffffff", fontSize: "18px", fontWeight: 800, letterSpacing: "-0.025em" }}>LEAD VELOCITY</div>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <tr>
+                                                            <td style={{ padding: "25px", verticalAlign: "top" }}>
+                                                                <strong style={{ fontSize: "16px", color: "#ffffff" }}>{sigName}</strong><br />
+                                                                <span style={{ color: "#b247f5", fontWeight: 600, fontSize: "12px" }}>{sigRole}</span><br /><br />
+                                                                <div style={{ fontSize: "12px", color: "#94a3b8", lineHeight: "1.6" }}>
+                                                                    {sigEmail}<br />
+                                                                    {sigPhone}
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    </tbody>
                                                 </table>
                                             </div>
                                         </div>
@@ -421,7 +894,7 @@ const MarketingHub = () => {
                 </TabsContent>
 
                 {/* Intelligence Section */}
-                <TabsContent value="intelligence">
+                <TabsContent value="intelligence" >
                     <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl rounded-3xl overflow-hidden">
                         <CardContent className="p-8">
                             <SectionHeader
@@ -478,24 +951,57 @@ const MarketingHub = () => {
                 </TabsContent>
 
                 {/* Planner Section */}
-                <TabsContent value="planner">
+                <TabsContent value="planner" >
                     <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl rounded-3xl overflow-hidden">
                         <CardContent className="p-8">
-                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
                                 <SectionHeader
                                     title="Content Planner"
                                     subtitle="Scheduled distribution across social platform clusters."
                                     icon={Calendar}
                                 />
-                                <Button
-                                    className="rounded-xl h-12 px-6 gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:scale-105 transition-transform"
-                                    onClick={handleAutoFill}
-                                    disabled={isFilling}
-                                >
-                                    <Bot className={cn("h-5 w-5", isFilling && "animate-spin")} />
-                                    {isFilling ? "Strategizing..." : "Auto-Fill Week (35 Posts)"}
-                                </Button>
+                                <div className="flex flex-col md:flex-row items-center gap-4">
+                                    <div className="flex items-center gap-3 bg-slate-950/50 px-4 py-2.5 rounded-xl border border-white/5">
+                                        <Switch
+                                            checked={isAiSchedulerEnabled}
+                                            onCheckedChange={setIsAiSchedulerEnabled}
+                                            id="ai-mode"
+                                        />
+                                        <Label htmlFor="ai-mode" className={cn("text-xs font-bold uppercase tracking-wider cursor-pointer", isAiSchedulerEnabled ? "text-primary" : "text-slate-500")}>
+                                            Intuitive AI Mode
+                                        </Label>
+                                    </div>
+                                    <Button
+                                        className={cn("rounded-xl h-12 px-6 gap-2 transition-all", isAiSchedulerEnabled ? "bg-gradient-to-r from-blue-600 to-purple-600 hover:scale-105 shadow-[0_0_20px_rgba(178,71,245,0.4)]" : "bg-slate-800 hover:bg-slate-700 text-white")}
+                                        onClick={handleAutoFill}
+                                        disabled={isFilling}
+                                    >
+                                        <Bot className={cn("h-5 w-5", isFilling && "animate-spin")} />
+                                        {isFilling ? "Strategizing..." : isAiSchedulerEnabled ? "Optimize & Fill Week" : "Auto-Fill Week"}
+                                    </Button>
+                                </div>
                             </div>
+
+                            {isAiSchedulerEnabled && aiInsights.length > 0 && (
+                                <div className="mb-8 animate-in slide-in-from-top-4 fade-in duration-500">
+                                    <div className="grid md:grid-cols-3 gap-4">
+                                        {aiInsights.map((insight, idx) => {
+                                            const parts = insight.split(': ');
+                                            const title = parts[0];
+                                            const desc = parts.slice(1).join(': ');
+                                            return (
+                                                <div key={idx} className="p-4 bg-primary/10 border border-primary/20 rounded-2xl flex gap-3 items-start">
+                                                    <div className="mt-0.5"><Sparkles className="h-4 w-4 text-primary" /></div>
+                                                    <div>
+                                                        <p className="text-[10px] font-black uppercase text-primary tracking-widest">{title}</p>
+                                                        <p className="text-xs text-slate-300 mt-1">{desc}</p>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
                             <div className="overflow-x-auto pb-4">
                                 <div className="min-w-[1000px] grid grid-cols-7 gap-4">
                                     {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
@@ -503,7 +1009,7 @@ const MarketingHub = () => {
                                             <div className="text-center font-bold text-slate-500 py-2 border-b border-white/5 uppercase tracking-tighter">{day}</div>
                                             <div className="space-y-3">
                                                 {calendarData[day] ? (
-                                                    calendarData[day].map((p: any, i: number) => (
+                                                    calendarData[day].map((p, i) => (
                                                         <div key={i} className="p-3 bg-white/5 rounded-2xl border border-white/10 hover:border-primary/40 transition-all cursor-pointer group animate-in slide-in-from-top-4" style={{ animationDelay: `${i * 100}ms` }}>
                                                             <div className="flex justify-between items-start mb-2">
                                                                 <span className="text-[10px] font-black text-slate-500">{p.time}</span>
@@ -534,9 +1040,353 @@ const MarketingHub = () => {
                         </CardContent>
                     </Card>
                 </TabsContent>
+                {/* Meta Ad Center Section */}
+                <TabsContent value="facebook" >
+                    <div className="grid lg:grid-cols-4 gap-6">
+                        {/* Control Panel */}
+                        <div className="lg:col-span-3 space-y-6">
+                            <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl rounded-3xl overflow-hidden">
+                                <CardContent className="p-8 space-y-8">
+                                    <div className="flex justify-between items-start">
+                                        <SectionHeader
+                                            title="Meta Ad Architect"
+                                            subtitle="AI-driven engine for cross-platform campaign dominance."
+                                            icon={Facebook}
+                                        />
+                                        <div className="flex gap-2 bg-white/5 p-1 rounded-xl border border-white/10">
+                                            {['leads', 'sales', 'vibe'].map((g) => (
+                                                <button
+                                                    key={g}
+                                                    onClick={() => setMetaCampaignGoal(g)}
+                                                    className={cn(
+                                                        "px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+                                                        metaCampaignGoal === g ? "bg-blue-600 text-white shadow-lg" : "text-slate-500 hover:text-slate-300"
+                                                    )}
+                                                >
+                                                    {g}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-6">
+                                        <div className="relative group">
+                                            <div className="absolute -inset-1 bg-gradient-to-r from-blue-600/20 to-indigo-600/20 rounded-2xl blur opacity-25 group-hover:opacity-50 transition-opacity"></div>
+                                            <div className="relative p-1.5 bg-slate-950/50 rounded-2xl border border-white/10 flex gap-3">
+                                                <div className="flex-grow relative">
+                                                    <Input
+                                                        value={fbAdPrompt}
+                                                        onChange={(e) => setFbAdPrompt(e.target.value)}
+                                                        placeholder="Enter campaign objective: e.g. 'Highly exclusive life insurance for tech founders'..."
+                                                        className="bg-transparent border-none focus-visible:ring-0 text-lg py-6 placeholder:text-slate-700"
+                                                    />
+                                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex gap-2">
+                                                        <Badge variant="outline" className="text-[9px] border-white/10 text-slate-500">GPT-4o Vision</Badge>
+                                                        <Badge variant="outline" className="text-[9px] border-white/10 text-slate-500">Creative Context</Badge>
+                                                    </div>
+                                                </div>
+                                                <Button
+                                                    onClick={handleGenerateFbAd}
+                                                    disabled={isFbGenerating || !fbAdPrompt}
+                                                    className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-10 h-14"
+                                                >
+                                                    {isFbGenerating ? <Activity className="h-4 w-4 mr-2 animate-pulse" /> : <Binary className="h-4 w-4 mr-2" />}
+                                                    Architect
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        {fbAdVariants.length > 0 ? (
+                                            <div className="grid md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-4">
+                                                {fbAdVariants.map((v) => (
+                                                    <div key={v.id} className="group p-6 bg-slate-950/40 rounded-3xl border border-white/5 space-y-4 hover:border-blue-500/30 transition-all">
+                                                        <div className="flex justify-between items-center mb-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                                                                <span className="text-[10px] font-black uppercase tracking-tighter text-blue-400">Campaign Variant AX-{v.id}00</span>
+                                                            </div>
+                                                            <div className="px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-bold">
+                                                                {v.sentiment}% Efficacy
+                                                            </div>
+                                                        </div>
+                                                        <div className="space-y-3">
+                                                            <div className="p-3 bg-white/5 rounded-xl border border-white/5">
+                                                                <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Headline Hook</p>
+                                                                <p className="text-sm font-bold text-white leading-tight">{v.hook}</p>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">AI-Engineered Copy</p>
+                                                                <p className="text-xs text-slate-400 leading-relaxed font-mono">{v.body}</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="pt-4 flex items-center justify-between border-t border-white/5">
+                                                            <div className="flex gap-4">
+                                                                <div>
+                                                                    <p className="text-[8px] uppercase tracking-widest text-slate-600">Weekly Reach</p>
+                                                                    <p className="text-xs font-black text-white">{v.reach}</p>
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-[8px] uppercase tracking-widest text-slate-600">Est. CPL</p>
+                                                                    <p className="text-xs font-black text-blue-400">R72.50</p>
+                                                                </div>
+                                                            </div>
+                                                            <Button size="sm" className="bg-white text-black hover:bg-slate-200 rounded-lg h-8 text-[10px] font-bold">
+                                                                Push to Meta
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : !isFbGenerating && (
+                                            <div className="grid md:grid-cols-3 gap-6">
+                                                <div className="md:col-span-2 aspect-video rounded-3xl border border-white/5 bg-slate-950/20 flex flex-col items-center justify-center text-slate-600 space-y-4">
+                                                    <Database className="h-10 w-10 opacity-10" />
+                                                    <p className="text-[11px] font-medium tracking-wide uppercase">AI Engine Awaiting Blueprint</p>
+                                                </div>
+                                                <div className="p-6 bg-blue-600/5 rounded-3xl border border-blue-500/10 space-y-4">
+                                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-400 flex items-center gap-2">
+                                                        <Target className="h-3 w-3" /> Live Context
+                                                    </h4>
+                                                    <div className="space-y-4">
+                                                        {[
+                                                            { l: "Market Saturation", v: "Medium" },
+                                                            { l: "Active Competitors", v: "14" },
+                                                            { l: "Ideal CTR Range", v: "2.4 - 3.8%" }
+                                                        ].map((c, i) => (
+                                                            <div key={i}>
+                                                                <p className="text-[9px] text-slate-500 mb-0.5">{c.l}</p>
+                                                                <p className="text-xs font-bold text-white">{c.v}</p>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            <div className="grid md:grid-cols-2 gap-6">
+                                <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl rounded-3xl p-8">
+                                    <div className="flex justify-between items-center mb-6">
+                                        <h3 className="font-bold flex items-center gap-2">
+                                            <Globe className="h-4 w-4 text-emerald-400" /> Market Intelligence
+                                        </h3>
+                                        <Badge className="bg-emerald-500/10 text-emerald-400 border-0">Real-time Feed</Badge>
+                                    </div>
+                                    <div className="space-y-4">
+                                        {[
+                                            { t: "Competitor Ghosting", d: "Monitoring 5 rival agencies for creative shifts.", s: "Active" },
+                                            { t: "Sentiment Radar", d: "Overall market mood for life insurance is up 12%.", s: "Bullish" },
+                                            { t: "Platform Shift", d: "Higher engagement detected in IG Reels vs Feed.", s: "Shift" }
+                                        ].map((intel, i) => (
+                                            <div key={i} className="group p-4 bg-white/5 rounded-2xl border border-white/5 hover:bg-white/[0.07] transition-all">
+                                                <div className="flex justify-between items-start mb-1">
+                                                    <p className="text-[11px] font-bold text-white">{intel.t}</p>
+                                                    <span className="text-[9px] font-black text-emerald-500/80 uppercase">{intel.s}</span>
+                                                </div>
+                                                <p className="text-[10px] text-slate-500 leading-relaxed">{intel.d}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </Card>
+
+                                <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl rounded-3xl p-8 relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 p-4">
+                                        <div className="w-20 h-20 rounded-full border-4 border-blue-600/20 border-t-blue-500 flex items-center justify-center rotate-12">
+                                            <span className="text-xl font-black text-white">{metaVibeScore}</span>
+                                        </div>
+                                    </div>
+                                    <h3 className="font-bold mb-2">Algorithm Vibe Score</h3>
+                                    <p className="text-xs text-slate-500 mb-6 max-w-[180px]">Your campaign alignment with the current Meta algorithm preferences.</p>
+
+                                    <div className="space-y-4 pt-4 border-t border-white/5">
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between items-center text-[10px] font-bold text-slate-500">
+                                                <span>CREATIVE VELOCITY</span>
+                                                <span className="text-white">94%</span>
+                                            </div>
+                                            <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                                                <div className="h-full bg-blue-500 rounded-full w-[94%]" />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between items-center text-[10px] font-bold text-slate-500">
+                                                <span>AUDIENCE ACCURACY</span>
+                                                <span className="text-white">82%</span>
+                                            </div>
+                                            <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                                                <div className="h-full bg-indigo-500 rounded-full w-[82%]" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </Card>
+                            </div>
+                        </div>
+
+                        {/* Performance Sidebar */}
+                        <div className="space-y-6">
+                            <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl rounded-3xl p-6">
+                                <h3 className="font-bold flex items-center gap-2 mb-6">
+                                    <Activity className="h-4 w-4 text-blue-400" /> Performance Pulse
+                                </h3>
+                                <div className="space-y-6">
+                                    {[
+                                        { label: "Cost Per Lead", value: "R84.20", trend: "-12%", color: "text-emerald-400" },
+                                        { label: "Avg. ROI", value: "4.82x", trend: "+0.8", color: "text-blue-400" },
+                                        { label: "Hook Rate", value: "8.4%", trend: "Top 2%", color: "text-indigo-400" }
+                                    ].map((stat, i) => (
+                                        <div key={i} className="p-4 bg-white/5 rounded-2xl border border-white/5">
+                                            <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">{stat.label}</p>
+                                            <div className="flex justify-between items-end">
+                                                <p className="text-2xl font-black text-white tracking-tight">{stat.value}</p>
+                                                <p className={cn("text-[10px] font-black px-1.5 py-0.5 rounded bg-white/5", stat.color)}>{stat.trend}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </Card>
+
+                            <Card className="border-white/5 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-3xl p-8 relative overflow-hidden shadow-2xl shadow-blue-500/10">
+                                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
+                                <div className="relative z-10 space-y-4">
+                                    <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20">
+                                        <Shield className="h-5 w-5 text-white" />
+                                    </div>
+                                    <h3 className="font-bold text-white tracking-tight">Active lookalike engine</h3>
+                                    <p className="text-[11px] text-blue-100/70 leading-relaxed font-mono">
+                                        V-LAL ARCHITECTURE IS SYNCING YOUR 1ST-PARTY DATA WITH META GRAPH EVERY 24H.
+                                    </p>
+                                    <Button className="w-full bg-white text-blue-700 hover:bg-blue-50 font-black rounded-xl shadow-lg border-0 h-12 uppercase tracking-widest text-[10px]">
+                                        Refine Lookalike
+                                    </Button>
+                                </div>
+                            </Card>
+
+                            <div className="p-6 bg-slate-900/60 rounded-3xl border border-white/5 flex items-center justify-between group cursor-pointer hover:bg-slate-900/80 transition-all">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 rounded-lg bg-pink-500/10 text-pink-400">
+                                        <Layout className="h-4 w-4" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase text-white">Asset Vault</p>
+                                        <p className="text-[9px] text-slate-500">142 Generative Files</p>
+                                    </div>
+                                </div>
+                                <ArrowRight className="h-4 w-4 text-slate-700 group-hover:text-white transition-colors" />
+                            </div>
+                        </div>
+                    </div>
+                </TabsContent>
+
+                {/* Google Ads Section */}
+                <TabsContent value="google-ads">
+                    <div className="grid lg:grid-cols-4 gap-8">
+                        <Card className="lg:col-span-3 border-white/5 bg-slate-900/40 backdrop-blur-xl rounded-3xl overflow-hidden">
+                            <CardContent className="p-10 space-y-10">
+                                <SectionHeader
+                                    title="Google Search Architect"
+                                    subtitle="Intent-mapped keywords and high-CTR headline generation."
+                                    icon={Search}
+                                />
+                                <div className="grid md:grid-cols-3 gap-6">
+                                    {[
+                                        { t: "Search Intent", d: "Mapping brokers to high-value life insurance keywords.", v: "High Impact" },
+                                        { t: "Predictive CTR", d: "Current creative forecast: 4.2% above benchmark.", v: "+14.2%" },
+                                        { t: "Negative List", d: "AI is scrubbing 42 junk search terms every hour.", v: "Active Ops" }
+                                    ].map((opt, i) => (
+                                        <div key={i} className="p-6 bg-slate-950/40 rounded-3xl border border-white/5 space-y-3">
+                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-[#4285F4]">{opt.t}</h4>
+                                            <p className="text-[11px] text-slate-400 leading-relaxed font-mono">{opt.d}</p>
+                                            <p className="text-lg font-black text-white">{opt.v}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="p-8 bg-blue-600/5 rounded-3xl border border-blue-500/10 flex flex-col items-center justify-center space-y-4">
+                                    <TrendingUp className="h-10 w-10 text-[#4285F4] opacity-20" />
+                                    <p className="text-xs text-slate-500 uppercase font-black tracking-widest text-center">Google Ads ROI Forecaster Pending Data</p>
+                                    <Button className="bg-[#4285F4] hover:bg-blue-600 text-white rounded-xl px-10 h-12 font-bold uppercase text-[10px] tracking-widest">Connect MCC Account</Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        <div className="space-y-6">
+                            <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl rounded-3xl p-8">
+                                <h3 className="text-xs font-black uppercase text-white tracking-widest mb-6">Search Trends</h3>
+                                <div className="space-y-6">
+                                    {[
+                                        { l: "Broker Franchise", v: "+142%" },
+                                        { l: "AI Lead Gen", v: "+88%" },
+                                        { l: "Life Insurance Leads", v: "+14%" }
+                                    ].map((t, i) => (
+                                        <div key={i}>
+                                            <div className="flex justify-between items-center mb-1">
+                                                <span className="text-[11px] text-slate-400">{t.l}</span>
+                                                <span className="text-[11px] font-black text-emerald-400">{t.v}</span>
+                                            </div>
+                                            <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                                                <div className="h-full bg-blue-500" style={{ width: t.v.replace('%', '') + '%' }} />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </Card>
+                        </div>
+                    </div>
+                </TabsContent>
+
+                {/* Meta Platforms Content (X, WhatsApp, LinkedIn) */}
+                {
+                    ['instagram', 'whatsapp', 'twitter', 'linkedin'].map((v) => (
+                        <TabsContent key={v} value={v}>
+                            <div className="grid lg:grid-cols-4 gap-8">
+                                <Card className="lg:col-span-3 border-white/5 bg-slate-900/40 backdrop-blur-xl rounded-3xl overflow-hidden min-h-[500px] flex items-center justify-center group">
+                                    <div className="text-center space-y-6 max-w-md p-10">
+                                        <div className="mx-auto w-24 h-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center group-hover:scale-110 transition-transform duration-500">
+                                            {v === 'instagram' && <Instagram className="h-10 w-10 text-pink-500" />}
+                                            {v === 'whatsapp' && <Phone className="h-10 w-10 text-emerald-500" />}
+                                            {v === 'twitter' && <Twitter className="h-10 w-10 text-white" />}
+                                            {v === 'linkedin' && <Linkedin className="h-10 w-10 text-blue-600" />}
+                                        </div>
+                                        <div>
+                                            <h3 className="text-2xl font-black text-white capitalize mb-2">{v.replace('-', ' ')} Engine</h3>
+                                            <p className="text-sm text-slate-500 leading-relaxed font-mono">
+                                                {v === 'instagram' && "Synthesizing Reels and Carousel visual hooks based on trending audio signatures."}
+                                                {v === 'whatsapp' && "Architecting non-intrusive broadcast sequences with AI personal engagement loops."}
+                                                {v === 'twitter' && "Drafting high-viral thread components with hook-level metric predictions."}
+                                                {v === 'linkedin' && "Professional authority building via long-form AI ghostwriting and b2b signaling."}
+                                            </p>
+                                        </div>
+                                        <Button className="bg-white text-black hover:bg-slate-200 rounded-2xl px-12 h-14 font-black uppercase text-xs tracking-[0.2em]">
+                                            Initialize {v.toUpperCase()} ARCHITECT
+                                        </Button>
+                                    </div>
+                                </Card>
+                                <div className="space-y-8">
+                                    <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl rounded-3xl p-8">
+                                        <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-6">Channel Stats</h3>
+                                        <div className="space-y-6">
+                                            {[
+                                                { l: "Engagement Rate", v: "14.2%" },
+                                                { l: "Conversion Velocity", v: "High" },
+                                                { l: "Active Campaigns", v: "4" }
+                                            ].map((s, i) => (
+                                                <div key={i} className="flex justify-between items-center pb-4 border-b border-white/5 last:border-0">
+                                                    <span className="text-[11px] text-slate-400 font-bold">{s.l}</span>
+                                                    <span className="text-sm font-black text-white">{s.v}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </Card>
+                                </div>
+                            </div>
+                        </TabsContent>
+                    ))
+                }
             </Tabs>
         </div>
     );
 };
 
 export default MarketingHub;
+// Sync test

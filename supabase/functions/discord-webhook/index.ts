@@ -18,17 +18,17 @@ const PUBLIC_KEY = Deno.env.get("DISCORD_PUBLIC_KEY")!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // @ts-ignore
-serve(async (req) => {
+serve(async (req: Request) => {
     const signature = req.headers.get("X-Signature-Ed25519")!;
     const timestamp = req.headers.get("X-Signature-Timestamp")!;
     const rawBody = await req.text();
 
     const isVerified = nacl.sign.detached.verify(
         new TextEncoder().encode(timestamp + rawBody),
-        new Uint8Array(signature.match(/.{1,2}/g)!.map((byte) => { // @ts-ignore
+        new Uint8Array(signature.match(/.{1,2}/g)!.map((byte: string) => { // @ts-ignore
             return parseInt(byte, 16);
         })),
-        new Uint8Array(PUBLIC_KEY.match(/.{1,2}/g)!.map((byte) => { // @ts-ignore
+        new Uint8Array(PUBLIC_KEY.match(/.{1,2}/g)!.map((byte: string) => { // @ts-ignore
             return parseInt(byte, 16);
         }))
     );

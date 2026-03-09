@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Database, BarChart3, Menu, X, LogOut, FolderOpen, UserPlus, Calendar } from "lucide-react";
+import { LayoutDashboard, Database, BarChart3, Menu, X, LogOut, FolderOpen, UserPlus, Calendar, UserCircle } from "lucide-react";
 import logo from "@/assets/lead-velocity-logo.webp";
 import { useToast } from "@/hooks/use-toast";
 import NotificationBell from "@/components/notifications/NotificationBell";
@@ -25,6 +25,7 @@ const BrokerLayout = ({ children }: BrokerLayoutProps) => {
     { id: "calendar", label: "Calendar", icon: Calendar, path: "/broker/calendar" },
     { id: "documents", label: "Documents", icon: FolderOpen, path: "/broker/documents" },
     { id: "reports", label: "Reports", icon: BarChart3, path: "/broker/reports" },
+    { id: "profile", label: "Settings", icon: UserCircle, path: "/broker/profile" },
   ];
 
   const handleLogout = async () => {

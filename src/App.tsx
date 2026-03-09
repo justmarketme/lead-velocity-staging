@@ -29,6 +29,7 @@ import BrokerOnboarding from "./pages/BrokerOnboarding";
 import Pricing from "./pages/Pricing";
 import Promotions from "./pages/Promotions";
 import PremiumBrokerPortalPage from "./pages/PremiumBrokerPortalPage";
+import BrokerProfile from "./pages/broker/BrokerProfile";
 
 import { HelmetProvider } from "react-helmet-async";
 
@@ -65,6 +66,7 @@ const App = () => (
             <Route path="/broker/referrals" element={<BrokerReferrals />} />
             <Route path="/broker/calendar" element={<BrokerCalendar />} />
             <Route path="/broker/reports" element={<BrokerReports />} />
+            <Route path="/broker/profile" element={<BrokerProfile />} />
             <Route path="/invite/:token" element={<InviteSignup />} />
             <Route path="/broker-setup/:token" element={<BrokerSetup />} />
             <Route path="/broker/forgot-password" element={<BrokerForgotPassword />} />

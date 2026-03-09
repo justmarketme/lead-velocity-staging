@@ -36,6 +36,19 @@ test-db.js
 test-login.js
 run-sql.js
 reset-admin.js
+run-sql-esm.js
+test-*.js
+test-*.mjs
+register-discord.js
+
+# Output & logs
+*.txt
+*.json
+!deno.json
+!deno.jsonc
+!package.json
+!package-lock.json
+!tsconfig.json
 
 # Cursor / IDE config that may contain tokens (e.g. MCP, GitHub PAT)
 .cursor/
