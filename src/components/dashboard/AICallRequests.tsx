@@ -392,6 +392,9 @@ const AICallRequests = () => {
                   </div>
                 )}
 
+                {/* Sales Coach Analysis (Einstein AI) */}
+                {selectedRequest && <CoachingSection requestId={selectedRequest.id} />}
+
                 {/* Admin Notes */}
                 <div className="space-y-2">
                   <p className="text-sm font-medium">Admin Notes</p>
@@ -432,6 +435,70 @@ const AICallRequests = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+};
+
+const CoachingSection = ({ requestId }: { requestId: string }) => {
+  const [coaching, setCoaching] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchCoaching = async () => {
+      const { data } = await supabase
+        .from('call_coaching')
+        .select('*')
+        .eq('call_request_id', requestId)
+        .maybeSingle();
+      if (data) setCoaching(data);
+      setLoading(false);
+    };
+    fetchCoaching();
+  }, [requestId]);
+
+  if (loading) return <div className="animate-pulse text-xs text-muted-foreground italic">Einstein is analyzing...</div>;
+  if (!coaching) return null;
+
+  return (
+    <div className="space-y-4 border-t pt-4 border-pink-500/20">
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-bold flex items-center gap-2 text-pink-500">
+          <Bot className="h-4 w-4" />
+          Einstein Sales Coach Analysis
+        </h4>
+        <Badge variant="outline" className={`${coaching.total_score >= 80 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-pink-500/10 text-pink-500'}`}>
+          Score: {coaching.total_score}/100
+        </Badge>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        {Object.entries(coaching.scorecard || {}).map(([key, val]: [string, any]) => {
+          if (key === 'total') return null;
+          return (
+            <div key={key} className="bg-muted/30 p-2 rounded text-xs">
+              <span className="text-muted-foreground uppercase">{key.replace('_', ' ')}</span>: <span className="font-bold">{val}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-[10px] uppercase font-bold text-muted-foreground">Detailed Feedback</p>
+        <div className="space-y-1">
+          {coaching.coach_feedback?.detailed?.map((f: any, i: number) => (
+            <div key={i} className="text-xs bg-muted/50 p-2 rounded border-l-2 border-pink-500">
+              <span className="font-bold text-pink-500">[{f.timestamp}] {f.technique}</span>: {f.comment}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {coaching.fsca_compliance && (
+        <div className={`p-2 rounded text-xs flex items-center gap-2 ${coaching.fsca_compliance.is_compliant ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+          <AlertTriangle className="h-3 w-3" />
+          FSCA Scan: {coaching.fsca_compliance.status_text}
+        </div>
+      )}
     </div>
   );
 };

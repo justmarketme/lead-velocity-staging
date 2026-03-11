@@ -71,7 +71,7 @@ serve(async (req) => {
         // When they answer, we dial the CLIENT.
         const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say>Connecting you to the client.</Say>
+  <Say voice="Polly.Ayanda" language="en-ZA">Connecting you to the client.</Say>
   <Dial callerId="${fromNumber}">${to_number}</Dial>
 </Response>`;
 

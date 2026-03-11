@@ -170,7 +170,7 @@ serve(async (req) => {
     // Return TwiML response for the call
     const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Joanna" language="en-US">Thank you for calling Lead Velocity. Please hold while we connect you to a representative.</Say>
+  <Say voice="Polly.Ayanda" language="en-ZA">Thank you for calling Lead Velocity. Please hold while we connect you to a representative.</Say>
   <Play>https://api.twilio.com/cowbell.mp3</Play>
   <Record maxLength="300" transcribe="true" playBeep="true" />
 </Response>`;
@@ -185,11 +185,11 @@ serve(async (req) => {
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error in handle-inbound-call:', error);
-    
+
     // Return a basic TwiML response even on error
     const errorTwiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Joanna">We're sorry, but we are unable to take your call at this time. Please try again later.</Say>
+  <Say voice="Polly.Ayanda" language="en-ZA">We're sorry, but we are unable to take your call at this time. Please try again later.</Say>
 </Response>`;
 
     return new Response(errorTwiml, {

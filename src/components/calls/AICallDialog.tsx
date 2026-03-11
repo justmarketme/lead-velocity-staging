@@ -22,6 +22,7 @@ import { Phone, Bot, User, Loader2, Calendar, RefreshCw, MessageSquare, Bell, He
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useEffect } from "react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const COUNTRY_CODES = [
   { code: '+27', name: 'South Africa' },
@@ -53,6 +54,7 @@ const CALL_PURPOSES = [
   { value: "voice_note", label: "Leave Voice Note", icon: MessageSquare, description: "Leave a recorded message" },
   { value: "reminder", label: "Appointment Reminder", icon: Bell, description: "Remind about upcoming appointment" },
   { value: "general_inquiry", label: "General Inquiry", icon: HelpCircle, description: "General outreach or questions" },
+  { value: "cold_call", label: "Cold Call", icon: Sparkles, description: "Direct cold outreach to book an appointment" },
 ];
 
 export function AICallDialog({
@@ -94,12 +96,14 @@ export function AICallDialog({
   };
 
   const handleBridgeCall = async () => {
+    console.log('Initiating Bridge Call to:', editedPhone);
     setIsInitiating(true);
     try {
       const basePhone = callTarget === 'broker' && brokerPhone ? brokerPhone : editedPhone;
       const fullCountryCode = callTarget === 'broker' ? '' : countryCode;
       const fullNumber = `${fullCountryCode}${basePhone}`.replace(/\s/g, '');
 
+      console.log('Invoking initiate-browser-call function for number:', fullNumber);
       const { data, error } = await supabase.functions.invoke('initiate-browser-call', {
         body: {
           to_number: fullNumber,
@@ -109,9 +113,13 @@ export function AICallDialog({
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Bridge call error:', error);
+        throw error;
+      }
 
-      toast.success(data.message || 'Einstein is connecting your phone now...');
+      console.log('Bridge call response:', data);
+      toast.success(data.message || 'Ayanda is connecting your phone now...');
       onOpenChange(false);
     } catch (error: any) {
       console.error('Error initiating bridge call:', error);
@@ -127,6 +135,7 @@ export function AICallDialog({
       return;
     }
 
+    console.log('Initiating AI Call with purpose:', callPurpose);
     setIsInitiating(true);
     try {
       const basePhone = callTarget === 'broker' && brokerPhone ? brokerPhone : editedPhone;
@@ -134,6 +143,7 @@ export function AICallDialog({
       const fullNumber = `${fullCountryCode}${basePhone}`.replace(/\s/g, '');
       const name = callTarget === 'broker' && brokerName ? brokerName : recipientName;
 
+      console.log('Invoking initiate-ai-call function...');
       const { data, error } = await supabase.functions.invoke('initiate-ai-call', {
         body: {
           recipient_type: callTarget === 'broker' ? 'broker' : recipientType,
@@ -145,9 +155,14 @@ export function AICallDialog({
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase function error:', error);
+        toast.error(`Call failed: ${error.message || 'Unknown error'}`);
+        throw error;
+      }
 
-      toast.success('AI call initiated! You will be notified when the call is complete.');
+      console.log('AI Call initiated successfully:', data);
+      toast.success('Ayanda is initiating the call! You will be notified when the sequence is complete.');
       onOpenChange(false);
 
       // Reset form
@@ -155,9 +170,9 @@ export function AICallDialog({
       setCallTarget('client');
       setCallPurpose('');
       setAdditionalDetails('');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error initiating AI call:', error);
-      toast.error('Failed to initiate AI call. Please try again.');
+      toast.error(error.message || 'Failed to initiate AI call. Please try again.');
     } finally {
       setIsInitiating(false);
     }
@@ -165,197 +180,199 @@ export function AICallDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-lg max-h-[95vh] flex flex-col p-0 overflow-hidden">
+        <DialogHeader className="p-6 pb-2">
           <DialogTitle className="flex items-center gap-2">
             <Phone className="h-5 w-5" />
             Make a Call
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
-          {/* Call Type Selection */}
-          <div className="space-y-3">
-            <Label>How would you like to call?</Label>
-            <RadioGroup
-              value={callType}
-              onValueChange={(value: 'manual' | 'ai' | 'bridge') => setCallType(value)}
-              className="grid grid-cols-3 gap-2"
-            >
-              <div>
-                <RadioGroupItem value="manual" id="manual" className="peer sr-only" />
-                <Label
-                  htmlFor="manual"
-                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-transparent p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer text-center h-full"
-                >
-                  <User className="mb-2 h-5 w-5" />
-                  <span className="font-medium text-xs">Direct Link</span>
-                </Label>
-              </div>
-              <div>
-                <RadioGroupItem value="bridge" id="bridge" className="peer sr-only" />
-                <Label
-                  htmlFor="bridge"
-                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-transparent p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer text-center h-full"
-                >
-                  <Phone className="mb-2 h-5 w-5 text-blue-500" />
-                  <span className="font-medium text-xs">Einstein Connect</span>
-                </Label>
-              </div>
-              <div>
-                <RadioGroupItem value="ai" id="ai" className="peer sr-only" />
-                <Label
-                  htmlFor="ai"
-                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-transparent p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer text-center h-full"
-                >
-                  <Bot className="mb-2 h-5 w-5 text-pink-500" />
-                  <span className="font-medium text-xs">Einstein Flow</span>
-                </Label>
-              </div>
-            </RadioGroup>
-          </div>
-
-          {/* Info for Einstein Connect */}
-          {callType === 'bridge' && (
-            <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 p-3 text-[11px] space-y-2 animate-in fade-in slide-in-from-top-1 duration-300">
-              <p className="font-bold text-blue-500 flex items-center gap-1">
-                <Sparkles className="h-3 w-3" /> Einstein Connect
-              </p>
-              <p className="text-muted-foreground leading-relaxed">
-                Einstein will dial your profile phone number first. Once answered, he will instantly bridge the call to <strong>{recipientName}</strong>.
-              </p>
-              <p className="italic text-blue-400">
-                Wunderbar! It acts like a digital bridge through spacetime!
-              </p>
+        <ScrollArea className="flex-1 px-6">
+          <div className="space-y-6 py-4">
+            {/* Call Type Selection */}
+            <div className="space-y-3">
+              <Label>How would you like to call?</Label>
+              <RadioGroup
+                value={callType}
+                onValueChange={(value: 'manual' | 'ai' | 'bridge') => setCallType(value)}
+                className="grid grid-cols-3 gap-2"
+              >
+                <div>
+                  <RadioGroupItem value="manual" id="manual" className="peer sr-only" />
+                  <Label
+                    htmlFor="manual"
+                    className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-transparent p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer text-center h-full"
+                  >
+                    <User className="mb-2 h-5 w-5" />
+                    <span className="font-medium text-xs">Direct Link</span>
+                  </Label>
+                </div>
+                <div>
+                  <RadioGroupItem value="bridge" id="bridge" className="peer sr-only" />
+                  <Label
+                    htmlFor="bridge"
+                    className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-transparent p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer text-center h-full"
+                  >
+                    <Phone className="mb-2 h-5 w-5 text-blue-500" />
+                    <span className="font-medium text-xs">Ayanda Connect</span>
+                  </Label>
+                </div>
+                <div>
+                  <RadioGroupItem value="ai" id="ai" className="peer sr-only" />
+                  <Label
+                    htmlFor="ai"
+                    className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-transparent p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer text-center h-full"
+                  >
+                    <Bot className="mb-2 h-5 w-5 text-pink-500" />
+                    <span className="font-medium text-xs">Ayanda Flow</span>
+                  </Label>
+                </div>
+              </RadioGroup>
             </div>
-          )}
 
-          {/* Who to Call */}
-          <div className="space-y-3">
-            <Label>Who to call?</Label>
-            <RadioGroup
-              value={callTarget}
-              onValueChange={(value: 'client' | 'broker') => setCallTarget(value)}
-              className="grid grid-cols-2 gap-4"
-            >
-              <div>
-                <RadioGroupItem value="client" id="client" className="peer sr-only" />
-                <Label
-                  htmlFor="client"
-                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-transparent p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
-                >
-                  <User className="mb-2 h-5 w-5" />
-                  <span className="font-medium text-sm">Client</span>
-                  <span className="text-xs text-muted-foreground mt-1 truncate max-w-full">{recipientName}</span>
-                  <span className="text-xs text-muted-foreground">{countryCode} {editedPhone}</span>
-                </Label>
+            {/* Info for Einstein Connect */}
+            {callType === 'bridge' && (
+              <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 p-3 text-[11px] space-y-2 animate-in fade-in slide-in-from-top-1 duration-300">
+                <p className="font-bold text-blue-500 flex items-center gap-1">
+                  <Sparkles className="h-3 w-3" /> Ayanda Connect
+                </p>
+                <p className="text-muted-foreground leading-relaxed">
+                  Ayanda will dial your profile phone number first. Once answered, she will instantly bridge the call to <strong>{recipientName}</strong>.
+                </p>
+                <p className="italic text-blue-400">
+                  Connection established. Linking you through the network.
+                </p>
               </div>
-              <div>
-                <RadioGroupItem
-                  value="broker"
-                  id="broker"
-                  className="peer sr-only"
-                  disabled={!brokerPhone}
-                />
-                <Label
-                  htmlFor="broker"
-                  className={`flex flex-col items-center justify-between rounded-md border-2 border-muted bg-transparent p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer ${!brokerPhone ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  <User className="mb-2 h-5 w-5" />
-                  <span className="font-medium text-sm">Broker</span>
-                  {brokerName ? (
-                    <>
-                      <span className="text-xs text-muted-foreground mt-1 truncate max-w-full">{brokerName}</span>
-                      <span className="text-xs text-muted-foreground">{brokerPhone || 'No phone'}</span>
-                    </>
-                  ) : (
-                    <span className="text-xs text-muted-foreground mt-1">No broker assigned</span>
-                  )}
-                </Label>
-              </div>
-            </RadioGroup>
-          </div>
+            )}
 
-          {/* Phone Number Editing */}
-          {callTarget === 'client' && (
-            <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
-              <Label htmlFor="edit-phone">Verify Phone Number</Label>
-              <div className="flex gap-2">
-                <Select value={countryCode} onValueChange={setCountryCode}>
-                  <SelectTrigger className="w-[140px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {COUNTRY_CODES.map((c) => (
-                      <SelectItem key={c.code} value={c.code}>
-                        {c.name} ({c.code})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  id="edit-phone"
-                  value={editedPhone}
-                  onChange={(e) => setEditedPhone(e.target.value)}
-                  placeholder="72 000 0000"
-                  className="flex-1 bg-white dark:bg-zinc-950"
-                />
-              </div>
+            {/* Who to Call */}
+            <div className="space-y-3">
+              <Label>Who to call?</Label>
+              <RadioGroup
+                value={callTarget}
+                onValueChange={(value: 'client' | 'broker') => setCallTarget(value)}
+                className="grid grid-cols-2 gap-4"
+              >
+                <div>
+                  <RadioGroupItem value="client" id="client" className="peer sr-only" />
+                  <Label
+                    htmlFor="client"
+                    className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-transparent p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                  >
+                    <User className="mb-2 h-5 w-5" />
+                    <span className="font-medium text-sm">Client</span>
+                    <span className="text-xs text-muted-foreground mt-1 truncate max-w-full">{recipientName}</span>
+                    <span className="text-xs text-muted-foreground">{countryCode} {editedPhone}</span>
+                  </Label>
+                </div>
+                <div>
+                  <RadioGroupItem
+                    value="broker"
+                    id="broker"
+                    className="peer sr-only"
+                    disabled={!brokerPhone}
+                  />
+                  <Label
+                    htmlFor="broker"
+                    className={`flex flex-col items-center justify-between rounded-md border-2 border-muted bg-transparent p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer ${!brokerPhone ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    <User className="mb-2 h-5 w-5" />
+                    <span className="font-medium text-sm">Broker</span>
+                    {brokerName ? (
+                      <>
+                        <span className="text-xs text-muted-foreground mt-1 truncate max-w-full">{brokerName}</span>
+                        <span className="text-xs text-muted-foreground">{brokerPhone || 'No phone'}</span>
+                      </>
+                    ) : (
+                      <span className="text-xs text-muted-foreground mt-1">No broker assigned</span>
+                    )}
+                  </Label>
+                </div>
+              </RadioGroup>
             </div>
-          )}
 
-          {/* AI Call Options */}
-          {callType === 'ai' && (
-            <>
-              <div className="space-y-3">
-                <Label>Call Purpose *</Label>
-                <Select value={callPurpose} onValueChange={setCallPurpose}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select the purpose of this call..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CALL_PURPOSES.map((purpose) => {
-                      const Icon = purpose.icon;
-                      return (
-                        <SelectItem key={purpose.value} value={purpose.value}>
-                          <div className="flex items-center gap-2">
-                            <Icon className="h-4 w-4" />
-                            <div>
-                              <span className="font-medium">{purpose.label}</span>
-                              <p className="text-xs text-muted-foreground">{purpose.description}</p>
-                            </div>
-                          </div>
+            {/* Phone Number Editing */}
+            {callTarget === 'client' && (
+              <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
+                <Label htmlFor="edit-phone">Verify Phone Number</Label>
+                <div className="flex gap-2">
+                  <Select value={countryCode} onValueChange={setCountryCode}>
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {COUNTRY_CODES.map((c) => (
+                        <SelectItem key={c.code} value={c.code}>
+                          {c.name} ({c.code})
                         </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    id="edit-phone"
+                    value={editedPhone}
+                    onChange={(e) => setEditedPhone(e.target.value)}
+                    placeholder="72 000 0000"
+                    className="flex-1 bg-white dark:bg-zinc-950"
+                  />
+                </div>
               </div>
+            )}
 
-              <div className="space-y-3">
-                <Label htmlFor="details">Additional Details (Optional)</Label>
-                <Textarea
-                  id="details"
-                  placeholder="Any specific information the AI should mention during the call..."
-                  value={additionalDetails}
-                  onChange={(e) => setAdditionalDetails(e.target.value)}
-                  rows={3}
-                />
-              </div>
+            {/* AI Call Options */}
+            {callType === 'ai' && (
+              <>
+                <div className="space-y-3">
+                  <Label>Call Purpose *</Label>
+                  <Select value={callPurpose} onValueChange={setCallPurpose}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select the purpose of this call..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CALL_PURPOSES.map((purpose) => {
+                        const Icon = purpose.icon;
+                        return (
+                          <SelectItem key={purpose.value} value={purpose.value}>
+                            <div className="flex items-center gap-2">
+                              <Icon className="h-4 w-4" />
+                              <div>
+                                <span className="font-medium">{purpose.label}</span>
+                                <p className="text-xs text-muted-foreground">{purpose.description}</p>
+                              </div>
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="rounded-lg bg-muted/50 p-4 text-sm space-y-2">
-                <p className="font-medium">What happens next?</p>
-                <ul className="text-muted-foreground space-y-1 text-xs">
-                  <li>• The AI agent will call the selected contact</li>
-                  <li>• A recording and summary will be generated</li>
-                  <li>• If any changes are requested, you'll be notified for approval</li>
-                </ul>
-              </div>
-            </>
-          )}
-        </div>
+                <div className="space-y-3">
+                  <Label htmlFor="details">Additional Details (Optional)</Label>
+                  <Textarea
+                    id="details"
+                    placeholder="Any specific information the AI should mention during the call..."
+                    value={additionalDetails}
+                    onChange={(e) => setAdditionalDetails(e.target.value)}
+                    rows={3}
+                  />
+                </div>
 
-        <DialogFooter>
+                <div className="rounded-lg bg-muted/50 p-4 text-sm space-y-2">
+                  <p className="font-medium">What happens next?</p>
+                  <ul className="text-muted-foreground space-y-1 text-xs">
+                    <li>• The AI agent will call the selected contact</li>
+                    <li>• A recording and summary will be generated</li>
+                    <li>• If any changes are requested, you'll be notified for approval</li>
+                  </ul>
+                </div>
+              </>
+            )}
+          </div>
+        </ScrollArea>
+
+        <DialogFooter className="p-6 pt-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
@@ -371,7 +388,7 @@ export function AICallDialog({
               ) : (
                 <Sparkles className="h-4 w-4 mr-2 text-blue-400" />
               )}
-              {isInitiating ? 'Connecting...' : 'Einstein Connect'}
+              {isInitiating ? 'Connecting...' : 'Ayanda Connect'}
             </Button>
           ) : (
             <Button onClick={handleAICall} disabled={isInitiating || !callPurpose}>

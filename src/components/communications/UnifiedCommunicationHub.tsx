@@ -696,7 +696,7 @@ export function UnifiedCommunicationHub({
                     <Bot className="h-5 w-5 text-primary" />
                     <div className="text-left">
                       <p className="text-sm font-semibold">Initiate AI Voice Call</p>
-                      <p className="text-xs text-muted-foreground">Let Einstein handle the initial contact</p>
+                      <p className="text-xs text-muted-foreground">Let Ayanda handle the initial contact</p>
                     </div>
                   </Button>
                 </div>

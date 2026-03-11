@@ -63,6 +63,33 @@ serve(async (req) => {
                 .eq('id', communicationId);
         }
 
+        // --- Trigger Sales Coach (Einstein AI Layer) ---
+        // We run this in the background to avoid blocking the Twilio response
+        (async () => {
+            try {
+                const coachResponse = await fetch(`${supabaseUrl}/functions/v1/analyze-call-coach`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${supabaseServiceKey}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        recordingUrl,
+                        callRequestId,
+                        communicationId
+                    }),
+                });
+
+                if (!coachResponse.ok) {
+                    console.error('Failed to trigger sales coach:', await coachResponse.text());
+                } else {
+                    console.log('Sales coach triggered successfully');
+                }
+            } catch (coachError) {
+                console.error('Error triggering sales coach:', coachError);
+            }
+        })();
+
         // TwiML response to hang up after recording
         const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>`;
 

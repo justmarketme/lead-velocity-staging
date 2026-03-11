@@ -1,9 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { AYANDA_PERSONALITY } from "../_shared/ayanda_persona.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
 interface AICallRequest {
@@ -15,16 +17,13 @@ interface AICallRequest {
   call_purpose_details?: string;
 }
 
-const CALL_SCRIPTS: Record<string, string> = {
-  "appointment_scheduling": `Wunderbar! {name}, this is Einstein-77 from Lead Velocity on behalf of {broker}. I am calling to orchestrate ze spacetime of your calendar. Would you have a moment this week for a brief discovery interaction? Please let me know your preferred coordinates in time.`,
-  "appointment_rescheduling": `Greeting {name}, Einstein-77 here. We have a relativity issue with your upcoming appointment with {broker}. We must shift ze timeline. What alternative date and time would be most efficient for you?`,
-  "follow_up": `Wunderbar! Hello {name}, Einstein-77 checking in. I was calculating ze progress of your interaction with {broker} and wanted to see if any new variables have emerged. Is there anything Einstein can assist with?`,
-  "voice_note": `Greeting! This is ze Einstein-77 automated module for {broker}. We wanted to reach across ze digital divide to say we are here to assist. Please return our engagement at your earliest convenience.`,
-  "general_inquiry": `Hello {name}, Einstein-77 from Lead Velocity here. We are analyzing how to best assist you on behalf of {broker}. Do you have a few minutes for a brief intellectual exchange?`,
-  "reminder": `Greeting {name}. Einstein-77 reminding you that your interaction with {broker} is approaching in spacetime. Please confirm your attendance so we may keep ze universe in order.`,
-  "referral_generation": `Wunderbar! {name}, Einstein-77 here for {broker}. We have successfully optimized your policy. Now, which 5 individuals in your network deserve such high-status assistance? Stay on ze line to provide their coordinates.`,
-  "policy_review": `Hello {name}, Einstein-77 here for {broker}. It is time for a seasonal review of your coverage variables. Shall we schedule a 5-minute quantum audit call this week?`,
-};
+const CALL_OPENERS = [
+  "Hi {customer_name}, this is Ayanda — calling on behalf of {broker_name} from {firm_name}. Quick question — did I catch you at a bad time?",
+  "Hi {customer_name}, Ayanda here on behalf of {broker_name} from {firm_name}. We're running a short financial awareness push for folks like you — got 20 seconds?",
+  "Hi {customer_name}, Ayanda from {broker_name} at {firm_name}. Ever feel like your cover's just... not quite enough these days?",
+  "Hi {customer_name}, Ayanda calling on behalf of {broker_name} from {firm_name}. Just reaching out regarding the inquiry you made — how's your day going?",
+  "Hi {customer_name}, this is Ayanda. I help {broker_name} from {firm_name} with their scheduling. Following up on your interest in insurance options — do you have a quick minute?"
+];
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -56,6 +55,7 @@ serve(async (req) => {
     }
 
     const payload: AICallRequest = await req.json();
+    console.log('Received AI call request:', payload);
     const { recipient_type, recipient_id, recipient_name, recipient_phone, call_purpose, call_purpose_details } = payload;
 
     // Get Twilio credentials
@@ -94,49 +94,76 @@ serve(async (req) => {
       });
     }
 
-    let referralReason = "";
-    let referrerName = "";
+    // --- Dynamic Broker Pull ---
+    let brokerName = "Independent Financial Advisor";
+    let firmName = "the brokerage";
 
-    if (recipient_type === 'referral') {
-      const { data: referral } = await supabase
-        .from('referrals')
-        .select(`
-          will_status,
-          lead:leads!parent_lead_id(first_name, last_name)
-        `)
-        .eq('id', recipient_id)
-        .single();
+    try {
+      if (recipient_type === 'lead' || recipient_type === 'referral') {
+        const table = recipient_type === 'lead' ? 'leads' : 'referrals';
+        const { data: record } = await supabase
+          .from(table)
+          .select('broker_id')
+          .eq('id', recipient_id)
+          .single();
 
-      if (referral) {
-        if (referral.will_status?.includes('|')) {
-          const reasonKey = referral.will_status.split('|')[0];
-          referralReason = reasonKey === 'estate_planning' ? 'Estate Planning' : 'Financial Advice';
-        }
-        if (referral.lead) {
-          referrerName = `${referral.lead.first_name || ''} ${referral.lead.last_name || ''}`.trim();
+        if (record?.broker_id) {
+          // Check Onboarding Responses first (more detailed info)
+          const { data: onboarding } = await supabase
+            .from('broker_onboarding_responses')
+            .select('full_name, firm_name')
+            .eq('broker_id', record.broker_id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+          if (onboarding) {
+            brokerName = onboarding.full_name?.split(' ')[0] || "your advisor";
+            firmName = onboarding.firm_name || firmName;
+          } else {
+            // Fallback to brokers table
+            const { data: broker } = await supabase
+              .from('brokers')
+              .select('contact_person, firm_name')
+              .eq('id', record.broker_id)
+              .single();
+
+            if (broker) {
+              brokerName = broker.contact_person?.split(' ')[0] || "your advisor";
+              firmName = broker.firm_name || firmName;
+            }
+          }
         }
       }
+    } catch (e) {
+      console.error('Error fetching broker details:', e);
     }
 
-    // Get the appropriate script
-    let script = CALL_SCRIPTS[call_purpose] || CALL_SCRIPTS.general_inquiry;
+    // Select opener
+    let openerIndex = Math.floor(Math.random() * CALL_OPENERS.length);
 
-    // Customize script for referrals
-    if (recipient_type === 'referral' && (call_purpose === 'appointment_scheduling' || call_purpose === 'general_inquiry')) {
-      const serviceContext = referralReason ? ` regarding your ${referralReason}` : "";
-      const connectionContext = referrerName ? ` as you were referred by ${referrerName}` : "";
-
-      script = `Hello {name}, this is an automated call from Lead Velocity on behalf of {broker}. I'm reaching out${connectionContext}${serviceContext}. We'd like to schedule a brief discovery call to see how we can assist you. Would you have time this week?`;
+    // For cold calls, we prefer the direct insurance interest opener (index 4)
+    if (call_purpose === 'cold_call') {
+      openerIndex = 4;
     }
 
-    // Extract broker name from details or default to Lead Velocity
-    const brokerName = call_purpose_details?.includes('Broker:')
-      ? call_purpose_details.split('Broker:')[1].trim()
-      : 'Lead Velocity';
+    const openerTemplate = CALL_OPENERS[openerIndex];
+    const personalizedScript = openerTemplate
+      .replace(/{customer_name}/g, recipient_name || 'there')
+      .replace(/{broker_name}/g, brokerName)
+      .replace(/{firm_name}/g, firmName);
 
-    const personalizedScript = script
-      .replace(/\{name\}/g, recipient_name || 'there')
-      .replace(/\{broker\}/g, brokerName);
+    // Update the call request with the selected opener
+    await supabase
+      .from('ai_call_requests')
+      .update({ opener_index: openerIndex })
+      .eq('id', callRequest.id);
+
+    // Store full persona in metadata for reference by any downstream agents/handlers
+    const fullPersona = AYANDA_PERSONALITY
+      .replace(/{broker_name}/g, brokerName)
+      .replace(/{firm_name}/g, firmName)
+      .replace(/{customer_name}/g, recipient_name || 'there');
 
     // Create a record in the communications table for history
     const { data: communicationRecord, error: commError } = await supabase
@@ -153,7 +180,14 @@ serve(async (req) => {
         broker_id: recipient_type === 'broker' ? recipient_id : null,
         status: 'pending',
         content: `AI Call: ${call_purpose.replace(/_/g, ' ')}`,
-        metadata: { ai_call_request_id: callRequest.id, script: personalizedScript }
+        metadata: {
+          ai_call_request_id: callRequest.id,
+          script: personalizedScript,
+          persona: fullPersona,
+          broker_name: brokerName,
+          firm_name: firmName,
+          opener_index: openerIndex
+        }
       })
       .select()
       .single();
@@ -167,7 +201,7 @@ serve(async (req) => {
 <Response>
   <Say voice="Polly.Ayanda" language="en-ZA">${personalizedScript}</Say>
   <Pause length="1"/>
-  <Say voice="Polly.Ayanda" language="en-ZA">Einstein out. Please leave a message after ze beep.</Say>
+  <Say voice="Polly.Ayanda" language="en-ZA">Thank you. Please leave a message after the beep.</Say>
   <Record maxLength="120" action="${supabaseUrl}/functions/v1/handle-ai-call-recording?callRequestId=${callRequest.id}${communicationRecord ? `&communicationId=${communicationRecord.id}` : ''}" transcribe="true" transcribeCallback="${supabaseUrl}/functions/v1/handle-ai-call-transcription?callRequestId=${callRequest.id}${communicationRecord ? `&communicationId=${communicationRecord.id}` : ''}"/>
 </Response>`;
 

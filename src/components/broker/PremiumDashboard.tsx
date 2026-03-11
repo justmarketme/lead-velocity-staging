@@ -17,6 +17,7 @@ import {
     CreditCard,
     Activity
 } from "lucide-react";
+import SalesCoachInsight from "./SalesCoachInsight";
 import {
     BarChart,
     Bar,
@@ -210,6 +211,10 @@ const PremiumDashboard = ({ brokerData, stats, leadsData }: PremiumDashboardProp
                     </CardContent>
                 </Card>
             </div>
+
+
+            {/* Sales Coach Insight Layer (Silent Einstein Intelligence) */}
+            <SalesCoachInsight brokerId={brokerData?.id} />
 
             {/* Quick Access Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 pb-10">
