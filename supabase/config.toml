@@ -23,3 +23,9 @@ verify_jwt = false
 
 [functions.send-bulk-communication]
 verify_jwt = false
+
+[functions.marketing-ai]
+verify_jwt = true
+
+[functions.elevenlabs-campaign]
+verify_jwt = true
