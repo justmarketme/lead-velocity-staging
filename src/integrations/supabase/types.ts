@@ -1198,6 +1198,144 @@ export type Database = {
         }
         Relationships: []
       }
+      scraped_leads: {
+        Row: {
+          id: string
+          name: string
+          role: string | null
+          company: string | null
+          email: string | null
+          phone: string | null
+          vibe_score: number | null
+          industry: string | null
+          source: string | null
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          role?: string | null
+          company?: string | null
+          email?: string | null
+          phone?: string | null
+          vibe_score?: number | null
+          industry?: string | null
+          source?: string | null
+          status?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          role?: string | null
+          company?: string | null
+          email?: string | null
+          phone?: string | null
+          vibe_score?: number | null
+          industry?: string | null
+          source?: string | null
+          status?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      voice_campaigns: {
+        Row: {
+          id: string
+          name: string
+          status: string
+          lead_ids: Json
+          voice_config: Json
+          knowledge_base: string | null
+          objective: string
+          total_leads: number
+          contacted: number
+          appointments_set: number
+          created_at: string
+          launched_at: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          status?: string
+          lead_ids?: Json
+          voice_config?: Json
+          knowledge_base?: string | null
+          objective?: string
+          total_leads?: number
+          contacted?: number
+          appointments_set?: number
+          created_at?: string
+          launched_at?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          status?: string
+          lead_ids?: Json
+          voice_config?: Json
+          knowledge_base?: string | null
+          objective?: string
+          total_leads?: number
+          contacted?: number
+          appointments_set?: number
+          created_at?: string
+          launched_at?: string | null
+        }
+        Relationships: []
+      }
+      voice_campaign_calls: {
+        Row: {
+          id: string
+          campaign_id: string
+          lead_id: string
+          call_status: string
+          call_sid: string | null
+          elevenlabs_agent_id: string | null
+          duration: number | null
+          outcome: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          campaign_id: string
+          lead_id: string
+          call_status?: string
+          call_sid?: string | null
+          elevenlabs_agent_id?: string | null
+          duration?: number | null
+          outcome?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          campaign_id?: string
+          lead_id?: string
+          call_status?: string
+          call_sid?: string | null
+          elevenlabs_agent_id?: string | null
+          duration?: number | null
+          outcome?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_campaign_calls_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "voice_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voice_campaign_calls_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "scraped_leads"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
