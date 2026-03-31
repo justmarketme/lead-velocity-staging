@@ -194,9 +194,33 @@ const MarketingHub = () => {
 
             const data = await res.json();
             setDetectedLeads(data);
+
+            // Save scraped leads to the lead database
+            try {
+                const leadsToInsert = data.map((lead: any) => {
+                    const nameParts = (lead.name || "").trim().split(" ");
+                    const first_name = nameParts[0] || "";
+                    const last_name = nameParts.slice(1).join(" ") || "";
+                    const notes = [lead.role, lead.company, lead.address].filter(Boolean).join(" · ");
+                    return {
+                        first_name,
+                        last_name,
+                        email: lead.email || "",
+                        phone: lead.phone || "",
+                        source: lead.source || scraperProvider,
+                        notes,
+                        current_status: "New",
+                    };
+                });
+                const { error: dbError } = await supabase.from("leads").insert(leadsToInsert);
+                if (dbError) console.warn("Lead DB save warning:", dbError.message);
+            } catch (dbErr) {
+                console.warn("Could not save leads to database:", dbErr);
+            }
+
             toast({
                 title: "Prospecting Sequence Complete",
-                description: "Leads successfully synthesized through Local Neural Bridge.",
+                description: "Leads synthesized and saved to Lead Database.",
             });
         } catch (error: any) {
             console.error(error);
