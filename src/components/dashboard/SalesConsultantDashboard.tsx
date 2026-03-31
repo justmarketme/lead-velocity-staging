@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import {
-    PhoneCall, Users, Target, TrendingUp, CheckSquare, Square,
-    Play, Pause, Settings2, ChevronDown, ChevronUp, Mic,
-    Volume2, Brain, Zap, Clock, BarChart3, Plus, Eye,
-    RefreshCw, AlertCircle, CheckCircle2, Loader2, SlidersHorizontal
+    PhoneCall, Users, Target, TrendingUp,
+    Play, Mic,
+    Brain, Zap, Eye,
+    RefreshCw, Loader2, SlidersHorizontal,
+    Phone, Bot, Sparkles, UserCheck, PhoneOff
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -72,6 +73,13 @@ interface VoiceConfig {
     ai_engine: 'ultravox' | 'elevenlabs';
 }
 
+const CALL_PURPOSES = [
+    { value: "cold_call", label: "Cold Call" },
+    { value: "appointment_scheduling", label: "Book Appointment" },
+    { value: "follow_up", label: "Follow-Up" },
+    { value: "product_pitch", label: "Product Pitch" },
+];
+
 const OBJECTIVES = [
     { value: "cold_call", label: "Cold Call" },
     { value: "appointment_scheduling", label: "Appointment Scheduling" },
@@ -91,6 +99,17 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function SalesConsultantDashboard() {
     const { toast } = useToast();
+
+    // Call mode toggle
+    const [callMode, setCallMode] = useState<'ai' | 'human'>('ai');
+
+    // Human call modal state
+    const [callDialogLead, setCallDialogLead] = useState<ScrapedLead | null>(null);
+    const [callDialogOpen, setCallDialogOpen] = useState(false);
+    const [manualCallType, setManualCallType] = useState<'direct' | 'bridge' | 'ai'>('direct');
+    const [manualCallPurpose, setManualCallPurpose] = useState('cold_call');
+    const [manualCallPhone, setManualCallPhone] = useState('');
+    const [manualCallLoading, setManualCallLoading] = useState(false);
 
     // Lead batch state
     const [leads, setLeads] = useState<ScrapedLead[]>([]);
@@ -193,6 +212,56 @@ export default function SalesConsultantDashboard() {
     }, [fetchLeads, fetchCampaigns, fetchKPIs]);
 
     // ------------------------------------------------------------------
+    // Human call handlers
+    // ------------------------------------------------------------------
+    const openCallDialog = (lead: ScrapedLead) => {
+        setCallDialogLead(lead);
+        setManualCallPhone(lead.phone || '');
+        setManualCallType('direct');
+        setManualCallPurpose('cold_call');
+        setCallDialogOpen(true);
+    };
+
+    const executeCall = async () => {
+        if (!callDialogLead) return;
+        const phone = manualCallPhone.trim();
+
+        if (manualCallType === 'direct') {
+            if (!phone) {
+                toast({ title: "No phone number", description: "Add a phone number for this lead first.", variant: "destructive" });
+                return;
+            }
+            window.open(`tel:${phone}`, '_self');
+            setCallDialogOpen(false);
+            return;
+        }
+
+        // Ayanda Bridge or Ayanda AI — route through initiate-ai-call
+        setManualCallLoading(true);
+        try {
+            const { data: userData } = await supabase.auth.getUser();
+            const { error } = await supabase.functions.invoke('initiate-ai-call', {
+                body: {
+                    recipient_type: 'scraped_lead',
+                    recipient_id: callDialogLead.id,
+                    recipient_name: callDialogLead.name,
+                    recipient_phone: phone,
+                    call_type: manualCallType === 'bridge' ? 'bridge' : 'ai',
+                    call_purpose: manualCallPurpose,
+                    initiated_by: userData.user?.id,
+                },
+            });
+            if (error) throw error;
+            toast({ title: manualCallType === 'bridge' ? "Ayanda Bridge Initiated" : "Ayanda AI Call Started", description: `Calling ${callDialogLead.name}…` });
+            setCallDialogOpen(false);
+        } catch (err: any) {
+            toast({ title: "Call Failed", description: err.message, variant: "destructive" });
+        } finally {
+            setManualCallLoading(false);
+        }
+    };
+
+    // ------------------------------------------------------------------
     // Lead selection
     // ------------------------------------------------------------------
     const toggleLead = (id: string) => {
@@ -281,26 +350,40 @@ export default function SalesConsultantDashboard() {
 
             if (campErr) throw campErr;
 
-            // Invoke edge function to launch calls
-            const { data: launchData, error: launchErr } = await supabase.functions.invoke("elevenlabs-campaign", {
-                body: {
-                    action: "launch-campaign",
-                    payload: {
+            // Route through n8n webhook if configured (preferred — n8n handles rate limiting & batching)
+            // Otherwise fall back to direct edge function invocation
+            const n8nWebhook = import.meta.env.VITE_N8N_CAMPAIGN_WEBHOOK as string | undefined;
+
+            if (n8nWebhook) {
+                const res = await fetch(n8nWebhook, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
                         campaign_id: campaign.id,
                         leads: selectedLeads.map(l => ({ id: l.id, name: l.name, phone: l.phone, email: l.email })),
                         voice_config: voiceConfig,
                         knowledge_base: knowledgeBase,
                         objective,
+                    }),
+                });
+                if (!res.ok) throw new Error(`n8n webhook returned ${res.status}`);
+                toast({ title: "Campaign Queued", description: `${selectedLeads.length} leads handed to n8n for dialling.` });
+            } else {
+                const { data: launchData, error: launchErr } = await supabase.functions.invoke("elevenlabs-campaign", {
+                    body: {
+                        action: "launch-campaign",
+                        payload: {
+                            campaign_id: campaign.id,
+                            leads: selectedLeads.map(l => ({ id: l.id, name: l.name, phone: l.phone, email: l.email })),
+                            voice_config: voiceConfig,
+                            knowledge_base: knowledgeBase,
+                            objective,
+                        },
                     },
-                },
-            });
-
-            if (launchErr) throw launchErr;
-
-            toast({
-                title: "Campaign Launched",
-                description: `${launchData.initiated} of ${launchData.total} calls initiated.`,
-            });
+                });
+                if (launchErr) throw launchErr;
+                toast({ title: "Campaign Launched", description: `${launchData.initiated} of ${launchData.total} calls initiated.` });
+            }
 
             setConfigSheetOpen(false);
             setCampaignName("");
@@ -376,19 +459,38 @@ export default function SalesConsultantDashboard() {
             {/* Lead Batch Selector */}
             <Card className="bg-card border-border">
                 <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
                         <div>
-                            <CardTitle className="text-base">Scraped Leads Pool</CardTitle>
+                            <CardTitle className="text-base">Leads Pool</CardTitle>
                             <CardDescription>
-                                {leads.length} new leads available — select a batch to launch a campaign
+                                {leads.length} new leads — {callMode === 'ai' ? 'select a batch to launch an AI campaign' : 'call each lead yourself'}
                             </CardDescription>
                         </div>
-                        {selectedLeadIds.size > 0 && (
-                            <Button onClick={openConfigSheet} size="sm" className="bg-blue-600 hover:bg-blue-500 text-white">
-                                <Zap className="h-4 w-4 mr-2" />
-                                Configure Campaign ({selectedLeadIds.size} leads)
-                            </Button>
-                        )}
+                        <div className="flex items-center gap-2">
+                            {/* AI / Human mode toggle */}
+                            <div className="flex items-center rounded-md border border-border overflow-hidden">
+                                <button
+                                    onClick={() => setCallMode('ai')}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${callMode === 'ai' ? 'bg-blue-600 text-white' : 'text-muted-foreground hover:text-foreground'}`}
+                                >
+                                    <Bot className="h-3.5 w-3.5" />
+                                    Ayanda AI
+                                </button>
+                                <button
+                                    onClick={() => { setCallMode('human'); setSelectedLeadIds(new Set()); }}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${callMode === 'human' ? 'bg-emerald-600 text-white' : 'text-muted-foreground hover:text-foreground'}`}
+                                >
+                                    <UserCheck className="h-3.5 w-3.5" />
+                                    Manual
+                                </button>
+                            </div>
+                            {callMode === 'ai' && selectedLeadIds.size > 0 && (
+                                <Button onClick={openConfigSheet} size="sm" className="bg-blue-600 hover:bg-blue-500 text-white">
+                                    <Zap className="h-4 w-4 mr-2" />
+                                    Campaign ({selectedLeadIds.size})
+                                </Button>
+                            )}
+                        </div>
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -407,39 +509,69 @@ export default function SalesConsultantDashboard() {
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr className="bg-muted/50 border-b border-border">
-                                        <th className="w-10 px-3 py-2 text-left">
-                                            <Checkbox
-                                                checked={selectedLeadIds.size === leads.length && leads.length > 0}
-                                                onCheckedChange={toggleSelectAll}
-                                            />
-                                        </th>
+                                        {callMode === 'ai' ? (
+                                            <th className="w-10 px-3 py-2 text-left">
+                                                <Checkbox
+                                                    checked={selectedLeadIds.size === leads.length && leads.length > 0}
+                                                    onCheckedChange={toggleSelectAll}
+                                                />
+                                            </th>
+                                        ) : (
+                                            <th className="w-16 px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Call</th>
+                                        )}
                                         <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Name</th>
                                         <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider hidden md:table-cell">Company</th>
-                                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider hidden lg:table-cell">Email</th>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider hidden lg:table-cell">
+                                            {callMode === 'human' ? 'Phone' : 'Email'}
+                                        </th>
                                         <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider hidden lg:table-cell">Industry</th>
                                         <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Vibe</th>
-                                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Source</th>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider hidden md:table-cell">Source</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {leads.map((lead, idx) => (
                                         <tr
                                             key={lead.id}
-                                            className={`border-b border-border last:border-0 cursor-pointer transition-colors ${selectedLeadIds.has(lead.id) ? "bg-blue-500/10" : idx % 2 === 0 ? "bg-background" : "bg-muted/20"} hover:bg-muted/40`}
-                                            onClick={() => toggleLead(lead.id)}
+                                            className={`border-b border-border last:border-0 transition-colors ${
+                                                callMode === 'ai'
+                                                    ? `cursor-pointer ${selectedLeadIds.has(lead.id) ? "bg-blue-500/10" : idx % 2 === 0 ? "bg-background" : "bg-muted/20"} hover:bg-muted/40`
+                                                    : idx % 2 === 0 ? "bg-background" : "bg-muted/20"
+                                            }`}
+                                            onClick={() => callMode === 'ai' && toggleLead(lead.id)}
                                         >
-                                            <td className="px-3 py-2.5" onClick={e => e.stopPropagation()}>
-                                                <Checkbox
-                                                    checked={selectedLeadIds.has(lead.id)}
-                                                    onCheckedChange={() => toggleLead(lead.id)}
-                                                />
-                                            </td>
+                                            {callMode === 'ai' ? (
+                                                <td className="px-3 py-2.5" onClick={e => e.stopPropagation()}>
+                                                    <Checkbox
+                                                        checked={selectedLeadIds.has(lead.id)}
+                                                        onCheckedChange={() => toggleLead(lead.id)}
+                                                    />
+                                                </td>
+                                            ) : (
+                                                <td className="px-3 py-2.5">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="h-7 w-7 p-0 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                                                        onClick={() => openCallDialog(lead)}
+                                                        title="Call this lead"
+                                                    >
+                                                        <Phone className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                </td>
+                                            )}
                                             <td className="px-3 py-2.5">
                                                 <div className="font-medium text-foreground">{lead.name}</div>
                                                 {lead.role && <div className="text-xs text-muted-foreground">{lead.role}</div>}
                                             </td>
                                             <td className="px-3 py-2.5 hidden md:table-cell text-muted-foreground">{lead.company || "—"}</td>
-                                            <td className="px-3 py-2.5 hidden lg:table-cell text-muted-foreground text-xs">{lead.email || "—"}</td>
+                                            <td className="px-3 py-2.5 hidden lg:table-cell text-muted-foreground text-xs">
+                                                {callMode === 'human' ? (
+                                                    lead.phone
+                                                        ? <span className="text-emerald-400 font-mono">{lead.phone}</span>
+                                                        : <span className="text-zinc-500 italic">no phone</span>
+                                                ) : (lead.email || "—")}
+                                            </td>
                                             <td className="px-3 py-2.5 hidden lg:table-cell text-muted-foreground text-xs">{lead.industry || "—"}</td>
                                             <td className="px-3 py-2.5">
                                                 {lead.vibe_score != null ? (
@@ -448,7 +580,7 @@ export default function SalesConsultantDashboard() {
                                                     </span>
                                                 ) : "—"}
                                             </td>
-                                            <td className="px-3 py-2.5">
+                                            <td className="px-3 py-2.5 hidden md:table-cell">
                                                 <Badge variant="outline" className="text-xs capitalize">{lead.source || "unknown"}</Badge>
                                             </td>
                                         </tr>
@@ -521,6 +653,115 @@ export default function SalesConsultantDashboard() {
                     )}
                 </CardContent>
             </Card>
+
+            {/* Human Call Dialog */}
+            <Dialog open={callDialogOpen} onOpenChange={setCallDialogOpen}>
+                <DialogContent className="max-w-sm">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Phone className="h-4 w-4 text-emerald-400" />
+                            Call {callDialogLead?.name}
+                        </DialogTitle>
+                        <DialogDescription>
+                            {callDialogLead?.role}{callDialogLead?.role && callDialogLead?.company ? ' · ' : ''}{callDialogLead?.company}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-2">
+                        {/* Phone number */}
+                        <div className="space-y-1.5">
+                            <Label className="text-xs">Phone Number</Label>
+                            <Input
+                                placeholder="+27 XX XXX XXXX"
+                                value={manualCallPhone}
+                                onChange={e => setManualCallPhone(e.target.value)}
+                                className="font-mono"
+                            />
+                        </div>
+
+                        {/* Call type selector */}
+                        <div className="space-y-1.5">
+                            <Label className="text-xs">How do you want to call?</Label>
+                            <div className="grid grid-cols-1 gap-2">
+                                {[
+                                    {
+                                        type: 'direct' as const,
+                                        icon: Phone,
+                                        label: 'Direct Dial',
+                                        description: 'Opens your phone app to call manually',
+                                        color: 'text-emerald-400',
+                                    },
+                                    {
+                                        type: 'bridge' as const,
+                                        icon: UserCheck,
+                                        label: 'Ayanda Bridge',
+                                        description: 'Calls your phone first, then bridges to lead',
+                                        color: 'text-blue-400',
+                                    },
+                                    {
+                                        type: 'ai' as const,
+                                        icon: Sparkles,
+                                        label: 'Ayanda AI',
+                                        description: 'AI agent makes the call on your behalf',
+                                        color: 'text-violet-400',
+                                    },
+                                ].map(({ type, icon: Icon, label, description, color }) => (
+                                    <button
+                                        key={type}
+                                        type="button"
+                                        onClick={() => setManualCallType(type)}
+                                        className={`text-left rounded-md border px-3 py-2 transition-colors ${manualCallType === type ? 'border-blue-500/50 bg-blue-500/10' : 'border-border bg-muted/20 hover:bg-muted/40'}`}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <Icon className={`h-3.5 w-3.5 ${color}`} />
+                                            <span className="text-sm font-medium">{label}</span>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground mt-0.5 pl-5">{description}</p>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Purpose (only for Ayanda modes) */}
+                        {manualCallType !== 'direct' && (
+                            <div className="space-y-1.5">
+                                <Label className="text-xs">Call Purpose</Label>
+                                <Select value={manualCallPurpose} onValueChange={setManualCallPurpose}>
+                                    <SelectTrigger className="h-8 text-sm">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {CALL_PURPOSES.map(p => (
+                                            <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setCallDialogOpen(false)} disabled={manualCallLoading}>
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={executeCall}
+                            disabled={manualCallLoading}
+                            className={manualCallType === 'direct' ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-blue-600 hover:bg-blue-500 text-white'}
+                        >
+                            {manualCallLoading ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : manualCallType === 'direct' ? (
+                                <><Phone className="h-4 w-4 mr-2" />Dial</>
+                            ) : manualCallType === 'bridge' ? (
+                                <><UserCheck className="h-4 w-4 mr-2" />Bridge</>
+                            ) : (
+                                <><Sparkles className="h-4 w-4 mr-2" />Launch AI</>
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Campaign Configurator Sheet */}
             <Sheet open={configSheetOpen} onOpenChange={setConfigSheetOpen}>
