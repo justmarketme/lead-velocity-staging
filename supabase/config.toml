@@ -29,3 +29,6 @@ verify_jwt = true
 
 [functions.elevenlabs-campaign]
 verify_jwt = true
+
+[functions.send-quote]
+verify_jwt = true

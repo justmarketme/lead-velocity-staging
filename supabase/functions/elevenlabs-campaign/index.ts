@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { AYANDA_PERSONALITY_CONDENSED } from "../_shared/ayanda_persona.ts";
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -15,6 +16,101 @@ function isSAVoice(voice: any): boolean {
     return SA_VOICE_KEYWORDS.some(k => labels.includes(k) || name.includes(k));
 }
 
+// ----------------------------------------------------------------
+// Ultravox: creates a real-time voice AI call using Ultravox LLM
+// + ElevenLabs TTS, connected to Twilio via WebSocket stream.
+// Achieves ~300-500ms latency vs ~1500ms with naive approaches.
+// ----------------------------------------------------------------
+async function createUltravoxCall(
+    apiKey: string,
+    systemPrompt: string,
+    voiceId: string,
+    firstMessage: string,
+    leadName: string,
+): Promise<{ callId: string; joinUrl: string } | null> {
+    try {
+        const res = await fetch("https://api.ultravox.ai/api/calls", {
+            method: "POST",
+            headers: {
+                "X-API-Key": apiKey,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                // Brain: Ultravox base model (fastest — ~80ms STT+inference)
+                model: "fixie-ai/ultravox",
+                systemPrompt,
+                // Voice: ElevenLabs TTS via Ultravox's streaming integration
+                voice: `elevenlabs:${voiceId}`,
+                // Agent speaks first — eliminates dead air on pickup
+                firstSpeaker: "FIRST_SPEAKER_AGENT",
+                initialMessages: [
+                    { role: "MESSAGE_ROLE_AGENT", text: firstMessage },
+                ],
+                // Twilio WebSocket medium — returns joinUrl for <Stream>
+                medium: { twilio: {} },
+                // Natural SA call-enders
+                endCallPhrases: [
+                    "goodbye", "bye bye", "totsiens", "sala kahle",
+                    "not interested bye", "please remove me",
+                ],
+                // Keep calls focused and Twilio costs bounded
+                maxDuration: "240s",
+                recordingEnabled: true,
+                // Inactivity handling — don't let silences kill the call
+                inactivityMessages: [
+                    {
+                        duration: "8s",
+                        message: "Hey, are you still there?",
+                        endBehavior: "END_BEHAVIOR_IGNORE",
+                    },
+                    {
+                        duration: "15s",
+                        message: "I'll leave it there for now — I hope to connect with you again soon. Take care!",
+                        endBehavior: "END_BEHAVIOR_HANG_UP",
+                    },
+                ],
+            }),
+        });
+
+        if (!res.ok) {
+            console.error("Ultravox call creation failed:", res.status, await res.text());
+            return null;
+        }
+
+        const data = await res.json();
+        return { callId: data.callId, joinUrl: data.joinUrl };
+    } catch (err) {
+        console.error("Ultravox error:", err);
+        return null;
+    }
+}
+
+// Build the Ayanda system prompt for a specific campaign call
+function buildSystemPrompt(knowledgeBase: string, objective: string): string {
+    const objectiveContext: Record<string, string> = {
+        cold_call: "This is a cold call. Use the Hook → Story → NEPQ sequence to qualify and book.",
+        appointment_scheduling: "Focus on booking a 15-minute consultation. Use assumptive close.",
+        follow_up: "This is a follow-up call. Reference prior contact warmly, then move toward booking.",
+        product_pitch: "Briefly present the key benefit from the knowledge base, then pivot to booking.",
+    };
+
+    return AYANDA_PERSONALITY_CONDENSED
+        .replace("{{KNOWLEDGE_BASE}}", knowledgeBase || "South African financial protection products — life cover, income protection, disability cover.")
+        + `\n\nCall objective: ${objectiveContext[objective] || objectiveContext.cold_call}`;
+}
+
+// Build a natural first message for Ayanda based on objective
+function buildFirstMessage(objective: string, leadName: string): string {
+    const firstName = leadName?.split(" ")[0] || "there";
+    if (objective === "follow_up") {
+        return `Hey ${firstName}, it's Ayanda — is this a terrible time for literally two minutes?`;
+    }
+    if (objective === "appointment_scheduling") {
+        return `Hey ${firstName}, Ayanda here — did I catch you at a bad time?`;
+    }
+    return `Hey ${firstName}, it's Ayanda — is this a terrible time for literally two minutes?`;
+}
+
 serve(async (req) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders });
@@ -24,9 +120,10 @@ serve(async (req) => {
         const { action, payload } = await req.json();
 
         const ELEVENLABS_API_KEY = Deno.env.get("ELEVENLABS_API_KEY");
+        const ULTRAVOX_API_KEY = Deno.env.get("ULTRAVOX_API_KEY");
         const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID");
         const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN");
-        // Prefer the dedicated SA number for outbound calls; fall back to default
+        // Prefer the paid SA number for all outbound campaigns
         const TWILIO_PHONE_NUMBER = Deno.env.get("TWILIO_SA_PHONE_NUMBER") || Deno.env.get("TWILIO_PHONE_NUMBER");
         const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
         const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -35,7 +132,7 @@ serve(async (req) => {
 
         // ----------------------------------------------------------------
         // ACTION: get-voices
-        // Returns ElevenLabs voice list, flagging SA-relevant voices
+        // Returns ElevenLabs voice list, SA voices sorted to top
         // ----------------------------------------------------------------
         if (action === "get-voices") {
             if (!ELEVENLABS_API_KEY) {
@@ -67,87 +164,74 @@ serve(async (req) => {
                 is_sa_voice: isSAVoice(v),
             }));
 
-            // Sort SA voices to top
             formatted.sort((a: any, b: any) => (b.is_sa_voice ? 1 : 0) - (a.is_sa_voice ? 1 : 0));
 
-            return new Response(JSON.stringify({ voices: formatted }), {
+            return new Response(JSON.stringify({
+                voices: formatted,
+                ultravox_available: !!ULTRAVOX_API_KEY,
+            }), {
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             });
         }
 
         // ----------------------------------------------------------------
         // ACTION: launch-campaign
-        // Creates an ElevenLabs conversational AI agent and dials each lead
-        // via Twilio, bridging to the ElevenLabs WebSocket conversation
+        // Priority order:
+        //   1. Ultravox + ElevenLabs (lowest latency, ~400ms, best quality)
+        //   2. ElevenLabs Conversational AI (medium latency, ~600ms)
+        //   3. Twilio Polly.Ayanda TTS (fallback, basic)
         // ----------------------------------------------------------------
         if (action === "launch-campaign") {
             const { campaign_id, leads, voice_config, knowledge_base, objective } = payload;
 
-            if (!ELEVENLABS_API_KEY || !TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_PHONE_NUMBER) {
+            if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_PHONE_NUMBER) {
                 return new Response(JSON.stringify({
-                    error: "Missing required environment variables: ELEVENLABS_API_KEY, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER"
+                    error: "Missing Twilio credentials: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_SA_PHONE_NUMBER",
                 }), {
                     status: 400,
                     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
                 });
             }
 
-            // Map objective to a call script prompt
-            const objectivePrompts: Record<string, string> = {
-                cold_call: "You are making a cold call. Introduce yourself, build rapport, and find out if the prospect has any interest in financial protection products.",
-                appointment_scheduling: "You are calling to schedule a 15-minute consultation appointment with a financial advisor.",
-                follow_up: "You are following up on a previous interaction. Reconnect warmly and move the conversation toward a next step.",
-                product_pitch: "You are presenting a tailored financial product solution. Focus on the key benefit most relevant to the prospect.",
-            };
+            const systemPrompt = buildSystemPrompt(knowledge_base, objective);
+            const useUltravox = !!ULTRAVOX_API_KEY && voice_config?.ai_engine !== "elevenlabs";
 
-            const systemPrompt = `${objectivePrompts[objective] || objectivePrompts.cold_call}
-
-Knowledge Base:
-${knowledge_base || "You represent Lead Velocity, a South African financial services company. Be professional, warm, and FSCA compliant. Never give specific financial advice or guarantee returns."}
-
-Guidelines:
-- Speak naturally in a South African context
-- Be conversational and empathetic
-- Respect FSCA compliance — do not guarantee returns or give specific financial advice
-- If the lead is interested, offer to schedule a follow-up appointment
-- Keep calls concise — under 3 minutes`;
-
-            // Create ElevenLabs Conversational AI agent
-            let agentId: string | null = null;
-            try {
-                const agentRes = await fetch("https://api.elevenlabs.io/v1/convai/agents/create", {
-                    method: "POST",
-                    headers: {
-                        "xi-api-key": ELEVENLABS_API_KEY,
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                        name: `Campaign ${campaign_id} Agent`,
-                        conversation_config: {
-                            agent: {
-                                prompt: { prompt: systemPrompt },
-                                first_message: "Hello, this is Ayanda calling from Lead Velocity. Is this a good time to speak for just a moment?",
-                                language: "en",
-                            },
-                            tts: {
-                                voice_id: voice_config?.voice_id || "pNInz6obpgDQGcFmaJgB",
-                                stability: voice_config?.stability ?? 0.5,
-                                similarity_boost: voice_config?.similarity_boost ?? 0.75,
-                                style: voice_config?.style ?? 0.3,
-                                use_speaker_boost: voice_config?.use_speaker_boost ?? true,
-                            },
+            // Attempt to pre-create a single ElevenLabs agent as fallback
+            // (only if not using Ultravox, to avoid unnecessary API calls)
+            let elevenLabsAgentId: string | null = null;
+            if (!useUltravox && ELEVENLABS_API_KEY) {
+                try {
+                    const agentRes = await fetch("https://api.elevenlabs.io/v1/convai/agents/create", {
+                        method: "POST",
+                        headers: {
+                            "xi-api-key": ELEVENLABS_API_KEY,
+                            "Content-Type": "application/json",
                         },
-                    }),
-                });
-
-                if (agentRes.ok) {
-                    const agentData = await agentRes.json();
-                    agentId = agentData.agent_id;
-                } else {
-                    console.error("ElevenLabs agent creation failed:", await agentRes.text());
+                        body: JSON.stringify({
+                            name: `Campaign ${campaign_id} Agent`,
+                            conversation_config: {
+                                agent: {
+                                    prompt: { prompt: systemPrompt },
+                                    first_message: "Hey, it's Ayanda — is this a terrible time for literally two minutes?",
+                                    language: "en",
+                                },
+                                tts: {
+                                    voice_id: voice_config?.voice_id || "pNInz6obpgDQGcFmaJgB",
+                                    stability: voice_config?.stability ?? 0.6,
+                                    similarity_boost: voice_config?.similarity_boost ?? 0.8,
+                                    style: voice_config?.style ?? 0.2,
+                                    use_speaker_boost: voice_config?.use_speaker_boost ?? true,
+                                },
+                            },
+                        }),
+                    });
+                    if (agentRes.ok) {
+                        const agentData = await agentRes.json();
+                        elevenLabsAgentId = agentData.agent_id;
+                    }
+                } catch (err) {
+                    console.error("ElevenLabs agent creation error:", err);
                 }
-            } catch (err) {
-                console.error("ElevenLabs agent creation error:", err);
             }
 
             // Update campaign status to running
@@ -161,23 +245,23 @@ Guidelines:
             for (const lead of leads) {
                 const phone = lead.phone;
 
-                // Insert call record with queued status
+                const firstMessage = buildFirstMessage(objective, lead.name);
+
+                // Insert call record
                 const { data: callRecord } = await supabase
                     .from("voice_campaign_calls")
                     .insert({
                         campaign_id,
                         lead_id: lead.id,
                         call_status: "queued",
-                        elevenlabs_agent_id: agentId,
+                        elevenlabs_agent_id: elevenLabsAgentId,
                     })
                     .select()
                     .single();
 
-                // If no phone number, mark as failed and skip
                 if (!phone) {
                     if (callRecord) {
-                        await supabase
-                            .from("voice_campaign_calls")
+                        await supabase.from("voice_campaign_calls")
                             .update({ call_status: "failed", outcome: "no_phone" })
                             .eq("id", callRecord.id);
                     }
@@ -185,16 +269,43 @@ Guidelines:
                     continue;
                 }
 
-                // Build TwiML that bridges the Twilio call to ElevenLabs WebSocket
-                const twimlUrl = agentId
-                    ? `${SUPABASE_URL}/functions/v1/elevenlabs-twiml?agent_id=${agentId}&call_record_id=${callRecord?.id || ""}`
-                    : null;
-
                 try {
-                    // If we have an ElevenLabs agent, use the TwiML bridge; otherwise use Polly fallback
-                    const twiml = twimlUrl
-                        ? `<Response><Connect><Stream url="wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${agentId}"/></Connect></Response>`
-                        : `<Response><Say voice="Polly.Ayanda" language="en-ZA">Hello, this is Ayanda calling from Lead Velocity. Please hold while we connect you with a consultant.</Say></Response>`;
+                    let twiml: string;
+                    let agentRef = elevenLabsAgentId;
+
+                    if (useUltravox) {
+                        // Path 1: Ultravox + ElevenLabs (preferred — lowest latency)
+                        const ultravoxResult = await createUltravoxCall(
+                            ULTRAVOX_API_KEY!,
+                            systemPrompt,
+                            voice_config?.voice_id || "pNInz6obpgDQGcFmaJgB",
+                            firstMessage,
+                            lead.name,
+                        );
+
+                        if (ultravoxResult?.joinUrl) {
+                            twiml = `<Response><Connect><Stream url="${ultravoxResult.joinUrl}"/></Connect></Response>`;
+                            agentRef = ultravoxResult.callId;
+                            // Update the call record with the Ultravox call ID
+                            if (callRecord) {
+                                await supabase.from("voice_campaign_calls")
+                                    .update({ elevenlabs_agent_id: ultravoxResult.callId })
+                                    .eq("id", callRecord.id);
+                            }
+                        } else {
+                            // Ultravox failed — fall through to ElevenLabs or Polly
+                            console.warn(`Ultravox failed for lead ${lead.id}, falling back`);
+                            twiml = elevenLabsAgentId
+                                ? `<Response><Connect><Stream url="wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${elevenLabsAgentId}"/></Connect></Response>`
+                                : `<Response><Say voice="Polly.Ayanda" language="en-ZA">${firstMessage}</Say></Response>`;
+                        }
+                    } else if (elevenLabsAgentId) {
+                        // Path 2: ElevenLabs Conversational AI
+                        twiml = `<Response><Connect><Stream url="wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${elevenLabsAgentId}"/></Connect></Response>`;
+                    } else {
+                        // Path 3: Polly fallback
+                        twiml = `<Response><Say voice="Polly.Ayanda" language="en-ZA">${firstMessage}</Say><Pause length="1"/><Say voice="Polly.Ayanda" language="en-ZA">Please call us back to arrange a quick chat. Have a great day!</Say></Response>`;
+                    }
 
                     const twilioCredentials = btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`);
                     const twilioRes = await fetch(
@@ -218,22 +329,24 @@ Guidelines:
                     if (twilioRes.ok) {
                         const twilioData = await twilioRes.json();
                         if (callRecord) {
-                            await supabase
-                                .from("voice_campaign_calls")
+                            await supabase.from("voice_campaign_calls")
                                 .update({ call_status: "initiated", call_sid: twilioData.sid })
                                 .eq("id", callRecord.id);
                         }
-                        await supabase
-                            .from("scraped_leads")
+                        await supabase.from("scraped_leads")
                             .update({ status: "contacted" })
                             .eq("id", lead.id);
-                        callResults.push({ lead_id: lead.id, status: "initiated", call_sid: twilioData.sid });
+                        callResults.push({
+                            lead_id: lead.id,
+                            status: "initiated",
+                            call_sid: twilioData.sid,
+                            engine: useUltravox ? "ultravox" : "elevenlabs",
+                        });
                     } else {
                         const errText = await twilioRes.text();
                         console.error("Twilio call failed:", errText);
                         if (callRecord) {
-                            await supabase
-                                .from("voice_campaign_calls")
+                            await supabase.from("voice_campaign_calls")
                                 .update({ call_status: "failed" })
                                 .eq("id", callRecord.id);
                         }
@@ -244,21 +357,19 @@ Guidelines:
                     callResults.push({ lead_id: lead.id, status: "error", reason: String(callErr) });
                 }
 
-                // Small delay between calls to avoid overwhelming Twilio
+                // 500ms between dials — avoids Twilio rate limits
                 await new Promise(resolve => setTimeout(resolve, 500));
             }
 
-            // Update campaign contacted count
             const contactedCount = callResults.filter(r => r.status === "initiated").length;
-            await supabase
-                .from("voice_campaigns")
+            await supabase.from("voice_campaigns")
                 .update({ contacted: contactedCount })
                 .eq("id", campaign_id);
 
             return new Response(JSON.stringify({
                 success: true,
                 campaign_id,
-                agent_id: agentId,
+                engine: useUltravox ? "ultravox+elevenlabs" : elevenLabsAgentId ? "elevenlabs" : "polly",
                 results: callResults,
                 initiated: contactedCount,
                 total: leads.length,
@@ -273,7 +384,7 @@ Guidelines:
         });
 
     } catch (error) {
-        console.error("ElevenLabs Campaign Error:", error);
+        console.error("Campaign Error:", error);
         return new Response(JSON.stringify({ error: error.message }), {
             status: 500,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },

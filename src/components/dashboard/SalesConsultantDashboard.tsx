@@ -69,6 +69,7 @@ interface VoiceConfig {
     similarity_boost: number;
     style: number;
     use_speaker_boost: boolean;
+    ai_engine: 'ultravox' | 'elevenlabs';
 }
 
 const OBJECTIVES = [
@@ -115,10 +116,11 @@ export default function SalesConsultantDashboard() {
     const [knowledgeBase, setKnowledgeBase] = useState("");
     const [voiceConfig, setVoiceConfig] = useState<VoiceConfig>({
         voice_id: "",
-        stability: 0.5,
-        similarity_boost: 0.75,
-        style: 0.3,
+        stability: 0.6,
+        similarity_boost: 0.8,
+        style: 0.2,
         use_speaker_boost: true,
+        ai_engine: 'ultravox',
     });
     const [voices, setVoices] = useState<ElevenLabsVoice[]>([]);
     const [voicesLoading, setVoicesLoading] = useState(false);
@@ -551,6 +553,45 @@ export default function SalesConsultantDashboard() {
                                 <Mic className="h-4 w-4 text-blue-400" />
                                 <span className="text-sm font-medium">Twilio + ElevenLabs</span>
                                 <Badge variant="outline" className="ml-auto text-xs text-emerald-400 border-emerald-500/30">Active</Badge>
+                            </div>
+                        </div>
+
+                        {/* AI Engine */}
+                        <div className="space-y-2">
+                            <Label>AI Engine</Label>
+                            <div className="grid grid-cols-1 gap-2">
+                                {[
+                                    {
+                                        value: 'ultravox' as const,
+                                        label: 'Ultravox + ElevenLabs',
+                                        description: 'Ultravox LLM brain + ElevenLabs voice — ~400ms latency, most natural',
+                                        recommended: true,
+                                    },
+                                    {
+                                        value: 'elevenlabs' as const,
+                                        label: 'ElevenLabs Only',
+                                        description: 'ElevenLabs Conversational AI agent — ~600ms latency',
+                                        recommended: false,
+                                    },
+                                ].map(engine => (
+                                    <button
+                                        key={engine.value}
+                                        type="button"
+                                        onClick={() => setVoiceConfig(prev => ({ ...prev, ai_engine: engine.value }))}
+                                        className={`text-left rounded-md border px-3 py-2.5 transition-colors ${voiceConfig.ai_engine === engine.value
+                                            ? 'border-blue-500/50 bg-blue-500/10'
+                                            : 'border-border bg-muted/20 hover:bg-muted/40'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm font-medium">{engine.label}</span>
+                                            {engine.recommended && (
+                                                <Badge variant="outline" className="text-xs text-blue-400 border-blue-500/30">Recommended</Badge>
+                                            )}
+                                        </div>
+                                        <p className="text-xs text-muted-foreground mt-0.5">{engine.description}</p>
+                                    </button>
+                                ))}
                             </div>
                         </div>
 
