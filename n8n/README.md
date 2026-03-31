@@ -29,6 +29,31 @@ docker compose exec n8n n8n import:workflow --separate --input=/home/node/.n8n/w
 
 ## Workflows
 
+### `outbound-campaign-calls.json`
+**Trigger:** Webhook POST from `elevenlabs-campaign` Edge Function or manually  
+**Key behaviour:** All outbound calls use `TWILIO_SA_PHONE_NUMBER` (your paid South African +27 number) as the `From` field — ensuring calls display a local ZA caller ID to prospects.  
+**Steps:**
+1. Validate leads array is not empty + notify admin via Telegram
+2. Split batch into individual lead items
+3. Filter out leads with no phone number (marks them as `no_phone` in DB)
+4. 1-second rate limiter between dials (avoids Twilio throttling)
+5. POST to Twilio Calls API with `From: TWILIO_SA_PHONE_NUMBER` and ElevenLabs `<Stream>` TwiML
+6. Update `voice_campaign_calls` record with Twilio Call SID
+
+**Webhook URL (called by `elevenlabs-campaign` or triggered manually):**  
+`http://<your-n8n-host>:5678/webhook/trigger-campaign-calls`
+
+**POST body shape:**
+```json
+{
+  "campaign_id": "uuid",
+  "elevenlabs_agent_id": "agent_xxx",
+  "leads": [
+    { "id": "uuid", "name": "Jane Smith", "phone": "+27821234567" }
+  ]
+}
+```
+
 ### `lead-processing.json`
 **Trigger:** Supabase webhook → `scraped_leads` table INSERT  
 **Steps:**
@@ -70,6 +95,7 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 GEMINI_API_KEY=your-gemini-key
 TWILIO_ACCOUNT_SID=your-twilio-sid
 TWILIO_AUTH_TOKEN=your-twilio-token
+TWILIO_SA_PHONE_NUMBER=+27XXXXXXXXX   # Your paid South African Twilio number
 ```
 
 ## Production Deployment

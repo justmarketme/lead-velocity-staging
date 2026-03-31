@@ -1,0 +1,257 @@
+{
+  "name": "Lead Velocity — Outbound Campaign Calls (SA Number)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "trigger-campaign-calls",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook: Trigger Campaign Calls",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "notes": "POST body: { campaign_id, leads: [{id, name, phone}], twiml_url, elevenlabs_agent_id }"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.body.leads.length }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "validate-leads",
+      "name": "Validate: Has Leads",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "body.leads",
+        "options": {}
+      },
+      "id": "split-leads",
+      "name": "Split Into Individual Leads",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [680, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.phone }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "filter-has-phone",
+      "name": "Filter: Has Phone Number",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.twilio.com/2010-04-01/Accounts/{{ $env.TWILIO_ACCOUNT_SID }}/Calls.json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "To",
+              "value": "={{ $json.phone }}"
+            },
+            {
+              "name": "From",
+              "value": "={{ $env.TWILIO_SA_PHONE_NUMBER }}"
+            },
+            {
+              "name": "Twiml",
+              "value": "=<Response><Connect><Stream url=\"wss://api.elevenlabs.io/v1/convai/conversation?agent_id={{ $node['Webhook: Trigger Campaign Calls'].json.body.elevenlabs_agent_id }}\"/></Connect></Response>"
+            },
+            {
+              "name": "StatusCallback",
+              "value": "={{ $env.SUPABASE_URL }}/functions/v1/handle-ai-call-status?campaignId={{ $node['Webhook: Trigger Campaign Calls'].json.body.campaign_id }}&leadId={{ $json.id }}"
+            },
+            {
+              "name": "StatusCallbackMethod",
+              "value": "POST"
+            },
+            {
+              "name": "MachineDetection",
+              "value": "DetectMessageEnd"
+            },
+            {
+              "name": "AsyncAmd",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "twilio-dial",
+      "name": "Twilio: Dial Lead (SA Number)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1120, 100],
+      "notes": "Dials using TWILIO_SA_PHONE_NUMBER — the paid ZA number (+27...)"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/voice_campaign_calls?lead_id=eq.{{ $json.id }}&campaign_id=eq.{{ $node['Webhook: Trigger Campaign Calls'].json.body.campaign_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "method": "PATCH",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "call_status", "value": "initiated" },
+            { "name": "call_sid", "value": "={{ $json.sid }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "update-call-record",
+      "name": "Supabase: Update Call Status → Initiated",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1340, 100]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/voice_campaign_calls?lead_id=eq.{{ $json.id }}&campaign_id=eq.{{ $node['Webhook: Trigger Campaign Calls'].json.body.campaign_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "method": "PATCH",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "call_status", "value": "failed" },
+            { "name": "outcome", "value": "no_phone" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "mark-no-phone",
+      "name": "Supabase: Mark No Phone",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1120, 340]
+    },
+    {
+      "parameters": {
+        "amount": 1,
+        "unit": "seconds"
+      },
+      "id": "rate-limit",
+      "name": "Rate Limit: 1s Between Calls",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [1120, 200],
+      "notes": "Prevents Twilio rate limiting on bulk campaigns"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/functions/v1/trigger-telegram-alert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "=📞 Campaign Dialling Started\nCampaign: {{ $node['Webhook: Trigger Campaign Calls'].json.body.campaign_id }}\nFrom: {{ $env.TWILIO_SA_PHONE_NUMBER }} 🇿🇦\nLeads to dial: {{ $node['Webhook: Trigger Campaign Calls'].json.body.leads.length }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notify-start",
+      "name": "Notify: Campaign Started",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [460, 460]
+    }
+  ],
+  "connections": {
+    "Webhook: Trigger Campaign Calls": {
+      "main": [
+        [
+          { "node": "Validate: Has Leads", "type": "main", "index": 0 },
+          { "node": "Notify: Campaign Started", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Validate: Has Leads": {
+      "main": [
+        [{ "node": "Split Into Individual Leads", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Split Into Individual Leads": {
+      "main": [
+        [{ "node": "Filter: Has Phone Number", "type": "main", "index": 0 }]
+      ]
+    },
+    "Filter: Has Phone Number": {
+      "main": [
+        [{ "node": "Rate Limit: 1s Between Calls", "type": "main", "index": 0 }],
+        [{ "node": "Supabase: Mark No Phone", "type": "main", "index": 0 }]
+      ]
+    },
+    "Rate Limit: 1s Between Calls": {
+      "main": [
+        [{ "node": "Twilio: Dial Lead (SA Number)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Twilio: Dial Lead (SA Number)": {
+      "main": [
+        [{ "node": "Supabase: Update Call Status → Initiated", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "instanceId": "lead-velocity-n8n"
+  }
+}

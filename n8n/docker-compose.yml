@@ -32,6 +32,8 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
       - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      # South African Twilio number used as the "From" on all outbound campaign calls
+      - TWILIO_SA_PHONE_NUMBER=${TWILIO_SA_PHONE_NUMBER}
 
     volumes:
       - n8n_data:/home/node/.n8n

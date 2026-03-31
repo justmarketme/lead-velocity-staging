@@ -26,7 +26,8 @@ serve(async (req) => {
         const ELEVENLABS_API_KEY = Deno.env.get("ELEVENLABS_API_KEY");
         const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID");
         const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN");
-        const TWILIO_PHONE_NUMBER = Deno.env.get("TWILIO_PHONE_NUMBER");
+        // Prefer the dedicated SA number for outbound calls; fall back to default
+        const TWILIO_PHONE_NUMBER = Deno.env.get("TWILIO_SA_PHONE_NUMBER") || Deno.env.get("TWILIO_PHONE_NUMBER");
         const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
         const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
