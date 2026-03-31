@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-gemini-key, X-Gemini-Key',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-gemini-key, X-Gemini-Key, x-tavily-key, x-openrouter-key',
     'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE',
 };
 
@@ -26,33 +26,70 @@ serve(async (req: any) => {
     }
 
     try {
-        const { action, payload } = await req.json();
+        const body = await req.json();
+        const { action, payload } = body;
+        const keys = payload.keys || {};
         
-        // 1. Get API Key from various sources
+        // 1. Get API Keys from various sources (Body/Payload, Headers, or Env)
         const headerKey = req.headers.get('x-gemini-key');
         const envKey = Deno.env.get("GEMINI_API_KEY");
-        const GEMINI_API_KEY = (headerKey && headerKey !== 'undefined') ? headerKey : envKey;
+        const GEMINI_API_KEY = keys.gemini || (headerKey && headerKey !== 'undefined' ? headerKey : envKey);
 
-        if (!GEMINI_API_KEY) {
-            console.error("No API Key found in headers or environment secrets.");
-            return new Response(JSON.stringify({ error: "Neural Link Offline: API key is missing. Please contact system administrator." }), {
-                status: 401,
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            });
+        const tavilyHeaderKey = req.headers.get('x-tavily-key');
+        const tavilyEnvKey = Deno.env.get("TAVILY_API_KEY");
+        const TAVILY_API_KEY = keys.tavily || (tavilyHeaderKey && tavilyHeaderKey !== 'undefined' ? tavilyHeaderKey : tavilyEnvKey);
+
+        const openRouterHeaderKey = req.headers.get('x-openrouter-key');
+        const openRouterEnvKey = Deno.env.get("OPENROUTER_API_KEY");
+        const OPENROUTER_API_KEY = keys.openrouter || (openRouterHeaderKey && openRouterHeaderKey !== 'undefined' ? openRouterHeaderKey : openRouterEnvKey);
+
+        const ACTIVE_KEY = OPENROUTER_API_KEY || GEMINI_API_KEY;
+
+        // 2. Perform Real Research if Tavily is available
+        let researchData = "";
+        if (payload.provider === 'tavily' && TAVILY_API_KEY) {
+            try {
+                const searchQuery = `List of ${payload.industry} companies in ${payload.geos || 'South Africa'}. Focus: ${payload.intent || 'General lead generation'}`;
+                const tavilyRes = await fetch("https://api.tavily.com/search", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        api_key: TAVILY_API_KEY,
+                        query: searchQuery,
+                        search_depth: "advanced",
+                        max_results: 8
+                    })
+                });
+                if (tavilyRes.ok) {
+                    const tavilyData = await tavilyRes.json();
+                    researchData = JSON.stringify(tavilyData.results);
+                }
+            } catch (err: any) {
+                console.warn("Tavily real-time research failed, falling back to neural simulation:", err.message || "Unknown error");
+            }
         }
 
         let prompt = "";
         if (action === "prospect-leads") {
-            const providerContext = payload.provider === 'firecrawl' ? 'deep web crawling and stealth scraping' : 'social graph and maps extraction';
+            const providerContext = payload.provider === 'tavily' 
+                ? 'advanced semantic web research and high-performance lead synthesis' 
+                : payload.provider === 'firecrawl' 
+                    ? 'deep web crawling and stealth scraping' 
+                    : 'social graph and maps extraction';
+            
             prompt = `You are a high-performance Lead Generation AI using ${payload.provider} for ${providerContext}. 
             The industry is "${payload.industry}". 
+            Target Geographic Focus: "${payload.geos || 'South Africa'}".
+            Strategic Intent: "${payload.intent || 'Find high-quality leads'}".
+            
+            ${researchData ? `REAL-TIME RESEARCH DATA:\n${researchData}\n\nBased on this real-time data, please synthesize the best leads.` : `Einstein: Proceed with neural simulation as the primary data crawler is in stealth mode.`}
             
             REFERENCE SEED DATA FOR REALITY CHECK (South Africa):
             ${SA_INSURANCE_SEED}
 
             Generate exactly 5 HIGH-FIDELITY, REAL-LIFE leads for this industry in South Africa. 
             Do NOT use obvious generic names. Use realistic South African professional names (mixed ethnicities: Afrikaans, English, Zulu, Xhosa, etc.).
-            Each lead must have: name, role (e.g. Principal Broker, Risk Specialist, Agency Owner), company name (must be a real entity or highly realistic derivative from the seed data), email (must be a realistic professional format), and a "vibe" score (80-99).
+            Each lead must have: name, role (e.g. Principal Broker, Risk Specialist, Agency Owner), company name (must be a real entity or highly realistic derivative from the seed data), email (must be a realistic professional format), phone (a realistic South African mobile number in format 0XX XXX XXXX), address (realistic South African business address with suburb and city), source (the platform where this lead was discovered, one of: "LinkedIn", "Google Maps", "Instagram", "Twitter/X", "Facebook", "Company Website", "Industry Directory"), and a "vibe" score (80-99).
             Return ONLY a JSON array of objects.`;
         } else if (action === "sales-briefing") {
             prompt = `You are Einstein, the Aggressive High-Performance Sales Architect. 
@@ -91,42 +128,22 @@ serve(async (req: any) => {
         }
 
         let responseText = "[]";
-        let usedProvider = "gemini";
+        let usedProvider = "openrouter";
 
         try {
-            // Attempt Gemini Call
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ role: "user", parts: [{ text: prompt }] }],
-                    generationConfig: {
-                        temperature: 0.7,
-                        response_mime_type: "application/json"
-                    }
-                })
-            });
-
-            if (!res.ok) throw new Error(`Gemini API failed with status ${res.status}`);
-            
-            const geminiData = await res.json();
-            responseText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
-        } catch (geminiError: any) {
-            console.warn("Gemini primary call failed, attempting OpenRouter fallback:", geminiError.message);
-            usedProvider = "openrouter";
-            
-            // OpenRouter Fallback (using the same key, as many Gemini keys work there)
+            // Attempt OpenRouter (Primary)
             const orRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                 method: "POST",
                 headers: {
-                    "Authorization": `Bearer ${GEMINI_API_KEY}`,
+                    "Authorization": `Bearer ${OPENROUTER_API_KEY || GEMINI_API_KEY}`,
                     "Content-Type": "application/json",
                     "HTTP-Referer": "https://leadvelocity.co.za",
                     "X-Title": "Lead Velocity Einstein"
                 },
                 body: JSON.stringify({
-                    model: "google/gemini-flash-1.5",
-                    messages: [{ role: "user", content: prompt }]
+                    model: "google/gemini-2.0-flash-001", // High-performance model
+                    messages: [{ role: "user", content: prompt }],
+                    response_format: { type: "json_object" }
                 })
             });
 
@@ -134,11 +151,44 @@ serve(async (req: any) => {
                 const orData = await orRes.json();
                 responseText = orData.choices?.[0]?.message?.content || "[]";
             } else {
-                throw new Error("Both Gemini and OpenRouter fallback failed. Please check your API key.");
+                // Fallback to direct Gemini
+                console.warn("OpenRouter failed, attempting direct Gemini fallback...");
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ role: "user", parts: [{ text: prompt }] }],
+                        generationConfig: { temperature: 0.7, response_mime_type: "application/json" }
+                    })
+                });
+                if (!res.ok) throw new Error(`Fallback Gemini API failed with status ${res.status}`);
+                const geminiData = await res.json();
+                responseText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+                usedProvider = "gemini";
             }
+        } catch (error: any) {
+            throw new Error(`AI Synthesis Collapse: ${error.message}`);
         }
 
-        const result = JSON.parse(responseText.replace(/```json\n?/g, "").replace(/```/g, ""));
+        let result;
+        try {
+            // Clean response text: remove markdown code blocks if present
+            const cleanResponse = responseText.replace(/```json\n?/g, "").replace(/```/g, "").trim();
+            result = JSON.parse(cleanResponse);
+        } catch (parseError) {
+            console.error("JSON Parse Error. Raw Response:", responseText);
+            // Fallback: search for something that looks like an array or object in the string
+            const jsonMatch = responseText.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
+            if (jsonMatch) {
+                try {
+                    result = JSON.parse(jsonMatch[0]);
+                } catch (innerError) {
+                    throw new Error("Einstein encountered a cognitive dissonance: The AI response was not valid JSON.");
+                }
+            } else {
+                throw new Error("Einstein encountered a cognitive dissonance: Could not find JSON data in the response.");
+            }
+        }
 
         return new Response(JSON.stringify(result), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json', 'X-AI-Provider': usedProvider },

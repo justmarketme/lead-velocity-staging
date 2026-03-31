@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
     Rocket,
@@ -42,7 +42,12 @@ import {
     Trophy,
     Users,
     Terminal,
-    RotateCw
+    RotateCw,
+    Brain,
+    PhoneCall,
+    PhoneOutgoing,
+    Mic2,
+    Table
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -58,6 +63,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { AyandaCallModal } from "./AyandaCallModal";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -72,9 +78,15 @@ const MarketingHub = () => {
     const [isScraping, setIsScraping] = useState(false);
     const [scraperLogs, setScraperLogs] = useState<string[]>([]);
     const [industry, setIndustry] = useState("");
-    const [scraperProvider, setScraperProvider] = useState<"firecrawl" | "apify">("firecrawl");
-    const [scraperCredits, setScraperCredits] = useState({ firecrawl: 500, apify: 5.00 });
+    const [scraperProvider, setScraperProvider] = useState<"firecrawl" | "apify" | "tavily">("firecrawl");
+    const [scraperCredits, setScraperCredits] = useState({ firecrawl: 500, apify: 5.00, tavily: 1000 });
     const [detectedLeads, setDetectedLeads] = useState([]);
+    const [searchIntent, setSearchIntent] = useState("");
+    const [targetGeos, setTargetGeos] = useState("");
+
+    // Ayanda Call State
+    const [isAyandaModalOpen, setIsAyandaModalOpen] = useState(false);
+    const [selectedLeadForCall, setSelectedLeadForCall] = useState<any>(null);
 
     // --- Media Engine State ---
     const [activeMediaEngine, setActiveMediaEngine] = useState<"veo3" | "nano" | "visual">("veo3");
@@ -148,37 +160,49 @@ const MarketingHub = () => {
             `Synthesis in progress for ${industry}...`
         ];
 
-        let currentStep = 0;
+        let currentStepIdx = 0;
         const logInterval = setInterval(() => {
-            if (currentStep < steps.length) {
-                setScraperLogs(prev => [...prev, steps[currentStep]]);
-                currentStep++;
+            if (currentStepIdx < steps.length) {
+                setScraperLogs(prev => [...prev, steps[currentStepIdx]]);
+                currentStepIdx++;
             } else {
                 clearInterval(logInterval);
             }
         }, 1000);
 
         try {
-            const { data, error } = await supabase.functions.invoke('marketing-ai', {
-                body: { action: 'prospect-leads', payload: { industry, provider: scraperProvider } },
-                headers: {
-                    'x-gemini-key': import.meta.env.VITE_GEMINI_API_KEY
-                }
+            // Local Emulator Path: Hits our custom Vite plugin to bypass CORS and remote delays
+            const res = await fetch('/functions/v1/marketing-ai', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    action: 'prospect-leads', 
+                    payload: { 
+                        industry: industry,
+                        geos: targetGeos,
+                        intent: searchIntent,
+                        provider: scraperProvider,
+                        leads: detectedLeads
+                    }
+                })
             });
 
-            if (error) throw error;
+            if (!res.ok) {
+                const errData = await res.json();
+                throw new Error(errData.error || "Neural Link Timeout");
+            }
 
-            setDetectedLeads(data.map((l, i) => ({ id: i + 1, ...l })));
-            setScraperLogs(prev => [...prev, `Success! Found high-performance entities for ${industry}.`]);
+            const data = await res.json();
+            setDetectedLeads(data);
             toast({
-                title: "Lead Acquisition Complete",
-                description: `Entities synchronized for ${industry}.`
+                title: "Prospecting Sequence Complete",
+                description: "Leads successfully synthesized through Local Neural Bridge.",
             });
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
             toast({
                 title: "Acquisition Neural Link Failed",
-                description: "The data engine encountered static.",
+                description: error.message || "The data engine encountered static.",
                 variant: "destructive"
             });
         } finally {
@@ -415,6 +439,15 @@ const MarketingHub = () => {
         }
     };
 
+    const handleAyandaClick = (lead: any) => {
+        setSelectedLeadForCall(lead);
+        setIsAyandaModalOpen(true);
+        toast({
+            title: "Ayanda Initializing",
+            description: `Connecting voice node for ${lead.name}...`
+        });
+    };
+
     const SectionHeader = ({ title, subtitle, icon: Icon }) => (
         <div className="flex items-center gap-4 mb-8">
             <div className="p-3 rounded-2xl bg-primary/10 border border-primary/20">
@@ -435,19 +468,27 @@ const MarketingHub = () => {
                     <img
                         src={einsteinMascot}
                         alt="Cyberpunk Einstein"
-                        className="h-80 w-80 object-contain -translate-y-12 translate-x-12 blur-[2px] group-hover:blur-0 group-hover:scale-110 transition-all duration-700"
+                        className="h-80 w-80 object-contain -translate-y-12 translate-x-12 blur-[1px] group-hover:blur-0 group-hover:scale-105 transition-all duration-1000"
                     />
                 </div>
-                <div className="relative z-10 max-w-2xl space-y-4">
-                    <Badge className="bg-primary/20 text-primary border-primary/30 px-3 py-1 mb-2 hover:bg-primary/30 transition-colors">
-                        <Bot className="h-3.5 w-3.5 mr-2 animate-pulse" />
-                        AI Architect: Genius Mode v2.4
-                    </Badge>
-                    <h1 className="text-4xl lg:text-5xl font-extrabold tracking-tighter text-white">
-                        Marketing <span className="bg-gradient-to-r from-blue-400 to-teal-400 bg-clip-text text-transparent">Command Center</span>
+
+                <div className="relative z-10 max-w-2xl">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="bg-primary/20 px-3 py-1 rounded-full border border-primary/30 flex items-center gap-2">
+                            <span className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Strategic Mastermind Active</span>
+                        </div>
+                        <div className="bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20 flex items-center gap-2">
+                            <span className="w-2 h-2 bg-emerald-500 rounded-full" />
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-500">Einstein Logic Engine v7.4</span>
+                        </div>
+                    </div>
+                    
+                    <h1 className="text-5xl font-black tracking-tighter mb-4 bg-gradient-to-r from-white via-white/90 to-white/60 bg-clip-text text-transparent">
+                        Velocity <span className="text-primary italic">Neon</span> Marketing Hub.
                     </h1>
-                    <p className="text-slate-400 text-lg leading-relaxed">
-                        Harness the power of multi-agent AI to architect campaigns, reverse-engineer rivals, and dominate the insurance vertical.
+                    <p className="text-lg text-slate-400 mb-8 leading-relaxed font-medium">
+                        "Ja! Ze math is absolute! Your lead flow must remain constant, like ze speed of light! Use my briefings to architect ze strategy, then let <span className="text-white font-bold opacity-80 cursor-help" title="Ayanda handles the voice execution.">Ayanda</span> execute ze voice nodes."
                     </p>
                 </div>
             </div>
@@ -638,8 +679,8 @@ const MarketingHub = () => {
                                             </div>
 
                                             {/* Executive summary */}
-                                            <div className="p-8 bg-slate-950/50 rounded-3xl border border-white/5 space-y-4">
-                                                <h4 className="text-xs font-black uppercase text-primary tracking-widest flex items-center gap-2">
+                                            <div className="space-y-4">
+                                                <h4 className="text-xs font-black uppercase text-slate-500 tracking-widest flex items-center gap-2">
                                                     <Zap className="h-3 w-3" /> Core Strategic Pulse
                                                 </h4>
                                                 <p className="text-lg text-slate-200 leading-relaxed italic font-serif">
@@ -701,20 +742,41 @@ const MarketingHub = () => {
                                     </div>
                                     <div className="space-y-1.5">
                                         <Label className="text-xs uppercase font-bold text-slate-500">Data Engine</Label>
-                                        <Select value={scraperProvider} onValueChange={setScraperProvider}>
+                                        <Select value={scraperProvider} onValueChange={(v) => setScraperProvider(v as "firecrawl" | "apify" | "tavily")}>
                                             <SelectTrigger className="bg-white/5 border-white/10">
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="firecrawl">Firecrawl (Deep Web)</SelectItem>
                                                 <SelectItem value="apify">Apify (Social/Maps)</SelectItem>
+                                                <SelectItem value="tavily">Tavily (High-Performance)</SelectItem>
                                             </SelectContent>
                                         </Select>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs uppercase font-bold text-slate-500">Target Geographic Focus (Optional)</Label>
+                                        <Input
+                                            placeholder="e.g. Bryanston, Sandton, Gauteng"
+                                            value={targetGeos}
+                                            onChange={(e) => setTargetGeos(e.target.value)}
+                                            className="bg-white/5 border-white/10"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs uppercase font-bold text-slate-500">Strategic Research Intent</Label>
+                                        <Textarea
+                                            placeholder="e.g. Focus on agencies with high customer ratings but poor digital presence..."
+                                            value={searchIntent}
+                                            onChange={(e) => setSearchIntent(e.target.value)}
+                                            className="bg-white/5 border-white/10 h-24 resize-none"
+                                        />
                                     </div>
                                     <div className="p-3 bg-slate-950/50 rounded-xl border border-white/5 flex justify-between items-center">
                                         <span className="text-[10px] uppercase font-bold text-slate-500">Active Engine Credits</span>
                                         <span className="font-mono text-sm text-primary">
-                                            {scraperProvider === 'firecrawl' ? scraperCredits.firecrawl.toLocaleString() : `$${scraperCredits.apify.toFixed(2)}`}
+                                            {scraperProvider === 'firecrawl' ? scraperCredits.firecrawl.toLocaleString() : 
+                                             scraperProvider === 'tavily' ? scraperCredits.tavily.toLocaleString() : 
+                                             `$${scraperCredits.apify.toFixed(2)}`}
                                         </span>
                                     </div>
                                     <Button
@@ -771,6 +833,9 @@ const MarketingHub = () => {
                                                             <p className="font-bold text-white text-md">{lead.name}</p>
                                                             <p className="text-xs text-slate-400">{lead.role} <span className="text-primary/70">@</span> {lead.company}</p>
                                                             <p className="text-[11px] text-slate-500 mt-1 font-mono">{lead.email}</p>
+                                                            {lead.phone && <p className="text-[11px] text-slate-400 mt-0.5 font-mono">📞 {lead.phone}</p>}
+                                                            {lead.address && <p className="text-[11px] text-slate-500 mt-0.5">📍 {lead.address}</p>}
+                                                            {lead.source && <p className="text-[10px] text-primary/60 mt-0.5 font-bold uppercase tracking-wider">🔗 {lead.source}</p>}
                                                         </div>
                                                     </div>
                                                     <div className="flex flex-col items-end">
@@ -868,7 +933,7 @@ const MarketingHub = () => {
                                 </h3>
                                 <div className="w-full space-y-3 overflow-y-auto">
                                     {generatedDrops.map(drop => (
-                                        <div key={drop.id} className="p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors">
+                                        <div key={drop.title} className="p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors">
                                             <div className="flex justify-between items-start mb-1">
                                                 <Badge className="text-[9px] bg-primary/20 text-primary uppercase">{drop.type}</Badge>
                                                 <Share2 className="h-3 w-3 text-slate-500" />
@@ -1457,27 +1522,27 @@ const MarketingHub = () => {
                         {/* Einstein Directive Column */}
                         <div className="lg:col-span-4 space-y-6">
                             <Card className="border-emerald-500/20 bg-slate-900/40 backdrop-blur-xl p-8 rounded-3xl relative overflow-hidden group border-2">
-                                <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
-                                    <Phone className="h-40 w-40" />
+                                <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
+                                    <img src="/einstein-avatar.png" alt="Einstein" className="w-24 h-24 object-cover" />
                                 </div>
                                 <SectionHeader
-                                    title="Einstein's Directive"
-                                    subtitle="High-performance strategy architected by AI."
+                                    title="Einstein's Briefing"
+                                    subtitle="Strategic analysis architected by the Mastermind."
                                     icon={Bot}
                                 />
                                 
                                 {!salesBriefing && !isSalesBriefingLoading ? (
                                     <div className="space-y-6">
                                         <div className="p-4 bg-slate-950/50 rounded-2xl border border-white/5 text-center py-10 opacity-60">
-                                            <Sparkles className="h-10 w-10 mx-auto mb-4 text-emerald-400 animate-pulse" />
-                                            <p className="text-sm">Initiate synthesis to receive your high-performance sales briefing.</p>
+                                            <Brain className="h-10 w-10 mx-auto mb-4 text-primary animate-pulse" />
+                                            <p className="text-sm">Initiate synthesis to receive Einstein's high-performance sales briefing.</p>
                                         </div>
                                         <Button
                                             onClick={handleGetSalesBriefing}
-                                            className="w-full bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 rounded-2xl h-14 gap-2 font-bold"
+                                            className="w-full bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30 rounded-2xl h-14 gap-2 font-bold"
                                         >
                                             <Zap className="h-5 w-5" />
-                                            Initialize Sales Shield
+                                            Initialize Einstein's Analysis
                                         </Button>
                                     </div>
                                 ) : isSalesBriefingLoading ? (
@@ -1488,9 +1553,9 @@ const MarketingHub = () => {
                                     </div>
                                 ) : (
                                     <div className="space-y-6 animate-in zoom-in-95 duration-500">
-                                        <div className="p-6 bg-slate-950/80 rounded-3xl border border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.1)]">
-                                            <h4 className="text-[10px] font-black uppercase text-emerald-400 tracking-widest mb-3 flex items-center gap-2">
-                                                <Mic className="h-3 w-3" /> Digital Briefing
+                                        <div className="p-6 bg-slate-950/80 rounded-3xl border border-primary/30 shadow-[0_0_20px_rgba(var(--primary),0.1)]">
+                                            <h4 className="text-[10px] font-black uppercase text-primary tracking-widest mb-3 flex items-center gap-2">
+                                                <Brain className="h-3 w-3" /> Strategic Insight
                                             </h4>
                                             <p className="text-sm text-slate-100 leading-relaxed italic font-serif">
                                                 "{salesBriefing.briefing}"
@@ -1586,6 +1651,8 @@ const MarketingHub = () => {
                                                                     <div>
                                                                         <div className="font-bold text-white group-hover:text-emerald-400 transition-colors uppercase tracking-tight">{lead.name}</div>
                                                                         <div className="text-[10px] text-slate-500 font-mono">{lead.company} • {lead.role}</div>
+                                                                        {lead.phone && <div className="text-[10px] text-slate-400 font-mono mt-0.5">📞 {lead.phone}</div>}
+                                                                        {lead.address && <div className="text-[10px] text-slate-500 mt-0.5">📍 {lead.address}</div>}
                                                                     </div>
                                                                 </div>
                                                             </td>
@@ -1602,9 +1669,9 @@ const MarketingHub = () => {
                                                                     <Button 
                                                                         size="sm"
                                                                         className="bg-primary/20 hover:bg-primary/40 text-primary border border-primary/30 rounded-xl h-10 gap-2 px-4 shadow-lg shadow-primary/10"
-                                                                        onClick={() => toast({ title: "Ayanda Initializing", description: `Bridging call to ${lead.name}...` })}
+                                                                        onClick={() => handleAyandaClick(lead)}
                                                                     >
-                                                                        <Bot className="h-4 w-4" />
+                                                                        <PhoneCall className="h-4 w-4" />
                                                                         <span>Ayanda Connect</span>
                                                                     </Button>
                                                                     <Button 
@@ -1652,9 +1719,9 @@ const MarketingHub = () => {
                     </div>
                 </TabsContent>
             </Tabs>
+            <AyandaCallModal isOpen={isAyandaModalOpen} onClose={() => setIsAyandaModalOpen(false)} lead={selectedLeadForCall} />
         </div>
     );
 };
 
 export default MarketingHub;
-// Sync test
