@@ -97,6 +97,17 @@ export const EinsteinLiveVoice: React.FC<EinsteinLiveVoiceProps> = ({
         }
 
         setIsConnecting(true);
+        const connectionTimeout = setTimeout(() => {
+            if (isConnecting) {
+                setIsConnecting(false);
+                toast({
+                    title: "Neural Link Timeout",
+                    description: "Ze connection to Einstein is taking too long. Please try again, ja?",
+                    variant: "destructive"
+                });
+            }
+        }, 15000);
+
         try {
             const inputAudioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
             const outputAudioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
@@ -127,6 +138,7 @@ export const EinsteinLiveVoice: React.FC<EinsteinLiveVoiceProps> = ({
                 },
                 callbacks: {
                     onopen: () => {
+                        clearTimeout(connectionTimeout);
                         setIsActive(true);
                         setIsConnecting(false);
                         const source = inputAudioCtx.createMediaStreamSource(stream);
@@ -191,6 +203,7 @@ export const EinsteinLiveVoice: React.FC<EinsteinLiveVoiceProps> = ({
             });
             sessionRef.current = await sessionPromise;
         } catch (err: any) {
+            clearTimeout(connectionTimeout);
             console.error("Failed to start session:", err);
             setIsConnecting(false);
             toast({

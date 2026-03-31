@@ -4,7 +4,8 @@ import { WEBSITE_KNOWLEDGE, EINSTEIN_PERSONALITY } from "../_shared/knowledge.ts
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-gemini-key, X-Gemini-Key',
+    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE',
 };
 
 serve(async (req) => {
@@ -22,7 +23,8 @@ serve(async (req) => {
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
         // 2. Identify User & Role
-        const { data: { user }, error: userError } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
+        const token = authHeader.replace('Bearer ', '').trim();
+        const { data: { user }, error: userError } = await supabase.auth.getUser(token);
 
         let role = "public";
         let brokerData = null;
@@ -89,32 +91,81 @@ serve(async (req) => {
             systemPrompt += `\n\nPUBLIC MODE: You ONLY provide information from the knowledge base. Do NOT reveal specific data or stats. If asked for leads or stats, politely explain that they must log in as a broker to see their dashboard.`;
         }
 
-        // 4. Call Gemini
-        const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")!;
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [
-                    { role: "user", parts: [{ text: systemPrompt }] },
-                    ...(history || []).map((m: any) => ({
-                        role: m.role === "user" ? "user" : "model",
-                        parts: [{ text: m.content }]
-                    })),
-                    { role: "user", parts: [{ text: query }] }
-                ],
-                generationConfig: { temperature: 0.7 }
-            })
-        });
+        // 4. Call AI Service
+        const headerKey = req.headers.get('x-gemini-key');
+        const envKey = Deno.env.get("GEMINI_API_KEY");
+        const GEMINI_API_KEY = (headerKey && headerKey !== 'undefined') ? headerKey : envKey;
 
-        const geminiData = await res.json();
-        const responseText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "Static interference detected...";
+        if (!GEMINI_API_KEY) {
+            console.error("No API Key found in headers or environment secrets.");
+            return new Response(JSON.stringify({ error: "Neural Link Offline: API key is missing." }), {
+                status: 401,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+        }
+
+        const requestBody = {
+            systemInstruction: {
+                parts: [{ text: systemPrompt }]
+            },
+            contents: [
+                ...(history || []).map((m: any) => ({
+                    role: m.role === "user" ? "user" : "model",
+                    parts: [{ text: m.content }]
+                })),
+                { role: "user", parts: [{ text: query }] }
+            ],
+            generationConfig: { temperature: 0.7 }
+        };
+
+        let responseText = "Static interference detected...";
+        let usedProvider = "gemini";
+
+        try {
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody)
+            });
+
+            const geminiData = await res.json();
+            if (!res.ok) throw new Error(`Gemini API Error: ${JSON.stringify(geminiData)}`);
+            responseText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+        } catch (geminiError: any) {
+            console.warn("Gemini Einstein call failed, attempting OpenRouter fallback:", geminiError.message);
+            usedProvider = "openrouter";
+            
+            const orRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${GEMINI_API_KEY}`,
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://leadvelocity.co.za",
+                    "X-Title": "Lead Velocity Einstein"
+                },
+                body: JSON.stringify({
+                    model: "google/gemini-flash-1.5",
+                    messages: [
+                        { role: "system", content: systemPrompt },
+                        ...(history || []).map((m: any) => ({ role: m.role === "user" ? "user" : "assistant", content: m.content })),
+                        { role: "user", content: query }
+                    ]
+                })
+            });
+
+            if (orRes.ok) {
+                const orData = await orRes.json();
+                responseText = orData.choices?.[0]?.message?.content || "Static interference continues...";
+            } else {
+                throw new Error("Einstein couldn't reach any neural nodes. Check API key.");
+            }
+        }
 
         return new Response(JSON.stringify({ text: responseText, role }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("AI Query Error:", error);
         return new Response(JSON.stringify({ error: error.message }), {
             status: 500,
