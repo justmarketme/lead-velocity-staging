@@ -17,6 +17,7 @@ import AICallRequests from "@/components/dashboard/AICallRequests";
 import WorkflowManagement from "@/components/dashboard/WorkflowManagement";
 import MarketingHub from "@/components/dashboard/MarketingHub";
 import BrokerAnalysisDashboard from "@/components/dashboard/BrokerAnalysisDashboard";
+import SalesConsultantDashboard from "@/components/dashboard/SalesConsultantDashboard";
 import type { Session } from "@supabase/supabase-js";
 import SEO from "@/components/SEO";
 
@@ -125,6 +126,7 @@ const Dashboard = () => {
       {activeTab === "templates" && <MessageTemplates />}
       {activeTab === "ai-calls" && <AICallRequests />}
       {activeTab === "marketing" && <MarketingHub />}
+      {activeTab === "sales" && <SalesConsultantDashboard />}
       {activeTab === "team" && <TeamManagement />}
       {activeTab === "analytics" && <Analytics />}
       {activeTab === "invites" && <AdminInvite />}

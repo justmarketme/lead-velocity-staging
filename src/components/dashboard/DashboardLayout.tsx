@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Users, Upload, BarChart3, Menu, X, LogOut, Database, UserPlus, FolderOpen, UserCheck, Calendar, FileText, Bot, Workflow, Sparkles, Target } from "lucide-react";
+import { LayoutDashboard, Users, Upload, BarChart3, Menu, X, LogOut, Database, UserPlus, FolderOpen, UserCheck, Calendar, FileText, Bot, Workflow, Sparkles, Target, PhoneCall } from "lucide-react";
 import logo from "@/assets/lead-velocity-logo.webp";
 import { useToast } from "@/hooks/use-toast";
 import NotificationBell from "@/components/notifications/NotificationBell";
@@ -57,6 +57,7 @@ const DashboardLayout = ({ children, activeTab, setActiveTab }: DashboardLayoutP
     { id: "overview", label: "Overview", icon: LayoutDashboard },
     { id: "workflow", label: "Manage Workflow", icon: Workflow },
     { id: "marketing", label: "Marketing Hub", icon: Sparkles },
+    { id: "sales", label: "Sales Console", icon: PhoneCall },
     { id: "leads", label: "Lead Database", icon: Database },
     { id: "referrals", label: "Referrals", icon: UserCheck },
     { id: "broker-analysis", label: "Onboarding", icon: Target },
