@@ -63,6 +63,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import einsteinMascot from "@/assets/marketing-einstein.png";
+import { supabase } from "@/integrations/supabase/client";
 
 const MarketingHub = () => {
     const { toast } = useToast();
@@ -72,8 +73,8 @@ const MarketingHub = () => {
     const [isScraping, setIsScraping] = useState(false);
     const [scraperLogs, setScraperLogs] = useState<string[]>([]);
     const [industry, setIndustry] = useState("");
-    const [scraperProvider, setScraperProvider] = useState<"firecrawl" | "apify">("firecrawl");
-    const [scraperCredits, setScraperCredits] = useState({ firecrawl: 500, apify: 5.00 });
+    const [scraperProvider, setScraperProvider] = useState<"firecrawl" | "apify" | "tavily">("firecrawl");
+    const [scraperCredits, setScraperCredits] = useState({ firecrawl: 500, apify: 5.00, tavily: 1000 });
     const [detectedLeads, setDetectedLeads] = useState([]);
 
     // --- Media Engine State ---
@@ -168,17 +169,35 @@ const MarketingHub = () => {
 
             if (error) throw error;
 
-            setDetectedLeads(data.map((l, i) => ({ id: i + 1, ...l })));
+            const leads = data.map((l, i) => ({ id: i + 1, ...l }));
+            setDetectedLeads(leads);
             setScraperLogs(prev => [...prev, `Success! Found high-performance entities for ${industry}.`]);
+
+            // Persist scraped leads to database so Sales Console can access them
+            const leadsToInsert = leads.map((l) => ({
+                name: l.name,
+                role: l.role || null,
+                company: l.company || null,
+                email: l.email || null,
+                vibe_score: l.vibe || null,
+                industry,
+                source: scraperProvider,
+                status: 'new',
+            }));
+            const { error: insertError } = await supabase.from('scraped_leads').insert(leadsToInsert);
+            if (insertError) {
+                console.error("Failed to persist scraped leads:", insertError);
+            }
+
             toast({
                 title: "Lead Acquisition Complete",
-                description: `Entities synchronized for ${industry}.`
+                description: `${leads.length} leads synced for ${industry}.`
             });
         } catch (error) {
             console.error(error);
             toast({
-                title: "Acquisition Neural Link Failed",
-                description: "The data engine encountered static.",
+                title: "Scraping Failed",
+                description: "Check your Firecrawl API key or switch to Apify and try again.",
                 variant: "destructive"
             });
         } finally {
@@ -708,13 +727,14 @@ const MarketingHub = () => {
                                             <SelectContent>
                                                 <SelectItem value="firecrawl">Firecrawl (Deep Web)</SelectItem>
                                                 <SelectItem value="apify">Apify (Social/Maps)</SelectItem>
+                                                <SelectItem value="tavily">Tavily (AI Search)</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
                                     <div className="p-3 bg-slate-950/50 rounded-xl border border-white/5 flex justify-between items-center">
                                         <span className="text-[10px] uppercase font-bold text-slate-500">Active Engine Credits</span>
                                         <span className="font-mono text-sm text-primary">
-                                            {scraperProvider === 'firecrawl' ? scraperCredits.firecrawl.toLocaleString() : `$${scraperCredits.apify.toFixed(2)}`}
+                                            {scraperProvider === 'firecrawl' ? scraperCredits.firecrawl.toLocaleString() : scraperProvider === 'tavily' ? `${scraperCredits.tavily.toLocaleString()} credits` : `$${scraperCredits.apify.toFixed(2)}`}
                                         </span>
                                     </div>
                                     <Button

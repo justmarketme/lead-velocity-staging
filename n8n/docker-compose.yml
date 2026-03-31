@@ -1,0 +1,46 @@
+version: "3.8"
+
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      # Basic auth for the n8n UI
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=changeme_in_production
+
+      # Set this to your publicly accessible URL when deploying
+      # (needed for Supabase to reach n8n webhooks)
+      - WEBHOOK_URL=http://localhost:5678
+
+      # Timezone (South Africa)
+      - GENERIC_TIMEZONE=Africa/Johannesburg
+      - TZ=Africa/Johannesburg
+
+      # n8n data path
+      - N8N_USER_FOLDER=/home/node/.n8n
+
+      # Optional: disable telemetry
+      - N8N_DIAGNOSTICS_ENABLED=false
+
+      # Credentials passed as env vars (set these in .env)
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      # South African Twilio number used as the "From" on all outbound campaign calls
+      - TWILIO_SA_PHONE_NUMBER=${TWILIO_SA_PHONE_NUMBER}
+
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+    # Uncomment to auto-import workflows on startup
+    # command: n8n import:workflow --separate --input=/home/node/.n8n/workflows
+
+volumes:
+  n8n_data:
+    driver: local

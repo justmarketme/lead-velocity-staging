@@ -49,6 +49,7 @@ register-discord.js
 !package.json
 !package-lock.json
 !tsconfig.json
+!n8n/workflows/*.json
 
 # Cursor / IDE config that may contain tokens (e.g. MCP, GitHub PAT)
 .cursor/

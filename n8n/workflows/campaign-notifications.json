@@ -1,0 +1,282 @@
+{
+  "name": "Lead Velocity — Campaign Notifications",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "campaign-call-update",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook: Campaign Call Updated",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.body.record.outcome }}",
+              "value2": "appointment"
+            }
+          ]
+        }
+      },
+      "id": "filter-appointment",
+      "name": "Filter: Appointment Outcome",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/appointments",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "method": "POST",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "lead_id", "value": "={{ $json.body.record.lead_id }}" },
+            { "name": "source", "value": "voice_campaign" },
+            { "name": "campaign_id", "value": "={{ $json.body.record.campaign_id }}" },
+            { "name": "status", "value": "pending_confirmation" },
+            { "name": "notes", "value": "Appointment booked via AI voice campaign call" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-appointment",
+      "name": "Supabase: Create Appointment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 140]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/voice_campaigns?id=eq.{{ $json.body.record.campaign_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "method": "PATCH",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "appointments_set", "value": "=appointments_set + 1" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "update-campaign-stats",
+      "name": "Supabase: Increment Appointments",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 140]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/scraped_leads?id=eq.{{ $node['Webhook: Campaign Call Updated'].json.body.record.lead_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch-lead",
+      "name": "Supabase: Fetch Lead Details",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1100, 140],
+      "notes": "Fetches lead email, name, company for the quote email"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/voice_campaigns?id=eq.{{ $node['Webhook: Campaign Call Updated'].json.body.record.campaign_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch-campaign",
+      "name": "Supabase: Fetch Campaign Details",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1100, 280],
+      "notes": "Fetches campaign knowledge_base and name for the quote email"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/functions/v1/send-quote",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "lead",
+              "value": "={{ JSON.stringify({ id: $node['Supabase: Fetch Lead Details'].json[0]?.id, name: $node['Supabase: Fetch Lead Details'].json[0]?.name, email: $node['Supabase: Fetch Lead Details'].json[0]?.email, company: $node['Supabase: Fetch Lead Details'].json[0]?.company, role: $node['Supabase: Fetch Lead Details'].json[0]?.role }) }}"
+            },
+            {
+              "name": "campaign",
+              "value": "={{ JSON.stringify({ id: $node['Supabase: Fetch Campaign Details'].json[0]?.id, name: $node['Supabase: Fetch Campaign Details'].json[0]?.name, knowledge_base: $node['Supabase: Fetch Campaign Details'].json[0]?.knowledge_base }) }}"
+            },
+            {
+              "name": "call_outcome",
+              "value": "appointment"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "send-quote-email",
+      "name": "Send Quote Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1320, 200],
+      "notes": "Triggers send-quote Edge Function: Gemini generates personalised quote HTML, Resend delivers it"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/functions/v1/trigger-telegram-alert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "=📅 Appointment Booked via AI Call!\nLead: {{ $node['Supabase: Fetch Lead Details'].json[0]?.name }} ({{ $node['Supabase: Fetch Lead Details'].json[0]?.email }})\nCampaign: {{ $node['Supabase: Fetch Campaign Details'].json[0]?.name }}\nCall Duration: {{ $node['Webhook: Campaign Call Updated'].json.body.record.duration }}s\n📧 Quote email sent automatically."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notify-appointment",
+      "name": "Notify: Appointment Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1540, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/functions/v1/trigger-telegram-alert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "=📞 Campaign Call Completed\nOutcome: {{ $json.body.record.outcome }}\nStatus: {{ $json.body.record.call_status }}\nDuration: {{ $json.body.record.duration }}s"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notify-call-complete",
+      "name": "Notify: Call Completed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 460]
+    }
+  ],
+  "connections": {
+    "Webhook: Campaign Call Updated": {
+      "main": [
+        [{ "node": "Filter: Appointment Outcome", "type": "main", "index": 0 }]
+      ]
+    },
+    "Filter: Appointment Outcome": {
+      "main": [
+        [
+          { "node": "Supabase: Create Appointment", "type": "main", "index": 0 },
+          { "node": "Supabase: Fetch Lead Details", "type": "main", "index": 0 },
+          { "node": "Supabase: Fetch Campaign Details", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Notify: Call Completed", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Supabase: Create Appointment": {
+      "main": [
+        [{ "node": "Supabase: Increment Appointments", "type": "main", "index": 0 }]
+      ]
+    },
+    "Supabase: Fetch Lead Details": {
+      "main": [
+        [{ "node": "Send Quote Email", "type": "main", "index": 0 }]
+      ]
+    },
+    "Supabase: Fetch Campaign Details": {
+      "main": [
+        [{ "node": "Send Quote Email", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send Quote Email": {
+      "main": [
+        [{ "node": "Notify: Appointment Alert", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "instanceId": "lead-velocity-n8n"
+  }
+}
