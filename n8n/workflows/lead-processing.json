@@ -1,0 +1,153 @@
+{
+  "name": "Lead Velocity — Lead Processing",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "new-scraped-lead",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook: New Scraped Lead",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.body.record.status }}",
+              "value2": "new"
+            }
+          ]
+        }
+      },
+      "id": "filter-new",
+      "name": "Filter: Only New Leads",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "key", "value": "={{ $env.GEMINI_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "contents",
+              "value": "=[{\"role\":\"user\",\"parts\":[{\"text\":\"Enrich this lead for a South African financial services CRM. Lead: {{ JSON.stringify($json.body.record) }}. Return JSON with: enriched_role (better job title), company_size (SME/Enterprise/Startup), priority_score (1-10), suggested_approach (one sentence). Return ONLY valid JSON.\"}]}]"
+            },
+            {
+              "name": "generationConfig",
+              "value": "={\"temperature\":0.3,\"response_mime_type\":\"application/json\"}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "gemini-enrich",
+      "name": "Gemini: Enrich Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/scraped_leads?id=eq.{{ $node['Webhook: New Scraped Lead'].json.body.record.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "method": "PATCH",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "status", "value": "new" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "supabase-update",
+      "name": "Supabase: Tag Lead Enriched",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/functions/v1/trigger-telegram-alert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "=🎯 New Lead Scraped\nName: {{ $node['Webhook: New Scraped Lead'].json.body.record.name }}\nCompany: {{ $node['Webhook: New Scraped Lead'].json.body.record.company }}\nIndustry: {{ $node['Webhook: New Scraped Lead'].json.body.record.industry }}\nSource: {{ $node['Webhook: New Scraped Lead'].json.body.record.source }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notify-admin",
+      "name": "Notify: Telegram Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 380]
+    }
+  ],
+  "connections": {
+    "Webhook: New Scraped Lead": {
+      "main": [
+        [{ "node": "Filter: Only New Leads", "type": "main", "index": 0 }]
+      ]
+    },
+    "Filter: Only New Leads": {
+      "main": [
+        [
+          { "node": "Gemini: Enrich Lead", "type": "main", "index": 0 },
+          { "node": "Notify: Telegram Alert", "type": "main", "index": 0 }
+        ],
+        []
+      ]
+    },
+    "Gemini: Enrich Lead": {
+      "main": [
+        [{ "node": "Supabase: Tag Lead Enriched", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "instanceId": "lead-velocity-n8n"
+  }
+}

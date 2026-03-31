@@ -1,0 +1,188 @@
+{
+  "name": "Lead Velocity — Campaign Notifications",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "campaign-call-update",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook: Campaign Call Updated",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.body.record.outcome }}",
+              "value2": "appointment"
+            }
+          ]
+        }
+      },
+      "id": "filter-appointment",
+      "name": "Filter: Appointment Outcome",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/appointments",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "method": "POST",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "lead_id", "value": "={{ $json.body.record.lead_id }}" },
+            { "name": "source", "value": "voice_campaign" },
+            { "name": "campaign_id", "value": "={{ $json.body.record.campaign_id }}" },
+            { "name": "status", "value": "pending_confirmation" },
+            { "name": "notes", "value": "Appointment booked via AI voice campaign call" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-appointment",
+      "name": "Supabase: Create Appointment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/voice_campaigns?id=eq.{{ $json.body.record.campaign_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "method": "PATCH",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "appointments_set",
+              "value": "=appointments_set + 1"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "update-campaign-stats",
+      "name": "Supabase: Increment Appointments",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/functions/v1/trigger-telegram-alert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "=📅 Appointment Booked via AI Call!\nCampaign ID: {{ $json.body.record.campaign_id }}\nLead ID: {{ $json.body.record.lead_id }}\nCall Duration: {{ $json.body.record.duration }}s"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notify-appointment",
+      "name": "Notify: Appointment Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/functions/v1/trigger-telegram-alert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "=📞 Campaign Call Completed\nOutcome: {{ $json.body.record.outcome }}\nStatus: {{ $json.body.record.call_status }}\nDuration: {{ $json.body.record.duration }}s"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notify-call-complete",
+      "name": "Notify: Call Completed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 560]
+    }
+  ],
+  "connections": {
+    "Webhook: Campaign Call Updated": {
+      "main": [
+        [{ "node": "Filter: Appointment Outcome", "type": "main", "index": 0 }]
+      ]
+    },
+    "Filter: Appointment Outcome": {
+      "main": [
+        [
+          { "node": "Create Appointment", "type": "main", "index": 0 },
+          { "node": "Notify: Appointment Alert", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Notify: Call Completed", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Create Appointment": {
+      "main": [
+        [{ "node": "Supabase: Increment Appointments", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "instanceId": "lead-velocity-n8n"
+  }
+}
