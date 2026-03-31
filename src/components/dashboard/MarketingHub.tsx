@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import {
     Rocket,
     Search,
@@ -39,7 +40,9 @@ import {
     Briefcase,
     PieChart,
     Trophy,
-    Users
+    Users,
+    Terminal,
+    RotateCw
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -125,6 +128,10 @@ const MarketingHub = () => {
         conversion: { current: 4.2, target: 5.5, trend: "+0.5%" }
     });
 
+    // --- Sales Consultant State ---
+    const [salesBriefing, setSalesBriefing] = useState(null);
+    const [isSalesBriefingLoading, setIsSalesBriefingLoading] = useState(false);
+
     // --- Handlers ---
     const handleScrape = async () => {
         if (!industry) return;
@@ -153,7 +160,10 @@ const MarketingHub = () => {
 
         try {
             const { data, error } = await supabase.functions.invoke('marketing-ai', {
-                body: { action: 'prospect-leads', payload: { industry, provider: scraperProvider } }
+                body: { action: 'prospect-leads', payload: { industry, provider: scraperProvider } },
+                headers: {
+                    'x-gemini-key': import.meta.env.VITE_GEMINI_API_KEY
+                }
             });
 
             if (error) throw error;
@@ -181,7 +191,10 @@ const MarketingHub = () => {
         setIsGoogleArchitecting(true);
         try {
             const { data, error } = await supabase.functions.invoke('marketing-ai', {
-                body: { action: 'ad-architect', payload: { prompt: "insurance broker south africa", platform: 'google-search' } }
+                body: { action: 'ad-architect', payload: { prompt: "insurance broker south africa", platform: 'google-search' } },
+                headers: {
+                    'x-gemini-key': import.meta.env.VITE_GEMINI_API_KEY
+                }
             });
 
             if (error) throw error;
@@ -203,7 +216,10 @@ const MarketingHub = () => {
         setPlatformBrainLoading(prev => ({ ...prev, [platform]: true }));
         try {
             const { data, error } = await supabase.functions.invoke('marketing-ai', {
-                body: { action: 'platform-blueprint', payload: { platform } }
+                body: { action: 'platform-blueprint', payload: { platform } },
+                headers: {
+                    'x-gemini-key': import.meta.env.VITE_GEMINI_API_KEY
+                }
             });
 
             if (error) throw error;
@@ -234,6 +250,9 @@ const MarketingHub = () => {
                         weeklyAim,
                         kpiTargets
                     }
+                },
+                headers: {
+                    'x-gemini-key': import.meta.env.VITE_GEMINI_API_KEY
                 }
             });
 
@@ -248,6 +267,45 @@ const MarketingHub = () => {
             console.error(error);
         } finally {
             setIsBriefingLoading(false);
+        }
+    };
+
+    const handleGetSalesBriefing = async () => {
+        if (detectedLeads.length === 0) {
+            toast({
+                title: "No Leads Detected",
+                description: "Acquire some leads first before Einstein can architect a briefing.",
+                variant: "destructive"
+            });
+            return;
+        }
+
+        setIsSalesBriefingLoading(true);
+        try {
+            const { data, error } = await supabase.functions.invoke('marketing-ai', {
+                body: {
+                    action: 'sales-briefing',
+                    payload: {
+                        industry,
+                        leads: detectedLeads
+                    }
+                },
+                headers: {
+                    'x-gemini-key': import.meta.env.VITE_GEMINI_API_KEY
+                }
+            });
+
+            if (error) throw error;
+
+            setSalesBriefing(data);
+            toast({
+                title: "Sales Strategy Ready",
+                description: "Einstein has architected your high-performance directive."
+            });
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setIsSalesBriefingLoading(false);
         }
     };
 
@@ -309,7 +367,10 @@ const MarketingHub = () => {
 
         try {
             const { data, error } = await supabase.functions.invoke('einstein-ai', {
-                body: { query: chatInput, history: messages }
+                body: { query: chatInput, history: messages },
+                headers: {
+                    'x-gemini-key': import.meta.env.VITE_GEMINI_API_KEY
+                }
             });
 
             if (error) throw error;
@@ -334,7 +395,10 @@ const MarketingHub = () => {
         setIsFbGenerating(true);
         try {
             const { data, error } = await supabase.functions.invoke('marketing-ai', {
-                body: { action: 'ad-architect', payload: { prompt: fbAdPrompt, platform: 'facebook' } }
+                body: { action: 'ad-architect', payload: { prompt: fbAdPrompt, platform: 'facebook' } },
+                headers: {
+                    'x-gemini-key': import.meta.env.VITE_GEMINI_API_KEY
+                }
             });
 
             if (error) throw error;
@@ -434,6 +498,10 @@ const MarketingHub = () => {
                         <TabsTrigger value="linkedin" className="rounded-xl data-[state=active]:bg-primary/20 data-[state=active]:text-primary gap-2 px-4">
                             <Linkedin className="h-4 w-4" />
                             <span>LinkedIn</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="sales-consultant" className="rounded-xl data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-400 gap-2 px-4 border border-emerald-500/20 bg-emerald-500/5">
+                            <Phone className="h-4 w-4" />
+                            <span className="font-bold">Sales Consultant</span>
                         </TabsTrigger>
                     </TabsList>
                     <ScrollBar orientation="horizontal" />
@@ -1383,6 +1451,206 @@ const MarketingHub = () => {
                         </TabsContent>
                     ))
                 }
+                {/* Sales Consultant Tab Content */}
+                <TabsContent value="sales-consultant">
+                    <div className="grid lg:grid-cols-12 gap-8">
+                        {/* Einstein Directive Column */}
+                        <div className="lg:col-span-4 space-y-6">
+                            <Card className="border-emerald-500/20 bg-slate-900/40 backdrop-blur-xl p-8 rounded-3xl relative overflow-hidden group border-2">
+                                <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                                    <Phone className="h-40 w-40" />
+                                </div>
+                                <SectionHeader
+                                    title="Einstein's Directive"
+                                    subtitle="High-performance strategy architected by AI."
+                                    icon={Bot}
+                                />
+                                
+                                {!salesBriefing && !isSalesBriefingLoading ? (
+                                    <div className="space-y-6">
+                                        <div className="p-4 bg-slate-950/50 rounded-2xl border border-white/5 text-center py-10 opacity-60">
+                                            <Sparkles className="h-10 w-10 mx-auto mb-4 text-emerald-400 animate-pulse" />
+                                            <p className="text-sm">Initiate synthesis to receive your high-performance sales briefing.</p>
+                                        </div>
+                                        <Button
+                                            onClick={handleGetSalesBriefing}
+                                            className="w-full bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 rounded-2xl h-14 gap-2 font-bold"
+                                        >
+                                            <Zap className="h-5 w-5" />
+                                            Initialize Sales Shield
+                                        </Button>
+                                    </div>
+                                ) : isSalesBriefingLoading ? (
+                                    <div className="space-y-6 animate-pulse">
+                                        <div className="h-32 bg-white/5 rounded-2xl" />
+                                        <div className="h-20 bg-white/5 rounded-2xl" />
+                                        <div className="h-14 bg-white/5 rounded-xl" />
+                                    </div>
+                                ) : (
+                                    <div className="space-y-6 animate-in zoom-in-95 duration-500">
+                                        <div className="p-6 bg-slate-950/80 rounded-3xl border border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.1)]">
+                                            <h4 className="text-[10px] font-black uppercase text-emerald-400 tracking-widest mb-3 flex items-center gap-2">
+                                                <Mic className="h-3 w-3" /> Digital Briefing
+                                            </h4>
+                                            <p className="text-sm text-slate-100 leading-relaxed italic font-serif">
+                                                "{salesBriefing.briefing}"
+                                            </p>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
+                                                <span className="text-[9px] font-black uppercase text-slate-500 block mb-1">Batch Warmth</span>
+                                                <div className="text-2xl font-black text-white">{salesBriefing.intent}%</div>
+                                            </div>
+                                            <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
+                                                <span className="text-[9px] font-black uppercase text-slate-500 block mb-1">CPL Target</span>
+                                                <div className="text-2xl font-black text-emerald-400">R145</div>
+                                            </div>
+                                        </div>
+
+                                        <div className="p-4 bg-emerald-500/10 rounded-2xl border border-emerald-500/20">
+                                            <span className="text-[9px] font-black uppercase text-emerald-400 block mb-2 tracking-widest">30-Sec Script Strategy</span>
+                                            <p className="text-xs text-emerald-100 font-medium">{salesBriefing.strategy}</p>
+                                        </div>
+
+                                        <Button
+                                            onClick={handleGetSalesBriefing}
+                                            variant="ghost"
+                                            className="w-full text-slate-500 hover:text-white text-[10px] uppercase font-black"
+                                        >
+                                            <RotateCw className="h-3 w-3 mr-2" /> Re-Architect Briefing
+                                        </Button>
+                                    </div>
+                                )}
+                            </Card>
+
+                            <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl p-6 rounded-3xl">
+                                <h3 className="font-bold flex items-center gap-2 mb-4 text-sm">
+                                    <Activity className="h-4 w-4 text-emerald-400" /> Sales Velocity Pulse
+                                </h3>
+                                <div className="space-y-4">
+                                    <div className="flex justify-between items-center text-[10px] text-slate-400 uppercase">
+                                        <span>Dial Activity</span>
+                                        <span className="text-emerald-400">+24%</span>
+                                    </div>
+                                    <div className="h-1.5 w-full bg-white/5 rounded-full">
+                                        <div className="h-full bg-emerald-500 w-[65%] rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+                                    </div>
+                                </div>
+                            </Card>
+                        </div>
+
+                        {/* High Performance Call Queue */}
+                        <div className="lg:col-span-8 space-y-6">
+                            <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl rounded-3xl overflow-hidden border-2">
+                                <CardHeader className="p-8 border-b border-white/5 bg-slate-950/40">
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                                        <SectionHeader
+                                            title="High-Performance Call Queue"
+                                            subtitle="Real-world leads detected via stealth acquisition."
+                                            icon={Zap}
+                                        />
+                                        <div className="flex items-center gap-2">
+                                            <Badge className="bg-emerald-500/20 text-emerald-400 border-none px-4 py-2">
+                                                <Activity className="h-3.5 w-3.5 mr-2 animate-pulse" />
+                                                Live Queue: {detectedLeads.length} Leads
+                                            </Badge>
+                                        </div>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="p-0">
+                                    {detectedLeads.length === 0 ? (
+                                        <div className="p-20 text-center space-y-4 opacity-40">
+                                            <Search className="h-12 w-12 mx-auto mb-2" />
+                                            <p className="text-xl font-bold italic">No Leads in Chamber</p>
+                                            <p className="text-sm">Switch to 'Lead Prospector' and run a scrape to populate the queue.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left border-collapse">
+                                                <thead>
+                                                    <tr className="border-b border-white/5 bg-white/5">
+                                                        <th className="p-6 text-[10px] font-black uppercase text-slate-500">Contact / Firm</th>
+                                                        <th className="p-6 text-[10px] font-black uppercase text-slate-500">Industry Pulse</th>
+                                                        <th className="p-6 text-[10px] font-black uppercase text-slate-500 text-right">Execution Node</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {detectedLeads.map((lead) => (
+                                                        <tr key={lead.id} className="border-b border-white/5 hover:bg-white/5 transition-colors group">
+                                                            <td className="p-6">
+                                                                <div className="flex items-center gap-4">
+                                                                    <div className="h-10 w-10 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold">
+                                                                        {lead.name.charAt(0)}
+                                                                    </div>
+                                                                    <div>
+                                                                        <div className="font-bold text-white group-hover:text-emerald-400 transition-colors uppercase tracking-tight">{lead.name}</div>
+                                                                        <div className="text-[10px] text-slate-500 font-mono">{lead.company} • {lead.role}</div>
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-6">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="h-1.5 w-24 bg-white/5 rounded-full overflow-hidden">
+                                                                        <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${lead.vibe}%` }} />
+                                                                    </div>
+                                                                    <span className="text-[10px] font-bold text-emerald-400">{lead.vibe}% Hot</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-6 text-right">
+                                                                <div className="flex items-center justify-end gap-2">
+                                                                    <Button 
+                                                                        size="sm"
+                                                                        className="bg-primary/20 hover:bg-primary/40 text-primary border border-primary/30 rounded-xl h-10 gap-2 px-4 shadow-lg shadow-primary/10"
+                                                                        onClick={() => toast({ title: "Ayanda Initializing", description: `Bridging call to ${lead.name}...` })}
+                                                                    >
+                                                                        <Bot className="h-4 w-4" />
+                                                                        <span>Ayanda Connect</span>
+                                                                    </Button>
+                                                                    <Button 
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        className="border-white/10 hover:bg-white/5 rounded-xl h-10 w-10 p-0"
+                                                                        onClick={() => window.open(`tel:${lead.phone || '0111234567'}`)}
+                                                                    >
+                                                                        <Phone className="h-4 w-4" />
+                                                                    </Button>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                            
+                            <div className="grid md:grid-cols-2 gap-6">
+                                <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl p-6 rounded-3xl flex items-center gap-6">
+                                    <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+                                        <Zap className="h-6 w-6 text-primary" />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-sm uppercase tracking-tighter">Ayanda Flow Active</h4>
+                                        <p className="text-[10px] text-slate-500 leading-tight mt-1">Smart sequence handles follow-ups if no answer in 30 seconds.</p>
+                                    </div>
+                                    <Switch defaultChecked />
+                                </Card>
+                                <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl p-6 rounded-3xl flex items-center gap-6">
+                                    <div className="h-14 w-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
+                                        <Shield className="h-6 w-6 text-emerald-400" />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-sm uppercase tracking-tighter">Stealth Dialing</h4>
+                                        <p className="text-[10px] text-slate-500 leading-tight mt-1">Caller ID rotation enabled for higher contact rates.</p>
+                                    </div>
+                                    <Switch defaultChecked />
+                                </Card>
+                            </div>
+                        </div>
+                    </div>
+                </TabsContent>
             </Tabs>
         </div>
     );

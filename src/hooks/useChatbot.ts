@@ -123,32 +123,25 @@ export function useChatbot() {
         setIsLoading(true);
 
         try {
-            if (!GEMINI_API_KEY) throw new Error("API Key missing");
+            // Updated to call Einstein AI Edge Function with fallback support
+            const currentHistory = messages.map(m => ({ 
+                role: m.role === 'bot' ? 'bot' : 'user', 
+                content: m.content 
+            }));
 
-            const context = await getRoleContext();
-            const fullPrompt = `${SYSTEM_PROMPT_BASE}\n\n${context}\n\nUser Message: ${content}`;
-
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-            const response = await fetch(url, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    contents: [
-                        { role: "user", parts: [{ text: fullPrompt }] }
-                    ],
-                    generationConfig: { temperature: 0.7 },
-                }),
+            const { data, error } = await supabase.functions.invoke('einstein-ai', {
+                body: { query: content, history: currentHistory },
+                headers: {
+                    'x-gemini-key': import.meta.env.VITE_GEMINI_API_KEY
+                }
             });
 
-            if (!response.ok) throw new Error("Failed to reach Einstein");
+            if (error) throw error;
 
-            const data = await response.json();
-            const botResponseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-            if (botResponseText) {
+            if (data?.text) {
                 setMessages((prev) => [
                     ...prev,
-                    { id: (Date.now() + 1).toString(), role: "bot", content: botResponseText },
+                    { id: (Date.now() + 1).toString(), role: "bot", content: data.text },
                 ]);
             }
         } catch (error: any) {
@@ -158,7 +151,7 @@ export function useChatbot() {
                 {
                     id: (Date.now() + 1).toString(),
                     role: "bot",
-                    content: "Static interference detected! Ze neural link is temporarily disrupted. Please try again or click the onboarding link to proceed."
+                    content: "Static interference detected! Ze neural link is temporarily disrupted. Please try again or check your orbital alignment."
                 },
             ]);
         } finally {

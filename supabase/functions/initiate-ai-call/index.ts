@@ -4,8 +4,8 @@ import { AYANDA_PERSONALITY } from "../_shared/ayanda_persona.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-gemini-key, X-Gemini-Key',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE',
 };
 
 interface AICallRequest {
@@ -44,11 +44,12 @@ serve(async (req) => {
       });
     }
 
-    const token = authHeader.replace('Bearer ', '');
+    const token = authHeader.replace('Bearer ', '').trim();
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Invalid token' }), {
+      console.error('Auth error in initiate-ai-call:', authError, 'Token length:', token.length);
+      return new Response(JSON.stringify({ error: 'Invalid token', details: authError }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -202,7 +203,7 @@ serve(async (req) => {
   <Say voice="Polly.Ayanda" language="en-ZA">${personalizedScript}</Say>
   <Pause length="1"/>
   <Say voice="Polly.Ayanda" language="en-ZA">Thank you. Please leave a message after the beep.</Say>
-  <Record maxLength="120" action="${supabaseUrl}/functions/v1/handle-ai-call-recording?callRequestId=${callRequest.id}${communicationRecord ? `&communicationId=${communicationRecord.id}` : ''}" transcribe="true" transcribeCallback="${supabaseUrl}/functions/v1/handle-ai-call-transcription?callRequestId=${callRequest.id}${communicationRecord ? `&communicationId=${communicationRecord.id}` : ''}"/>
+  <Record maxLength="120" action="${supabaseUrl}/functions/v1/handle-ai-call-recording?callRequestId=${callRequest.id}${communicationRecord ? `&amp;communicationId=${communicationRecord.id}` : ''}" transcribe="true" transcribeCallback="${supabaseUrl}/functions/v1/handle-ai-call-transcription?callRequestId=${callRequest.id}${communicationRecord ? `&amp;communicationId=${communicationRecord.id}` : ''}"/>
 </Response>`;
 
     // Initiate the call via Twilio

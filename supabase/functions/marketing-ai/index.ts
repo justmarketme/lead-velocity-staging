@@ -3,29 +3,69 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-gemini-key, X-Gemini-Key',
+    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE',
 };
 
-serve(async (req) => {
+const SA_INSURANCE_SEED = `
+- Aon South Africa (Sandton)
+- Marsh SA (Johannesburg)
+- PSG Wealth & Insure (Centurion)
+- Hollard Insurance (Parktown)
+- Sanlam Brokerage (Bellville)
+- Old Mutual Insure (Mutualpark)
+- Discovery Insure (Sandton)
+- Alexander Forbes (Sandton)
+- Willis Towers Watson (Bryanston)
+- Indigenous firms: King Price, Outsurance, MiWay
+`;
+
+serve(async (req: any) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders });
     }
 
     try {
         const { action, payload } = await req.json();
-        const authHeader = req.headers.get('Authorization')!;
+        
+        // 1. Get API Key from various sources
+        const headerKey = req.headers.get('x-gemini-key');
+        const envKey = Deno.env.get("GEMINI_API_KEY");
+        const GEMINI_API_KEY = (headerKey && headerKey !== 'undefined') ? headerKey : envKey;
 
-        // CALL GEMINI
-        const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")!;
+        if (!GEMINI_API_KEY) {
+            console.error("No API Key found in headers or environment secrets.");
+            return new Response(JSON.stringify({ error: "Neural Link Offline: API key is missing. Please contact system administrator." }), {
+                status: 401,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+        }
 
         let prompt = "";
         if (action === "prospect-leads") {
             const providerContext = payload.provider === 'firecrawl' ? 'deep web crawling and stealth scraping' : 'social graph and maps extraction';
             prompt = `You are a high-performance Lead Generation AI using ${payload.provider} for ${providerContext}. 
             The industry is "${payload.industry}". 
-            Generate exactly 5 highly plausible fictional leads for this industry in South Africa.
-            Each lead must have: name, role, company name, email (ending in .co.za or .com), and a "vibe" score (80-99).
+            
+            REFERENCE SEED DATA FOR REALITY CHECK (South Africa):
+            ${SA_INSURANCE_SEED}
+
+            Generate exactly 5 HIGH-FIDELITY, REAL-LIFE leads for this industry in South Africa. 
+            Do NOT use obvious generic names. Use realistic South African professional names (mixed ethnicities: Afrikaans, English, Zulu, Xhosa, etc.).
+            Each lead must have: name, role (e.g. Principal Broker, Risk Specialist, Agency Owner), company name (must be a real entity or highly realistic derivative from the seed data), email (must be a realistic professional format), and a "vibe" score (80-99).
             Return ONLY a JSON array of objects.`;
+        } else if (action === "sales-briefing") {
+            prompt = `You are Einstein, the Aggressive High-Performance Sales Architect. 
+            Analyze the following batch of leads for the "${payload.industry}" industry:
+            ${JSON.stringify(payload.leads)}
+
+            Synthesize a 'Strategic Sales Directive' for the Consultant.
+            Include:
+            1. "briefing": A high-energy, German-accented directive (raspy professor style) about the opportunity. Explicitly mention that **Ayanda** should be used to dial these prospects immediately.
+            2. "intent": The estimated aggregate 'warmth' score of this batch (0-100).
+            3. "strategy": A one-sentence technical strategy for the first 30 seconds of the call.
+            
+            Return ONLY valid JSON.`;
         } else if (action === "ad-architect") {
             prompt = `You are a top-tier Ad Copy Architect. The user input is: "${payload.prompt}".
             The platform is "${payload.platform || 'facebook'}".
@@ -50,27 +90,61 @@ serve(async (req) => {
             Return ONLY valid JSON.`;
         }
 
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ role: "user", parts: [{ text: prompt }] }],
-                generationConfig: {
-                    temperature: 0.7,
-                    response_mime_type: "application/json"
-                }
-            })
-        });
+        let responseText = "[]";
+        let usedProvider = "gemini";
 
-        const geminiData = await res.json();
-        const responseText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
-        const result = JSON.parse(responseText);
+        try {
+            // Attempt Gemini Call
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ role: "user", parts: [{ text: prompt }] }],
+                    generationConfig: {
+                        temperature: 0.7,
+                        response_mime_type: "application/json"
+                    }
+                })
+            });
+
+            if (!res.ok) throw new Error(`Gemini API failed with status ${res.status}`);
+            
+            const geminiData = await res.json();
+            responseText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+        } catch (geminiError: any) {
+            console.warn("Gemini primary call failed, attempting OpenRouter fallback:", geminiError.message);
+            usedProvider = "openrouter";
+            
+            // OpenRouter Fallback (using the same key, as many Gemini keys work there)
+            const orRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${GEMINI_API_KEY}`,
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://leadvelocity.co.za",
+                    "X-Title": "Lead Velocity Einstein"
+                },
+                body: JSON.stringify({
+                    model: "google/gemini-flash-1.5",
+                    messages: [{ role: "user", content: prompt }]
+                })
+            });
+
+            if (orRes.ok) {
+                const orData = await orRes.json();
+                responseText = orData.choices?.[0]?.message?.content || "[]";
+            } else {
+                throw new Error("Both Gemini and OpenRouter fallback failed. Please check your API key.");
+            }
+        }
+
+        const result = JSON.parse(responseText.replace(/```json\n?/g, "").replace(/```/g, ""));
 
         return new Response(JSON.stringify(result), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            headers: { ...corsHeaders, 'Content-Type': 'application/json', 'X-AI-Provider': usedProvider },
         });
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Marketing AI Error:", error);
         return new Response(JSON.stringify({ error: error.message }), {
             status: 500,
