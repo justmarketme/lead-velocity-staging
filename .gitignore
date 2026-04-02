@@ -52,3 +52,4 @@ register-discord.js
 
 # Cursor / IDE config that may contain tokens (e.g. MCP, GitHub PAT)
 .cursor/
+supabase/.temp/

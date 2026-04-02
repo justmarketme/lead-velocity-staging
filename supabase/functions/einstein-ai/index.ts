@@ -4,7 +4,7 @@ import { WEBSITE_KNOWLEDGE, EINSTEIN_PERSONALITY } from "../_shared/knowledge.ts
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-gemini-key, X-Gemini-Key',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-gemini-key, X-Gemini-Key, x-tavily-key, x-openrouter-key',
     'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE',
 };
 
@@ -92,13 +92,19 @@ serve(async (req) => {
         }
 
         // 4. Call AI Service
-        const headerKey = req.headers.get('x-gemini-key');
-        const envKey = Deno.env.get("GEMINI_API_KEY");
-        const GEMINI_API_KEY = (headerKey && headerKey !== 'undefined') ? headerKey : envKey;
+        const openRouterHeaderKey = req.headers.get('x-openrouter-key');
+        const openRouterEnvKey = Deno.env.get("OPENROUTER_API_KEY");
+        const OPENROUTER_API_KEY = (openRouterHeaderKey && openRouterHeaderKey !== 'undefined') ? openRouterHeaderKey : openRouterEnvKey;
 
-        if (!GEMINI_API_KEY) {
-            console.error("No API Key found in headers or environment secrets.");
-            return new Response(JSON.stringify({ error: "Neural Link Offline: API key is missing." }), {
+        const geminiHeaderKey = req.headers.get('x-gemini-key');
+        const geminiEnvKey = Deno.env.get("GEMINI_API_KEY");
+        const GEMINI_API_KEY = (geminiHeaderKey && geminiHeaderKey !== 'undefined') ? geminiHeaderKey : geminiEnvKey;
+
+        const ACTIVE_KEY = OPENROUTER_API_KEY || GEMINI_API_KEY;
+
+        if (!ACTIVE_KEY) {
+            console.error("No API Key found for Einstein Assistant.");
+            return new Response(JSON.stringify({ error: "System Offline: Neural Link required." }), {
                 status: 401,
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             });
@@ -119,35 +125,26 @@ serve(async (req) => {
         };
 
         let responseText = "Static interference detected...";
-        let usedProvider = "gemini";
+        let usedProvider = "openrouter";
 
         try {
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(requestBody)
-            });
-
-            const geminiData = await res.json();
-            if (!res.ok) throw new Error(`Gemini API Error: ${JSON.stringify(geminiData)}`);
-            responseText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
-        } catch (geminiError: any) {
-            console.warn("Gemini Einstein call failed, attempting OpenRouter fallback:", geminiError.message);
-            usedProvider = "openrouter";
-            
+            // Attempt OpenRouter (Primary)
             const orRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                 method: "POST",
                 headers: {
-                    "Authorization": `Bearer ${GEMINI_API_KEY}`,
+                    "Authorization": `Bearer ${OPENROUTER_API_KEY || GEMINI_API_KEY}`,
                     "Content-Type": "application/json",
                     "HTTP-Referer": "https://leadvelocity.co.za",
                     "X-Title": "Lead Velocity Einstein"
                 },
                 body: JSON.stringify({
-                    model: "google/gemini-flash-1.5",
+                    model: "google/gemini-2.0-flash-001", // Upgrade to flagship Flash
                     messages: [
                         { role: "system", content: systemPrompt },
-                        ...(history || []).map((m: any) => ({ role: m.role === "user" ? "user" : "assistant", content: m.content })),
+                        ...(history || []).map((m: any) => ({ 
+                            role: m.role === "user" ? "user" : "assistant", 
+                            content: m.content 
+                        })),
                         { role: "user", content: query }
                     ]
                 })
@@ -155,10 +152,29 @@ serve(async (req) => {
 
             if (orRes.ok) {
                 const orData = await orRes.json();
-                responseText = orData.choices?.[0]?.message?.content || "Static interference continues...";
+                responseText = orData.choices?.[0]?.message?.content || "Einstein: Neural bridge timeout.";
             } else {
-                throw new Error("Einstein couldn't reach any neural nodes. Check API key.");
+                // Fallback to direct Gemini
+                console.warn("OpenRouter Einstein failed, attempting direct Gemini fallback...");
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        systemInstruction: { parts: [{ text: systemPrompt }] },
+                        contents: [
+                            ...(history || []).map((m: any) => ({ role: m.role === "user" ? "user" : "model", parts: [{ text: m.content }] })),
+                            { role: "user", parts: [{ text: query }] }
+                        ],
+                        generationConfig: { temperature: 0.7 }
+                    })
+                });
+                if (!res.ok) throw new Error(`Fallback Gemini Einstein failed with status ${res.status}`);
+                const geminiData = await res.json();
+                responseText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "Einstein: Signal loss detected.";
+                usedProvider = "gemini";
             }
+        } catch (error: any) {
+            throw new Error(`Einstein Neural Bridge Collapse: ${error.message}`);
         }
 
         return new Response(JSON.stringify({ text: responseText, role }), {

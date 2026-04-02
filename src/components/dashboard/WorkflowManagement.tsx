@@ -28,13 +28,14 @@ import {
   TrendingUp,
   Mail,
   ChevronDown,
+  Search,
+  Bot,
   Activity,
   Zap,
   LayoutGrid,
   List,
-  Search,
-  Bot,
 } from "lucide-react";
+import CallCommandCenter from "./CallCommandCenter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -217,6 +218,53 @@ const WorkflowManagement = () => {
   const [newStatus, setNewStatus] = useState<string>("");
   const [actionNotes, setActionNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [isCommandCenterOpen, setIsCommandCenterOpen] = useState(false);
+  const [activeAiCalls, setActiveAiCalls] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    // Initial fetch of active AI calls
+    const fetchActiveAiCalls = async () => {
+      const { data } = await supabase
+        .from("ai_call_requests")
+        .select("recipient_phone")
+        .eq("call_status", "in_progress");
+      
+      const callMap: Record<string, boolean> = {};
+      data?.forEach(call => {
+        callMap[call.recipient_phone] = true;
+      });
+      setActiveAiCalls(callMap);
+    };
+
+    fetchActiveAiCalls();
+
+    // Listen for AI call updates
+    const channel = supabase
+      .channel("ai-call-pulse")
+      .on("postgres_changes", { event: "*", schema: "public", table: "ai_call_requests" }, (payload) => {
+        const phone = (payload.new as any)?.recipient_phone || (payload.old as any)?.recipient_phone;
+        const status = (payload.new as any)?.call_status;
+        
+        if (phone) {
+          setActiveAiCalls(prev => ({
+            ...prev,
+            [phone]: status === "in_progress"
+          }));
+        }
+      })
+      .subscribe();
+
+    // Listen for lead updates to sync broker mapping
+    const leadUpdateChannel = supabase
+      .channel("workflow-leads-update")
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "leads" }, () => fetchLeads())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+      supabase.removeChannel(leadUpdateChannel);
+    };
+  }, []);
   const [activities, setActivities] = useState<LeadActivity[]>([]);
   const [loadingActivities, setLoadingActivities] = useState(false);
 
@@ -285,7 +333,22 @@ const WorkflowManagement = () => {
         active_ai_call: callMap[lead.id] || null
       }));
 
-      setLeads(leadsWithCalls);
+      // Inject Demo Roleplay Lead for Admin/Testing
+      const demoLead: Lead = {
+        id: "demo-roleplay-lead-id",
+        first_name: "Demo",
+        last_name: "Roleplay (Test)",
+        email: "demo@leadvelocity.ai",
+        phone: "072 5548057",
+        current_status: "New",
+        broker_id: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        notes: "This is a persistent demo lead for AI roleplay testing.",
+        source: "Demo/Roleplay",
+      };
+
+      setLeads([demoLead, ...leadsWithCalls]);
     } catch (error) {
       console.error("Error fetching leads:", error);
       toast.error("Failed to load leads");
@@ -691,30 +754,32 @@ const WorkflowManagement = () => {
                     size="sm"
                     className="bg-primary text-primary-foreground hover:bg-primary/90"
                     onClick={async () => {
-                      const newLeads = filteredLeads.filter(l => l.current_status === "New");
+                      const newLeads = filteredLeads.filter(l => l.current_status === "New" && l.broker_id);
+                      if (newLeads.length === 0) {
+                        toast.error("No 'New' leads with assigned brokers found in this campaign.");
+                        return;
+                      }
+
                       toast.promise(
                         Promise.all(newLeads.map(async (lead) => {
-                          // Trigger AI Call
-                          return supabase.functions.invoke('initiate-ai-call', {
+                          // Trigger AI Call via create-ayanda-call (Conversational)
+                          return supabase.functions.invoke('create-ayanda-call', {
                             body: {
-                              recipient_type: 'lead',
-                              recipient_id: lead.id,
-                              recipient_name: `${lead.first_name} ${lead.last_name}`,
-                              recipient_phone: lead.phone,
-                              call_purpose: selectedCampaign.split('|')[0].trim(),
-                              call_purpose_details: `Broker: ${lead.broker?.firm_name || 'Lead Velocity'}`,
+                              leadId: lead.id,
+                              brokerId: lead.broker_id,
+                              isRoleplay: lead.id === "demo-roleplay-lead-id"
                             }
                           });
                         })),
                         {
-                          loading: 'Initiating AI calls for batch...',
-                          success: 'Campaign launched! AI agents are now calling.',
-                          error: 'Failed to launch full batch. Some calls may have failed.',
+                          loading: `Initiating ${newLeads.length} Conversational AI calls...`,
+                          success: 'Campaign launched! Ayanda is now calling leads.',
+                          error: 'Failed to launch full batch. Check credentials.',
                         }
                       );
                     }}
                   >
-                    <Bot className="h-4 w-4 mr-2" /> Launch AI Agent
+                    <Bot className="h-4 w-4 mr-2" /> Launch Ayanda Agent
                   </Button>
                 </div>
               )}
@@ -734,16 +799,20 @@ const WorkflowManagement = () => {
                   </TabsList>
                 </Tabs>
 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={fetchLeads}
-                  disabled={loading}
-                  className="h-9"
-                >
-                  <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-                  <span className="hidden sm:inline ml-2">Refresh</span>
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="default" 
+                    size="sm" 
+                    className="bg-gradient-to-r from-primary to-secondary hover:opacity-90 shadow-lg shadow-primary/10 h-8 text-[11px] font-bold"
+                    onClick={() => setIsCommandCenterOpen(true)}
+                  >
+                    <Bot className="h-3.5 w-3.5 mr-1.5" />
+                    Command Center
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={fetchLeads} disabled={loading} className="h-8 w-8 p-0">
+                    <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
@@ -1132,24 +1201,26 @@ const WorkflowManagement = () => {
                                                 </Tooltip>
 
                                                 {/* AI Call Indicator */}
-                                                {lead.active_ai_call && (
+                                                {(lead.active_ai_call || activeAiCalls[lead.phone]) && (
                                                   <Tooltip>
                                                     <TooltipTrigger asChild>
                                                       <div className={cn(
                                                         "p-1 rounded-full",
-                                                        lead.active_ai_call.call_status === 'in_progress' ? "bg-blue-500/20 animate-pulse" :
-                                                          lead.active_ai_call.call_status === 'completed' ? "bg-green-500/20" : "bg-red-500/20"
+                                                        (activeAiCalls[lead.phone] || lead.active_ai_call?.call_status === 'in_progress') ? "bg-blue-500/20 animate-pulse border border-blue-500/30" :
+                                                          lead.active_ai_call?.call_status === 'completed' ? "bg-green-500/20 border border-green-500/30" : "bg-red-500/20 border border-red-500/30"
                                                       )}>
                                                         <Bot className={cn(
                                                           "h-3 w-3",
-                                                          lead.active_ai_call.call_status === 'in_progress' ? "text-blue-500" :
-                                                            lead.active_ai_call.call_status === 'completed' ? "text-green-500" : "text-red-500"
+                                                          (activeAiCalls[lead.phone] || lead.active_ai_call?.call_status === 'in_progress') ? "text-blue-500" :
+                                                            lead.active_ai_call?.call_status === 'completed' ? "text-green-500" : "text-red-500"
                                                         )} />
                                                       </div>
                                                     </TooltipTrigger>
                                                     <TooltipContent side="right">
-                                                      <p className="text-[10px] font-bold uppercase tracking-wider">AI AGENT: {lead.active_ai_call.call_status}</p>
-                                                      {lead.active_ai_call.call_summary && <p className="text-[10px] opacity-70 mt-1 max-w-[150px] line-clamp-2">{lead.active_ai_call.call_summary}</p>}
+                                                      <p className="text-[10px] font-bold uppercase tracking-wider">
+                                                        AI AGENT: {(activeAiCalls[lead.phone] || lead.active_ai_call?.call_status === 'in_progress') ? "In Progress" : lead.active_ai_call?.call_status}
+                                                      </p>
+                                                      {lead.active_ai_call?.call_summary && <p className="text-[10px] opacity-70 mt-1 max-w-[150px] line-clamp-2">{lead.active_ai_call.call_summary}</p>}
                                                     </TooltipContent>
                                                   </Tooltip>
                                                 )}
@@ -1653,27 +1724,79 @@ const WorkflowManagement = () => {
                   </div>
                 </div>
 
-                <DialogFooter className="p-4 pt-0 gap-2">
-                  <Button variant="outline" onClick={() => setActionDialogOpen(false)} className="flex-1">
+                <DialogFooter className="p-4 pt-0 sm:justify-between items-center w-full gap-3">
+                  <Button variant="outline" onClick={() => setActionDialogOpen(false)} className="w-full sm:w-auto shrink-0 order-3 sm:order-1">
                     Cancel
                   </Button>
-                  <Button
-                    onClick={handleMoveToStage}
-                    disabled={saving || newStatus === selectedLead?.current_status}
-                    className="flex-1 bg-gradient-to-r from-primary to-secondary hover:opacity-90"
-                  >
-                    {saving ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <ArrowRight className="h-4 w-4 mr-2" />
-                    )}
-                    Move Lead
-                  </Button>
+                  
+                  <div className="flex items-center gap-2 w-full sm:w-auto order-1 sm:order-2">
+                    <Button
+                      variant="default"
+                      className="flex-1 sm:flex-none bg-indigo-500 hover:bg-indigo-600 text-white truncate"
+                      onClick={async () => {
+                        if (!selectedLead) return;
+                      const callPromise = supabase.functions.invoke('create-ayanda-call', {
+                        body: {
+                          leadId: selectedLead.id,
+                          brokerId: selectedLead.broker_id,
+                          isRoleplay: selectedLead.id === "demo-roleplay-lead-id"
+                        }
+                      }).then(async (res) => {
+                        if (res.error) {
+                          let finalError = res.error.message;
+                          if (res.error.context && typeof res.error.context.text === 'function') {
+                            const errBody = await res.error.context.text();
+                            try {
+                              const parsed = JSON.parse(errBody);
+                              finalError = parsed.error || errBody;
+                            } catch (e) {
+                              finalError = errBody;
+                            }
+                          }
+                          throw new Error(finalError);
+                        }
+                        return res.data;
+                      });
+
+                      toast.promise(callPromise, {
+                        loading: 'Dispatching Ayanda AI agent...',
+                        success: 'AI call initiated! Connecting to lead...',
+                        error: (err) => `Failed to dispatch: ${err.message}`,
+                      });
+                      
+                      callPromise.finally(() => {
+                        setActionDialogOpen(false);
+                        setTimeout(() => fetchLeads(), 1000);
+                      });
+                      }}
+                    >
+                      <Bot className="h-4 w-4 mr-1.5 shrink-0" />
+                      <span className="truncate">Ai Call</span>
+                    </Button>
+
+                    <Button
+                      onClick={handleMoveToStage}
+                      disabled={saving || newStatus === selectedLead?.current_status}
+                      className="flex-1 sm:flex-none bg-gradient-to-r from-primary to-secondary hover:opacity-90 truncate"
+                    >
+                      {saving ? (
+                        <Loader2 className="h-4 w-4 mr-1.5 shrink-0 animate-spin" />
+                      ) : (
+                        <ArrowRight className="h-4 w-4 mr-1.5 shrink-0" />
+                      )}
+                      <span className="truncate">Move Lead</span>
+                    </Button>
+                  </div>
                 </DialogFooter>
               </>
             )}
           </DialogContent>
         </Dialog>
+
+        <CallCommandCenter 
+          isOpen={isCommandCenterOpen} 
+          onClose={() => setIsCommandCenterOpen(false)} 
+        />
       </div>
     </TooltipProvider>
   );

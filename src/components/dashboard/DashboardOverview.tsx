@@ -14,6 +14,18 @@ const DashboardOverview = () => {
 
   useEffect(() => {
     fetchStats();
+
+    // Realtime subscription — stats refresh automatically when leads are added from Marketing Hub or any other source
+    const channel = supabase
+      .channel("dashboard-overview-leads")
+      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => {
+        fetchStats();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const fetchStats = async () => {
@@ -63,8 +75,8 @@ const DashboardOverview = () => {
       color: "text-primary",
     },
     {
-      title: "This Month",
-      value: stats.thisMonth,
+      title: "Added Today",
+      value: stats.today,
       icon: TrendingUp,
       color: "text-secondary",
     },

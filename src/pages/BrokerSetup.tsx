@@ -6,9 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { ShieldCheck, Lock, CheckCircle2, AlertCircle } from "lucide-react";
+import { ShieldCheck, Lock, CheckCircle2, ChevronDown, Search, Bot, Activity, Zap, LayoutGrid, List } from "lucide-react";
 import logo from "@/assets/lead-velocity-logo.webp";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 
 const SECURITY_QUESTIONS = [
     "What was the name of your first pet?",
@@ -39,6 +40,8 @@ const BrokerSetup = () => {
     const [q3, setQ3] = useState("");
     const [a3, setA3] = useState("");
     const [editableEmail, setEditableEmail] = useState("");
+    const [calendarEmail, setCalendarEmail] = useState("");
+    const [whatsappNumber, setWhatsappNumber] = useState("");
     const [isSuccess, setIsSuccess] = useState(false);
 
     useEffect(() => {
@@ -145,6 +148,8 @@ const BrokerSetup = () => {
                         a2: a2.toLowerCase().trim(),
                         q3: q3,
                         a3: a3.toLowerCase().trim(),
+                        calendar_email: calendarEmail || editableEmail || invite.email,
+                        whatsapp_number: whatsappNumber,
                     }
                 }
             });
@@ -222,7 +227,9 @@ const BrokerSetup = () => {
                             ? "Your account is now ready. You can log in to access your portal."
                             : step === 1
                                 ? `Hello ${invite?.broker_name || 'there'}, let's secure your account with a password.`
-                                : "Finally, choose security questions to help you recover your account if you forget your password."}
+                                : step === 2
+                                    ? "Choose security questions to help you recover your account."
+                                    : "Connect your calendar and WhatsApp to receive appointment notifications."}
                     </CardDescription>
                 </CardHeader>
 
@@ -231,8 +238,10 @@ const BrokerSetup = () => {
                         <div className="flex justify-center mb-8">
                             <div className="flex items-center">
                                 <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${step >= 1 ? 'bg-primary border-primary text-white' : 'border-muted'}`}>1</div>
-                                <div className={`w-12 h-1 ${step >= 2 ? 'bg-primary' : 'bg-muted'}`} />
+                                <div className={`w-10 h-1 ${step >= 2 ? 'bg-primary' : 'bg-muted'}`} />
                                 <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${step >= 2 ? 'bg-primary border-primary text-white' : 'border-muted'}`}>2</div>
+                                <div className={`w-10 h-1 ${step >= 3 ? 'bg-primary' : 'bg-muted'}`} />
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${step >= 3 ? 'bg-primary border-primary text-white' : 'border-muted'}`}>3</div>
                             </div>
                         </div>
                     )}
@@ -297,8 +306,8 @@ const BrokerSetup = () => {
                                 Continue to Security
                             </Button>
                         </form>
-                    ) : (
-                        <form onSubmit={handleCompleteSetup} className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+                    ) : step === 2 ? (
+                        <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
                             {[1, 2, 3].map((num) => (
                                 <div key={num} className="space-y-3 p-4 bg-accent/30 rounded-lg border border-border">
                                     <div className="space-y-2">
@@ -333,7 +342,47 @@ const BrokerSetup = () => {
                                 <Button type="button" variant="outline" className="flex-1" onClick={() => setStep(1)}>
                                     Back
                                 </Button>
-                                <Button type="submit" className="flex-[2] h-12 text-lg" disabled={submitting}>
+                                <Button type="button" className="flex-[2] h-12 text-lg" onClick={() => {
+                                    if (q1 && a1 && q2 && a2 && q3 && a3) setStep(3);
+                                    else toast({ title: "Fields missing", description: "Answer all security questions.", variant: "destructive" });
+                                }}>
+                                    Continue to Integrations
+                                </Button>
+                            </div>
+                        </div>
+                    ) : (
+                        <form onSubmit={handleCompleteSetup} className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+                            <div className="p-4 bg-primary/5 rounded-lg border border-primary/20 space-y-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="calendarEmail">Google Calendar Email</Label>
+                                    <Input
+                                        id="calendarEmail"
+                                        placeholder="your-google-calendar@gmail.com"
+                                        value={calendarEmail}
+                                        onChange={(e) => setCalendarEmail(e.target.value)}
+                                        className="bg-background"
+                                    />
+                                    <p className="text-[10px] text-muted-foreground italic">Ayanda will check this calendar's availability before booking.</p>
+                                </div>
+                                <Separator className="opacity-30" />
+                                <div className="space-y-2">
+                                    <Label htmlFor="whatsapp">WhatsApp Number</Label>
+                                    <Input
+                                        id="whatsapp"
+                                        placeholder="+27..."
+                                        value={whatsappNumber}
+                                        onChange={(e) => setWhatsappNumber(e.target.value)}
+                                        className="bg-background"
+                                    />
+                                    <p className="text-[10px] text-muted-foreground italic">Required for automated WhatsApp appointment confirmations.</p>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-4">
+                                <Button type="button" variant="outline" className="flex-1" onClick={() => setStep(2)}>
+                                    Back
+                                </Button>
+                                <Button type="submit" className="flex-[2] h-12 text-lg bg-gradient-to-r from-primary to-secondary hover:opacity-90 font-bold" disabled={submitting}>
                                     {submitting ? "Finalizing..." : "Complete Setup"}
                                 </Button>
                             </div>

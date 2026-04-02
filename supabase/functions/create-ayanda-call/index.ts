@@ -148,7 +148,7 @@ serve(async (req) => {
             ],
             medium: { twilio: {} },
             firstSpeakerSettings: { agent: {} },
-            voiceOverrides: { speed: 1.15 }
+            voiceOverrides: { elevenLabs: { speed: 1.15 } }
         };
 
         const ultravoxResponse = await fetch('https://api.ultravox.ai/api/calls', {
