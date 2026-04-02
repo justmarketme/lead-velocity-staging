@@ -143,11 +143,12 @@ serve(async (req) => {
             initialMessages: [
                 {
                     role: 'MESSAGE_ROLE_AGENT',
-                    text: `Hi ${lead.first_name || "there"}! This is Ayanda calling on behalf of ${brokerName} from ${firmName}. How's your day going?`
+                    text: `Hi ${lead.first_name || "there"}, Ayanda here — calling on behalf of ${brokerName}'s office at ${firmName}. I'm actually not calling for a sales pitch. I had one quick clarifying question for you — do you have a quick 20 seconds?`
                 }
             ],
             medium: { twilio: {} },
-            firstSpeakerSettings: { agent: {} }
+            firstSpeakerSettings: { agent: {} },
+            voiceOverrides: { speed: 1.15 }
         };
 
         const ultravoxResponse = await fetch('https://api.ultravox.ai/api/calls', {
