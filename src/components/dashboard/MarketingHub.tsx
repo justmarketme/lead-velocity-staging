@@ -777,9 +777,9 @@ const MarketingHub = () => {
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="firecrawl">Firecrawl (Deep Web)</SelectItem>
-                                                <SelectItem value="apify">Apify (Social/Maps)</SelectItem>
-                                                <SelectItem value="tavily">Tavily (High-Performance)</SelectItem>
+                                                <SelectItem value="firecrawl">Firecrawl (Deep Web) + Exa.ai Context</SelectItem>
+                                                <SelectItem value="apify">Apify (Social/Maps) + Exa.ai Context</SelectItem>
+                                                <SelectItem value="tavily">Tavily (High-Performance) + Exa.ai Context</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
@@ -1749,7 +1749,7 @@ const MarketingHub = () => {
                     </div>
                 </TabsContent>
             </Tabs>
-            <AyandaCallModal isOpen={isAyandaModalOpen} onClose={() => setIsAyandaModalOpen(false)} lead={selectedLeadForCall} />
+            <AyandaCallModal isOpen={isAyandaModalOpen} onClose={() => setIsAyandaModalOpen(false)} lead={selectedLeadForCall} brokerId={selectedLeadForCall?.broker_id} />
         </div>
     );
 };
