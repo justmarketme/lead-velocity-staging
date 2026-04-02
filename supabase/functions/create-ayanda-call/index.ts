@@ -145,7 +145,9 @@ serve(async (req) => {
                     role: 'MESSAGE_ROLE_AGENT',
                     text: `Hi ${lead.first_name || "there"}! This is Ayanda calling on behalf of ${brokerName} from ${firmName}. How's your day going?`
                 }
-            ]
+            ],
+            medium: { twilio: {} },
+            firstSpeakerSettings: { agent: {} }
         };
 
         const ultravoxResponse = await fetch('https://api.ultravox.ai/api/calls', {
