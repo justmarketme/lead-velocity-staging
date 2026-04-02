@@ -33,7 +33,7 @@ serve(async (req) => {
         // 1. Fetch Lead & Broker Context
         const { data: lead, error: leadError } = await supabase
             .from('leads')
-            .select('first_name, last_name, phone, source, company')
+            .select('first_name, last_name, phone, source, notes')
             .eq('id', leadId)
             .single();
 
@@ -53,7 +53,7 @@ serve(async (req) => {
         let researchContext = "No recent specific updates found.";
         if (EXA_API_KEY && !isRoleplay) {
             try {
-                const query = `Latest news and business updates for ${lead.company || lead.first_name + ' ' + lead.last_name}`;
+                const query = `Latest news and business updates for ${lead.notes || lead.first_name + ' ' + lead.last_name}`;
                 const exaResponse = await fetch('https://api.exa.ai/search', {
                     method: 'POST',
                     headers: {
@@ -109,47 +109,35 @@ serve(async (req) => {
             voice: AYANDA_VOICE,
             firstSpeaker: 'FIRST_SPEAKER_AGENT',
             recordingEnabled: true,
-            tools: [
+            selectedTools: [
                 {
-                    name: "book_appointment",
-                    description: "Schedules a 15-minute consultation on the broker's calendar.",
-                    http: {
-                        url: `${supabaseUrl}/functions/v1/ayanda-tools-bridge`,
-                        method: "POST",
-                        headers: { 
-                            "Authorization": `Bearer ${supabaseServiceKey}`,
-                            "Content-Type": "application/json" 
+                    temporaryTool: {
+                        modelToolName: "book_appointment",
+                        description: "Schedules a 15-minute consultation on the broker's calendar. Call this when the lead agrees to a meeting.",
+                        staticParameters: [
+                            { name: "toolName", location: "PARAMETER_LOCATION_BODY", value: "book_appointment" },
+                            { name: "leadId", location: "PARAMETER_LOCATION_BODY", value: leadId },
+                            { name: "brokerId", location: "PARAMETER_LOCATION_BODY", value: brokerId ?? "" }
+                        ],
+                        dynamicParameters: [
+                            {
+                                name: "appointment_time",
+                                location: "PARAMETER_LOCATION_BODY",
+                                schema: { type: "string", description: "ISO 8601 datetime string for the appointment" },
+                                required: true
+                            },
+                            {
+                                name: "notes",
+                                location: "PARAMETER_LOCATION_BODY",
+                                schema: { type: "string", description: "Short summary of the call outcome" },
+                                required: false
+                            }
+                        ],
+                        http: {
+                            baseUrlPattern: `${supabaseUrl}/functions/v1/ayanda-tools-bridge`,
+                            httpMethod: "POST"
                         }
-                    },
-                    staticParameters: {
-                        toolName: "book_appointment",
-                        leadId: leadId,
-                        brokerId: brokerId
-                    },
-                    dynamicParameters: [
-                        { name: "appointment_time", location: "BODY", description: "ISO format time" },
-                        { name: "notes", location: "BODY", description: "Short summary of the call outcome" }
-                    ]
-                },
-                {
-                    name: "send_whatsapp_confirmation",
-                    description: "Sends a WhatsApp message to the customer confirming appointment details.",
-                    http: {
-                        url: `${supabaseUrl}/functions/v1/ayanda-tools-bridge`,
-                        method: "POST",
-                        headers: { 
-                            "Authorization": `Bearer ${supabaseServiceKey}`,
-                            "Content-Type": "application/json" 
-                        }
-                    },
-                    staticParameters: {
-                        toolName: "send_whatsapp_confirmation",
-                        leadId: leadId,
-                        brokerId: brokerId
-                    },
-                    dynamicParameters: [
-                        { name: "message", location: "BODY", description: "The professional WhatsApp message body" }
-                    ]
+                    }
                 }
             ],
             initialMessages: [
