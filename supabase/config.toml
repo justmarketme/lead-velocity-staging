@@ -1,5 +1,14 @@
 project_id = "cmsylaupctrbsvzrgzwy"
 
+[functions.create-ayanda-call]
+verify_jwt = false
+
+[functions.book-appointment]
+verify_jwt = false
+
+[functions.ayanda-tools-bridge]
+verify_jwt = false
+
 [functions.send-admin-invite]
 verify_jwt = false
 
