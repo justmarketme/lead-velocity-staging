@@ -89,7 +89,8 @@ const PremiumBrokerPortalPage = () => {
 
     useEffect(() => {
         const initPortal = async () => {
-            const { data: { session } } = await supabase.auth.getSession();
+            const { data: sessionData } = await supabase.auth.getSession();
+            const session = sessionData?.session;
             if (!session) {
                 // ==========================================
                 // DEV BYPASS: Allow viewing without login
@@ -155,7 +156,8 @@ const PremiumBrokerPortalPage = () => {
 
             setBrokerData(enrichedBroker);
 
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: userData } = await supabase.auth.getUser();
+            const user = userData?.user;
             if (user?.user_metadata?.must_reset_password) {
                 toast({
                     title: "First Login Detected",

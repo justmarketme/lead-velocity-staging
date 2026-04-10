@@ -18,7 +18,11 @@ const leadSchema = z.object({
   email: z.string().trim().email("Invalid email address").max(255, "Email must be less than 255 characters"),
   phone: z.string().trim().min(1, "Phone is required").max(20, "Phone must be less than 20 characters"),
   source: z.string().max(50, "Source must be less than 50 characters").optional(),
-  broker_id: z.string().uuid("Valid broker must be selected"),
+  broker_id: z.string().optional(),
+  company: z.string().max(100, "Company must be less than 100 characters").optional(),
+  role: z.string().max(100, "Role must be less than 100 characters").optional(),
+  address: z.string().max(255, "Address must be less than 255 characters").optional(),
+  vibe: z.number().min(0).max(100).optional().default(50),
   notes: z.string().max(1000, "Notes must be less than 1000 characters").optional(),
 });
 
@@ -27,7 +31,9 @@ const csvLeadSchema = z.object({
   last_name: z.string().trim().min(1, "Last name is required"),
   email: z.string().trim().email("Invalid email address"),
   phone: z.string().trim().min(1, "Phone is required"),
-  source: z.string().optional(),
+  company: z.string().optional(),
+  role: z.string().optional(),
+  address: z.string().optional(),
   date: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -44,6 +50,9 @@ interface CSVParseResult {
     last_name: string;
     email: string;
     phone: string;
+    company?: string;
+    role?: string;
+    address?: string;
     source?: string;
     date_uploaded?: string;
     notes?: string;
@@ -58,6 +67,10 @@ const LeadUploadForm = () => {
     email: "",
     phone: "",
     source: "website_form",
+    company: "",
+    role: "",
+    address: "",
+    vibe: 50,
     broker_id: "",
     notes: "",
   });
@@ -101,7 +114,11 @@ const LeadUploadForm = () => {
           email: validatedData.email,
           phone: validatedData.phone,
           source: validatedData.source || null,
-          broker_id: validatedData.broker_id,
+          company: formData.company || null,
+          role: formData.role || null,
+          address: formData.address || null,
+          vibe: formData.vibe,
+          broker_id: validatedData.broker_id === "house_leads" ? null : validatedData.broker_id,
           notes: validatedData.notes || null,
           current_status: "New",
         },
@@ -124,6 +141,10 @@ const LeadUploadForm = () => {
           email: "",
           phone: "",
           source: "website_form",
+          company: "",
+          role: "",
+          address: "",
+          vibe: 5,
           broker_id: "",
           notes: "",
         });
@@ -191,6 +212,9 @@ const LeadUploadForm = () => {
           last_name: validated.last_name,
           email: validated.email,
           phone: validated.phone,
+          company: validated.company || undefined,
+          role: validated.role || undefined,
+          address: validated.address || undefined,
           source: validated.source || undefined,
           date_uploaded: validated.date ? new Date(validated.date).toISOString() : undefined,
           notes: validated.notes || undefined,
@@ -244,7 +268,7 @@ const LeadUploadForm = () => {
 
     const leads = csvParseResult.valid.map(lead => ({
       ...lead,
-      broker_id: csvBrokerId,
+      broker_id: csvBrokerId === "house_leads" ? null : csvBrokerId,
       current_status: "New",
     }));
 
@@ -356,6 +380,7 @@ const LeadUploadForm = () => {
                     <SelectValue placeholder="Select a broker" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="house_leads">House Leads (Manual Load)</SelectItem>
                     {brokers.map((broker) => (
                       <SelectItem key={broker.id} value={broker.id}>
                         {broker.firm_name} - {broker.contact_person}
@@ -363,6 +388,32 @@ const LeadUploadForm = () => {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="company">Company</Label>
+                  <Input
+                    id="company"
+                    value={(formData as any).company}
+                    onChange={(e) => setFormData({ ...formData, company: e.target.value } as any)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="role">Role</Label>
+                  <Input
+                    id="role"
+                    value={(formData as any).role}
+                    onChange={(e) => setFormData({ ...formData, role: e.target.value } as any)}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="address">Address</Label>
+                <Input
+                  id="address"
+                  value={(formData as any).address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value } as any)}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="source">Lead Source</Label>
@@ -377,10 +428,32 @@ const LeadUploadForm = () => {
                     <SelectItem value="website_form">Website Form</SelectItem>
                     <SelectItem value="referral">Referral</SelectItem>
                     <SelectItem value="campaign">Campaign</SelectItem>
+                    <SelectItem value="Campaign Lead">Campaign Lead</SelectItem>
+                    <SelectItem value="Search Lead">Search Lead</SelectItem>
+                    <SelectItem value="Ayanda Prospecting">Ayanda Prospecting</SelectItem>
                     <SelectItem value="cold_call">Cold Call</SelectItem>
                     <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-3 p-3 bg-muted/30 rounded-lg border">
+                <div className="flex justify-between items-center">
+                  <Label htmlFor="vibe">Opportunity Vibe (0-100%)</Label>
+                  <span className={cn(
+                    "text-sm font-bold p-1 px-2 rounded-md",
+                    formData.vibe > 80 ? "bg-emerald-500/10 text-emerald-500" : "bg-blue-500/10 text-blue-500"
+                  )}>{formData.vibe}%</span>
+                </div>
+                <Input
+                  id="vibe"
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  className="h-6 accent-primary"
+                  value={formData.vibe}
+                  onChange={(e) => setFormData({ ...formData, vibe: parseInt(e.target.value) })}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="notes">Notes (Optional)</Label>
@@ -420,6 +493,7 @@ const LeadUploadForm = () => {
                   <SelectValue placeholder="Select a broker for all leads" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="house_leads">House Leads (Manual Load)</SelectItem>
                   {brokers.map((broker) => (
                     <SelectItem key={broker.id} value={broker.id}>
                       {broker.firm_name} - {broker.contact_person}

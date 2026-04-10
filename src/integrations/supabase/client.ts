@@ -21,9 +21,9 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
       const urlStr = url.toString();
       if (urlStr.includes('/functions/v1/')) {
         const functionName = urlStr.split('/functions/v1/')[1];
-        if (['marketing-ai', 'einstein-ai'].includes(functionName)) {
+        if (['marketing-ai', 'einstein-ai', 'create-einstein-call'].includes(functionName)) {
           console.log(`[Edge Bridge] Intercepting function: ${functionName}`);
-          // Use relative path to hit our local Vite plugin
+          // Use relative path to hit our local Vite Emulator
           return fetch(`/functions/v1/${functionName}`, options);
         }
       }

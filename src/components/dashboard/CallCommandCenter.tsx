@@ -20,7 +20,10 @@ import {
   Clock,
   Volume2,
   ShieldCheck,
-  Target
+  Target,
+  FileText,
+  Search,
+  Settings
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -30,6 +33,14 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { UltravoxSession, UltravoxSessionStatus, Transcript } from 'ultravox-client';
+import { CallRecordingPlayer } from "@/components/communications/CallRecordingPlayer";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 interface CallRequest {
   id: string;
@@ -43,6 +54,8 @@ interface CallRequest {
   created_at: string;
   is_roleplay?: boolean;
   join_url?: string;
+  conversation_history?: any[];
+  admin_notes?: string;
 }
 
 interface CallCommandCenterProps {
@@ -56,6 +69,7 @@ const CallCommandCenter = ({ isOpen, onClose, activeCallId }: CallCommandCenterP
   const [calls, setCalls] = useState<CallRequest[]>([]);
   const [activeTab, setActiveTab] = useState<"live" | "history" | "coaching">("live");
   const [loading, setLoading] = useState(true);
+  const [selectedCall, setSelectedCall] = useState<CallRequest | null>(null);
   
   // Real-time Ultravox State
   const [transcript, setTranscript] = useState<Transcript[]>([]);
@@ -73,7 +87,7 @@ const CallCommandCenter = ({ isOpen, onClose, activeCallId }: CallCommandCenterP
       return () => {
         supabase.removeChannel(channel);
         if (sessionRef.current) {
-          sessionRef.current.leave();
+          sessionRef.current.leaveCall();
           sessionRef.current = null;
         }
       };
@@ -115,12 +129,9 @@ const CallCommandCenter = ({ isOpen, onClose, activeCallId }: CallCommandCenterP
         setTranscript([...session.transcripts]);
       });
 
-      session.joinCall(liveCall.join_url).catch(err => {
-        console.warn("Could not join Ultravox session locally (likely active via Twilio phone dial):", err);
-        setSessionStatus(UltravoxSessionStatus.IDLE);
-      });
+      session.joinCall(liveCall.join_url);
     } else if (!liveCall && sessionRef.current) {
-      sessionRef.current.leave();
+      sessionRef.current.leaveCall();
       sessionRef.current = null;
       setSessionStatus(UltravoxSessionStatus.IDLE);
       setTranscript([]);
@@ -137,12 +148,58 @@ const CallCommandCenter = ({ isOpen, onClose, activeCallId }: CallCommandCenterP
     }
   };
 
+  const downloadCallRecording = async (url: string, name: string) => {
+    try {
+      toast({
+        title: "Starting Download",
+        description: `Downloading recording for ${name}...`,
+      });
+      
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Download failed");
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `Ayanda-Session-${name.replace(/\s+/g, '-')}.mp3`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+
+      toast({
+        title: "Download Successful",
+        description: "Recording has been saved to your primary storage.",
+      });
+    } catch (err) {
+      console.error("Recording download error:", err);
+      // Fallback to legacy window.open if blob fails (e.g. CORS)
+      window.open(url, "_blank");
+      toast({
+        title: "Redirecting to Audio",
+        description: "Direct download blocked. Opening recording in a new secure tab.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const getSentiment = () => {
     if (transcript.length === 0) return "Neutral";
     const lastText = transcript[transcript.length - 1].text.toLowerCase();
     if (lastText.includes("great") || lastText.includes("yes") || lastText.includes("perfect")) return "Positive";
     if (lastText.includes("not") || lastText.includes("busy") || lastText.includes("stop")) return "Negative";
     return "Neutral";
+  };
+
+  const formatTranscriptText = (history: any[] | undefined) => {
+    if (!history || !Array.isArray(history)) return null;
+    return history
+      .map((entry) => {
+        const role = entry.role === 'agent' || entry.role === 'assistant' ? 'AI' : 'User';
+        return `[${role}]: ${entry.content || entry.text || ""}`;
+      })
+      .join("\n\n");
   };
 
   return (
@@ -230,12 +287,12 @@ const CallCommandCenter = ({ isOpen, onClose, activeCallId }: CallCommandCenterP
                           <div className="min-h-[140px] max-h-[140px] overflow-y-auto p-4 bg-background/40 rounded-2xl border border-border/20 backdrop-blur-md shadow-inner">
                             {transcript.length > 0 ? (
                               <div className="space-y-3">
-                                {transcript.slice(-4).map((t, i) => (
+                                {transcript.slice(-4).map((t: any, i) => (
                                   <div key={i} className={cn(
                                     "text-xs leading-relaxed transition-all duration-300",
-                                    t.role === 'agent' ? "text-primary font-medium" : "text-foreground opacity-80"
+                                    (t.role === 'agent' || t.role === 'assistant') ? "text-primary font-medium" : "text-foreground opacity-80"
                                   )}>
-                                    <span className="uppercase text-[8px] font-black mr-2 opacity-40">{t.role === 'agent' ? 'Ayanda' : 'Prospect'}:</span>
+                                    <span className="uppercase text-[8px] font-black mr-2 opacity-40">{(t.role === 'agent' || t.role === 'assistant') ? 'Ayanda' : 'Prospect'}:</span>
                                     {t.text}
                                   </div>
                                 ))}
@@ -320,7 +377,11 @@ const CallCommandCenter = ({ isOpen, onClose, activeCallId }: CallCommandCenterP
           {activeTab === "history" && (
             <div className="space-y-3 animate-in fade-in duration-500">
               {calls.map((call) => (
-                <Card key={call.id} className="border-border/30 hover:border-primary/20 hover:shadow-lg transition-all duration-300 cursor-pointer group bg-card/40 backdrop-blur-sm overflow-hidden">
+                <Card 
+                  key={call.id} 
+                  className="border-border/30 hover:border-primary/20 hover:shadow-lg transition-all duration-300 cursor-pointer group bg-card/40 backdrop-blur-sm overflow-hidden"
+                  onClick={() => setSelectedCall(call)}
+                >
                   <CardHeader className="p-4 pb-2">
                     <div className="flex items-center justify-between mb-1">
                       <Badge variant="outline" className={cn("text-[8px] font-black px-1.5 uppercase tracking-tighter", getStatusColor(call.call_status))}>
@@ -340,13 +401,42 @@ const CallCommandCenter = ({ isOpen, onClose, activeCallId }: CallCommandCenterP
                       <span className="flex items-center gap-1.5 font-medium">
                         <Clock className="h-3 w-3 text-primary opacity-50" /> {call.call_duration || 0}s
                       </span>
-                      <div className="flex items-center gap-1.5">
-                        <Button variant="outline" size="icon" className="h-8 w-8 rounded-full border-border/20 hover:bg-primary/10 hover:text-primary">
-                          <Play className="h-3.5 w-3.5" />
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 text-[10px] gap-1.5 px-2 hover:bg-primary/10 border border-transparent hover:border-primary/20"
+                          onClick={(e) => { e.stopPropagation(); setSelectedCall(call); }}
+                        >
+                          <FileText className="h-3 w-3 text-primary" /> Transcribe
                         </Button>
-                        <Button variant="outline" size="icon" className="h-8 w-8 rounded-full border-border/20 hover:bg-primary/10 hover:text-primary">
-                          <Download className="h-3.5 w-3.5" />
-                        </Button>
+                        
+                        {call.call_recording_url && (
+                          <div className="flex items-center gap-1.5">
+                            <Button 
+                              variant="outline" 
+                              size="icon" 
+                              className="h-8 w-8 rounded-full border-primary/20 bg-primary/5 hover:bg-primary/20 hover:text-primary text-primary transition-all shadow-sm"
+                              title="Replay Call"
+                              onClick={(e) => { e.stopPropagation(); setSelectedCall(call); }}
+                            >
+                              <Play className="h-3.5 w-3.5 fill-current" />
+                            </Button>
+                            
+                            <Button 
+                              variant="outline" 
+                              size="icon" 
+                              className="h-8 w-8 rounded-full border-border/40 hover:bg-accent hover:text-foreground transition-all"
+                              title="Download Recording"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                downloadCallRecording(call.call_recording_url!, call.recipient_name);
+                              }}
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -354,6 +444,78 @@ const CallCommandCenter = ({ isOpen, onClose, activeCallId }: CallCommandCenterP
               ))}
             </div>
           )}
+
+          {/* Call Detail Dialog */}
+          <Dialog open={!!selectedCall} onOpenChange={(open) => !open && setSelectedCall(null)}>
+            <DialogContent className="sm:max-w-[600px] border-border/40 bg-card/95 backdrop-blur-xl max-h-[90vh] overflow-y-auto">
+              {selectedCall && (
+                <>
+                  <DialogHeader className="mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <Badge variant="outline" className={cn("text-[10px] font-black px-2 py-0.5 uppercase tracking-widest", getStatusColor(selectedCall.call_status))}>
+                        {selectedCall.call_status.replace('_', ' ')}
+                      </Badge>
+                      <span className="text-xs font-mono text-muted-foreground">
+                        {new Date(selectedCall.created_at).toLocaleString()}
+                      </span>
+                    </div>
+                    <DialogTitle className="text-2xl font-black italic tracking-tighter uppercase mb-1">
+                      Session with {selectedCall.recipient_name}
+                    </DialogTitle>
+                    <DialogDescription className="text-sm">
+                      {selectedCall.recipient_phone} • {selectedCall.call_duration || 0}s duration
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  <div className="space-y-6">
+                    {/* Recording Player Area */}
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                        <Volume2 className="h-3 w-3" /> Audio Recording
+                      </h4>
+                      {selectedCall.call_recording_url ? (
+                        <CallRecordingPlayer 
+                          recordingUrl={selectedCall.call_recording_url} 
+                          transcript={formatTranscriptText(selectedCall.conversation_history)}
+                          communicationId={selectedCall.id}
+                        />
+                      ) : (
+                        <div className="p-8 border border-dashed rounded-xl flex flex-col items-center justify-center text-center bg-accent/5">
+                          <AlertCircle className="h-8 w-8 text-muted-foreground mb-2 opacity-50" />
+                          <p className="text-sm font-medium text-muted-foreground">No audio recording available</p>
+                          <p className="text-xs text-muted-foreground/60 mt-1">Recordings are typically processed after call completion</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Summary Area */}
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                        <Bot className="h-3 w-3" /> AI Summary
+                      </h4>
+                      <div className="p-4 rounded-xl bg-accent/10 border border-primary/10">
+                        <p className="text-sm leading-relaxed italic text-foreground/90">
+                          {selectedCall.call_summary || "Automated summary is pending or unavailable for this call."}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Meta Data */}
+                    {selectedCall.admin_notes && (
+                      <div className="space-y-3">
+                        <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">System Notes</h4>
+                        <div className="p-4 rounded-xl bg-muted/30 border border-border/20">
+                          <p className="text-sm text-muted-foreground leading-relaxed font-mono">
+                            {selectedCall.admin_notes}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </DialogContent>
+          </Dialog>
 
           {activeTab === "coaching" && (
             <div className="space-y-4 animate-in fade-in zoom-in-95 duration-500">

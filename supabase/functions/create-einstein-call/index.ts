@@ -61,12 +61,21 @@ serve(async (req) => {
 
         const fullSystemPrompt = `${EINSTEIN_PERSONALITY}\n\n${WEBSITE_KNOWLEDGE}\n\n${contextText}`;
 
+        const { medium: bodyMedium, model: bodyModel } = await req.json().catch(() => ({}));
+
         // 3. Create the Ultravox call session
         const callConfig = {
             systemPrompt: fullSystemPrompt,
+            model: bodyModel || 'ultravox-v0.7',
             temperature: 0.8,
-            voice: `elevenlabs-${ELEVENLABS_VOICE_ID}`,
+            externalVoice: {
+                elevenLabs: {
+                    voiceId: ELEVENLABS_VOICE_ID,
+                    model: 'eleven_turbo_v2_5'
+                }
+            },
             firstSpeaker: 'FIRST_SPEAKER_AGENT',
+            medium: bodyMedium || { webRtc: {} }, // Explicitly targeting web browser
             initialMessages: [
                 {
                     role: 'MESSAGE_ROLE_AGENT',
@@ -92,9 +101,11 @@ serve(async (req) => {
         }
 
         const callData = await ultravoxResponse.json();
+        const joinUrl = callData.joinUrl || callData.join_url;
+        const callId = callData.callId || callData.call_id;
 
         return new Response(
-            JSON.stringify({ joinUrl: callData.joinUrl, callId: callData.callId }),
+            JSON.stringify({ joinUrl, callId }),
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
 

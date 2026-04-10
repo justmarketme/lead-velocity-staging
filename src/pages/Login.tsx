@@ -30,7 +30,7 @@ const Login = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    const { data } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setSession(session);
         if (session) {
@@ -39,14 +39,19 @@ const Login = () => {
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data }) => {
+      const session = data?.session;
       setSession(session);
       if (session) {
         navigate("/dashboard");
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      if (data?.subscription) {
+        data.subscription.unsubscribe();
+      }
+    };
   }, [navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {

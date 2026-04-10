@@ -117,14 +117,18 @@ export function ChatBot() {
         setIsConnectingVoice(true);
         try {
             // Call the Supabase edge function to create an Ultravox session
-            const { data: { session } } = await supabase.auth.getSession();
+            const { data } = await supabase.auth.getSession();
+            const session = data?.session;
             const headers: Record<string, string> = { 'Content-Type': 'application/json' };
             if (session?.access_token) {
                 headers['Authorization'] = `Bearer ${session.access_token}`;
             }
 
             const response = await supabase.functions.invoke('create-einstein-call', {
-                body: {},
+                body: {
+                    medium: { webRtc: {} },
+                    model: 'ultravox-v0.7'
+                }
             });
 
             if (response.error) {

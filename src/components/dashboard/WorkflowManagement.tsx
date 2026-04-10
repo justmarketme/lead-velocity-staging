@@ -69,6 +69,7 @@ import {
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
+import { formatPhoneNumber } from "@/lib/format-phone";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -296,6 +297,57 @@ const WorkflowManagement = () => {
     } catch (error) {
       console.error("Error fetching brokers:", error);
     }
+  };
+
+  // --- Resizable Columns & Boards State ---
+  const [boardWidths, setBoardWidths] = useState<Record<string, number>>({
+    "New": 360,
+    "Contacted": 340,
+    "Appointment Booked": 340,
+    "Will Done": 340,
+    "Follow-up": 340,
+    "Rejected": 340,
+  });
+
+  const [tableColWidths, setTableColWidths] = useState<Record<string, number>>({
+    "lead": 250,
+    "status": 180,
+    "contact": 220,
+    "broker": 180,
+    "campaign": 160,
+    "age": 100,
+    "actions": 80,
+  });
+
+  const resizingRef = useRef<{ id: string; type: "board" | "table"; startX: number; startWidth: number } | null>(null);
+
+  const startResizing = (id: string, type: "board" | "table", e: React.MouseEvent) => {
+    e.preventDefault();
+    const startWidth = type === "board" ? boardWidths[id] : tableColWidths[id];
+    resizingRef.current = { id, type, startX: e.clientX, startWidth };
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", stopResizing);
+    document.body.style.cursor = "col-resize";
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!resizingRef.current) return;
+    const { id, type, startX, startWidth } = resizingRef.current;
+    const delta = e.clientX - startX;
+    const newWidth = Math.max(type === "board" ? 150 : 60, startWidth + delta);
+
+    if (type === "board") {
+      setBoardWidths(prev => ({ ...prev, [id]: newWidth }));
+    } else {
+      setTableColWidths(prev => ({ ...prev, [id]: newWidth }));
+    }
+  };
+
+  const stopResizing = () => {
+    resizingRef.current = null;
+    document.removeEventListener("mousemove", handleMouseMove);
+    document.removeEventListener("mouseup", stopResizing);
+    document.body.style.cursor = "";
   };
 
   const fetchLeads = async () => {
@@ -1049,302 +1101,255 @@ const WorkflowManagement = () => {
         {/* Pipeline Grid View */}
         {viewMode === "grid" && (
           <DragDropContext onDragEnd={handleDragEnd}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-              {PIPELINE_STAGES.map((stage) => {
+            <div className="flex flex-row overflow-x-auto gap-4 pb-4 min-h-[calc(100vh-280px)] items-start scrollbar-thin scrollbar-thumb-primary/20 scrollbar-track-transparent">
+              {PIPELINE_STAGES.map((stage, idx) => {
                 const stageLeads = leadsByStage[stage.id] || [];
                 const stageBottlenecks = getStageBottleneck(stage.id);
                 const hasBottleneck = stageBottlenecks.length > 0;
                 const Icon = stage.icon;
+                const width = boardWidths[stage.id] || 300;
 
                 return (
-                  <div
-                    key={stage.id}
-                    className={cn(
-                      "flex flex-col rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden transition-all",
-                      hasBottleneck && "ring-1 ring-amber-500/50 border-amber-500/30"
-                    )}
-                  >
-                    {/* Column Header - Compact */}
-                    <div className="p-2.5 border-b border-border/50">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className={cn(
-                            "p-1.5 rounded-lg bg-gradient-to-br shadow-md shrink-0",
-                            stage.gradient,
-                            stage.bgGlow
-                          )}>
-                            <Icon className="h-3.5 w-3.5 text-white" />
-                          </div>
-                          <div className="min-w-0">
-                            <h3 className="font-semibold text-xs whitespace-normal break-words">{stage.shortLabel}</h3>
-                            <p className="text-[10px] text-muted-foreground truncate hidden sm:block">{stage.description}</p>
-                          </div>
-                        </div>
-                        <Badge
-                          variant="secondary"
-                          className={cn(
-                            "font-bold tabular-nums text-xs px-1.5 h-5 shrink-0",
-                            stage.badgeBg,
-                            stage.badgeText,
-                            stage.badgeBorder,
-                            "border"
-                          )}
-                        >
-                          {stageLeads.length}
-                        </Badge>
-                      </div>
-
-                      {hasBottleneck && (
-                        <Badge
-                          variant="outline"
-                          className="mt-2 text-[10px] bg-amber-500/10 text-amber-400 border-amber-500/30 w-full justify-center py-0.5"
-                        >
-                          <AlertTriangle className="h-2.5 w-2.5 mr-1" />
-                          {stageBottlenecks[0]?.message}
-                        </Badge>
+                  <div key={stage.id} className="flex shrink-0 relative group/board">
+                    <div
+                      style={{ width: `${width}px` }}
+                      className={cn(
+                        "flex flex-col rounded-xl border border-border/50 bg-card/20 backdrop-blur-md overflow-hidden transition-all duration-300",
+                        hasBottleneck && "ring-1 ring-amber-500/50 border-amber-500/30"
                       )}
-                    </div>
-
-                    {/* Column Content */}
-                    <Droppable droppableId={stage.id}>
-                      {(provided, snapshot) => (
-                        <ScrollArea className="flex-1 h-[calc(100vh-280px)] min-h-[500px]">
-                          <div
-                            ref={provided.innerRef}
-                            {...provided.droppableProps}
+                    >
+                      {/* Column Header - Premium */}
+                      <div className="p-4 border-b border-border/50 bg-card/10">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className={cn(
+                              "h-11 w-11 rounded-xl flex items-center justify-center bg-gradient-to-br shadow-lg shrink-0",
+                              stage.gradient,
+                              stage.bgGlow
+                            )}>
+                              <Icon className="h-5 w-5 text-white" />
+                            </div>
+                            <div className="min-w-0">
+                              <h3 className="font-bold text-sm tracking-tight whitespace-normal break-words">{stage.label}</h3>
+                              <p className="text-[11px] text-muted-foreground leading-tight hidden sm:block opacity-80">{stage.description}</p>
+                            </div>
+                          </div>
+                          <Badge
+                            variant="secondary"
                             className={cn(
-                              "min-h-[260px] xl:min-h-[380px] p-1.5 transition-colors",
-                              snapshot.isDraggingOver && stage.dropBg
+                              "font-black tabular-nums text-xs px-2 h-6 shrink-0",
+                              stage.badgeBg,
+                              stage.badgeText,
+                              stage.badgeBorder,
+                              "border shadow-sm"
                             )}
                           >
-                            {loading ? (
-                              <div className="space-y-1.5">
-                                {[1, 2, 3].map((i) => (
-                                  <Skeleton key={i} className="h-[60px] w-full rounded-lg" />
-                                ))}
-                              </div>
-                            ) : stageLeads.length === 0 ? (
-                              <div className={cn(
-                                "h-full flex flex-col items-center justify-center text-muted-foreground text-xs p-3 min-h-[80px] rounded-lg border border-dashed border-border/50",
-                                snapshot.isDraggingOver && "border-primary/50 bg-primary/5"
-                              )}>
-                                {snapshot.isDraggingOver ? (
-                                  <>
-                                    <ArrowRight className="h-4 w-4 mb-1 text-primary" />
-                                    <span className="text-primary text-[10px]">Drop here</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Icon className="h-4 w-4 mb-1 opacity-50" />
-                                    <span className="text-[10px]">No leads</span>
-                                  </>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="space-y-1.5">
-                                {stageLeads.map((lead, index) => {
-                                  const stuck = isLeadStuck(lead, stage.id);
-                                  return (
-                                    <Draggable
-                                      key={lead.id}
-                                      draggableId={lead.id}
-                                      index={index}
-                                    >
-                                      {(provided, snapshot) => (
-                                        <div
-                                          ref={provided.innerRef}
-                                          {...provided.draggableProps}
-                                          className={cn(
-                                            "group p-2 rounded-lg border transition-all cursor-pointer",
-                                            snapshot.isDragging
-                                              ? "shadow-xl ring-2 ring-primary bg-card border-primary/50"
-                                              : "border-border/50 bg-card/50 hover:bg-card hover:border-border hover:shadow-md",
-                                            stuck && "border-amber-500/50 bg-amber-500/5"
-                                          )}
-                                          onClick={() => handleLeadClick(lead)}
-                                        >
-                                          <div className="flex items-start gap-2">
-                                            <div
-                                              {...provided.dragHandleProps}
-                                              className="mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
-                                              onClick={(e) => e.stopPropagation()}
-                                            >
-                                              <GripVertical className="h-3.5 w-3.5" />
-                                            </div>
+                            {stageLeads.length}
+                          </Badge>
+                        </div>
 
-                                            <Avatar className="h-7 w-7 shrink-0">
-                                              <AvatarFallback className={cn(
-                                                "text-[10px] font-semibold bg-gradient-to-br text-white",
-                                                stage.gradient
-                                              )}>
-                                                {getLeadInitials(lead)}
-                                              </AvatarFallback>
-                                            </Avatar>
+                        {hasBottleneck && (
+                          <Badge
+                            variant="outline"
+                            className="mt-3 text-xs bg-amber-500/10 text-amber-400 border-amber-500/20 w-full justify-center py-1.5 font-medium"
+                          >
+                            <AlertTriangle className="h-3.5 w-3.5 mr-1.5" />
+                            {stageBottlenecks[0]?.message}
+                          </Badge>
+                        )}
+                      </div>
 
-                                            <div className="flex-1 min-w-0 space-y-1">
-                                              <div className="flex items-center justify-between gap-1">
-                                                <Tooltip>
-                                                  <TooltipTrigger asChild>
-                                                    <p className="font-bold text-xs leading-tight whitespace-normal break-words">
-                                                      {lead.first_name || lead.last_name
-                                                        ? `${lead.first_name || ""} ${lead.last_name || ""}`.trim()
-                                                        : lead.email.split("@")[0]}
-                                                    </p>
-                                                  </TooltipTrigger>
-                                                  <TooltipContent side="top" className="max-w-[200px]">
-                                                    <p className="font-medium text-xs">
-                                                      {lead.first_name || lead.last_name
-                                                        ? `${lead.first_name || ""} ${lead.last_name || ""}`.trim()
-                                                        : lead.email}
-                                                    </p>
-                                                  </TooltipContent>
-                                                </Tooltip>
+                      {/* Column Content */}
+                      <Droppable droppableId={stage.id}>
+                        {(provided, snapshot) => (
+                          <ScrollArea className="flex-1 h-[calc(100vh-320px)] min-h-[500px]">
+                            <div
+                              ref={provided.innerRef}
+                              {...provided.droppableProps}
+                              className={cn(
+                                "min-h-[300px] xl:min-h-[400px] p-2.5 transition-colors",
+                                snapshot.isDraggingOver && stage.dropBg
+                              )}
+                            >
+                              {loading ? (
+                                <div className="space-y-2">
+                                  {[1, 2, 3].map((i) => (
+                                    <Skeleton key={i} className="h-24 w-full rounded-lg" />
+                                  ))}
+                                </div>
+                              ) : stageLeads.length === 0 ? (
+                                <div className={cn(
+                                  "h-full flex flex-col items-center justify-center text-muted-foreground text-sm p-6 min-h-[150px] rounded-xl border-2 border-dashed border-border/30",
+                                  snapshot.isDraggingOver && "border-primary/50 bg-primary/5"
+                                )}>
+                                  {snapshot.isDraggingOver ? (
+                                    <>
+                                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center mb-3">
+                                        <ArrowRight className="h-5 w-5 text-primary" />
+                                      </div>
+                                      <span className="text-primary text-xs font-bold uppercase tracking-widest">Drop here</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <div className="h-10 w-10 rounded-full bg-muted/20 flex items-center justify-center mb-3">
+                                        <Icon className="h-5 w-5 opacity-50" />
+                                      </div>
+                                      <span className="text-xs font-medium uppercase tracking-widest opacity-40">No leads</span>
+                                    </>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  {stageLeads.map((lead, index) => {
+                                    const stuck = isLeadStuck(lead, stage.id);
+                                    return (
+                                      <Draggable
+                                        key={lead.id}
+                                        draggableId={lead.id}
+                                        index={index}
+                                      >
+                                        {(provided, snapshot) => (
+                                          <div
+                                            ref={provided.innerRef}
+                                            {...provided.draggableProps}
+                                            className={cn(
+                                              "group p-3 rounded-xl border transition-all duration-200 cursor-pointer relative",
+                                              snapshot.isDragging
+                                                ? "shadow-2xl ring-2 ring-primary bg-card border-primary/50 scale-[1.02]"
+                                                : "border-border/40 bg-card/60 hover:bg-card hover:border-border hover:shadow-xl",
+                                              stuck && "border-amber-500/40 bg-amber-500/[0.03]"
+                                            )}
+                                            onClick={() => handleLeadClick(lead)}
+                                          >
+                                            <div className="flex items-start gap-3">
+                                              <div
+                                                {...provided.dragHandleProps}
+                                                className="mt-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground shrink-0"
+                                                onClick={(e) => e.stopPropagation()}
+                                              >
+                                                <GripVertical className="h-4 w-4" />
+                                              </div>
 
-                                                {/* AI Call Indicator */}
-                                                {(lead.active_ai_call || activeAiCalls[lead.phone]) && (
+                                              <Avatar className="h-10 w-10 shrink-0 border border-border/50">
+                                                <AvatarFallback className={cn(
+                                                  "text-xs font-bold bg-gradient-to-br text-white",
+                                                  stage.gradient
+                                                )}>
+                                                  {getLeadInitials(lead)}
+                                                </AvatarFallback>
+                                              </Avatar>
+
+                                              <div className="flex-1 min-w-0 space-y-1.5">
+                                                <div className="flex items-center justify-between gap-2">
                                                   <Tooltip>
                                                     <TooltipTrigger asChild>
-                                                      <div className={cn(
-                                                        "p-1 rounded-full",
-                                                        (activeAiCalls[lead.phone] || lead.active_ai_call?.call_status === 'in_progress') ? "bg-blue-500/20 animate-pulse border border-blue-500/30" :
-                                                          lead.active_ai_call?.call_status === 'completed' ? "bg-green-500/20 border border-green-500/30" : "bg-red-500/20 border border-red-500/30"
-                                                      )}>
-                                                        <Bot className={cn(
-                                                          "h-3 w-3",
-                                                          (activeAiCalls[lead.phone] || lead.active_ai_call?.call_status === 'in_progress') ? "text-blue-500" :
-                                                            lead.active_ai_call?.call_status === 'completed' ? "text-green-500" : "text-red-500"
-                                                        )} />
-                                                      </div>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent side="right">
-                                                      <p className="text-[10px] font-bold uppercase tracking-wider">
-                                                        AI AGENT: {(activeAiCalls[lead.phone] || lead.active_ai_call?.call_status === 'in_progress') ? "In Progress" : lead.active_ai_call?.call_status}
+                                                      <p className="font-bold text-sm leading-tight whitespace-normal break-words">
+                                                        {lead.first_name || lead.last_name
+                                                          ? `${lead.first_name || ""} ${lead.last_name || ""}`.trim()
+                                                          : lead.email.split("@")[0]}
                                                       </p>
-                                                      {lead.active_ai_call?.call_summary && <p className="text-[10px] opacity-70 mt-1 max-w-[150px] line-clamp-2">{lead.active_ai_call.call_summary}</p>}
+                                                    </TooltipTrigger>
+                                                    <TooltipContent side="top" className="max-w-[200px]">
+                                                      <p className="font-bold text-sm">
+                                                        {lead.first_name || lead.last_name
+                                                          ? `${lead.first_name || ""} ${lead.last_name || ""}`.trim()
+                                                          : lead.email}
+                                                      </p>
                                                     </TooltipContent>
                                                   </Tooltip>
-                                                )}
 
-                                                {stuck && (
-                                                  <Tooltip>
-                                                    <TooltipTrigger>
-                                                      <AlertTriangle className="h-3 w-3 text-amber-400 shrink-0" />
-                                                    </TooltipTrigger>
-                                                    <TooltipContent>Needs attention</TooltipContent>
-                                                  </Tooltip>
-                                                )}
-                                              </div>
-
-                                              <div className="space-y-0.5">
-                                                <p className="text-[10px] text-muted-foreground whitespace-normal break-all opacity-80">{lead.email}</p>
-                                                <p className="text-[10px] font-mono text-muted-foreground">{lead.phone}</p>
-                                              </div>
-
-                                              {lead.broker && (
-                                                <Tooltip>
-                                                  <TooltipTrigger asChild>
-                                                    <p className="text-[10px] text-primary/80 font-medium flex items-center gap-1 line-clamp-1">
-                                                      <Building className="h-2.5 w-2.5 shrink-0" />
-                                                      <span className="truncate">{lead.broker.firm_name}</span>
-                                                    </p>
-                                                  </TooltipTrigger>
-                                                  <TooltipContent side="bottom" className="max-w-[200px]">
-                                                    <p className="font-medium text-xs">{lead.broker.firm_name}</p>
-                                                    <p className="text-muted-foreground text-[10px]">{lead.broker.contact_person}</p>
-                                                  </TooltipContent>
-                                                </Tooltip>
-                                              )}
-
-                                              {lead.source && (
-                                                <div className="pt-0.5">
-                                                  {lead.source.includes('|') ? (
-                                                    <div className="flex flex-col gap-0.5">
-                                                      <Badge variant="outline" className="text-[8px] px-1 py-0 h-3.5 w-fit uppercase bg-primary/5 text-primary border-primary/20">
-                                                        {lead.source.split('|')[0].replace('_', ' ')}
-                                                      </Badge>
-                                                      <span className="text-[8px] text-muted-foreground italic truncate opacity-60">
-                                                        {lead.source.split('|')[1]}
-                                                      </span>
-                                                    </div>
-                                                  ) : (
-                                                    <Badge variant="outline" className="text-[8px] px-1 py-0 h-3.5 w-fit bg-muted/30 text-muted-foreground">
-                                                      {lead.source}
-                                                    </Badge>
+                                                  {/* AI Call Indicator */}
+                                                  {(lead.active_ai_call || activeAiCalls[lead.phone]) && (
+                                                    <Tooltip>
+                                                      <TooltipTrigger asChild>
+                                                        <div className={cn(
+                                                          "p-1.5 rounded-lg",
+                                                          (activeAiCalls[lead.phone] || lead.active_ai_call?.call_status === 'in_progress') ? "bg-blue-500/10 animate-pulse border border-blue-500/20" :
+                                                            lead.active_ai_call?.call_status === 'completed' ? "bg-green-500/10 border border-green-500/20" : "bg-red-500/10 border border-red-500/20"
+                                                        )}>
+                                                          <Bot className={cn(
+                                                            "h-3.5 w-3.5",
+                                                            (activeAiCalls[lead.phone] || lead.active_ai_call?.call_status === 'in_progress') ? "text-blue-500" :
+                                                              lead.active_ai_call?.call_status === 'completed' ? "text-green-500" : "text-red-500"
+                                                          )} />
+                                                        </div>
+                                                      </TooltipTrigger>
+                                                      <TooltipContent side="right">
+                                                        <p className="text-[10px] font-bold uppercase tracking-wider">
+                                                          AI AGENT: {(activeAiCalls[lead.phone] || lead.active_ai_call?.call_status === 'in_progress') ? "In Progress" : lead.active_ai_call?.call_status}
+                                                        </p>
+                                                      </TooltipContent>
+                                                    </Tooltip>
                                                   )}
                                                 </div>
-                                              )}
 
-                                              <div className="flex items-center justify-between gap-1 mt-1 pt-1 border-t border-border/30">
-                                                <Badge variant="ghost" className="text-[9px] px-0 py-0 h-3.5 text-muted-foreground font-normal">
-                                                  <Clock className="h-2 w-2 mr-1" /> {getLeadAge(lead)}
-                                                </Badge>
+                                                <div className="space-y-0.5">
+                                                  <p className="text-xs text-muted-foreground whitespace-normal break-all opacity-80 leading-relaxed truncate">{lead.email}</p>
+                                                  <p className="text-xs font-mono text-muted-foreground/70">{formatPhoneNumber(lead.phone)}</p>
+                                                </div>
 
-                                                {/* Quick Actions */}
-                                                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                  <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                      <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-5 w-5 hover:bg-green-500/10"
-                                                        onClick={(e) => {
-                                                          e.stopPropagation();
-                                                          window.open(`tel:${lead.phone}`, '_self');
-                                                        }}
-                                                      >
-                                                        <Phone className="h-3 w-3 text-green-500" />
-                                                      </Button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent side="bottom">Call</TooltipContent>
-                                                  </Tooltip>
-                                                  <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                      <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-5 w-5 hover:bg-blue-500/10"
-                                                        onClick={(e) => {
-                                                          e.stopPropagation();
-                                                          window.open(`mailto:${lead.email}`, '_blank');
-                                                        }}
-                                                      >
-                                                        <Mail className="h-3 w-3 text-blue-500" />
-                                                      </Button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent side="bottom">Email</TooltipContent>
-                                                  </Tooltip>
-                                                  <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                      <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-5 w-5 hover:bg-amber-500/10"
-                                                        onClick={(e) => {
-                                                          e.stopPropagation();
-                                                          handleLeadClick(lead);
-                                                        }}
-                                                      >
-                                                        <CalendarIcon className="h-3 w-3 text-amber-500" />
-                                                      </Button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent side="bottom">Schedule</TooltipContent>
-                                                  </Tooltip>
+                                                {lead.broker && (
+                                                  <div className="flex items-center gap-2 pt-0.5">
+                                                    <div className="h-5 w-5 rounded bg-primary/10 flex items-center justify-center shrink-0">
+                                                      <Building className="h-3 w-3 text-primary" />
+                                                    </div>
+                                                    <span className="text-[11px] font-semibold text-primary/90 truncate">{lead.broker.firm_name}</span>
+                                                  </div>
+                                                )}
+
+                                                {lead.source && (
+                                                  <div className="pt-1">
+                                                    <Badge variant="outline" className="text-[10px] px-2 py-0.5 h-auto bg-muted/40 border-border/50 text-muted-foreground/80 font-medium">
+                                                      {lead.source.includes('|') ? lead.source.split('|')[0] : lead.source}
+                                                    </Badge>
+                                                  </div>
+                                                )}
+
+                                                <div className="flex items-center justify-between gap-3 mt-2 pt-2 border-t border-border/30">
+                                                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground font-medium">
+                                                    <Clock className="h-4 w-4" />
+                                                    {getLeadAge(lead)}
+                                                  </div>
+
+                                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all transform translate-x-1 group-hover:translate-x-0">
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-green-500/10 text-green-500/70 hover:text-green-500">
+                                                      <Phone className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-blue-500/10 text-blue-500/70 hover:text-blue-500">
+                                                      <Mail className="h-4 w-4" />
+                                                    </Button>
+                                                  </div>
                                                 </div>
                                               </div>
                                             </div>
                                           </div>
-                                        </div>
-                                      )}
-                                    </Draggable>
-                                  );
-                                })}
-                              </div>
-                            )}
-                            {provided.placeholder}
-                          </div>
-                        </ScrollArea>
-                      )}
-                    </Droppable>
+                                        )}
+                                      </Draggable>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                              {provided.placeholder}
+                            </div>
+                          </ScrollArea>
+                        )}
+                      </Droppable>
+                    </div>
+
+                    {/* Resize Handle - More Visible & Professional */}
+                    {idx < PIPELINE_STAGES.length - 1 && (
+                      <div
+                        onMouseDown={(e) => startResizing(stage.id, "board", e)}
+                        className="absolute -right-3 top-0 bottom-0 w-2.5 cursor-col-resize z-20 group/handle flex items-center justify-center"
+                      >
+                        <div className="h-full w-[1px] bg-border/40 group-hover/handle:bg-primary/40 transition-colors" />
+                        <div className="absolute top-1/2 -translate-y-1/2 flex flex-col gap-1 px-1 py-3 rounded-full bg-background border border-border shadow-xl group-hover/handle:border-primary group-hover/handle:bg-primary transition-all scale-75 opacity-20 group-hover/handle:opacity-100 group-hover/handle:scale-100">
+                          <div className="w-1 h-0.5 rounded-full bg-muted-foreground group-hover/handle:bg-white" />
+                          <div className="w-1 h-0.5 rounded-full bg-muted-foreground group-hover/handle:bg-white" />
+                          <div className="w-1 h-0.5 rounded-full bg-muted-foreground group-hover/handle:bg-white" />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -1373,12 +1378,30 @@ const WorkflowManagement = () => {
                   <Table>
                     <TableHeader>
                       <TableRow className="border-border/50 hover:bg-transparent">
-                        <TableHead className="w-[250px]">Lead</TableHead>
-                        <TableHead className="w-[180px]">Status</TableHead>
-                        <TableHead>Email/Phone</TableHead>
-                        <TableHead className="hidden xl:table-cell">Broker</TableHead>
-                        <TableHead>Campaign / Batch</TableHead>
-                        <TableHead>Lead Age</TableHead>
+                        <TableHead style={{ width: `${tableColWidths.lead}px` }} className="relative group/th">
+                          Lead
+                          <div onMouseDown={(e) => startResizing("lead", "table", e)} className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize opacity-20 group-hover/th:opacity-100 bg-primary/30 hover:bg-primary transition-all" />
+                        </TableHead>
+                        <TableHead style={{ width: `${tableColWidths.status}px` }} className="relative group/th">
+                          Status
+                          <div onMouseDown={(e) => startResizing("status", "table", e)} className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize opacity-0 group-hover/th:opacity-100 bg-primary/30" />
+                        </TableHead>
+                        <TableHead style={{ width: `${tableColWidths.contact}px` }} className="relative group/th">
+                          Email/Phone
+                          <div onMouseDown={(e) => startResizing("contact", "table", e)} className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize opacity-0 group-hover/th:opacity-100 bg-primary/30" />
+                        </TableHead>
+                        <TableHead style={{ width: `${tableColWidths.broker}px` }} className="hidden xl:table-cell relative group/th">
+                          Broker
+                          <div onMouseDown={(e) => startResizing("broker", "table", e)} className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize opacity-0 group-hover/th:opacity-100 bg-primary/30" />
+                        </TableHead>
+                        <TableHead style={{ width: `${tableColWidths.campaign}px` }} className="relative group/th">
+                          Campaign / Batch
+                          <div onMouseDown={(e) => startResizing("campaign", "table", e)} className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize opacity-0 group-hover/th:opacity-100 bg-primary/30" />
+                        </TableHead>
+                        <TableHead style={{ width: `${tableColWidths.age}px` }} className="relative group/th">
+                          Lead Age
+                          <div onMouseDown={(e) => startResizing("age", "table", e)} className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize opacity-0 group-hover/th:opacity-100 bg-primary/30" />
+                        </TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1439,8 +1462,8 @@ const WorkflowManagement = () => {
                             <TableCell>
                               <div className="flex items-center gap-2">
                                 <div className="text-xs space-y-0.5">
-                                  <p className="font-medium">{lead.email}</p>
-                                  <p className="text-muted-foreground">{lead.phone}</p>
+                                  <p className="font-medium truncate max-w-[180px]">{lead.email}</p>
+                                  <p className="text-muted-foreground">{formatPhoneNumber(lead.phone)}</p>
                                 </div>
                                 {lead.active_ai_call && (
                                   <Tooltip>

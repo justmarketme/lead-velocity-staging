@@ -73,7 +73,8 @@ export function useChatbot() {
 
     const getRoleContext = async () => {
         try {
-            const { data: { session } } = await supabase.auth.getSession();
+            const { data } = await supabase.auth.getSession();
+            const session = data?.session;
             if (!session) return "PUBLIC MODE: You ONLY provide information from the knowledge base. Do NOT reveal specific data or stats. If asked for leads or stats, politely explain that they must log in as a broker to see their dashboard.";
 
             // Check for admin
@@ -101,7 +102,7 @@ export function useChatbot() {
 
             if (broker) {
                 const { count: myLeads } = await supabase.from('leads').select('*', { count: 'exact', head: true }).eq('broker_id', broker.id);
-                return `BROKER MODE: You are assisting ${broker.profiles?.full_name || broker.contact_person}.
+                return `BROKER MODE: You are assisting ${broker.profiles?.full_name || broker.contact_person || 'Broker'}.
                 Your Profile Context:
                 - Your Tier: ${broker.tier}
                 - Your Total Leads: ${myLeads || 0}

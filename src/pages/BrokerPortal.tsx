@@ -48,7 +48,8 @@ const BrokerPortal = () => {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data } = await supabase.auth.getSession();
+      const session = data?.session;
       if (session) {
         const { data: broker } = await supabase
           .from("brokers")

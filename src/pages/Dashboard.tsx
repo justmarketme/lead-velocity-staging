@@ -68,7 +68,8 @@ const Dashboard = () => {
       }
     };
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data }) => {
+      const session = data?.session;
       if (!isMounted) return;
 
       if (!session) {
@@ -79,7 +80,7 @@ const Dashboard = () => {
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    const { data } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (!isMounted) return;
 
@@ -95,7 +96,9 @@ const Dashboard = () => {
 
     return () => {
       isMounted = false;
-      subscription.unsubscribe();
+      if (data?.subscription) {
+        data.subscription.unsubscribe();
+      }
     };
   }, [navigate]);
 

@@ -38,8 +38,9 @@ import { ChatBot } from "./components/ChatBot";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
+const App = () => {
+  return (
+    <QueryClientProvider client={queryClient}>
     <HelmetProvider>
       <TooltipProvider>
         <Toaster />
@@ -81,6 +82,7 @@ const App = () => (
       </TooltipProvider>
     </HelmetProvider>
   </QueryClientProvider>
-);
+  );
+};
 
 export default App;

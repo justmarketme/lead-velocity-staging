@@ -31,6 +31,10 @@ interface Lead {
   email: string;
   phone: string;
   source: string | null;
+  company: string | null;
+  role: string | null;
+  address: string | null;
+  vibe: number | null;
   current_status: string | null;
   broker_id: string | null;
   created_at: string;
@@ -58,6 +62,65 @@ const timeSlots = [
 
 const willStatusOptions = ["Pending", "In Progress", "Completed"];
 
+const ResizableHead = ({ 
+  children, 
+  width, 
+  onResize,
+  className
+}: { 
+  children: React.ReactNode, 
+  width: number, 
+  onResize: (width: number) => void,
+  className?: string
+}) => {
+  const [isResizing, setIsResizing] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [startWidth, setStartWidth] = useState(0);
+
+  const onMouseDown = (e: React.MouseEvent) => {
+    setIsResizing(true);
+    setStartX(e.clientX);
+    setStartWidth(width);
+    e.preventDefault();
+  };
+
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const onMouseMove = (e: MouseEvent) => {
+      const newWidth = Math.max(80, startWidth + (e.clientX - startX));
+      onResize(newWidth);
+    };
+
+    const onMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, [isResizing, startX, startWidth, onResize]);
+
+  return (
+    <TableHead style={{ width: `${width}px` }} className={cn("relative group select-none", className)}>
+      <div className="flex items-center justify-between gap-2 overflow-hidden px-2 h-10">
+        <div className="truncate font-bold tracking-tight text-[11px] uppercase text-slate-500 whitespace-nowrap">{children}</div>
+        <div
+          onMouseDown={onMouseDown}
+          className={cn(
+            "absolute right-0 top-1/2 -translate-y-1/2 w-[2px] h-4 cursor-col-resize transition-all duration-200 z-10",
+            "hover:bg-primary/50 group-hover:bg-slate-800",
+            isResizing ? "bg-primary h-full opacity-100" : "opacity-0"
+          )}
+        />
+      </div>
+    </TableHead>
+  );
+};
+
 const LeadsTable = () => {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -71,6 +134,35 @@ const LeadsTable = () => {
   const [appointmentTime, setAppointmentTime] = useState("09:00");
   const { toast } = useToast();
   const { leadsWithUnread } = useLeadsWithUnread('admin');
+  
+  const [columnWidths, setColumnWidths] = useState(() => {
+    const saved = localStorage.getItem('leads-table-column-widths');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Failed to parse saved column widths", e);
+      }
+    }
+    return {
+      name: 180,
+      entity: 220,
+      contact: 200,
+      broker: 160,
+      campaign: 160,
+      status: 110,
+      created: 130,
+      actions: 120
+    };
+  });
+
+  useEffect(() => {
+    localStorage.setItem('leads-table-column-widths', JSON.stringify(columnWidths));
+  }, [columnWidths]);
+
+  const handleResize = (column: keyof typeof columnWidths, width: number) => {
+    setColumnWidths(prev => ({ ...prev, [column]: width }));
+  };
 
   useEffect(() => {
     fetchLeads();
@@ -106,6 +198,8 @@ const LeadsTable = () => {
           `${lead.first_name} ${lead.last_name}`.toLowerCase().includes(searchLower) ||
           lead.email.toLowerCase().includes(searchLower) ||
           lead.phone.includes(searchTerm) ||
+          lead.company?.toLowerCase().includes(searchLower) ||
+          lead.role?.toLowerCase().includes(searchLower) ||
           lead.brokers?.firm_name?.toLowerCase().includes(searchLower) ||
           lead.source?.toLowerCase().includes(searchLower)
       );
@@ -299,17 +393,18 @@ const LeadsTable = () => {
         </div>
       </div>
 
-      <div className="border rounded-lg overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Email/Phone</TableHead>
-              <TableHead>Broker</TableHead>
-              <TableHead>Campaign / Batch</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+      <div className="border rounded-xl overflow-hidden bg-slate-900/50 backdrop-blur-xl border-white/5 shadow-2xl">
+        <Table className="table-fixed w-full border-collapse">
+          <TableHeader className="bg-slate-950/50">
+            <TableRow className="hover:bg-transparent border-white/5">
+              <ResizableHead width={columnWidths.name} onResize={(w) => handleResize('name', w)}>Name</ResizableHead>
+              <ResizableHead width={columnWidths.entity} onResize={(w) => handleResize('entity', w)}>Entity / Vibe</ResizableHead>
+              <ResizableHead width={columnWidths.contact} onResize={(w) => handleResize('contact', w)}>Email/Phone</ResizableHead>
+              <ResizableHead width={columnWidths.broker} onResize={(w) => handleResize('broker', w)}>Broker</ResizableHead>
+              <ResizableHead width={columnWidths.campaign} onResize={(w) => handleResize('campaign', w)}>Campaign / Batch</ResizableHead>
+              <ResizableHead width={columnWidths.status} onResize={(w) => handleResize('status', w)}>Status</ResizableHead>
+              <ResizableHead width={columnWidths.created} onResize={(w) => handleResize('created', w)}>Created</ResizableHead>
+              <TableHead className="text-right px-4" style={{ width: `${columnWidths.actions}px` }}>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -319,49 +414,95 @@ const LeadsTable = () => {
                 className={leadsWithUnread.has(lead.id) ? "bg-primary/10 border-l-4 border-l-primary" : ""}
               >
                 <TableCell className="font-medium">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 overflow-hidden">
                     {leadsWithUnread.has(lead.id) && (
-                      <MessageSquare className="h-4 w-4 text-primary animate-pulse" />
+                      <MessageSquare className="h-4 w-4 text-primary animate-pulse shrink-0" />
                     )}
-                    {lead.first_name} {lead.last_name}
+                    <span className="truncate">{lead.first_name} {lead.last_name}</span>
                   </div>
                 </TableCell>
                 <TableCell>
-                  <div className="text-xs space-y-1">
-                    <p>{lead.email}</p>
-                    <p className="text-muted-foreground">{lead.phone}</p>
+                  <div className="text-xs space-y-1 py-1 overflow-hidden">
+                    <div className="flex flex-col overflow-hidden">
+                      <p className="font-bold text-slate-200 text-sm leading-tight group-hover:text-primary transition-colors truncate">{lead.company || "Velocity Entity"}</p>
+                      {lead.role && <p className="text-[10px] text-primary/70 font-medium italic truncate">{lead.role}</p>}
+                    </div>
+                    {lead.address && <p className="text-[10px] text-slate-500 leading-tight opacity-70 mt-1 truncate">📍 {lead.address}</p>}
+                    <div className="flex items-center gap-2 mt-2">
+                      <div className="h-1.5 w-16 bg-slate-800 rounded-full overflow-hidden shrink-0">
+                        <div 
+                          className={cn(
+                            "h-full transition-all duration-1000",
+                            (lead.vibe || 0) > 80 ? "bg-emerald-400" : (lead.vibe || 0) > 50 ? "bg-blue-400" : "bg-amber-400"
+                          )}
+                          style={{ width: `${lead.vibe || 0}%` }}
+                        />
+                      </div>
+                      <span className={cn(
+                        "text-[10px] font-mono font-bold shrink-0",
+                        (lead.vibe || 0) > 80 ? "text-emerald-400" : "text-blue-400"
+                      )}>{lead.vibe || 0}%</span>
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="text-xs space-y-1 overflow-hidden px-2 font-mono">
+                    <p className="truncate">{lead.email}</p>
+                    <p className="text-muted-foreground truncate">{lead.phone}</p>
                   </div>
                 </TableCell>
                 <TableCell>
                   {lead.brokers ? (
-                    <div className="text-sm">
-                      <p className="font-medium">{lead.brokers.firm_name}</p>
-                      <p className="text-muted-foreground text-xs">{lead.brokers.contact_person}</p>
+                    <div className="text-sm overflow-hidden px-2">
+                      <p className="font-medium truncate">{lead.brokers.firm_name}</p>
+                      <p className="text-muted-foreground text-xs truncate">{lead.brokers.contact_person}</p>
                     </div>
                   ) : (
-                    <span className="text-muted-foreground">Unassigned</span>
+                    <div className="px-2">
+                      <Badge variant="secondary" className="bg-orange-100/10 text-orange-400 border-orange-400/20 whitespace-nowrap">
+                        House Leads
+                      </Badge>
+                    </div>
                   )}
                 </TableCell>
                 <TableCell>
-                  {lead.source?.includes('|') ? (
-                    <div className="text-xs space-y-1">
-                      <Badge variant="outline" className="text-[10px] uppercase bg-primary/5">{lead.source.split('|')[0].replace('_', ' ')}</Badge>
-                      <p className="text-muted-foreground italic font-mono opacity-70">{lead.source.split('|')[1]}</p>
-                    </div>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">{lead.source || "Organic"}</span>
-                  )}
+                  <div className="overflow-hidden px-2">
+                    {lead.source?.includes('|') ? (
+                      <div className="text-xs space-y-1 overflow-hidden">
+                        <Badge variant="outline" className="text-[10px] uppercase bg-primary/5 whitespace-nowrap">{lead.source.split('|')[0].replace('_', ' ')}</Badge>
+                        <p className="text-muted-foreground italic font-mono opacity-70 truncate text-[10px]">{lead.source.split('|')[1]}</p>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground truncate block">{lead.source || "Organic"}</span>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell>
-                  <Badge className={getStatusColor(lead.current_status)}>
-                    {lead.current_status || "New"}
-                  </Badge>
+                  <div className="px-2">
+                    <Badge className={cn("whitespace-nowrap", getStatusColor(lead.current_status))}>
+                      {lead.current_status || "New"}
+                    </Badge>
+                  </div>
                 </TableCell>
                 <TableCell className="text-xs">
-                  {new Date(lead.created_at).toLocaleDateString()}
+                  <span className="truncate block px-2 opacity-70 font-mono">
+                    {new Date(lead.created_at).toLocaleDateString()}
+                  </span>
                 </TableCell>
-                <TableCell className="text-right">
+                <TableCell className="text-right px-4">
                   <div className="flex items-center justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      title="Call with Ayanda"
+                      className="text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                      onClick={() => {
+                        setSelectedLead(lead);
+                        setAiCallDialogOpen(true);
+                      }}
+                    >
+                      <Bot className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -409,6 +550,33 @@ const LeadsTable = () => {
                   <Badge className={getStatusColor(selectedLead.current_status)}>
                     {selectedLead.current_status || "New"}
                   </Badge>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Entity / Company</p>
+                  <p className="font-medium">{selectedLead.company || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Role / Position</p>
+                  <p className="font-medium">{selectedLead.role || "N/A"}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-sm text-muted-foreground">Address</p>
+                  <p className="font-medium">{selectedLead.address || "N/A"}</p>
+                </div>
+                <div className="col-span-2 p-4 bg-muted/20 rounded-2xl border border-white/5">
+                  <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-3">AI Opportunity Scouter Vibe</p>
+                  <div className="flex items-center gap-4">
+                    <div className="h-4 flex-1 bg-slate-900 rounded-full overflow-hidden border border-white/5 ring-1 ring-white/5">
+                      <div 
+                        className={cn(
+                          "h-full transition-all duration-1000 shadow-[0_0_15px_rgba(var(--primary),0.4)]",
+                          (selectedLead.vibe || 0) > 80 ? "bg-gradient-to-r from-emerald-600 to-emerald-400" : "bg-gradient-to-r from-blue-600 to-blue-400"
+                        )} 
+                        style={{ width: `${selectedLead.vibe || 0}%` }}
+                      />
+                    </div>
+                    <span className="text-xl font-black font-mono text-white leading-none">{selectedLead.vibe || 0}%</span>
+                  </div>
                 </div>
               </div>
 
@@ -621,6 +789,9 @@ const LeadsTable = () => {
           recipientId={selectedLead.id}
           recipientName={`${selectedLead.first_name || ''} ${selectedLead.last_name || ''}`.trim() || 'Unknown'}
           recipientPhone={selectedLead.phone}
+          recipientCompany={selectedLead.company || undefined}
+          recipientRole={selectedLead.role || undefined}
+          recipientAddress={selectedLead.address || undefined}
           brokerName={selectedLead.brokers?.contact_person}
           brokerPhone={undefined}
         />

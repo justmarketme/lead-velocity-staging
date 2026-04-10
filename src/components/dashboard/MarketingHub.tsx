@@ -16,6 +16,7 @@ import {
     Edit3,
     Share2,
     Globe,
+    CheckCircle2,
     Zap,
     Facebook,
     Layout,
@@ -81,6 +82,8 @@ const MarketingHub = () => {
     const [scraperProvider, setScraperProvider] = useState<"firecrawl" | "apify" | "tavily">("firecrawl");
     const [scraperCredits, setScraperCredits] = useState({ firecrawl: 500, apify: 5.00, tavily: 1000 });
     const [detectedLeads, setDetectedLeads] = useState([]);
+    const [isTransferring, setIsTransferring] = useState(false);
+    const [isTransferred, setIsTransferred] = useState(false);
     const [searchIntent, setSearchIntent] = useState("");
     const [targetGeos, setTargetGeos] = useState("");
 
@@ -143,6 +146,32 @@ const MarketingHub = () => {
     // --- Sales Consultant State ---
     const [salesBriefing, setSalesBriefing] = useState(null);
     const [isSalesBriefingLoading, setIsSalesBriefingLoading] = useState(false);
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [brokerId, setBrokerId] = useState<string | null>(null);
+
+    useEffect(() => {
+        const getIdentity = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                // Get role
+                const { data: roleStatus } = await supabase.rpc('has_role', {
+                    _user_id: user.id,
+                    _role: 'admin'
+                });
+                setIsAdmin(!!roleStatus);
+
+                // Get broker profile
+                const { data: broker } = await supabase
+                    .from('brokers')
+                    .select('id')
+                    .eq('user_id', user.id)
+                    .maybeSingle();
+                
+                if (broker) setBrokerId(broker.id);
+            }
+        };
+        getIdentity();
+    }, []);
 
     // --- Handlers ---
     const handleScrape = async () => {
@@ -193,53 +222,103 @@ const MarketingHub = () => {
             }
 
             const data = await res.json();
-            setDetectedLeads(data);
-
-            // Save scraped leads to the lead database
-            try {
-                const leads = Array.isArray(data) ? data : [];
-                if (leads.length > 0) {
-                    const leadsToInsert = leads.map((lead: any) => {
-                        const nameParts = (lead.name || "").trim().split(" ");
-                        const first_name = nameParts[0] || "";
-                        const last_name = nameParts.slice(1).join(" ") || "";
-                        const notes = [lead.role, lead.company, lead.address].filter(Boolean).join(" · ");
-                        return {
-                            first_name,
-                            last_name,
-                            email: lead.email || `${first_name.toLowerCase()}.${last_name.toLowerCase()}@unknown.co.za`,
-                            phone: lead.phone || "",
-                            source: lead.source || "Campaign Lead",
-                            notes,
-                            current_status: "New",
-                        };
-                    });
-                    const { error: dbError } = await supabase.from("leads").insert(leadsToInsert);
-                    if (dbError) {
-                        console.error("Lead DB save error:", dbError);
-                        toast({ title: "DB Save Warning", description: dbError.message, variant: "destructive" });
-                    }
-                }
-            } catch (dbErr: any) {
-                console.error("Could not save leads to database:", dbErr);
-            }
+            setDetectedLeads(Array.isArray(data) ? data : []);
+            setIsTransferred(false); // New set of leads, not yet transferred
 
             toast({
                 title: "Prospecting Sequence Complete",
-                description: "Leads synthesized and saved to Lead Database.",
+                description: `${(Array.isArray(data) ? data : []).length} leads synthesized. Ready for transfer.`,
             });
         } catch (error: any) {
-            console.error(error);
-            toast({
-                title: "Acquisition Neural Link Failed",
-                description: error.message || "The data engine encountered static.",
-                variant: "destructive"
+            console.error("Scraper logic error:", error);
+            toast({ 
+              title: "Neural Link Error", 
+              description: error.message || "The data engine encountered static.", 
+              variant: "destructive" 
             });
         } finally {
             setIsScraping(false);
             clearInterval(logInterval);
         }
     };
+
+    const transferLeadsToDB = async () => {
+        if (!detectedLeads || detectedLeads.length === 0 || isTransferred) return;
+        setIsTransferring(true);
+
+        try {
+            // Robustly prepare leads. If no brokerId is found but user is NOT an admin, this will fail RLS.
+            // If user IS an admin, broker_id can be null or selected by admin.
+            const leadsToInsert = detectedLeads.map((lead: any) => {
+                const nameParts = (lead.name || "").trim().split(" ");
+                const first_name = nameParts[0] || "Anonymous";
+                const last_name = nameParts.slice(1).join(" ") || "Lead";
+                const notes = [lead.role, lead.company, lead.address, lead.notes].filter(Boolean).join(" · ");
+                const uniqueId = Math.random().toString(36).substring(2, 7);
+                const fallbackEmail = `${first_name.toLowerCase()}.${last_name.toLowerCase()}.${uniqueId}@unknown.co.za`;
+
+                return {
+                    first_name,
+                    last_name,
+                    email: lead.email || fallbackEmail,
+                    phone: lead.phone || "",
+                    source: `Ayanda Prospecting | ${industry || 'Search'}`,
+                    company: lead.company || "",
+                    role: lead.role || "",
+                    address: lead.address || "",
+                    vibe: lead.vibe || 50,
+                    broker_id: brokerId,
+                    notes,
+                    current_status: "New",
+                };
+            });
+
+            console.log("Attempting transfer with brokerId:", brokerId, " isAdmin:", isAdmin);
+            
+            const { data: insertedLeads, error: dbError } = await supabase
+                .from("leads")
+                .insert(leadsToInsert)
+                .select();
+            
+            if (dbError) {
+                if (dbError.code === '23505') { // Unique constraint
+                  toast({ 
+                    title: "Partial Sync", 
+                    description: "Some leads might already exist in your database.",
+                    variant: "destructive" 
+                  });
+                } else if (dbError.code === '42501') { // RLS Violation
+                    toast({
+                        title: "Permission Denied",
+                        description: isAdmin 
+                            ? "Admin policy check failed. Please refresh your session." 
+                            : "Broker identity could not be verified. Please contact support.",
+                        variant: "destructive"
+                    });
+                    throw dbError;
+                } else {
+                  throw dbError;
+                }
+            } else if (insertedLeads) {
+                setIsTransferred(true);
+                setDetectedLeads(insertedLeads as any);
+                toast({
+                    title: "Sync Success!",
+                    description: `${insertedLeads.length} leads successfully transferred to the Lead Database.`,
+                });
+            }
+        } catch (dbErr: any) {
+            console.error("Could not save leads to database:", dbErr);
+            toast({
+                title: "Sync Error",
+                description: dbErr.message || "Failed to transfer leads to the database.",
+                variant: "destructive"
+            });
+        } finally {
+            setIsTransferring(false);
+        }
+    };
+
 
     const handleGoogleArchitect = async () => {
         setIsGoogleArchitecting(true);
@@ -360,6 +439,55 @@ const MarketingHub = () => {
             console.error(error);
         } finally {
             setIsSalesBriefingLoading(false);
+        }
+    };
+
+    const handleBuddyUp = async (lead: any) => {
+        if (!brokerId) {
+            toast({ title: "Authentication Error", description: "Broker profile not found. Please relogin.", variant: "destructive" });
+            return;
+        }
+
+        toast({ title: "Initiating Buddy Up", description: `Ayanda is connecting to ${lead.first_name || lead.name}...` });
+
+        try {
+            const { error } = await supabase.functions.invoke('create-ayanda-call', {
+                body: { leadId: lead.id, brokerId, isRoleplay: false }
+            });
+            if (error) throw error;
+            toast({ title: "Dialing Prospect", description: "Stay ready. Ayanda will bridge you in once contact is established." });
+        } catch (err: any) {
+            console.error("Buddy Up bridge error:", err);
+            toast({ title: "Bridge Failed", description: err.message, variant: "destructive" });
+        }
+    };
+
+    const handleRetrieveCall = async (lead: any) => {
+        toast({ title: "Consulting AI Records", description: `Retrieving latest intelligence for ${lead.first_name || lead.name}...` });
+        
+        try {
+            const { data, error } = await supabase
+                .from('ai_call_requests')
+                .select('summary, recording_url, call_status')
+                .eq('recipient_id', lead.id)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
+
+            if (error || !data) {
+                toast({ title: "No Records Found", description: "Einstein hasn't engaged this entity via voice protocol yet.", variant: "secondary" });
+                return;
+            }
+
+            toast({
+                title: "Intelligence Retrieved",
+                description: `Summary: ${data.summary || 'Transcription in progress.'}`,
+                action: data.recording_url ? (
+                    <Button variant="outline" size="sm" onClick={() => window.open(data.recording_url, '_blank')}>Listen</Button>
+                ) : undefined
+            });
+        } catch (err) {
+            console.error("Retrieve error:", err);
         }
     };
 
@@ -844,11 +972,32 @@ const MarketingHub = () => {
                         <div className="lg:col-span-2">
                             <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl rounded-3xl overflow-hidden h-full flex flex-col">
                                 <div className="p-6 border-b border-white/5 flex gap-4 items-center justify-between bg-slate-900/60">
-                                    <div>
+                                    <div className="flex flex-col">
                                         <h3 className="font-bold text-lg text-white">Acquired Entities</h3>
-                                        <p className="text-sm text-slate-500">Live multi-platform scrape results</p>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <Badge className={cn("px-2 py-0.5 text-[10px] uppercase font-black", isTransferred ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "bg-amber-500/20 text-amber-500 border-amber-500/30 animate-pulse")}>
+                                                {isTransferred ? "Synced to DB" : "Pending Sync"}
+                                            </Badge>
+                                            <p className="text-xs text-slate-500">Live multi-platform scrape results</p>
+                                        </div>
                                     </div>
-                                    <Badge className="bg-primary/20 text-primary px-3 py-1 text-xs">{detectedLeads.length} Synced</Badge>
+                                    {!isTransferred && detectedLeads.length > 0 && (
+                                        <Button 
+                                            size="sm" 
+                                            className="bg-gradient-to-r from-emerald-600 to-emerald-400 hover:from-emerald-500 hover:to-emerald-300 text-[10px] h-8 gap-2 uppercase font-black shadow-[0_0_20px_rgba(16,185,129,0.2)] border-0"
+                                            onClick={transferLeadsToDB}
+                                            disabled={isTransferring}
+                                        >
+                                            {isTransferring ? <RotateCw className="h-3 w-3 animate-spin" /> : <Database className="h-3 w-3" />}
+                                            {isTransferring ? "Transferring..." : `Transfer ${detectedLeads.length} to Lead Database`}
+                                        </Button>
+                                    )}
+                                    {isTransferred && (
+                                        <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 gap-1 px-3 py-1">
+                                            <CheckCircle2 className="h-3 w-3" />
+                                            Success
+                                        </Badge>
+                                    )}
                                 </div>
                                 <div className="p-6 flex-1 overflow-y-auto">
                                     {detectedLeads.length > 0 ? (
@@ -857,24 +1006,59 @@ const MarketingHub = () => {
                                                 <div key={lead.id} className="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between hover:bg-white/10 transition-colors cursor-pointer group animate-in slide-in-from-bottom-2">
                                                     <div className="flex items-center gap-4">
                                                         <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-lg ring-2 ring-primary/30 shadow-[0_0_15px_rgba(var(--primary),0.3)]">
-                                                            {lead.name.charAt(0)}
+                                                            {(lead.name || lead.first_name || "L").charAt(0)}
                                                         </div>
                                                         <div>
-                                                            <p className="font-bold text-white text-md">{lead.name}</p>
-                                                            <p className="text-xs text-slate-400">{lead.role} <span className="text-primary/70">@</span> {lead.company}</p>
+                                                            <p className="font-bold text-white text-md">
+                                                                {lead.name || `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || 'Anonymous Lead'}
+                                                            </p>
+                                                            <p className="text-xs text-slate-400">{lead.role || lead.notes || "Lead"} <span className="text-primary/70">@</span> {lead.company || "Velocity Entity"}</p>
                                                             <p className="text-[11px] text-slate-500 mt-1 font-mono">{lead.email}</p>
                                                             {lead.phone && <p className="text-[11px] text-slate-400 mt-0.5 font-mono">📞 {lead.phone}</p>}
                                                             {lead.address && <p className="text-[11px] text-slate-500 mt-0.5">📍 {lead.address}</p>}
                                                             {lead.source && <p className="text-[10px] text-primary/60 mt-0.5 font-bold uppercase tracking-wider">🔗 {lead.source}</p>}
                                                         </div>
                                                     </div>
-                                                    <div className="flex flex-col items-end">
-                                                        <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-400 border-none mb-2 font-black tracking-widest text-[9px]">
+                                                    <div className="flex flex-col items-end gap-2">
+                                                        <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-400 border-none font-black tracking-widest text-[9px]">
                                                             Vibe {lead.vibe}%
                                                         </Badge>
-                                                        <Button size="sm" variant="ghost" className="h-7 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity uppercase font-bold tracking-wider">
-                                                            Queue Campaign
-                                                        </Button>
+                                                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <Button 
+                                                                size="sm" 
+                                                                variant="outline" 
+                                                                className="h-7 text-[9px] uppercase font-bold tracking-wider border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setSelectedLeadForCall(lead);
+                                                                    setIsAyandaModalOpen(true);
+                                                                }}
+                                                            >
+                                                                <Phone className="h-3 w-3 mr-1" /> Call with Ayanda
+                                                            </Button>
+                                                            <Button 
+                                                                size="sm" 
+                                                                variant="outline" 
+                                                                className="h-7 text-[9px] uppercase font-bold tracking-wider border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleBuddyUp(lead);
+                                                                }}
+                                                            >
+                                                                <Users className="h-3 w-3 mr-1" /> Buddy Up
+                                                            </Button>
+                                                            <Button 
+                                                                size="sm" 
+                                                                variant="outline" 
+                                                                className="h-7 text-[9px] uppercase font-bold tracking-wider border-pink-500/30 text-pink-400 hover:bg-pink-500/10"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleRetrieveCall(lead);
+                                                                }}
+                                                            >
+                                                                <RotateCw className="h-3 w-3 mr-1" /> Retrieve Info
+                                                            </Button>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             ))}
@@ -1676,10 +1860,12 @@ const MarketingHub = () => {
                                                             <td className="p-6">
                                                                 <div className="flex items-center gap-4">
                                                                     <div className="h-10 w-10 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold">
-                                                                        {lead.name.charAt(0)}
+                                                                        {(lead.name || lead.first_name || "L").charAt(0)}
                                                                     </div>
                                                                     <div>
-                                                                        <div className="font-bold text-white group-hover:text-emerald-400 transition-colors uppercase tracking-tight">{lead.name}</div>
+                                                                        <div className="font-bold text-white group-hover:text-emerald-400 transition-colors uppercase tracking-tight">
+                                                                            {lead.name || `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || 'Anonymous'}
+                                                                        </div>
                                                                         <div className="text-[10px] text-slate-500 font-mono">{lead.company} • {lead.role}</div>
                                                                         {lead.phone && <div className="text-[10px] text-slate-400 font-mono mt-0.5">📞 {lead.phone}</div>}
                                                                         {lead.address && <div className="text-[10px] text-slate-500 mt-0.5">📍 {lead.address}</div>}

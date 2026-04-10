@@ -43,6 +43,9 @@ interface AICallDialogProps {
   recipientId: string;
   recipientName: string;
   recipientPhone: string;
+  recipientCompany?: string;
+  recipientRole?: string;
+  recipientAddress?: string;
   brokerName?: string;
   brokerPhone?: string;
 }
@@ -64,6 +67,9 @@ export function AICallDialog({
   recipientId,
   recipientName,
   recipientPhone,
+  recipientCompany,
+  recipientRole,
+  recipientAddress,
   brokerName,
   brokerPhone,
 }: AICallDialogProps) {
@@ -152,6 +158,9 @@ export function AICallDialog({
           recipient_phone: fullNumber,
           call_purpose: callPurpose,
           call_purpose_details: additionalDetails,
+          company: recipientCompany,
+          role: recipientRole,
+          address: recipientAddress,
         },
       });
 
@@ -262,7 +271,11 @@ export function AICallDialog({
                   >
                     <User className="mb-2 h-5 w-5" />
                     <span className="font-medium text-sm">Client</span>
-                    <span className="text-xs text-muted-foreground mt-1 truncate max-w-full">{recipientName}</span>
+                    <span className="text-xs text-muted-foreground mt-1 truncate max-w-full">
+                      {recipientName}
+                      {recipientCompany && ` • ${recipientCompany}`}
+                      {recipientRole && ` (${recipientRole})`}
+                    </span>
                     <span className="text-xs text-muted-foreground">{countryCode} {editedPhone}</span>
                   </Label>
                 </div>

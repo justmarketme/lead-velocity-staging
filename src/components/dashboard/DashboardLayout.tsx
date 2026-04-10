@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import NotificationBell from "@/components/notifications/NotificationBell";
 import { EinsteinLiveVoice } from "@/components/voice/EinsteinLiveVoice";
 
 import { useSearchParams } from "react-router-dom";
-import { useEffect } from "react";
+
 import {
   Select,
   SelectContent,
@@ -27,6 +27,32 @@ interface DashboardLayoutProps {
 
 const DashboardLayout = ({ children, activeTab, setActiveTab }: DashboardLayoutProps) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(256);
+  const resizingRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  const startResizing = (e: React.MouseEvent) => {
+    e.preventDefault();
+    resizingRef.current = { startX: e.clientX, startWidth: sidebarWidth };
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", stopResizing);
+    document.body.style.cursor = "col-resize";
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!resizingRef.current) return;
+    const { startX, startWidth } = resizingRef.current;
+    const delta = e.clientX - startX;
+    const newWidth = Math.max(180, Math.min(450, startWidth + delta));
+    setSidebarWidth(newWidth);
+  };
+
+  const stopResizing = () => {
+    resizingRef.current = null;
+    document.removeEventListener("mousemove", handleMouseMove);
+    document.removeEventListener("mouseup", stopResizing);
+    document.body.style.cursor = "";
+  };
+
   const [brokers, setBrokers] = useState<any[]>([]);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -53,11 +79,14 @@ const DashboardLayout = ({ children, activeTab, setActiveTab }: DashboardLayoutP
     setSearchParams(params);
   };
 
-  const menuItems = [
+  const leadSourcingItems = [
     { id: "overview", label: "Overview", icon: LayoutDashboard },
     { id: "workflow", label: "Manage Workflow", icon: Workflow },
     { id: "marketing", label: "Marketing Hub", icon: Sparkles },
     { id: "leads", label: "Lead Database", icon: Database },
+  ];
+
+  const brokerManagementItems = [
     { id: "referrals", label: "Referrals", icon: UserCheck },
     { id: "broker-analysis", label: "Onboarding", icon: Target },
     { id: "calendar", label: "Calendar", icon: Calendar },
@@ -134,34 +163,83 @@ const DashboardLayout = ({ children, activeTab, setActiveTab }: DashboardLayoutP
 
       {/* Sidebar */}
       <aside
-        className={`fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-card border-r border-border transition-transform duration-300 z-40 ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        style={{ width: `${sidebarWidth}px` }}
+        className={`fixed left-0 top-16 h-[calc(100vh-4rem)] bg-card border-r border-border transition-transform duration-300 lg:transition-none z-40 ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
           }`}
       >
-        <nav className="p-4 space-y-2 h-full overflow-y-auto custom-scrollbar">
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                onClick={() => {
-                  setActiveTab(item.id);
-                  setSidebarOpen(false);
-                }}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${activeTab === item.id
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                  }`}
-              >
-                <Icon size={20} />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
+        <nav className="p-4 space-y-2 h-full overflow-y-auto custom-scrollbar relative">
+          <div className="mb-4">
+            <h3 className="px-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 flex items-center gap-1">
+              <Sparkles className="h-3 w-3" />
+              Lead Sourcing
+            </h3>
+            <div className="space-y-1">
+              {leadSourcingItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setActiveTab(item.id);
+                      setSidebarOpen(false);
+                    }}
+                    className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-colors text-sm ${activeTab === item.id
+                      ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                      }`}
+                  >
+                    <Icon size={18} />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="border-t border-border pt-4 mt-4">
+            <h3 className="px-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 flex items-center gap-1">
+              <Users className="h-3 w-3" />
+              Broker Management
+            </h3>
+            <div className="space-y-1">
+              {brokerManagementItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setActiveTab(item.id);
+                      setSidebarOpen(false);
+                    }}
+                    className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-colors text-sm ${activeTab === item.id
+                      ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                      }`}
+                  >
+                    <Icon size={18} />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </nav>
+
+        {/* Resizer Handle */}
+        <div
+          onMouseDown={startResizing}
+          className="absolute -right-2 top-0 bottom-0 w-4 cursor-col-resize z-50 group hidden lg:block"
+        >
+          <div className="h-full w-[3px] mx-auto bg-border/40 group-hover:bg-primary transition-all duration-200" />
+          <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/5 transition-colors" />
+        </div>
       </aside>
 
       {/* Main Content */}
-      <main className="lg:pl-64 pt-16">
+      <main
+        style={{ paddingLeft: sidebarOpen ? 0 : `${sidebarWidth}px` }}
+        className="pt-16 transition-all duration-300 lg:transition-none"
+      >
         <div className="p-4 sm:p-6 lg:p-8">
           {children}
         </div>

@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { AYANDA_PERSONALITY } from "../_shared/ayanda_persona.ts";
+import { normalizePhoneNumber } from "../_shared/utils.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -216,7 +217,7 @@ serve(async (req) => {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: new URLSearchParams({
-          To: recipient_phone,
+          To: normalizePhoneNumber(recipient_phone),
           From: fromNumber,
           Twiml: twiml,
           StatusCallback: `${supabaseUrl}/functions/v1/handle-ai-call-status?callRequestId=${callRequest.id}${communicationRecord ? `&communicationId=${communicationRecord.id}` : ''}`,
