@@ -19,7 +19,8 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     // Master Bridge: Intercepts all Supabase Edge Function calls and routes them to our local Vite Emulator
     fetch: (url, options) => {
       const urlStr = url.toString();
-      if (urlStr.includes('/functions/v1/')) {
+      // Only use the bridge in development mode
+      if (import.meta.env.DEV && urlStr.includes('/functions/v1/')) {
         const functionName = urlStr.split('/functions/v1/')[1];
         if (['marketing-ai', 'einstein-ai', 'create-einstein-call'].includes(functionName)) {
           console.log(`[Edge Bridge] Intercepting function: ${functionName}`);

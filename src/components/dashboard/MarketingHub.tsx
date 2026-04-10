@@ -200,11 +200,8 @@ const MarketingHub = () => {
         }, 1000);
 
         try {
-            // Local Emulator Path: Hits our custom Vite plugin to bypass CORS and remote delays
-            const res = await fetch('/functions/v1/marketing-ai', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
+            const { data, error } = await supabase.functions.invoke('marketing-ai', {
+                body: { 
                     action: 'prospect-leads', 
                     payload: { 
                         industry: industry,
@@ -213,15 +210,14 @@ const MarketingHub = () => {
                         provider: scraperProvider,
                         leads: detectedLeads
                     }
-                })
+                },
+                headers: {
+                    'x-gemini-key': import.meta.env.VITE_GEMINI_API_KEY
+                }
             });
 
-            if (!res.ok) {
-                const errData = await res.json();
-                throw new Error(errData.error || "Neural Link Timeout");
-            }
+            if (error) throw error;
 
-            const data = await res.json();
             setDetectedLeads(Array.isArray(data) ? data : []);
             setIsTransferred(false); // New set of leads, not yet transferred
 
