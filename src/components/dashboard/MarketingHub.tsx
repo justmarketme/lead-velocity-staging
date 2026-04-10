@@ -45,6 +45,7 @@ import {
     Terminal,
     RotateCw,
     Brain,
+    BrainCircuit,
     PhoneCall,
     PhoneOutgoing,
     Mic2,
@@ -86,6 +87,7 @@ const MarketingHub = () => {
     const [isTransferred, setIsTransferred] = useState(false);
     const [searchIntent, setSearchIntent] = useState("");
     const [targetGeos, setTargetGeos] = useState("");
+    const [researchContext, setResearchContext] = useState<any>(null);
 
     // Ayanda Call State
     const [isAyandaModalOpen, setIsAyandaModalOpen] = useState(false);
@@ -219,13 +221,17 @@ const MarketingHub = () => {
             });
 
             if (error) throw error;
+            
+            const leads = data?.leads || [];
+            const context = data?.context || null;
 
-            setDetectedLeads(Array.isArray(data) ? data : []);
+            setDetectedLeads(Array.isArray(leads) ? leads : []);
+            setResearchContext(context);
             setIsTransferred(false); // New set of leads, not yet transferred
 
             toast({
                 title: "Prospecting Sequence Complete",
-                description: `${(Array.isArray(data) ? data : []).length} leads synthesized. Ready for transfer.`,
+                description: `${(Array.isArray(leads) ? leads : []).length} leads synthesized. Check the Neural Context tab.`,
             });
         } catch (error: any) {
             console.error("Scraper logic error:", error);
@@ -968,108 +974,132 @@ const MarketingHub = () => {
                         </div>
 
                         <div className="lg:col-span-2">
-                            <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl rounded-3xl overflow-hidden h-full flex flex-col">
-                                <div className="p-6 border-b border-white/5 flex gap-4 items-center justify-between bg-slate-900/60">
-                                    <div className="flex flex-col">
-                                        <h3 className="font-bold text-lg text-white">Acquired Entities</h3>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            <Badge className={cn("px-2 py-0.5 text-[10px] uppercase font-black", isTransferred ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "bg-amber-500/20 text-amber-500 border-amber-500/30 animate-pulse")}>
-                                                {isTransferred ? "Synced to DB" : "Pending Sync"}
-                                            </Badge>
-                                            <p className="text-xs text-slate-500">Live multi-platform scrape results</p>
-                                        </div>
+                            <Tabs defaultValue="leads" className="w-full">
+                                <Card className="border-white/5 bg-slate-900/40 backdrop-blur-xl rounded-3xl overflow-hidden h-full flex flex-col">
+                                    <div className="p-4 border-b border-white/5 bg-slate-900/60 flex items-center justify-between">
+                                        <TabsList className="bg-black/20 border-white/5">
+                                            <TabsTrigger value="leads" className="text-[10px] uppercase font-bold px-4 data-[state=active]:bg-primary data-[state=active]:text-black">
+                                                Acquired Entities
+                                            </TabsTrigger>
+                                            <TabsTrigger value="context" className="text-[10px] uppercase font-bold px-4 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                                                Neural Research Context
+                                            </TabsTrigger>
+                                        </TabsList>
+
+                                        {!isTransferred && detectedLeads.length > 0 && (
+                                            <Button 
+                                                size="sm" 
+                                                className="bg-gradient-to-r from-emerald-600 to-emerald-400 hover:from-emerald-500 hover:to-emerald-300 text-[10px] h-8 gap-2 uppercase font-black shadow-[0_0_20px_rgba(16,185,129,0.2)] border-0"
+                                                onClick={transferLeadsToDB}
+                                                disabled={isTransferring}
+                                            >
+                                                {isTransferring ? <RotateCw className="h-3 w-3 animate-spin" /> : <Database className="h-3 w-3" />}
+                                                {isTransferring ? "Transferring..." : `Transfer ${detectedLeads.length} to CRM`}
+                                            </Button>
+                                        )}
                                     </div>
-                                    {!isTransferred && detectedLeads.length > 0 && (
-                                        <Button 
-                                            size="sm" 
-                                            className="bg-gradient-to-r from-emerald-600 to-emerald-400 hover:from-emerald-500 hover:to-emerald-300 text-[10px] h-8 gap-2 uppercase font-black shadow-[0_0_20px_rgba(16,185,129,0.2)] border-0"
-                                            onClick={transferLeadsToDB}
-                                            disabled={isTransferring}
-                                        >
-                                            {isTransferring ? <RotateCw className="h-3 w-3 animate-spin" /> : <Database className="h-3 w-3" />}
-                                            {isTransferring ? "Transferring..." : `Transfer ${detectedLeads.length} to Lead Database`}
-                                        </Button>
-                                    )}
-                                    {isTransferred && (
-                                        <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 gap-1 px-3 py-1">
-                                            <CheckCircle2 className="h-3 w-3" />
-                                            Success
-                                        </Badge>
-                                    )}
-                                </div>
-                                <div className="p-6 flex-1 overflow-y-auto">
-                                    {detectedLeads.length > 0 ? (
-                                        <div className="space-y-4">
-                                            {detectedLeads.map((lead) => (
-                                                <div key={lead.id} className="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between hover:bg-white/10 transition-colors cursor-pointer group animate-in slide-in-from-bottom-2">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-lg ring-2 ring-primary/30 shadow-[0_0_15px_rgba(var(--primary),0.3)]">
-                                                            {(lead.name || lead.first_name || "L").charAt(0)}
-                                                        </div>
-                                                        <div>
-                                                            <p className="font-bold text-white text-md">
-                                                                {lead.name || `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || 'Anonymous Lead'}
-                                                            </p>
-                                                            <p className="text-xs text-slate-400">{lead.role || lead.notes || "Lead"} <span className="text-primary/70">@</span> {lead.company || "Velocity Entity"}</p>
-                                                            <p className="text-[11px] text-slate-500 mt-1 font-mono">{lead.email}</p>
-                                                            {lead.phone && <p className="text-[11px] text-slate-400 mt-0.5 font-mono">📞 {lead.phone}</p>}
-                                                            {lead.address && <p className="text-[11px] text-slate-500 mt-0.5">📍 {lead.address}</p>}
-                                                            {lead.source && <p className="text-[10px] text-primary/60 mt-0.5 font-bold uppercase tracking-wider">🔗 {lead.source}</p>}
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex flex-col items-end gap-2">
-                                                        <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-400 border-none font-black tracking-widest text-[9px]">
-                                                            Vibe {lead.vibe}%
-                                                        </Badge>
-                                                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            <Button 
-                                                                size="sm" 
-                                                                variant="outline" 
-                                                                className="h-7 text-[9px] uppercase font-bold tracking-wider border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setSelectedLeadForCall(lead);
-                                                                    setIsAyandaModalOpen(true);
-                                                                }}
-                                                            >
-                                                                <Phone className="h-3 w-3 mr-1" /> Call with Ayanda
-                                                            </Button>
-                                                            <Button 
-                                                                size="sm" 
-                                                                variant="outline" 
-                                                                className="h-7 text-[9px] uppercase font-bold tracking-wider border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleBuddyUp(lead);
-                                                                }}
-                                                            >
-                                                                <Users className="h-3 w-3 mr-1" /> Buddy Up
-                                                            </Button>
-                                                            <Button 
-                                                                size="sm" 
-                                                                variant="outline" 
-                                                                className="h-7 text-[9px] uppercase font-bold tracking-wider border-pink-500/30 text-pink-400 hover:bg-pink-500/10"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleRetrieveCall(lead);
-                                                                }}
-                                                            >
-                                                                <RotateCw className="h-3 w-3 mr-1" /> Retrieve Info
-                                                            </Button>
-                                                        </div>
-                                                    </div>
+
+                                    <TabsContent value="leads" className="m-0 flex-1 overflow-y-auto">
+                                        <div className="p-6">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <div>
+                                                    <h3 className="font-bold text-lg text-white">Live Results</h3>
+                                                    <p className="text-xs text-slate-500">Entities synthesized from multi-platform scrape</p>
                                                 </div>
-                                            ))}
+                                                {isTransferred && (
+                                                    <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 gap-1 px-3 py-1">
+                                                        <CheckCircle2 className="h-3 w-3" />
+                                                        Success
+                                                    </Badge>
+                                                )}
+                                            </div>
+
+                                            {detectedLeads.length > 0 ? (
+                                                <div className="space-y-4">
+                                                    {detectedLeads.map((lead) => (
+                                                        <div key={lead.id} className="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between hover:bg-white/10 transition-colors cursor-pointer group animate-in slide-in-from-bottom-2">
+                                                            <div className="flex items-center gap-4">
+                                                                <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-lg ring-2 ring-primary/30 shadow-[0_0_15px_rgba(var(--primary),0.3)]">
+                                                                    {(lead.name || lead.first_name || "L").charAt(0)}
+                                                                </div>
+                                                                <div>
+                                                                    <p className="font-bold text-white text-md">
+                                                                        {lead.name || `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || 'Anonymous Lead'}
+                                                                    </p>
+                                                                    <p className="text-xs text-slate-400">{lead.role || lead.notes || "Lead"} <span className="text-primary/70">@</span> {lead.company || "Velocity Entity"}</p>
+                                                                    <p className="text-[11px] text-slate-500 mt-1 font-mono">{lead.email}</p>
+                                                                </div>
+                                                            </div>
+                                                            <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-400 border-none font-black tracking-widest text-[9px]">
+                                                                Vibe {lead.vibe}%
+                                                            </Badge>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className="h-full py-20 flex flex-col items-center justify-center text-slate-500">
+                                                    <Search className="h-16 w-16 mb-4 opacity-20" />
+                                                    <p className="text-lg font-bold">No active entities detected</p>
+                                                    <p className="text-sm mt-1">Initiate prospector sequence to populate.</p>
+                                                </div>
+                                            )}
                                         </div>
-                                    ) : (
-                                        <div className="h-full flex flex-col items-center justify-center text-slate-500">
-                                            <Search className="h-16 w-16 mb-4 opacity-20" />
-                                            <p className="text-lg font-bold">No active entities detected</p>
-                                            <p className="text-sm mt-1">Initiate prospector sequence to populate.</p>
+                                    </TabsContent>
+
+                                    <TabsContent value="context" className="m-0 flex-1 overflow-y-auto">
+                                        <div className="p-6 space-y-8">
+                                            {researchContext ? (
+                                                <>
+                                                    {/* Primary Research (Tavily) */}
+                                                    <section className="space-y-4">
+                                                        <h4 className="text-xs font-black uppercase text-blue-400 tracking-widest flex items-center gap-2">
+                                                            <Search className="h-3 w-3" /> Primary Research Fragments (Tavily)
+                                                        </h4>
+                                                        <div className="space-y-3">
+                                                            {researchContext.primary_research?.map((res: any, i: number) => (
+                                                                <div key={i} className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/10 space-y-1 hover:bg-blue-500/10 transition-colors">
+                                                                    <h5 className="text-sm font-bold text-white line-clamp-1">{res.title}</h5>
+                                                                    <p className="text-xs text-slate-400 line-clamp-2">{res.content}</p>
+                                                                    <a href={res.url} target="_blank" rel="noopener noreferrer" className="text-[9px] text-blue-400 hover:underline uppercase font-bold tracking-tighter">
+                                                                        Verify Source: {new URL(res.url).hostname}
+                                                                    </a>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </section>
+
+                                                    {/* Semantic Context (Exa) */}
+                                                    <section className="space-y-4">
+                                                        <h4 className="text-xs font-black uppercase text-purple-400 tracking-widest flex items-center gap-2">
+                                                            <Zap className="h-3 w-3" /> Semantic Neural Context (Exa.ai)
+                                                        </h4>
+                                                        <div className="space-y-3">
+                                                            {researchContext.semantic_context?.map((res: any, i: number) => (
+                                                                <div key={i} className="p-4 rounded-xl bg-purple-500/5 border border-purple-500/10 space-y-2">
+                                                                    <div className="flex items-center justify-between">
+                                                                        <h5 className="text-sm font-bold text-white line-clamp-1">{res.title}</h5>
+                                                                        <Badge className="bg-purple-500/20 text-purple-400 border-none text-[8px]">EMBEDDING MATCH</Badge>
+                                                                    </div>
+                                                                    <p className="text-xs text-slate-400 italic">"{res.text?.substring(0, 180)}..."</p>
+                                                                    <a href={res.url} target="_blank" rel="noopener noreferrer" className="text-[9px] text-purple-400 hover:underline uppercase font-bold tracking-tighter">
+                                                                        Anchor: {res.url}
+                                                                    </a>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </section>
+                                                </>
+                                            ) : (
+                                                <div className="py-20 flex flex-col items-center justify-center text-slate-500">
+                                                    <BrainCircuit className="h-16 w-16 mb-4 opacity-20" />
+                                                    <p className="text-lg font-bold">Neural Engine Idle</p>
+                                                    <p className="text-sm mt-1 text-center max-w-[200px]">Research fragments will appear here once synthesized by Tavily + Exa.</p>
+                                                </div>
+                                            )}
                                         </div>
-                                    )}
-                                </div>
-                            </Card>
+                                    </TabsContent>
+                                </Card>
+                            </Tabs>
                         </div>
                     </div>
                 </TabsContent>

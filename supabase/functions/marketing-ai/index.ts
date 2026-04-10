@@ -235,7 +235,10 @@ serve(async (req: any) => {
             }
         }
 
-        return new Response(JSON.stringify(result), {
+        return new Response(JSON.stringify({
+            leads: result,
+            context: researchData ? JSON.parse(researchData) : null
+        }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json', 'X-AI-Provider': usedProvider },
         });
 
