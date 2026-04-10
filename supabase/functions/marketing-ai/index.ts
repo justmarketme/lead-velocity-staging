@@ -39,16 +39,27 @@ serve(async (req: any) => {
         const tavilyEnvKey = Deno.env.get("TAVILY_API_KEY");
         const TAVILY_API_KEY = keys.tavily || (tavilyHeaderKey && tavilyHeaderKey !== 'undefined' ? tavilyHeaderKey : tavilyEnvKey);
 
+        const exaHeaderKey = req.headers.get('x-exa-key');
+        const exaEnvKey = Deno.env.get("EXA_API_KEY");
+        const EXA_API_KEY = keys.exa || (exaHeaderKey && exaHeaderKey !== 'undefined' ? exaHeaderKey : exaEnvKey);
+
         const openRouterHeaderKey = req.headers.get('x-openrouter-key');
         const openRouterEnvKey = Deno.env.get("OPENROUTER_API_KEY");
         const OPENROUTER_API_KEY = keys.openrouter || (openRouterHeaderKey && openRouterHeaderKey !== 'undefined' ? openRouterHeaderKey : openRouterEnvKey);
 
         const ACTIVE_KEY = OPENROUTER_API_KEY || GEMINI_API_KEY;
 
-        // 2. Perform Real Research if Tavily is available
+        console.log(`[Research Engine] Initializing. Tavily: ${!!TAVILY_API_KEY}, Exa: ${!!EXA_API_KEY}, AI: ${!!ACTIVE_KEY}`);
+
+        // 2. Perform Real Research
         let researchData = "";
-        if (payload.provider === 'tavily' && TAVILY_API_KEY) {
+        let tavilyResults = [];
+        let exaResults = [];
+
+        // Tavily Step
+        if (TAVILY_API_KEY) {
             try {
+                console.log("[Tavily] Executing deep research...");
                 const searchQuery = `List of ${payload.industry} companies in ${payload.geos || 'South Africa'}. Focus: ${payload.intent || 'General lead generation'}`;
                 const tavilyRes = await fetch("https://api.tavily.com/search", {
                     method: "POST",
@@ -57,17 +68,51 @@ serve(async (req: any) => {
                         api_key: TAVILY_API_KEY,
                         query: searchQuery,
                         search_depth: "advanced",
-                        max_results: 8
+                        max_results: 5
                     })
                 });
                 if (tavilyRes.ok) {
                     const tavilyData = await tavilyRes.json();
-                    researchData = JSON.stringify(tavilyData.results);
+                    tavilyResults = tavilyData.results || [];
+                    console.log(`[Tavily] Found ${tavilyResults.length} results.`);
                 }
             } catch (err: any) {
-                console.warn("Tavily real-time research failed, falling back to neural simulation:", err.message || "Unknown error");
+                console.warn("[Tavily] Research failed:", err.message);
             }
         }
+
+        // Exa Step (The Context Layer)
+        if (EXA_API_KEY) {
+            try {
+                console.log("[Exa] Executing semantic context extraction...");
+                const exaRes = await fetch("https://api.exa.ai/search", {
+                    method: "POST",
+                    headers: { 
+                        "Content-Type": "application/json",
+                        "x-api-key": EXA_API_KEY
+                    },
+                    body: JSON.stringify({
+                        query: `High-intent ${payload.industry} business contacts and company details in ${payload.geos || 'South Africa'}`,
+                        type: "auto",
+                        numResults: 5,
+                        contents: { text: true }
+                    })
+                });
+                if (exaRes.ok) {
+                    const exaData = await exaRes.json();
+                    exaResults = exaData.results || [];
+                    console.log(`[Exa] Found ${exaResults.length} semantic matches.`);
+                }
+            } catch (err: any) {
+                console.warn("[Exa] Research failed:", err.message);
+            }
+        }
+
+        // Synthesize Research
+        researchData = JSON.stringify({
+            primary_research: tavilyResults,
+            semantic_context: exaResults
+        });
 
         let prompt = "";
         if (action === "prospect-leads") {

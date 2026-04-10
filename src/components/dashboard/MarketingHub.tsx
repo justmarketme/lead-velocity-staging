@@ -212,7 +212,9 @@ const MarketingHub = () => {
                     }
                 },
                 headers: {
-                    'x-gemini-key': import.meta.env.VITE_GEMINI_API_KEY
+                    'x-gemini-key': import.meta.env.VITE_GEMINI_API_KEY,
+                    'x-tavily-key': import.meta.env.VITE_TAVILY_API_KEY,
+                    'x-exa-key': import.meta.env.VITE_EXA_API_KEY
                 }
             });
 
