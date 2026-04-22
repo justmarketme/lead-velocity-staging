@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useLocation, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { X, Send, Rocket, Sparkles, Mic, AudioLines, Minimize2, Maximize2, Bot, User, Loader2, PhoneOff } from "lucide-react";
-import { UltravoxSession, UltravoxSessionStatus } from "ultravox-client";
+import { Conversation, type VoiceConversation } from "@elevenlabs/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -27,12 +27,12 @@ export function ChatBot() {
     const [input, setInput] = useState("");
     const [isListening, setIsListening] = useState(false);
 
-    // Ultravox Voice State
+    // ElevenLabs Voice State
     const [isVoiceActive, setIsVoiceActive] = useState(false);
     const [isConnectingVoice, setIsConnectingVoice] = useState(false);
     const [voiceStatus, setVoiceStatus] = useState<string>('');
     const [isAgentSpeaking, setIsAgentSpeaking] = useState(false);
-    const uvSessionRef = useRef<UltravoxSession | null>(null);
+    const conversationRef = useRef<VoiceConversation | null>(null);
 
     const recognitionRef = useRef<any>(null);
     const location = useLocation();
@@ -83,13 +83,9 @@ export function ChatBot() {
     };
 
     const stopVoiceSession = useCallback(() => {
-        if (uvSessionRef.current) {
-            try {
-                uvSessionRef.current.leaveCall();
-            } catch (e) {
-                console.warn("Error leaving Ultravox call:", e);
-            }
-            uvSessionRef.current = null;
+        if (conversationRef.current) {
+            conversationRef.current.endSession().catch(() => {});
+            conversationRef.current = null;
         }
         setIsVoiceActive(false);
         setIsConnectingVoice(false);
@@ -116,77 +112,52 @@ export function ChatBot() {
 
         setIsConnectingVoice(true);
         try {
-            // Call the Supabase edge function to create an Ultravox session
-            const { data } = await supabase.auth.getSession();
-            const session = data?.session;
-            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-            if (session?.access_token) {
-                headers['Authorization'] = `Bearer ${session.access_token}`;
-            }
-
-            const response = await supabase.functions.invoke('create-einstein-call', {
-                body: {
-                    medium: { webRtc: {} },
-                    model: 'ultravox-v0.7'
-                }
-            });
+            const response = await supabase.functions.invoke('create-einstein-call');
 
             if (response.error) {
                 throw new Error(response.error.message || 'Failed to create Einstein call');
             }
 
-            const { joinUrl } = response.data;
-            if (!joinUrl) {
-                throw new Error('No join URL returned from Einstein service');
+            const { signedUrl, systemPrompt, firstMessage } = response.data;
+            if (!signedUrl) {
+                throw new Error('No signed URL returned from Einstein service');
             }
 
-            // Create and configure the Ultravox session
-            const uvSession = new UltravoxSession();
-            uvSessionRef.current = uvSession;
-
-            // Listen to status changes
-            uvSession.addEventListener('status', () => {
-                const status = uvSession.status;
-                console.log("Ultravox status:", status);
-
-                if (status === UltravoxSessionStatus.IDLE) {
-                    setIsVoiceActive(false);
+            const conversation = await Conversation.startSession({
+                signedUrl,
+                overrides: {
+                    agent: {
+                        prompt: { prompt: systemPrompt },
+                        firstMessage,
+                    },
+                },
+                onConnect: () => {
+                    setIsVoiceActive(true);
                     setIsConnectingVoice(false);
-                }
-
-                if (status === UltravoxSessionStatus.SPEAKING) {
-                    setIsAgentSpeaking(true);
-                    setVoiceStatus('Einstein is speaking...');
-                } else if (status === UltravoxSessionStatus.LISTENING) {
-                    setIsAgentSpeaking(false);
-                    setVoiceStatus('Listening to you...');
-                } else if (status === UltravoxSessionStatus.DISCONNECTED) {
+                    setVoiceStatus('Connected — speak now');
+                },
+                onDisconnect: () => {
                     stopVoiceSession();
-                }
-            });
+                },
+                onModeChange: ({ mode }) => {
+                    setIsAgentSpeaking(mode === 'speaking');
+                    setVoiceStatus(mode === 'speaking' ? 'Einstein is speaking...' : 'Listening to you...');
+                },
+                onMessage: ({ message, role: msgRole }) => {
+                    const chatRole = msgRole === 'agent' ? 'bot' : 'user';
+                    const prefix = chatRole === 'user' ? '🎙️ ' : '';
+                    addMessage({
+                        id: `voice-${Date.now()}-${Math.random()}`,
+                        role: chatRole,
+                        content: `${prefix}${message}`,
+                    });
+                },
+                onError: (msg) => {
+                    console.error('ElevenLabs voice error:', msg);
+                },
+            }) as VoiceConversation;
 
-            // Listen to transcripts
-            uvSession.addEventListener('transcripts', () => {
-                const transcripts = uvSession.transcripts;
-                if (transcripts && transcripts.length > 0) {
-                    const latest = transcripts[transcripts.length - 1];
-                    if (latest.isFinal) {
-                        const role = latest.speaker === 'agent' ? 'bot' : 'user';
-                        const prefix = role === 'user' ? '🎙️ ' : '';
-                        addMessage({
-                            id: `voice-${Date.now()}-${Math.random()}`,
-                            role,
-                            content: `${prefix}${latest.text}`
-                        });
-                    }
-                }
-            });
-
-            // Join the call
-            await uvSession.joinCall(joinUrl);
-            setIsVoiceActive(true);
-            setIsConnectingVoice(false);
-            setVoiceStatus('Connected — speak now');
+            conversationRef.current = conversation;
 
         } catch (err: any) {
             console.error("Voice Call Error:", err);
@@ -364,7 +335,7 @@ export function ChatBot() {
                                                     </span>
                                                 </div>
                                                 <p className="text-[9px] text-slate-500 text-center font-mono">
-                                                    Powered by Ultravox · ElevenLabs Voice
+                                                    Powered by ElevenLabs Voice AI
                                                 </p>
                                                 <Button
                                                     size="sm"
@@ -451,7 +422,7 @@ export function ChatBot() {
                                     </form>
 
                                     <p className="text-[8px] text-slate-600 text-center uppercase tracking-[0.2em] font-mono">
-                                        Lead Velocity · Einstein AI · Ultravox + ElevenLabs
+                                        Lead Velocity · Einstein AI · ElevenLabs
                                     </p>
                                 </div>
                             </div>

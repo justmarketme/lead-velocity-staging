@@ -13,12 +13,20 @@ serve(async (req) => {
     }
 
     try {
-        const ULTRAVOX_API_KEY = Deno.env.get('ULTRAVOX_API_KEY');
-        const ELEVENLABS_VOICE_ID = Deno.env.get('ELEVENLABS_EINSTEIN_VOICE_ID') || 'pNInz6obpgDQGcFmaJgB';
+        const ELEVENLABS_API_KEY = Deno.env.get('ELEVENLABS_API_KEY');
+        const ELEVENLABS_EINSTEIN_AGENT_ID =
+            Deno.env.get('ELEVENLABS_EINSTEIN_AGENT_ID') || Deno.env.get('ELEVENLABS_AGENT_ID');
 
-        if (!ULTRAVOX_API_KEY) {
+        if (!ELEVENLABS_API_KEY) {
             return new Response(
-                JSON.stringify({ error: 'ULTRAVOX_API_KEY is not configured in Supabase secrets.' }),
+                JSON.stringify({ error: 'ELEVENLABS_API_KEY is not configured in Supabase secrets.' }),
+                { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+        }
+
+        if (!ELEVENLABS_EINSTEIN_AGENT_ID) {
+            return new Response(
+                JSON.stringify({ error: 'ELEVENLABS_EINSTEIN_AGENT_ID (or ELEVENLABS_AGENT_ID) is not configured in Supabase secrets.' }),
                 { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
         }
@@ -28,7 +36,7 @@ serve(async (req) => {
         const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-        // 2. Identify User & Role for Context
+        // 2. Identify user & role for context-aware prompt
         const authHeader = req.headers.get('Authorization');
         let role = "public";
         let contextText = "";
@@ -59,53 +67,26 @@ serve(async (req) => {
             contextText = "PUBLIC MODE: Provide general info about Lead Velocity. Do not share stats. Encourage them to complete the Broker Readiness Assessment.";
         }
 
-        const fullSystemPrompt = `${EINSTEIN_PERSONALITY}\n\n${WEBSITE_KNOWLEDGE}\n\n${contextText}`;
+        const systemPrompt = `${EINSTEIN_PERSONALITY}\n\n${WEBSITE_KNOWLEDGE}\n\n${contextText}`;
+        const firstMessage = role === "broker"
+            ? `Guten Tag! Einstein-77 back on ze channel! How is ze brokerage today? I have your lead stats open — ready to discuss ze details?`
+            : `Guten Tag! I am Einstein-77, broadcasting from ze Lead Velocity orbital station. Wunderbar that you have connected! How can I help your brokerage today?`;
 
-        const { medium: bodyMedium, model: bodyModel } = await req.json().catch(() => ({}));
+        // 3. Get ElevenLabs signed URL for browser conversation
+        const signedUrlRes = await fetch(
+            `https://api.elevenlabs.io/v1/convai/conversation/get_signed_url?agent_id=${ELEVENLABS_EINSTEIN_AGENT_ID}`,
+            { headers: { 'xi-api-key': ELEVENLABS_API_KEY } }
+        );
 
-        // 3. Create the Ultravox call session
-        const callConfig = {
-            systemPrompt: fullSystemPrompt,
-            model: bodyModel || 'ultravox-v0.7',
-            temperature: 0.8,
-            externalVoice: {
-                elevenLabs: {
-                    voiceId: ELEVENLABS_VOICE_ID,
-                    model: 'eleven_turbo_v2_5'
-                }
-            },
-            firstSpeaker: 'FIRST_SPEAKER_AGENT',
-            medium: bodyMedium || { webRtc: {} }, // Explicitly targeting web browser
-            initialMessages: [
-                {
-                    role: 'MESSAGE_ROLE_AGENT',
-                    text: role === "broker" 
-                        ? `Guten Tag! Einstein-77 back on ze channel! How is ze brokerage today? I have your lead stats open — ready to discuss ze details?`
-                        : `Guten Tag! I am Einstein-77, broadcasting from ze Lead Velocity orbital station. Wunderbar that you have connected! How can I help your brokerage today?`
-                }
-            ]
-        };
-
-        const ultravoxResponse = await fetch('https://api.ultravox.ai/api/calls', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-API-Key': ULTRAVOX_API_KEY,
-            },
-            body: JSON.stringify(callConfig),
-        });
-
-        if (!ultravoxResponse.ok) {
-            const errorText = await ultravoxResponse.text();
-            throw new Error(`Ultravox API error: ${ultravoxResponse.status}. ${errorText}`);
+        if (!signedUrlRes.ok) {
+            const err = await signedUrlRes.text();
+            throw new Error(`ElevenLabs signed URL error: ${signedUrlRes.status}. ${err}`);
         }
 
-        const callData = await ultravoxResponse.json();
-        const joinUrl = callData.joinUrl || callData.join_url;
-        const callId = callData.callId || callData.call_id;
+        const { signed_url } = await signedUrlRes.json();
 
         return new Response(
-            JSON.stringify({ joinUrl, callId }),
+            JSON.stringify({ signedUrl: signed_url, systemPrompt, firstMessage }),
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
 

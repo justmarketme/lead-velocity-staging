@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   X, 
@@ -32,7 +32,6 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { UltravoxSession, UltravoxSessionStatus, Transcript } from 'ultravox-client';
 import { CallRecordingPlayer } from "@/components/communications/CallRecordingPlayer";
 import {
   Dialog,
@@ -71,10 +70,7 @@ const CallCommandCenter = ({ isOpen, onClose, activeCallId }: CallCommandCenterP
   const [loading, setLoading] = useState(true);
   const [selectedCall, setSelectedCall] = useState<CallRequest | null>(null);
   
-  // Real-time Ultravox State
-  const [transcript, setTranscript] = useState<Transcript[]>([]);
-  const [sessionStatus, setSessionStatus] = useState<UltravoxSessionStatus>(UltravoxSessionStatus.IDLE);
-  const sessionRef = useRef<UltravoxSession | null>(null);
+  const [transcript, setTranscript] = useState<{ speaker: string; text: string }[]>([]);
 
   useEffect(() => {
     if (isOpen) {
@@ -86,10 +82,6 @@ const CallCommandCenter = ({ isOpen, onClose, activeCallId }: CallCommandCenterP
 
       return () => {
         supabase.removeChannel(channel);
-        if (sessionRef.current) {
-          sessionRef.current.leaveCall();
-          sessionRef.current = null;
-        }
       };
     }
   }, [isOpen]);
@@ -113,30 +105,19 @@ const CallCommandCenter = ({ isOpen, onClose, activeCallId }: CallCommandCenterP
 
   const liveCall = calls.find(c => c.call_status === "in_progress");
 
-  // Handle joining the live session
+  // Populate transcript from stored conversation_history when a live call is selected
   useEffect(() => {
-    if (liveCall?.join_url && activeTab === "live" && sessionStatus === UltravoxSessionStatus.IDLE) {
-      console.log("Joining live Ultravox session:", liveCall.join_url);
-      
-      const session = new UltravoxSession();
-      sessionRef.current = session;
-
-      session.addEventListener('statuschange', () => {
-        setSessionStatus(session.status);
-      });
-
-      session.addEventListener('transcript', () => {
-        setTranscript([...session.transcripts]);
-      });
-
-      session.joinCall(liveCall.join_url);
-    } else if (!liveCall && sessionRef.current) {
-      sessionRef.current.leaveCall();
-      sessionRef.current = null;
-      setSessionStatus(UltravoxSessionStatus.IDLE);
+    if (liveCall?.conversation_history && Array.isArray(liveCall.conversation_history)) {
+      setTranscript(
+        liveCall.conversation_history.map((entry: any) => ({
+          speaker: entry.role === 'agent' || entry.role === 'assistant' ? 'agent' : 'user',
+          text: entry.content || entry.text || '',
+        }))
+      );
+    } else {
       setTranscript([]);
     }
-  }, [liveCall?.join_url, activeTab]);
+  }, [liveCall?.conversation_history]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -186,7 +167,7 @@ const CallCommandCenter = ({ isOpen, onClose, activeCallId }: CallCommandCenterP
 
   const getSentiment = () => {
     if (transcript.length === 0) return "Neutral";
-    const lastText = transcript[transcript.length - 1].text.toLowerCase();
+    const lastText = (transcript[transcript.length - 1].text || '').toLowerCase();
     if (lastText.includes("great") || lastText.includes("yes") || lastText.includes("perfect")) return "Positive";
     if (lastText.includes("not") || lastText.includes("busy") || lastText.includes("stop")) return "Negative";
     return "Neutral";
