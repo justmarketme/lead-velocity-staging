@@ -14,8 +14,7 @@ serve(async (req) => {
 
     try {
         const ELEVENLABS_API_KEY = Deno.env.get('ELEVENLABS_API_KEY');
-        const ELEVENLABS_EINSTEIN_AGENT_ID =
-            Deno.env.get('ELEVENLABS_EINSTEIN_AGENT_ID') || Deno.env.get('ELEVENLABS_AGENT_ID');
+        const ELEVENLABS_EINSTEIN_AGENT_ID = Deno.env.get('ELEVENLABS_EINSTEIN_AGENT_ID');
 
         if (!ELEVENLABS_API_KEY) {
             return new Response(
@@ -26,7 +25,7 @@ serve(async (req) => {
 
         if (!ELEVENLABS_EINSTEIN_AGENT_ID) {
             return new Response(
-                JSON.stringify({ error: 'ELEVENLABS_EINSTEIN_AGENT_ID (or ELEVENLABS_AGENT_ID) is not configured in Supabase secrets.' }),
+                JSON.stringify({ error: 'ELEVENLABS_EINSTEIN_AGENT_ID is not configured in Supabase secrets.' }),
                 { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
         }
