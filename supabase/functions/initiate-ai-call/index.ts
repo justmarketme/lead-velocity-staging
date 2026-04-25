@@ -18,14 +18,6 @@ interface AICallRequest {
   call_purpose_details?: string;
 }
 
-const CALL_OPENERS = [
-  "Hi {customer_name}, this is Ayanda — calling on behalf of {broker_name} from {firm_name}. Quick question — did I catch you at a bad time?",
-  "Hi {customer_name}, Ayanda here on behalf of {broker_name} from {firm_name}. We're running a short financial awareness push for folks like you — got 20 seconds?",
-  "Hi {customer_name}, Ayanda from {broker_name} at {firm_name}. Ever feel like your cover's just... not quite enough these days?",
-  "Hi {customer_name}, Ayanda calling on behalf of {broker_name} from {firm_name}. Just reaching out regarding the inquiry you made — how's your day going?",
-  "Hi {customer_name}, this is Ayanda. I help {broker_name} from {firm_name} with their scheduling. Following up on your interest in insurance options — do you have a quick minute?"
-];
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -36,7 +28,7 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Authenticate user - ALWAYS require authentication, no test mode bypass
+    // Authenticate user
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(JSON.stringify({ error: 'No authorization header' }), {
@@ -49,7 +41,7 @@ serve(async (req) => {
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
-      console.error('Auth error in initiate-ai-call:', authError, 'Token length:', token.length);
+      console.error('Auth error in initiate-ai-call:', authError);
       return new Response(JSON.stringify({ error: 'Invalid token', details: authError }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -57,16 +49,24 @@ serve(async (req) => {
     }
 
     const payload: AICallRequest = await req.json();
-    console.log('Received AI call request:', payload);
     const { recipient_type, recipient_id, recipient_name, recipient_phone, call_purpose, call_purpose_details } = payload;
 
-    // Get Twilio credentials
+    // Get credentials
     const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
     const authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
     const fromNumber = Deno.env.get('TWILIO_PHONE_NUMBER');
+    const ELEVENLABS_API_KEY = Deno.env.get('ELEVENLABS_API_KEY');
+    const ELEVENLABS_AGENT_ID = Deno.env.get('ELEVENLABS_AGENT_ID');
 
     if (!accountSid || !authToken || !fromNumber) {
       return new Response(JSON.stringify({ error: 'Twilio credentials not configured' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!ELEVENLABS_API_KEY || !ELEVENLABS_AGENT_ID) {
+      return new Response(JSON.stringify({ error: 'ElevenLabs credentials not configured' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -96,9 +96,10 @@ serve(async (req) => {
       });
     }
 
-    // --- Dynamic Broker Pull ---
+    // Resolve broker context
     let brokerName = "Independent Financial Advisor";
     let firmName = "the brokerage";
+    let firmAddress = "TBA";
 
     try {
       if (recipient_type === 'lead' || recipient_type === 'referral') {
@@ -110,7 +111,6 @@ serve(async (req) => {
           .single();
 
         if (record?.broker_id) {
-          // Check Onboarding Responses first (more detailed info)
           const { data: onboarding } = await supabase
             .from('broker_onboarding_responses')
             .select('full_name, firm_name')
@@ -120,19 +120,19 @@ serve(async (req) => {
             .single();
 
           if (onboarding) {
-            brokerName = onboarding.full_name?.split(' ')[0] || "your advisor";
+            brokerName = onboarding.full_name?.split(' ')[0] || brokerName;
             firmName = onboarding.firm_name || firmName;
           } else {
-            // Fallback to brokers table
             const { data: broker } = await supabase
               .from('brokers')
-              .select('contact_person, firm_name')
+              .select('contact_person, firm_name, firm_address')
               .eq('id', record.broker_id)
               .single();
 
             if (broker) {
-              brokerName = broker.contact_person?.split(' ')[0] || "your advisor";
+              brokerName = broker.contact_person?.split(' ')[0] || brokerName;
               firmName = broker.firm_name || firmName;
+              firmAddress = broker.firm_address || firmAddress;
             }
           }
         }
@@ -141,33 +141,44 @@ serve(async (req) => {
       console.error('Error fetching broker details:', e);
     }
 
-    // Select opener
-    let openerIndex = Math.floor(Math.random() * CALL_OPENERS.length);
-
-    // For cold calls, we prefer the direct insurance interest opener (index 4)
-    if (call_purpose === 'cold_call') {
-      openerIndex = 4;
+    // Optional Exa.ai warm lead research
+    let researchContext = call_purpose_details || "No recent specific updates found.";
+    const EXA_API_KEY = Deno.env.get('EXA_API_KEY');
+    if (EXA_API_KEY) {
+      try {
+        const exaResponse = await fetch('https://api.exa.ai/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': EXA_API_KEY },
+          body: JSON.stringify({
+            query: `Latest news and business updates for ${recipient_name}`,
+            type: "auto",
+            numResults: 2,
+            contents: { highlights: { maxCharacters: 400 } }
+          }),
+        });
+        if (exaResponse.ok) {
+          const exaData = await exaResponse.json();
+          const results = exaData.results
+            .map((r: any) => `Source: ${r.title}\nUpdate: ${r.highlights?.[0] || 'N/A'}`)
+            .join("\n---\n");
+          if (results) researchContext = results;
+        }
+      } catch (err) {
+        console.error("Exa research failed:", err);
+      }
     }
 
-    const openerTemplate = CALL_OPENERS[openerIndex];
-    const personalizedScript = openerTemplate
-      .replace(/{customer_name}/g, recipient_name || 'there')
-      .replace(/{broker_name}/g, brokerName)
-      .replace(/{firm_name}/g, firmName);
-
-    // Update the call request with the selected opener
-    await supabase
-      .from('ai_call_requests')
-      .update({ opener_index: openerIndex })
-      .eq('id', callRequest.id);
-
-    // Store full persona in metadata for reference by any downstream agents/handlers
-    const fullPersona = AYANDA_PERSONALITY
+    // Build dynamic system prompt
+    const fullSystemPrompt = AYANDA_PERSONALITY
       .replace(/{broker_name}/g, brokerName)
       .replace(/{firm_name}/g, firmName)
-      .replace(/{customer_name}/g, recipient_name || 'there');
+      .replace(/{firm_address}/g, firmAddress)
+      .replace(/{customer_name}/g, recipient_name || 'there')
+      .replace(/{research_context}/g, researchContext);
 
-    // Create a record in the communications table for history
+    const firstMessage = `Hi ${recipient_name || 'there'}, Ayanda here — calling on behalf of ${brokerName}'s office at ${firmName}. I'm actually not calling for a sales pitch. I had one quick clarifying question for you — do you have a quick 20 seconds?`;
+
+    // Create communications record for history
     const { data: communicationRecord, error: commError } = await supabase
       .from('communications')
       .insert({
@@ -184,11 +195,8 @@ serve(async (req) => {
         content: `AI Call: ${call_purpose.replace(/_/g, ' ')}`,
         metadata: {
           ai_call_request_id: callRequest.id,
-          script: personalizedScript,
-          persona: fullPersona,
           broker_name: brokerName,
           firm_name: firmName,
-          opener_index: openerIndex
         }
       })
       .select()
@@ -198,16 +206,35 @@ serve(async (req) => {
       console.error('Error creating communication record:', commError);
     }
 
-    // Create TwiML for the call with text-to-speech - Using a slightly more sophisticated voice if available
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say voice="Polly.Ayanda" language="en-ZA">${personalizedScript}</Say>
-  <Pause length="1"/>
-  <Say voice="Polly.Ayanda" language="en-ZA">Thank you. Please leave a message after the beep.</Say>
-  <Record maxLength="120" action="${supabaseUrl}/functions/v1/handle-ai-call-recording?callRequestId=${callRequest.id}${communicationRecord ? `&amp;communicationId=${communicationRecord.id}` : ''}" transcribe="true" transcribeCallback="${supabaseUrl}/functions/v1/handle-ai-call-transcription?callRequestId=${callRequest.id}${communicationRecord ? `&amp;communicationId=${communicationRecord.id}` : ''}"/>
-</Response>`;
+    // Get ElevenLabs TwiML for outbound call
+    const elevenLabsResponse = await fetch('https://api.elevenlabs.io/v1/convai/twilio/register-call', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'xi-api-key': ELEVENLABS_API_KEY,
+      },
+      body: JSON.stringify({
+        agent_id: ELEVENLABS_AGENT_ID,
+        from_number: fromNumber,
+        to_number: normalizePhoneNumber(recipient_phone),
+        conversation_config_override: {
+          agent: {
+            prompt: { prompt: fullSystemPrompt },
+            first_message: firstMessage,
+          },
+        },
+      }),
+    });
 
-    // Initiate the call via Twilio
+    if (!elevenLabsResponse.ok) {
+      const errorText = await elevenLabsResponse.text();
+      await supabase.from('ai_call_requests').update({ call_status: 'failed', admin_notes: errorText }).eq('id', callRequest.id);
+      throw new Error(`ElevenLabs error: ${elevenLabsResponse.status}. ${errorText}`);
+    }
+
+    const twiml = await elevenLabsResponse.text();
+
+    // Initiate Twilio outbound call
     const twilioResponse = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls.json`,
       {
@@ -230,7 +257,6 @@ serve(async (req) => {
     const twilioData = await twilioResponse.json();
 
     if (!twilioResponse.ok) {
-      // Update call request as failed
       await supabase
         .from('ai_call_requests')
         .update({ call_status: 'failed', admin_notes: twilioData.message })
@@ -245,10 +271,7 @@ serve(async (req) => {
     // Update call request with Twilio SID
     await supabase
       .from('ai_call_requests')
-      .update({
-        call_sid: twilioData.sid,
-        call_status: 'in_progress'
-      })
+      .update({ call_sid: twilioData.sid, call_status: 'in_progress' })
       .eq('id', callRequest.id);
 
     return new Response(JSON.stringify({
