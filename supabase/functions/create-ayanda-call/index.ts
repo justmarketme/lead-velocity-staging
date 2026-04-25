@@ -14,13 +14,20 @@ serve(async (req) => {
     }
 
     try {
-        const ULTRAVOX_API_KEY = Deno.env.get('ULTRAVOX_API_KEY');
+        const ELEVENLABS_API_KEY = Deno.env.get('ELEVENLABS_API_KEY');
+        const ELEVENLABS_AGENT_ID = Deno.env.get('ELEVENLABS_AGENT_ID');
         const EXA_API_KEY = Deno.env.get('EXA_API_KEY');
-        const AYANDA_VOICE = Deno.env.get('ULTRAVOX_AYANDA_VOICE_ID') || 'a88fb2af-16ec-41a2-b6e9-86ef2f5c9622';
 
-        if (!ULTRAVOX_API_KEY) {
+        if (!ELEVENLABS_API_KEY) {
             return new Response(
-                JSON.stringify({ error: 'ULTRAVOX_API_KEY is not configured in Supabase secrets.' }),
+                JSON.stringify({ error: 'ELEVENLABS_API_KEY is not configured in Supabase secrets.' }),
+                { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+        }
+
+        if (!ELEVENLABS_AGENT_ID) {
+            return new Response(
+                JSON.stringify({ error: 'ELEVENLABS_AGENT_ID is not configured in Supabase secrets.' }),
                 { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
         }
@@ -29,18 +36,26 @@ serve(async (req) => {
         const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-        const { leadId, brokerId, isRoleplay = false } = await req.json();
+        const { leadId, brokerId, isRoleplay = false, systemPrompt: systemPromptOverride, phone: phoneOverride, recipientName } = await req.json();
 
-        // 1. Fetch Lead & Broker Context
-        const { data: lead, error: leadError } = await supabase
-            .from('leads')
-            .select('first_name, last_name, phone, source, notes')
-            .eq('id', leadId)
-            .single();
+        // 1. Fetch Lead & Broker Context (optional if phone override provided)
+        let lead: any = null;
+        if (leadId) {
+            const { data: leadData, error: leadError } = await supabase
+                .from('leads')
+                .select('first_name, last_name, phone, source, notes')
+                .eq('id', leadId)
+                .single();
+            if (leadError || !leadData) throw new Error(`Lead not found: ${leadError?.message}`);
+            lead = leadData;
+        } else if (phoneOverride) {
+            const nameParts = (recipientName || 'there').split(' ');
+            lead = { first_name: nameParts[0], last_name: nameParts.slice(1).join(' ') || '', phone: phoneOverride, source: 'direct', notes: '' };
+        } else {
+            throw new Error('Either leadId or phone must be provided.');
+        }
 
-        if (leadError || !lead) throw new Error(`Lead not found: ${leadError?.message}`);
-
-        const { data: broker, error: brokerError } = await supabase
+        const { data: broker } = await supabase
             .from('brokers')
             .select('contact_person, firm_name, calendar_email, firm_address')
             .eq('id', brokerId)
@@ -68,7 +83,7 @@ serve(async (req) => {
                         contents: { highlights: { maxCharacters: 400 } }
                     }),
                 });
-                
+
                 if (exaResponse.ok) {
                     const exaData = await exaResponse.json();
                     researchContext = exaData.results
@@ -95,99 +110,59 @@ serve(async (req) => {
             .select()
             .single();
 
-        // 4. Construct System Prompt with Research Context
-        const fullSystemPrompt = AYANDA_PERSONALITY
+        // 4. Construct System Prompt with Research Context (or use override)
+        const fullSystemPrompt = systemPromptOverride || AYANDA_PERSONALITY
             .replace(/{broker_name}/g, brokerName)
             .replace(/{firm_name}/g, firmName)
             .replace(/{firm_address}/g, firmAddress)
             .replace(/{customer_name}/g, lead.first_name || "there")
             .replace(/{research_context}/g, researchContext);
 
-        // 5. Create the Ultravox call session
-        const callConfig = {
-            systemPrompt: fullSystemPrompt,
-            temperature: 0.7,
-            voice: AYANDA_VOICE,
-            firstSpeaker: 'FIRST_SPEAKER_AGENT',
-            recordingEnabled: true,
-            selectedTools: [
-                {
-                    temporaryTool: {
-                        modelToolName: "book_appointment",
-                        description: "Schedules a 15-minute consultation on the broker's calendar. Call this when the lead agrees to a meeting.",
-                        staticParameters: [
-                            { name: "toolName", location: "PARAMETER_LOCATION_BODY", value: "book_appointment" },
-                            { name: "leadId", location: "PARAMETER_LOCATION_BODY", value: leadId },
-                            { name: "brokerId", location: "PARAMETER_LOCATION_BODY", value: brokerId ?? "" }
-                        ],
-                        dynamicParameters: [
-                            {
-                                name: "appointment_time",
-                                location: "PARAMETER_LOCATION_BODY",
-                                schema: { type: "string", description: "ISO 8601 datetime string for the appointment" },
-                                required: true
-                            },
-                            {
-                                name: "notes",
-                                location: "PARAMETER_LOCATION_BODY",
-                                schema: { type: "string", description: "Short summary of the call outcome" },
-                                required: false
-                            }
-                        ],
-                        http: {
-                            baseUrlPattern: `${supabaseUrl}/functions/v1/ayanda-tools-bridge`,
-                            httpMethod: "POST"
-                        }
-                    }
-                }
-            ],
-            initialMessages: [
-                {
-                    role: 'MESSAGE_ROLE_AGENT',
-                    text: `Hi ${lead.first_name || "there"}, Ayanda here — calling on behalf of ${brokerName}'s office at ${firmName}. I'm actually not calling for a sales pitch. I had one quick clarifying question for you — do you have a quick 20 seconds?`
-                }
-            ],
-            medium: { twilio: {} },
-            firstSpeakerSettings: { agent: {} },
-            voiceOverrides: { elevenLabs: { speed: 1.15 } }
-        };
+        const firstMessage = systemPromptOverride
+            ? `Hi, is this ${lead.first_name || "there"}? I'm Ayanda, calling from Vantage Stack — do you have two minutes?`
+            : `Hi ${lead.first_name || "there"}, Ayanda here — calling on behalf of ${brokerName}'s office at ${firmName}. I'm actually not calling for a sales pitch. I had one quick clarifying question for you — do you have a quick 20 seconds?`;
 
-        const ultravoxResponse = await fetch('https://api.ultravox.ai/api/calls', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-API-Key': ULTRAVOX_API_KEY,
-            },
-            body: JSON.stringify(callConfig),
-        });
-
-        if (!ultravoxResponse.ok) {
-            const errorText = await ultravoxResponse.text();
-            throw new Error(`Ultravox error: ${ultravoxResponse.status}. ${errorText}`);
-        }
-
-        const callData = await ultravoxResponse.json();
-
-        // 6. Initiate Twilio outbound call
+        // 5. Get Twilio TwiML from ElevenLabs
         const twilioAccountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
         const twilioAuthToken = Deno.env.get('TWILIO_AUTH_TOKEN');
         const fromNumber = Deno.env.get('TWILIO_PHONE_NUMBER') || '+27600185071';
+
+        const elevenLabsResponse = await fetch('https://api.elevenlabs.io/v1/convai/twilio/register-call', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'xi-api-key': ELEVENLABS_API_KEY,
+            },
+            body: JSON.stringify({
+                agent_id: ELEVENLABS_AGENT_ID,
+                from_number: fromNumber,
+                to_number: normalizePhoneNumber(lead.phone),
+                conversation_config_override: {
+                    agent: {
+                        prompt: {
+                            prompt: fullSystemPrompt,
+                        },
+                        first_message: firstMessage,
+                    },
+                },
+            }),
+        });
+
+        if (!elevenLabsResponse.ok) {
+            const errorText = await elevenLabsResponse.text();
+            throw new Error(`ElevenLabs error: ${elevenLabsResponse.status}. ${errorText}`);
+        }
+
+        const twiml = await elevenLabsResponse.text();
+        const conversationId = crypto.randomUUID();
+
+        // 6. Initiate Twilio outbound call
 
         if (!twilioAccountSid || !twilioAuthToken) {
             throw new Error("Twilio credentials not found in environment.");
         }
 
         const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Calls.json`;
-
-        // We construct the TwiML to connect to Ultravox
-        const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Connect>
-    <Stream url="${callData.joinUrl}">
-      <Parameter name="callId" value="${callData.callId}" />
-    </Stream>
-  </Connect>
-</Response>`;
 
         const twilioResponse = await fetch(twilioUrl, {
             method: 'POST',
@@ -213,20 +188,20 @@ serve(async (req) => {
         if (callRequest) {
             await supabase
                 .from('ai_call_requests')
-                .update({ 
-                    call_sid: twilioData.sid || callData.callId,  // Store Twilio Sid
+                .update({
+                    call_sid: twilioData.sid || conversationId,
                     call_status: 'in_progress',
-                    join_url: callData.joinUrl
+                    join_url: '',
                 })
                 .eq('id', callRequest.id);
         }
 
         return new Response(
-            JSON.stringify({ 
-                joinUrl: callData.joinUrl, 
-                callId: callData.callId, // Ultravox Call ID
-                twilioCallSid: twilioData.sid, // Twilio Call ID
-                callRequestId: callRequest?.id 
+            JSON.stringify({
+                joinUrl: '',
+                callId: conversationId,
+                twilioCallSid: twilioData.sid,
+                callRequestId: callRequest?.id,
             }),
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
@@ -239,4 +214,3 @@ serve(async (req) => {
         );
     }
 });
-

@@ -1,202 +1,134 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const buildPersona = (callerNumber: string) => `Ayanda is Lead Velocity's inbound AI consultant. She answers calls, qualifies brokers, and books 15-minute discovery appointments. She is warm, natural, and speaks simply — like a knowledgeable friend, not a salesperson.
+
+The caller's number is ${callerNumber}.
+
+PLAIN LANGUAGE RULE — THE MOST IMPORTANT RULE:
+Speak so simply that a 15-year-old with zero insurance knowledge would understand every single word. If a word sounds technical or industry-specific, replace it.
+
+BANNED words — never say these:
+premium, underwriting, policy, portfolio, liability, risk profile, conversion rate, CPL, cost per lead, pipeline, book of business, commission structure, compliance, FAIS, FSP
+
+INSTEAD say:
+- "premium" → "monthly payment" or "what they pay each month"
+- "leads" → "people who are already interested in getting insurance"
+- "book of business" → "your client base" or "your customers"
+- "conversion" → "turning them into actual paying clients"
+- Lead Velocity simple explanation: "We find people who are already looking for insurance — they filled in a form or clicked an ad — and we connect them to brokers like yourself. So instead of cold calling strangers, you're talking to people who already said they want insurance."
+
+ONE QUESTION RULE:
+Ask ONE question at a time. Wait for the answer. Never combine two questions into one sentence.
+
+SILENCE TOLERANCE:
+After asking a question, wait. Let the caller think. A 2-second pause is completely normal. Do not rush to fill silence.
+
+EMOTIONAL INTELLIGENCE:
+- Rushed/impatient caller → get shorter and faster, cut to the point
+- Relaxed/chatty caller → be more conversational, match their energy
+- Skeptical caller → get curious, not pushier. Say "Oh — what's been your experience with that?"
+- Confused caller → simplify further, use an analogy
+
+OBJECTION HANDLING:
+"I already have leads" → "Oh nice — how's that going? Getting enough volume?"
+"Not interested" → "Fair enough. Is it more you've got enough clients, or you've tried this before and it didn't work out?"
+"Send me an email" → "I can do that. Just so I know what to send — what type of insurance do you mainly focus on?"
+"I'm busy" → "No worries — when's a better time? I can call you back."
+"How much does it cost?" → "That depends on what you need — our consultant goes through all of that in a quick 15-minute chat. No pressure, just a conversation."
+
+THE CLOSE — always offer two specific times, never ask "would you like to book?":
+"I've got a slot tomorrow at 10, or Thursday at 2 — which works better?"
+
+DATA COLLECTION (one at a time, in this order, only after they agree to book):
+1. Ask for name → confirm it back
+2. Ask for email → ask them to spell it → read it back letter by letter → confirm
+3. Ask "Can I SMS the confirmation to the same number you're calling from?" → if yes, read back ${callerNumber} and confirm. If no, ask for their number and confirm it.
+4. Confirm callback number: "And the best number to reach you on — is that still ${callerNumber}?"
+5. Wrap up warmly and end.
+
+CALL ENDINGS:
+If the caller says goodbye or wants to go, say ONE warm sentence and stop. Example: "Sorted — I'll send you an SMS with the details. Speak soon!" Then end. No more pitching.
+
+NATURALNESS RULES:
+- Always use contractions: I'm, you're, we've, that's, don't
+- Vary sentence length — mix short punchy ones with longer ones
+- Occasionally start with: "So...", "Look...", "I mean...", "Actually..."
+- Rotate acknowledgements, never repeat back to back: "Got it", "Right", "Makes sense", "Okay", "Sure", "Yeah", "Mm"
+- NEVER use as filler: Absolutely, Certainly, Of course, Fantastic, Great, Perfect
+
+OPENING LINE: "Hi, thanks for calling Lead Velocity. I'm Ayanda — how can I help you today?"`;
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const ELEVENLABS_API_KEY = Deno.env.get('ELEVENLABS_API_KEY');
+    const ELEVENLABS_AGENT_ID = Deno.env.get('ELEVENLABS_AGENT_ID');
 
-    // Parse the form data from Twilio webhook
+    if (!ELEVENLABS_API_KEY || !ELEVENLABS_AGENT_ID) {
+      console.error('ELEVENLABS_API_KEY or ELEVENLABS_AGENT_ID not configured');
+      return new Response(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say>We're sorry, we're unable to take your call right now. Please try again later.</Say>
+</Response>`, {
+        status: 500,
+        headers: { 'Content-Type': 'text/xml' },
+      });
+    }
+
     const formData = await req.formData();
     const callSid = formData.get('CallSid') as string;
-    const callerNumber = formData.get('From') as string;
-    const calledNumber = formData.get('To') as string;
-    const callStatus = formData.get('CallStatus') as string;
-    const direction = formData.get('Direction') as string;
-    const callDuration = formData.get('CallDuration') as string;
-    const recordingUrl = formData.get('RecordingUrl') as string;
+    const callerNumber = (formData.get('From') as string) || 'unknown';
 
-    console.log('Inbound call webhook received:', {
-      callSid,
-      callerNumber,
-      calledNumber,
-      callStatus,
-      direction,
+    console.log('Inbound call received:', { callSid, callerNumber });
+
+    // Get ElevenLabs signed URL with dynamic persona override
+    const signedUrlResponse = await fetch('https://api.elevenlabs.io/v1/convai/conversation/get_signed_url', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'xi-api-key': ELEVENLABS_API_KEY,
+      },
+      body: JSON.stringify({
+        agent_id: ELEVENLABS_AGENT_ID,
+        conversation_config_override: {
+          agent: {
+            prompt: { prompt: buildPersona(callerNumber) },
+            first_message: "Hi, thanks for calling Lead Velocity. I'm Ayanda — how can I help you today?",
+          },
+        },
+      }),
     });
 
-    // Clean phone number for matching (remove +1 or similar prefixes)
-    const cleanCallerNumber = callerNumber?.replace(/^\+\d{1}/, '') || '';
-    const searchPhone = cleanCallerNumber.replace(/\D/g, '');
-
-    // Try to identify the caller from leads, referrals, or brokers
-    let recipientType = 'unknown';
-    let recipientId: string | null = null;
-    let recipientName = 'Unknown Caller';
-    let leadId: string | null = null;
-    let referralId: string | null = null;
-    let brokerId: string | null = null;
-
-    // Search in leads
-    const { data: leadMatch } = await supabase
-      .from('leads')
-      .select('id, first_name, last_name, phone')
-      .or(`phone.ilike.%${searchPhone}%,phone.ilike.%${callerNumber}%`)
-      .limit(1)
-      .single();
-
-    if (leadMatch) {
-      recipientType = 'lead';
-      recipientId = leadMatch.id;
-      leadId = leadMatch.id;
-      recipientName = `${leadMatch.first_name || ''} ${leadMatch.last_name || ''}`.trim() || 'Lead';
-    } else {
-      // Search in referrals
-      const { data: referralMatch } = await supabase
-        .from('referrals')
-        .select('id, first_name, phone_number, parent_lead_id')
-        .or(`phone_number.ilike.%${searchPhone}%,phone_number.ilike.%${callerNumber}%`)
-        .limit(1)
-        .single();
-
-      if (referralMatch) {
-        recipientType = 'referral';
-        recipientId = referralMatch.id;
-        referralId = referralMatch.id;
-        leadId = referralMatch.parent_lead_id;
-        recipientName = referralMatch.first_name || 'Referral';
-      } else {
-        // Search in brokers
-        const { data: brokerMatch } = await supabase
-          .from('brokers')
-          .select('id, contact_person, phone_number')
-          .or(`phone_number.ilike.%${searchPhone}%,phone_number.ilike.%${callerNumber}%`)
-          .limit(1)
-          .single();
-
-        if (brokerMatch) {
-          recipientType = 'broker';
-          recipientId = brokerMatch.id;
-          brokerId = brokerMatch.id;
-          recipientName = brokerMatch.contact_person || 'Broker';
-        }
-      }
+    if (!signedUrlResponse.ok) {
+      const errorText = await signedUrlResponse.text();
+      throw new Error(`ElevenLabs error: ${signedUrlResponse.status}. ${errorText}`);
     }
 
-    // Map Twilio call status to our internal status
-    const statusMap: Record<string, string> = {
-      'ringing': 'ringing',
-      'in-progress': 'in-progress',
-      'completed': 'completed',
-      'busy': 'missed',
-      'failed': 'failed',
-      'no-answer': 'missed',
-      'canceled': 'canceled',
-    };
-    const mappedStatus = statusMap[callStatus] || callStatus;
+    const { signed_url } = await signedUrlResponse.json();
 
-    // Check if we already have a record for this call
-    const { data: existingCall } = await supabase
-      .from('communications')
-      .select('id')
-      .eq('external_id', callSid)
-      .single();
+    console.log('ElevenLabs signed URL obtained for call:', callSid);
 
-    if (existingCall) {
-      // Update existing call record
-      const updateData: Record<string, unknown> = {
-        status: mappedStatus,
-        updated_at: new Date().toISOString(),
-      };
-
-      if (callDuration) {
-        updateData.call_duration = parseInt(callDuration);
-      }
-      if (recordingUrl) {
-        updateData.call_recording_url = recordingUrl;
-      }
-
-      await supabase
-        .from('communications')
-        .update(updateData)
-        .eq('id', existingCall.id);
-
-      console.log('Updated existing inbound call record:', existingCall.id);
-    } else {
-      // Create new inbound call record
-      const { data: newCall, error: insertError } = await supabase
-        .from('communications')
-        .insert({
-          channel: 'call',
-          direction: 'inbound',
-          sender_type: recipientType,
-          recipient_type: 'admin',
-          recipient_contact: calledNumber,
-          lead_id: leadId,
-          referral_id: referralId,
-          broker_id: brokerId,
-          recipient_id: recipientId,
-          status: mappedStatus,
-          external_id: callSid,
-          call_duration: callDuration ? parseInt(callDuration) : null,
-          call_recording_url: recordingUrl || null,
-          content: `Inbound call from ${recipientName} (${callerNumber})`,
-          metadata: {
-            caller_number: callerNumber,
-            called_number: calledNumber,
-            caller_name: recipientName,
-            caller_type: recipientType,
-          },
-        })
-        .select()
-        .single();
-
-      if (insertError) {
-        console.error('Error creating inbound call record:', insertError);
-      } else {
-        console.log('Created new inbound call record:', newCall?.id);
-      }
-    }
-
-    // Return TwiML response for the call
-    const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Ayanda" language="en-ZA">Thank you for calling Lead Velocity. Please hold while we connect you to a representative.</Say>
-  <Play>https://api.twilio.com/cowbell.mp3</Play>
-  <Record maxLength="300" transcribe="true" playBeep="true" />
+  <Pause length="1"/>
+  <Connect>
+    <Stream url="${signed_url}" />
+  </Connect>
 </Response>`;
 
-    return new Response(twimlResponse, {
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'application/xml',
-      },
+    return new Response(twiml, {
+      headers: { 'Content-Type': 'text/xml' },
     });
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Error in handle-inbound-call:', error);
+    console.error('Error in handle-inbound-call:', errorMessage);
 
-    // Return a basic TwiML response even on error
-    const errorTwiml = `<?xml version="1.0" encoding="UTF-8"?>
+    return new Response(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Ayanda" language="en-ZA">We're sorry, but we are unable to take your call at this time. Please try again later.</Say>
-</Response>`;
-
-    return new Response(errorTwiml, {
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'application/xml',
-      },
+  <Say>We're sorry, we're unable to take your call right now. Please try again later.</Say>
+</Response>`, {
+      status: 500,
+      headers: { 'Content-Type': 'text/xml' },
     });
   }
 });
