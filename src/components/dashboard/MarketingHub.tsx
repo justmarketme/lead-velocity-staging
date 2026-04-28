@@ -456,7 +456,13 @@ const MarketingHub = () => {
 
         try {
             const { error } = await supabase.functions.invoke('create-ayanda-call', {
-                body: { leadId: lead.id, brokerId, isRoleplay: false }
+                body: {
+                    leadId: lead.id,
+                    phone: lead.phone,
+                    recipientName: `${lead.first_name || lead.name || ''}`.trim(),
+                    brokerId,
+                    isRoleplay: false
+                }
             });
             if (error) throw error;
             toast({ title: "Dialing Prospect", description: "Stay ready. Ayanda will bridge you in once contact is established." });

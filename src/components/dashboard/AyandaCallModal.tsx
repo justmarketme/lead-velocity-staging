@@ -45,7 +45,12 @@ export function AyandaCallModal({ isOpen, onClose, lead, brokerId }: AyandaCallM
         setStatus("Bridging Neural Link...");
         try {
             const { data, error } = await supabase.functions.invoke('create-ayanda-call', {
-                body: { leadId: lead?.id, brokerId }
+                body: {
+                    leadId: lead?.id,
+                    phone: lead?.phone,
+                    recipientName: `${lead?.first_name || ''} ${lead?.last_name || ''}`.trim(),
+                    brokerId
+                }
             });
 
             if (error) throw error;

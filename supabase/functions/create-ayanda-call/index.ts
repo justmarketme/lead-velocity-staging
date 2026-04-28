@@ -39,12 +39,15 @@ serve(async (req) => {
         const { leadId, brokerId, isRoleplay = false, systemPrompt: systemPromptOverride, phone: phoneOverride, recipientName } = await req.json();
 
         // 1. Fetch Lead & Broker Context (optional if phone override provided)
+        const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        const validLeadId = leadId && UUID_REGEX.test(leadId) ? leadId : null;
+
         let lead: any = null;
-        if (leadId) {
+        if (validLeadId) {
             const { data: leadData, error: leadError } = await supabase
                 .from('leads')
                 .select('first_name, last_name, phone, source, notes')
-                .eq('id', leadId)
+                .eq('id', validLeadId)
                 .single();
             if (leadError || !leadData) throw new Error(`Lead not found: ${leadError?.message}`);
             lead = leadData;
@@ -52,7 +55,7 @@ serve(async (req) => {
             const nameParts = (recipientName || 'there').split(' ');
             lead = { first_name: nameParts[0], last_name: nameParts.slice(1).join(' ') || '', phone: phoneOverride, source: 'direct', notes: '' };
         } else {
-            throw new Error('Either leadId or phone must be provided.');
+            throw new Error('Either a valid lead UUID or phone must be provided.');
         }
 
         const { data: broker } = await supabase

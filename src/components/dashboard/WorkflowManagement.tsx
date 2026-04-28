@@ -818,6 +818,8 @@ const WorkflowManagement = () => {
                           return supabase.functions.invoke('create-ayanda-call', {
                             body: {
                               leadId: lead.id,
+                              phone: lead.phone,
+                              recipientName: `${lead.first_name || ''} ${lead.last_name || ''}`.trim(),
                               brokerId: lead.broker_id,
                               isRoleplay: lead.id === "demo-roleplay-lead-id"
                             }
@@ -1761,6 +1763,8 @@ const WorkflowManagement = () => {
                       const callPromise = supabase.functions.invoke('create-ayanda-call', {
                         body: {
                           leadId: selectedLead.id,
+                          phone: selectedLead.phone,
+                          recipientName: `${selectedLead.first_name || ''} ${selectedLead.last_name || ''}`.trim(),
                           brokerId: selectedLead.broker_id,
                           isRoleplay: selectedLead.id === "demo-roleplay-lead-id"
                         }
