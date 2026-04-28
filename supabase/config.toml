@@ -1,5 +1,8 @@
 project_id = "cmsylaupctrbsvzrgzwy"
 
+[functions.initiate-ai-call]
+verify_jwt = false
+
 [functions.create-ayanda-call]
 verify_jwt = false
 

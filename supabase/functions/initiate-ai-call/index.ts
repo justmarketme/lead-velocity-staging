@@ -28,24 +28,13 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Authenticate user
+    // Attempt to identify the calling user (non-blocking)
+    let userId: string | null = null;
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'No authorization header' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const token = authHeader.replace('Bearer ', '').trim();
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      console.error('Auth error in initiate-ai-call:', authError);
-      return new Response(JSON.stringify({ error: 'Invalid token', details: authError }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    if (authHeader) {
+      const token = authHeader.replace('Bearer ', '').trim();
+      const { data: { user } } = await supabase.auth.getUser(token);
+      userId = user?.id ?? null;
     }
 
     const payload: AICallRequest = await req.json();
@@ -82,7 +71,7 @@ serve(async (req) => {
         recipient_phone,
         call_purpose,
         call_purpose_details,
-        requested_by: user.id,
+        requested_by: userId,
         call_status: 'pending',
       })
       .select()
