@@ -58,12 +58,13 @@ export const getHtmlEmailSignature = (details?: SignatureDetails): string => {
     const logoUrl = "https://www.leadvelocity.co.za/einstein-signature.png";
 
     return `
-<table cellpadding="0" cellspacing="0" border="0" style="font-family: Arial, sans-serif; font-size: 12px; color: #333333; margin-top: 20px;">
+<table cellpadding="0" cellspacing="0" border="0" style="font-family: Arial, sans-serif; font-size: 12px; color: #333333; margin-top: 20px; width: 100%; max-width: 340px;">
   <tr>
-    <td style="padding-right: 15px; border-right: 2px solid #D946EF; vertical-align: top;">
-      <img src="${logoUrl}" alt="Lead Velocity" width="80" style="display: block; border-radius: 8px;" />
+    <td width="80" valign="top" style="padding: 0;">
+      <img src="${logoUrl}" alt="Lead Velocity" width="80" height="80" style="display: block; border-radius: 8px;" />
     </td>
-    <td style="padding-left: 15px; vertical-align: top;">
+    <td width="3" valign="top" style="padding: 0; background-color: #D946EF; font-size: 1px; line-height: 1px;">&nbsp;</td>
+    <td valign="top" style="padding: 0 0 0 14px; word-break: break-word;">
       <p style="margin: 0 0 2px 0; font-size: 14px; font-weight: bold; color: #D946EF;">${senderName}</p>
       <p style="margin: 0 0 8px 0; font-size: 12px; color: #666666;">${senderTitle} | Lead Velocity</p>
       <p style="margin: 0 0 2px 0; font-size: 12px; color: #333333;">
