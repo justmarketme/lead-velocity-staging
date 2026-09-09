@@ -55,13 +55,13 @@ f. LeadVelocitySA  x. @LeadVelocitySA  li. lead-velocity
 export const getHtmlEmailSignature = (details?: SignatureDetails): string => {
     const senderName = details?.senderName || "The Lead Velocity Team";
     const senderTitle = details?.senderTitle || "Business Development";
-    const logoUrl = "https://leadvelocity.co.za/logo.png"; // Replace with actual hosted logo URL
+    const logoUrl = "https://www.leadvelocity.co.za/einstein-signature.png";
 
     return `
 <table cellpadding="0" cellspacing="0" border="0" style="font-family: Arial, sans-serif; font-size: 12px; color: #333333; margin-top: 20px;">
   <tr>
     <td style="padding-right: 15px; border-right: 2px solid #D946EF; vertical-align: top;">
-      <img src="${logoUrl}" alt="Lead Velocity" width="120" style="display: block;" />
+      <img src="${logoUrl}" alt="Lead Velocity" width="80" style="display: block; border-radius: 8px;" />
     </td>
     <td style="padding-left: 15px; vertical-align: top;">
       <p style="margin: 0 0 2px 0; font-size: 14px; font-weight: bold; color: #D946EF;">${senderName}</p>
