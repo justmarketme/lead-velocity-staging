@@ -33,7 +33,7 @@ Why these two numbers: at 70% qualify, break-even raw CPL is ~R468; at 60% it is
 | Convention | Kept? | Reason |
 |---|---|---|
 | Price hook ("from R99/month") | **No** | F1. Price-led SA ads churn (Ad Library survivorship, A) |
-| Everyday-spend anchor ("less than your DStv") | **Held** | Ethos pattern (C). 4.2 allows it only with compliance-qa + Jonathan sign-off → `needs_human`, not in the 15 |
+| Everyday-spend price anchor (Ethos pattern) | **No** | Declined by compliance-qa (phase4-review-2 §1b; NH-PCD-05 closed as declined): it implies a premium, asserts the viewer's spending and names a third-party brand. Not in any concept, now or later |
 | Fear / mortality shock | **No** | Fear-led SA ads churn (A). Also a Meta risk |
 | Testimonials / social proof (H11) | **No, until real** | F4. Held until consenting real quotes exist |
 | Family lifestyle photography | **No** | F10. Diversity comes from angle × format × motion instead |
@@ -75,16 +75,16 @@ The budget-level qualifiers (R750+ a month) are **not** in the ad. A premium ban
 | A4 | Video beats static for lead gen (C) | 4:5 video vs 1:1 static of the same concept | CPL, qualify rate | Week 2 |
 | A5 | Virtual-convenience angles (C08, C09) bring lower-intent leads | Compare broker quality index by angle (4.12a) | Quality index, "not a fit" % | n ≥ 5 dispositions per ad |
 | A6 | Extended-family angles (C06, C07) read as respectful | Comment sentiment (community-response-lead) | Negative-comment share | First 1,000 impressions |
-| A7 | "Life cover costs less than most people think" can be substantiated | compliance-qa source check before C12 runs | Pass/fail | Before publish |
+| A7 | "Life cover costs less than most people think" can be substantiated | C12 ships the H18 default ("No price in this ad. On purpose."); the H8 claim stays held until a source is filed (NH-PCD-04) | Pass/fail | Before the H8 variant runs |
 | A8 | Life-stage hooks pre-filter age without age targeting | Age band split from the form | % of raw leads in 35–50 per angle | R3,000 spend |
 
 **Kill criteria — per ad (3.4, 4D.4a):** hook < 25% Feed / < 30% Reels or hold < 35% after 2,000 impressions → replace in the next batch. After R3,000 spend: raw CPL > R250 or qualify < 60% → pause the bottom 50%. Broker quality index < 2.5 or "not a fit" > 40% (n ≥ 5) → pause, whatever the CPL.
 
-**Kill criteria — for this design:** if by **day 14** no angle reaches raw CPL ≤ R250 with qualify ≥ 60%, the "teach the gap" thesis is wrong for this audience. Then: (a) escalate to Jonathan (3.4), (b) put the held everyday-spend anchor up for sign-off, (c) trigger the Flow photo-scene experiment if hook rate < 30% (4D.5). Speed of truth is the mitigation for the one risk the research can't remove (6B.12): distinct angles make CPL readable by angle from day 1.
+**Kill criteria — for this design:** if by **day 14** no angle reaches raw CPL ≤ R250 with qualify ≥ 60%, the "teach the gap" thesis is wrong for this audience. Then: (a) escalate to Jonathan (3.4), (b) test new gap angles from the five sources (no price anchor: declined), (c) trigger the Flow photo-scene experiment if hook rate < 30% (4D.5). Speed of truth is the mitigation for the one risk the research can't remove (6B.12): distinct angles make CPL readable by angle from day 1.
 
 ## 6. Deliberately not built (and why)
 
-- **Price hooks and the DStv anchor.** F1. The anchor is held for sign-off (4.2).
+- **Price hooks and everyday-spend price anchors.** F1. The anchor was declined by compliance-qa (NH-PCD-05).
 - **H11 social-norm hook and any testimonial.** F4. Comes back only with real, consenting quotes.
 - **H12 payslip checklist.** Kept in reserve for the 2–3-week refresh (4.2 volume note). It fits the gap angle, which already has its 2.
 - **Faces, photography, AI people.** F5, F10.

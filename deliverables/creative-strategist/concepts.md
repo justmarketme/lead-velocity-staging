@@ -1,33 +1,41 @@
 # SortMyCover — 15 ad concepts (cycle 1)
 
-**Owner:** creative-strategist · **Status:** DRAFT. For compliance-qa review, then visual-producer renders (4D.5 code pipeline), then meta-operator submits. **Date:** 2026-10-02
-**Rules applied:** broker-neutral (1.2). No product, insurer, premium, cover amount or broker. No second-person money, family, age or health claims (2.1.8). No fear, no price hook, no testimonial. No exclamation marks. Grade ≤ 7. Hooks ≤ 8 words. Primary text ≤ 90 words. CTA from the "Check my cover" family, never "get a quote".
+**Owner:** creative-strategist · **Status:** v1.1, fix wave 1 applied (compliance-qa `phase4-review-2.md` §1 + `performance-creative-director/hook-library-v2.md`). Next: compliance-qa re-check of the two new texts (C02 H12, C12 H18), then visual-producer re-renders C01, C02, C03, C05, C12, C14 (4D.5 code pipeline), then meta-operator submits. **Date:** 2026-10-02
+**Rules applied:** broker-neutral (1.2). No product, insurer, premium, cover amount or broker. No second-person money, family, age or health claims (2.1.8). No unsourced "most / never" statistics (2.1.5). No fear, no price hook, no price anchor, no testimonial. No exclamation marks. Grade ≤ 7. Hooks ≤ 8 words. Primary text ≤ 90 words. CTA from the "Check my cover" family, never "get a quote".
+
+## Fix wave 1 — what changed (v1.0 → v1.1)
+
+| Concept | Change | Source |
+|---|---|---|
+| C01 | "Most bonds are bigger than that." → "Many bonds are bigger than that." Video beat 2 → "The bond and the bills don't." (the bond + school + bills bar runs past the work-cover bar) | compliance-qa C-1; hook-library-v2 H1 |
+| C02 | Cycle 1 runs H12 "3 lines on a payslip worth a look." (new copy). The R1.4m H2 version moves to reserve as **C02-R, hold: NH-PCD-02** | compliance-qa C-7 / 1b; hook-library-v2 H2, H12 |
+| C03 | Hook → "Bond approved. Champagne open. Cover checked?" Unsourced "most new owners skip… never check" → "one job that is easy to skip: checking the life cover still fits the new debt." | compliance-qa C-2; hook-library-v2 H3, NH-PCD-03 |
+| C04 | "It happens a lot." deleted. Headline → "New family. Check the old cover." | compliance-qa C-4, C-5 |
+| C05 | Hook and first line → "Cover set up at 28. Life at 40." Repeated "Cover set up at 28" later in the text → "That cover". | hook-library-v2 H5 |
+| C12 | Ships H18 "No price in this ad. On purpose." The MYTH/FACT card is gone. The H8 claim version moves to reserve as **C12-R, hold: NH-PCD-04** | compliance-qa C-6 / 1a; hook-library-v2 H8, H18 |
+| C13 | In for cycle 1. It is also the myth-bust page H1 (compliance-qa L-2) | compliance-qa 1a |
+| C14 | "name, photo and licence number" → "name and licence number" (copy and caption) | compliance-qa C-3 |
+| All | Everyday-spend price anchor removed from every file (declined, NH-PCD-05) | compliance-qa 1b |
 
 ## Submit first, and test first
 
 | Mark | Concepts | Why |
 |---|---|---|
-| **First 3 for Meta approval (2.1.8)** | **C01** (employer-cover gap), **C03** (trigger: bond), **C14** (what the call is) | C01 and C03 are the test-matrix hooks, so they launch first anyway. C14 is the lowest-risk explainer and shows the whole mechanic. Together they cover the riskiest pattern we rely on (a number in the hook), the life-event pattern, and the plain explainer. If all three pass, the other 12 follow the same patterns. |
-| **Two strongest hooks for the 4D.4a test matrix** | **C01 / H1** "Most work life cover stops at 2–4× salary." and **C03 / H3 (adapted)** "Bond approved. Champagne open. One thing left." | These are the H1 and H3 slots in 4D.4a. Arms: amber vs teal × static vs video, one variable per arm (Loomer method). |
+| **First 3 for Meta approval (2.1.8), confirmed by compliance-qa** | **C01** (employer-cover gap), **C03** (trigger: bond), **C14** (what the call is) | They cover the riskiest pattern we rely on (a number in the hook), the life-event pattern, and the plain explainer. If all three pass, the other 12 follow the same patterns. **C01 condition:** the "2–4× salary" guide URL and quote must be in `deliverables/verified-facts.md` before GATE-ADS-APPROVE-3. If it is not on file at submission, C01's hook becomes "Work cover is often a few times salary." |
+| **Two strongest hooks for the 4D.4a test matrix** | **C01 / H1** "Most work life cover stops at 2–4× salary." and **C03 / H3** "Bond approved. Champagne open. Cover checked?" | These are the H1 and H3 slots in 4D.4a. Arms: amber vs teal × static vs video, one variable per arm (Loomer method). |
 
 ## Angle map (15 concepts, at least 2 per angle)
 
-| Angle (4.2) | Concepts | Hook source |
+| Angle (4.2) | Concepts | Hook ID (hook-library-v2) |
 |---|---|---|
-| 1. Employer-cover gap | C01, C02 | H1, H2 |
-| 2. Trigger events | C03 (new bond), C04 (new baby), C05 (turned 40) | H3, H4, H5 (H3 and H5 adapted) |
-| 3. Extended-family responsibility | C06, C07 | H9, new (consistent with H9) |
-| 4. Virtual convenience | C08, C09 | H6 (adapted), new |
-| 5. Self-employed / no group cover | C10, C11 | H7 (adapted), new |
-| 6. Myth-bust | C12, C13 | H8, new |
-| 7. What the call is | C14, C15 | H10, new (4.2 task 7 line) |
-| Reserve (refresh in weeks 2–3) | — | H12 payslip checklist. H11 only once real, consenting quotes exist. |
-
-**Hook adaptations (for performance-creative-director, who owns 4D.4a):**
-- H3 "Just got bond approval? Read this before the champagne." is 9 words, and the question implies the viewer has a bond (personal attribute, 2.1.8). → "Bond approved. Champagne open. One thing left." (scene, 7 words).
-- H5 "At 40, 30 minutes can sort what you've put off for 10 years." is 12 words, and "Turned 40?"-style lines touch age as a personal attribute. → "At 40, life is bigger than the cover." (8 words). It avoids an unsourced "most people" statistic.
-- H6 → "No sales visit. No jargon. 30 minutes." (7 words).
-- H7 "…Your family, your call." asserts the viewer's family (2.1.8). → "No boss. No payslip. No group cover." (7 words).
+| 1. Employer-cover gap | C01, C02 | H1, H12 |
+| 2. Trigger events | C03 (new bond), C04 (new baby), C05 (turned 40) | H3, H4, H5 |
+| 3. Extended-family responsibility | C06, C07 | H9, H13 |
+| 4. Virtual convenience | C08, C09 | H6, H14 |
+| 5. Self-employed / no group cover | C10, C11 | H7, H15 |
+| 6. Myth-bust | C12, C13 | H18, H16 |
+| 7. What the call is | C14, C15 | H10, H17 |
+| **Reserve (rendered, not uploaded)** | **C02-R** (H2, hold: NH-PCD-02) · **C12-R** (H8, hold: NH-PCD-04) | H11 only once real, consenting quotes exist. |
 
 ## Shared production spec (applies to every concept, so the per-concept briefs only list what changes)
 
@@ -55,66 +63,79 @@
 | Field | Copy |
 |---|---|
 | Hook (8) | Most work life cover stops at 2–4× salary. |
-| Primary text (65 words) | Most work life cover stops at 2 to 4 times salary. Most bonds are bigger than that. Add school fees, the car and the monthly bills. The gap is easy to miss. A licensed adviser can look at the real numbers with you in 30 minutes. On video, WhatsApp or phone. It costs nothing to check, and you decide after. Tap to check your cover. |
+| Primary text (65 words) | Most work life cover stops at 2 to 4 times salary. Many bonds are bigger than that. Add school fees, the car and the monthly bills. The gap is easy to miss. A licensed adviser can look at the real numbers with you in 30 minutes. On video, WhatsApp or phone. It costs nothing to check, and you decide after. Tap to check your cover. |
 | Headline | Work cover vs the bond. Check the gap. |
 | CTA | Check my cover (button LEARN_MORE) |
-| Visual brief | **Style G.** Charcoal field. Frame 1: hook in off-white, with "2–4×" in amber. Below it, a short amber bar labelled "Work cover". **Motion 0.3 s:** a long outlined bar labelled "The bond" slides out past the amber bar and off the right edge. Bracket and label "the gap" appear between the bar ends. **Type:** hook 800 / labels 500 / caption 500. **Caption:** "Most work life cover stops at 2–4× salary." **End card:** "Sort your cover. 30 minutes. A real adviser." + "Tap to check your cover". |
+| Visual brief | **Style G.** Charcoal field. Frame 1: hook in off-white, with "2–4×" in amber. Below it, a short amber bar labelled "Work cover". **Motion 0.3 s:** the amber bar grows from 0 and stops short. At 2.5 s a long outlined bar labelled "Bond + school + bills" slides out past the amber bar and off the right edge. Bracket and label "the gap" appear between the bar ends. **Type:** hook 800 / labels 500 / caption 500. **Caption:** "Most work life cover stops at 2–4× salary." **End card:** "Sort your cover. 30 minutes. A real adviser." + "Tap to check your cover". |
 | Variants | **9:16** full script below. **4:5** same script, with the bars stacked vertically to fit. **1:1** static: hook top, the two bars and the "the gap" bracket in the middle, headline bottom, tick bottom-left. |
-| Video (25 s) | 0.0 Hook on screen (K slam) · 0.4 amber "Work cover" bar grows. CAP "Most work life cover stops at 2–4× salary." · 2.5 cut: "The bond" bar runs past it. CAP "Most bonds are bigger." **(payoff by 3 s)** · 5.0 cut: small bars stack on the bond bar: "School fees", "The car", "Monthly bills". CAP "Add school, the car, the bills." · 8.0 cut: bracket "the gap" pulses once. CAP "That space is the gap." · 11.0 cut: tick icon. CAP "A licensed adviser can check it in 30 minutes." · 15.0 cut: three chips "Video · WhatsApp · Phone". CAP "From home. Free to check." · 19.0 cut: CAP "You decide after." · 22.0 end card. |
+| Video (22 s) | 0.0 Hook on screen (K slam) · 0.3 amber "Work cover" bar grows and stops short. CAP "Most work life cover stops at 2–4× salary." · 2.5 cut: the "Bond + school + bills" bar runs past it. CAP "The bond and the bills don't." **(payoff by 3 s)** · 5.0 cut: bracket "the gap" appears and pulses once. CAP "That space is the gap." · 8.0 cut: tick icon. CAP "A licensed adviser can check it in 30 minutes." · 12.0 cut: three chips "Video · WhatsApp · Phone". CAP "From home. Free to check." · 16.0 cut: CAP "You decide after." · 19.0 end card. |
 | Reading grade | 8 sentences, 65 words, 84 syllables → **FK 2.8** |
-| Compliance self-check | No product / insurer / premium / cover amount / broker / second-person money claim / fear / price hook / testimonial: **PASS.** **Flag for compliance-qa:** "2–4× salary" and "most bonds are bigger" are general claims. Their source is the published SA life cover guide cited in 1.1, which must be on file (2.1.5). |
+| Compliance self-check | No product / insurer / premium / cover amount / broker / second-person money claim / fear / price hook / testimonial: **PASS.** "Many bonds" replaces the unsourced "most" (C-1). **Condition (compliance-qa 1a):** the "2–4× salary" guide URL and quote go into `deliverables/verified-facts.md` before submission; fallback hook "Work cover is often a few times salary." |
 
-## C02 — Employer-cover gap · H2
+## C02 — Employer-cover gap · H12 (cycle 1)
+| Field | Copy |
+|---|---|
+| Hook (8) | 3 lines on a payslip worth a look. |
+| Primary text (85) | 3 lines on a payslip worth a look. Line 1: gross pay and net pay. Line 2: the retirement fund. Line 3: group life cover. How many times salary does it pay? If the payslip does not say, HR can tell. That line shows what work cover pays, not what the bond and the bills need. A licensed adviser can look at the real numbers in 30 minutes. On video, WhatsApp or phone. Free to check, and you decide after. Tap to check your cover. |
+| Headline | Line 3 is the cover line |
+| CTA | Check my cover (LEARN_MORE) |
+| Visual brief | **Style K (checklist on a document).** A plain payslip outline in off-white on charcoal, with three blank line slots and no figures. It is drawn wider and shorter than the C07 payslip, and an amber highlight bar moves down it (C07 fills names; C02 is a checklist), so the two stay distinct. **Motion 0.3 s:** the outline draws and line 1 highlights "Gross vs net". Line 2 "Retirement fund". Line 3 "Group life cover: how many × salary?" in amber. **Caption:** the hook. **End card:** the line + "Tap to check your cover". |
+| Variants | **9:16** full script. **4:5** same, payslip at 85%. **1:1** static: the payslip with line 3 highlighted in amber + headline + tick. |
+| Video (18 s) | 0.0 Payslip outline + hook on screen · 0.3 line 1 highlights "Gross vs net" · 2.0 line 2 "Retirement fund" · 4.5 line 3 turns amber "Group life cover: how many × salary?" **(payoff by 5 s)** · 7.5 cut: CAP "Work cover vs the bond and the bills." · 10.5 cut: CAP "A licensed adviser checks the real numbers. 30 minutes." · 13.0 cut: CAP "Video, WhatsApp or phone. Free to check." · 15.0 end card. |
+| Reading grade | 11 / 85 / 110 → **FK 2.7** |
+| Compliance self-check | **PASS (self).** No rand figure, no cover amount, no premium, no statistic. "A payslip", never "your payslip". Items 1–2 are neutral payslip lines. Message-matches the learn page `how-to-read-your-payslips-cover-line.html`. **New copy: needs compliance-qa re-check before upload.** |
+
+### C02-R — reserve · H2 · **hold: NH-PCD-02** (rendered, not uploaded)
 | Field | Copy |
 |---|---|
 | Hook (8) | R1.4m bond. 3× salary cover. Do the maths. |
 | Primary text (78) | Here is one made-up example. A family has a R1.4 million bond. Work cover pays 3 times salary. For many salaries, that is less than the bond. And the bond is only one cost. Kids, school and monthly bills come on top. This is an example, not advice. Every family's numbers are different. A licensed adviser can work out the real gap in 30 minutes. On video, WhatsApp or phone. Free to check. Tap to check your cover. |
 | Headline | An example, not advice. Check the real gap. |
 | CTA | Check my cover (LEARN_MORE) |
-| Visual brief | **Static + 6-s motion (4D.4a H2 format), style K.** Frame 1 shows a "sum" layout like handwritten maths, set in type: line 1 "R1.4m bond", line 2 "3× salary cover", a rule line, then "= ?" in amber. **Motion 0.3 s:** the "= ?" blinks to "= a gap". Small off-white tag in the corner: "Illustrative example. Not advice." **Caption:** the hook. **End card:** the line + "Tap to check your cover". |
-| Variants | **9:16** 6-s motion loop + end card (9 s total). **4:5** same. **1:1** static: the maths stack + tag + tick. |
-| Video (15 s) | 0.0 Maths stack on screen. CAP "R1.4m bond. 3× salary cover." · 0.4 rule line draws · 2.0 "= a gap" in amber. CAP "For many salaries, that is less than the bond." **(payoff by 3 s)** · 5.0 cut: CAP "An example. Every family's numbers differ." · 8.0 cut: CAP "A licensed adviser works out the real gap in 30 minutes." · 12.0 end card. |
+| Visual brief | **Static + 6-s motion, style K.** A "sum" layout set in type: "R1.4m bond", "3× salary cover", a rule line, then "= ?" in amber, which turns into "= a gap". Corner tag: "Illustrative example. Not advice." |
+| Variants | **9:16** 6-s loop + end card. **4:5** same. **1:1** static maths stack + tag + tick. |
+| Video (15 s) | 0.0 Maths stack. CAP "R1.4m bond. 3× salary cover." · 0.4 rule line draws · 2.0 "= a gap". CAP "For many salaries, that is less than the bond." · 5.0 CAP "An example. Every family's numbers differ." · 8.0 CAP "A licensed adviser works out the real gap in 30 minutes." · 12.0 end card. |
 | Reading grade | 12 / 78 / 112 → **FK 3.9** |
-| Compliance self-check | No product / insurer / premium / broker / second-person claim / fear / price hook / testimonial: **PASS.** **Flag for compliance-qa:** R1.4m and 3× are an **illustrative gap only** (allowed by brief, 1.1 worked case). It is labelled "made-up example" and "not advice" on screen and in copy. It must not read as a cover recommendation. If compliance-qa rejects it, swap in H12 from reserve. |
+| Status | **Not approved for cycle 1** (compliance-qa 1b: a rand figure on the gap sits too close to a cover-amount recommendation, 2.1.1 / 4.5 row 4). Revisit only after the practitioner opinion. |
 
-## C03 — Trigger: new bond · H3 adapted · **SUBMIT FIRST · TEST MATRIX**
+## C03 — Trigger: new bond · H3 · **SUBMIT FIRST · TEST MATRIX**
 | Field | Copy |
 |---|---|
-| Hook (7) | Bond approved. Champagne open. One thing left. |
-| Primary text (69) | Bond approved. Champagne open. Keys next week. Then there is one job most new owners skip. They never check if their life cover still fits the new debt. A bond can be the biggest number a family ever signs. A licensed adviser can check the full picture in 30 minutes. On video, WhatsApp or phone, from home. Free to check, and you decide after. Tap to check your cover. |
+| Hook (6) | Bond approved. Champagne open. Cover checked? |
+| Primary text (68) | Bond approved. Champagne open. Keys next week. Then there is one job that is easy to skip: checking the life cover still fits the new debt. A bond can be the biggest number a family ever signs. A licensed adviser can check the full picture in 30 minutes. On video, WhatsApp or phone, from home. Free to check, and you decide after. Tap to check your cover. |
 | Headline | The one job after bond approval |
 | CTA | Check my cover (LEARN_MORE) |
-| Visual brief | **Style K (Reels POV in type).** A three-item checklist on charcoal: "☑ Bond approved", "☑ Champagne open", "☐ One thing left", with the last box outlined in amber. **Motion 0.2 s:** the ticks draw on lines 1 and 2 in sequence. **Caption:** the hook. Item 3 resolves to "☐ Check the cover still fits". **End card:** the line + "Tap to check your cover". |
+| Visual brief | **Style K (Reels POV in type).** A three-item checklist on charcoal: "☑ Bond approved", "☑ Champagne open", "☐ Cover checked?", with the last box outlined in amber. **Motion 0.2 s:** the ticks draw on lines 1 and 2 in sequence. Box 3 stays empty. **Caption:** the hook. **End card:** the line + "Tap to check your cover". |
 | Variants | **9:16** full script. **4:5** checklist centred, smaller type. **1:1** static: the checklist with box 3 empty, headline under it. |
-| Video (22 s) | 0.0 Checklist on screen. Ticks draw on lines 1–2. CAP "Bond approved. Champagne open." · 2.5 cut: line 3 pulses. CAP "One thing left." · 4.5 cut: line 3 becomes "Check the cover still fits the new debt." **(payoff by 5 s)** · 7.5 cut: big type "The biggest number a family ever signs." · 10.5 cut: tick icon. CAP "A licensed adviser checks it in 30 minutes." · 14.0 cut: chips "Video · WhatsApp · Phone". CAP "From home. Free to check." · 17.0 cut: CAP "You decide after." · 19.0 end card. |
-| Reading grade | 10 / 69 / 92 → **FK 2.8** |
-| Compliance self-check | **PASS.** Third-person scene, no "you have a bond", no figures, no fear. "Most new owners skip" is a soft generalisation. compliance-qa may cut it to "one job that is easy to skip". |
+| Video (22 s) | 0.0 Checklist on screen. Ticks draw on lines 1–2. CAP "Bond approved. Champagne open." · 2.5 cut: line 3 pulses. CAP "Cover checked?" · 4.5 cut: CAP "A new bond can outgrow old cover." **(payoff by 5 s)** · 7.5 cut: big type "The biggest number a family ever signs." · 10.5 cut: tick icon. CAP "A licensed adviser checks it in 30 minutes." · 14.0 cut: chips "Video · WhatsApp · Phone". CAP "From home. Free to check." · 17.0 cut: CAP "You decide after." · 19.0 end card. |
+| Reading grade | 9 / 68 / 90 → **FK 3.0** |
+| Compliance self-check | **PASS.** Third-person scene, no "you have a bond", no figures, no fear. The unsourced "most / never" clause is gone (C-2, NH-PCD-03). "Cover checked?" is part of the scene's checklist, not a question about the viewer. |
 
 ## C04 — Trigger: new baby · H4
 | Field | Copy |
 |---|---|
 | Hook (7) | New baby. New bond. Same old cover? |
-| Primary text (73) | New baby. New bond. Same old cover. It happens a lot. Cover gets set up once, often years ago, and then nobody looks at it again. But a new child changes who depends on an income, and for how long. A licensed adviser can check if the old cover still fits the new family. 30 minutes on video, WhatsApp or phone. Free to check, and you decide after. Tap to check your cover. |
-| Headline | New family, old cover? Check it. |
+| Primary text (70) | New baby. New bond. Same old cover. Cover gets set up once, often years ago, and then nobody looks at it again. But a new child changes who depends on an income, and for how long. A licensed adviser can check if the old cover still fits the new family. 30 minutes on video, WhatsApp or phone. Free to check, and you decide after. Tap to check your cover. |
+| Headline | New family. Check the old cover. |
 | CTA | Check my cover (LEARN_MORE) |
 | Visual brief | **Carousel, 3 cards (4D.4a H4) + a K-style video.** Card 1 "New baby." Card 2 "New bond." Card 3 "Same old cover?", with "old" struck through in amber and "→ check it" added. Each card has an amber word and a simple line icon (pram, house outline, tick). **Motion 0.3 s (video):** the three words drop in one per beat. **Caption:** the hook. **End card:** the line + "Tap to check your cover". |
 | Variants | **9:16** video. **4:5** video. **1:1** carousel (3 cards plus an end card as card 4). |
 | Video (18 s) | 0.0 "New baby." on screen, pram icon draws · 1.0 "New bond." · 2.0 "Same old cover?" CAP the hook · 3.5 cut: CAP "Cover often gets set up once, then left." · 5.5 cut: CAP "A new child changes who depends on an income." **(payoff by 6 s)** · 8.5 cut: CAP "A licensed adviser checks if it still fits. 30 minutes." · 12.0 cut: CAP "Video, WhatsApp or phone. Free to check." · 15.0 end card. |
-| Reading grade | 10 / 73 / 99 → **FK 3.3** |
-| Compliance self-check | **PASS.** No "your baby". The question sits on a scene, not the viewer. No figures. |
+| Reading grade | 9 / 70 / 94 → **FK 3.3** |
+| Compliance self-check | **PASS.** No "your baby". The question sits on a scene, not the viewer. No figures. Unsourced "It happens a lot." removed (C-4). Headline no longer a question to the viewer (C-5). |
 
-## C05 — Trigger: turned 40 · H5 adapted
+## C05 — Trigger: turned 40 · H5
 | Field | Copy |
 |---|---|
-| Hook (8) | At 40, life is bigger than the cover. |
-| Primary text (64) | At 40, life is bigger than it was. A bond. Kids in school. Maybe parents to help. Cover set up at 28 was built for a smaller life. Nobody sends a reminder to check it. A licensed adviser can look at what still fits, in 30 minutes. On video, WhatsApp or phone. Free to check, and you decide after. Tap to check your cover. |
+| Hook (8) | Cover set up at 28. Life at 40. |
+| Primary text (62) | Cover set up at 28. Life at 40. A bond. Kids in school. Maybe parents to help. That cover was built for a smaller life. Nobody sends a reminder to check it. A licensed adviser can look at what still fits, in 30 minutes. On video, WhatsApp or phone. Free to check, and you decide after. Tap to check your cover. |
 | Headline | At 40, check what still fits |
 | CTA | Check my cover (LEARN_MORE) |
-| Visual brief | **Style G (growth).** A small amber box labelled "Cover at 28" sits inside a frame. **Motion 0.3 s:** the outer frame grows in steps labelled "bond", "kids", "school", "parents", while the amber box stays the same size. **Caption:** the hook. **End card:** the line + "Tap to check your cover". |
+| Visual brief | **Style G (growth).** A small amber box labelled "Cover at 28" sits inside a frame labelled "Life at 40". **Motion 0.3 s:** the outer frame grows in steps labelled "bond", "kids", "school", "parents", while the amber box stays the same size. **Caption:** the hook. **End card:** the line + "Tap to check your cover". |
 | Variants | **9:16** full. **4:5** same, with the steps stacked. **1:1** static: the final state (small amber box in a big frame) + hook. |
-| Video (20 s) | 0.0 Hook on screen. The frame starts growing · 2.0 cut: labels "Bond. Kids. School." step in. CAP "Life got bigger." · 4.5 cut: amber box labelled "Cover at 28" stays small. CAP "The cover did not grow with it." **(payoff by 5 s)** · 7.5 cut: CAP "Nobody sends a reminder to check." · 10.0 cut: CAP "A licensed adviser looks at what still fits. 30 minutes." · 14.0 cut: CAP "Video, WhatsApp or phone. Free." · 17.0 end card. |
-| Reading grade | 10 / 64 / 87 → **FK 3.0** |
-| Compliance self-check | **PASS.** Age appears as a general life stage ("At 40, life…"), not "you are 40". No figures beyond the age. "The cover did not grow" is generic, not a claim about the viewer. |
+| Video (20 s) | 0.0 Hook on screen. The frame starts growing · 2.0 cut: labels "Bond. Kids. School." step in. CAP "Life got bigger." · 4.5 cut: amber box "Cover at 28" stays small. CAP "The cover did not grow with it." **(payoff by 5 s)** · 7.0 cut: CAP "Nobody sends a reminder to check." · 10.0 cut: CAP "A licensed adviser looks at what still fits. 30 minutes." · 14.0 cut: CAP "Video, WhatsApp or phone. Free." · 17.0 end card. |
+| Reading grade | 11 / 62 / 82 → **FK 2.2** |
+| Compliance self-check | **PASS.** Ages appear as life stages, not "you are 40". No figures beyond the ages. "The cover did not grow" is generic, not a claim about the viewer. |
 
 ## C06 — Extended-family responsibility · H9
 | Field | Copy |
@@ -127,9 +148,9 @@
 | Variants | **9:16** houses stacked vertically. **4:5** houses in a row. **1:1** static: three houses, one amber line, hook. |
 | Video (22 s) | 0.0 Hook + two houses. Amber line draws · 2.5 cut: third house. CAP "A parent's rent. A sibling's fees." · 5.0 cut: CAP "Often all on one income." **(payoff by 5 s)** · 7.5 cut: CAP "Cover is often set up for one roof only." · 10.5 cut: CAP "A licensed adviser counts everyone who relies on it." · 14.5 cut: CAP "30 minutes. Video, WhatsApp or phone. Free." · 19.0 end card. |
 | Reading grade | 10 / 70 / 102 → **FK 4.3** (highest of the 15) |
-| Compliance self-check | **PASS.** No label ("black tax" never used). Third person. Respectful, factual. **Flag:** watch comment sentiment (A6). |
+| Compliance self-check | **PASS.** No label ever used for the practice. Third person. Respectful, factual. **Flag:** watch comment sentiment (A6). |
 
-## C07 — Extended-family responsibility · new (consistent with H9)
+## C07 — Extended-family responsibility · H13
 | Field | Copy |
 |---|---|
 | Hook (7) | Parents, kids, a sister's fees. One payslip. |
@@ -142,7 +163,7 @@
 | Reading grade | 10 / 73 / 97 → **FK 2.9** |
 | Compliance self-check | **PASS.** Third person. No figures. No label. |
 
-## C08 — Virtual convenience · H6 adapted
+## C08 — Virtual convenience · H6
 | Field | Copy |
 |---|---|
 | Hook (7) | No sales visit. No jargon. 30 minutes. |
@@ -155,7 +176,7 @@
 | Reading grade | 8 / 56 / 77 → **FK 3.4** |
 | Compliance self-check | **PASS.** No promise about the broker's behaviour beyond the call format. The mock picker shows no adviser identity (F5). |
 
-## C09 — Virtual convenience · new
+## C09 — Virtual convenience · H14
 | Field | Copy |
 |---|---|
 | Hook (7) | Lunch break. Phone or video. 30 minutes. |
@@ -168,7 +189,7 @@
 | Reading grade | 10 / 69 / 89 → **FK 2.3** |
 | Compliance self-check | **PASS.** Reminder and reschedule match 3.5a statement 3 (the automated system). |
 
-## C10 — Self-employed / no group cover · H7 adapted
+## C10 — Self-employed / no group cover · H7
 | Field | Copy |
 |---|---|
 | Hook (7) | No boss. No payslip. No group cover. |
@@ -181,7 +202,7 @@
 | Reading grade | 10 / 74 / 97 → **FK 2.8** |
 | Compliance self-check | **PASS.** Third person throughout ("people who work for themselves", "self-employed means…"). No figures. |
 
-## C11 — Self-employed / no group cover · new
+## C11 — Self-employed / no group cover · H15
 | Field | Copy |
 |---|---|
 | Hook (7) | Business owners: nobody sets up their cover. |
@@ -194,20 +215,26 @@
 | Reading grade | 8 / 76 / 102 → **FK 4.0** |
 | Compliance self-check | **PASS.** Calm, not fear: no death imagery, no "what if". |
 
-## C12 — Myth-bust · H8
+## C12 — Myth-bust · H18 (cycle 1)
+| Field | Copy |
+|---|---|
+| Hook (7) | No price in this ad. On purpose. |
+| Primary text (59) | No price in this ad. On purpose. The real cost of life cover depends on age, health, smoking and what the cover must do. A licensed adviser works it out with the real numbers in about 30 minutes. On video, WhatsApp or phone. Every family is different. Free to check, and you decide after. Tap to check your cover. |
+| Headline | Life cover: check the real cost |
+| CTA | Check my cover (LEARN_MORE) |
+| Visual brief | **Static + video, style K (blank price tag).** A blank price-tag outline in off-white on charcoal, with nothing written on it. **Motion 0.3 s:** an amber strike draws through the empty tag. Then "On purpose." lands under it. No currency symbols, no figures, no MYTH/FACT card anywhere. **Caption:** the hook. **End card:** the line + "Tap to check your cover". |
+| Variants | **9:16** full. **4:5** same. **1:1** static: the struck blank tag + hook + tick. |
+| Video (18 s) | 0.0 Blank price tag + hook. 0.3 amber strike draws · 2.5 cut: big type "The real cost depends on…" CAP "Age, health, smoking and what the cover must do." **(payoff by 3 s)** · 6.0 cut: CAP "Every family is different." · 8.5 cut: CAP "A licensed adviser works it out. 30 minutes." · 11.5 cut: CAP "Video, WhatsApp or phone." · 13.0 cut: CAP "Free to check. You decide after." · 15.0 end card. |
+| Reading grade | 8 / 59 / 82 → **FK 3.7** |
+| Compliance self-check | **PASS (self).** No premium, no figure, no comparative claim. The hook is literally true: the ad has no price. **New copy: needs compliance-qa re-check before upload.** For message match, the myth-bust landing page H1 uses C13 (compliance-qa L-2). |
+
+### C12-R — reserve · H8 · **hold: NH-PCD-04** (not rendered for upload)
 | Field | Copy |
 |---|---|
 | Hook (8) | Life cover costs less than most people think. |
-| Primary text (74) | Life cover costs less than most people think. The only way to know is to check. The real cost depends on age, health, smoking and what the cover must do. A licensed adviser works it out with the real numbers in about 30 minutes. On video, WhatsApp or phone. There is no price in this ad, on purpose. Every family is different. Free to check, and you decide after. Tap to check your cover. |
-| Headline | Life cover: check the real cost |
-| CTA | Check my cover (LEARN_MORE) |
-| Visual brief | **Static + video, style K (myth/fact card).** A card on charcoal with "MYTH" in off-white and a strike line: "Cover costs a fortune." **Motion 0.3 s:** the strike draws in amber and "FACT" flips in: "It costs less than most people think." Small line: "No price here, on purpose." No currency symbols anywhere. **Caption:** the hook. **End card:** the line + "Tap to check your cover". |
-| Variants | **9:16** full. **4:5** same. **1:1** static: myth struck, fact shown. |
-| Video (18 s) | 0.0 MYTH card + hook. Strike draws · 2.0 FACT flips. CAP "Costs less than most people think." · 4.0 cut: CAP "The real cost depends on age, health, smoking and the cover." **(payoff by 6 s)** · 7.5 cut: CAP "No price in this ad. On purpose." · 10.0 cut: CAP "A licensed adviser works it out. 30 minutes." · 13.0 cut: CAP "Free to check. You decide after." · 15.0 end card. |
-| Reading grade | 9 / 74 / 100 → **FK 3.6** |
-| Compliance self-check | No premium, no figure, no price hook: **PASS.** **Flag for compliance-qa:** "costs less than most people think" is a comparative claim. It needs a source on file (2.1.5 no fabricated statistics), or it must be dropped. The line is mandated in 4.2, so the decision sits with compliance-qa. Fallback hook if rejected: "Most guesses about cover cost are just guesses." |
+| Status | **Held.** The claim has no source on file (2.1.5). It runs only if Jonathan files a source (an SA source preferred) and compliance-qa clears it. The old MYTH card ("Cover costs a fortune") is retired with it, because it makes the same claim. If it comes back, the primary text is the C12 text above with the hook as its first sentence. |
 
-## C13 — Myth-bust · new
+## C13 — Myth-bust · H16 · **cycle 1 (also the myth-bust page H1)**
 | Field | Copy |
 |---|---|
 | Hook (8) | Checking cover is not the same as buying. |
@@ -224,16 +251,16 @@
 | Field | Copy |
 |---|---|
 | Hook (7) | Here's exactly what happens on the call. |
-| Primary text (73) | Here's exactly what happens. Step 1: answer a few quick questions. Step 2: a WhatsApp message arrives in about a minute, with the adviser's name, photo and licence number. Step 3: pick a time in WhatsApp. Step 4: a 30-minute call on video, WhatsApp or phone. The adviser looks at the real numbers and explains the gap. Step 5: you decide after. No sales visit. Free to check. Tap to check your cover. |
+| Primary text (72) | Here's exactly what happens. Step 1: answer a few quick questions. Step 2: a WhatsApp message arrives in about a minute, with the adviser's name and licence number. Step 3: pick a time in WhatsApp. Step 4: a 30-minute call on video, WhatsApp or phone. The adviser looks at the real numbers and explains the gap. Step 5: you decide after. No sales visit. Free to check. Tap to check your cover. |
 | Headline | See every step before booking |
 | CTA | Check my cover (LEARN_MORE) |
 | Visual brief | **Screen-walkthrough video, code-rendered (not a real screen recording).** A phone frame on charcoal shows: (1) a 3-question form, (2) a WhatsApp intro card mock. The card shows **grey placeholder bars and a tick avatar, labelled "Example screen"**: no real or AI face, no name, no FSP number, because the broker's face is reserved for the real intro card (F5). Then (3) a time-picker mock and (4) a call screen with "30:00". Step numbers in amber circles. **Motion 0.3 s:** the phone slides up and step 1 lights. **Caption:** the hook. **End card:** the line + "Tap to check your cover". |
 | Variants | **9:16** full walkthrough. **4:5** phone at 85%. **1:1** static: 5 numbered steps as a list beside a small phone. |
-| Video (28 s) | 0.0 Phone + hook. Step 1 lights. CAP "Here's exactly what happens." · 2.5 form mock. CAP "1. A few quick questions." · 5.0 cut: intro-card mock, "Example screen". CAP "2. A WhatsApp in about a minute: adviser name, photo, licence number." **(payoff by 5 s)** · 9.0 cut: time-picker. CAP "3. Pick a time in WhatsApp." · 12.0 cut: call screen. CAP "4. 30 minutes. Video, WhatsApp or phone." · 15.5 cut: CAP "The adviser looks at the real numbers and explains the gap." · 19.5 cut: CAP "5. You decide after." · 22.0 cut: CAP "No sales visit. Free to check." · 25.0 end card. |
-| Reading grade | 10 / 73 / 105 → **FK 4.2** |
-| Compliance self-check | **PASS.** No broker named or shown. The disclosure promise (name, licence number) matches 1.2 and the WhatsApp disclosure. "In about a minute" matches the < 60-s target without guaranteeing it. **Note for automation-engineer/landing-page-builder:** "a few quick questions" must stay true to the live form. |
+| Video (28 s) | 0.0 Phone + hook. Step 1 lights. CAP "Here's exactly what happens." · 2.5 form mock. CAP "1. A few quick questions." · 5.0 cut: intro-card mock, "Example screen". CAP "2. A WhatsApp in about a minute: adviser name and licence number." **(payoff by 5 s)** · 9.0 cut: time-picker. CAP "3. Pick a time in WhatsApp." · 12.0 cut: call screen. CAP "4. 30 minutes. Video, WhatsApp or phone." · 15.5 cut: CAP "The adviser looks at the real numbers and explains the gap." · 19.5 cut: CAP "5. You decide after." · 22.0 cut: CAP "No sales visit. Free to check." · 25.0 end card. |
+| Reading grade | 10 / 72 / 103 → **FK 4.1** |
+| Compliance self-check | **PASS.** No broker named or shown. "Photo" removed, because the headshot is not a go-live requirement (C-3). The disclosure promise (name, licence number) matches 1.2 and the WhatsApp disclosure. "In about a minute" matches the < 60-s target and is not a promise of a set time. **Note for automation-engineer/landing-page-builder:** "a few quick questions" must stay true to the live form. |
 
-## C15 — What the call is · new (4.2 task 7 line)
+## C15 — What the call is · H17
 | Field | Copy |
 |---|---|
 | Hook (7) | Real numbers. A licensed adviser. Decide after. |
@@ -244,20 +271,21 @@
 | Variants | **9:16** full. **4:5** same. **1:1** static: three lines + disclosure + tick. |
 | Video (18 s) | 0.0 "Real numbers." · 1.0 "A licensed adviser." · 2.0 "Decide after." CAP the hook · 3.5 cut: CAP "That is the whole call." **(payoff by 4 s)** · 5.5 cut: CAP "SortMyCover does not sell cover or give advice." · 8.5 cut: CAP "A licensed adviser looks at the bond, the income, who depends on it." · 12.0 cut: CAP "30 minutes. Video, WhatsApp or phone. Free." · 15.0 end card. |
 | Reading grade | 11 / 67 / 90 → **FK 2.6** |
-| Compliance self-check | **PASS.** It carries the 4D.2 rule-8 disclosure in short form. No broker. |
+| Compliance self-check | **PASS.** It carries the 4D.2 rule-8 disclosure in short form. compliance-qa (C-9) does not want it added to every static. No broker. |
 
 ---
 
-## Reading-grade table (hand-computed, primary text)
+## Reading-grade table (hand-computed, primary text, cycle-1 set)
 | C01 | C02 | C03 | C04 | C05 | C06 | C07 | C08 | C09 | C10 | C11 | C12 | C13 | C14 | C15 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 2.8 | 3.9 | 2.8 | 3.3 | 3.0 | **4.3** | 2.9 | 3.4 | 2.3 | 2.8 | 4.0 | 3.6 | 3.1 | 4.2 | 2.6 |
+| 2.8 | 2.7 | 3.0 | 3.3 | 2.2 | **4.3** | 2.9 | 3.4 | 2.3 | 2.8 | 4.0 | 3.7 | 3.1 | 4.1 | 2.6 |
 
 All are ≤ 7 (the hard rule). All sit below the Grade 5–7 band, because ad copy is short sentences. The Unbounce finding is about not going above it. Headlines and captions are shorter still.
 
 ## Cross-concept compliance notes for compliance-qa
-1. The only figures in any asset: "2–4×" and "3×" (salary multiples), "R1.4m" (illustrative bond, C02 only), "30 minutes", "28" and "40" (ages as life stage), step numbers. **No premium and no cover amount appear anywhere.**
+1. The only figures in any cycle-1 asset: "2–4×" (salary multiple, C01), "×" as a symbol in C02's "how many × salary?", "30 minutes", "28" and "40" (ages as life stage), step and line numbers. **No rand figure, no premium and no cover amount appear in any cycle-1 asset.** The R1.4m figure lives only in reserve C02-R (hold: NH-PCD-02).
 2. "you" appears only in "you decide after", "Tap to check your cover" (the mandated end-card line) and "your own time". None of these asserts anything about the viewer's money, family, age or health.
-3. Claims needing a source on file: C01 "2–4× salary" and "most bonds are bigger" (1.1 guide); C12 "costs less than most people think" (4.2 mandated, unsourced in the prompt).
+3. Claims needing a source on file: C01 "2–4× salary" (1.1 guide → `verified-facts.md`). "Many bonds are bigger" is a soft, non-numeric statement per C-1. The H8 claim is held in C12-R (NH-PCD-04).
 4. Assets that show the booking/intro mechanic (C08, C09, C14) use placeholder bars and a tick avatar labelled "Example screen". No face, name or FSP number of any broker, real or invented.
-5. The disclaimer line "SortMyCover does not sell cover or give advice" appears in C15. It can be added as a 1:1 footer line on every static if compliance-qa wants it.
+5. The disclaimer line "SortMyCover does not sell cover or give advice" appears in C15 only (C-9).
+6. No price anchor of any kind (everyday-spend comparison declined, NH-PCD-05).
