@@ -1,4 +1,4 @@
-# Local n8n staging (MASTER-PROMPT 0.3 #7) ??? n8n + Postgres until the VPS exists (W26).
+# Local n8n staging (MASTER-PROMPT 0.3 #7) - n8n + Postgres until the VPS exists (W26).
 # Values come from the repo-root .env (git-ignored); names are listed in automation/.env.example.
 #   docker compose -f automation/docker-compose.yml up -d
 # Webhooks reach this box through a tunnel; N8N_PUBLIC_URL / WEBHOOK_URL hold its public URL.
