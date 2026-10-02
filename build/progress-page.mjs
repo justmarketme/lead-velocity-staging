@@ -46,11 +46,11 @@ const BUILT = [
   ['WhatsApp templates', 'wait', '52 templates drafted with samples (fictional adviser, FSP 00000). Nothing submitted to Meta; submission is your click (GATE-TEMPLATES).'],
   ['Broker portal + admin console', 'done', 'Built in the existing CRM behind a feature flag (off by default): onboarding wizard, calendar connect, billing, weekly report, intro recorder, pulse screen, console on admin-only RPCs.'],
   ['Landing pages + holding site', 'done', 'Quiz template, 10 angle pages, holding site with the full privacy page and first-party opt-out. Staging only; nothing public.'],
-  ['Creative', 'done', '15 concepts, 111 code-rendered assets (stills, Reels, stories, end cards, intro cards), palette B test arm, first batch of 16 ads. Two small re-renders in flight from review 5.'],
+  ['Creative', 'done', '15 concepts, 111 code-rendered assets (stills, Reels, stories, end cards, intro cards), palette B test arm, first batch of 16 ads. Review-5 re-renders done.'],
   ['Conversation AI (Thandi)', 'done', 'Persona, state machine, guardrail classifier, golden set + 126 red-team turns, EN/AF lines, FAQ v1.0.3. Eval gate passes at 100%.'],
   ['Contracts + compliance pack', 'wait', 'Broker agreement (incl. Schedule C1A), privacy notice v1.1, consent, PAIA, NCC pack, practitioner brief Q1–Q24. All DRAFT: they need your company details (NH-20) and the practitioner opinion.'],
   ['Billing', 'done', 'Paystack checkout, Instant EFT, manual EFT with inContact parsing, renewals and reminders (W16–W19, W25). Live only after Paystack KYC (your login).'],
-  ['Compliance QA', 'run', '5 reviews done; fix waves 1–4 applied; wave 5 in flight (every review-4 blocking item is now closed in code).'],
+  ['Compliance QA', 'done', '5 reviews done; fix waves 1–5 applied (every review-4 blocking item is closed in code; review 6 runs after the next build wave).'],
   ['Infrastructure', 'wait', 'Docker + tunnel for local staging, VPS runbook, backups, CORS, secrets guard, edge function skeleton. VPS is bought only after first payment (GATE-VPS).'],
   ['Tests', 'done', '432 offline tests green, 52-template check clean, eval gate PASS. End-to-end rehearsal (Phase 5) waits on the gates above.'],
 ];
@@ -63,6 +63,7 @@ const TODAY = [
   'Compliance review 5: all review-4 blocking items closed; five tidy-ups applied; "No thanks" now suppresses the number on every path.',
   'Guard that fails the build if any generated workflow drifts from its generator.',
   'Template review samples signed off (FSP 00000, SAMPLE tag from frame 0).',
+  'Creative: the full disclosure line now sits on every video end card (31 re-rendered); wide intro card layout fixed; brokers can no longer read any lead-pulse row.',
 ];
 
 // ---- render -------------------------------------------------------------------

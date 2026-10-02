@@ -127,14 +127,14 @@ const V11 = { hookY: 120, hookH: 340, visY: 480, visH: 330, capY: 850, capS: 36,
 const V9 = { hookY: 360, hookH: 540, visY: 900, visH: 400, capY: 1330, capS: 44, tick: { x: 72, y: 266, s: 64 } };
 let V = V9;
 let spec, L, def, tw, wmo;
-const EC = { '9x16': { tickY: 420, tickS: 300, wmY: 760, wmH: 84, lineY: 930, lineS: 96, ctaY: 1296, ctaS: 60, ctaPad: '36px 72px', ctaMin: 132, fineY: 1512, fineS: 33, tagY: 1452 },
-  '1x1': { tickY: 60, tickS: 200, wmY: 290, wmH: 64, lineY: 390, lineS: 80, ctaY: 760, ctaS: 48, ctaPad: '26px 56px', ctaMin: 104, fineY: 930, fineS: 28, tagY: 880 },
-  '4x5': { tickY: 150, tickS: 240, wmY: 440, wmH: 72, lineY: 570, lineS: 88, ctaY: 940, ctaS: 54, ctaPad: '30px 64px', ctaMin: 120, fineY: 1150, fineS: 30, tagY: 1100 } };
+const EC = { '9x16': { tickY: 420, tickS: 300, wmY: 760, wmH: 84, lineY: 930, lineS: 96, ctaY: 1296, ctaS: 60, ctaPad: '36px 72px', ctaMin: 132, fineY: 1500, fineS: 30, tagY: 1452 },
+  '1x1': { tickY: 60, tickS: 200, wmY: 290, wmH: 64, lineY: 390, lineS: 80, ctaY: 760, ctaS: 48, ctaPad: '26px 56px', ctaMin: 104, fineY: 925, fineS: 26, tagY: 880 },
+  '4x5': { tickY: 150, tickS: 240, wmY: 440, wmH: 72, lineY: 570, lineS: 88, ctaY: 940, ctaS: 54, ctaPad: '30px 64px', ctaMin: 120, fineY: 1140, fineS: 28, tagY: 1100 } };
 const endCard = (e, W, tagTxt, k = EC['9x16']) => { const tk = pr(e, 0, .4), pop = eb(pr(e, 0, .22)), cx = W / 2;
   const tick = SVG(cx - k.tickS / 2, k.tickY, k.tickS, k.tickS, '0 0 64 64', `<g transform="translate(32 32) scale(${.55 + .45 * pop}) translate(-32 -32)"><path d="M0 32a32 32 0 1 0 64 0a32 32 0 1 0 -64 0Z" style="fill:var(--tdisc)"/><path d="M18.2 34L26.1 41.9L45.8 22.1" fill="none" pathLength="1" stroke-dasharray="1" stroke-dashoffset="${1 - eo(tk)}" style="stroke:var(--tink)" stroke-width="9.08" stroke-linecap="round" stroke-linejoin="round" ${tk <= 0 ? 'opacity="0"' : ''}/></g>`);
   const line = T(72, k.lineY + 30 * (1 - eo(pr(e, .55, .3))), W - 144, em('Sort your cover.<br>30 minutes.<br>**A real adviser.**'), k.lineS, { al: 'center', lh: 1.05, op: eo(pr(e, .55, .3)) });
   const cp = eb(pr(e, .9, .3)); const cta = D(`left:0;right:0;top:${k.ctaY}px;display:grid;justify-items:center;opacity:${clamp(cp * 2)};transform:scale(${.8 + .2 * cp})`, `<div style="background:var(--acc);color:var(--acc-ink);font-weight:800;font-size:${k.ctaS}px;border-radius:999px;padding:${k.ctaPad};min-height:${k.ctaMin}px;display:flex;align-items:center">Tap to check your cover</div>`);
-  return tick + line + cta + T(72, k.fineY, W - 144, 'SortMyCover is a service of Lead Velocity (Pty) Ltd', k.fineS, { al: 'center', wt: 500, op: eo(pr(e, 1.2, .4)) }) + tagTxt; };
+  return tick + line + cta + T(72, k.fineY, W - 144, 'A service of Lead Velocity (Pty) Ltd.<br>No financial advice, product comparisons<br>or premium quotes.', k.fineS, { al: 'center', wt: 500, lh: 1.2, op: eo(pr(e, 1.2, .4)) }) + tagTxt; };
 async function init(s) {
   spec = s; L = LAY[s.ratio]; V = s.ratio === '4x5' ? V45 : s.ratio === '1x1' ? V11 : V9; def = DEFS[s.vid]; const st = document.getElementById('stage'); st.style.width = L.W + 'px'; st.style.height = L.H + 'px'; st.className = s.variant === 'teal' ? 'teal' : '';
   tw = document.getElementById('tw'); wmo = document.getElementById('wmo'); const teal = s.variant === 'teal';
