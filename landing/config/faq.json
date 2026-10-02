@@ -1,0 +1,39 @@
+[
+ {
+  "id": "how-long",
+  "q": "How long is the call?",
+  "a": "The check takes about a minute. The call is 30 minutes, at a time you pick.",
+  "source": [
+   "FAQ-01"
+  ]
+ },
+ {
+  "id": "cost",
+  "q": "Does the call cost anything?",
+  "a": "Nothing. The call is free and there is no obligation to buy anything. Advisers pay us a flat fee to be introduced. We never earn commission on anything you buy.",
+  "source": [
+   "FAQ-02",
+   "FAQ-09"
+  ]
+ },
+ {
+  "id": "adviser",
+  "q": "Who is the adviser?",
+  "a": "A licensed financial adviser, from an authorised financial services provider. You get their name, practice and FSP number on WhatsApp before you speak to them. You can check it on the FSCA register."
+ },
+ {
+  "id": "info",
+  "q": "What happens to my information?",
+  "a": "Lead Velocity (Pty) Ltd looks after it under POPIA. We share it with the adviser you are introduced to, and no one else. Reply STOP to any message and we stop. You can ask us to delete it at any time. The privacy notice has the detail."
+ },
+ {
+  "id": "cancel",
+  "q": "Can I cancel or change the time?",
+  "a": "Yes. You can move or cancel the call from the WhatsApp message, at no cost."
+ },
+ {
+  "id": "insurer",
+  "q": "Is SortMyCover an insurer?",
+  "a": "No. We do not sell cover, give advice, compare products or quote premiums. We connect you with a licensed adviser who can."
+ }
+]

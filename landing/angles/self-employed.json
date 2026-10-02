@@ -1,0 +1,18 @@
+{
+  "slug": "self-employed",
+  "lang": "en-ZA",
+  "ad_hook": "No company. No group cover. Your family, your call.",
+  "h1": "No company. No group cover.\n*Your family, your call.*",
+  "sub": "Self-employed people often have no group cover. A licensed adviser can check what is in place.",
+  "title": "No company. No group cover. | SortMyCover",
+  "og_title": "No company. No group cover. Your family, your call.",
+  "og_description": "A free 30-minute call with a licensed adviser for people who work for themselves.",
+  "gap_p": "Employers usually give a few times salary as cover. Self-employed people often have none to start with.",
+  "chips": [
+    "**Licensed** adviser",
+    "Video, WhatsApp or phone",
+    "**No** obligation"
+  ],
+  "faq_overrides": {},
+  "proof": []
+}

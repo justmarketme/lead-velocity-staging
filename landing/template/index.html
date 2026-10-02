@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>{{title}}</title>
+<meta name="description" content="{{description}}">
+<meta name="robots" content="{{robots}}">
+<link rel="canonical" href="{{canonical}}">
+<meta name="theme-color" content="#1F2933">
+<meta name="smc-pixel-id" content="{{pixel_id}}">
+<meta name="facebook-domain-verification" content="{{domain_verification}}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="SortMyCover">
+<meta property="og:locale" content="{{og_locale}}">
+<meta property="og:title" content="{{og_title}}">
+<meta property="og:description" content="{{og_description}}">
+<meta property="og:url" content="{{canonical}}">
+<meta property="og:image" content="{{site_url}}/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="{{site_url}}/favicon.svg" type="image/svg+xml">
+{{{font_preload}}}
+<style>{{{css}}}</style>
+<script>document.documentElement.className+=' js'</script>
+<script src="/shared/pixel.js" defer></script>
+<script src="/assets/page.js?v={{asset_v}}" defer></script>
+{{{jsonld}}}
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><symbol id="tk" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></symbol></svg>
+<a class="skip" href="#quiz">Skip to the check</a>
+<header class="top"><div class="wrap">
+  <span class="logo" aria-label="SortMyCover">SortMyC<span class="tick" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>ver</span>
+  <small>Free 30-min call with a licensed adviser</small>
+</div></header>
+
+<main id="smc" data-api-base="{{api_base}}" data-angle="{{slug}}" data-lang="{{lang}}" data-consent-mode="{{consent_mode}}" data-booking="{{booking}}" data-turnstile-sitekey="{{turnstile_sitekey}}" data-thanks-url="{{thanks_url}}">
+<section class="hero"><div class="wrap">
+  <h1>{{{h1_html}}}</h1>
+  <p>{{sub}}</p>
+  <a class="btn" href="#quiz" id="heroCta">Check my cover in 60 seconds <span aria-hidden="true">→</span></a>
+  <ul class="chips">
+{{{chips_html}}}
+  </ul>
+</div></section>
+
+<section class="gap" aria-labelledby="gapH"><div class="wrap">
+  <h2 id="gapH">{{gap_h2}}</h2>
+  <p>{{gap_p}}</p>
+  <div class="bars">
+    <div class="bar work"><div class="lab"><span>Typical work cover</span><span>2–4× salary</span></div><div class="track" aria-hidden="true"><div class="fill"></div></div><span class="note">What most employers provide</span></div>
+    <div class="bar need"><div class="lab"><span>Bond + income + schooling</span><span>Often much more</span></div><div class="track" aria-hidden="true"><div class="fill"></div></div><span class="note">Over the years a family needs it</span></div>
+  </div>
+</div></section>
+
+<section class="quiz" id="quiz" aria-label="Cover check"><div class="wrap">
+  <div class="card" id="card">
+    <div class="progress js-only" id="prog" role="progressbar" aria-label="Progress" aria-valuemin="1" aria-valuemax="7" aria-valuenow="1"><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <p class="sr" id="live" role="status" aria-live="polite"></p>
+
+    <form id="lead" method="post" action="{{api_base}}/lead" autocomplete="on">
+    <fieldset class="q on" data-step="1" aria-labelledby="h1q">
+      <legend><h3 id="h1q" tabindex="-1">How old are you?</h3></legend>
+      <p class="hint">Tap one.<!--FIRST-TAP--></p>
+      <div class="opts">
+        <label class="opt"><input type="radio" name="age_band" value="<35" required><span>Under 35</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
+        <label class="opt"><input type="radio" name="age_band" value="35-44"><span>35 to 44</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
+        <label class="opt"><input type="radio" name="age_band" value="45-50"><span>45 to 50</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
+        <label class="opt"><input type="radio" name="age_band" value="51+"><span>51 or older</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
+      </div>
+      <div class="nav js-only"><span></span><button type="button" class="btn secondary js-next" hidden>Next</button></div>
+    </fieldset>
+
+    <fieldset class="q" data-step="2" aria-labelledby="h2q">
+      <legend><h3 id="h2q" tabindex="-1">Do you have a home loan?</h3></legend>
+      <p class="hint">A bond is usually the biggest thing cover needs to carry.</p>
+      <div class="opts">
+        <label class="opt"><input type="radio" name="bond" value="yes" required><span>Yes</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
+        <label class="opt"><input type="radio" name="bond" value="soon"><span>Not yet, applying soon</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
+        <label class="opt"><input type="radio" name="bond" value="no"><span>No</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
+      </div>
+      <div class="nav js-only"><button type="button" class="link" data-back>Back</button><button type="button" class="btn secondary js-next" hidden>Next</button></div>
+    </fieldset>
+
+    <fieldset class="q" data-step="3" aria-labelledby="h3q">
+      <legend><h3 id="h3q" tabindex="-1">Who depends on your income?</h3></legend>
+      <p class="hint">Partner, children, parents. Tap the closest fit.</p>
+      <div class="opts">
+        <label class="opt"><input type="radio" name="dependants" value="kids" required><span>Partner and children</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
+        <label class="opt"><input type="radio" name="dependants" value="extended"><span>My household and family beyond it</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
+        <label class="opt"><input type="radio" name="dependants" value="partner"><span>Partner only</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
+        <label class="opt"><input type="radio" name="dependants" value="none"><span>Just me</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
+      </div>
+      <div class="nav js-only"><button type="button" class="link" data-back>Back</button><button type="button" class="btn secondary js-next" hidden>Next</button></div>
+    </fieldset>
+
+    <fieldset class="q" data-step="4" aria-labelledby="h4q">
+      <legend><h3 id="h4q" tabindex="-1">Do you have life cover through work?</h3></legend>
+      <p class="hint">Check a payslip or benefits statement if you are not sure. “Not sure” is fine.</p>
+      <div class="opts">
+        <label class="opt"><input type="radio" name="work_cover" value="yes" required><span>Yes</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
+        <label class="opt"><input type="radio" name="work_cover" value="unsure"><span>Not sure</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
+        <label class="opt"><input type="radio" name="work_cover" value="no"><span>No, I’m self-employed or it isn’t offered</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
+      </div>
+      <div class="nav js-only"><button type="button" class="link" data-back>Back</button><button type="button" class="btn secondary js-next" hidden>Next</button></div>
+    </fieldset>
+
+    <fieldset class="q" data-step="5" aria-labelledby="h5q">
+      <legend><h3 id="h5q" tabindex="-1">If the numbers made sense, what could you comfortably set aside each month?</h3></legend>
+      <p class="hint">This is not a quote. It helps the adviser prepare for the call.</p>
+      <div class="opts">
+        <label class="opt"><input type="radio" name="budget_band" value="<500" required><span>Under R500</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
+        <label class="opt"><input type="radio" name="budget_band" value="500-750"><span>R500 to R750</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
+        <label class="opt"><input type="radio" name="budget_band" value="750-1250"><span>R750 to R1 250</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
+        <label class="opt"><input type="radio" name="budget_band" value="1250+"><span>R1 250 or more</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
+      </div>
+      <div class="nav js-only"><button type="button" class="link" data-back>Back</button><button type="button" class="btn secondary js-next" hidden>Next</button></div>
+    </fieldset>
+
+    <fieldset class="q" data-step="6" aria-labelledby="h6q">
+      <legend><h3 id="h6q" tabindex="-1">A licensed adviser can look at your actual numbers.</h3></legend>
+      <p class="hint" id="h6hint">One 30-minute call. You decide after. Where should we send your adviser’s details and some times?</p>
+      <div class="field" id="fName"><label for="name">First name</label><input id="name" name="first_name" autocomplete="given-name" autocapitalize="words" maxlength="40" required placeholder="e.g. Thabo" aria-describedby="eName"><span class="err" id="eName">Please add your first name.</span></div>
+      <div class="field" id="fPhone"><label for="phone">Mobile number (WhatsApp)</label><input id="phone" name="mobile" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" required pattern="(\+?27|0027|0)[\s\-]?[678][0-9][\s\-]?[0-9]{3}[\s\-]?[0-9]{4}" placeholder="e.g. 082 123 4567" aria-describedby="ePhone"><span class="err" id="ePhone">Please enter a valid South African mobile number.</span><span class="ok" id="oPhone"></span></div>
+      <div class="consent-wrap" id="fConsent">
+        <label class="consent"><input type="checkbox" id="consent" name="consent" value="yes" required aria-describedby="eConsent"><span id="consentText">{{{consent_html}}}</span></label>
+        <span class="err" id="eConsent">Please tick the box so we can share your details with the adviser.</span>
+      </div>
+      <input type="hidden" name="consent_text" value="{{consent_text}}">
+      <input type="hidden" name="consent_version" value="{{consent_version}}">
+      <input type="hidden" name="consent_mode" value="{{consent_mode}}">
+      <input type="hidden" name="angle" value="{{slug}}">
+      <input type="hidden" name="lang" value="{{lang}}">
+      <div class="hp" aria-hidden="true"><label>Website<input type="text" name="company_website" tabindex="-1" autocomplete="off"></label></div>
+      <div id="turnstile-slot" data-sitekey="{{turnstile_sitekey}}"></div>
+      <p class="form-err" id="formErr" role="alert" hidden></p>
+      <div class="nav"><button type="button" class="link js-only" data-back>Back</button><button type="submit" class="btn" id="send">Send my details <span aria-hidden="true">→</span></button></div>
+      <p class="fine">{{footer_line}}</p>
+      <div class="beside">
+        <b>What happens next</b>
+        <span>A licensed financial adviser. 30-minute video or phone call. No obligation.</span>
+        <span>Within a minute you get a WhatsApp with your adviser’s name, practice and FSP number.</span>
+        <span>You pick a time that suits you. Reminders before the call.</span>
+        <span>No products, prices or paperwork on the call. Just your numbers, explained.</span>
+      </div>
+    </fieldset>
+    </form>
+
+    <div class="q js-step" data-step="7" aria-labelledby="h7q">
+      <h3 id="h7q" tabindex="-1">Pick a time for your call</h3>
+      <p class="hint">Live availability, South African time. You can change it on WhatsApp later.</p>
+      <p class="status" id="slotStatus" role="status"></p>
+      <div id="slots"></div>
+      <p class="hint" style="margin:14px 0 8px" id="mLab">How should the adviser reach you?</p>
+      <div class="methods" id="methods" role="group" aria-labelledby="mLab"></div>
+      <div class="field" id="fEmail" hidden><label for="email">Email for the invite</label><input id="email" type="email" inputmode="email" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="120" aria-describedby="eEmail tEmail"><span class="tip" id="tEmail">Only used to send the meeting invite.</span><span class="err" id="eEmail">Please enter a valid email address.</span><button type="button" class="link" id="emailFix" hidden></button></div>
+      <p class="form-err" id="bookErr" role="alert" hidden></p>
+      <div class="nav"><button type="button" class="link" id="skipBook">I’ll pick a time on WhatsApp</button><button type="button" class="btn" id="book">Book my call</button></div>
+    </div>
+
+    <div class="q js-step" data-step="8" aria-labelledby="doneH">
+      <div class="done">
+        <div class="big" aria-hidden="true">✓</div>
+        <h3 id="doneH" tabindex="-1">Booked. Check your WhatsApp.</h3>
+        <p id="doneP">Your adviser’s details and a calendar invite are on their way.</p>
+        <div class="summary" id="summary"></div>
+        <div><a class="btn secondary" id="cal" href="#" hidden download="sortmycover-call.ics">Add to calendar</a></div>
+      </div>
+    </div>
+
+    <div class="q js-step" data-step="9" aria-labelledby="h9q">
+      <div class="done">
+        <h3 id="h9q" tabindex="-1">Thanks for checking.</h3>
+        <p>From these answers, a call is not the right fit right now. We have not saved your details.</p>
+        <p style="font-size:14px">If things change, come back any time.</p>
+      </div>
+    </div>
+  </div>
+</div></section>
+{{{proof_html}}}
+<section class="how"><div class="wrap">
+  <h2>How it works</h2>
+  <div class="steps">
+    <div class="step"><div class="n" aria-hidden="true">1</div><div><b>Answer five quick questions</b><span>About a minute. No typing until the end.</span></div></div>
+    <div class="step"><div class="n" aria-hidden="true">2</div><div><b>Meet your adviser on WhatsApp</b><span>You get their name, practice and FSP number straight away, and a short intro from them.</span></div></div>
+    <div class="step"><div class="n" aria-hidden="true">3</div><div><b>Have the call</b><span>30 minutes, video or phone. They look at your actual numbers. You decide after.</span></div></div>
+  </div>
+</div></section>
+
+<section class="faq" aria-labelledby="faqH"><div class="wrap">
+  <h2 id="faqH">Questions people ask</h2>
+{{{faq_html}}}
+</div></section>
+</main>
+
+<footer><div class="wrap">
+  <span class="logo" aria-label="SortMyCover">SortMyC<span class="tick" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>ver</span>
+  <span>{{footer_line}}</span>
+  <span>Lead Velocity (Pty) Ltd{{{reg_html}}} · <a href="mailto:{{contact_email}}">{{contact_email}}</a></span>
+  <nav aria-label="Footer" class="links"><a href="{{privacy_url}}">Privacy notice</a><a href="{{how_we_make_money_url}}">How we make money</a><a href="{{complaints_url}}">Complaints</a><a href="{{optout_url}}">Opt-out</a></nav>
+</div></footer>
+
+<div class="sticky" id="sticky"><div class="wrap"><small>Free · 30 minutes · licensed adviser</small><a class="btn" href="#quiz" id="stickyCta">Check my cover in 60 seconds</a></div></div>
+<script type="application/json" id="smc-strings">{{{strings_json}}}</script>
+</body>
+</html>

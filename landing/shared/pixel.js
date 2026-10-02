@@ -99,7 +99,11 @@
     return ctx;
   }
 
-  var smc = w.smc = { track: track, context: function () { return last ? Object.assign({}, last, { ts: Math.floor(Date.now() / 1000) }) : context(); }, events: EVENTS };
+  // Two-step variant for events that must not fire before the server call succeeds (e.g. Schedule before POST /book):
+  // ctx = smc.prepare('Schedule'); post ctx with the booking; on success smc.fire(ctx).
+  function prepare(name) { if (EVENTS.indexOf(name) < 0) return null; init(); var ctx = context(); ctx.event_name = name; return ctx; }
+  function fire(ctx, params) { if (!ctx || !ctx.event_name) return null; if (pixelId && consent() && w.fbq) w.fbq('track', ctx.event_name, clean(params), { eventID: ctx.event_id }); last = ctx; return ctx; }
+  var smc = w.smc = { track: track, prepare: prepare, fire: fire, context: function () { return last ? Object.assign({}, last, { ts: Math.floor(Date.now() / 1000) }) : context(); }, events: EVENTS };
   attribution();
   function boot() { if (!w.SMC_NO_AUTO_PAGEVIEW) smc.track('PageView'); }
   if (d.readyState === 'loading') d.addEventListener('DOMContentLoaded', boot); else boot();

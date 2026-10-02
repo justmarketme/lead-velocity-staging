@@ -2133,7 +2133,7 @@
       ],
       "acceptance_test": "test -s landing/template/index.html && test -s landing/tests/quiz.spec.ts && ls landing/angles/*.json | wc -l | xargs test 6 -le",
       "human_gate": false,
-      "status": "in_progress",
+      "status": "green",
       "section": "4.5"
     },
     {

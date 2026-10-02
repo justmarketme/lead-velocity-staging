@@ -1,0 +1,51 @@
+# RECONCILE: approved reference vs the 4.5 spec table vs what was built
+
+Source: `landing/reference/sortmycover-landing.html` (approved design, wins on layout and flow) and 4.5 "Full page spec" (wins on rules). The page is built FROM the reference.
+Anything below marked PROPOSAL is not in the page: it is a change for Jonathan/KG with its evidence line (4.5: "any proposed change to layout or flow is a PR with the evidence line it rests on").
+
+## A. Kept from the reference unchanged (layout, flow, look)
+Sticky top bar, charcoal hero with amber emphasis and gradient, chips, gap bars (HTML bars, 28% vs 100%, no rand figures), white card with 7-segment progress, tap cards, combined result + details screen (heading changes with the work-cover answer), "What happens next" box beside the ask, slot grid look, method chips, done / not-a-fit states, "How it works", FAQ accordion, footer, sticky bottom CTA, dark mode. Quiz options and answer values (3 bond answers, 4 dependants answers, 3 work-cover answers incl. "Not sure").
+
+## B. Changed to meet a hard rule (build now; each has the rule it rests on)
+| # | Reference | Built | Rule / evidence |
+|---|---|---|---|
+| B1 | Google Fonts `<link>` | Self-hosted DM Sans 500 + 800 woff2 from `brand/fonts` (via `brand/tokens.css`, urls rewritten to `/fonts/`), 800 preloaded | 4.5 "self-hosts the font", Google/Deloitte speed, no third-party scripts but Pixel |
+| B2 | Consent text "SortMyCover (a service of Lead Velocity (Pty) Ltd) may share my details with **Mark Williams Financial Planning (FSP 00000)**" hard-coded | Verbatim `CONSENT-NAMED-v1` ("Lead Velocity may share my details with {practice_name} (FSP {fsp_number})...") + `CONSENT-ADS-v1` sentence inside the same tick + privacy link; rendered from config (brokers row); generic mode on one flag; build fails closed in production | 2.1.2, consent-and-privacy.md 1.2-1.4 ("word for word the same wherever shown"), docs/design/README note |
+| B3 | Hero + sticky CTA "Check my cover" | "Check my cover in 60 seconds" in both | 4.5 rows 2 and "one CTA, repeated, same words" |
+| B4 | Top-bar text "Free 30-min call · licensed adviser" | "Free 30-min call with a licensed adviser" | 4.5 row 1 |
+| B5 | Copy before first tap ~136 words | 102-107 words (gap paragraph and bar notes shortened, hero sub shortened, "Nothing to buy on the call" dropped: chip says No obligation, FAQ repeats it) | NN/g half-read threshold (<= 110 words), enforced by the build |
+| B6 | 4 chips ("60 s to check", Licensed adviser, No obligation, Video...) | 3 chips: Licensed adviser, Video, WhatsApp or phone, No obligation ("60 s" is now in the CTA) | 4.5 row 3 (3 trust chips) |
+| B7 | Result headings in second person ("Your work cover is a start...", "Without work cover, this is worth 30 minutes") | Third-person / process wording; no claim about the viewer's cover | 2.1.8, 4.5 copy rules ("every claim third-person-general or about our own process") |
+| B8 | FAQ cost answer ends "...nothing is added to your premium" | Clause removed (we cannot speak for the adviser's pricing). The flat-fee disclosure is kept, now using FAQ-09 wording from knowledge/faq.md ("Advisers pay Lead Velocity a flat fee to set up calls, and you pay nothing."): **compliance-qa to confirm** (needs_human) | 2.1.1, 3.5a |
+| B9 | Footer "Imagery on this page may be AI-generated" | Removed: the page has no imagery. Restore with any AI image | 2.1.5 (disclosure follows the image) |
+| B10 | Footer links dead (`#`) | Privacy notice, How we make money, Complaints (holding-site URLs from config), Opt-out | 4.5 row 13 (Opt-out), 2.1.2 |
+| B11 | Quiz cards are JS-only buttons; form has no action | Radio inputs inside a real `<form method="post" action="{api}/lead">`, same look; honeypot; hidden consent text/version/mode/angle/lang; with JS off every field is visible and posts | 4.5 Technical "forms work without JS for the capture step", 6B.5 |
+| B12 | `name` / `phone` field names; no live validation | `first_name` / `mobile`, inputmode `tel`, E.164 normalisation, live validation on input/blur, error text tied with `aria-describedby` | 4.5 row 8 |
+| B13 | Illustrative slot list, 3 hard-coded methods, no email | `GET /slots` grouped by day (5 days), methods from the routed broker's `methods_supported`, email field only for Teams/Zoom/Meet with typo suggestion, 409 collision shows the next 3, `POST /book`, .ics link | 4.5 row 9, 4.6, 0.1 (Email) |
+| B14 | No back button on quiz questions 1-5 | Back on questions 2-5 (and on details); keyboard "Next" appears after a keyboard selection | 4.5 row 5 (back button), WCAG 2.2 (no auto-advance on keyboard input) |
+| B15 | Focus ring amber on white (about 2:1), input borders #DCD6CB (about 1.4:1) | Charcoal focus ring; control borders #8A94A0 (3.1:1); dark-mode error colour lightened | WCAG 2.2 AA 1.4.11 / 2.4.7, 6B.4 |
+| B16 | `<title>` inside `<body>`, preview-only safe-area CSS on `:root`, hidden "FSP 00000" | Proper head: title, description, canonical, robots, OG, `smc-pixel-id`, `facebook-domain-verification`, FAQPage JSON-LD; skip link; landmarks; `lang` per page | 4.5 Technical, Google YMYL |
+| B17 | Weight 700 used | Only the two self-hosted weights (500, 800) | speed (two font files) |
+
+## C. Reference differs from the spec table; reference kept (flag for confirmation)
+| # | Spec | Reference / built | Note |
+|---|---|---|---|
+| C1 | H1 <= 10 words | employer-gap H1 is 11 words (reference's own hook "Most work life cover stops at 2-4x salary. Most bonds don't.") | Build allows <= 12 with a warning |
+| C2 | Result screen, then details screen (rows 7, 8) | One screen: result heading + 3 fields | Reference wins; fewer taps |
+| C3 | Children/dependants yes/no; work cover yes/no; bond yes/no | Reference options (bond: yes / not yet / no; dependants: 4; work cover: yes / not sure / no) | Reference wins; richer for the adviser; `soon` suits the new-bond angle |
+| C4 | Age "50+" (row 5), "51+" (0.1, 3.3) | "51 or older" | 0.1 wins (no overlap with 45-50) |
+| C5 | FAQ (5): how long, cost, who, my info, cancel | 6: those 5 + "Is SortMyCover an insurer?" ("Do I have to buy anything?" merged into the cost answer; "Can I cancel" added) | `knowledge/faq.md` (faq-v1.0.0, compliance sign-off PENDING) now feeds how-long (FAQ-01) and cost (FAQ-02 + FAQ-09); who/info/cancel/insurer keep page-level wording because the corpus entries use {adviser}/{city} placeholders or speak as Thandi (6B.9) |
+| C6 | Hero real SA family image | None (text hero, as in the reference); no images means LCP is text | Test T3 in `tests/test-log.md` |
+| C7 | Gap picture "inline SVG bars" | HTML/CSS bars (reference) | Same look; labels are real text, tracks `aria-hidden` |
+| C8 | Sticky footer carries privacy link (flow step 9) vs "no footer links above the thank-you" (step 4) | Sticky bar = CTA only; privacy link sits in the consent line and the footer | Trust layer is next to the ask |
+| C9 | Proof block (row 11) | Data-driven, renders nothing until `proof[]` has real quotes | |
+| C10 | "Endorsement lock-up" (step 9) | Not built: no endorsement asset exists | brand-naming-lead to supply |
+
+## D. Proposals (NOT in the page)
+| # | Proposal | Evidence line | Test |
+|---|---|---|---|
+| D1 | Exit as soon as the age band is out of range instead of after five questions | Baymard: every extra field/step costs completion; also kinder to out-of-band visitors | Compare qualified-submit rate and Lead-event rate |
+| D2 | Hint under question 1 says "Tap one. Takes about a minute in total." (cut for the word budget) | Reduces abandonment? Unproven | T4 family |
+| D3 | Make the sticky bar hide while the quiz card is on screen (IntersectionObserver) | Avoids two CTAs competing (CXL single goal) | Click-through on both CTAs |
+| D4 | Move the "What happens next" box above the consent line on small screens | Baymard: proof beside the ask | Details-step completion |
+| D5 | Pre-select no contact method (currently the broker's first method is pre-selected, so a Teams-first broker shows the email field straight away) | Baymard: fewer visible fields; email asked only when needed (0.1) | Booked rate by method |

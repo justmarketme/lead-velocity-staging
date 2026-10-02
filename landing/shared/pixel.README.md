@@ -37,3 +37,7 @@ Note: row 9 (booking widget) fires nothing; `Schedule` fires only on a confirmed
 - `smc.adsOff()` / `smc.adsOn()` store the visitor's ad-measurement choice first-party (`smc_ads_off`); the cookie notice links to it.
 - `page_url` is origin + path only (no query string).
 - Server side, W01 sends CAPI/offline events only when `leads.consent_ads_at` is set (see `automation/capi/event-spec.md`).
+
+
+## Two-step events
+`smc.prepare(name)` returns the context (with `event_id`) without firing; `smc.fire(ctx)` fires it later. Use for `Schedule`: prepare before `POST /book`, send `ctx` in the body, fire only when the booking succeeds, so a failed booking leaves no stray browser event (server-side CAPI reuses the same `event_id`).
