@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## W31 DM handler (community-response-lead, 4.14)\n\nTrigger: Messenger and Instagram `messages` webhook (path /webhook/meta-dm). Flow: signature check (automation/security/verify-webhooks.js) -> load rules/corpus/prompt -> fetch first name -> upsert conversation -> route (STOP, human handoff, paused, age answer, classify) -> Haiku classify (strict JSON, fail closed to human) -> disclose + FAQ answer (Haiku draft, FAIS lint, shared guardrail) -> ONE age-band question (quick replies) -> CTWA link -> stop. The person typing person, human or manager hands off to Jonathan/KG and pauses the bot. STOP is honoured silently (suppression, no further message).\n\nWe only ever reply inside the 24-hour window after the person's last message (RESPONSE messaging type). Replies 07:00-22:00 SAST; overnight replies are written to dm_queue and sent from 07:15 if the window is still open (otherwise marked expired and nothing is sent). Nobody is DMed unless they commented (private reply) or messaged first. No reply from the person means nothing further.\n\nCredentials by name: `SortMyCover Postgres`, `Meta Page Token`, `Anthropic API`, `W22 Internal Webhook`. Env: REPO_DIR, AUTOMATION_DIR, META_APP_SECRET, META_VERIFY_TOKEN, META_GRAPH_VERSION, CTWA_BASE_URL, CONSOLE_URL, N8N_INTERNAL_URL. Tables: conversations (channel, external_id, state, paused, opted_out), dm_queue, escalations (see community/comments-schema-additions.sql).\n\nDM text is never stored: only the conversation state (step, counts, age band) and the last message id are saved. Success runs are not saved.",
+        "content": "## W31 DM handler (community-response-lead, 4.14)\n\nTrigger: Messenger and Instagram `messages` webhook (path /webhook/meta-dm). Flow: signature check (automation/security/verify-webhooks.js) -> load rules/corpus/prompt -> fetch first name -> upsert conversation -> route (STOP, human handoff, paused, age answer, classify) -> Haiku classify (strict JSON, fail closed to human) -> disclose + FAQ answer (Haiku draft, FAIS lint, shared guardrail) -> ONE age-band question (quick replies) -> CTWA link -> stop. The person typing person, human or manager hands off to Jonathan/KG and pauses the bot. STOP is honoured silently (suppression, no further message).\n\nWe only ever reply inside the 24-hour window after the person's last message (RESPONSE messaging type). Replies 07:00-22:00 SAST; overnight replies are written to dm_queue and sent from 07:15 if the window is still open (otherwise marked expired and nothing is sent). Nobody is DMed unless they commented (private reply) or messaged first. No reply from the person means nothing further.\n\nCredentials by name: `SortMyCover Postgres`, `Meta Page Token`, `Anthropic API`, `W22 Internal Webhook`. Env: REPO_DIR, AUTOMATION_DIR, META_APP_SECRET, META_VERIFY_TOKEN, META_GRAPH_VERSION, CTWA_BASE_URL, CONSOLE_URL, N8N_INTERNAL_URL. Tables: dm_threads (channel, external_id, state, paused, opted_out, last_user_message_at; `conversations` is a per-message view, never written), dm_queue, escalations (assigned_agent text) (supabase/migrations/20261002_smc_06_pass2.sql). Ingress: Page `messaging` events forwarded from W02's page ingress and IG messages; forward the raw body with the original X-Hub-Signature-256 header.\n\nDM text is never stored: only the conversation state (step, counts, age band) and the last message id are saved. Success runs are not saved.",
         "height": 480,
         "width": 620
       },
@@ -31,7 +31,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\nconst out = [];\nfor (let i = 0; i < items.length; i++) {\n  const it = items[i];\n  let ok = false;\n  let reason = 'unverified';\n  try {\n    const raw = await this.helpers.getBinaryDataBuffer(i, 'data');\n    const sig = (it.json.headers || {})['x-hub-signature-256'] || '';\n    const dir = $env.AUTOMATION_DIR || '/home/node/automation';\n    const v = require(dir + '/security/verify-webhooks.js');\n    ok = !!v.verifyMetaSignature({ rawBody: raw, signatureHeader: sig, appSecret: $env.META_APP_SECRET });\n    reason = ok ? 'ok' : 'bad_signature';\n  } catch (e) {\n    reason = 'verifier_error: ' + String(e.message).slice(0, 80);\n  }\n  out.push({ json: { signature_ok: ok, reason: reason, body: it.json.body } });\n}\nreturn out;"
+        "jsCode": "const items = $input.all();\nconst out = [];\nfor (let i = 0; i < items.length; i++) {\n  const it = items[i];\n  let ok = false;\n  let reason = 'unverified';\n  try {\n    const raw = await this.helpers.getBinaryDataBuffer(i, 'data');\n    const sig = (it.json.headers || {})['x-hub-signature-256'] || '';\n    const dir = $env.AUTOMATION_DIR || '/home/node/automation';\n    const v = require(dir + '/security/verify-webhooks.js');\n    const res = v.verifyMetaSignature(raw, sig, $env.META_APP_SECRET);\n    ok = !!(res && res.ok === true);\n    reason = ok ? 'ok' : String((res && res.reason) || 'bad_signature');\n  } catch (e) {\n    reason = 'verifier_error: ' + String(e.message).slice(0, 80);\n  }\n  out.push({ json: { signature_ok: ok, reason: reason, body: it.json.body } });\n}\nreturn out;"
       },
       "id": "w31-n06", "name": "Verify signature", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [220, 0]
     },
@@ -75,7 +75,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const src = $input.first().json;\nconst p = src.payload || {};\nconst out = [];\nconst channel = p.object === 'instagram' ? 'instagram' : 'messenger';\nfor (const entry of (p.entry || [])) {\n  for (const m of (entry.messaging || [])) {\n    if (!m.sender || !m.sender.id) continue;\n    if (String(m.sender.id) === String(entry.id)) continue;\n    const msg = m.message || null;\n    const pb = m.postback || null;\n    if (msg && msg.is_echo) continue;\n    if (!msg && !pb) continue;\n    const qr = msg && msg.quick_reply && msg.quick_reply.payload;\n    const text = (msg && msg.text) || (pb && (pb.title || pb.payload)) || '';\n    if (!text && !qr) continue;\n    out.push({ json: { channel: channel, owner_id: String(entry.id), sender_id: String(m.sender.id), text: text, payload: qr || (pb && pb.payload) || '', mid: (msg && msg.mid) || '', ts: m.timestamp } });\n  }\n}\nreturn out;"
+        "jsCode": "const src = $input.first().json;\nlet p = src.payload || {};\nif (p.body && !p.entry && p.body.entry) p = p.body;\nconst out = [];\nconst channel = p.object === 'instagram' ? 'instagram' : 'messenger';\nfor (const entry of (p.entry || [])) {\n  for (const m of (entry.messaging || [])) {\n    if (!m.sender || !m.sender.id) continue;\n    if (String(m.sender.id) === String(entry.id)) continue;\n    const msg = m.message || null;\n    const pb = m.postback || null;\n    if (msg && msg.is_echo) continue;\n    if (!msg && !pb) continue;\n    const qr = msg && msg.quick_reply && msg.quick_reply.payload;\n    const text = (msg && msg.text) || (pb && (pb.title || pb.payload)) || '';\n    if (!text && !qr) continue;\n    out.push({ json: { channel: channel, owner_id: String(entry.id), sender_id: String(m.sender.id), text: text, payload: qr || (pb && pb.payload) || '', mid: (msg && msg.mid) || '', ts: m.timestamp } });\n  }\n}\nreturn out;"
       },
       "id": "w31-n14", "name": "Normalise DM events", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1320, 0]
     },
@@ -94,7 +94,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "insert into conversations (channel, external_id, state, last_user_message_at) values ($1, $2, '{}'::jsonb, now()) on conflict (channel, external_id) do update set last_user_message_at = now() returning state, paused, opted_out, (xmax = 0) as is_new",
+        "query": "insert into dm_threads (brand_id, channel, external_id, state, last_user_message_at) values ((select b.id from brands b where b.code = 'SMC'), $1, $2, '{}'::jsonb, now()) on conflict (channel, external_id) do update set last_user_message_at = now(), updated_at = now() returning state, paused, opted_out, (xmax = 0) as is_new",
         "options": { "queryReplacement": "={{ [ $('Normalise DM events').item.json.channel, $('Normalise DM events').item.json.sender_id ] }}" }
       },
       "id": "w31-n16", "name": "Upsert conversation", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [1760, 0],
@@ -118,7 +118,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "update conversations set opted_out = true, state = coalesce(state, '{}'::jsonb) || jsonb_build_object('stopped', true) where channel = $1 and external_id = $2",
+        "query": "update dm_threads set updated_at = now(), opted_out = true, state = coalesce(state, '{}'::jsonb) || jsonb_build_object('stopped', true) where channel = $1 and external_id = $2",
         "options": { "queryReplacement": "={{ [ $('Normalise DM events').item.json.channel, $('Normalise DM events').item.json.sender_id ] }}" }
       },
       "id": "w31-n20", "name": "Mark opt-out", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [2640, 120],
@@ -220,7 +220,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "update conversations set state = $3::jsonb, paused = $4::boolean where channel = $1 and external_id = $2",
+        "query": "update dm_threads set state = $3::jsonb, paused = $4::boolean, updated_at = now() where channel = $1 and external_id = $2",
         "options": { "queryReplacement": "={{ [ $json.channel, $json.sender_id, JSON.stringify($json.new_state), $json.paused ] }}" }
       },
       "id": "w31-n33", "name": "Update conversation", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [5060, 0],
@@ -233,7 +233,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "insert into escalations (kind, ref_table, ref_id, raised_at, assigned_to, note) values ($1, 'conversations', $2, now(), $3, $4) returning id",
+        "query": "insert into escalations (kind, ref_table, ref_id, raised_at, assigned_agent, note) values (case $1 when 'sensitive' then 'human_handoff' when 'dm_handoff' then 'dm' when 'dm_after_link' then 'dm' else $1 end, 'dm_threads', $2, now(), $3, $4 || '; esc_kind=' || $1) returning id",
         "options": { "queryReplacement": "={{ [ $('Finalise DM').item.json.esc.kind, $('Finalise DM').item.json.channel + ':' + $('Finalise DM').item.json.sender_id, $('Finalise DM').item.json.esc.to.join(','), 'bot paused; first human touch within ' + $('Finalise DM').item.json.esc.human_within_seconds + 's' ] }}" }
       },
       "id": "w31-n35", "name": "Insert escalation", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [5500, -100],

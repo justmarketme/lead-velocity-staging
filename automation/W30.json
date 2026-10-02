@@ -14,6 +14,18 @@
       "position": [-400, -600]
     },
     {
+      "parameters": {
+        "content": "## Ingress split (I-16)\n\nThis workflow is the Meta `instagram` object ingress (callback URL /webhook/meta-comments, IG `comments` field). It ALSO receives Page `feed` comments forwarded from W02's `page` ingress. Two shapes are accepted by `Normalise events`: (1) `object: page`, `entry[].changes[]` with `field: feed`, `value.item: comment`, `verb: add`; (2) `object: instagram`, `field: comments`. A forwarded payload may arrive bare or wrapped as `{ body: {...} }` (both handled).\n\nW02 must forward the RAW request body byte-for-byte with the original `X-Hub-Signature-256` header to this URL, so `Verify signature` (verifyMetaSignature(rawBody, signatureHeader, appSecret), positional) passes unchanged. Anything unsigned or re-serialised is rejected and alerted; there is no trust-bypass for internal forwards.\n\nDB: comments (brand_id resolved from brands.page_id / ig_user_id, fallback code SMC), escalations.assigned_agent (text), comment_ad_sentiment, ads view.",
+        "height": 380,
+        "width": 620
+      },
+      "id": "w30-note-ingress",
+      "name": "Notes (ingress split)",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-400, -1000]
+    },
+    {
       "parameters": { "httpMethod": "GET", "path": "meta-comments", "responseMode": "responseNode", "options": {} },
       "id": "w30-n01", "name": "Meta Verify (GET)", "type": "n8n-nodes-base.webhook", "typeVersion": 2, "position": [0, -300], "webhookId": "w30-meta-comments-verify"
     },
@@ -35,7 +47,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\nconst out = [];\nfor (let i = 0; i < items.length; i++) {\n  const it = items[i];\n  let ok = false;\n  let reason = 'unverified';\n  try {\n    const raw = await this.helpers.getBinaryDataBuffer(i, 'data');\n    const sig = (it.json.headers || {})['x-hub-signature-256'] || '';\n    const dir = $env.AUTOMATION_DIR || '/home/node/automation';\n    const v = require(dir + '/security/verify-webhooks.js');\n    ok = !!v.verifyMetaSignature({ rawBody: raw, signatureHeader: sig, appSecret: $env.META_APP_SECRET });\n    reason = ok ? 'ok' : 'bad_signature';\n  } catch (e) {\n    reason = 'verifier_error: ' + String(e.message).slice(0, 80);\n  }\n  out.push({ json: { signature_ok: ok, reason: reason, body: it.json.body } });\n}\nreturn out;"
+        "jsCode": "const items = $input.all();\nconst out = [];\nfor (let i = 0; i < items.length; i++) {\n  const it = items[i];\n  let ok = false;\n  let reason = 'unverified';\n  try {\n    const raw = await this.helpers.getBinaryDataBuffer(i, 'data');\n    const sig = (it.json.headers || {})['x-hub-signature-256'] || '';\n    const dir = $env.AUTOMATION_DIR || '/home/node/automation';\n    const v = require(dir + '/security/verify-webhooks.js');\n    const res = v.verifyMetaSignature(raw, sig, $env.META_APP_SECRET);\n    ok = !!(res && res.ok === true);\n    reason = ok ? 'ok' : String((res && res.reason) || 'bad_signature');\n  } catch (e) {\n    reason = 'verifier_error: ' + String(e.message).slice(0, 80);\n  }\n  out.push({ json: { signature_ok: ok, reason: reason, body: it.json.body } });\n}\nreturn out;"
       },
       "id": "w30-n06", "name": "Verify signature", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [220, 0]
     },
@@ -79,15 +91,15 @@
     },
     {
       "parameters": {
-        "jsCode": "const src = $input.first().json;\nconst p = src.payload || {};\nconst crypto = require('crypto');\nconst salt = $env.COMMENT_HASH_SALT || '';\nconst hash = (x) => crypto.createHash('sha256').update(String(x) + salt).digest('hex').slice(0, 32);\nconst out = [];\nfor (const entry of (p.entry || [])) {\n  for (const ch of (entry.changes || [])) {\n    const v = ch.value || {};\n    let ev = null;\n    if (p.object === 'page' && ch.field === 'feed' && v.item === 'comment' && v.verb === 'add') {\n      ev = { platform: 'fb', owner_id: String(entry.id), comment_id: v.comment_id, post_id: v.post_id, parent_id: v.parent_id || v.post_id, text: v.message || '', author_id: v.from && v.from.id, author_name: (v.from && v.from.name) || '', ts: v.created_time };\n      ev.is_nested = ev.parent_id !== ev.post_id;\n    } else if (p.object === 'instagram' && ch.field === 'comments') {\n      ev = { platform: 'ig', owner_id: String(entry.id), comment_id: v.id, post_id: v.media && v.media.id, parent_id: v.parent_id || (v.media && v.media.id), text: v.text || '', author_id: v.from && v.from.id, author_name: '', ts: entry.time };\n      ev.is_nested = !!v.parent_id;\n    }\n    if (!ev || !ev.comment_id || !ev.author_id) continue;\n    if (String(ev.author_id) === ev.owner_id) continue;\n    const t = Number(ev.ts);\n    ev.created_iso = (t ? new Date(t > 1e12 ? t : t * 1000) : new Date()).toISOString();\n    ev.author_hash = hash(ev.author_id);\n    ev.first_name = ev.author_name ? String(ev.author_name).split(' ')[0] : '';\n    out.push({ json: ev });\n  }\n}\nreturn out;"
+        "jsCode": "const src = $input.first().json;\nlet p = src.payload || {};\nif (p.body && !p.entry && p.body.entry) p = p.body;\nconst crypto = require('crypto');\nconst salt = $env.COMMENT_HASH_SALT || '';\nconst hash = (x) => crypto.createHash('sha256').update(String(x) + salt).digest('hex').slice(0, 32);\nconst out = [];\nfor (const entry of (p.entry || [])) {\n  for (const ch of (entry.changes || [])) {\n    const v = ch.value || {};\n    let ev = null;\n    if (p.object === 'page' && ch.field === 'feed' && v.item === 'comment' && v.verb === 'add') {\n      ev = { platform: 'fb', owner_id: String(entry.id), comment_id: v.comment_id, post_id: v.post_id, parent_id: v.parent_id || v.post_id, text: v.message || '', author_id: v.from && v.from.id, author_name: (v.from && v.from.name) || '', ts: v.created_time };\n      ev.is_nested = ev.parent_id !== ev.post_id;\n    } else if (p.object === 'instagram' && ch.field === 'comments') {\n      ev = { platform: 'ig', owner_id: String(entry.id), comment_id: v.id, post_id: v.media && v.media.id, parent_id: v.parent_id || (v.media && v.media.id), text: v.text || '', author_id: v.from && v.from.id, author_name: '', ts: entry.time };\n      ev.is_nested = !!v.parent_id;\n    }\n    if (!ev || !ev.comment_id || !ev.author_id) continue;\n    if (String(ev.author_id) === ev.owner_id) continue;\n    const t = Number(ev.ts);\n    ev.created_iso = (t ? new Date(t > 1e12 ? t : t * 1000) : new Date()).toISOString();\n    ev.author_hash = hash(ev.author_id);\n    ev.first_name = ev.author_name ? String(ev.author_name).split(' ')[0] : '';\n    out.push({ json: ev });\n  }\n}\nreturn out;"
       },
       "id": "w30-n14", "name": "Normalise events", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1320, 0]
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "insert into comments (platform, comment_id, parent_post_id, author_hash, status, created_at) values ($1, $2, $3, $4, 'received', $5::timestamptz) on conflict (comment_id) do update set comment_id = excluded.comment_id returning (xmax = 0) as inserted, comment_id",
-        "options": { "queryReplacement": "={{ [ $json.platform, $json.comment_id, $json.post_id, $json.author_hash, $json.created_iso ] }}" }
+        "query": "insert into comments (brand_id, platform, comment_id, parent_post_id, author_hash, status, created_at) values (coalesce((select b.id from brands b where b.page_id = $6 or b.ig_user_id = $6 limit 1), (select b2.id from brands b2 where b2.code = 'SMC')), $1, $2, $3, $4, 'received', $5::timestamptz) on conflict (comment_id) do update set comment_id = excluded.comment_id returning (xmax = 0) as inserted, comment_id",
+        "options": { "queryReplacement": "={{ [ $json.platform, $json.comment_id, $json.post_id, $json.author_hash, $json.created_iso, $json.owner_id ] }}" }
       },
       "id": "w30-n15", "name": "Insert comment", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [1540, 0],
       "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
@@ -322,7 +334,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "insert into escalations (kind, ref_table, ref_id, raised_at, assigned_to, note) values ($1, 'comments', $2, now(), $3, $4) returning id",
+        "query": "insert into escalations (kind, ref_table, ref_id, raised_at, assigned_agent, note) values (case $1 when 'sensitive' then 'human_handoff' else $1 end, 'comments', $2, now(), $3, $4 || '; esc_kind=' || $1) returning id",
         "options": { "queryReplacement": "={{ [ $('Action ctx').item.json.esc.kind, $('Action ctx').item.json.comment_id, $('Action ctx').item.json.esc.to.join(','), 'class=' + $('Action ctx').item.json.intent + '; first human touch within ' + $('Action ctx').item.json.esc.human_within_seconds + 's' ] }}" }
       },
       "id": "w30-n46", "name": "Insert escalation", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [7920, 100],
@@ -400,8 +412,8 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "update comments set class = $2, public_reply_id = coalesce($3, public_reply_id), private_reply_sent_at = case when $4::boolean and private_reply_sent_at is null then now() else private_reply_sent_at end, hidden = ($5::boolean or coalesce(hidden, false)), sla_seconds = coalesce(sla_seconds, $6::int), text_redacted = $7, ad_id = $8, attempts = coalesce(attempts, 0) + 1, status = case when $9 = 'retry' and coalesce(attempts, 0) >= 2 then 'failed' else $9 end, due_at = case when $9 = 'retry' then now() + interval '10 minutes' else null end, decision = case when $9 = 'retry' then $10::jsonb else null end where comment_id = $1",
-        "options": { "queryReplacement": "={{ [ $json.comment_id, $json.intent, $json.public_id, $json.private_sent, $json.hidden, $json.sla_seconds, $json.text_redacted, $json.ad_id, $json.status, JSON.stringify($json.plan) ] }}" }
+        "query": "update comments set class = $2, public_reply_id = coalesce($3, public_reply_id), private_reply_sent_at = case when $4::boolean and private_reply_sent_at is null then now() else private_reply_sent_at end, replied_at = case when $3::text is not null then coalesce(replied_at, now()) else replied_at end, needs_human = $11::boolean, fais_risk = $12::boolean, hidden = ($5::boolean or coalesce(hidden, false)), sla_seconds = coalesce(sla_seconds, $6::int), text_redacted = $7, ad_id = $8, attempts = coalesce(attempts, 0) + 1, status = case when $9 = 'retry' and coalesce(attempts, 0) >= 2 then 'failed' else $9 end, due_at = case when $9 = 'retry' then now() + interval '10 minutes' else null end, decision = case when $9 = 'retry' then $10::jsonb else null end where comment_id = $1",
+        "options": { "queryReplacement": "={{ [ $json.comment_id, $json.intent, $json.public_id, $json.private_sent, $json.hidden, $json.sla_seconds, $json.text_redacted, $json.ad_id, $json.status, JSON.stringify($json.plan), !!$json.plan.needs_human, !!$json.plan.fais_risk ] }}" }
       },
       "id": "w30-n55", "name": "Log comment", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [9900, 200],
       "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
@@ -495,7 +507,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "insert into escalations (kind, ref_table, ref_id, raised_at, assigned_to, note) select 'hostile_thread', 'ads', h.ad_id::text, now(), 'media-buyer', '3 or more abuse comments in 60 minutes, review the ad for pause' from (select ad_id, count(*) as n from comments where class = 'abuse' and created_at > now() - interval '60 minutes' and ad_id is not null group by ad_id having count(*) >= 3) h where not exists (select 1 from escalations e where e.kind = 'hostile_thread' and e.ref_id = h.ad_id::text and e.raised_at > now() - interval '6 hours') returning id, ref_id",
+        "query": "insert into escalations (kind, ref_table, ref_id, raised_at, assigned_agent, note) select 'hostile_thread', 'ads', h.ad_id::text, now(), 'media-buyer', '3 or more abuse comments in 60 minutes, review the ad for pause' from (select ad_id, count(*) as n from comments where class = 'abuse' and created_at > now() - interval '60 minutes' and ad_id is not null group by ad_id having count(*) >= 3) h where not exists (select 1 from escalations e where e.kind = 'hostile_thread' and e.ref_id = h.ad_id::text and e.raised_at > now() - interval '6 hours') returning id, ref_id",
         "options": {}
       },
       "id": "w30-n68", "name": "Raise hostile escalation", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [220, 960],
