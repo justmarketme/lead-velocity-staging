@@ -50,6 +50,17 @@ const LIGHT = { green: 'On track', amber: 'Watch', red: 'Behind' };
 const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 const pct = (x) => (x == null || Number.isNaN(Number(x)) ? 'n/a' : `${Math.round(Number(x) * 100)}%`);
 const num = (x) => (x == null || Number.isNaN(Number(x)) ? 'n/a' : String(Math.round(Number(x) * 10) / 10));
+/**
+ * I-43c: the broker-facing lead pulse. Per cycle only, no target, no last week, no change. The payload's figure is already held until 5 new
+ * answers arrive (facts.broker_pulse), so a broker cannot difference two reports down to one lead's answer (W35-pulse-visibility.md);
+ * this renderer prints only what the payload carries and refuses a figure from under 5 answers.
+ */
+export function pulseText(lp) {
+  if (!lp || lp.shown !== true) return 'Fewer than 5 answers yet';
+  const n = Number(lp.n), up = Number(lp.up);
+  if (!Number.isInteger(n) || !Number.isInteger(up) || n < 5 || up < 0 || up > n) throw new Error(`lead pulse must be a per-cycle figure from 5 or more answers (got ${lp.up} of ${lp.n})`);
+  return `${up} of ${n} people (answers so far this cycle)`;
+}
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
 /** Initials only for any person: "S. L." from {first_name, initial}. Never returns a name. */
@@ -142,7 +153,8 @@ function sections(p, t, o) {
   const themes = (q.themes || []).map((x) => li(`"${esc(x.text)}" (asked by ${esc(x.count)} of ${esc(x.of)})`));
   S.s4 = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">`
     + row('Your average rating', `${esc(num((q.avg_rating || {}).v))} / 5`, tl(q.avg_rating))
-    + row('Meetings you rated', esc(pct((q.ratings_given || {}).v)), tl(q.ratings_given, pct)) + `</table>`
+    + row('Meetings you rated', esc(pct((q.ratings_given || {}).v)), tl(q.ratings_given, pct))
+    + (q.lead_pulse ? row('Said the call was worth their time', esc(pulseText(q.lead_pulse)), null) : '') + `</table>`
     + sub('How you marked them') + ul(mixRows, 'No outcomes marked yet.') + sub('What leads asked about') + ul(themes, 'Nothing stood out this week.');
 
   S.s5 = ul((p.s5_notice || []).map((x) => li(esc(x))), 'Nothing new this week.');

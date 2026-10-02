@@ -209,7 +209,9 @@ export interface SmcReportPayload {
       not_reached: { first_name: string; initial: string }[] };
   };
   s4_quality?: { avg_rating: SmcFig; ratings_given: SmcFig; mix: Partial<Record<SmcDispositionCode, number>>;
-    themes: { text: string; count: number; of: number }[] };
+    themes: { text: string; count: number; of: number }[];
+    /** I-43c: per cycle, steps of 5 answers, no week-on-week; shown=false under 5 answers. */
+    lead_pulse?: { shown: boolean; n: number | null; up: number | null; text: string } };
   s5_notice?: string[];
   s6_roi?: { shown: boolean; close_rate: number | null; policies_reported: number | null; tracking_to: number | null;
     basis?: Record<string, number | null>; meetings_to_policies?: SmcFig };

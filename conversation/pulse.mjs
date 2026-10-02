@@ -161,14 +161,22 @@ export function onPulseLine(text, c) {
 }
 
 /**
- * brokerLine(rows) -> the aggregate sentence for W14 broker report / portal Reports tab, or null below REPORT_MIN_N.
- * rows = lead_pulse rows for this broker and cycle. Never names, never lines.
+ * brokerLine(rows, prevN) -> the aggregate sentence for W14 broker report / portal Reports tab, or null below REPORT_MIN_N.
+ * rows = lead_pulse answers for this broker and cycle, OLDEST ANSWER FIRST. Never names, never lines.
+ * prevN = the number of answers behind the last figure this broker was shown this cycle (null if none).
+ * I-43c (W35-pulse-visibility.md residual risk): per cycle only, never week-on-week, and the figure is held at the last displayed
+ * one until REPORT_STEP (5) new answers have arrived: 9 answers then 10 show the same figure, 14 shows a new one. The figure is
+ * computed on the first `shown` answers, so a late answer cannot move it. Mirrors facts.broker_pulse (analytics/W14-broker.sql).
  */
-export function brokerLine(rows = []) {
-  const ans = rows.filter((r) => r.thumbs === 'up' || r.thumbs === 'down');
-  if (ans.length < REPORT_MIN_N) return null;
+export const REPORT_STEP = 5;
+export function brokerLine(rows = [], prevN = null) {
+  const all = rows.filter((r) => r.thumbs === 'up' || r.thumbs === 'down');
+  if (all.length < REPORT_MIN_N) return null;
+  const hold = Number.isInteger(prevN) && prevN >= REPORT_MIN_N && all.length - prevN < REPORT_STEP;
+  const n = hold ? Math.min(prevN, all.length) : all.length;
+  const ans = all.slice(0, n);
   const up = ans.filter((r) => r.thumbs === 'up').length;
-  return { n: ans.length, up, rate: Math.round((up / ans.length) * 1000) / 1000, text: `${up} of ${ans.length} people said the call was worth their time.` };
+  return { n, up, rate: Math.round((up / n) * 1000) / 1000, text: `${up} of ${n} people said the call was worth their time.` };
 }
 
 /**

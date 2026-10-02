@@ -9,6 +9,7 @@
 
 drop function if exists facts.kv(numeric, numeric, numeric);
 drop function if exists facts.cycle_counts(text, date);
+drop function if exists facts.broker_pulse(uuid, date, int);
 
 -- Cycle-to-date counts at a given SA day. "delivered" = verified + qualified, replacement leads excluded (= v_cycle_progress.verified).
 create or replace function facts.cycle_counts(p_cycle uuid, p_day date)
@@ -43,3 +44,24 @@ language sql stable as $$
    (select count(*) from public.lead_pulse lp where lp.cycle_id = p_cycle and lp.thumbs = 'up' and lp.answered_at is not null and facts.sa_date(lp.answered_at) <= p_day)::int,
    (select count(*) from public.lead_pulse lp where lp.cycle_id = p_cycle and lp.thumbs is not null and lp.answered_at is not null and facts.sa_date(lp.answered_at) <= p_day)::int
 $$;
+
+-- I-43c: the lead pulse AS THE BROKER MAY SEE IT (compliance-qa W35-pulse-visibility.md, residual risk). Per cycle only, never week-on-week.
+-- Hidden (shown = false, "Fewer than 5 answers yet") until 5 answers exist. Once shown, the figure is HELD at the last one the broker saw until 5 new
+-- answers have arrived (p_prev_n = the answer count behind that figure, read from his last report). Computed on the FIRST shown_n answers (oldest first),
+-- so a late answer cannot move a held figure. Example: 7 of 9 shown; a 10th answer arrives: still 7 of 9; the 14th arrives: new figure on 14.
+-- So no two figures a broker sees have denominators fewer than 5 apart, and he cannot difference them to one lead's answer.
+-- cycle_counts.pulse_up / pulse_n above are the live internal figures (admin / console only) and must NEVER be put in a broker payload.
+create or replace function facts.broker_pulse(p_cycle uuid, p_day date, p_prev_n int default null)
+returns table (shown boolean, n int, up int)
+language sql stable as $$
+  with a as (
+    select lp.thumbs, row_number() over (order by lp.answered_at, lp.id) as rn
+      from public.lead_pulse lp
+     where lp.cycle_id = p_cycle and lp.thumbs is not null and lp.answered_at is not null and facts.sa_date(lp.answered_at) <= p_day),
+  t as (select count(*)::int as total from a),
+  k as (select case when t.total < 5 then null
+                    when p_prev_n >= 5 and t.total - p_prev_n < 5 then least(p_prev_n, t.total)
+                    else t.total end as m from t)
+  select k.m is not null, k.m, case when k.m is not null then (select count(*) from a where a.rn <= k.m and a.thumbs = 'up')::int end from k
+$$;
+comment on function facts.broker_pulse(uuid, date, int) is 'Broker-facing lead pulse (I-43c): per cycle, held until 5 new answers, null below 5. Never use cycle_counts.pulse_* in a broker surface.';

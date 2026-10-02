@@ -391,12 +391,23 @@ select round(sum(leads_raw)::numeric / nullif(sum(page_visits), 0), 3) as signup
 - **Note:** `facts.fact_page_day` (smc_06) is fed by `ops.page_day`, written by devops-security / landing-page-builder (I-22); until that feeder runs the value is empty and the tile shows grey. Page speed is `lcp_p75_s` in the same view; quiz step drop-off is not in `facts` yet.
 
 ## M31 Leads who said the call was worth their time
-- **Means:** Share of attended leads who tapped thumbs-up on 'Was the call worth your time?'
-- **Target and why:** No target in the prompt: show the trend; the broker report shows it only once 3 or more have answered. Hears the lead's side without sharing names with the adviser (6B.2).
-- **If it moves:** A fall with a stable show rate means call quality, not reminders: tell the adviser in prep notes.
+- **Means:** Of the leads who answered 'Was the call worth your time?' after an attended call, how many tapped yes. The adviser sees it for the current cycle only, from 5 answers, and the figure is held until 5 new answers arrive.
+- **Target and why:** No target in the prompt: show the trend (Lead Velocity view). Hears the lead's side without sharing names with the adviser (6B.2). The adviser's view has no target, no last week and no week-on-week change, so he cannot work out one named lead's answer by comparing two reports (compliance-qa W35-pulse-visibility.md; I-43c).
+- **If it moves:** A fall with a stable show rate means call quality, not reminders: tell the adviser in prep notes. Read it in the Lead Velocity view, never from the adviser's report.
 - **Tooltip (jargon):** Lead pulse; post-call satisfaction.
-- **Shown on:** Broker report; pulse
-- **SQL:**
+- **Shown on:** Broker report and portal Reports tab (adviser view: the held per-cycle figure below); Lead Velocity console and LV weekly (live figure, unchanged)
+- **Adviser display rule (I-43c):**
+  1. Under 5 answers so far this cycle: show "Fewer than 5 answers yet". No number.
+  2. From 5 answers: show "X of N people (answers so far this cycle)". Per cycle only. Never a change since last week, never a target.
+  3. Hold the figure at the last one he was sent until 5 new answers have arrived. The figure is worked out on the first N answers, so a late answer cannot change it.
+  4. Worked example: he first sees 7 of 9. A 10th answer (a thumbs-down) arrives that week: he still sees 7 of 9, not 7 of 10, so he cannot tell that the new answer was a no. The 11th, 12th and 13th answers arrive: still 7 of 9. The 14th arrives (5 new): he now sees the figure for those 14 answers, 11 of 14 if 4 of the 5 new ones were yes. Any two figures he sees are at least 5 answers apart.
+  5. A new cycle starts again from "Fewer than 5 answers yet".
+- **SQL (adviser view, `facts.broker_pulse`, analytics/W14-broker.sql; p_prev_n = answer count behind the last figure sent):**
+
+```sql
+select * from facts.broker_pulse((select id from public.cycles order by starts_at desc limit 1), facts.as_of(), null);   -- shown, n, up; third argument = answers behind the last figure sent
+```
+- **SQL (Lead Velocity view, live, admin only):**
 
 ```sql
 select count(*) filter (where lead_pulse_thumbs = 1) as worth_it, count(lead_pulse_thumbs) as answered, round(count(*) filter (where lead_pulse_thumbs = 1)::numeric / nullif(count(lead_pulse_thumbs), 0), 3) as worth_it_rate from facts.fact_lead;

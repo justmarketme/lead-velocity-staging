@@ -134,6 +134,7 @@ function Body() {
               {DISPOSITIONS.map((d) => { const n = Number(s4.mix?.[d.code] || 0); return <div key={d.code}><span>{d.label}</span><i><b style={{ width: `${Math.round((n / mixMax) * 100)}%` }} /></i><span>{n}</span></div>; })}
             </div>
             <p className="small" style={{ margin: "6px 0" }}>Ratings given: {fmtPct(s4.ratings_given.v)}{tg(s4.ratings_given, true) ? ` · ${tg(s4.ratings_given, true)}` : ""}</p>
+            {s4.lead_pulse && <p className="small" style={{ margin: "6px 0" }}>Leads who said the call was worth their time: {s4.lead_pulse.shown ? `${s4.lead_pulse.up} of ${s4.lead_pulse.n} (answers so far this cycle)` : "fewer than 5 answers yet"}</p>}
             {s4.themes?.length > 0 && <><b style={{ fontSize: 13 }}>What leads asked before the call</b>
               <ol style={{ margin: "4px 0 0", paddingLeft: 18, fontSize: 14 }}>{s4.themes.slice(0, 3).map((t, i) => <li key={i}>"{t.text}" ({t.count} of {t.of})</li>)}</ol></>}
           </section>

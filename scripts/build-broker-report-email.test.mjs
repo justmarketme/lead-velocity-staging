@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { renderEmail, renderPrint, subjectFor, pdfName, visibleText, loadTokens, initials, BANNED, ROI_TEXT, assertClean } from './build-broker-report-email.mjs';
+import { brokerLine } from '../conversation/pulse.mjs';
+import { renderEmail, pulseText, renderPrint, subjectFor, pdfName, visibleText, loadTokens, initials, BANNED, ROI_TEXT, assertClean } from './build-broker-report-email.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const FX = JSON.parse(readFileSync(join(here, '..', 'automation', 'tests', 'fixtures', 'w14-payloads.json'), 'utf8'));
@@ -103,4 +104,60 @@ test('W14 email outbox row names this script', () => {
 test('fix wave 4: a close-rate / policies line fails the build of the emailed report', () => {
   assert.throws(() => assertClean('<p>No lock-in.</p><p>Your close rate: 30%. Policies you report are for your view only.</p>'), /portal only/);
   assert.doesNotThrow(() => assertClean('<p>No lock-in.</p><p>16 of 20 delivered.</p>'));
+});
+
+// ---- I-43c: the broker-facing lead pulse (W35-pulse-visibility.md residual risk) ----
+// The payload is built the way analytics/W14-broker-payload.sql does: facts.broker_pulse == brokerLine(answers oldest first, prevN = n of the last figure he was sent).
+const arrive = (...t) => t.map((thumbs, i) => ({ lead_id: `l${i}`, thumbs }));
+const mk = (n, upEvery = 3) => arrive(...Array.from({ length: n }, (_, i) => (i % upEvery === 2 ? 'down' : 'up')));
+const withPulse = (rows, prevN = null) => { const p = structuredClone(FX.weekly_close_rate); const b = brokerLine(rows, prevN);
+  p.s4_quality.lead_pulse = b ? { shown: true, n: b.n, up: b.up, text: b.text } : { shown: false, n: null, up: null, text: 'Fewer than 5 answers yet.' }; return p; };
+const pulseRow = (p) => visibleText(renderEmail(p, opts)).match(/Said the call was worth their time\s+([^]*?)\s+(?:How you marked|Your average|Meetings you rated)/)?.[1];
+
+test('I-43c: under 5 answers the broker sees the placeholder, never a number', () => {
+  for (const n of [0, 1, 4]) {
+    const p = withPulse(mk(n));
+    assert.equal(p.s4_quality.lead_pulse.shown, false);
+    assert.equal(pulseText(p.s4_quality.lead_pulse), 'Fewer than 5 answers yet');
+    assert.match(visibleText(renderEmail(p, opts)), /Said the call was worth their time Fewer than 5 answers yet/);
+  }
+});
+
+test('I-43c: 9 answers then 10 show the same value; 5 new answers update it', () => {
+  // 7 of 9 is what he sees at 9. The 10th answer is a thumbs-down in the same week (7 of 10 live): he must still see 7 of 9.
+  const nine = arrive(...Array(7).fill('up'), 'down', 'down');
+  const ten = [...nine, { lead_id: 'l9', thumbs: 'down' }];
+  const first = withPulse(nine);                                  // first figure ever: 7 of 9
+  assert.equal(pulseRow(first), '7 of 9 people (answers so far this cycle)');
+  const next = withPulse(ten, first.s4_quality.lead_pulse.n);     // one new answer: held
+  assert.equal(pulseRow(next), pulseRow(first));
+  assert.deepEqual(next.s4_quality.lead_pulse, first.s4_quality.lead_pulse);
+  const fourteen = [...ten, ...arrive('up', 'up', 'up', 'up')];   // 4 new answers (13 total): still held
+  assert.equal(pulseRow(withPulse(fourteen.slice(0, 13), 9)), '7 of 9 people (answers so far this cycle)');
+  assert.equal(pulseRow(withPulse(fourteen, 9)), '11 of 14 people (answers so far this cycle)');  // 5 new answers (14 total): updates
+});
+
+test('I-43c: over a whole cycle no two figures a broker sees have denominators fewer than 5 apart', () => {
+  let prev = null; const seen = [];
+  for (let n = 0; n <= 40; n++) { const b = brokerLine(mk(n), prev); if (b) { if (b.n !== prev) seen.push(b.n); prev = b.n; } }
+  assert.equal(seen[0], 5); for (let i = 1; i < seen.length; i++) assert.ok(seen[i] - seen[i - 1] >= 5, `${seen[i - 1]} -> ${seen[i]}`);
+  // a figure is computed on the first answers only: a late thumbs-down cannot move a held figure
+  const held = brokerLine([...mk(9), { thumbs: 'down' }], 9); assert.deepEqual([held.n, held.up], [9, brokerLine(mk(9)).up]);
+});
+
+test('I-43c: no week-on-week change and no target on the pulse line; the renderer refuses a figure from under 5 answers', () => {
+  const p = withPulse(arrive(...Array(8).fill('up'), 'down', 'down'));
+  assert.match(visibleText(renderEmail(p, opts) + renderPrint(p, opts)), /8 of 10 people \(answers so far this cycle\)/);
+  assert.doesNotMatch(pulseRow(p), /last week|target|up from|down from|change|%/i);
+  assert.throws(() => pulseText({ shown: true, n: 4, up: 4 }), /5 or more answers/);
+  assert.throws(() => pulseText({ shown: true, n: 10, up: 11 }), /5 or more answers/);
+  assert.doesNotMatch(SRC, /pulse_up|pulse_n/, 'the renderer never reads the live internal counts');
+});
+
+test('I-43c: the SQL gives the broker only facts.broker_pulse (never cycle_counts.pulse_*), with the hold rule', () => {
+  const sql = readFileSync(join(here, '..', 'analytics', 'W14-broker-payload.sql'), 'utf8').replace(/--[^\n]*/g, '');
+  const cnt = readFileSync(join(here, '..', 'analytics', 'W14-broker.sql'), 'utf8');
+  assert.match(sql, /facts\.broker_pulse\(c\.id, d,/);
+  assert.doesNotMatch(sql, /\b[nw]\.pulse_(up|n)\b/);
+  assert.match(cnt, /t\.total < 5 then null/); assert.match(cnt, /p_prev_n >= 5 and t\.total - p_prev_n < 5 then least\(p_prev_n, t\.total\)/);
 });

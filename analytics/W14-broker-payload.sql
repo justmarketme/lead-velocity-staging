@@ -22,7 +22,7 @@ create or replace function facts.w14_broker_report(p_broker uuid, p_day date def
 returns jsonb language plpgsql stable as $$
 declare
   pr facts.v_params%rowtype; c public.cycles%rowtype; b public.brokers%rowtype;
-  d date; tier text; n record; w record;
+  d date; tier text; n record; w record; pu record;
   start_d date; end_d date; elapsed int; cycle_len int; pace int; week_no int; weeks_in int; send_day date; edition text; on_track boolean;
   show_now numeric; show_prev numeric; rated_now numeric; rated_prev numeric; light_show text; light_rep text;
   lastwk jsonb; nxt jsonb; unmarked jsonb; followups jsonb; not_reached jsonb; mix jsonb; themes jsonb; notices jsonb := '[]'::jsonb;
@@ -41,6 +41,11 @@ begin
 
   select * into n from facts.cycle_counts(c.id, d);
   select * into w from facts.cycle_counts(c.id, d - 7);
+  -- I-43c: broker-facing pulse = per cycle, hidden under 5 answers, held until 5 new answers; never n.pulse_* (live) and never a week-on-week figure.
+  -- p_prev_n = the answer count behind the last pulse figure this broker was sent this cycle (reports before this week, not held/failed).
+  select * into pu from facts.broker_pulse(c.id, d, (select (rh.report_data #>> '{s4_quality,lead_pulse,n}')::int from public.report_history rh
+      where rh.broker_id = p_broker and rh.cycle_id = c.id and rh.brand_id is not null and rh.status in ('sent','partial','generated') and rh.week < d - 3
+        and (rh.report_data #>> '{s4_quality,lead_pulse,n}') is not null order by rh.week desc limit 1));
   start_d := facts.sa_date(c.starts_at); end_d := facts.sa_date(c.ends_at) - 1;   -- ends_at is the exclusive boundary (as in facts.fact_broker_day); end_d = the cycle's last day
   elapsed := d - start_d + 1; cycle_len := end_d - start_d + 1;
   pace := round(c.committed_leads * least(elapsed, cycle_len)::numeric / cycle_len);
@@ -191,7 +196,10 @@ begin
       'days_left', greatest(0, facts.sa_date(coalesce(c.extended_until, c.ends_at)) - d - 1)),
     's3_meetings', jsonb_build_object('last_week', lastwk, 'next_week', nxt,
       'todos', jsonb_build_object('unmarked', unmarked, 'followups_due', followups, 'not_reached', not_reached)),
-    's4_quality', jsonb_build_object('avg_rating', facts.vtl(n.quality_avg, 4.0, w.quality_avg), 'ratings_given', facts.vtl(rated_now, 0.90, rated_prev), 'mix', mix, 'themes', themes),
+    's4_quality', jsonb_build_object('avg_rating', facts.vtl(n.quality_avg, 4.0, w.quality_avg), 'ratings_given', facts.vtl(rated_now, 0.90, rated_prev), 'mix', mix, 'themes', themes,
+      'lead_pulse', case when pu.shown then jsonb_build_object('shown', true, 'n', pu.n, 'up', pu.up,
+          'text', format('%s of %s people said the call was worth their time (answers so far this cycle).', pu.up, pu.n))
+        else jsonb_build_object('shown', false, 'n', null, 'up', null, 'text', 'Fewer than 5 answers yet.') end),
     's5_notice', notices,
     's6_roi', roi,
     's7_ask', ask,
