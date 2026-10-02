@@ -2234,6 +2234,17 @@
       "human_gate": true,
       "status": "needs_human",
       "section": "automation/security/SECURITY.md; automation/backup/BACKUP.md"
+    },
+    {
+      "id": "NH-30",
+      "title": "Compliance review 2 decisions: (A) replace \"no contract\" with \"no lock-in / no minimum term\" everywhere (brokers do sign an agreement); (B) either add a Schedule D clause that the broker will not sell on the introductory call, or change every \"no selling on the call\" line to \"no obligation to buy\"; (C) file the guide URL behind \"2-4x salary\", say \"many bonds\" not \"most bonds\", no \"costs less\" claim without a source; (D) no learn-page reviewer line until a real review exists, and never a broker we route leads to. Also: compliance-qa recommends NH-14 Option A (take the Promotions page down now) and NH-28 b = STOP cancels the booking.",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "deliverables/compliance-qa/phase4-review-2.md"
     }
   ]
 }
