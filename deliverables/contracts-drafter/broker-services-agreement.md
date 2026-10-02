@@ -265,6 +265,8 @@ The system decides points 2 and 3 from the message log. These replacements count
 > **Option (a) only — "Cancelled and did not rebook" counts as Uncontactable.** If a verified lead cancels the call, we offer new times once. Then we send our full follow-up sequence. If the person has not booked again by the end of it, the lead counts as **Uncontactable** and can be replaced. The system decides this from the message log. Code: `unreachable`, reason `cancel_no_rebook`. If the person says plainly that they do not want a call, we stop messaging them at once, and that lead is not replaced under this option.
 >
 > **Option (b) only — "I don't want a call" counts as Disqualified.** If a verified lead tells us or you plainly that they do not want a call (for example "I don't want a call" or "No thanks"), they no longer meet point 4 of Schedule B. The lead counts as **Disqualified**, with the reason "would not take a call", and can be replaced. We stop messaging the person at once. The message log, or your mark with that reason, is the evidence. Code: `nofit_criteria`, reason `no_call`. A lead who cancels without saying this, and simply does not book again, is not replaced under this option.
+>
+> **Addendum — cancelled, then replies STOP (Jonathan decides with the main C1A choice).** If a verified lead cancels and then replies STOP without saying they do not want a call, we stop messaging them at once. Default: **no replacement claim**. STOP is an opt-out from messages, not a sign that the lead failed a point in Schedule B. Alternative: treat it as point 3 (Uncontactable), since the follow-up sequence can no longer run.
 
 **C2. What is never replaced**
 

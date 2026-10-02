@@ -11,6 +11,11 @@ All documents are **DRAFT — for practitioner review**. Markdown only; PDF rend
 - `practitioner-brief.md`: Q9 and Q11 rewritten to the real mechanism and W34 periods; Q10 adds the transcription provider; new Q22 (adviser feedback / s18) and Q23 (C1A cancellations).
 - `compliance-register.md`: F4, P8, P10 updated; new P17 (adviser feedback + transcription) and P18 (opt-out switch); retention schedule 1.5 rows for feedback, voice audio, `wa_threads`, nurture "No thanks", placeholders.
 
+### Follow-up (I-39i, NH-42 addendum)
+- `practitioner-brief.md`: new Q24, which events restart the retention clock `last_contact_at`. Three options are listed; the default and our recommendation is (2), only outbound to and inbound from the lead, so W11 no longer touches it.
+- `broker-services-agreement.md` C1A drafting note: addendum for a lead who cancels and then replies STOP. Default: no replacement claim. The alternative is to treat it as Uncontactable. Jonathan decides this with the main C1A choice (NH-42).
+- `compliance-register.md`: new P19 (retention clock not moved by broker-facing W11 messages).
+
 ## v0.1 — 2026-10-02
 
 ### Added

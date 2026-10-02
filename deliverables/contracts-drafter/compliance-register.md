@@ -43,6 +43,7 @@
 | P15 | Consumer complaints (howzit@ + COMPLAINT) answered within 48 h | Jonathan; KG | Weekly check | Complaints log |
 | P16 | Hashed (SHA-256) uploads only; customer lists used only for exclusion and lookalike seeding | media-buyer; attribution-analyst | Monthly | Upload log |
 | P17 | Adviser feedback (outcome, 1–5 rating, note, voice-note text) disclosed in the Privacy Notice (s18); voice audio not stored; transcript redacted; transcription provider named in the processor table **before** W29 voice notes are switched on | contracts-drafter; automation-engineer (W29) | On change; quarterly | PN version; W29 config flag; redaction test results |
+| P19 | Retention clock `last_contact_at` moves only on messages sent to the lead and messages, taps or bookings from the lead; broker-facing W11 digests and pre-call briefs never move it (default, pending brief Q24) | automation-engineer (W11); devops-security (W34) | Quarterly + on W11 change | Code search of writes to `last_contact_at`; synthetic test |
 | P18 | Ad-measurement off switch at /privacy#opt-out works (`smc_ads_off` set → no Pixel events); Pixel default matches the practitioner answer to Q9 | landing-page-builder | Every deploy | Synthetic browser test log |
 
 ### 1.3 CPA / NCC

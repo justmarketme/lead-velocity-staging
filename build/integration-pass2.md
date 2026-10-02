@@ -166,3 +166,4 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-40g | W33 "Judge samples": wrap the `lead-pulse` branch in `to_jsonb(...)` so the UNION with `ops.judge_samples().samples` (`jsonb[]`) type-checks | optimisation-advisor |
 | I-40h | W28: use `LINES[lang].EMAIL_Q` / `TZ` from conversation/lines.mjs instead of its own copies | automation-engineer (W28) |
 | I-40i | W23 `script-generate` / `script-recheck` nodes per deliverables/conversation-designer/intro-script-generator.md | intro-media-producer |
+| I-40j | If Q24 default (2) stands: remove the two W11 "Touch last_contact_at" nodes; W10/W08 keep theirs | automation-engineer, after practitioner answer |
