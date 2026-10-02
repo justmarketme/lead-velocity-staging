@@ -16,7 +16,7 @@
 | F1 | Fee is a flat price per cycle, paid in advance; never per policy, % of premium, or contingent on a sale | billing-automation; contracts-drafter | Every price change; quarterly | `pricing` table diff; W25 build log; Schedule A merge |
 | F2 | No "policies written" figure is used in any fee or credit calculation | billing-automation | Quarterly | Code search report; invoice sample |
 | F3 | Ads, pages, comments and WhatsApp never advise, compare, name insurers/products, or quote premiums or cover | compliance-qa | Every new asset; W33 daily sample | Approval log; W33 grades; red-team results |
-| F4 | Replacements only for no-show / uncontactable / disqualified — never "didn't buy" | automation-engineer (W13) | Monthly | Replacement log by reason code |
+| F4 | Replacements only for no-show / uncontactable / disqualified — never "didn't buy". Lead cancellations per Schedule C1A (default: `cancel_no_rebook` → uncontactable; `no_call` → disqualified; pending NH-42 / brief Q23) | automation-engineer (W10, W13) | Monthly | Replacement log by reason code, incl. `cancel_no_rebook` and `no_call` |
 | F5 | Broker's FSP verified on the FSCA register before routing; re-checked monthly | broker-success (W20) | Onboarding + monthly | FSCA check record |
 | F6 | Every lead receives the named disclosure (adviser, practice, FSP) before any meeting | automation-engineer (W06) | Continuous; monthly audit of 20 | WhatsApp message ID + delivery status per lead |
 | F7 | Ads run from a broker's Page only under a signed Annex 1, and each ad is approved by the broker | meta-operator | Per use | Signed Annex 1; approval record |
@@ -33,15 +33,17 @@
 | P5 | PAIA manual published and reviewed | Jonathan | Annual + on change | Published URL, version |
 | P6 | Privacy notice current (processors, transfers, retention) | contracts-drafter; compliance-qa | Quarterly + on change | Version history |
 | P7 | Data-subject requests answered within 30 days | Jonathan; W34 | Per request; weekly SLA check | `dsr_requests` |
-| P8 | Retention: lead data deleted 12 months after last contact; consent records 5 years; out-of-band submissions deleted within 24 h | devops-security (W34) | Nightly purge | `retention_log` |
+| P8 | Retention per 1.5 (single source); the PN-v1.1 placeholders and the W34 purge use the same values; periods confirmed by the practitioner (brief Q11) | devops-security (W34); contracts-drafter | Nightly purge; check on any change | `retention_log`; PN version vs W34 config diff |
 | P9 | Health / ID details redacted from transcripts and briefs | conversation-designer | Continuous; W33 sample | Redaction test results |
-| P10 | Email used only for `meeting_invite`; alt number only for `reach_fallback` | automation-engineer | Quarterly | Purpose-field audit |
+| P10 | Email used only for `meeting_invite` and never sent to Meta (no `em` in CAPI, no `EMAIL` in audience uploads); alt number only for `reach_fallback` | automation-engineer; ads-api-engineer | Quarterly + every CAPI change | Purpose-field audit; CAPI payload sample; audience schema |
 | P11 | Operator terms in place with every processor; broker agreement clause 9.3 signed | Jonathan | On new processor | Contract file |
 | P12 | Cross-border transfer basis recorded for each processor (s72) | compliance-qa | Quarterly | Processor list |
 | P13 | Security safeguards: role access, secrets in `.env`, backups off-server, restore tested | devops-security | Monthly | Restore test log; access review |
 | P14 | Breach runbook ready; drill held | Jonathan; devops-security | Twice a year | Drill note |
 | P15 | Consumer complaints (howzit@ + COMPLAINT) answered within 48 h | Jonathan; KG | Weekly check | Complaints log |
 | P16 | Hashed (SHA-256) uploads only; customer lists used only for exclusion and lookalike seeding | media-buyer; attribution-analyst | Monthly | Upload log |
+| P17 | Adviser feedback (outcome, 1–5 rating, note, voice-note text) disclosed in the Privacy Notice (s18); voice audio not stored; transcript redacted; transcription provider named in the processor table **before** W29 voice notes are switched on | contracts-drafter; automation-engineer (W29) | On change; quarterly | PN version; W29 config flag; redaction test results |
+| P18 | Ad-measurement off switch at /privacy#opt-out works (`smc_ads_off` set → no Pixel events); Pixel default matches the practitioner answer to Q9 | landing-page-builder | Every deploy | Synthetic browser test log |
 
 ### 1.3 CPA / NCC
 
@@ -68,10 +70,12 @@
 
 | Record | Keep for | Then | Where |
 |---|---|---|---|
-| Lead details, messages, bookings, outcomes | 12 months after last contact | Delete (W34) | `leads`, `conversations`, `bookings`, `outcomes` |
-| Out-of-band (not qualified) submissions | 24 hours | Delete | `leads` |
-| CTWA "No thanks" | Hashed number only, indefinitely | — | `suppression` |
-| Consent records | 5 years | Delete | consent store |
+| Lead details, messages, bookings, outcomes (incl. adviser rating, note, voice-note transcript and summary), email | {{retention_lead_months}} (default 12) months after last contact | Delete / pseudonymise via `smc_erase_lead()` (W34) | `leads`, `conversations`, `bookings`, `outcomes` |
+| Adviser voice-note audio | Not stored | — | — |
+| Unfinished WhatsApp quiz threads | {{retention_unfinished_hours}} (default 72) hours | Purge after `expires_at` (W34) | `wa_threads` |
+| Out-of-band (not qualified) submissions | {{retention_nonfit_hours}} (default 24) hours | Delete | `leads` |
+| "No thanks" / STOP (CTWA and nurture) | Hashed number only, indefinitely; rest of the row on the lead schedule | — | `suppression` |
+| Consent records and opt-outs | {{retention_consent_years}} (default 5) years | Delete | consent store |
 | Suppression list (hashes) | Indefinitely | — | `suppression` |
 | Broker agreements, invoices | 5 years after the relationship ends | Delete | contracts, `invoices` |
 | Broker intro media | Until 30 days after the relationship ends (clause 11.5) | Delete | storage |

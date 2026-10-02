@@ -126,3 +126,6 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-37g | `ops.notifications.attempts integer NOT NULL DEFAULT 0` (W22 then drops `payload.requeue_attempts`) | platform-architect (migration 11) |
 | I-37h | Credential rename to `LV Supabase - n8n_app (least privilege)` across W14/W20/W23/W24/W30–W33 and the three generators (billing, w03-w28, optimisation); W14/W23 must not use a service-role credential | each workflow owner, next pass |
 | I-37i | `PUBLIC_ALLOWED_ORIGINS` on production drops the staging subdomain; add `www.sortmycover.co.za` | devops-security at W26 |
+| I-37j | `app.leadvelocity.co.za` routes `/s/*` to the SPA like `/broker/*` (Hostinger `.htaccess` / Vercel rewrites) | devops-security |
+| I-37k | privacy.html mirrors PN-v1.1 + CN-v1.1 (adviser feedback, transcription provider placeholder, retention placeholders, STOP line, no banner) | search-findability-lead |
+| I-37l | W10 → W13 claims with reason codes `cancel_no_rebook` / `no_call` per Schedule C1A default; W34 reads retention env names matching the PN placeholders | automation-engineer (W10), compliance-qa (W34) |

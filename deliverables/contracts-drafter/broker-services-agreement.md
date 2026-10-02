@@ -250,6 +250,22 @@ What a person says about age and budget is their own statement. You will check t
 | **Uncontactable** | We cannot reach a verified lead | Decided by the system, not by opinion: our message is not delivered, **or** there is no reply through our full follow-up sequence, **or** you mark `Unreachable / wrong number` and our log agrees | `unreachable` |
 | **Disqualified** | The person does not meet a point in Schedule B | You mark `Not a fit – outside criteria` and choose a reason: age band, budget band, not their number, would not take a call, or duplicate | `nofit_criteria` + reason code |
 
+**C1A. When the person cancels** *(DRAFT — default pending Jonathan's choice, NH-42. Options (a) and (b) are in the drafting note below.)*
+
+If a verified lead cancels the call, one of three things happens:
+
+1. **They book again.** The new call is judged like any other call. Nothing is replaced yet.
+2. **They say plainly that they do not want a call** (for example "I don't want a call" or "No thanks"). We stop messaging them at once. The lead counts as **Disqualified**, with the reason "would not take a call", and can be replaced. Code: `nofit_criteria`, reason `no_call`.
+3. **They go quiet.** We offer new times once. Then we send our full follow-up sequence. If they have not booked again by the end of it, the lead counts as **Uncontactable** and can be replaced. Code: `unreachable`, reason `cancel_no_rebook`.
+
+The system decides points 2 and 3 from the message log. These replacements count against your cap for the cycle. The 48-hour dispute rule in C3 applies as usual.
+
+> *Drafting note — the two options for C1A (Jonathan picks one; the default above is (a) + (b)):*
+>
+> **Option (a) only — "Cancelled and did not rebook" counts as Uncontactable.** If a verified lead cancels the call, we offer new times once. Then we send our full follow-up sequence. If the person has not booked again by the end of it, the lead counts as **Uncontactable** and can be replaced. The system decides this from the message log. Code: `unreachable`, reason `cancel_no_rebook`. If the person says plainly that they do not want a call, we stop messaging them at once, and that lead is not replaced under this option.
+>
+> **Option (b) only — "I don't want a call" counts as Disqualified.** If a verified lead tells us or you plainly that they do not want a call (for example "I don't want a call" or "No thanks"), they no longer meet point 4 of Schedule B. The lead counts as **Disqualified**, with the reason "would not take a call", and can be replaced. We stop messaging the person at once. The message log, or your mark with that reason, is the evidence. Code: `nofit_criteria`, reason `no_call`. A lead who cancels without saying this, and simply does not book again, is not replaced under this option.
+
 **C2. What is never replaced**
 
 | Situation | Code | Why |
@@ -259,6 +275,7 @@ What a person says about age and budget is their own statement. You will check t
 | Not a fit – budget (they met the band but chose not to spend) | `nofit_budget` | Delivered as agreed; we use it to tune our questions |
 | Not a fit – already well covered | `nofit_covered` | Delivered as agreed; we use it to tune our ads |
 | The person did not buy | — | Never a reason (clause 5.4) |
+| The person cancelled and booked again | — | The new call is judged as usual (C1A point 1) |
 | **You** missed the call | — | See Schedule D. We apologise to the person and rebook at our cost. No replacement. |
 | Call not marked within 24 hours | — | Recorded as attended (Schedule D) |
 

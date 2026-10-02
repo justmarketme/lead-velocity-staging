@@ -2,6 +2,15 @@
 
 All documents are **DRAFT — for practitioner review**. Markdown only; PDF rendering is a later step.
 
+## Review-4 fixes — 2026-10-02 (compliance-qa phase4-review-4 #27–#29, NH-42)
+
+### Changed
+- `consent-and-privacy.md` Privacy Notice **PN-v1 → PN-v1.1**: email used only for the video-call invite and never sent to Meta (removed "and email" from the purposes table, Meta processor row and Pixel/CAPI section; #27); new "From the adviser, after your call" line (outcome, 1–5 rating, short note, voice note transcribed by `{{TRANSCRIPTION_PROVIDER}}`, audio not kept, redacted text only; #29, POPIA s18); `{{TRANSCRIPTION_PROVIDER}}` row in the processor table; retention list aligned with W34 (lead data incl. feedback, unfinished chats, non-fit, consent, block list, backups) with periods as placeholders + defaults for practitioner confirmation (Q11); "No thanks" line scoped to the block-list hash for both CTWA and nurture (#28, depends on the W08 suppress fix); PERSON route added to "Automated checks". Mirror owner must update `landing/holding/privacy.html`.
+- Cookie Notice **CN-v1 → CN-v1.1**: banner removed (none exists); `smc_ads_off` row added; off switch described as `adsOff()`/`adsOn()` at /privacy#opt-out; Pixel on at load marked as the open practitioner question (Q9), with the CN-v2 switch-over if opt-in is required.
+- `broker-services-agreement.md` Schedule C: new **C1A "When the person cancels"** (default (a)+(b)), options (a) and (b) in a drafting note for Jonathan (NH-42); C2 row "cancelled and booked again".
+- `practitioner-brief.md`: Q9 and Q11 rewritten to the real mechanism and W34 periods; Q10 adds the transcription provider; new Q22 (adviser feedback / s18) and Q23 (C1A cancellations).
+- `compliance-register.md`: F4, P8, P10 updated; new P17 (adviser feedback + transcription) and P18 (opt-out switch); retention schedule 1.5 rows for feedback, voice audio, `wa_threads`, nurture "No thanks", placeholders.
+
 ## v0.1 — 2026-10-02
 
 ### Added

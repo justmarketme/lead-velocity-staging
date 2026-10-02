@@ -21,9 +21,9 @@
 | Q6 | Does a registry block override a fresh, specific request made minutes earlier (e.g. the booking confirmation)? | Yes — suppress, even the confirmation | Allow transactional messages the person just asked for |
 | Q7 | POPIA roles: are we responsible party for collection, broker responsible party after hand-over, and our calendar work for the broker an operator role? | As drafted in agreement clause 9 | Joint responsible parties with a single shared notice |
 | Q8 | Is one tick box plus a separate advertising-measurement sentence enough for hashed Pixel/CAPI use and lookalike seeding? | One tick + separate sentence (4.4a) | A second, optional tick box for ad measurement |
-| Q9 | Cookies: may the Meta Pixel fire on page load with notice and an off switch? | On load + banner + "Ad measurement" off switch | Prior opt-in banner; no Pixel until accepted |
-| Q10 | Is our s72 basis for overseas processors (binding processor terms + necessity) sufficient, or do we need explicit consent? | Processor terms + necessity; listed in privacy notice | Add explicit transfer consent |
-| Q11 | Are 12 months (lead data) and 5 years (consent records) the right retention periods? | As stated | Your periods |
+| Q9 | Cookies (**open — blocks publication, not staging**): may the Meta Pixel run on page load by default, with notice in the Privacy and Cookie Notices and an off switch at /privacy#opt-out, and no banner (POPIA / ECTA)? | Pixel on at load; notice (CN-v1.1); off switch `smc_ads_off` at /privacy#opt-out; no banner | Opt-in: no Pixel until the person switches it on; one-line banner (CN-v2) |
+| Q10 | Is our s72 basis for overseas processors (binding processor terms + necessity) sufficient, or do we need explicit consent? This now includes the voice-note transcription provider. | Processor terms + necessity; listed in privacy notice | Add explicit transfer consent |
+| Q11 | Are these retention periods right? Lead data incl. adviser feedback 12 months after last contact; unfinished WhatsApp chat 72 hours; non-fit entries 24 hours; consent and opt-out records 5 years; block-list hash indefinitely. They are placeholders in PN-v1.1 and W34 enforces whatever you confirm. | As stated | Your periods |
 | Q12 | Are the replacement, 48-hour dispute, 14-day extension and pro-rata credit mechanics fair and enforceable (CPA s48 if it applies to the broker); is the liability cap at the cycle price acceptable? | As in Schedule C and clauses 5 and 14 | Your changes |
 | Q13 | Month to month with no notice period and no grace; card auto-renew opt-in only — any CPA issue? | As drafted | — |
 | Q14 | Likeness: is the clause 11 consent (photo, voice, video; optional and withdrawable) sufficient, or does it need a separate standalone consent? | Clause in the agreement with its own tick | Separate signed consent form |
@@ -32,6 +32,8 @@
 | Q17 | Health/ID details volunteered in chat: is redaction plus "has a health question" in the brief sufficient under s26–27? | As described | Block the message and ask the person not to share |
 | Q18 | Dispute resolution: talk → mediation → court. Suitable? | As drafted | Arbitration (e.g. AFSA) |
 | Q19 | Is the term sheet binding for cycle 1 until the full agreement is signed? | Binding, replaced by the agreement | Non-binding heads of terms |
+| Q22 | Adviser feedback about the lead (outcome, 1–5 rating, short note, voice note transcribed by {{TRANSCRIPTION_PROVIDER}}; audio not kept, transcript redacted): is the PN-v1.1 notice enough under s18 (information from another source), and may we use it to tune ads and settle replacements? | Disclosed in PN-v1.1 "What we collect"; provider in the processor table; voice notes stay off until the provider is named | Collect tap outcome and rating only; no free-text note or voice note |
+| Q23 | Schedule C1A: when a verified lead cancels and does not rebook, is replacing it (a) as "uncontactable" after one rebooking offer and the follow-up sequence, and (b) as "would not take a call" on an explicit refusal, consistent with *Raspberry Academy* (no policy linkage) and fair to both sides? Does the one rebooking offer plus follow-up after a cancellation respect the lead's objection rights? | (a) + (b) both replaceable, within the per-cycle cap; messaging stops at once on an explicit refusal | (a) only, or (b) only (texts in Schedule C1A drafting note) |
 | Q20 | The existing CRM contract generator contains commission wording, a one-week notice term, a strict no-refund clause and a 24-month commission survival clause. Confirm these must be removed. | Retire that template; use this agreement only | — |
 
 ---
@@ -54,13 +56,17 @@
 
 **Q10 — Transfers.** Processors: Meta, Anthropic, Google, Microsoft, Twilio, Paystack, Hostinger, Supabase.
 
-**Q12 — Replacement mechanics.** Caps per cycle: Bronze 4, Silver 6, Gold 9. Triggers: no-show (and no answer to our T+30 check), uncontactable (system-determined), disqualified (Schedule B miss with reason code). Never "didn't buy".
+**Q12 — Replacement mechanics.** Caps per cycle: Bronze 4, Silver 6, Gold 9. Triggers: no-show (and no answer to our T+30 check), uncontactable (system-determined), disqualified (Schedule B miss with reason code). Never "didn't buy". Lead cancellations: see Q23 and Schedule C1A.
+
+**Q9 — Pixel default.** The mechanism exists today: `smc.adsOff()` / `smc.adsOn()` at /privacy#opt-out store a first-party `smc_ads_off` flag; while set, nothing is sent to Meta from the page. The only open point is whether "on by default" is allowed. *Ask:* default OK, or opt-in?
+
+**Q22 / Q23 — Adviser feedback and cancellations.** See consent-and-privacy.md PN-v1.1 and broker-services-agreement.md Schedule C1A. *Ask:* any wording we must add to the notice or the schedule?
 
 **Q14 — Likeness.** Name, practice and FSP number are required for disclosure. Photo, voice and video are optional. No voice cloning or avatars.
 
 **Q20 — Legacy template.** `src/components/dashboard/ContractGenerator.tsx` defaults include `commissionText`, "Top-Up tokens require one week's notice", "commission … obligations survive for 24 months" and a no-refund rule. We have flagged these for removal; we ask you to confirm.
 
-**Please return:** a short written opinion answering Q1–Q20, marked-up documents where wording must change, and anything else you think we missed.
+**Please return:** a short written opinion answering Q1–Q23, marked-up documents where wording must change, and anything else you think we missed.
 
 
 ### Q21 — E-signature validity (added by the orchestrator from the first-principles memo)

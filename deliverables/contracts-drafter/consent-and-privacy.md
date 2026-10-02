@@ -70,7 +70,9 @@ Use the same text as 1.2 (or 1.3) as the custom consent checkbox, with 1.4 as th
 ## Part 2 — Privacy Notice (published at sortmycover.co.za/privacy)
 
 **Privacy Notice — SortMyCover**
-Last updated: {{date}} · Version PN-v1
+Last updated: {{date}} · Version PN-v1.1
+
+*Drafting note (not published): PN-v1.1 closes compliance-qa review 4 #27 (email never sent to Meta) and #29 (adviser feedback and transcription disclosed, POPIA s18), scopes the "No thanks" line (#28, depends on the W08 suppress fix), and turns the retention periods into placeholders that W34 enforces and the practitioner confirms (brief Q11). `landing/holding/privacy.html` mirrors this text; its owner updates it.*
 
 ### Who we are
 SortMyCover is a service of **Lead Velocity (Pty) Ltd** (registration {{lv_cipc_number}}), {{lv_address}}. We are the **responsible party** for the details you give us. That means we decide how they are used, and we must protect them under the Protection of Personal Information Act (POPIA).
@@ -79,10 +81,11 @@ We connect you with authorised financial services providers. We do not give fina
 
 ### What we collect
 - **From you on our page, form or WhatsApp:** first name, mobile number, age band, budget band, whether you have a bond or dependants, how you'd like to meet, and the time you book.
-- **Only if you choose a Teams, Zoom or Meet call:** your email address.
+- **Only if you choose a Teams, Zoom or Meet call:** your email address. We use it only to send the invite for that call. We never use it for marketing, and we never send it to Meta.
 - **Only if you give it:** a different number to call you on, a backup number, and the best time to reach you.
 - **Automatically:** the ad or link you came from, your device type and IP address, and cookies (see the Cookie Notice).
 - **Your messages** with our WhatsApp assistant.
+- **From the adviser, after your call:** how the call went (for example, attended or missed), a 1 to 5 rating of the call and a short note. The adviser may also leave a short voice note. Our provider, {{TRANSCRIPTION_PROVIDER}}, turns it into text. We do not keep the recording. We keep only the text, after we remove any health or ID details. We use all of this to improve our ads and our questions, and to replace leads under our agreement with the adviser.
 
 We do **not** ask for your ID number, bank details or exact income. If you send us health details or an ID number in chat, we remove them from our records. We tell the adviser only that you have a question for them.
 
@@ -93,9 +96,10 @@ We do **not** ask for your ID number, bank details or exact income. If you send 
 | Check that a call with an adviser fits you | Age band, budget band, call method |
 | Pass your details to the adviser you agreed to | Name, number, bands, booking, your questions |
 | Book your call and send reminders on WhatsApp | Name, number, booking time |
-| Send a calendar invite | Email — **only for the invite**, never for marketing |
+| Send a calendar invite | Email — **only for the invite**, never for marketing, never sent to Meta |
 | Reach you if your first number fails | Backup number — **only for this**, never for marketing |
-| Measure and improve our ads | Coded (hashed) number and email, ad and page events |
+| Measure and improve our ads | Coded (hashed) number, ad and page events, the adviser's 1 to 5 rating as a number |
+| Improve our ads and questions, and settle lead replacements with the adviser | The adviser's outcome, rating, note and voice-note text |
 | Keep a record that you agreed, and of opt-outs | Consent text, time, page, suppression list |
 
 ### Who we share it with
@@ -106,7 +110,8 @@ We do **not** ask for your ID number, bank details or exact income. If you send 
 
 | Provider | What they do for us | Where data may go |
 |---|---|---|
-| Meta (WhatsApp, Facebook, Instagram) | Messages, ads, ad measurement. For measurement we send your coded (hashed) number and email, plus your IP address and browser type as they are, and — after a call — the adviser's 1–5 rating of the meeting as a number. We never send what was said. | {{meta_regions — confirm}} |
+| Meta (WhatsApp, Facebook, Instagram) | Messages, ads, ad measurement. For measurement we send your coded (hashed) number, plus your IP address and browser type as they are, and — after a call — the adviser's 1–5 rating of the meeting as a number. We never send your email, the adviser's note, or what was said. | {{meta_regions — confirm}} |
+| {{TRANSCRIPTION_PROVIDER}} | Turns the adviser's voice note about your call into text. The recording is not kept by us. | {{transcription_regions — confirm}} |
 | Anthropic | AI that helps our WhatsApp assistant reply | {{anthropic_regions — confirm}} |
 | Google | Calendar and video calls (for some advisers), website tools | {{google_regions — confirm}} |
 | Microsoft | Email, calendars and Teams | {{microsoft_regions — confirm}} |
@@ -118,16 +123,23 @@ We do **not** ask for your ID number, bank details or exact income. If you send 
 When your details go outside South Africa, we only use providers bound by law or a written agreement to protect them to a standard like POPIA, as section 72 requires.
 
 ### Facebook and Instagram measurement (Pixel and Conversions API)
-Our website uses the **Meta Pixel**. Our systems also use Meta's **Conversions API**. These tell Meta when someone views our page, sends the form or books a call. We code (hash) your number and email before we send them, so Meta can match them but not read them. We use this to measure our ads, to stop showing ads to people already talking to us, and to find similar people. We never use your details to send you ads by message.
+Our website uses the **Meta Pixel**. Our systems also use Meta's **Conversions API**. These tell Meta when someone views our page, sends the form or books a call. We code (hash) your number before we send it, so Meta can match it but not read it. We never send your email address to Meta. We use this to measure our ads, to stop showing ads to people already talking to us, and to find similar people. We never use your details to send you ads by message. You can switch this off on this page — see the Cookie Notice and **sortmycover.co.za/privacy#opt-out**.
 
 ### How long we keep it
-- Your details and messages: **12 months after our last contact with you**, then deleted.
-- Your consent record and opt-out: **5 years**, as evidence.
-- Form entries that do not fit our criteria: **deleted within 24 hours**.
-- If you say "No thanks" in WhatsApp: we keep only a coded copy of your number so we never message you again.
+Our system deletes records on these dates every night.
+- Your details, messages, booking and the adviser's feedback about your call: **{{retention_lead_months}} months after our last contact with you**, then deleted.
+- Your email (only if you gave it for a video call): deleted with your other details.
+- Voice notes from the adviser: the recording is not kept. The text is kept with your other details.
+- Answers in a WhatsApp chat you did not finish: **deleted after {{retention_unfinished_hours}} hours**.
+- Form entries that do not fit our criteria: **deleted within {{retention_nonfit_hours}} hours**.
+- Your consent record and any opt-out: **{{retention_consent_years}} years**, as evidence.
+- If you say "No thanks" or STOP: we keep a coded copy of your number on our block list so we never message you again. Your other details are deleted on the dates above.
+- Backups: overwritten every {{backup_days}} days.
+
+*Drafting note: practitioner confirms the periods (brief Q11). Defaults: {{retention_lead_months}} = 12, {{retention_unfinished_hours}} = 72, {{retention_nonfit_hours}} = 24, {{retention_consent_years}} = 5. W34 reads the same values; the page and the purge must never differ.*
 
 ### Automated checks
-Our system checks your answers against fixed criteria (age band, budget band). If they don't fit, we close politely and don't pass your details on. You can ask a person to look again by emailing howzit@leadvelocity.co.za.
+Our system checks your answers against fixed criteria (age band, budget band). If they don't fit, we close politely and don't pass your details on. You can ask a person to look again: reply **PERSON** on WhatsApp, or email howzit@leadvelocity.co.za.
 
 ### Our AI assistant
 Our WhatsApp assistant uses AI. It can answer questions about the call and help you book. It never gives advice. Type "person" at any time to reach a human.
@@ -181,24 +193,25 @@ If we change this notice, we update the date at the top. Big changes are also sh
 
 ---
 
-## Part 4 — Cookie Notice (sortmycover.co.za/cookies, and a one-line banner)
+## Part 4 — Cookie Notice (sortmycover.co.za/cookies and inside the Privacy Notice; the off switch is at sortmycover.co.za/privacy#opt-out)
 
-**Banner text:** "We use cookies to measure our ads and keep the site working. [Cookie settings] [OK]"
+**Cookie Notice — SortMyCover** · Version CN-v1.1
 
-**Cookie Notice — SortMyCover** · Version CN-v1
-
-Cookies are small files a website stores in your browser.
+Cookies are small files a website stores in your browser. Our site also stores a few small notes in your browser's own storage. This notice covers both.
 
 | Name | Set by | Why | How long |
 |---|---|---|---|
 | `_fbp` | Meta Pixel (first-party) | Measure which ads bring visitors | About 90 days |
 | `_fbc` | Meta Pixel (first-party, when you click an ad) | Link your visit to the ad you clicked | About 90 days |
 | Ad source (`utm_*`, `fbclid`) | SortMyCover (stored in your browser) | Remember which ad or link you came from, so your enquiry keeps its source | Until you send the form or clear your browser |
+| `smc_ads_off` | SortMyCover (stored in your browser) | Remember that you switched ad measurement off | Until you switch it back on or clear your browser |
 | Essential session data | SortMyCover | Keep the form and booking working | Until you close the page |
 
-**Your choice.** Press **Cookie settings** and turn off "Ad measurement". Meta cookies will then not be set. The site still works. You can also block cookies in your browser.
+**Ad measurement is on when you arrive.** The Meta Pixel starts when the page loads. We tell you this here and in our Privacy Notice. We do not show a cookie pop-up.
 
-*Implementation note: "Ad measurement off" sets `window.SMC_CONSENT_ANALYTICS = false` before `pixel.js` loads (see `landing/shared/pixel.README.md`). The default (on, with notice) is a practitioner question — see practitioner-brief Q9.*
+**Your choice.** Go to **sortmycover.co.za/privacy#opt-out** and press **Switch ad measurement off**. From then on the Meta Pixel does not run on our site in that browser, and no new Meta cookies are set. The site still works. Meta cookies already in your browser stay until they expire, unless you clear them. Your choice is saved in this browser only, so set it again on another phone or browser. To turn it back on, press **Switch ad measurement on** on the same page. You can also block cookies in your browser settings.
+
+*Implementation note (not published): the off switch calls `smc.adsOff()` in `landing/shared/pixel.js`, which saves `smc_ads_off = 1` in local/session storage; `smc.adsOn()` removes it. `consent()` returns false when `smc_ads_off = 1` or `window.SMC_CONSENT_ANALYTICS === false`, and `fire()` then sends nothing to Meta. Ad-source values are still kept first-party for the lead record. There is no banner. **Open practitioner question (brief Q9): may the Pixel run on page load by default (notice + off switch), or must it wait for an opt-in?** If the practitioner says opt-in, flip the default (no Pixel until `adsOn()`), add a one-line banner, and bump to CN-v2.*
 
 ---
 
@@ -230,7 +243,9 @@ These are the first message every lead gets (< 60 s). Wording is verbatim from m
 | No advice / comparison / premiums | footer 1.5 | ✓ | ✓ | — | rule-8 line |
 | STOP opt-out | ✓ | ✓ | — | — | ✓ |
 | Hashed ad measurement | 1.4 | ✓ | — | ✓ | — |
-| Email only for invite | — | ✓ | — | — | — |
-| Retention 12 m / 5 y | — | ✓ | — | — | — |
+| Email only for invite, never sent to Meta | — | ✓ (PN-v1.1) | — | — | — |
+| Adviser feedback + voice-note text disclosed; audio not kept; provider named | — | ✓ (PN-v1.1) | — | — | — |
+| Pixel on at load, off switch at /privacy#opt-out, no banner (Q9 open) | 1.4 | ✓ | — | ✓ (CN-v1.1) | — |
+| Retention periods = W34 values (placeholders until Q11) | — | ✓ | — | — | — |
 | Complaints howzit@ + COMPLAINT, 48 h | — | ✓ | ✓ | — | — |
 | Flat fee, not tied to policies | — | — | ✓ (s4) | — | — |
