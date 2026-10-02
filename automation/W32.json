@@ -119,7 +119,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -175,7 +175,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -197,7 +197,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -232,7 +232,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -255,7 +255,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -278,7 +278,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -301,7 +301,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -324,7 +324,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -347,7 +347,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -547,7 +547,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       }
     },
@@ -685,7 +685,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       }
     },
@@ -735,7 +735,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       }
     },
@@ -758,7 +758,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       }
     },
@@ -884,7 +884,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -908,7 +908,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -932,7 +932,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -956,7 +956,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -980,7 +980,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -1016,7 +1016,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -1329,7 +1329,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -1353,7 +1353,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -1377,7 +1377,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -1412,7 +1412,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -1435,7 +1435,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -1458,7 +1458,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -1481,7 +1481,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -1609,7 +1609,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -1633,7 +1633,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -1657,7 +1657,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -1763,7 +1763,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -1785,7 +1785,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -1820,7 +1820,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -1948,7 +1948,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -1972,7 +1972,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -2029,7 +2029,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Approve / Snooze 7 d / Decline(reason) from the WhatsApp quick reply (payload \"approve:<id>\" | \"later:<id>\") via the smc-w32-decision webhook,\n// or from a console approval row claimed by the 1-minute poll (I-34d), which arrives through the sub-call trigger with _via_console = true.\n// The webhook item is {headers, params, query, body}, so a webhook caller cannot set the top-level _via_console flag.\nconst via = $input.first().json._via_console === true ? 'console' : 'webhook';\nconst b = $input.first().json.body || $input.first().json;\nlet decision = b.decision, id = b.proposal_id, by = b.decided_by || null;\nif (b.payload && typeof b.payload === 'string') { const [d, i] = b.payload.split(':'); decision = d; id = i; by = by || b.from || null; }\nconst ok = ['approve', 'snooze', 'decline', 'later'].includes(decision) && /^[0-9a-f-]{36}$/i.test(String(id));\nif (!ok) return [{ json: { valid: false, error: 'bad decision payload' } }];\nif (decision === 'decline' && !(b.reason && String(b.reason).trim())) return [{ json: { valid: false, error: 'decline needs a reason' } }];\nreturn [{ json: { valid: true, decision, proposal_id: String(id), decided_by: by || 'unknown', reason: b.reason ? String(b.reason).slice(0, 300) : null, via } }];\n"
+        "jsCode": "// Approve / Snooze 7 d / Decline(reason) from the WhatsApp quick reply (payload \"approve:<id>\" | \"later:<id>\") via the smc-w32-decision webhook,\n// or from a console approval row claimed by the 1-minute poll (I-34d), which arrives through the sub-call trigger with _via_console = true.\n// The webhook item is {headers, params, query, body}, so a webhook caller cannot set the top-level _via_console flag.\n// via: 'console' (poll sub-call flag) | 'whatsapp' (W07 routed an Approve/Later tap from an ops number: automation/lib/w07.mjs w32DecisionItem sets top-level source = 'W07') | 'webhook' (smc-w32-decision webhook).\n// Both flags are top-level fields of the sub-call item; a webhook item is {headers, params, query, body}, so a caller cannot set either.\nconst top = $input.first().json;\nconst via = top._via_console === true ? 'console' : (top.source === 'W07' ? 'whatsapp' : 'webhook');\nconst b = $input.first().json.body || $input.first().json;\nlet decision = b.decision, id = b.proposal_id, by = b.decided_by || null;\nif (b.payload && typeof b.payload === 'string') { const [d, i] = b.payload.split(':'); decision = d; id = i; by = by || b.from || null; }\nconst ok = ['approve', 'snooze', 'decline', 'later'].includes(decision) && /^[0-9a-f-]{36}$/i.test(String(id));\nif (!ok) return [{ json: { valid: false, error: 'bad decision payload' } }];\nif (decision === 'decline' && !(b.reason && String(b.reason).trim())) return [{ json: { valid: false, error: 'decline needs a reason' } }];\nreturn [{ json: { valid: true, decision, proposal_id: String(id), decided_by: by || 'unknown', reason: b.reason ? String(b.reason).slice(0, 300) : null, via } }];\n"
       },
       "id": "bf30f80b-fb7b-9be7-6203-72850fbcf826",
       "name": "Validate decision",
@@ -2104,7 +2104,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -2126,7 +2126,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -2161,7 +2161,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -2170,7 +2170,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "with d as (select $1::text as decision, $2::uuid as id, $3::text as by, $4::text as reason, coalesce($5::text, 'webhook') as via)\nupdate ops.proposals p set\n status = case when d.via = 'console' then p.status when d.decision = 'approve' then 'approved' when d.decision = 'snooze' then 'snoozed' when d.decision = 'decline' then 'declined' else p.status end,\n decided_by_label = case when d.decision = 'later' or d.via = 'console' then p.decided_by_label else d.by end,\n decided_at = case when d.decision = 'later' or d.via = 'console' then p.decided_at else now() end,\n decline_reason = case when d.decision = 'decline' and d.via <> 'console' then d.reason else p.decline_reason end,\n snooze_until = case when d.decision = 'snooze' and d.via <> 'console' then current_date + 7 else p.snooze_until end\nfrom d where p.id = d.id and (\n (d.via <> 'console' and p.status in ('proposed', 'snoozed'))\n -- console path: smc_console_decide_proposal already decided the row; W32 only runs the follow-up once (task_id guard)\n or (d.via = 'console' and p.decided_by_label = 'console' and p.task_id is null\n     and p.status = case d.decision when 'approve' then 'approved' when 'snooze' then 'snoozed' when 'decline' then 'declined' end))\nreturning p.id::text as id, p.title, p.metric, p.forecast, p.test, p.kill_rule, p.owner_agent, p.check_date, p.decided_by_label as decided_by, d.decision;",
+        "query": "with d as (select $1::text as decision, $2::uuid as id, $3::text as by, $4::text as reason, coalesce($5::text, 'webhook') as via)\nupdate ops.proposals p set\n status = case when d.via = 'console' then p.status when d.decision = 'approve' then 'approved' when d.decision = 'snooze' then 'snoozed' when d.decision = 'decline' then 'declined' else p.status end,\n decided_by_label = case when d.decision = 'later' or d.via = 'console' then p.decided_by_label else d.by end,\n decided_at = case when d.decision = 'later' or d.via = 'console' then p.decided_at else now() end,\n decided_via = case when d.decision = 'later' then p.decided_via else coalesce(p.decided_via, d.via) end,\n decline_reason = case when d.decision = 'decline' and d.via <> 'console' then d.reason else p.decline_reason end,\n snooze_until = case when d.decision = 'snooze' and d.via <> 'console' then current_date + 7 else p.snooze_until end\nfrom d where p.id = d.id and (\n (d.via <> 'console' and p.status in ('proposed', 'snoozed'))\n -- console path: smc_console_decide_proposal already decided the row; W32 only runs the follow-up once (task_id guard)\n or (d.via = 'console' and p.decided_by_label = 'console' and p.task_id is null\n     and p.status = case d.decision when 'approve' then 'approved' when 'snooze' then 'snoozed' when 'decline' then 'declined' end))\nreturning p.id::text as id, p.title, p.metric, p.forecast, p.test, p.kill_rule, p.owner_agent, p.check_date, p.decided_by_label as decided_by, p.decided_via, d.decision;",
         "options": {
           "queryReplacement": "={{ [ $('Validate decision').first().json.decision, $('Validate decision').first().json.proposal_id, $('Validate decision').first().json.decided_by, $('Validate decision').first().json.reason, $('Validate decision').first().json.via ] }}"
         }
@@ -2186,7 +2186,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -2210,7 +2210,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -2406,7 +2406,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -2474,7 +2474,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -2516,7 +2516,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       }
     },
@@ -2622,7 +2622,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -2647,7 +2647,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -2718,7 +2718,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -2740,7 +2740,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -2775,7 +2775,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -2798,7 +2798,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -2906,7 +2906,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true

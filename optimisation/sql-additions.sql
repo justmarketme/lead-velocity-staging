@@ -37,3 +37,6 @@ ALTER TABLE ops.quality_grades DROP CONSTRAINT IF EXISTS quality_grades_severity
 ALTER TABLE ops.quality_grades ADD CONSTRAINT quality_grades_severity_check CHECK (severity IN ('info','minor','major','critical','high','medium','low'));
 -- The judge rubric severities are critical/high/medium/low (rubrics/README.md); the table's info/minor/major are kept for other writers.
 -- Admin-only RLS for the new table/columns follows the smc_05_rls.sql pattern; the advisor role gets write on its own tables only (4.15).
+
+-- I-37: how a proposal decision arrived: 'console' | 'whatsapp' | 'webhook' (W32 Decide writes it; null on rows decided before this).
+ALTER TABLE ops.proposals ADD COLUMN IF NOT EXISTS decided_via text;

@@ -6,10 +6,12 @@
 
   // ---------------------------------------------------------------- config
   var QS = new URLSearchParams(location.search);
-  if (QS.get('mock') === '1') localStorage.setItem('smc_intro_mock', '1');
-  if (QS.get('mock') === '0') localStorage.removeItem('smc_intro_mock');
+  // I-37a: every endpoint now exists in W23, so the real API is the default. Mock is for design review only and is NOT sticky
+  // (a leftover localStorage flag used to hide the real server); it lasts for the tab session and ?mock=0 ends it.
+  if (QS.get('mock') === '1') sessionStorage.setItem('smc_intro_mock', '1');
+  if (QS.get('mock') === '0') { sessionStorage.removeItem('smc_intro_mock'); localStorage.removeItem('smc_intro_mock'); }
   var API = document.documentElement.getAttribute('data-api') || '/intro';
-  var MOCK = localStorage.getItem('smc_intro_mock') === '1';
+  var MOCK = sessionStorage.getItem('smc_intro_mock') === '1';
   var LIMITS = { minSec: 15, maxSec: 40, wordsMin: 60, wordsMax: 90, wps: 2.6, maxTakes: 3 };
   var DEMO_BROKER = { first_name: 'Mark', name: 'Mark Williams', practice: 'Mark Williams Financial Planning', fsp: '00000', pronoun: 'him' }; // fictional
   var WA_NUMBER_DEMO = '27000000000'; // fictional

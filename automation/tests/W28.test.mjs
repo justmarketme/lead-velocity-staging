@@ -203,3 +203,40 @@ test('W28.json: inactive, settings block, credentials by name, no secrets, conne
   }
   assert.ok(WF.connections['Status?'].main[0].some((l) => l.node === 'Respond ping (encrypted)'));
 });
+
+// ---------- I-39k: one message, never two (delegate lines travel inside W28's own lead-facing message) ----------
+const { LINES } = await import('../../conversation/lines.mjs');
+const MARK_ROW = { adviser_name: MARK.adviser_name, adviser_first_name: MARK.adviser_first_name };
+
+test('I-39k ask_email WITH delegate.body: exactly one text message = delegate.body + the email question', () => {
+  const delegate = { to: 'W10', action: 'change_method', body: "Thanks Sipho. I'll change it to Teams.", lead_lines: ['Thanks Sipho.'], intro_line: "I'll change it to Teams.", lang: 'en' };
+  const r = EP.askEmailMessage({ to: '+27600000002', method: 'teams', broker: MARK_ROW, lead: { language: 'en' }, delegate, lines: LINES, reason: 'change_method' });
+  assert.equal(r.message.type, 'text');
+  assert.equal(r.message.text.body, "Thanks Sipho. I'll change it to Teams. Where should we send the Teams invite? Reply with your email address.");
+  assert.equal(r.message.text.body.split(delegate.body).length - 1, 1, 'delegate body appears once, inside the one message');
+  assert.ok(r.message.text.body.length <= EP.WA_BODY_MAX);
+  // an over-long delegate body is trimmed, the question is never cut
+  const long = EP.askEmailMessage({ to: '+27600000002', method: 'zoom', broker: MARK_ROW, delegate: { body: 'x'.repeat(2000), lang: 'en' }, lines: LINES });
+  assert.ok(long.message.text.body.length <= EP.WA_BODY_MAX);
+  assert.ok(long.message.text.body.endsWith('Where should we send the Zoom invite? Reply with your email address.'));
+});
+
+test('I-39k ask_email WITHOUT delegate.body: lead_lines + intro_line if given, else lines.mjs in the lead\'s language', () => {
+  const lines = EP.askEmailMessage({ to: '+27600000002', method: 'teams', broker: MARK_ROW, delegate: { lead_lines: ['Thanks.'], intro_line: "I'll change it to Teams.", lang: 'en' }, lines: LINES, reason: 'change_method' });
+  assert.equal(lines.message.text.body, "Thanks. I'll change it to Teams. Where should we send the Teams invite? Reply with your email address.");
+  const af = EP.askEmailMessage({ to: '+27600000002', method: 'teams', broker: MARK_ROW, lead: { language: 'af' }, lines: LINES, reason: 'change_method' });
+  assert.equal(af.lang, 'af');
+  assert.ok(af.message.text.body.startsWith(LINES.af.METHOD_CHANGED.replace('{method}', 'Teams')), af.message.text.body);
+  assert.match(af.message.text.body, /Waarheen moet ons die Teams-uitnodiging stuur\?/);
+  const plain = EP.askEmailMessage({ to: '+27600000002', method: 'teams', broker: MARK_ROW, lead: { language: 'en' }, lines: LINES });
+  assert.equal(plain.message.text.body, 'Where should we send the Teams invite? Reply with your email address.');
+});
+
+test('I-39k 10-slot list carries the W04/W07 delegate body in its one body; without it, SLOTS_INTRO in the lead\'s language', () => {
+  const slots = engine(MARK).slots;
+  const withBody = EP.listFallback(MARK, slots, offerSlots, '+27600000002', { delegate: { body: 'Sure. Here are the next open times with Mark.', lang: 'en' }, lines: LINES });
+  assert.equal(withBody.interactive.body.text, 'Sure. Here are the next open times with Mark. Times are South African time.');
+  const af = EP.listFallback(MARK, slots, offerSlots, '+27600000002', { lead: { language: 'af' }, lines: LINES });
+  assert.equal(af.interactive.body.text, `${LINES.af.SLOTS_INTRO.replace('{adviser_first}', 'Mark')} Tye is Suid-Afrikaanse tyd.`);
+  assert.equal(af.interactive.action.sections[0].rows.length, 10, 'still one interactive message with the list');
+});

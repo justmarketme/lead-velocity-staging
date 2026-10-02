@@ -53,7 +53,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -75,7 +75,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -96,7 +96,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "select rubric, samples from ops.judge_samples(current_date);",
+        "query": "select rubric, samples from ops.judge_samples(current_date) where rubric <> 'whatsapp-conversation'\nunion all\nselect 'whatsapp-conversation' as rubric, coalesce((select b.samples from ops.judge_samples(current_date) b where b.rubric = 'whatsapp-conversation'), '[]'::jsonb) || coalesce((select jsonb_agg(jsonb_build_object('sample_ref', 'lead_pulse:' || t.id, 'source', 'lead_pulse', 'thumbs', t.thumbs, 'line', t.line, 'answered_at', t.answered_at)) from (select id, thumbs, line, answered_at from public.lead_pulse where thumbs = 'down' and answered_at >= now() - interval '24 hours' order by answered_at limit 10) t), '[]'::jsonb) as samples;",
         "options": {}
       },
       "id": "1f5c609d-371d-464a-86ad-b7af95213a3a",
@@ -110,7 +110,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "alwaysOutputData": true,
@@ -206,7 +206,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -230,7 +230,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -254,7 +254,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -337,7 +337,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -433,7 +433,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true
@@ -457,7 +457,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (ops writer)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true

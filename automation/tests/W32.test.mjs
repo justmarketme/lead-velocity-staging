@@ -196,3 +196,17 @@ test('Confirm to approvers: one approval_confirmed WhatsApp item per approver wi
   assert.deepEqual(bad.out, []); assert.match(bad.logs.join(' '), /confirm failed \(ignored\)/);
   assert.deepEqual(outs('Link task'), ['Confirm to approvers']);
 });
+
+test('Validate decision: via is console, whatsapp (W07 source) or webhook; Decide records decided_via; judge sampler adds thumbs-down pulses', () => {
+  const [w] = runCode('Validate decision', [{ source: 'W07', payload: `approve:${PID}`, from: '27600000000', decided_by: '27600000000' }]);
+  assert.equal(w.via, 'whatsapp'); assert.equal(w.decided_by, '27600000000');
+  const [h] = runCode('Validate decision', [{ headers: {}, body: { payload: `later:${PID}`, from: '27600000000', source: 'W07' } }]);
+  assert.equal(h.via, 'webhook');
+  const [c] = runCode('Validate decision', [{ _via_console: true, source: 'W07', body: { decision: 'approve', proposal_id: PID, decided_by: 'console' } }]);
+  assert.equal(c.via, 'console');
+  assert.match(sql('Decide'), /decided_via = case when d\.decision = 'later' then p\.decided_via else coalesce\(p\.decided_via, d\.via\) end/);
+  const W33 = JSON.parse(readFileSync(join(here, '..', 'W33.json'), 'utf8'));
+  const j = W33.nodes.find((x) => x.name === 'Judge samples').parameters.query.replace(/\s+/g, ' ');
+  assert.match(j, /from public\.lead_pulse where thumbs = 'down'/); assert.match(j, /limit 10/);
+  assert.doesNotMatch(j, /lead_id|booking_id|broker_id/);
+});

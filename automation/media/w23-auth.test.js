@@ -112,3 +112,83 @@ test('static page: Bearer header from the Supabase session, no cookie, no broker
   assert.doesNotMatch(js, /credentials: 'include'/);
   assert.doesNotMatch(js, /broker_id/);
 });
+
+// ---- I-37a: the other recorder endpoints
+const NEW = { status: 'GET', interview: 'POST', 'script-select': 'POST', upload: 'POST' };
+const nodeBy = (name) => W.nodes.find((n) => n.name === name);
+
+test('I-37a: every new endpoint is a JWT-gated webhook; no cookie, no credential, CORS pinned, 401 on a bad token', () => {
+  for (const [tag, method] of Object.entries(NEW)) {
+    const hook = W.nodes.find((n) => n.type === 'n8n-nodes-base.webhook' && n.parameters.path === 'intro/' + tag);
+    assert.ok(hook, tag);
+    assert.equal(hook.parameters.httpMethod, method);
+    assert.equal(hook.parameters.authentication, 'none');
+    assert.equal(hook.parameters.responseMode, 'responseNode');
+    assert.equal(hook.parameters.options.allowedOrigins, 'https://app.leadvelocity.co.za');
+    assert.deepEqual(W.connections[hook.name].main[0].map((t) => t.node), [`Verify broker JWT (${tag})`]);
+    assert.deepEqual(W.connections[`Verify broker JWT (${tag})`].main[0].map((t) => t.node), [`JWT valid? (${tag})`]);
+    assert.equal(nodeBy(`Respond 401 (${tag})`).parameters.options.responseCode, 401);
+    assert.deepEqual(W.connections[`JWT valid? (${tag})`].main[1].map((t) => t.node), [`Respond 401 (${tag})`]);
+    const r = run(`Verify broker JWT (${tag})`, { authorization: 'Bearer ' + jwt() }, { broker_id: 'evil', take_id: 't' });
+    assert.equal(r.ok, true); assert.equal(r.sub, SUB); assert.equal(r.body.broker_id, undefined);
+    assert.equal(run(`Verify broker JWT (${tag})`, {}, {}).ok, false);
+  }
+});
+
+test('I-37a status: read-only, broker from user_id = sub, returns takes + approval + gate-passed scripts only', () => {
+  const q = nodeBy('Status (broker by user_id)').parameters;
+  assert.match(q.query, /where b\.user_id::text = \$1/);
+  assert.doesNotMatch(q.query, /\b(insert|update|delete)\b/i);
+  assert.match(q.query, /gate_pass'\)::boolean is true/);
+  assert.match(q.query, /'approved'/); assert.match(q.query, /'chosen_script'/);
+  assert.equal(q.options.queryReplacement, "={{ [ $('Verify broker JWT (status)').item.json.sub ] }}");
+});
+
+test('I-37a interview: stores answers on brokers.positioning_answers by user_id = sub; validates id and length; no LLM / HTTP node on the path', () => {
+  const q = nodeBy('Store interview answers (broker by user_id)').parameters;
+  assert.match(q.query, /update brokers set positioning_answers/);
+  assert.match(q.query, /where user_id::text = \$1/);
+  assert.match(q.options.queryReplacement, /\^\[a-z_\]\{2,16\}\$/);
+  assert.match(q.options.queryReplacement, /slice\(0, 2000\)/);
+  assert.doesNotMatch(q.options.queryReplacement, /broker_id/);
+  const downstream = ['Store interview answers (broker by user_id)', 'Stored? (interview)', 'Respond 200 (interview)', 'Respond 403 (interview)'];
+  assert.ok(downstream.every((n) => !/httpRequest|anthropic|langchain/.test(nodeBy(n).type)));
+});
+
+test('I-37a script-select: selects a gate-approved candidate only; edited or free text is refused; never writes script text from the body', () => {
+  const q = nodeBy('Select script (broker by user_id)').parameters;
+  assert.match(q.query, /cand->>'id' = \$2 and \(cand->>'gate_pass'\)::boolean is true/);
+  assert.match(q.query, /and not \$4::boolean and not \$5::boolean/); // gate_only and edited never store
+  assert.match(q.query, /where user_id::text = \$1/);
+  assert.doesNotMatch(q.options.queryReplacement, /body\.text|\.text \|\|/);
+  assert.match(nodeBy('Respond 200 (script-select)').parameters.responseBody, /edited !== true/);
+  assert.ok(!W.nodes.some((n) => /anthropic|langchain/.test(n.type)));
+});
+
+test('I-37a upload (phase 1): signed URL for broker-media/<broker uuid>/ with the credential NAME only; key built server-side from user_id', () => {
+  const lb = nodeBy('Load broker (upload sign)').parameters;
+  assert.match(lb.query, /where user_id::text = \$1/);
+  const plan = nodeBy('Plan upload key').parameters.jsCode;
+  assert.match(plan, /broker \+ '\/' \+ language \+ '\/' \+ take_id/);
+  assert.match(plan, /200 \* 1024 \* 1024/);
+  assert.doesNotMatch(plan, /body\.broker_id|body\.object_key/);
+  const sign = nodeBy('Sign upload URL (Supabase Storage, credential by name)');
+  assert.match(sign.parameters.url, /\/storage\/v1\/object\/upload\/sign\/broker-media\//);
+  assert.deepEqual(sign.credentials, { httpHeaderAuth: { name: 'Supabase Storage (service role)' } });
+  assert.doesNotMatch(JSON.stringify(sign), /eyJ|service_role_key|apikey/i);
+  assert.equal(nodeBy('Respond 400 (upload sign)').parameters.options.responseCode, 400);
+});
+
+test('I-37a upload-confirm ownership: object_key must start with this broker uuid + "/", no "..", read from broker-media', () => {
+  const cond = nodeBy('Broker found? (upload)').parameters.conditions.conditions[0].leftValue;
+  assert.match(cond, /startsWith\(\$json\.broker_id \+ '\/'\)/);
+  assert.match(cond, /includes\('\.\.'\)/);
+  assert.equal(nodeBy('Respond 403 (upload)').parameters.options.responseCode, 403);
+  assert.match(nodeBy('Download raw (object storage)').parameters.bucketName, /'broker-media'/);
+  // evaluate the expression: own key passes, another broker's key and traversal fail
+  const own = 'aaaa', evalCond = (key, id) => new Function('$json', '$', 'return ' + cond.replace(/^=\{\{|\}\}$/g, ''))({ broker_id: id }, () => ({ item: { json: { body: { object_key: key } } } }));
+  assert.equal(evalCond('aaaa/en/t.mp4', own), true);
+  assert.equal(evalCond('bbbb/en/t.mp4', own), false);
+  assert.equal(evalCond('aaaa/../bbbb/t.mp4', own), false);
+  assert.equal(evalCond('aaaaX/en/t.mp4', own), false);
+});

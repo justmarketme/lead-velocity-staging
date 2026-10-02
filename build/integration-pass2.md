@@ -153,3 +153,13 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-39i | Practitioner: does a broker-facing digest/brief restart the lead's retention clock? (W11 touches it today) | contracts-drafter (brief Q24) |
 | I-39j | Edge function `w34-media-erase` (holds the Storage key server-side, deletes only `broker-media/<uuid>/` paths, ≤ 50 per call, n8n authenticates with revocable HMAC `W34_MEDIA_ERASE_SECRET`); until built, W34 queues media erasure as a manual action | devops-security (platform-architect decision recorded in schema.md pass 6) |
 | I-39k | W05/W28 email step (`ask_email`) must send `delegate.body` / `lead_lines` in its one message; lines.mjs needs `SLOT_TAKEN` and `METHOD_NOT_OFFERED` (EN/AF) | automation-engineer (W28), conversation-designer |
+
+### I-40 · 2026-10-02 (late)
+| # | Item | Owner |
+|---|---|---|
+| I-40a | `automation/build-w03-w28.mjs` must emit the current W03 (W07 sub-call, loop-guard node, no POST webhook) — re-sync, add a test that regenerating W03 is a no-op against the committed file | automation-engineer |
+| I-40b | Migration 13: `ops.proposals.decided_via text` (optimisation/sql-additions.sql); MS Graph token vault wrappers `smc_vault_store_ms_refresh(broker_id, token)` / `smc_vault_ms_refresh(broker_id)` (n8n_app-only); edge function `supabase/functions/w34-media-erase` skeleton per I-39j | platform-architect — dispatched |
+| I-40c | Microsoft OAuth connect/callback for the broker calendar (`/ms/connect`, `/ms/callback` in W20, refresh token via the I-40b wrappers, `calendar_status` on the broker row) — GAPS G-06 | automation-engineer, after the credential rename lands |
+| I-40d | `script_candidates` generator (interview answers → 3 FAIS-gated script variants, `gate_pass` per variant) and a FAIS re-check endpoint for edited script text; `EMAIL_Q`/`TZ` lines into lines.mjs | conversation-designer — dispatched |
+| I-40e | Dedicated lead-pulse rubric for W33 | optimisation-advisor — dispatched |
+| I-40f | W23 storage credential is service-role: move signed-URL issue + delete behind the `w34-media-erase`-style edge function | devops-security + platform-architect |

@@ -167,8 +167,48 @@ function summary(ctx, method, slot, email) {
   return `${shortLabel(slot)} (South African time), 30 minutes with ${a}. ${how}`;
 }
 
+
+// ---------------------------------------------------------------- I-39k: one message, never two
+// When W07/W10 hand W28 a delegate (automation/lib/w07.mjs planActions -> oneMessage: { body, lead_lines, intro_line, lang }),
+// every lead-facing message W28 sends OUTSIDE the Flow screens (ask_email, the 10-slot list) carries those lines inside
+// its ONE message. When absent, the intro comes from conversation/lines.mjs (passed in as `lines`) in the lead's language.
+const WA_BODY_MAX = 1024;
+// W28's own question lines. DRAFT (af wording by automation-engineer): conversation-designer to move into lines.mjs.
+const OWN = {
+  en: { EMAIL_Q: 'Where should we send the {method} invite? Reply with your email address.', TZ: 'Times are South African time.' },
+  af: { EMAIL_Q: 'Waarheen moet ons die {method}-uitnodiging stuur? Antwoord met jou e-posadres.', TZ: 'Tye is Suid-Afrikaanse tyd.' },
+};
+const METHOD_WORD = { teams: 'Teams', zoom: 'Zoom', meet: 'Google Meet', google_meet: 'Google Meet' };
+const fillLine = (line, vars) => String(line || '').replace(/\{([a-z_]+)\}/g, (m, k) => (vars[k] !== undefined ? String(vars[k]) : m));
+const hasBody = (d) => Boolean(d && typeof d.body === 'string' && d.body.trim());
+function langOf(delegate, lead, lines) {
+  const ok = (l) => l && (OWN[l]) && (!lines || lines[l]);
+  return ok(delegate && delegate.lang) ? delegate.lang : ok(lead && lead.language) ? lead.language : 'en';
+}
+/** head (delegate body | lead_lines + intro_line | lines.mjs intro) + W28's own line, one body, <= 1,024 with the own line kept whole. */
+function oneBody(ownLine, { delegate = null, lead = {}, lines = null, introKey = null, vars = {} } = {}) {
+  const lang = langOf(delegate, lead, lines);
+  const own = fillLine(OWN[lang][ownLine], vars);
+  let head = '';
+  if (hasBody(delegate)) head = delegate.body.trim();
+  else if (delegate && ((delegate.lead_lines || []).length || delegate.intro_line)) head = [...(delegate.lead_lines || []), delegate.intro_line].map((x) => String(x || '').trim()).filter(Boolean).join(' ');
+  else if (introKey && lines) head = fillLine((lines[lang] || lines.en)[introKey], vars);
+  if (head && head.length + own.length + 1 > WA_BODY_MAX) head = head.slice(0, WA_BODY_MAX - own.length - 1).trim();
+  return { lang, body: [head, own].filter(Boolean).join(' ') };
+}
+/**
+ * ask_email (W10 change_method -> ask_email, or a list booking that needs an invite): ONE text message.
+ * reason 'change_method' uses METHOD_CHANGED as the intro when no delegate lines came with it.
+ */
+function askEmailMessage({ to, method, broker = {}, lead = {}, delegate = null, lines = null, reason = 'book' } = {}) {
+  const adviser = broker.adviser_first_name || String(broker.adviser_name || broker.contact_person || '').split(' ')[0];
+  const vars = { method: METHOD_WORD[method] || method, adviser_first: adviser, first_name: lead.first_name || '' };
+  const { body, lang } = oneBody('EMAIL_Q', { delegate, lead, lines, introKey: reason === 'change_method' ? 'METHOD_CHANGED' : null, vars });
+  return { lang, message: { messaging_product: 'whatsapp', recipient_type: 'individual', to: String(to).replace('+', ''), type: 'text', text: { body } } };
+}
+
 /** Fallback ladder step 2 (0.3 #3, the launch path): interactive list of the next 10 slots, spread across days. */
-function listFallback(broker, slots, offerSpread, to) {
+function listFallback(broker, slots, offerSpread, to, { delegate = null, lead = {}, lines = null } = {}) {
   const picks = offerSpread(slots, LIST_ROWS);
   if (!picks.length) return null;
   const a = broker.adviser_first_name || broker.adviser_name;
@@ -176,11 +216,11 @@ function listFallback(broker, slots, offerSpread, to) {
     messaging_product: 'whatsapp', recipient_type: 'individual', to: String(to).replace('+', ''), type: 'interactive',
     interactive: {
       type: 'list',
-      body: { text: `Pick a time for your 30-minute call with ${a}. Times are South African time.` },
+      body: { text: (hasBody(delegate) || (delegate && delegate.lead_lines) || lines) ? oneBody('TZ', { delegate, lead, lines, introKey: 'SLOTS_INTRO', vars: { adviser_first: a } }).body : `Pick a time for your 30-minute call with ${a}. Times are South African time.` },
       footer: { text: 'Reply STOP to opt out' },
       action: { button: 'See times', sections: [{ title: 'Next free times', rows: picks.map((s) => ({ id: `slot_${s.start}`, title: shortLabel(s.start) })) }] },
     },
   };
 }
 
-module.exports = { handle, checkEmail, bounds, listFallback, shortLabel, dayLabel, INVITE_METHODS, LIST_ROWS, MAX_DAY_SLOTS };
+module.exports = { askEmailMessage, oneBody, WA_BODY_MAX, handle, checkEmail, bounds, listFallback, shortLabel, dayLabel, INVITE_METHODS, LIST_ROWS, MAX_DAY_SLOTS };

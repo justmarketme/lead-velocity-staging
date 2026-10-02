@@ -89,6 +89,96 @@ aq.parameters.query = aq.parameters.query
   .split("case when $3 ~*").join("case when $1 ~*").split('then $3::uuid').join('then $1::uuid')
   .replace("ai_check->>'take_id' = $2", "ai_check->>'take_id' = $2");
 aq.parameters.options.queryReplacement = '={{ [ $json.sub, $json.body.take_id ] }}';
+
+// ===================================================================== I-37a: the rest of the recorder's endpoints
+// Same gate on every one: webhook (no credential, responseNode) -> own "Verify broker JWT (<tag>)" -> "JWT valid?" -> DB by user_id = sub.
+for (const n of w.nodes.filter((x) => x.id.startsWith('w23-x'))) delete w.connections[n.name];
+w.nodes = w.nodes.filter((x) => !x.id.startsWith('w23-x'));
+let xid = 0;
+const X = () => 'w23-x' + String(++xid).padStart(2, '0');
+const pg = (id, name, pos, query, repl) => ({ parameters: { operation: 'executeQuery', query, options: { queryReplacement: repl } }, id, name, type: 'n8n-nodes-base.postgres', typeVersion: 2.5, position: pos, alwaysOutputData: true, credentials: { postgres: { name: 'Supabase Postgres (service role)' } } });
+const newHook = (tag, method, y) => { const n = { parameters: { httpMethod: method, path: 'intro/' + tag, authentication: 'none', responseMode: 'responseNode', options: { allowedOrigins: ORIGIN } }, id: X(), name: `Intro ${tag} (browser, Bearer JWT)`, type: 'n8n-nodes-base.webhook', typeVersion: 2, position: [0, y], webhookId: 'intro/' + tag }; return n; };
+function gate(tag, method, y) {
+  const h = newHook(tag, method, y), v = codeNode(X(), `Verify broker JWT (${tag})`, [220, y]);
+  const ok = ifOk(X(), `JWT valid? (${tag})`, [440, y], '={{ $json.ok === true }}'), r401 = respond(X(), `Respond 401 (${tag})`, [660, y - 140], 401, '{"error":"unauthorised"}');
+  w.nodes.push(h, v, ok, r401);
+  link(h.name, v.name); link(v.name, ok.name); link(ok.name, r401.name, 1);
+  return { ok: ok.name, ver: v.name, body: `$('${v.name}').item.json.body`, sub: `$('${v.name}').item.json.sub` };
+}
+const jsonBody = (e) => '={{ ' + e + ' }}';
+
+// GET intro/status
+{ const g = gate('status', 'GET', 2200);
+  const q = pg(X(), 'Status (broker by user_id)', [680, 2200], `select b.id::text as broker_id, jsonb_build_object(
+ 'step', case when b.positioning_answers->'chosen_script' is not null then 'record' when b.positioning_answers->'script_candidates' is not null then 'scripts' else 'interview' end,
+ 'broker', jsonb_build_object('first_name', split_part(coalesce(b.contact_person,''), ' ', 1), 'name', b.contact_person, 'practice', b.firm_name, 'fsp', b.fsp_number),
+ 'scripts', coalesce((select jsonb_agg(jsonb_build_object('id', c->>'id', 'label', c->>'label', 'text', c->>'text')) from jsonb_array_elements(coalesce(b.positioning_answers->'script_candidates','[]'::jsonb)) c where (c->>'gate_pass')::boolean is true), '[]'::jsonb),
+ 'chosen_script', b.positioning_answers->'chosen_script'->>'id',
+ 'generating', (b.positioning_answers->'interview_complete_at' is not null and b.positioning_answers->'script_candidates' is null),
+ 'takes', coalesce((select jsonb_agg(jsonb_build_object('take_id', m.ai_check->>'take_id', 'state', m.state, 'kind', m.kind, 'language', m.language, 'reason', m.ai_check->>'reason', 'preview_url', m.url, 'thumbnail_url', m.thumbnail_url, 'ai_check', m.ai_check) order by m.created_at) from broker_media m where m.broker_id = b.id and (m.kind = 'video' or (m.kind = 'voice' and not exists (select 1 from broker_media v where v.broker_id = m.broker_id and v.kind = 'video' and v.ai_check->>'take_id' = m.ai_check->>'take_id')))), '[]'::jsonb),
+ 'approved', (select jsonb_build_object('at', m.approved_at, 'take_id', m.ai_check->>'take_id') from broker_media m where m.broker_id = b.id and m.is_current and m.approved_at is not null order by m.approved_at desc limit 1)
+) as payload from brokers b where b.user_id::text = $1 limit 1`, '={{ [ ' + g.sub + ' ] }}');
+  const f = ifOk(X(), 'Broker found? (status)', [900, 2200], '={{ !!$json.broker_id }}');
+  const r200 = respond(X(), 'Respond 200 (status)', [1120, 2140], 200, '={{ Object.assign({ explainer_url: null, example_url: null, show_rate: null, whatsapp_capture: { number: $env.WA_CAPTURE_NUMBER || null, link: $env.WA_CAPTURE_NUMBER ? "https://wa.me/" + $env.WA_CAPTURE_NUMBER + "?text=Intro%20video" : null, qr_url: null } }, $json.payload) }}');
+  const r403 = respond(X(), 'Respond 403 (status)', [1120, 2300], 403, '{"error":"no_broker"}');
+  w.nodes.push(q, f, r200, r403); link(g.ok, q.name, 0); link(q.name, f.name); link(f.name, r200.name, 0); link(f.name, r403.name, 1); }
+
+// POST intro/interview: typed answers only, stored in brokers.positioning_answers.answers; no LLM here.
+{ const g = gate('interview', 'POST', 2600);
+  const b = g.body;
+  const q = pg(X(), 'Store interview answers (broker by user_id)', [680, 2600], `update brokers set positioning_answers = coalesce(positioning_answers, '{}'::jsonb)
+ || case when $2 <> '' then jsonb_build_object('answers', coalesce(positioning_answers->'answers', '{}'::jsonb) || jsonb_build_object($2::text, $3::text)) else '{}'::jsonb end
+ || case when $4::boolean then jsonb_build_object('interview_complete_at', now(), 'language', $5::text, 'languages_spoken', $6::text) else '{}'::jsonb end
+where user_id::text = $1 and ($4::boolean or $2 <> '') returning id::text as broker_id`,
+    `={{ [ ${g.sub}, /^[a-z_]{2,16}$/.test(String(${b}.question_id || '')) ? ${b}.question_id : '', String(${b}.text || '').slice(0, 2000), ${b}.complete === true, ['en', 'af'].includes(${b}.language) ? ${b}.language : 'en', String(${b}.languages_spoken || '').slice(0, 200) ] }}`);
+  const f = ifOk(X(), 'Stored? (interview)', [900, 2600], '={{ !!$json.broker_id }}');
+  const r200 = respond(X(), 'Respond 200 (interview)', [1120, 2540], 200, '{"ok":true}');
+  const r403 = respond(X(), 'Respond 403 (interview)', [1120, 2700], 403, '{"error":"no_broker_or_invalid"}');
+  w.nodes.push(q, f, r200, r403); link(g.ok, q.name, 0); link(q.name, f.name); link(f.name, r200.name, 0); link(f.name, r403.name, 1); }
+
+// POST intro/script-select: SELECTS one of the gate-approved candidates (brokers.positioning_answers.script_candidates, written by the
+// conversation-designer generator). Free or edited text is refused here: it needs the FAIS gate, which is not this workflow's job.
+{ const g = gate('script-select', 'POST', 3000);
+  const b = g.body;
+  const q = pg(X(), 'Select script (broker by user_id)', [680, 3000], `with b as (select id, positioning_answers as pa from brokers where user_id::text = $1),
+c as (select cand from b, jsonb_array_elements(coalesce(pa->'script_candidates', '[]'::jsonb)) cand where cand->>'id' = $2 and (cand->>'gate_pass')::boolean is true limit 1),
+u as (update brokers set positioning_answers = positioning_answers || jsonb_build_object('chosen_script', (select cand || jsonb_build_object('language', $3::text, 'chosen_at', now()) from c)) where id in (select id from b) and exists (select 1 from c) and not $4::boolean and not $5::boolean returning id)
+select exists (select 1 from c) as found, (select count(*) from u) as stored`,
+    `={{ [ ${g.sub}, String(${b}.script_id || '').slice(0, 40), ['en', 'af'].includes(${b}.language) ? ${b}.language : 'en', ${b}.gate_only === true, ${b}.edited === true ] }}`);
+  const r200 = respond(X(), 'Respond 200 (script-select)', [900, 3000], 200, `={{ { pass: $json.found === true && ${b}.edited !== true, checks: $json.found !== true ? [{ id: 'select', ok: false, msg: 'That script is not one of your approved options.', fix: 'Pick one of the three scripts.' }] : (${b}.edited === true ? [{ id: 'edit', ok: false, msg: 'Edited wording has to be checked before you can record.', fix: 'Pick an option as written, or ask us to check your edit.' }] : []) } }}`);
+  w.nodes.push(q, r200); link(g.ok, q.name, 0); link(q.name, r200.name); }
+
+// POST intro/upload (phase 1): signed upload URL into the private broker-media bucket, key = <broker uuid>/<language>/<take_id>.<ext>
+{ const g = gate('upload', 'POST', 3400);
+  const b = g.body;
+  const lb = pg(X(), 'Load broker (upload sign)', [680, 3400], 'select id::text as broker_id from brokers where user_id::text = $1 limit 1', '={{ [ ' + g.sub + ' ] }}');
+  const f = ifOk(X(), 'Broker found? (upload sign)', [900, 3400], '={{ !!$json.broker_id }}');
+  const r403 = respond(X(), 'Respond 403 (upload sign)', [1120, 3560], 403, '{"error":"no_broker"}');
+  const plan = { parameters: { jsCode: `// Plan the object key. The broker uuid prefix comes from brokers.user_id = sub (never the body).
+const crypto = require('crypto');
+const j = $('${g.ver}').item.json, body = j.body || {};
+const broker = $('Load broker (upload sign)').item.json.broker_id;
+const kind = body.kind === 'audio' ? 'audio' : (body.kind === 'video' ? 'video' : null);
+const mime = String(body.mime || '');
+const ext = mime.includes('mp4') ? (kind === 'audio' ? 'm4a' : 'mp4') : mime.includes('quicktime') ? 'mov' : mime.includes('ogg') ? 'ogg' : (kind === 'audio' ? 'webm' : 'webm');
+const size = Number(body.size) || 0;
+const language = ['en', 'af'].includes(body.language) ? body.language : 'en';
+const ok = !!kind && /^(video|audio)\\//.test(mime) && size > 0 && size <= 200 * 1024 * 1024;
+const take_id = crypto.randomUUID();
+return [{ json: { ok, broker_id: broker, take_id, mime, object_key: broker + '/' + language + '/' + take_id + '.' + ext } }];` }, id: X(), name: 'Plan upload key', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1120, 3380] };
+  const pv = ifOk(X(), 'Plan valid? (upload sign)', [1340, 3380], '={{ $json.ok === true }}');
+  const r400 = respond(X(), 'Respond 400 (upload sign)', [1560, 3540], 400, '{"error":"bad_upload"}');
+  const sign = { parameters: { method: 'POST', url: "={{ $env.SUPABASE_URL }}/storage/v1/object/upload/sign/broker-media/{{ $json.object_key }}", authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth', sendBody: true, specifyBody: 'json', jsonBody: '{}', options: {} }, id: X(), name: 'Sign upload URL (Supabase Storage, credential by name)', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: [1560, 3380], credentials: { httpHeaderAuth: { name: 'Supabase Storage (service role)' } } };
+  const r200 = respond(X(), 'Respond 200 (upload sign)', [1780, 3380], 200, `={{ { take_id: $('Plan upload key').item.json.take_id, object_key: $('Plan upload key').item.json.object_key, upload_url: $env.SUPABASE_URL + '/storage/v1' + $json.url, method: 'PUT', headers: { 'Content-Type': $('Plan upload key').item.json.mime }, expires_at: new Date(Date.now() + 7200000).toISOString() } }}`);
+  w.nodes.push(lb, f, r403, plan, pv, r400, sign, r200);
+  link(g.ok, lb.name, 0); link(lb.name, f.name); link(f.name, plan.name, 0); link(f.name, r403.name, 1); link(plan.name, pv.name); link(pv.name, sign.name, 0); link(pv.name, r400.name, 1); link(sign.name, r200.name); }
+
+// upload-confirm: the take must live under THIS broker's uuid prefix in broker-media (ownership), and is read from that bucket.
+{ const okb = N('Broker found? (upload)');
+  const ob = "String($('Verify broker JWT (upload)').item.json.body.object_key || '')";
+  okb.parameters.conditions.conditions[0].leftValue = `={{ !!$json.broker_id && ${ob}.startsWith($json.broker_id + '/') && !${ob}.includes('..') }}`;
+  N('Respond 403 (upload)').parameters.responseBody = '{"error":"forbidden"}';
+  const dl = N('Download raw (object storage)'); dl.parameters.bucketName = "={{ $env.INTRO_RAW_BUCKET || 'broker-media' }}"; }
 // Alert nodes that used the body now read from the verify node
 writeFileSync(file, JSON.stringify(w, null, 2) + '\n');
 console.log('W23 patched:', w.nodes.length, 'nodes');
