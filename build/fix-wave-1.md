@@ -12,3 +12,7 @@
 | broker-success + billing-automation | "no contract" → "no lock-in / no minimum term" on agreement screens and checkout; checkout title without the consumer brand (NH-27 d); CI test that billing code never reads policies-written/commission. |
 | intro-media-producer | rubric rules I-1…I-7 from phase4-review-2 §5. |
 | automation-engineer | W01 test: consent text rebuilt server-side from version (not trusted from the browser). |
+| creative-strategist (from PCD) | adopt hook-library-v2 wording: H1 beat 2 "The bond and the bills don't", H3 "Bond approved. Champagne open. Cover checked?", H5 "Cover set up at 28. Life at 40.", H12 "3 lines on a payslip worth a look."; primary-text edits for C01/C03/C05/C12 listed in hook-library-v2.md; C12 uses H18 until sourced. |
+| media-buyer (from PCD + meta-operator) | campaign-spec §4.4–4.5 concept numbers → test-matrix.md table; A2 carousel "Most bonds don't." → PCD wording; split `SMC_EXC_leads_90d` into `_pix` and `_list`; note Meta does not split delivery evenly between the colour pair. |
+| visual-producer (from PCD) | add teal/cream test tokens + teal tick/wordmark variants; 4:5 end card + 9:16 motion template; fix `brand/templates/feed.html` default "Check yours…" (second person) and remove the R1 420 000 / "3× annual salary" figures. |
+| compliance-qa (fix wave 2) | check the sample "FSP 12345" is not a real FSP number (use an obviously invalid placeholder like FSP 00000 if in doubt); file the 2–4× source URL in deliverables/verified-facts.md when Jonathan supplies the guide. |

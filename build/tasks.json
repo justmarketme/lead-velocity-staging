@@ -2245,6 +2245,17 @@
       "human_gate": true,
       "status": "needs_human",
       "section": "deliverables/compliance-qa/phase4-review-2.md"
+    },
+    {
+      "id": "NH-31",
+      "title": "Meta decisions (money): (a) the 7-day Page warm-up (~R350 paid Reach ad) before first payment vs 0.1 no-spend rule - approve ~R350 now, or organic posts now and the paid week after payment (delays live campaigns 7 days); (b) two SA mobile numbers not registered on WhatsApp are needed (main + standby) - use numbers Lead Velocity owns, or stay on Meta's test number until payment; (c) ads in a switched-off campaign may not get reviewed; switching on spends - leave off (default); (d) acknowledge the standby-asset rule: never use the standby account/Page/number while a Meta policy decision stands.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "deliverables/meta-operator/setup-checklist.md §14"
     }
   ]
 }
