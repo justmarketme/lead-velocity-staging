@@ -107,7 +107,7 @@
    ],
    "parameters": {
     "operation": "executeQuery",
-    "query": "update public.bank_credits b set statement_confirmed_at = now(), statement_external_id = x->>'statement_external_id'\nfrom jsonb_array_elements($1::jsonb) x where b.id = (x->>'bank_credit_id')::uuid;",
+    "query": "SET LOCAL smc.source = 'n8n';\nupdate public.bank_credits b set statement_confirmed_at = now(), statement_external_id = x->>'statement_external_id'\nfrom jsonb_array_elements($1::jsonb) x where b.id = (x->>'bank_credit_id')::uuid;",
     "options": {
      "queryReplacement": "={{ [JSON.stringify($json.confirmations)] }}"
     }
@@ -143,7 +143,7 @@
    ],
    "parameters": {
     "operation": "executeQuery",
-    "query": "insert into public.bank_credits (source, external_id, received_at, amount_zar, reference_raw, parsed_reference, match_status, statement_confirmed_at)\nvalues ('statement', $1, $2::timestamptz, $3::numeric, $4, nullif($5,''), 'unmatched', now()) on conflict (external_id) do nothing returning id as bank_credit_id;",
+    "query": "SET LOCAL smc.source = 'n8n';\ninsert into public.bank_credits (source, external_id, received_at, amount_zar, reference_raw, parsed_reference, match_status, statement_confirmed_at)\nvalues ('statement', $1, $2::timestamptz, $3::numeric, $4, nullif($5,''), 'unmatched', now()) on conflict (external_id) do nothing returning id as bank_credit_id;",
     "options": {
      "queryReplacement": "={{ [$json.external_id, $json.received_at, $json.amount_zar, $json.reference_raw || \"\", $json.parsed_reference || \"\"] }}"
     }
@@ -156,11 +156,42 @@
   },
   {
    "id": "w18-10",
+   "name": "New credit row?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2,
+   "position": [
+    1680,
+    200
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "typeValidation": "loose"
+     },
+     "combinator": "and",
+     "conditions": [
+      {
+       "leftValue": "={{ !!$json.bank_credit_id }}",
+       "rightValue": true,
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ]
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "w18-11",
    "name": "W16: match missed credit",
    "type": "n8n-nodes-base.executeWorkflow",
    "typeVersion": 1.2,
    "position": [
-    1680,
+    1920,
     200
    ],
    "parameters": {
@@ -178,7 +209,7 @@
    "notesInFlow": true
   },
   {
-   "id": "w18-11",
+   "id": "w18-12",
    "name": "Load invoices + credits for report",
    "type": "n8n-nodes-base.postgres",
    "typeVersion": 2.5,
@@ -198,7 +229,7 @@
    }
   },
   {
-   "id": "w18-12",
+   "id": "w18-13",
    "name": "Daily reconciliation report",
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
@@ -212,7 +243,7 @@
    }
   },
   {
-   "id": "w18-13",
+   "id": "w18-14",
    "name": "Save report",
    "type": "n8n-nodes-base.postgres",
    "typeVersion": 2.5,
@@ -234,7 +265,7 @@
    }
   },
   {
-   "id": "w18-14",
+   "id": "w18-15",
    "name": "Gaps or missing statement?",
    "type": "n8n-nodes-base.if",
    "typeVersion": 2,
@@ -265,7 +296,7 @@
    }
   },
   {
-   "id": "w18-15",
+   "id": "w18-16",
    "name": "W22: reconciliation gaps (alert)",
    "type": "n8n-nodes-base.executeWorkflow",
    "typeVersion": 1.2,
@@ -288,7 +319,7 @@
    "notesInFlow": true
   },
   {
-   "id": "w18-16",
+   "id": "w18-17",
    "name": "W22: daily billing line for the pulse",
    "type": "n8n-nodes-base.executeWorkflow",
    "typeVersion": 1.2,
@@ -439,6 +470,17 @@
    ]
   },
   "Insert missed credits (idempotent)": {
+   "main": [
+    [
+     {
+      "node": "New credit row?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "New credit row?": {
    "main": [
     [
      {

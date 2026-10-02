@@ -55,7 +55,7 @@ n8n settings needed: `NODE_FUNCTION_ALLOW_BUILTIN=crypto`; env `PAYSTACK_SECRET_
 
 ## 6. Refunds
 Refunds are for the R1 test, a shortfall refund when the broker does not renew (agreement 5.2: within 10 business days), and duplicate or overpayments.
-- **Paystack payments:** `POST /refund { transaction, amount? }`. A full refund is the default; use a partial `amount` in cents for a shortfall. Jonathan approves every live refund. Log it in `audit_log`.
+- **Paystack payments:** `POST /refund { transaction, amount? }`. A full refund is the default; use a partial `amount` in cents for a shortfall. Jonathan approves every live refund. Record it on the invoice row (console, or SQL with `SET LOCAL smc.reason = 'refund <paystack ref>: <why>'` in the same transaction); the `smc_audit` trigger writes `audit_log`. Nothing inserts into `audit_log` directly (no role has the grant).
 - **EFT payments:** Jonathan pays it back from FNB Online Banking with reference `LV-REFUND-{broker_ref}-{YYYYMM}`. W18 sees the debit, and the console marks the invoice `credited`.
 - **Shortfall amount:** `invoice.shortfallCreditCents()` = price ÷ committed × missing leads. If the broker renews, it comes off the next invoice instead (W19 applies `cycles.shortfall_credit_zar`).
 

@@ -9,5 +9,5 @@ module.exports = Object.freeze({
   INVOICES: 'public.invoices_smc',
   BANK_CREDITS: 'public.bank_credits',
   WEBHOOK_EVENTS: 'public.webhook_events',
-  AUDIT_LOG: 'public.audit_log',
+  AUDIT_LOG: 'public.audit_log', // read-only for billing: written only by the smc_audit trigger (pass context via SET LOCAL smc.source / smc.reason)
 });

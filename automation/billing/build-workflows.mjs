@@ -91,33 +91,51 @@ const switchOn = (expr, values) => ({ mode: 'rules', rules: { values: values.map
 const httpSpec = (credName) => ({ method: '={{ $json.spec.method }}', url: '={{ "https://api.paystack.co" + $json.spec.path }}', authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth',
   sendBody: '={{ !!$json.spec.body }}', specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.spec.body || {}) }}', options: { timeout: 15000, response: { response: { neverError: true, fullResponse: true } } } });
 
-const T = { INV: 'public.invoices_smc', BC: 'public.bank_credits', CY: 'public.cycles', BR: 'public.brokers', PR: 'public.pricing', WE: 'public.webhook_events', AU: 'public.audit_log' };
+const T = { INV: 'public.invoices_smc', BC: 'public.bank_credits', CY: 'public.cycles', BR: 'public.brokers', PR: 'public.pricing', WE: 'public.webhook_events' };
+
+/* ------------------------------------------------------------------ audit context
+ * The smc_audit() trigger (migrations 02/06) writes audit_log for every insert/update on pricing, cycles,
+ * bank_credits, invoices_smc and SMC brokers rows. Workflows never insert into audit_log themselves; they set
+ * the context the trigger reads. n8n's Postgres node (queryBatching 'single') sends all statements of a query
+ * as one simple-protocol request (pgp.helpers.concat + db.multi), which Postgres runs as ONE implicit
+ * transaction, so SET LOCAL applies to the write that follows and ends with it. Parameters are formatted
+ * client-side by pg-promise, so `SET LOCAL smc.reason = $n` becomes a quoted literal. SET returns no rows, so
+ * it adds no output items. Never write a $n placeholder inside a -- comment: the value would be spliced in. */
+const AUDIT = (reasonParam) => `SET LOCAL smc.source = 'n8n';\n` + (reasonParam ? `SET LOCAL smc.reason = ${reasonParam};\n` : '');
 
 /* ------------------------------------------------------------------ shared SQL */
-const MARK_PAID_SQL = `-- W16 mark paid (idempotent: only an 'issued' invoice flips; one cycles row per invoice).
--- $1 invoice_reference, $2 paid_at, $3 method, $4 paystack_reference, $5 bank_credit_id, $6 amount_cents, $7 idempotency_key
+const MARK_PAID_SQL = `${AUDIT('$7')}-- W16 mark paid (idempotent: only an 'issued' invoice flips; one cycles row per invoice; the bank credit is
+-- matched in the same transaction, so a credit is never 'matched' to an invoice that did not flip).
+-- Params: 1 invoice_reference, 2 paid_at, 3 method, 4 paystack_reference, 5 bank_credit_id, 6 amount_cents,
+-- 7 audit reason (carries the idempotency key; the audit trigger logs the change), 8 credit match_status auto|manual,
+-- 9 assigned_by (auth.users id of the console user on a one-tap assign, else empty).
+-- The brokers row and its auth user already exist (created at invoice issue, NH-27 c): this never inserts brokers.
 with inv as (
   update ${T.INV} set status = 'paid', paid_at = $2::timestamptz, method = $3, paystack_reference = nullif($4, ''), bank_credit_id = nullif($5, '')::uuid
   where reference = $1 and status = 'issued'
     and abs(total_zar * 100 - $6::bigint) <= 100            -- +/-R1, re-checked in SQL
-  returning *
+  returning id, reference, broker_id, tier_code
 ), prev as (
   select c.broker_id, max(coalesce(c.extended_until, c.ends_at)) as last_end
   from ${T.CY} c join inv on inv.broker_id = c.broker_id
   where c.status in ('scheduled', 'active', 'extended') group by c.broker_id
 ), cyc as (
-  insert into ${T.CY} (broker_id, tier_code, price_zar, committed_leads, replacement_cap, status, invoice_id, starts_at, ends_at)
-  select inv.broker_id, inv.tier_code, p.price_zar, p.committed_leads, p.replacement_cap_cycle, 'scheduled', inv.id,
+  -- brand_id and cycle_no are filled by smc_cycles_fill; the price snapshot comes from the pricing row (3.6).
+  insert into ${T.CY} (broker_id, tier_code, price_zar, committed_leads, replacement_cap, media_share_zar, status, invoice_id, starts_at, ends_at)
+  select inv.broker_id, inv.tier_code, p.price_zar, p.committed_leads, p.replacement_cap_cycle, p.media_share_zar, 'scheduled', inv.id,
          prev.last_end, prev.last_end + interval '30 days'   -- renewal: back to back. First cycle: null until routing goes on (NH-CD-14)
   from inv join ${T.PR} p on p.tier_code = inv.tier_code left join prev on prev.broker_id = inv.broker_id
   on conflict (invoice_id) do nothing
-  returning cycle_id, broker_id, starts_at
-), audit as (
-  insert into ${T.AU} (actor, action, entity, entity_id, payload)
-  select 'W16', 'payment.received', 'invoices_smc', inv.id::text, jsonb_build_object('reference', inv.reference, 'method', $3, 'idempotency_key', $7) from inv
+  returning id as cycle_id, broker_id, starts_at
+), bc as (
+  update ${T.BC} c set match_status = $8, matched_invoice_id = inv.id,
+         assigned_by = nullif($9, '')::uuid, assigned_at = case when nullif($9, '') is not null then now() end,
+         queue_reason = null
+  from inv where c.id = nullif($5, '')::uuid
+  returning c.id
 )
 select inv.id as invoice_id, inv.reference, inv.broker_id, inv.tier_code, cyc.cycle_id, cyc.starts_at, b.status as broker_status, b.routing_on,
-       p.media_share_zar, b.billing_ref, b.email, b.whatsapp_number
+       p.media_share_zar, b.billing_ref, b.email, b.whatsapp_number, (select count(*) from bc)::int as credits_matched
 from inv left join cyc on cyc.broker_id = inv.broker_id join ${T.BR} b on b.id = inv.broker_id join ${T.PR} p on p.tier_code = inv.tier_code;`;
 
 /* ================================================================== W16 */
@@ -185,51 +203,77 @@ const d = BILLING.reconcile.matchCredit({ ...credit, amount_cents: Number(credit
 return [{ json: { ...d, ev: d.event || null, credit } }];
 `, ['reconcile', 'reference', 'events']), { v: 2, row: 3, col: 2 });
   const act = w.add('n8n-nodes-base.switch', 'Match result', switchOn('={{ $json.action }}', ['mark_paid', 'queue', 'duplicate', 'settlement']), { v: 3, row: 3, col: 3 });
-  const setCredit = w.add('n8n-nodes-base.postgres', 'Credit: matched', sql(`update ${T.BC} set match_status = case when $3 like 'manual_assign:%' then 'manual' else 'auto' end, matched_invoice_id = $2::uuid, assigned_by = nullif(split_part($3, ':', 2), '') where id = $1::uuid;`,
-    '={{ [$json.credit.id, $json.invoice_id, $json.reason] }}'), { v: 2.5, row: 2, col: 4, credentials: PG });
-  const queueQ = w.add('n8n-nodes-base.postgres', 'Credit: to console queue', sql(`update ${T.BC} set match_status = 'unmatched', queue_reason = $2, queue_suggestions = $3::jsonb where id = $1::uuid;`,
+  // mark_paid goes straight to "Normalise payment.received": the credit is marked matched inside the mark-paid transaction.
+  const queueQ = w.add('n8n-nodes-base.postgres', 'Credit: to console queue', sql(`${AUDIT()}update ${T.BC} set match_status = 'unmatched', queue_reason = $2, queue_suggestions = $3::jsonb where id = $1::uuid;`,
     '={{ [$json.credit.id, $json.reason, JSON.stringify($json.suggestions || [])] }}'), { v: 2.5, row: 4, col: 4, credentials: PG });
-  const dupQ = w.add('n8n-nodes-base.postgres', 'Credit: duplicate (not counted)', sql(`update ${T.BC} set match_status = 'duplicate', duplicate_of = nullif($2,'')::uuid where id = $1::uuid;`, '={{ [$json.credit.id, $json.duplicate_of || ""] }}'), { v: 2.5, row: 5, col: 4, credentials: PG });
-  const settleQ = w.add('n8n-nodes-base.postgres', 'Credit: Paystack settlement', sql(`update ${T.BC} set source = 'paystack_settlement', match_status = 'settlement' where id = $1::uuid;`, '={{ [$json.credit.id] }}'), { v: 2.5, row: 6, col: 4, credentials: PG });
+  const dupQ = w.add('n8n-nodes-base.postgres', 'Credit: duplicate (not counted)', sql(`${AUDIT()}update ${T.BC} set match_status = 'duplicate', duplicate_of = nullif($2,'')::uuid where id = $1::uuid;`, '={{ [$json.credit.id, $json.duplicate_of || ""] }}'), { v: 2.5, row: 5, col: 4, credentials: PG });
+  const settleQ = w.add('n8n-nodes-base.postgres', 'Credit: Paystack settlement', sql(`${AUDIT()}update ${T.BC} set source = 'paystack_settlement', match_status = 'settlement' where id = $1::uuid;`, '={{ [$json.credit.id] }}'), { v: 2.5, row: 6, col: 4, credentials: PG });
   const queueAlert = w.add('n8n-nodes-base.executeWorkflow', 'W22: unmatched payment to console (+ POP request if no reference)', execWf('REPLACE_WITH_W22_WORKFLOW_ID', 'kind=billing_unmatched; payload: bank_credit_id, reason, suggestions, ask_pop. W22 sends ops_action to Jonathan; ask_pop -> WhatsApp to the broker asking for proof of payment (6.5 item 3).'), { v: 1.2, row: 4, col: 5 });
 
   // --- C. Mark paid (both rails meet here: the same event)
   const norm = w.add('n8n-nodes-base.code', 'Normalise payment.received', code(`
-return $input.all().map((i) => { const ev = i.json.ev || i.json; return { json: { ev, method: ev.method, ref: ev.invoice_reference, paid_at: ev.paid_at,
-  paystack_reference: (ev.paystack && ev.paystack.reference) || '', bank_credit_id: ev.bank_credit_id || '', amount_cents: ev.amount_cents, key: ev.idempotency_key,
+// Both rails arrive here. Bank credits carry credit + reason ('reference_and_amount' or 'manual_assign:<auth uid>').
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+return $input.all().map((i) => { const ev = i.json.ev || i.json;
+  const why = typeof i.json.reason === 'string' ? i.json.reason : '';
+  const manual = why.startsWith('manual_assign:');
+  const by = manual && UUID.test(why.slice(14)) ? why.slice(14).toLowerCase() : '';
+  const key = ev.idempotency_key;
+  return { json: { ev, method: ev.method, ref: ev.invoice_reference, paid_at: ev.paid_at,
+  paystack_reference: (ev.paystack && ev.paystack.reference) || '', bank_credit_id: ev.bank_credit_id || '', amount_cents: ev.amount_cents, key,
+  credit_status: manual ? 'manual' : 'auto', assigned_by: by,
+  audit_reason: ('W16 payment.received ' + key + (manual ? ' manual_assign' + (by ? ' by ' + by : '') : '')).slice(0, 300),
   authorization_code: (ev.paystack && ev.paystack.authorization_code) || null, customer_code: (ev.paystack && ev.paystack.customer_code) || null } }; });
 `), { v: 2, row: 1, col: 12 });
-  const markPaid = w.add('n8n-nodes-base.postgres', 'Mark invoice paid + create cycle', sql(MARK_PAID_SQL, '={{ [$json.ref, $json.paid_at, $json.method, $json.paystack_reference, $json.bank_credit_id, $json.amount_cents, $json.key] }}'), { v: 2.5, row: 1, col: 13, credentials: PG, alwaysOutputData: true });
+  const markPaid = w.add('n8n-nodes-base.postgres', 'Mark invoice paid + create cycle', sql(MARK_PAID_SQL, '={{ [$json.ref, $json.paid_at, $json.method, $json.paystack_reference, $json.bank_credit_id, $json.amount_cents, $json.audit_reason, $json.credit_status, $json.assigned_by] }}'), { v: 2.5, row: 1, col: 13, credentials: PG, alwaysOutputData: true });
   const flipped = w.add('n8n-nodes-base.if', 'Invoice flipped to paid?', ifTrue('={{ !!$json.invoice_id }}'), { v: 2, row: 1, col: 14 });
-  const notFlipped = w.add('n8n-nodes-base.executeWorkflow', 'W22: paid event did not match an open invoice', execWf('REPLACE_WITH_W22_WORKFLOW_ID', 'kind=billing_unmatched (already paid / amount outside R1 / unknown reference). Never silently dropped.'), { v: 1.2, row: 2, col: 15 });
-  const saveAuth = w.add('n8n-nodes-base.postgres', 'Card auto-renew token to Vault (opt-in only)', sql(`-- Only the Paystack authorization_code (a token), only when the broker opted in. Never card numbers or expiry.
-update ${T.BR} b set card_autorenew = true, paystack_customer_code = coalesce($3, b.paystack_customer_code),
-  paystack_authorization_ref = vault.create_secret($2, 'paystack_auth_' || b.id::text || '_' || extract(epoch from now())::bigint)
-where b.id = $1::uuid and $2 is not null and $2 <> '';`, '={{ [$json.broker_id, $("Normalise payment.received").first().json.authorization_code || "", $("Normalise payment.received").first().json.customer_code] }}'), { v: 2.5, row: 0, col: 15, credentials: PG });
+  const creditBack = w.add('n8n-nodes-base.postgres', 'Credit: to console queue (invoice not open / amount outside R1)', sql(`${AUDIT()}update ${T.BC} set queue_reason = 'mark_paid_rejected'
+where id = nullif($1, '')::uuid and match_status = 'unmatched';`, '={{ [$("Normalise payment.received").first().json.bank_credit_id || ""] }}'), { v: 2.5, row: 2, col: 15, credentials: PG });
+  const notFlipped = w.add('n8n-nodes-base.executeWorkflow', 'W22: paid event did not match an open invoice', execWf('REPLACE_WITH_W22_WORKFLOW_ID', 'kind=billing_unmatched (already paid / amount outside R1 / unknown reference). Never silently dropped.'), { v: 1.2, row: 2, col: 16 });
+  const saveAuth = w.add('n8n-nodes-base.postgres', 'Card auto-renew token to Vault (opt-in only)', sql(`${AUDIT()}-- Only the Paystack authorization_code (a token), only when the broker opted in. Never card numbers or expiry.
+-- brokers.paystack_authorization_ref holds the Vault secret NAME (W19 reads vault.decrypted_secrets by name).
+with s as (
+  select 'paystack_auth_' || $1 || '_' || extract(epoch from clock_timestamp())::bigint as name
+  where $2 is not null and $2 <> ''
+), v as (
+  select s.name, vault.create_secret($2, s.name) as secret_id from s
+)
+update ${T.BR} b set card_autorenew = true, paystack_customer_code = coalesce(nullif($3, ''), b.paystack_customer_code), paystack_authorization_ref = v.name
+from v where b.id = $1::uuid;`, '={{ [$json.broker_id, $("Normalise payment.received").first().json.authorization_code || "", $("Normalise payment.received").first().json.customer_code || ""] }}'), { v: 2.5, row: 0, col: 15, credentials: PG });
   const route = w.add('n8n-nodes-base.switch', 'First payment, resume or renewal?', switchOn('={{ ["invited","prospect","onboarding"].includes($("Mark invoice paid + create cycle").first().json.broker_status) ? "first" : (["not_renewed","ended","paused"].includes($("Mark invoice paid + create cycle").first().json.broker_status) ? "resume" : "renewal") }}', ['first', 'resume', 'renewal']), { v: 3, row: 1, col: 16 });
-  const onboard = w.add('n8n-nodes-base.postgres', 'Broker -> onboarding', sql(`update ${T.BR} set status = 'onboarding' where id = $1::uuid and status in ('invited','prospect','onboarding') returning id, email;`, '={{ [$("Mark invoice paid + create cycle").first().json.broker_id] }}'), { v: 2.5, row: 0, col: 17, credentials: PG });
+  const onboard = w.add('n8n-nodes-base.postgres', 'Broker -> onboarding', sql(`${AUDIT()}-- Update only: the brokers row + auth user were created at invoice issue (NH-27 c, status invited/prospect).
+update ${T.BR} set status = 'onboarding', status_changed_at = case when status = 'onboarding' then status_changed_at else now() end where id = $1::uuid and status in ('invited','prospect','onboarding') returning id, email;`, '={{ [$("Mark invoice paid + create cycle").first().json.broker_id] }}'), { v: 2.5, row: 0, col: 17, credentials: PG });
   const magic = w.add('n8n-nodes-base.httpRequest', 'Supabase magic link', { method: 'POST', url: '={{ $env.SUPABASE_URL + "/auth/v1/admin/generate_link" }}', authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth',
     sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify({ type: "magiclink", email: $json.email, options: { redirect_to: "https://app.leadvelocity.co.za/broker/start" } }) }}', options: { timeout: 15000 } },
     { v: 4.2, row: 0, col: 18, credentials: { httpHeaderAuth: { name: 'Supabase service role (W16 magic link)' } } });
   const w20 = w.add('n8n-nodes-base.executeWorkflow', 'W20: welcome + magic link by WhatsApp and email', execWf('REPLACE_WITH_W20_WORKFLOW_ID', 'payload: broker_id, action_link (never logged). 6.1 step 1.'), { v: 1.2, row: 0, col: 19 });
   const w26 = w.add('n8n-nodes-base.executeWorkflow', 'W26: go-live runner (first payment)', execWf('REPLACE_WITH_W26_WORKFLOW_ID', '6.6: VPS buy link to Jonathan (HUMAN GATE) etc.'), { v: 1.2, row: 0, col: 20 });
-  const resume = w.add('n8n-nodes-base.postgres', 'Resume: cycle starts now, routing on', sql(`with c as (update ${T.CY} set status = 'active', starts_at = now(), ends_at = now() + interval '30 days' where cycle_id = $2 returning cycle_id)
-update ${T.BR} set status = 'active', routing_on = true, current_cycle_id = (select cycle_id from c) where id = $1::uuid returning id, (select media_share_zar from ${T.PR} p where p.tier_code = $3) as media_share_zar;`,
+  const resume = w.add('n8n-nodes-base.postgres', 'Resume: cycle starts now, routing on', sql(`${AUDIT()}with c as (update ${T.CY} set status = 'active', starts_at = now(), ends_at = now() + interval '30 days' where id = $2::uuid and status = 'scheduled' returning id)
+update ${T.BR} set status = 'active', status_changed_at = now(), routing_on = true, current_cycle_id = (select id from c)
+where id = $1::uuid and exists (select 1 from c) returning id, (select media_share_zar from ${T.PR} p where p.tier_code = $3) as media_share_zar;`,
     '={{ [$("Mark invoice paid + create cycle").first().json.broker_id, $("Mark invoice paid + create cycle").first().json.cycle_id, $("Mark invoice paid + create cycle").first().json.tier_code] }}'), { v: 2.5, row: 1, col: 17, credentials: PG });
   const adsUp = w.add('n8n-nodes-base.executeWorkflow', 'Ads module: raise budget by media_share_zar', execWf('REPLACE_WITH_ADS_BUDGET_WORKFLOW_ID', 'payload: { action: "raise", broker_id, media_share_zar } -> automation/ads/meta-ads.js guarded write.'), { v: 1.2, row: 1, col: 18 });
   const notify = w.add('n8n-nodes-base.executeWorkflow', 'W22: payment received (Jonathan/KG + broker receipt)', execWf('REPLACE_WITH_W22_WORKFLOW_ID', 'kind=payment_received; broker gets a receipt with the reference; renewal: "next cycle scheduled, no gap in leads".'), { v: 1.2, row: 2, col: 17 });
 
   // --- D. Card auto-renew lifecycle + failed charges
-  const autoOn = w.add('n8n-nodes-base.postgres', 'Card auto-renew on (Paystack plan mode)', sql(`update ${T.BR} set card_autorenew = true, paystack_subscription_code = $2, paystack_subscription_token_ref = vault.create_secret($3, 'paystack_sub_' || $2)
-where paystack_customer_code = $1;`, '={{ [$json.customer_code, $json.subscription_code, $json.email_token || ""] }}'), { v: 2.5, row: 2, col: 8, credentials: PG });
-  const autoOff = w.add('n8n-nodes-base.postgres', 'Card auto-renew off', sql(`update ${T.BR} set card_autorenew = false where paystack_subscription_code = $1 or paystack_customer_code = $2;`, '={{ [$json.subscription_code || "", $json.customer_code || ""] }}'), { v: 2.5, row: 3, col: 8, credentials: PG });
-  const failed = w.add('n8n-nodes-base.postgres', 'Record failed card charge (W19 retries day 1 and 3)', sql(`update ${T.INV} i set charge_attempts = coalesce(charge_attempts, 0) + 1, last_charge_failed_at = now(), last_charge_error = $2
+  const autoOn = w.add('n8n-nodes-base.postgres', 'Card auto-renew on (Paystack plan mode)', sql(`${AUDIT()}-- paystack_subscription_token_ref holds the Vault secret NAME, never the token.
+with s as (
+  select 'paystack_sub_' || $2 as name where $2 <> '' and $3 <> ''
+    and not exists (select 1 from vault.secrets x where x.name = 'paystack_sub_' || $2)
+), v as (
+  select s.name, vault.create_secret($3, s.name) as secret_id from s
+)
+update ${T.BR} b set card_autorenew = true, paystack_subscription_code = $2,
+  paystack_subscription_token_ref = coalesce((select name from v), b.paystack_subscription_token_ref)
+where b.paystack_customer_code = $1 and $1 <> '' and $2 <> '';`, '={{ [$json.customer_code || "", $json.subscription_code || "", $json.email_token || ""] }}'), { v: 2.5, row: 2, col: 8, credentials: PG });
+  const autoOff = w.add('n8n-nodes-base.postgres', 'Card auto-renew off', sql(`${AUDIT()}update ${T.BR} set card_autorenew = false where (paystack_subscription_code = $1 and $1 <> '') or (paystack_customer_code = $2 and $2 <> '');`, '={{ [$json.subscription_code || "", $json.customer_code || ""] }}'), { v: 2.5, row: 3, col: 8, credentials: PG });
+  const failed = w.add('n8n-nodes-base.postgres', 'Record failed card charge (W19 retries day 1 and 3)', sql(`${AUDIT()}update ${T.INV} i set charge_attempts = i.charge_attempts + 1, last_charge_failed_at = now(), last_charge_error = left($2, 500)
 from ${T.BR} b where b.paystack_customer_code = $1 and i.broker_id = b.id and i.status = 'issued';`, '={{ [$json.customer_code || "", $json.reason || ""] }}'), { v: 2.5, row: 1, col: 8, credentials: PG });
 
   // --- E. Checkout: start a Paystack payment for an invoice (called by billing/checkout/checkout.js)
   const coHook = w.add('n8n-nodes-base.webhook', 'Checkout: POST /billing/checkout', { httpMethod: 'POST', path: 'billing/checkout', responseMode: 'responseNode', options: { allowedOrigins: 'https://app.leadvelocity.co.za' } }, { v: 2, row: 8, col: 0, webhookId: 'smc-billing-checkout' });
   const coLoad = w.add('n8n-nodes-base.postgres', 'Checkout: load invoice + pricing', sql(`select json_build_object('invoice', (select row_to_json(i) from (select i.id, i.reference, i.status, i.tier_code, i.broker_id, i.cycle_id, i.due_at, round(i.total_zar*100)::bigint as total_cents,
-  coalesce(i.charge_attempts,0) as attempts, b.email, b.billing_ref from ${T.INV} i join ${T.BR} b on b.id = i.broker_id where i.reference = $1) i),
+  round(i.credit_applied_zar*100)::bigint as credit_cents, i.charge_attempts as attempts, b.email, b.billing_ref from ${T.INV} i join ${T.BR} b on b.id = i.broker_id where i.reference = $1) i),
   'pricing', (select json_agg(p) from ${T.PR} p), 'taken', coalesce((select json_agg(reference) from ${T.INV} x where x.broker_id = (select broker_id from ${T.INV} where reference = $1) and x.status <> 'void'), '[]')) as ctx;`,
     '={{ [String($json.body.invoice_reference || "").toUpperCase().slice(0, 30)] }}'), { v: 2.5, row: 8, col: 1, credentials: PG });
   const coPlan = w.add('n8n-nodes-base.code', 'Checkout: re-issue if tier changed, build Paystack request', code(`
@@ -243,32 +287,36 @@ if (body.tier_code && body.tier_code !== invoice.tier_code) {
   // Tier changes take effect at a cycle boundary (agreement 4.6): void this unpaid invoice, issue one for the chosen tier.
   const row = BILLING.pricing.byTierCode(pricing, body.tier_code);
   reissue = BILLING.invoice.buildInvoice({ broker: { id: invoice.broker_id, billing_ref: invoice.billing_ref }, pricingRow: row, cycleStart: new Date(), dueAt: invoice.due_at, method,
-    existingReferences: taken.filter((r) => r !== invoice.reference), cycleId: invoice.cycle_id });
+    existingReferences: taken.filter((r) => r !== invoice.reference), cycleId: invoice.cycle_id, creditCents: Number(invoice.credit_cents || 0) }); // shortfall credit carries over
   inv = { ...reissue, id: null };
 }
 const spec = method === 'manual_eft' ? null : BILLING.paystack.build.initialize({ invoice: inv, email: invoice.email, method, attempt: Number(invoice.attempts) + 1,
   callbackUrl: 'https://app.leadvelocity.co.za/billing/checkout/thanks', autorenewOptIn: method === 'card' && body.autorenew_opt_in === true, env: $env });
 return [{ json: { respond: 200, method, reference: inv.reference, old_reference: invoice.reference, reissue, spec } }];
 `, ['pricing', 'invoice', 'paystack']), { v: 2, row: 8, col: 2 });
-  const coReissue = w.add('n8n-nodes-base.postgres', 'Checkout: void + re-issue (only if tier changed)', sql(`with v as (update ${T.INV} set status = 'void' where reference = $1 and status = 'issued' and $2::jsonb is not null returning broker_id)
-insert into ${T.INV} (broker_id, cycle_id, tier_code, amount_excl_vat, vat_zar, total_zar, reference, method, status, issued_at, due_at)
-select v.broker_id, ($2::jsonb->>'cycle_id')::uuid, $2::jsonb->>'tier_code', ($2::jsonb->>'amount_excl_vat')::numeric, ($2::jsonb->>'vat_zar')::numeric, ($2::jsonb->>'total_zar')::numeric,
-       $2::jsonb->>'reference', $2::jsonb->>'method', 'issued', now(), ($2::jsonb->>'due_at')::timestamptz from v
+  const coReissue = w.add('n8n-nodes-base.postgres', 'Checkout: void + re-issue (only if tier changed)', sql(`${AUDIT("'checkout tier change: void + re-issue'")}-- invoice_no and brand_id are filled by smc_invoices_fill. total_zar is written and the trigger rejects it unless it equals
+-- amount_excl_vat + vat_zar: invoice.js derives all three from the same integer cents, so a mismatch means a bug, not rounding.
+with v as (update ${T.INV} set status = 'void' where reference = $1 and status = 'issued' and $2::jsonb is not null returning broker_id)
+insert into ${T.INV} (broker_id, cycle_id, tier_code, amount_excl_vat, vat_zar, total_zar, credit_applied_zar, reference, method, status, issued_at, due_at)
+select v.broker_id, ($2::jsonb->>'cycle_id')::uuid, $2::jsonb->>'tier_code', ($2::jsonb->>'amount_excl_vat')::numeric, ($2::jsonb->>'vat_zar')::numeric,
+       ($2::jsonb->>'total_zar')::numeric,
+       coalesce(($2::jsonb->>'credit_cents')::numeric, 0) / 100,
+       $2::jsonb->>'reference', $2::jsonb->>'method', $2::jsonb->>'status', now(), ($2::jsonb->>'due_at')::timestamptz from v
 on conflict (reference) do nothing;`, '={{ [$json.old_reference, $json.reissue ? JSON.stringify($json.reissue) : null] }}'), { v: 2.5, row: 8, col: 3, credentials: PG, alwaysOutputData: true });
   const coNeed = w.add('n8n-nodes-base.if', 'Checkout: Paystack needed?', ifTrue('={{ !!$("Checkout: re-issue if tier changed, build Paystack request").first().json.spec }}'), { v: 2, row: 8, col: 4 });
   const coInit = w.add('n8n-nodes-base.httpRequest', 'Paystack initialize transaction', { ...httpSpec(), method: 'POST', url: 'https://api.paystack.co/transaction/initialize', jsonBody: '={{ JSON.stringify($("Checkout: re-issue if tier changed, build Paystack request").first().json.spec.body) }}', sendBody: true }, { v: 4.2, row: 8, col: 5, credentials: PAYSTACK });
   const coRespPay = w.add('n8n-nodes-base.respondToWebhook', 'Respond: Paystack URL', { respondWith: 'json', responseBody: '={{ JSON.stringify({ authorization_url: $json.body && $json.body.data ? $json.body.data.authorization_url : null, reference: $("Checkout: re-issue if tier changed, build Paystack request").first().json.reference }) }}', options: { responseCode: '={{ $json.body && $json.body.status ? 200 : 502 }}' } }, { v: 1.1, row: 8, col: 6 });
   const coRespRef = w.add('n8n-nodes-base.respondToWebhook', 'Respond: manual EFT reference', { respondWith: 'json', responseBody: '={{ JSON.stringify({ reference: $("Checkout: re-issue if tier changed, build Paystack request").first().json.reference, message: $("Checkout: re-issue if tier changed, build Paystack request").first().json.message }) }}', options: { responseCode: '={{ $("Checkout: re-issue if tier changed, build Paystack request").first().json.respond }}' } }, { v: 1.1, row: 9, col: 5 });
-  const note = w.add('n8n-nodes-base.stickyNote', 'Note', { content: '## W16 Payment received\nTwo rails, one event: Paystack webhook (A) or a bank credit from W17/W18/console (B) -> **Mark invoice paid + create cycle** (C).\n- Signature verified on the raw body before parsing; webhook_events gives idempotency.\n- Paystack payments are re-verified via the API and compared with the invoice (+/-R1) before marking paid.\n- Unmatched, partial, overpaid, duplicate and already-paid credits never mark paid: console queue (W22).\n- Card token stored only on opt-in, only in Vault.\n- First cycle starts when routing goes on (NH-CD-14), so starts_at stays null here.\n- Checkout (E): starts Paystack for an invoice; a tier change voids and re-issues the unpaid invoice.\nSee automation/billing/RUNBOOK.md.', height: 360, width: 520 }, { row: 6, col: 9 });
+  const note = w.add('n8n-nodes-base.stickyNote', 'Note', { content: '## W16 Payment received\nTwo rails, one event: Paystack webhook (A) or a bank credit from W17/W18/console (B) -> **Mark invoice paid + create cycle** (C).\n- Signature verified on the raw body before parsing; webhook_events gives idempotency.\n- Paystack payments are re-verified via the API and compared with the invoice (+/-R1) before marking paid.\n- Unmatched, partial, overpaid, duplicate and already-paid credits never mark paid: console queue (W22).\n- Card token stored only on opt-in, only in Vault.\n- First cycle starts when routing goes on (NH-CD-14), so starts_at stays null here.\n- Never creates the brokers row: it and the auth user exist from invoice issue (NH-27 c); payment moves invited/prospect -> onboarding.\n- No manual audit_log insert: the smc_audit trigger logs every write; SET LOCAL smc.source/smc.reason (idempotency key, console assigner) give it the context.\n- Checkout (E): starts Paystack for an invoice; a tier change voids and re-issues the unpaid invoice.\nSee automation/billing/RUNBOOK.md.', height: 360, width: 520 }, { row: 6, col: 9 });
 
   w.chain(hook, verify, okIf); w.link(okIf, r200, 0); w.link(okIf, r401, 1);
   w.chain(r200, idem, isNew); w.link(isNew, restore, 0); w.link(restore, sw);
   w.link(sw, verTx, 0); w.link(sw, failed, 1); w.link(sw, autoOn, 2); w.link(sw, autoOff, 3);
   w.chain(verTx, loadInv, checkTx, okTx); w.link(okTx, norm, 0); w.link(okTx, notFlipped, 1);
   w.chain(sub, loadCtx, match, act);
-  w.link(act, setCredit, 0); w.link(act, queueQ, 1); w.link(act, dupQ, 2); w.link(act, settleQ, 3);
-  w.link(setCredit, norm); w.link(queueQ, queueAlert);
-  w.chain(norm, markPaid, flipped); w.link(flipped, saveAuth, 0); w.link(flipped, notFlipped, 1);
+  w.link(act, norm, 0); w.link(act, queueQ, 1); w.link(act, dupQ, 2); w.link(act, settleQ, 3);
+  w.link(queueQ, queueAlert);
+  w.chain(norm, markPaid, flipped); w.link(flipped, saveAuth, 0); w.link(flipped, creditBack, 1); w.link(creditBack, notFlipped);
   w.link(saveAuth, route); w.link(saveAuth, notify);
   w.link(route, onboard, 0); w.chain(onboard, magic, w20, w26);
   w.link(route, resume, 1); w.link(resume, adsUp);
@@ -308,16 +356,17 @@ if (det.level !== 'ok') out.push({ json: { kind: 'format_' + det.level, detector
 return out.length ? out : [{ json: { kind: 'none' } }];
 `, ['incontact']), { v: 2, row: 0, col: 3 });
   const sw = w.add('n8n-nodes-base.switch', 'Kind', switchOn('={{ $json.kind }}', ['credit', 'format_alert', 'format_warn', 'debit', 'unrecognised', 'ignored']), { v: 3, row: 0, col: 4 });
-  const ins = w.add('n8n-nodes-base.postgres', 'Insert bank_credits (idempotent)', sql(`insert into ${T.BC} (source, graph_message_id, external_id, received_at, amount_zar, reference_raw, parsed_reference, match_status)
+  const ins = w.add('n8n-nodes-base.postgres', 'Insert bank_credits (idempotent)', sql(`${AUDIT()}insert into ${T.BC} (source, graph_message_id, external_id, received_at, amount_zar, reference_raw, parsed_reference, match_status)
 values ('incontact', $1, 'graph:' || $1, $2::timestamptz, $3::numeric, $4, nullif($5, ''), 'unmatched')
-on conflict (graph_message_id) do nothing returning id as bank_credit_id;`, '={{ [$json.credit.graph_message_id, $json.credit.received_at, $json.credit.amount_zar, $json.credit.reference_raw || "", $json.credit.parsed_reference || ""] }}'), { v: 2.5, row: 0, col: 5, credentials: PG });
-  const w16 = w.add('n8n-nodes-base.executeWorkflow', 'W16: match + mark paid', { ...execWf('REPLACE_WITH_W16_WORKFLOW_ID', 'payload: { bank_credit_id }'), options: { waitForSubWorkflow: true } }, { v: 1.2, row: 0, col: 6 });
+on conflict (graph_message_id) do nothing returning id as bank_credit_id, graph_message_id;`, '={{ [$json.credit.graph_message_id, $json.credit.received_at, $json.credit.amount_zar, $json.credit.reference_raw || "", $json.credit.parsed_reference || ""] }}'), { v: 2.5, row: 0, col: 5, credentials: PG });
+  const isNewC = w.add('n8n-nodes-base.if', 'New credit row?', ifTrue('={{ !!$json.bank_credit_id }}'), { v: 2, row: 0, col: 6 });
+  const w16 = w.add('n8n-nodes-base.executeWorkflow', 'W16: match + mark paid', { ...execWf('REPLACE_WITH_W16_WORKFLOW_ID', 'payload: { bank_credit_id }'), options: { waitForSubWorkflow: true } }, { v: 1.2, row: 0, col: 7 });
   const alert = w.add('n8n-nodes-base.executeWorkflow', 'W22: inContact format changed (alert)', execWf('REPLACE_WITH_W22_WORKFLOW_ID', 'kind=incontact_format_change, level=alert: an FNB alert could not be read. Message ids only. Statement import (W18) still catches the money.'), { v: 1.2, row: 1, col: 5 });
   const warn = w.add('n8n-nodes-base.executeWorkflow', 'W22: new inContact wording (warning)', execWf('REPLACE_WITH_W22_WORKFLOW_ID', 'kind=incontact_new_shape, level=warn'), { v: 1.2, row: 2, col: 5 });
   const done = w.add('n8n-nodes-base.microsoftOutlook', 'Outlook: mark FNB alert read', { resource: 'message', operation: 'update', messageId: { __rl: true, mode: 'id', value: '={{ $json.graph_message_id }}' }, updateFields: { isRead: true } }, { v: 2, row: 3, col: 5, credentials: OUTLOOK, onError: 'continueRegularOutput' });
   const note = w.add('n8n-nodes-base.stickyNote', 'Note', { content: '## W17 inContact parser\nGraph poll of howzit@ every 2 min (target: 100% of payments matched within 15 min).\nFilter: FNB sender domain + credit/payment subject; DMARC/DKIM/SPF fail -> rejected.\nRecognised credit -> bank_credits (unique graph_message_id) -> W16.\nUnreadable FNB alert -> alert; new wording -> warning (fingerprints in static data).\nASSUMPTION: FNB wording and sender; validate on 20 real alerts at GATE-INCONTACT.', height: 260, width: 440 }, { row: 3, col: 1 });
   w.chain(sched, win); w.link(man, win); w.chain(win, get, parse, sw);
-  w.link(sw, ins, 0); w.link(ins, w16); w.link(ins, done);
+  w.link(sw, ins, 0); w.link(ins, isNewC); w.link(isNewC, w16, 0); w.link(isNewC, done, 0);  // already-stored alert: {success:true}, nothing to do
   w.link(sw, alert, 1); w.link(sw, warn, 2); w.link(sw, done, 3); w.link(sw, done, 4);
   void note;
 });
@@ -355,12 +404,13 @@ const credits = $input.first().json.credits.map((c) => ({ ...c, amount_cents: Nu
 const r = BILLING.reconcile.reconcileStatement(st.lines, credits, { asOf: new Date(), gapDays: 2 });
 return [{ json: { ...r, files: st.files, errors: st.errors, statement_missing: st.statement_missing } }];
 `, ['reconcile']), { v: 2, row: 0, col: 4 });
-  const confirm = w.add('n8n-nodes-base.postgres', 'Confirm inContact credits (statement of record)', sql(`update ${T.BC} b set statement_confirmed_at = now(), statement_external_id = x->>'statement_external_id'
+  const confirm = w.add('n8n-nodes-base.postgres', 'Confirm inContact credits (statement of record)', sql(`${AUDIT()}update ${T.BC} b set statement_confirmed_at = now(), statement_external_id = x->>'statement_external_id'
 from jsonb_array_elements($1::jsonb) x where b.id = (x->>'bank_credit_id')::uuid;`, '={{ [JSON.stringify($json.confirmations)] }}'), { v: 2.5, row: 0, col: 5, credentials: PG });
   const split = w.add('n8n-nodes-base.code', 'New credits to items', code(`return $('Reconcile statement vs bank_credits').first().json.new_credits.map((c) => ({ json: c }));`), { v: 2, row: 1, col: 5 });
-  const ins = w.add('n8n-nodes-base.postgres', 'Insert missed credits (idempotent)', sql(`insert into ${T.BC} (source, external_id, received_at, amount_zar, reference_raw, parsed_reference, match_status, statement_confirmed_at)
+  const ins = w.add('n8n-nodes-base.postgres', 'Insert missed credits (idempotent)', sql(`${AUDIT()}insert into ${T.BC} (source, external_id, received_at, amount_zar, reference_raw, parsed_reference, match_status, statement_confirmed_at)
 values ('statement', $1, $2::timestamptz, $3::numeric, $4, nullif($5,''), 'unmatched', now()) on conflict (external_id) do nothing returning id as bank_credit_id;`, '={{ [$json.external_id, $json.received_at, $json.amount_zar, $json.reference_raw || "", $json.parsed_reference || ""] }}'), { v: 2.5, row: 1, col: 6, credentials: PG });
-  const w16 = w.add('n8n-nodes-base.executeWorkflow', 'W16: match missed credit', { ...execWf('REPLACE_WITH_W16_WORKFLOW_ID', 'payload: { bank_credit_id }'), options: { waitForSubWorkflow: true } }, { v: 1.2, row: 1, col: 7 });
+  const isNewS = w.add('n8n-nodes-base.if', 'New credit row?', ifTrue('={{ !!$json.bank_credit_id }}'), { v: 2, row: 1, col: 7 });
+  const w16 = w.add('n8n-nodes-base.executeWorkflow', 'W16: match missed credit', { ...execWf('REPLACE_WITH_W16_WORKFLOW_ID', 'payload: { bank_credit_id }'), options: { waitForSubWorkflow: true } }, { v: 1.2, row: 1, col: 8 });
   const loadRep = w.add('n8n-nodes-base.postgres', 'Load invoices + credits for report', sql(`select (select coalesce(json_agg(i), '[]') from (select id, reference, status, round(total_zar*100)::bigint as total_cents, due_at, paid_at from ${T.INV} where issued_at > now() - interval '120 days') i) as invoices,
 (select coalesce(json_agg(c), '[]') from (select id, source, round(amount_zar*100)::bigint as amount_cents, reference_raw, received_at, match_status, statement_confirmed_at from ${T.BC} where received_at > now() - interval '35 days' or match_status = 'unmatched') c) as credits;`), { v: 2.5, row: 0, col: 6, credentials: PG });
   const report = w.add('n8n-nodes-base.code', 'Daily reconciliation report', code(`
@@ -379,7 +429,7 @@ return [{ json: r }];
   const alert = w.add('n8n-nodes-base.executeWorkflow', 'W22: reconciliation gaps (alert)', execWf('REPLACE_WITH_W22_WORKFLOW_ID', 'kind=billing_reconciliation_gap'), { v: 1.2, row: 0, col: 10 });
   const pulse = w.add('n8n-nodes-base.executeWorkflow', 'W22: daily billing line for the pulse', execWf('REPLACE_WITH_W22_WORKFLOW_ID', 'kind=billing_daily (dedupe per day)'), { v: 1.2, row: 1, col: 10 });
   w.chain(sched, read); w.link(man, read); w.chain(read, parse, load, recon, confirm, loadRep, report, save, isAlert);
-  w.link(recon, split); w.chain(split, ins, w16);
+  w.link(recon, split); w.chain(split, ins, isNewS); w.link(isNewS, w16, 0);
   w.link(isAlert, alert, 0); w.link(isAlert, pulse, 1);
 });
 
@@ -409,18 +459,20 @@ const W19 = wf('W19', 'Cycle renewal offer', (w) => {
   const sched = w.add('n8n-nodes-base.scheduleTrigger', 'Daily 07:00 SAST', { rule: { interval: [{ field: 'cronExpression', expression: '0 7 * * *' }] } }, { v: 1.2, row: 0, col: 0 });
   const man = w.add('n8n-nodes-base.manualTrigger', 'Manual run', {}, { row: 1, col: 0 });
   const due = w.add('n8n-nodes-base.postgres', 'Actions due today', sql(W19_DUE_SQL), { v: 2.5, row: 0, col: 1, credentials: PG });
-  const log = w.add('n8n-nodes-base.postgres', 'Claim action (idempotency key cycle+action+day)', sql(`insert into ops.billing_actions_log (cycle_id, action, day) values ($1, $2, (now() at time zone 'Africa/Johannesburg')::date) on conflict do nothing returning cycle_id;`, '={{ [$json.cycle_id, $json.action] }}'), { v: 2.5, row: 0, col: 2, credentials: PG });
+  const log = w.add('n8n-nodes-base.postgres', 'Claim action (idempotency key cycle+action+day)', sql(`insert into ops.billing_actions_log (cycle_id, action, day) values ($1::uuid, $2, (now() at time zone 'Africa/Johannesburg')::date)
+on conflict (cycle_id, action, day) do nothing returning cycle_id, action;`, '={{ [$json.cycle_id, $json.action] }}'), { v: 2.5, row: 0, col: 2, credentials: PG });
   const back = w.add('n8n-nodes-base.code', 'Claimed rows only', code(`
 const due = $('Actions due today').all().map((i) => i.json);
-const claimed = new Set($input.all().map((i) => i.json.cycle_id + ''));
-return due.filter((d) => claimed.has(d.cycle_id + '')).map((d) => ({ json: d }));
+const claimed = new Set($input.all().filter((i) => i.json.cycle_id).map((i) => i.json.cycle_id + '|' + i.json.action));
+return due.filter((d) => claimed.has(d.cycle_id + '|' + d.action)).map((d) => ({ json: d }));
 `), { v: 2, row: 0, col: 3 });
   const sw = w.add('n8n-nodes-base.switch', 'Action', switchOn('={{ $json.action }}', ['offer_t7', 'remind_t3', 'remind_t1', 'cycle_end', 'retry_card', 'come_back']), { v: 3, row: 0, col: 4 });
 
   // offer at T-7
-  const ctx = w.add('n8n-nodes-base.postgres', 'Offer: results + pricing + issued refs', sql(`select json_build_object('progress', (select row_to_json(v) from public.v_cycle_progress v where v.cycle_id = $1),
+  const ctx = w.add('n8n-nodes-base.postgres', 'Offer: results + pricing + issued refs', sql(`select json_build_object('progress', (select row_to_json(v) from public.v_cycle_progress v where v.cycle_id = $1::uuid),
+  'quality_avg', (select round(avg(o.quality_score)::numeric, 1) from public.outcomes o where o.cycle_id = $1::uuid),
   'pricing', (select json_agg(p) from ${T.PR} p), 'taken', coalesce((select json_agg(reference) from ${T.INV} where broker_id = $2::uuid and status <> 'void'), '[]'),
-  'credit_cents', coalesce((select round(shortfall_credit_zar*100)::bigint from ${T.CY} where cycle_id = $1), 0)) as ctx;`, '={{ [$json.cycle_id, $json.broker_id] }}'), { v: 2.5, row: 0, col: 5, credentials: PG });
+  'credit_cents', coalesce((select round(shortfall_credit_zar*100)::bigint from ${T.CY} where id = $1::uuid), 0)) as ctx;`, '={{ [$json.cycle_id, $json.broker_id] }}'), { v: 2.5, row: 0, col: 5, credentials: PG });
   const offer = w.add('n8n-nodes-base.code', 'Offer: renewal invoice + message', code(`
 const row = $('Claimed rows only').all().map((i) => i.json).find((r) => r.action === 'offer_t7' && r.cycle_id === $('Offer: results + pricing + issued refs').first().json.ctx.progress.cycle_id) || $('Claimed rows only').first().json;
 const ctx = $input.first().json.ctx;
@@ -433,8 +485,8 @@ const p = ctx.progress || {};
 const endDay = new Date(row.ends_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', timeZone: 'Africa/Johannesburg' });
 const month = new Date(row.ends_at).toLocaleDateString('en-ZA', { month: 'long', timeZone: 'Africa/Johannesburg' });
 // broker_cycle_end template: {{1}} month {{2}} end {{3}} delivered {{4}} committed {{5}} good-fit {{6}} rating {{7}} replacements line; button suffixes.
-const template = { name: 'broker_cycle_end', body: [month, endDay, String(p.verified || 0), String(p.committed || tier.committed_leads), String(p.good_fit || 0), p.quality_avg ? Number(p.quality_avg).toFixed(1) : '-',
-  'Replacements used: ' + (p.replacements || 0) + ' of ' + (p.replacement_cap || tier.replacement_cap_cycle) + '.'], buttons: ['renew/' + inv.reference, 'r/' + row.cycle_id] };
+const template = { name: 'broker_cycle_end', body: [month, endDay, String(p.verified || 0), String(p.committed || tier.committed_leads), String(p.good_fit || 0), ctx.quality_avg ? Number(ctx.quality_avg).toFixed(1) : '-',
+  'Replacements used: ' + (p.replacements_used || 0) + ' of ' + (p.replacement_cap || tier.replacement_cap_cycle) + '.'], buttons: ['renew/' + inv.reference, 'r/' + row.cycle_id] };
 const v = BILLING.render.invoiceVars(inv, tier);
 const email = { subject: 'Your SortMyCover renewal: reference ' + inv.reference,
   html: '<p>Your cycle ends on ' + endDay + '. To keep leads coming with no gap, pay for the next cycle before then.</p>' +
@@ -445,9 +497,11 @@ const email = { subject: 'Your SortMyCover renewal: reference ' + inv.reference,
     '<p>Manual EFT has no fees: use the reference above exactly. No contract: if you don\\'t renew, the cycle simply ends and your delivered leads stay yours.</p>' };
 return [{ json: { row, invoice: inv, links, template, email } }];
 `, ['pricing', 'invoice', 'render', 'reference']), { v: 2, row: 0, col: 6 });
-  const insInv = w.add('n8n-nodes-base.postgres', 'Offer: issue renewal invoice (idempotent)', sql(`insert into ${T.INV} (broker_id, tier_code, amount_excl_vat, vat_zar, total_zar, reference, method, status, issued_at, due_at)
-values ($1::uuid, $2, $3::numeric, nullif($4,'')::numeric, $5::numeric, $6, 'instant_eft', $7, now(), $8::timestamptz) on conflict (reference) do nothing;
-update ${T.CY} set renewal_offer_sent_at = now() where cycle_id = $9;`, '={{ [$json.invoice.broker_id, $json.invoice.tier_code, $json.invoice.amount_excl_vat, $json.invoice.vat_zar === null ? "" : String($json.invoice.vat_zar), $json.invoice.total_zar, $json.invoice.reference, $json.invoice.status, $json.invoice.due_at, $json.row.cycle_id] }}'), { v: 2.5, row: 0, col: 7, credentials: PG });
+  const insInv = w.add('n8n-nodes-base.postgres', 'Offer: issue renewal invoice (idempotent)', sql(`${AUDIT("'W19 renewal offer T-7'")}-- invoice_no and brand_id are filled by smc_invoices_fill. total_zar must equal amount_excl_vat + vat_zar or the trigger
+-- rejects the insert: invoice.js derives all three from the same integer cents (after the shortfall credit).
+insert into ${T.INV} (broker_id, tier_code, amount_excl_vat, vat_zar, total_zar, credit_applied_zar, reference, method, status, issued_at, due_at)
+values ($1::uuid, $2, $3::numeric, nullif($4,'')::numeric, $5::numeric, $10::numeric / 100, $6, 'instant_eft', $7, now(), $8::timestamptz) on conflict (reference) do nothing;
+update ${T.CY} set renewal_offer_sent_at = now() where id = $9::uuid;`, '={{ [$json.invoice.broker_id, $json.invoice.tier_code, $json.invoice.amount_excl_vat, $json.invoice.vat_zar === null ? "" : String($json.invoice.vat_zar), $json.invoice.total_zar, $json.invoice.reference, $json.invoice.status, $json.invoice.due_at, $json.row.cycle_id, $json.invoice.credit_cents || 0] }}'), { v: 2.5, row: 0, col: 7, credentials: PG });
   const send = w.add('n8n-nodes-base.executeWorkflow', 'WhatsApp: broker_cycle_end (renewal offer)', execWf('REPLACE_WITH_WHATSAPP_SEND_WORKFLOW_ID', 'automation-engineer sender sub-workflow: template + params from "Offer: renewal invoice + message".'), { v: 1.2, row: 0, col: 8 });
   const mail = w.add('n8n-nodes-base.microsoftOutlook', 'Email: renewal offer from howzit@', { resource: 'message', operation: 'send', toRecipients: '={{ $("Offer: renewal invoice + message").first().json.row.email }}', subject: '={{ $("Offer: renewal invoice + message").first().json.email.subject }}', bodyContent: '={{ $("Offer: renewal invoice + message").first().json.email.html }}', additionalFields: { bodyContentType: 'html' } }, { v: 2, row: 1, col: 8, credentials: OUTLOOK });
 
@@ -460,27 +514,33 @@ return $input.all().map((i) => { const r = i.json; const days = r.action === 're
   const remSend = w.add('n8n-nodes-base.executeWorkflow', 'WhatsApp + email: renewal reminder', execWf('REPLACE_WITH_WHATSAPP_SEND_WORKFLOW_ID', 'Template broker_renewal_reminder is NOT yet in automation/templates (needs_human NH-BA-08). Until approved: email only, or inside the 24-h window.'), { v: 1.2, row: 2, col: 6 });
 
   // cycle end
-  const endCtx = w.add('n8n-nodes-base.postgres', 'Cycle end: open invoice + card token', sql(`select i.id, i.reference, round(i.total_zar*100)::bigint as total_cents, i.tier_code, coalesce(i.charge_attempts,0) as attempts, b.email, b.billing_ref,
-  case when b.card_autorenew then (select decrypted_secret from vault.decrypted_secrets where name = b.paystack_authorization_ref) end as authorization_code,
-  p.media_share_zar
-from ${T.INV} i join ${T.BR} b on b.id = i.broker_id join ${T.PR} p on p.tier_code = (select tier_code from ${T.CY} where cycle_id = $2)
-where i.broker_id = $1::uuid and i.status = 'issued' order by i.issued_at desc limit 1;`, '={{ [$json.broker_id, $json.cycle_id] }}'), { v: 2.5, row: 3, col: 5, credentials: PG, alwaysOutputData: true });
-  const routeOff = w.add('n8n-nodes-base.postgres', 'Routing off, cycle not renewed (no grace)', sql(`update ${T.CY} set status = 'not_renewed' where cycle_id = $2 and status in ('active','extended');
-update ${T.BR} set routing_on = false, status = 'not_renewed' where id = $1::uuid
-  and not exists (select 1 from ${T.CY} n where n.broker_id = $1::uuid and n.status = 'scheduled' and n.invoice_id is not null);`, '={{ [$("Claimed rows only").first().json.broker_id, $("Claimed rows only").first().json.cycle_id] }}'), { v: 2.5, row: 3, col: 6, credentials: PG });
-  const adsDown = w.add('n8n-nodes-base.executeWorkflow', 'Ads module: lower budget by media_share_zar', execWf('REPLACE_WITH_ADS_BUDGET_WORKFLOW_ID', 'payload: { action: "lower", broker_id, media_share_zar } (6.1 step 7).'), { v: 1.2, row: 3, col: 7 });
-  const hasCard = w.add('n8n-nodes-base.if', 'Card auto-renew on?', ifTrue('={{ !!$("Cycle end: open invoice + card token").first().json.authorization_code }}'), { v: 2, row: 3, col: 8 });
+  // Always exactly one row (even with no open invoice), so routing still goes off at cycle end.
+  const endCtx = w.add('n8n-nodes-base.postgres', 'Cycle end: open invoice + card token', sql(`select x.broker_id, x.cycle_id, x.action, i.id, i.reference, i.total_cents, i.tier_code, i.attempts, i.email, i.billing_ref, i.authorization_code,
+  (select c.media_share_zar from ${T.CY} c where c.id = x.cycle_id) as media_share_zar
+from (select $1::uuid as broker_id, $2::uuid as cycle_id, $3::text as action) x
+left join lateral (
+  select i.id, i.reference, round(i.total_zar*100)::bigint as total_cents, i.tier_code, i.charge_attempts as attempts, b.email, b.billing_ref,
+    case when b.card_autorenew then (select s.decrypted_secret from vault.decrypted_secrets s where s.name = b.paystack_authorization_ref) end as authorization_code
+  from ${T.INV} i join ${T.BR} b on b.id = i.broker_id
+  where i.broker_id = x.broker_id and i.status = 'issued' order by i.issued_at desc limit 1
+) i on true;`, '={{ [$json.broker_id, $json.cycle_id, $json.action] }}'), { v: 2.5, row: 3, col: 5, credentials: PG });
+  const isEnd = w.add('n8n-nodes-base.if', 'Cycle end (not a card retry)?', ifTrue('={{ $json.action === "cycle_end" }}'), { v: 2, row: 3, col: 6 });
+  const routeOff = w.add('n8n-nodes-base.postgres', 'Routing off, cycle not renewed (no grace)', sql(`${AUDIT("'W19 cycle end, not renewed (no grace)'")}update ${T.CY} set status = 'not_renewed' where id = $2::uuid and status in ('active','extended');
+update ${T.BR} set routing_on = false, status = 'not_renewed', status_changed_at = now() where id = $1::uuid
+  and not exists (select 1 from ${T.CY} n where n.broker_id = $1::uuid and n.status = 'scheduled' and n.invoice_id is not null);`, '={{ [$json.broker_id, $json.cycle_id] }}'), { v: 2.5, row: 3, col: 7, credentials: PG });
+  const adsDown = w.add('n8n-nodes-base.executeWorkflow', 'Ads module: lower budget by media_share_zar', execWf('REPLACE_WITH_ADS_BUDGET_WORKFLOW_ID', 'payload: { action: "lower", broker_id, media_share_zar } (6.1 step 7). Cycle end only, never on a card retry.'), { v: 1.2, row: 3, col: 8 });
+  const hasCard = w.add('n8n-nodes-base.if', 'Card auto-renew on?', ifTrue('={{ !!$("Cycle end: open invoice + card token").first().json.authorization_code }}'), { v: 2, row: 3, col: 9 });
   const chargeSpec = w.add('n8n-nodes-base.code', 'Build card charge (attempt n)', code(`
 const i = $('Cycle end: open invoice + card token').first().json;
 const spec = BILLING.paystack.build.chargeAuthorization({ invoice: { reference: i.reference, total_cents: Number(i.total_cents), tier_code: i.tier_code }, email: i.email, authorization_code: i.authorization_code, attempt: Number(i.attempts) + 1 });
 return [{ json: { spec } }];
-`, ['paystack']), { v: 2, row: 3, col: 9 });
-  const charge = w.add('n8n-nodes-base.httpRequest', 'Paystack charge_authorization', { ...httpSpec(), method: 'POST', url: 'https://api.paystack.co/transaction/charge_authorization', sendBody: true }, { v: 4.2, row: 3, col: 10, credentials: PAYSTACK });
-  const chargeOk = w.add('n8n-nodes-base.if', 'Charge succeeded?', ifTrue('={{ $json.body && $json.body.data && $json.body.data.status === "success" }}'), { v: 2, row: 3, col: 11 });
-  const chargeNote = w.add('n8n-nodes-base.noOp', 'Paid: charge.success webhook -> W16 resumes (no action here)', {}, { row: 3, col: 12 });
-  const chargeFail = w.add('n8n-nodes-base.postgres', 'Record failed charge', sql(`update ${T.INV} set charge_attempts = coalesce(charge_attempts,0) + 1, last_charge_failed_at = now(), last_charge_error = $2 where reference = $1;`, '={{ [$("Cycle end: open invoice + card token").first().json.reference, ($json.body && $json.body.data && $json.body.data.gateway_response) || ($json.body && $json.body.message) || "failed"] }}'), { v: 2.5, row: 4, col: 12, credentials: PG });
-  const lastTry = w.add('n8n-nodes-base.if', 'Day-3 retry failed? -> pay link', ifTrue('={{ Number($("Cycle end: open invoice + card token").first().json.attempts) + 1 >= 3 }}'), { v: 2, row: 4, col: 13 });
-  const payLink = w.add('n8n-nodes-base.executeWorkflow', 'WhatsApp + email: pay link (card failed / cycle ended)', execWf('REPLACE_WITH_WHATSAPP_SEND_WORKFLOW_ID', 'Text: "Your cycle has ended and new leads have stopped. Pay any time to start again: <link>. Reference *LV-...*. Your delivered leads stay yours." Card failure adds "Your card was declined; update it with the link."'), { v: 1.2, row: 4, col: 14 });
+`, ['paystack']), { v: 2, row: 3, col: 10 });
+  const charge = w.add('n8n-nodes-base.httpRequest', 'Paystack charge_authorization', { ...httpSpec(), method: 'POST', url: 'https://api.paystack.co/transaction/charge_authorization', sendBody: true }, { v: 4.2, row: 3, col: 11, credentials: PAYSTACK });
+  const chargeOk = w.add('n8n-nodes-base.if', 'Charge succeeded?', ifTrue('={{ $json.body && $json.body.data && $json.body.data.status === "success" }}'), { v: 2, row: 3, col: 12 });
+  const chargeNote = w.add('n8n-nodes-base.noOp', 'Paid: charge.success webhook -> W16 resumes (no action here)', {}, { row: 3, col: 13 });
+  const chargeFail = w.add('n8n-nodes-base.postgres', 'Record failed charge', sql(`${AUDIT()}update ${T.INV} set charge_attempts = charge_attempts + 1, last_charge_failed_at = now(), last_charge_error = left($2, 500) where reference = $1;`, '={{ [$("Cycle end: open invoice + card token").first().json.reference, ($json.body && $json.body.data && $json.body.data.gateway_response) || ($json.body && $json.body.message) || "failed"] }}'), { v: 2.5, row: 4, col: 13, credentials: PG });
+  const lastTry = w.add('n8n-nodes-base.if', 'Day-3 retry failed? -> pay link', ifTrue('={{ Number($("Cycle end: open invoice + card token").first().json.attempts) + 1 >= 3 }}'), { v: 2, row: 4, col: 14 });
+  const payLink = w.add('n8n-nodes-base.executeWorkflow', 'WhatsApp + email: pay link (card failed / cycle ended)', execWf('REPLACE_WITH_WHATSAPP_SEND_WORKFLOW_ID', 'Text: "Your cycle has ended and new leads have stopped. Pay any time to start again: <link>. Reference *LV-...*. Your delivered leads stay yours." Card failure adds "Your card was declined; update it with the link."'), { v: 1.2, row: 4, col: 15 });
 
   // retry day 1 and 3 (routing already off: no grace)
   const retryCtx = w.add('n8n-nodes-base.noOp', 'Retry day 1 / day 3 uses the same charge path', {}, { row: 5, col: 5 });
@@ -489,7 +549,7 @@ return [{ json: { spec } }];
   w.chain(sched, due); w.link(man, due); w.chain(due, log, back, sw);
   w.link(sw, ctx, 0); w.chain(ctx, offer, insInv, send); w.link(insInv, mail);
   w.link(sw, rem, 1); w.link(sw, rem, 2); w.link(rem, remSend);
-  w.link(sw, endCtx, 3); w.chain(endCtx, routeOff, adsDown, hasCard); w.link(hasCard, chargeSpec, 0); w.link(hasCard, payLink, 1);
+  w.link(sw, endCtx, 3); w.chain(endCtx, isEnd); w.link(isEnd, routeOff, 0); w.link(isEnd, hasCard, 1); w.chain(routeOff, adsDown, hasCard); w.link(hasCard, chargeSpec, 0); w.link(hasCard, payLink, 1);
   w.chain(chargeSpec, charge, chargeOk); w.link(chargeOk, chargeNote, 0); w.link(chargeOk, chargeFail, 1); w.link(chargeFail, lastTry); w.link(lastTry, payLink, 0);
   w.link(sw, retryCtx, 4); w.link(retryCtx, endCtx);
   w.link(sw, comeBack, 5);
@@ -505,11 +565,19 @@ const W25 = wf('W25', 'Pricing & website sync', (w) => {
   const tpl = w.add('n8n-nodes-base.readWriteFile', 'Read checkout template', { operation: 'read', fileSelector: "={{ ($env.REPO_DIR || '/home/node/repo') + '/billing/checkout/index.html' }}", options: {} }, { v: 1, row: 0, col: 2 });
   const render = w.add('n8n-nodes-base.code', 'Render tier cards, checkout, templates', code(`
 const rows = BILLING.pricing.validateRows($('Load pricing').first().json.rows);
+// smc_pricing_notify (06) fires on EVERY pricing write, including our own Paystack-code write-back below.
+// A LISTEN-triggered run whose price-relevant fields are unchanged since the last publish is a no-op (no loop).
+const sd = $getWorkflowStaticData('global');
+const SKIP = new Set(['paystack_page_code', 'paystack_plan_code', 'created_at', 'updated_at']);
+const sig = JSON.stringify(rows.map((r) => Object.keys(r).sort().filter((k) => !SKIP.has(k)).map((k) => [k, r[k]])));
+let fromListen = false; try { fromListen = $('pricing row changed (LISTEN)').isExecuted; } catch (e) { fromListen = false; }
+if (fromListen && sd.publishedSig === sig) return [];
+sd.publishedSig = sig;
 const staging = String($env.W25_TARGET || 'staging') !== 'production';
 const opts = { includeUnapproved: staging };
 const live = BILLING.pricing.activeRows(rows, opts);
 if (!live.length) throw new Error('W25: no approved pricing rows (active_from) - nothing to publish to production');
-$getWorkflowStaticData('global').pricingRows = rows;
+sd.pricingRows = rows;
 const cards = BILLING.render.renderTierCards(rows, { ...opts, checkoutUrl: 'https://app.leadvelocity.co.za/billing/checkout/' });
 const tplHtml = Buffer.from($input.first().binary.data.data, 'base64').toString('utf8');
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/'/g, '&#39;');
@@ -545,8 +613,11 @@ const req = $('Paystack page/plan requests').all().map((i) => i.json);
 return $input.all().map((r, idx) => { const d = (r.json.body && r.json.body.data) || {}; const q = req[idx];
   return { json: { tier_code: q.tier_code, kind: q.kind, ok: !!(r.json.body && r.json.body.status), code: q.kind === 'page' ? (d.slug || d.id || null) : (d.plan_code || null), message: r.json.body && r.json.body.message } }; });
 `), { v: 2, row: 1, col: 10 });
-  const upd = w.add('n8n-nodes-base.postgres', 'Write codes back to pricing.paystack_*', sql(`update ${T.PR} set paystack_page_code = case when $2 = 'page' then coalesce($3, paystack_page_code) else paystack_page_code end,
-  paystack_plan_code = case when $2 = 'plan' then coalesce($3, paystack_plan_code) else paystack_plan_code end where tier_code = $1 and $4::boolean;`, '={{ [$json.tier_code, $json.kind, $json.code, $json.ok] }}'), { v: 2.5, row: 1, col: 11, credentials: PG });
+  const upd = w.add('n8n-nodes-base.postgres', 'Write codes back to pricing.paystack_*', sql(`${AUDIT("'W25 Paystack codes written back'")}-- Only writes when the code actually changed: every pricing write fires pg_notify('pricing_changed') -> W25.
+update ${T.PR} set paystack_page_code = case when $2 = 'page' then $3 else paystack_page_code end,
+  paystack_plan_code = case when $2 = 'plan' then $3 else paystack_plan_code end
+where tier_code = $1 and $4::boolean and nullif($3, '') is not null
+  and (case when $2 = 'page' then paystack_page_code else paystack_plan_code end) is distinct from $3;`, '={{ [$json.tier_code, $json.kind, $json.code === null || $json.code === undefined ? "" : String($json.code), $json.ok] }}'), { v: 2.5, row: 1, col: 11, credentials: PG });
   const done = w.add('n8n-nodes-base.executeWorkflow', 'W22: pricing published', execWf('REPLACE_WITH_W22_WORKFLOW_ID', 'kind=pricing_published; staging/production; Paystack results.'), { v: 1.2, row: 0, col: 9 });
   const note = w.add('n8n-nodes-base.stickyNote', 'Note', { content: '## W25 Pricing & website sync\n`pricing` table -> tier cards (3.5a wording), checkout JSON, proposal/Schedule A/invoice template fields -> **diff check gates everything** -> deploy static -> Paystack pages/plans by API -> codes back to `pricing`.\nPostgres trigger: `pg_notify(\'pricing_changed\', tier_code)` on insert/update (platform-architect).\nThe CRM generators (src/) read the table at runtime once rewired; W25 never edits src/.\nExecute Command must be enabled on this n8n (NODES_EXCLUDE) or the diff runs in CI and W25 reads the CI result (NH-BA-09).', height: 300, width: 500 }, { row: 3, col: 3 });
   w.chain(trig, load); w.link(hook, load); w.link(man, load); w.chain(load, tpl, render, diff, diffOk);
