@@ -127,7 +127,7 @@ const V11 = { hookY: 120, hookH: 340, visY: 480, visH: 330, capY: 850, capS: 36,
 const V9 = { hookY: 360, hookH: 540, visY: 900, visH: 400, capY: 1330, capS: 44, tick: { x: 72, y: 266, s: 64 } };
 let V = V9;
 let spec, L, def, tw, wmo;
-const EC = { '9x16': { tickY: 420, tickS: 300, wmY: 760, wmH: 84, lineY: 930, lineS: 96, ctaY: 1296, ctaS: 60, ctaPad: '36px 72px', ctaMin: 132, fineY: 1500, fineS: 30, tagY: 1452 },
+const EC = { '9x16': { tickY: 420, tickS: 300, wmY: 760, wmH: 84, lineY: 930, lineS: 96, ctaY: 1256, ctaS: 60, ctaPad: '36px 72px', ctaMin: 132, fineY: 1460, fineS: 30, tagY: 1412 },
   '1x1': { tickY: 60, tickS: 200, wmY: 290, wmH: 64, lineY: 390, lineS: 80, ctaY: 760, ctaS: 48, ctaPad: '26px 56px', ctaMin: 104, fineY: 925, fineS: 26, tagY: 880 },
   '4x5': { tickY: 150, tickS: 240, wmY: 440, wmH: 72, lineY: 570, lineS: 88, ctaY: 940, ctaS: 54, ctaPad: '30px 64px', ctaMin: 120, fineY: 1140, fineS: 28, tagY: 1100 } };
 const endCard = (e, W, tagTxt, k = EC['9x16']) => { const tk = pr(e, 0, .4), pop = eb(pr(e, 0, .22)), cx = W / 2;

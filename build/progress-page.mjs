@@ -62,6 +62,8 @@ const TODAY = [
   'POPIA operations (W34): subject requests, retention, media erase via a signed edge-function call.',
   'Compliance review 5: all review-4 blocking items closed; five tidy-ups applied; "No thanks" now suppresses the number on every path.',
   'Guard that fails the build if any generated workflow drifts from its generator.',
+  'Lighthouse mobile run on all 10 landing pages in the sandbox (performance 99–100, LCP under 1.5 s): the 13 landing-page nodes are now green.',
+  'Microsoft connect hardening: refresh token never lands in an error log; expired app secret raises a red alert; FSCA check records the verified FSP on the broker row.',
   'Template review samples signed off (FSP 00000, SAMPLE tag from frame 0).',
   'Creative: the full disclosure line now sits on every video end card (31 re-rendered); wide intro card layout fixed; brokers can no longer read any lead-pulse row.',
 ];

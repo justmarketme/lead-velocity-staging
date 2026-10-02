@@ -178,17 +178,28 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-41e ✅ | R5-07/R5-08 (L): end card carries only the identity half of DISC-S97-v1 (render verbatim or record the variant); wide intro card 1200×628 — SAMPLE pill overlaps the header FSP, LV strip missing | visual-producer — dispatched |
 | I-41f | R5-10 (L): DISC-CARD-v1 on the intro card waits on contracts-drafter M6 | contracts-drafter → visual-producer |
 | I-41g ✅ | R5-11 (open): order of the cancel-confirm question vs `cancel_all` in W10 "Decide no-call" | automation-engineer — dispatched with I-41c |
-| I-41h | W23 `script-generate`: one `ops.costs` row per LLM call (`kind='llm'`, `source_ref='w23:script-generate'`, broker_id) | intro-media-producer, Phase 5 |
-| I-41i | W22: alert when W20 callback maps AADSTS7000215/7000222/700016 (expired/bad client secret) → `calendar_status_detail.reason` | automation-engineer (W22), Phase 5 |
-| I-41j | W20 callback: a failure after the token exchange could save the refresh token in n8n's error execution (`saveDataErrorExecution: all`) — set the callback lane to not save error data, or null the token field before any throw | automation-engineer, Phase 5 |
+| I-41h ✅ | W23 `script-generate`: one `ops.costs` row per LLM call (`kind='llm'`, `source_ref='w23:script-generate'`, broker_id) | intro-media-producer, Phase 5 |
+| I-41i ✅ | W22: alert when W20 callback maps AADSTS7000215/7000222/700016 (expired/bad client secret) → `calendar_status_detail.reason` | automation-engineer (W22), Phase 5 |
+| I-41j ✅ | W20 callback: a failure after the token exchange could save the refresh token in n8n's error execution (`saveDataErrorExecution: all`) — set the callback lane to not save error data, or null the token field before any throw | automation-engineer, Phase 5 |
 | I-41k ✅ | `brokers.verified_credentials jsonb` is read by W23 but defined by no migration — add to migration 13 (or confirm it is intentionally absent and W23 reads null) | platform-architect |
 | I-41l | Older W20 queries use `brokers.broker_id`: it is the migration-06 generated alias of `id`, so no change; note kept so nobody "fixes" it | — (closed) |
 
 ### I-42 · 2026-10-02 (from fix wave 5)
 | # | Item | Owner |
 |---|---|---|
-| I-42a | Pass 8 hides the lead's pulse tap, answer and W35 replies from the broker's communications thread (RESTRICTIVE policy), not only the timeline — confirm intended under "never with your name"; if the broker should still see that a pulse happened (without text), relax to a redacted view | compliance-qa |
-| I-42b | Who writes `brokers.verified_credentials`: admin console (manual, after the FSCA check) or W20's FSCA node on `verified` — default: W20 writes `[{type:'fsp', number, register_name, verified_at}]` on verdict `verified`; console may add others | broker-success (W20) + platform-architect |
+| I-42a ✅ | Pass 8 hides the lead's pulse tap, answer and W35 replies from the broker's communications thread (RESTRICTIVE policy), not only the timeline — confirm intended under "never with your name"; if the broker should still see that a pulse happened (without text), relax to a redacted view | compliance-qa |
+| I-42b ✅ | Who writes `brokers.verified_credentials`: admin console (manual, after the FSCA check) or W20's FSCA node on `verified` — default: W20 writes `[{type:'fsp', number, register_name, verified_at}]` on verdict `verified`; console may add others | broker-success (W20) + platform-architect |
 | I-42c | Parse-check: W10 "Stop messaging (no call)" `$4` joins the known untyped-parameter list (9 items, all prepared-statement artefacts, none runtime) | — (recorded) |
-| I-42d | W34: one timestamp per run across batches — sign per batch (or re-sign on retry) so a long backlog never leaves the ±300 s window | compliance-qa (W34), Phase 5 |
-| I-42e | compliance-qa: re-check the S97 end-card frame on one 9:16 and one 4:5 export (fix wave 5) before GATE-ADS-APPROVE-3 | compliance-qa |
+| I-42d ✅ | W34: one timestamp per run across batches — sign per batch (or re-sign on retry) so a long backlog never leaves the ±300 s window | compliance-qa (W34), Phase 5 |
+| I-42e ✅ | compliance-qa: re-check the S97 end-card frame on one 9:16 and one 4:5 export (fix wave 5) before GATE-ADS-APPROVE-3 | compliance-qa |
+
+### I-43 · 2026-10-02 (from the I-41/I-42 wave + Lighthouse run)
+| # | Item | Owner |
+|---|---|---|
+| I-43a | 9:16 end card: move CTA + S97 fine print up so the last text row ends ≤ y 1579 (Reels bottom safe zone); re-render the 18 9:16 MP4s; measure the last text row on C14 | visual-producer — dispatched |
+| I-43b | Migration 13 COMMENT on `brokers.verified_credentials`: now an array of objects `{type, number, register_name, verified_at}` written by W20 on `verified` (admin console may add others) | platform-architect |
+| I-43c | W14 broker report + portal pulse tile: report the lead pulse per cycle only, or hide the week-on-week delta when < 5 new answers arrived, so a broker cannot difference totals to one lead's answer (compliance ruling W35-pulse-visibility.md) | analytics-reporter + broker-success |
+| I-43d | Phase 5 synthetic run on local n8n: W34 one-batch loop passes every batch result on; Summarise night reads all batches; signing-failure item shape | compliance-qa + devops-security, Phase 5 |
+| I-43e | W20 callback: the HTTP node's own token response can still persist if n8n crashes mid-run — full fix is a sub-workflow with error data off; accepted residual until Phase 5 | automation-engineer, Phase 5 |
+| I-43f | W23 cost rows aggregate per attempt (generation + gate + re-check summed), not per LLM call; `usd_zar` 18.00 and 4A rates are ASSUMPTION constants in intro-script.mjs — measure in production | intro-media-producer (recorded) |
+| I-43g | Lighthouse now runs in the sandbox (lighthouse 13.5.0 + /opt/pw-browsers); LP01–LP13 green on the local build; S7-15 re-runs on the public URL after GATE-DOMAINS + hosting | landing-page-builder (recorded) |
