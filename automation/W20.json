@@ -1405,7 +1405,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// Copy bank: portal/spec/10-nudges-and-go-live.md. One nudge, one stalled step, no third nudge ever.\nconst REASON24 = { profile: \"It also shows leads you're on the FSCA register.\", calendar: 'One tap. It lets leads book real free times with you.', availability: \"We've used standard hours (Mon-Fri 9 to 5, 3 a day). Change them any time.\", agreement: \"It's in plain words, and you get a copy straight away.\", card: \"It's the picture leads see before they meet you.\", media: 'People show up for people. Leads who see your face first are far less likely to no-show.' };\nconst REASON72 = { profile: 'We check every FSP number before any lead is sent to you.', calendar: 'If Microsoft asks for admin approval, the portal has a link for your IT person, or a shared-calendar option.', availability: \"We've used standard hours, so this can wait.\", agreement: \"You can read it first. It's month to month, with no contract.\", card: 'Leads see this on WhatsApp the moment they book.', media: 'No rush. You can go live without it and add it later.' };\nconst STEPS = [['profile','Your details and FSP number','3 minutes'],['calendar','Connect your Outlook calendar','1 minute'],['availability','Check your hours','1 minute'],['agreement','Sign your agreement','3 minutes'],['card','Approve your intro card','1 minute'],['media','Record your 25-second intro','10 minutes']];\nconst portal = String($env.PORTAL_URL || '').replace(/\\/$/, '');\nconst out = [];\nfor (const it of $input.all()) {\n  const b = it.json; const P = b.onboarding_progress || {};\n  const done = (k) => ['done','skipped','defaulted'].includes((P[k] || {}).status);\n  const step = STEPS.find((s) => !done(s[0])); if (!step) continue;\n  const first = String(b.adviser_name || 'there').trim().split(/\\s+/)[0];\n  const [key, title, minutes] = step;\n  const blocking = key !== 'media';\n  const use72 = b.due === '72h' && blocking;     // media never gets the \"leads can't be sent\" wording\n  out.push({ json: { channel: 'wa', broker_id: b.broker_id, to: b.adviser_whatsapp, template: use72 ? 'broker_onb_nudge_72h' : 'broker_onb_nudge_24h',\n    params: use72 ? [first, title, REASON72[key]] : [first, title, minutes, REASON24[key]], buttons: [{ index: 0, suffix: key }], log_type: 'nudge_' + b.due, idem: 'nudge:' + b.due + ':' + b.broker_id + ':' + b.onboarding_last_progress_at,\n    mark: { due: b.due, since: b.onboarding_last_progress_at } } });\n  if (b.due === '72h') {\n    out.push({ json: { channel: 'email', broker_id: b.broker_id, to: b.email, log_type: 'nudge_72h_email', idem: 'nudge-email:' + b.broker_id + ':' + b.onboarding_last_progress_at,\n      subject: 'Your SortMyCover setup: one step left (' + title + ')',\n      paragraphs: ['Hi ' + first + \", you're nearly there. The one thing left is: \" + title + '. It takes about ' + minutes + '.', REASON72[key], 'Prefer to ask something first? Reply to this email or WhatsApp us. We answer the same day. No call needed.'],\n      cta: { text: 'Finish setup', url: portal + '/s/' + key } } });\n    out.push({ json: { channel: 'w22', kind: 'signal', signal_key: 'broker_onboarding_stalled', scope: 'broker:' + b.broker_id, severity: 'amber', source: 'W20', what: b.practice_name + ' has not progressed for 72 h (stalled at: ' + title + ')', impact: 'Not live yet; delays first leads', first_action: 'Send a short WhatsApp offering help (a call only if the broker prefers)', since: new Date().toISOString() } });\n  }\n}\nreturn out;"
+        "jsCode": "// Copy bank: portal/spec/10-nudges-and-go-live.md. One nudge, one stalled step, no third nudge ever.\nconst REASON24 = { profile: \"It also shows leads you're on the FSCA register.\", calendar: 'One tap. It lets leads book real free times with you.', availability: \"We've used standard hours (Mon-Fri 9 to 5, 3 a day). Change them any time.\", agreement: \"It's in plain words, and you get a copy straight away.\", card: \"It's the picture leads see before they meet you.\", media: 'We are testing whether a 25-second intro helps people turn up. Not needed to go live.' };\nconst REASON72 = { profile: 'We check every FSP number before any lead is sent to you.', calendar: 'If Microsoft asks for admin approval, the portal has a link for your IT person, or a shared-calendar option.', availability: \"We've used standard hours, so this can wait.\", agreement: \"You can read it first. It's month to month, with no contract.\", card: 'Leads see this on WhatsApp the moment they book.', media: 'No rush. You can go live without it and add it later.' };\nconst STEPS = [['profile','Your details and FSP number','3 minutes'],['calendar','Connect your Outlook calendar','1 minute'],['availability','Check your hours','1 minute'],['agreement','Sign your agreement','3 minutes'],['card','Approve your intro card','1 minute'],['media','Record your 25-second intro','10 minutes']];\nconst portal = String($env.PORTAL_URL || '').replace(/\\/$/, '');\nconst out = [];\nfor (const it of $input.all()) {\n  const b = it.json; const P = b.onboarding_progress || {};\n  const done = (k) => ['done','skipped','defaulted'].includes((P[k] || {}).status);\n  const step = STEPS.find((s) => !done(s[0])); if (!step) continue;\n  const first = String(b.adviser_name || 'there').trim().split(/\\s+/)[0];\n  const [key, title, minutes] = step;\n  const blocking = key !== 'media';\n  const use72 = b.due === '72h' && blocking;     // media never gets the \"leads can't be sent\" wording\n  out.push({ json: { channel: 'wa', broker_id: b.broker_id, to: b.adviser_whatsapp, template: use72 ? 'broker_onb_nudge_72h' : 'broker_onb_nudge_24h',\n    params: use72 ? [first, title, REASON72[key]] : [first, title, minutes, REASON24[key]], buttons: [{ index: 0, suffix: key }], log_type: 'nudge_' + b.due, idem: 'nudge:' + b.due + ':' + b.broker_id + ':' + b.onboarding_last_progress_at,\n    mark: { due: b.due, since: b.onboarding_last_progress_at } } });\n  if (b.due === '72h') {\n    out.push({ json: { channel: 'email', broker_id: b.broker_id, to: b.email, log_type: 'nudge_72h_email', idem: 'nudge-email:' + b.broker_id + ':' + b.onboarding_last_progress_at,\n      subject: 'Your SortMyCover setup: one step left (' + title + ')',\n      paragraphs: ['Hi ' + first + \", you're nearly there. The one thing left is: \" + title + '. It takes about ' + minutes + '.', REASON72[key], 'Prefer to ask something first? Reply to this email or WhatsApp us. We answer the same day. No call needed.'],\n      cta: { text: 'Finish setup', url: portal + '/s/' + key } } });\n    out.push({ json: { channel: 'w22', kind: 'signal', signal_key: 'broker_onboarding_stalled', scope: 'broker:' + b.broker_id, severity: 'amber', source: 'W20', what: b.practice_name + ' has not progressed for 72 h (stalled at: ' + title + ')', impact: 'Not live yet; delays first leads', first_action: 'Send a short WhatsApp offering help (a call only if the broker prefers)', since: new Date().toISOString() } });\n  }\n}\nreturn out;"
       }
     },
     {
@@ -1917,6 +1917,898 @@
       "credentials": {
         "postgres": {
           "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w20-ms-01",
+      "name": "About W20 MS connect",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        3140
+      ],
+      "parameters": {
+        "content": "## W20 Microsoft calendar connect (I-40c, GAPS G-06, 0.3 #4)\nGET ms/connect (broker JWT; 302, or JSON {authorize_url} with Accept: application/json) -> Microsoft sign-in -> GET ms/callback (state HMAC, 10 min) -> code exchange (client secret ONLY in credential \"Microsoft Graph broker-connect client secret (W20)\", httpCustomAuth body {client_secret}) -> refresh token ONLY via smc_vault_store_ms_refresh() -> smc_set_calendar_status(connected) -> signed calendar.connected onto lane A.\nAdmin-consent AADSTS errors -> consent_pending + admin_consent_url in calendar_status_detail, portal opens with ?error=admin_consent. A failed re-connect never downgrades a working calendar. POST ms/disconnect (JWT) -> disconnected.\nEnv: MS_GRAPH_CLIENT_ID, MS_GRAPH_TENANT (default organizations), MS_GRAPH_REDIRECT_URI (= {N8N_PUBLIC_URL}/webhook/ms/callback), PORTAL_URL, SUPABASE_JWT_SECRET, MS_OAUTH_STATE_SECRET (falls back to INTERNAL_HMAC_SECRET), REPO_DIR. Scopes: automation/lib/w20-ms.mjs SCOPES (no Mail.*).",
+        "height": 240,
+        "width": 760
+      }
+    },
+    {
+      "id": "w20-ms-02",
+      "name": "W20 MS connect",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        3400
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "ms/connect",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "w20-ms-connect"
+    },
+    {
+      "id": "w20-ms-03",
+      "name": "MS connect: verify broker JWT",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        3400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto,url and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst M = await import(url.pathToFileURL(REPO + '/automation/lib/w20-ms.mjs').href);\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nconst it = $input.first().json;\nconst c = M.brokerCaller(it.headers || {}, { jwtSecret: $env.SUPABASE_JWT_SECRET });\nreturn [{ json: { ...c, json: M.wantsJson(it.headers || {}, it.query || {}) } }];"
+      }
+    },
+    {
+      "id": "w20-ms-04",
+      "name": "JWT valid? (connect)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        3400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w20-ms-05",
+      "name": "Respond 401 (connect)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        3280
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: 'unauthorised' }) }}",
+        "options": {
+          "responseCode": 401,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "w20-ms-06",
+      "name": "Load broker by user (connect)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        3440
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Broker path per automation/CONTRACTS.md: the broker comes from the JWT, never from the query.\nselect b.id as broker_id, b.ms_tenant_id, b.calendar_status\nfrom public.brokers b where b.user_id = $1::uuid and b.brand_id is not null limit 1;",
+        "options": {
+          "queryReplacement": "={{ [ $json.user_id ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "w20-ms-07",
+      "name": "MS connect: mint state + authorize URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        3440
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto,url and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst M = await import(url.pathToFileURL(REPO + '/automation/lib/w20-ms.mjs').href);\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nconst row = $input.first().json;\nconst broker = row && row.broker_id ? row : null;\nconst p = M.planConnect({ broker, cfg: CFG, json: $('MS connect: verify broker JWT').first().json.json });\nreturn [{ json: p }];"
+      }
+    },
+    {
+      "id": "w20-ms-08",
+      "name": "Redirect? (connect)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        3440
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.status === 302 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w20-ms-09",
+      "name": "Respond 302 to Microsoft",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        3380
+      ],
+      "parameters": {
+        "respondWith": "noData",
+        "options": {
+          "responseCode": 302,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Location",
+                "value": "={{ $json.location }}"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              },
+              {
+                "name": "Referrer-Policy",
+                "value": "no-referrer"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "w20-ms-10",
+      "name": "Respond JSON (connect)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        3520
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "responseCode": "={{ $json.status }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "w20-ms-11",
+      "name": "W20 MS callback",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        3800
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "ms/callback",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "w20-ms-callback"
+    },
+    {
+      "id": "w20-ms-12",
+      "name": "MS callback: check state",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        3800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto,url and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst M = await import(url.pathToFileURL(REPO + '/automation/lib/w20-ms.mjs').href);\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nconst q = $input.first().json.query || {};\nlet state;\ntry { state = M.verifyState(q.state, { secret: STATE_SECRET, previousSecret: $env.MS_OAUTH_STATE_SECRET_PREVIOUS }); } catch (e) { state = { ok: false, reason: 'not_configured' }; }\n// Only these keys continue; the code is single-use and never logged elsewhere.\nconst query = { code: q.code ? String(q.code).slice(0, 4000) : '', error: q.error ? String(q.error).slice(0, 100) : '', error_description: q.error_description ? String(q.error_description).slice(0, 1000) : '' };\nreturn [{ json: { state, broker_id: state.ok ? state.broker_id : null, query, has_code: !!(state.ok && query.code && !query.error) } }];"
+      }
+    },
+    {
+      "id": "w20-ms-13",
+      "name": "State valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        3800
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.state.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w20-ms-14",
+      "name": "MS callback: bad state redirect",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        3660
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto,url and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst M = await import(url.pathToFileURL(REPO + '/automation/lib/w20-ms.mjs').href);\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nreturn [{ json: M.planCallback({ state: $input.first().json.state, cfg: CFG }) }];"
+      }
+    },
+    {
+      "id": "w20-ms-15",
+      "name": "Load broker (callback)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        3800
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select b.id as broker_id, b.calendar_status from public.brokers b where b.id = $1::uuid and b.brand_id is not null limit 1;",
+        "options": {
+          "queryReplacement": "={{ [ $json.broker_id ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "w20-ms-16",
+      "name": "Has code?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        3800
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $('MS callback: check state').first().json.has_code && !!$json.broker_id }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w20-ms-17",
+      "name": "MS token exchange",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        3720
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://login.microsoftonline.com/' + ($env.MS_GRAPH_TENANT || 'organizations') + '/oauth2/v2.0/token' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "client_id",
+              "value": "={{ $env.MS_GRAPH_CLIENT_ID }}"
+            },
+            {
+              "name": "grant_type",
+              "value": "authorization_code"
+            },
+            {
+              "name": "code",
+              "value": "={{ $('MS callback: check state').first().json.query.code }}"
+            },
+            {
+              "name": "redirect_uri",
+              "value": "={{ $env.MS_GRAPH_REDIRECT_URI }}"
+            },
+            {
+              "name": "scope",
+              "value": "openid offline_access User.Read Calendars.ReadWrite OnlineMeetings.ReadWrite"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Microsoft Graph broker-connect client secret (W20)"
+        }
+      },
+      "retryOnFail": false
+    },
+    {
+      "id": "w20-ms-18",
+      "name": "MS callback: plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        3800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto,url and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst M = await import(url.pathToFileURL(REPO + '/automation/lib/w20-ms.mjs').href);\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nconst s = $('MS callback: check state').first().json;\nlet row = {}; try { row = $('Load broker (callback)').first().json || {}; } catch (e) {}\nlet token = null; try { const t = $('MS token exchange').first().json; token = { statusCode: t.statusCode, body: t.body }; } catch (e) {}\nconst state = row.broker_id ? s.state : { ok: false, reason: 'unknown_broker' };\nconst plan = M.planCallback({ state, query: s.query, token, currentStatus: row.calendar_status, cfg: CFG });\nreturn [{ json: { broker_id: row.broker_id || null, ...plan } }];"
+      }
+    },
+    {
+      "id": "w20-ms-19",
+      "name": "Callback action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1540,
+        3800
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "store",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "store"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "status",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "status"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "none",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "none"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "w20-ms-20",
+      "name": "Vault: store MS refresh token",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1780,
+        3660
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- The ONLY place the refresh token goes (migration 13, n8n_app only). Never in a column, a log or a response.\nselect public.smc_vault_store_ms_refresh($1::uuid, $2, $3, $4) as token_ref;",
+        "options": {
+          "queryReplacement": "={{ [ $json.broker_id, $json.refresh_token, $json.tenant_id, $json.scopes ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w20-ms-21",
+      "name": "Set calendar_status connected",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2000,
+        3660
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select public.smc_set_calendar_status($1::uuid, 'connected', $2::jsonb) as calendar_status;",
+        "options": {
+          "queryReplacement": "={{ [ $('MS callback: plan').first().json.broker_id, JSON.stringify($('MS callback: plan').first().json.detail) ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w20-ms-22",
+      "name": "Build calendar.connected event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2220,
+        3660
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto,url and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst M = await import(url.pathToFileURL(REPO + '/automation/lib/w20-ms.mjs').href);\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nconst p = $('MS callback: plan').first().json;\nconst ref = $('Vault: store MS refresh token').first().json.token_ref;\nconst e = M.connectedEvent({ brokerId: p.broker_id, tokenRef: ref, secret: $env.INTERNAL_HMAC_SECRET });\nreturn [{ json: e }];"
+      }
+    },
+    {
+      "id": "w20-ms-23",
+      "name": "Post calendar.connected (lane A)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2440,
+        3660
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_PUBLIC_URL + '/webhook/w20/broker-event' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-LV-Signature",
+              "value": "={{ $json.signature }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.raw }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w20-ms-24",
+      "name": "Set calendar_status (callback)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1780,
+        3800
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select public.smc_set_calendar_status($1::uuid, $2, $3::jsonb) as calendar_status;",
+        "options": {
+          "queryReplacement": "={{ [ $json.broker_id, $json.status, JSON.stringify($json.detail) ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w20-ms-25",
+      "name": "Respond 302 to portal",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2660,
+        3800
+      ],
+      "parameters": {
+        "respondWith": "noData",
+        "options": {
+          "responseCode": 302,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Location",
+                "value": "={{ $('MS callback: plan').isExecuted ? $('MS callback: plan').first().json.redirect : $('MS callback: bad state redirect').first().json.redirect }}"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              },
+              {
+                "name": "Referrer-Policy",
+                "value": "no-referrer"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "w20-ms-26",
+      "name": "W20 MS disconnect",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        4200
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ms/disconnect",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "w20-ms-disconnect"
+    },
+    {
+      "id": "w20-ms-27",
+      "name": "MS disconnect: verify broker JWT",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        4200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto,url and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst M = await import(url.pathToFileURL(REPO + '/automation/lib/w20-ms.mjs').href);\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nconst it = $input.first().json;\nreturn [{ json: M.brokerCaller(it.headers || {}, { jwtSecret: $env.SUPABASE_JWT_SECRET }) }];"
+      }
+    },
+    {
+      "id": "w20-ms-28",
+      "name": "JWT valid? (disconnect)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        4200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w20-ms-29",
+      "name": "Respond 401 (disconnect)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        4080
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: 'unauthorised' }) }}",
+        "options": {
+          "responseCode": 401,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "w20-ms-30",
+      "name": "Load broker by user (disconnect)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        4240
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select b.id as broker_id from public.brokers b where b.user_id = $1::uuid and b.brand_id is not null limit 1;",
+        "options": {
+          "queryReplacement": "={{ [ $json.user_id ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "w20-ms-31",
+      "name": "Broker found? (disconnect)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        4240
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ !!$json.broker_id }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w20-ms-32",
+      "name": "Respond 403 (disconnect)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        4360
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: 'not_a_broker' }) }}",
+        "options": {
+          "responseCode": 403,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "w20-ms-33",
+      "name": "Set calendar_status disconnected",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1100,
+        4200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- smc_vault_ms_refresh() returns nothing once status leaves 'ok', so W04/W05 stop using the token at once.\nselect public.smc_set_calendar_status($1::uuid, 'disconnected', jsonb_build_object('by', 'broker', 'at', now())) as calendar_status;",
+        "options": {
+          "queryReplacement": "={{ [ $json.broker_id ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w20-ms-34",
+      "name": "Respond 200 (disconnect)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        4200
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, calendar_status: $json.calendar_status }) }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
         }
       }
     }
@@ -2796,6 +3688,348 @@
         [
           {
             "node": "Save preflight run (re-run)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W20 MS connect": {
+      "main": [
+        [
+          {
+            "node": "MS connect: verify broker JWT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MS connect: verify broker JWT": {
+      "main": [
+        [
+          {
+            "node": "JWT valid? (connect)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JWT valid? (connect)": {
+      "main": [
+        [
+          {
+            "node": "Load broker by user (connect)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 401 (connect)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load broker by user (connect)": {
+      "main": [
+        [
+          {
+            "node": "MS connect: mint state + authorize URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MS connect: mint state + authorize URL": {
+      "main": [
+        [
+          {
+            "node": "Redirect? (connect)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redirect? (connect)": {
+      "main": [
+        [
+          {
+            "node": "Respond 302 to Microsoft",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond JSON (connect)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W20 MS callback": {
+      "main": [
+        [
+          {
+            "node": "MS callback: check state",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MS callback: check state": {
+      "main": [
+        [
+          {
+            "node": "State valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "State valid?": {
+      "main": [
+        [
+          {
+            "node": "Load broker (callback)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "MS callback: bad state redirect",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MS callback: bad state redirect": {
+      "main": [
+        [
+          {
+            "node": "Respond 302 to portal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load broker (callback)": {
+      "main": [
+        [
+          {
+            "node": "Has code?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has code?": {
+      "main": [
+        [
+          {
+            "node": "MS token exchange",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "MS callback: plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MS token exchange": {
+      "main": [
+        [
+          {
+            "node": "MS callback: plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MS callback: plan": {
+      "main": [
+        [
+          {
+            "node": "Callback action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Callback action": {
+      "main": [
+        [
+          {
+            "node": "Vault: store MS refresh token",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set calendar_status (callback)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 302 to portal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vault: store MS refresh token": {
+      "main": [
+        [
+          {
+            "node": "Set calendar_status connected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set calendar_status connected": {
+      "main": [
+        [
+          {
+            "node": "Build calendar.connected event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build calendar.connected event": {
+      "main": [
+        [
+          {
+            "node": "Post calendar.connected (lane A)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post calendar.connected (lane A)": {
+      "main": [
+        [
+          {
+            "node": "Respond 302 to portal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set calendar_status (callback)": {
+      "main": [
+        [
+          {
+            "node": "Respond 302 to portal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W20 MS disconnect": {
+      "main": [
+        [
+          {
+            "node": "MS disconnect: verify broker JWT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MS disconnect: verify broker JWT": {
+      "main": [
+        [
+          {
+            "node": "JWT valid? (disconnect)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JWT valid? (disconnect)": {
+      "main": [
+        [
+          {
+            "node": "Load broker by user (disconnect)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 401 (disconnect)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load broker by user (disconnect)": {
+      "main": [
+        [
+          {
+            "node": "Broker found? (disconnect)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Broker found? (disconnect)": {
+      "main": [
+        [
+          {
+            "node": "Set calendar_status disconnected",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 403 (disconnect)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set calendar_status disconnected": {
+      "main": [
+        [
+          {
+            "node": "Respond 200 (disconnect)",
             "type": "main",
             "index": 0
           }

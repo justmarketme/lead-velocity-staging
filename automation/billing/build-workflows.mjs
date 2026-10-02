@@ -11,7 +11,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const OUT = join(here, '..');
+// GEN_OUT_DIR: write elsewhere (automation/tests/generators.test.mjs regenerates into a temp dir, I-40a).
+const OUT = process.env.GEN_OUT_DIR || join(here, '..');
 const FILES = {
   money: 'money.js', pricing: 'pricing.js', reference: 'reference.js', events: 'events.js', paystack: 'paystack.js',
   incontact: 'incontact.js', reconcile: 'reconcile.js', statement: 'statement.js', invoice: 'invoice.js', render: 'render.js',
@@ -479,7 +480,7 @@ const template = { name: 'broker_cycle_end', body: [month, endDay, String(p.veri
   'Replacements used: ' + (p.replacements_used || 0) + ' of ' + (p.replacement_cap || tier.replacement_cap_cycle) + '.'], buttons: ['renew/' + inv.reference, 'r/' + row.cycle_id] };
 const v = BILLING.render.invoiceVars(inv, tier);
 const email = { subject: 'Your SortMyCover renewal: reference ' + inv.reference,
-  html: '<p>Your cycle ends on ' + endDay + '. To keep leads coming with no gap, pay for the next cycle before then.</p>' +
+  html: '<p>Your cycle ends on ' + endDay + '. If card auto-renew is off, pay for the next cycle before then to keep leads coming with no gap.</p>' +
     '<p>Plan: ' + v.plan + '<br>Amount: <strong>' + v.total + '</strong> (' + v.vat + ')' + (v.credit ? '<br>Shortfall credit applied: ' + v.credit : '') + '</p>' +
     '<p>Payment reference: <strong style="font-size:20px">' + inv.reference + '</strong></p>' +
     '<p><a href="' + links[tier.tier_code] + '">Pay by Instant EFT or card</a> (same plan selected). Change plan: ' +

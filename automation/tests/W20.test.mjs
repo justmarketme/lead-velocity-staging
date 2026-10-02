@@ -98,7 +98,7 @@ const STEP_KEYS = ['profile', 'calendar', 'availability', 'agreement', 'card', '
 const done = (by = 'broker', at = '2026-10-12T09:00:00+02:00') => ({ status: 'done', done_at: at, by });
 
 // ---------------------------------------------------------------------------------------------
-// A new broker in onboarding, built from the fixture broker (Mark Smith Financial Services, FSP 12345)
+// A new broker in onboarding, built from the fixture broker (Mark Smith Financial Services, FSP 00000)
 // ---------------------------------------------------------------------------------------------
 const FB = fixtureBroker();
 const T0 = ms('2026-10-12T09:00:00+02:00'); // Monday 09:00 SAST: first magic-link login
@@ -758,4 +758,198 @@ test(`W20 [${MODE}] POPIA/FAIS: nothing W20 sends names a lead, a product, an in
   assert.doesNotMatch(text, /\bR\s?\d/, 'no rand amount');
   assert.doesNotMatch(text, /premium|guarantee|Sanlam|Old Mutual|Discovery|Liberty/i);
   assert.ok(FIX.brokers.length >= 1);
+});
+
+// =============================================================================================
+// I-40c: Microsoft calendar connect (GET ms/connect, GET ms/callback, POST ms/disconnect), GAPS G-06, 0.3 #4.
+// Pure logic in automation/lib/w20-ms.mjs; the W20 Code nodes below are executed for real (dynamic import of
+// the same module via REPO_DIR). Postgres RPCs and the Microsoft token endpoint are modelled. Never calls Microsoft.
+// =============================================================================================
+const MS = await import('../lib/w20-ms.mjs');
+const MS_SECRET = 'test-ms-state-secret-0123456789abcdef';
+const JWT_SECRET = 'test-supabase-jwt-secret-0123456789abcdef';
+const BROKER_ID = '0b5e3f6a-1c2d-4e5f-8a9b-0c1d2e3f4a5b';
+const USER_ID = '7f1e2d3c-4b5a-4968-8776-655443322110';
+const MS_ENV = {
+  ...ENV, REPO_DIR: join(HERE, '..', '..'), SUPABASE_JWT_SECRET: JWT_SECRET, MS_OAUTH_STATE_SECRET: MS_SECRET,
+  MS_GRAPH_CLIENT_ID: '11111111-2222-4333-8444-555555555555', MS_GRAPH_TENANT: 'organizations',
+  MS_GRAPH_REDIRECT_URI: 'https://n8n.test/webhook/ms/callback', PORTAL_URL: 'https://app.leadvelocity.co.za',
+};
+const MS_CFG = { clientId: MS_ENV.MS_GRAPH_CLIENT_ID, redirectUri: MS_ENV.MS_GRAPH_REDIRECT_URI, tenant: 'organizations', stateSecret: MS_SECRET, portalUrl: MS_ENV.PORTAL_URL, adminConsentRedirectUri: MS_ENV.PORTAL_URL };
+const msB64u = (o) => Buffer.from(typeof o === 'string' ? o : JSON.stringify(o)).toString('base64url');
+function msJwt(claims, { secret = JWT_SECRET, alg = 'HS256' } = {}) {
+  const h = msB64u({ alg, typ: 'JWT' }), p = msB64u(claims);
+  const sig = alg === 'none' ? '' : createHmac('sha256', secret).update(`${h}.${p}`).digest('base64url');
+  return `${h}.${p}.${sig}`;
+}
+const nowSec = Math.floor(Date.now() / 1000);
+const BROKER_JWT = msJwt({ sub: USER_ID, aud: 'authenticated', role: 'authenticated', exp: nowSec + 3600 });
+const msIdToken = (c) => `${msB64u({ alg: 'RS256' })}.${msB64u(c)}.sig`;
+const TOKEN_OK = { statusCode: 200, body: { token_type: 'Bearer', scope: 'https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/OnlineMeetings.ReadWrite https://graph.microsoft.com/User.Read openid', access_token: 'at-xyz', refresh_token: 'RT-SECRET-0.AAAA', id_token: msIdToken({ tid: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', preferred_username: 'mark@practice.co.za' }) } };
+
+// Execute a W20 Code node from W20.json with stubbed $env/$input/$(name).
+const MsAsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+async function runMsCode(name, input, refs = {}) {
+  const js = node(name).parameters.jsCode;
+  const $ = (n) => { if (!(n in refs)) { const e = new Error(`node ${n} not executed`); return { get isExecuted() { return false; }, first() { throw e; } }; } return { isExecuted: true, first: () => ({ json: refs[n] }) }; };
+  const out = await new MsAsyncFunction('$env', '$input', '$', 'require', js)(MS_ENV, { first: () => ({ json: input }) }, $, require);
+  return out[0].json;
+}
+
+test('I-40c lib: state is HMAC-bound to the broker, single TTL, rotation-safe, tamper-proof', () => {
+  const t0 = Date.parse('2026-10-02T10:00:00Z');
+  const s = MS.mintState({ brokerId: BROKER_ID, secret: MS_SECRET, nowMs: t0 });
+  assert.match(s, /^v1\.[0-9a-f-]{36}\.[A-Za-z0-9_-]{16,64}\.\d+\.[A-Za-z0-9_-]+$/);
+  assert.deepEqual(MS.verifyState(s, { secret: MS_SECRET, nowMs: t0 + 60_000 }).broker_id, BROKER_ID);
+  const other = s.replace(BROKER_ID, '0b5e3f6a-1c2d-4e5f-8a9b-0c1d2e3f4a5c');
+  assert.equal(MS.verifyState(other, { secret: MS_SECRET, nowMs: t0 }).reason, 'bad_signature');
+  assert.equal(MS.verifyState(s, { secret: 'x'.repeat(40), nowMs: t0 }).reason, 'bad_signature');
+  assert.equal(MS.verifyState(s, { secret: MS_SECRET, nowMs: t0 + 11 * MIN }).reason, 'expired');
+  assert.equal(MS.verifyState(s, { secret: 'n'.repeat(40), previousSecret: MS_SECRET, nowMs: t0 }).ok, true, 'previous secret accepted during rotation');
+  assert.equal(MS.verifyState('v1.a.b.c.d', { secret: MS_SECRET }).reason, 'malformed');
+  assert.equal(MS.verifyState(undefined, { secret: MS_SECRET }).reason, 'missing');
+  const long = MS.mintState({ brokerId: BROKER_ID, secret: MS_SECRET, nowMs: t0, ttlSec: 86400 });
+  assert.equal(MS.verifyState(long, { secret: MS_SECRET, nowMs: t0 }).reason, 'exp_too_far');
+  assert.throws(() => MS.mintState({ brokerId: BROKER_ID, secret: 'short' }));
+});
+
+test('I-40c lib: authorize URL asks for calendar + Teams + offline_access, never Mail.*; token request carries no secret', () => {
+  const u = new URL(MS.authorizeUrl({ clientId: MS_CFG.clientId, redirectUri: MS_CFG.redirectUri, state: 'st', tenant: 'organizations' }));
+  assert.equal(u.origin + u.pathname, 'https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize');
+  assert.equal(u.searchParams.get('response_type'), 'code');
+  assert.equal(u.searchParams.get('redirect_uri'), MS_CFG.redirectUri);
+  assert.equal(u.searchParams.get('state'), 'st');
+  const scopes = u.searchParams.get('scope').split(' ');
+  for (const s of ['offline_access', 'Calendars.ReadWrite', 'OnlineMeetings.ReadWrite', 'User.Read']) assert.ok(scopes.includes(s), s);
+  assert.ok(!scopes.some((s) => /^Mail\./.test(s)), 'portal promise: we never read your emails (05 Part A)');
+  assert.match(MS.authorizeUrl({ clientId: 'c', redirectUri: 'r', state: 's', tenant: 'evil/../x?y' }), /\/organizations\/oauth2/, 'tenant is sanitised');
+  const tr = MS.tokenRequest({ clientId: 'c', redirectUri: 'r', code: 'abc' });
+  assert.equal(tr.form.grant_type, 'authorization_code');
+  assert.ok(!('client_secret' in tr.form), 'secret is added by the n8n credential, never by code');
+  assert.equal(node('MS token exchange').parameters.bodyParameters.parameters.find((p) => p.name === 'scope').value, MS.SCOPES.join(' '), 'node and lib ask for the same scopes');
+});
+
+test('I-40c lib: AADSTS mapping (admin consent -> consent_pending, cancel -> no change, bad secret -> error + alert)', () => {
+  assert.equal(MS.mapError({ error: 'access_denied', error_description: 'AADSTS90094: The grant requires admin permission.' }).status, 'consent_pending');
+  assert.equal(MS.mapError({ error: 'invalid_grant', error_codes: [65001] }).status, 'consent_pending');
+  assert.equal(MS.mapError({ error: 'consent_required' }).status, 'consent_pending');
+  assert.equal(MS.mapError({ error: 'access_denied', error_description: 'AADSTS65004: User declined to consent' }).kind, 'cancelled');
+  const sec = MS.mapError({ error: 'invalid_client', error_description: 'AADSTS7000215: Invalid client secret provided.' });
+  assert.equal(sec.status, 'error'); assert.equal(sec.alert, true);
+  assert.equal(MS.mapError({ error: 'invalid_grant', error_description: 'AADSTS70008: expired' }).reason, 'code_expired_or_used');
+  assert.equal(MS.mapError({ error: 'server_error' }).status, 'error');
+});
+
+test('I-40c lib: planCallback stores the refresh token only via the vault action, never in detail or redirect', () => {
+  const state = { ok: true, broker_id: BROKER_ID };
+  const p = MS.planCallback({ state, query: { code: 'c0de' }, token: TOKEN_OK, currentStatus: null, cfg: MS_CFG });
+  assert.equal(p.action, 'store'); assert.equal(p.status, 'connected');
+  assert.equal(p.refresh_token, 'RT-SECRET-0.AAAA');
+  assert.equal(p.tenant_id, 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee');
+  assert.equal(p.scopes, 'Calendars.ReadWrite OnlineMeetings.ReadWrite User.Read openid');
+  assert.ok(!JSON.stringify(p.detail).includes('RT-SECRET') && !p.redirect.includes('RT-SECRET') && !JSON.stringify(p.detail).includes('at-xyz'));
+  assert.equal(p.redirect, 'https://app.leadvelocity.co.za/broker/calendar?calendar=connected');
+
+  const consent = MS.planCallback({ state, query: { error: 'access_denied', error_description: 'AADSTS90094: admin permission' }, cfg: MS_CFG });
+  assert.equal(consent.action, 'status'); assert.equal(consent.status, 'consent_pending');
+  assert.match(consent.detail.admin_consent_url, /^https:\/\/login\.microsoftonline\.com\/common\/adminconsent\?client_id=11111111-/);
+  assert.equal(consent.redirect, 'https://app.leadvelocity.co.za/broker/calendar?error=admin_consent', 'portal Calendar.tsx auto-opens the admin-consent help on ?error=admin_consent');
+
+  const reconnect = MS.planCallback({ state, query: { error: 'access_denied', error_description: 'AADSTS90094' }, currentStatus: 'ok', cfg: MS_CFG });
+  assert.equal(reconnect.action, 'none', 'a failed re-connect never downgrades a working calendar');
+  assert.equal(MS.planCallback({ state, query: { error: 'access_denied', error_description: 'AADSTS65004' }, cfg: MS_CFG }).action, 'none');
+  const bad = MS.planCallback({ state, query: { code: 'c' }, token: { statusCode: 400, body: { error: 'invalid_grant', error_description: 'AADSTS70008' } }, cfg: MS_CFG });
+  assert.equal(bad.status, 'error'); assert.match(bad.redirect, /error=calendar&reason=code_expired_or_used/);
+  const noRt = MS.planCallback({ state, query: { code: 'c' }, token: { statusCode: 200, body: { ...TOKEN_OK.body, refresh_token: undefined } }, cfg: MS_CFG });
+  assert.equal(noRt.detail.reason, 'no_refresh_token');
+  const narrow = MS.planCallback({ state, query: { code: 'c' }, token: { statusCode: 200, body: { ...TOKEN_OK.body, scope: 'User.Read' } }, cfg: MS_CFG });
+  assert.equal(narrow.detail.reason, 'scope_missing');
+  const expired = MS.planCallback({ state: { ok: false, reason: 'expired' }, query: { code: 'c' }, cfg: MS_CFG });
+  assert.equal(expired.action, 'none'); assert.match(expired.redirect, /reason=link_expired/);
+});
+
+test('I-40c lib: broker JWT per CONTRACTS.md (HS256 only, authenticated role)', () => {
+  assert.equal(MS.brokerCaller({ Authorization: `Bearer ${BROKER_JWT}` }, { jwtSecret: JWT_SECRET }).user_id, USER_ID);
+  assert.equal(MS.brokerCaller({}, { jwtSecret: JWT_SECRET }).status, 401);
+  assert.equal(MS.brokerCaller({ authorization: `Bearer ${msJwt({ sub: USER_ID, aud: 'authenticated', role: 'authenticated', exp: nowSec + 60 }, { alg: 'none' })}` }, { jwtSecret: JWT_SECRET }).ok, false);
+  assert.equal(MS.brokerCaller({ authorization: `Bearer ${msJwt({ sub: USER_ID, aud: 'authenticated', role: 'anon', exp: nowSec + 60 })}` }, { jwtSecret: JWT_SECRET }).ok, false);
+  assert.equal(MS.brokerCaller({ authorization: `Bearer ${msJwt({ sub: USER_ID, aud: 'authenticated', role: 'authenticated', exp: nowSec - 3600 })}` }, { jwtSecret: JWT_SECRET }).reason, 'expired');
+});
+
+test('I-40c W20.json: three lanes, credentials by name, refresh token only reaches the vault RPC, status only via the RPC', () => {
+  const hook = (p) => WF.nodes.find((n) => n.type === 'n8n-nodes-base.webhook' && n.parameters.path === p);
+  assert.equal(hook('ms/connect').parameters.httpMethod, 'GET');
+  assert.equal(hook('ms/callback').parameters.httpMethod, 'GET');
+  assert.equal(hook('ms/disconnect').parameters.httpMethod, 'POST');
+  const raw = JSON.stringify(WF.nodes.filter((n) => n.type !== 'n8n-nodes-base.stickyNote'));
+  assert.ok(!/client_secret|MS_GRAPH_CLIENT_SECRET/i.test(raw), 'no client secret in any node (it lives in the credential)');
+  const tok = node('MS token exchange');
+  assert.deepEqual(Object.keys(tok.credentials), ['httpCustomAuth']);
+  assert.ok(!tok.credentials.httpCustomAuth.id, 'credential by name only');
+  const msNodes = WF.nodes.filter((n) => n.id.startsWith('w20-ms-'));
+  const withRt = msNodes.filter((n) => JSON.stringify(n.parameters).includes('refresh_token')).map((n) => n.name);
+  assert.deepEqual(withRt, ['Vault: store MS refresh token']);
+  assert.match(node('Vault: store MS refresh token').parameters.query, /smc_vault_store_ms_refresh\(\$1::uuid, \$2, \$3, \$4\)/);
+  for (const n of msNodes.filter((x) => x.type === 'n8n-nodes-base.postgres')) {
+    assert.ok(!/update\s+public\.brokers/i.test(n.parameters.query), `${n.name} never updates brokers directly`);
+    assert.ok(!/where b\.broker_id/i.test(n.parameters.query), `${n.name} keys brokers on id (brokers.user_id / brokers.id)`);
+  }
+  for (const n of msNodes.filter((x) => x.type === 'n8n-nodes-base.respondToWebhook')) assert.ok(!JSON.stringify(n.parameters).includes('refresh'), n.name);
+  const after = (from) => (WF.connections[from]?.main || []).map((o) => o.map((c) => c.node));
+  assert.deepEqual(after('Callback action'), [['Vault: store MS refresh token'], ['Set calendar_status (callback)'], ['Respond 302 to portal']]);
+  assert.deepEqual(after('State valid?'), [['Load broker (callback)'], ['MS callback: bad state redirect']]);
+});
+
+test('I-40c W20 Code nodes run end to end: connect -> Microsoft (modelled) -> callback -> vault + connected', async () => {
+  // connect, JSON mode (portal fetches with the JWT, then navigates)
+  const req = { headers: { authorization: `Bearer ${BROKER_JWT}`, accept: 'application/json' }, query: {} };
+  const v = await runMsCode('MS connect: verify broker JWT', req);
+  assert.equal(v.ok, true); assert.equal(v.user_id, USER_ID); assert.equal(v.json, true);
+  const plan = await runMsCode('MS connect: mint state + authorize URL', { broker_id: BROKER_ID, ms_tenant_id: null, calendar_status: null }, { 'MS connect: verify broker JWT': v });
+  assert.equal(plan.status, 200);
+  const au = new URL(plan.body.authorize_url);
+  assert.equal(au.searchParams.get('client_id'), MS_ENV.MS_GRAPH_CLIENT_ID);
+  // redirect mode
+  const v2 = await runMsCode('MS connect: verify broker JWT', { headers: { Authorization: `Bearer ${BROKER_JWT}` }, query: {} });
+  const p2 = await runMsCode('MS connect: mint state + authorize URL', { broker_id: BROKER_ID }, { 'MS connect: verify broker JWT': v2 });
+  assert.equal(p2.status, 302); assert.match(p2.location, /^https:\/\/login\.microsoftonline\.com\//);
+  // no broker row for this user -> 403; no JWT -> 401
+  assert.equal((await runMsCode('MS connect: mint state + authorize URL', {}, { 'MS connect: verify broker JWT': v2 })).status, 403);
+  assert.equal((await runMsCode('MS connect: verify broker JWT', { headers: {}, query: {} })).status, 401);
+
+  // callback with a code
+  const st = au.searchParams.get('state');
+  const chk = await runMsCode('MS callback: check state', { query: { state: st, code: 'M.C123_code' } });
+  assert.equal(chk.has_code, true); assert.equal(chk.broker_id, BROKER_ID);
+  const pl = await runMsCode('MS callback: plan', {}, { 'MS callback: check state': chk, 'Load broker (callback)': { broker_id: BROKER_ID, calendar_status: null }, 'MS token exchange': TOKEN_OK });
+  assert.equal(pl.action, 'store'); assert.equal(pl.broker_id, BROKER_ID);
+  // modelled RPC: smc_vault_store_ms_refresh(p_broker_id, p_refresh_token, p_tenant_id, p_scopes)
+  const repl = node('Vault: store MS refresh token').parameters.options.queryReplacement;
+  assert.equal(repl, '={{ [ $json.broker_id, $json.refresh_token, $json.tenant_id, $json.scopes ] }}');
+  const ev = await runMsCode('Build calendar.connected event', {}, { 'MS callback: plan': pl, 'Vault: store MS refresh token': { token_ref: `ms_refresh_${BROKER_ID}_1790000000` } });
+  // the lane-A signature check (node "Verify signature") accepts it: sha256 HMAC of the raw body
+  assert.equal(ev.signature, 'sha256=' + createHmac('sha256', MS_ENV.INTERNAL_HMAC_SECRET).update(ev.raw).digest('hex'));
+  assert.equal(JSON.parse(ev.raw).type, 'calendar.connected');
+  assert.ok(!ev.raw.includes('RT-SECRET'));
+
+  // admin consent blocked
+  const chk2 = await runMsCode('MS callback: check state', { query: { state: st, error: 'access_denied', error_description: 'AADSTS90094: The grant requires admin permission.' } });
+  assert.equal(chk2.has_code, false);
+  const pl2 = await runMsCode('MS callback: plan', {}, { 'MS callback: check state': chk2, 'Load broker (callback)': { broker_id: BROKER_ID, calendar_status: null } });
+  assert.equal(pl2.action, 'status'); assert.equal(pl2.status, 'consent_pending'); assert.ok(pl2.detail.admin_consent_url);
+
+  // forged state
+  const chk3 = await runMsCode('MS callback: check state', { query: { state: st.replace(/.$/, (c) => (c === 'A' ? 'B' : 'A')), code: 'x' } });
+  assert.equal(chk3.state.ok, false); assert.equal(chk3.has_code, false);
+  const red = await runMsCode('MS callback: bad state redirect', chk3);
+  assert.match(red.redirect, /error=calendar&reason=link_expired/);
+
+  // unknown broker in a valid state (row deleted) -> no writes
+  const pl4 = await runMsCode('MS callback: plan', {}, { 'MS callback: check state': chk, 'Load broker (callback)': {}, 'MS token exchange': TOKEN_OK });
+  assert.equal(pl4.action, 'none'); assert.equal(pl4.refresh_token, undefined);
+
+  // disconnect
+  const d = await runMsCode('MS disconnect: verify broker JWT', { headers: { authorization: `Bearer ${BROKER_JWT}` } });
+  assert.equal(d.ok, true);
+  assert.match(node('Set calendar_status disconnected').parameters.query, /smc_set_calendar_status\(\$1::uuid, 'disconnected'/);
 });
