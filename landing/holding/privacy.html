@@ -35,7 +35,7 @@
 <main id="main">
 <div class="wrap prose">
 <h1>Privacy notice</h1>
-<p>Last updated: <span class="ph">{{date}}</span> &middot; Version PN-v1</p>
+<p>Last updated: <span class="ph">{{date}}</span> &middot; Version PN-v1.1 &middot; Cookie notice CN-v1.1</p>
 <p class="draftnote"><strong>DRAFT for practitioner review.</strong> This text is not approved yet. Items in <span class="ph">shaded boxes</span> are still to be filled in.</p>
 <p>This notice tells you how we use your details. It follows the Protection of Personal Information Act (POPIA).</p>
 
@@ -46,19 +46,23 @@
 <h2>What we collect and why</h2>
 <ul>
 <li><strong>From you on our page, form or WhatsApp:</strong> your first name, mobile number, age band, budget band, whether you have a bond or dependants, how you want to meet, and the time you book.</li>
-<li><strong>Only if you pick a Teams, Zoom or Meet call:</strong> your email. We use it only for the invite.</li>
+<li><strong>Only if you pick a Teams, Zoom or Meet call:</strong> your email. We use it only for the invite. We never use it for marketing, and we never send it to Meta.</li>
 <li><strong>Only if you give it:</strong> another number to call, a backup number, and the best time to reach you.</li>
 <li><strong>Automatically:</strong> the ad or link you came from, your device type, your IP address and cookies.</li>
 <li><strong>Your chats</strong> with our WhatsApp assistant.</li>
+<li><strong>From the adviser, after your call:</strong> how the call went (for example, attended or missed), a 1 to 5 rating of the call and a short note. The adviser may also leave a short voice note. Our provider, <span class="ph">{{TRANSCRIPTION_PROVIDER}}</span>, turns it into text. We do not keep the recording. We keep only the text, after we remove any health or ID details. We use all of this to improve our ads and our questions, and to replace leads under our agreement with the adviser.</li>
 </ul>
-<p>We do not ask for your ID number, bank details or exact income. If you send health details or an ID number in chat, we remove them from our records.</p>
+<p>We do not ask for your ID number, bank details or exact income. If you send health details or an ID number in chat, we remove them from our records. We tell the adviser only that you have a question for them.</p>
 <p>We use your details to:</p>
 <ul>
 <li>check that a call with an adviser suits you;</li>
 <li>pass your details to the adviser you agreed to;</li>
 <li>book your call and send reminders on WhatsApp;</li>
+<li>send a calendar invite (your email, only for the invite);</li>
+<li>reach you on your backup number if your first number fails (only for that);</li>
 <li>keep a record that you agreed, and a list of people who opted out;</li>
-<li>measure and improve our ads (see the Pixel section below).</li>
+<li>measure and improve our ads, using your coded (hashed) number, ad and page events, and the adviser&rsquo;s 1 to 5 rating as a number (see the Pixel section below);</li>
+<li>improve our ads and questions, and settle lead replacements with the adviser, using the adviser&rsquo;s outcome, rating, note and voice-note text.</li>
 </ul>
 
 <h2>Who we share it with</h2>
@@ -69,7 +73,8 @@
 <tbody>
 <tr><td>Hostinger</td><td>Hosts our website and systems</td><td><span class="ph">{{hostinger_region}}</span></td></tr>
 <tr><td>Supabase</td><td>Holds our database</td><td><span class="ph">{{supabase_region}}</span></td></tr>
-<tr><td>Meta (WhatsApp, Facebook, Instagram)</td><td>Sends our WhatsApp messages. Runs our ads. Measures our ads using your coded (hashed) number.</td><td><span class="ph">{{meta_regions}}</span></td></tr>
+<tr><td>Meta (WhatsApp, Facebook, Instagram)</td><td>Sends our WhatsApp messages. Runs our ads. Measures our ads. We send your coded (hashed) number, your IP address and browser type as they are, and, after a call, the adviser&rsquo;s 1 to 5 rating as a number. We never send your email, the adviser&rsquo;s note, or what was said.</td><td><span class="ph">{{meta_regions}}</span></td></tr>
+<tr><td><span class="ph">{{TRANSCRIPTION_PROVIDER}}</span></td><td>Turns the adviser&rsquo;s voice note about your call into text. We do not keep the recording.</td><td><span class="ph">{{transcription_regions &mdash; confirm}}</span></td></tr>
 <tr><td>Anthropic</td><td>The AI model that helps our WhatsApp assistant reply</td><td><span class="ph">{{anthropic_regions}}</span></td></tr>
 <tr><td>Google</td><td>Calendar and video calls for some advisers, and website tools</td><td><span class="ph">{{google_regions}}</span></td></tr>
 <tr><td>Microsoft</td><td>Email, calendars and Teams</td><td><span class="ph">{{microsoft_regions}}</span></td></tr>
@@ -84,29 +89,48 @@
 <p>Before we send your number to Meta, we code (hash) it. Meta can match it but cannot read it. We never send your email to Meta. We also send your IP address and browser type as they are. After a call, we send the adviser&rsquo;s 1 to 5 rating of the meeting as a number. We never send what was said.</p>
 <p>We use this to measure our ads, to stop showing ads to people who already talk to us, and to find similar people. We never use your details to send you ads by message.</p>
 <p>You can turn off ad measurement for this browser. See the control below.</p>
+<h3>Cookies and browser storage</h3>
+<p>Cookies are small files a website keeps in your browser. We also keep a few small notes in your browser&rsquo;s own storage. This table covers both.</p>
+<table>
+<thead><tr><th>Name</th><th>Set by</th><th>Why</th><th>How long</th></tr></thead>
+<tbody>
+<tr><td><code>_fbp</code></td><td>Meta Pixel</td><td>Measures which ads bring visitors</td><td>About 90 days</td></tr>
+<tr><td><code>_fbc</code></td><td>Meta Pixel, when you click an ad</td><td>Links your visit to the ad you clicked</td><td>About 90 days</td></tr>
+<tr><td>Ad source (<code>utm_*</code>, <code>fbclid</code>)</td><td>SortMyCover, in your browser</td><td>Remembers which ad or link you came from, so your enquiry keeps its source</td><td>Until you send the form or clear your browser</td></tr>
+<tr><td><code>smc_ads_off</code></td><td>SortMyCover, in your browser</td><td>Remembers that you turned ad measurement off</td><td>Until you turn it back on or clear your browser</td></tr>
+<tr><td>Session data</td><td>SortMyCover</td><td>Keeps the form and booking working</td><td>Until you close the page</td></tr>
+</tbody></table>
+<p><strong>Ad measurement is on when you arrive.</strong> The Meta Pixel starts when the page loads. We tell you here and in this notice. We do not show a cookie pop-up. You can turn it off at any time with the control below.</p>
+<p class="draftnote"><strong>DRAFT, open question (Q9).</strong> The practitioner has not yet said if the Pixel may run on page load with this notice and an off switch, or must wait for an opt-in. Until they answer, the text above is a draft.</p>
 
 <h2 id="opt-out">How to opt out</h2>
 <h3>Turn off ad measurement for this browser</h3>
+<p>The button saves <code>smc_ads_off</code> in this browser (it runs <code>adsOff()</code>). The link runs <code>adsOn()</code> and removes it.</p>
 <div class="optbox">
 <p id="ads-state" role="status" aria-live="polite">Checking your setting&hellip;</p>
 <p><button type="button" class="optbtn" id="ads-off-btn">Turn off ad measurement for this browser</button></p>
 <p><a href="#opt-out" id="ads-on-link" role="button">Turn it back on</a></p>
 <noscript><p>This control needs JavaScript. You can also block cookies in your browser settings, or email <a href="mailto:howzit@leadvelocity.co.za">howzit@leadvelocity.co.za</a>.</p></noscript>
 </div>
-<p>When it is off, the Meta Pixel does not load, and we do not read or set the <code>_fbp</code> and <code>_fbc</code> cookies. The site still works. The choice is saved only in this browser. If you clear your browser data or use another browser, you need to choose again.</p>
+<p>When it is off, the Meta Pixel does not run, and no new Meta cookies are set. The site still works. Meta cookies already in your browser stay until they expire, unless you clear them. You can also block cookies in your browser settings. The choice is saved only in this browser. If you clear your browser data or use another browser, you need to choose again.</p>
 <h3>Stop messages</h3>
-<p>You can stop us contacting you at any time. Reply <strong>STOP</strong> on WhatsApp, or email <a href="mailto:howzit@leadvelocity.co.za">howzit@leadvelocity.co.za</a> with the word STOP. We stop at once and tell the adviser. You can also join the National Consumer Commission opt-out registry. We check our records against it every month. A registered block always wins, even if you agreed before.</p>
+<p>You can stop us contacting you at any time. Reply <strong>STOP</strong> to any WhatsApp, or email <a href="mailto:howzit@leadvelocity.co.za">howzit@leadvelocity.co.za</a> with the word STOP. We stop at once and tell the adviser. You can also join the National Consumer Commission opt-out registry. We check our records against it every month. A registered block always wins, even if you agreed before.</p>
 
 <h2>How long we keep it</h2>
+<p>Our system deletes records on these dates every night.</p>
 <ul>
-<li>Your details and messages: <strong>12 months</strong> after our last contact with you. Then we delete them.</li>
-<li>Your consent record and opt-out: <strong>5 years</strong>, as proof.</li>
-<li>Form entries that do not fit our criteria: deleted within <strong>24 hours</strong>.</li>
-<li>If you say &ldquo;No thanks&rdquo; on WhatsApp: we keep only a coded copy of your number, so we never message you again.</li>
+<li>Your details, messages, booking and the adviser&rsquo;s feedback about your call: <strong><span class="ph">{{retention_lead_months}}</span> months</strong> after our last contact with you. Then we delete them.</li>
+<li>Your email (only if you gave it for a video call): deleted with your other details.</li>
+<li>Voice notes from the adviser: we do not keep the recording. We keep the text with your other details.</li>
+<li>Answers in a WhatsApp chat you did not finish: deleted after <strong><span class="ph">{{retention_unfinished_hours}}</span> hours</strong>.</li>
+<li>Form entries that do not fit our criteria: deleted within <strong><span class="ph">{{retention_nonfit_hours}}</span> hours</strong>.</li>
+<li>Your consent record and any opt-out: <strong><span class="ph">{{retention_consent_years}}</span> years</strong>, as proof.</li>
+<li>If you say &ldquo;No thanks&rdquo; or STOP: we keep a coded (hashed) copy of your number on our block list, so we never message you again. We delete your other details on the dates above.</li>
+<li>Backups: overwritten every <span class="ph">{{backup_days}}</span> days.</li>
 </ul>
 
 <h2>Automated checks and our AI assistant</h2>
-<p>Our system checks your answers against fixed criteria (age band and budget band). If they do not fit, we close politely and do not pass your details on. You can ask a person to look again. Email <a href="mailto:howzit@leadvelocity.co.za">howzit@leadvelocity.co.za</a>.</p>
+<p>Our system checks your answers against fixed criteria (age band and budget band). If they do not fit, we close politely and do not pass your details on. You can ask a person to look again. Reply <strong>PERSON</strong> on WhatsApp, or email <a href="mailto:howzit@leadvelocity.co.za">howzit@leadvelocity.co.za</a>.</p>
 <p>Our WhatsApp assistant uses AI. It can answer questions about the call and help you book. It never gives advice. Type &ldquo;person&rdquo; at any time to reach a human.</p>
 
 <h2>Your rights</h2>
