@@ -1,16 +1,104 @@
--- DEPLOYED COPY: the W14 functions in this file are folded verbatim into supabase/migrations/20261002_smc_10_pass4.sql (I-33i); change both together.
--- analytics/W14-broker-payload.sql — emits EXACTLY the JSON shape in automation/W14-broker.md (broker-success owns the words and the shape;
--- integration-pass2 I-02). Keys such as s1_one_line, s2_progress ... s8_cycle and wa; every figure is {v, target, last}.
--- Counts come from analytics/W14-broker.sql (facts.cycle_counts, operational tables); the console cross-check is public.v_cycle_progress.
--- W14 (Sunday 23:00): payload := facts.w14_broker_report(broker_id); if facts.w14_hold(broker_id, payload) then hold + alert, else store in
--- report_history.report_data (payload_json), ask := payload->'s7_ask'->>'code', and send Monday 07:00. The same payload feeds WhatsApp (wa), portal, email, PDF.
--- Run as service_role / n8n_app. Not exposed to brokers. Words are Grade 7; no spend, cost per lead, creative names or other advisers (R03, R11).
--- Needs: params.sql (facts.v_params, facts.as_of), W14-broker.sql, smc_02/03 tables (cycles, leads, appointments, outcomes, replacements, insights, broker_media, report_history).
---
--- Edition (weekly | midcycle | cycle_end): derived from the SEND day (= generation day + 1): cycle day 15 -> midcycle; the cycle's last day (extended end if running) -> cycle_end;
--- otherwise weekly. report_history.report_kind spells them broker_weekly / midcycle / cycle_end; `edition` in the payload is the short form.
--- Not computable yet (needs_human): ask `reconnect_calendar` (no brokers.calendar_status column) and `confirm_holiday_hours` (no holiday table). They are skipped, not guessed.
+-- =============================================================================
+-- 20261002_smc_10_pass4.sql  —  SortMyCover build, migration 10: integration pass 4
+-- Owner: platform-architect. Drafted 2026-10-02. NOT applied (NH-11 / NH-15 still gate 01–10).
+-- Additive and idempotent, same conventions as 01–09.
+--   I-34a public.wa_threads (W03 conversation state, keyed by mobile hash) + ops.ctwa_clicks (W03 tracked redirect counts).
+--         WITHDRAWN, deliberately not created: leads.lead_token_hash, leads.lead_token_expires_at, any flow_tokens table
+--         (the lead_token is a stateless HMAC, CONTRACTS.md / I-29).
+--   I-33g brokers.close_rate is a fraction 0–1 (portal writes 0.30); existing percent values are converted first.
+--   I-33i W14 report functions folded in verbatim from analytics/W14-broker-payload.sql and analytics/W14-lv.sql
+--         (this migration is the deployed copy; the analytics files stay as the authoring copy).
+-- Inventory lines extended: INV-T03 (brokers), INV-F02 (has_role via smc_is_admin).
+-- =============================================================================
 
+-- -----------------------------------------------------------------------------
+-- 1. I-34a — public.wa_threads: one open WhatsApp qualification thread per brand and mobile hash.
+-- Holds the quiz state (answers, stage, consent text + version, ref) for at most 72 h after the last
+-- inbound message; never a raw number (mobile_hash = smc_hash_contact). W08 polls stall_due_at for the
+-- +1 h / +20 h / +68 h nudges. Expired rows are purged by W34 (retention_log). Only n8n touches it.
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.wa_threads (
+  brand_id        uuid        NOT NULL REFERENCES public.brands(id),
+  mobile_hash     text        NOT NULL,
+  state           jsonb       NOT NULL DEFAULT '{}'::jsonb,
+  stage           text,
+  last_inbound_at timestamptz,
+  stall_due_at    timestamptz,
+  expires_at      timestamptz,
+  updated_at      timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (brand_id, mobile_hash),
+  CHECK (jsonb_typeof(state) = 'object')
+);
+CREATE INDEX IF NOT EXISTS wa_threads_stall_due_idx ON public.wa_threads (stall_due_at) WHERE stall_due_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS wa_threads_expires_idx   ON public.wa_threads (expires_at);
+COMMENT ON TABLE public.wa_threads IS 'SMC I-34a (W03/W08): WhatsApp quiz thread state per brand + mobile hash; 72 h life, purged after expires_at. n8n_app only.';
+
+ALTER TABLE public.wa_threads ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.wa_threads FROM PUBLIC, anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.wa_threads TO n8n_app;   -- DELETE: expiry purge (W34)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'wa_threads' AND policyname = 'smc n8n_app rw') THEN
+    CREATE POLICY "smc n8n_app rw" ON public.wa_threads FOR ALL TO n8n_app USING (true) WITH CHECK (true);
+  END IF;
+END $$;
+
+-- ops.ctwa_clicks: counting only (POPIA minimisation) — no IP, no full user agent, no cookie, no number.
+CREATE TABLE IF NOT EXISTS ops.ctwa_clicks (
+  id         bigserial   PRIMARY KEY,
+  ref        text        NOT NULL,
+  clicked_at timestamptz NOT NULL DEFAULT now(),
+  ua_class   text,
+  CHECK (length(ref) <= 200),
+  CHECK (ua_class IS NULL OR ua_class IN ('ios','android','desktop','bot','other'))
+);
+CREATE INDEX IF NOT EXISTS ctwa_clicks_ref_time_idx ON ops.ctwa_clicks (ref, clicked_at);
+COMMENT ON TABLE ops.ctwa_clicks IS 'SMC I-34a / I-09 (W03 GET /wa/:ref): one row per tracked click to wa.me. Counts only; n8n_app inserts, admins read.';
+ALTER TABLE ops.ctwa_clicks ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON ops.ctwa_clicks FROM PUBLIC, anon;
+GRANT SELECT ON ops.ctwa_clicks TO authenticated;
+GRANT INSERT ON ops.ctwa_clicks TO n8n_app;
+GRANT USAGE ON SEQUENCE ops.ctwa_clicks_id_seq TO n8n_app;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'ops' AND tablename = 'ctwa_clicks' AND policyname = 'smc admin read') THEN
+    CREATE POLICY "smc admin read" ON ops.ctwa_clicks FOR SELECT TO authenticated USING (public.smc_is_admin());
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'ops' AND tablename = 'ctwa_clicks' AND policyname = 'smc n8n_app insert') THEN
+    CREATE POLICY "smc n8n_app insert" ON ops.ctwa_clicks FOR INSERT TO n8n_app WITH CHECK (true);
+  END IF;
+END $$;
+
+-- -----------------------------------------------------------------------------
+-- 2. I-33g — brokers.close_rate is a fraction (0.30 = 30%), as the portal and W14 s6_roi read it.
+-- Any value above 1 was entered as a percent: divide by 100 first, then tighten the CHECK.
+-- -----------------------------------------------------------------------------
+DO $$
+DECLARE
+  v_def text;
+BEGIN
+  SELECT pg_get_constraintdef(oid) INTO v_def FROM pg_constraint
+   WHERE conrelid = 'public.brokers'::regclass AND conname = 'brokers_smc_close_rate_fraction';
+  IF v_def IS NULL THEN
+    PERFORM set_config('smc.source', 'migration', true);
+    PERFORM set_config('smc.reason', 'I-33g close_rate percent -> fraction', true);
+    UPDATE public.brokers SET close_rate = round(close_rate / 100, 2) WHERE close_rate > 1;
+    ALTER TABLE public.brokers ADD CONSTRAINT brokers_smc_close_rate_fraction
+      CHECK (close_rate IS NULL OR close_rate BETWEEN 0 AND 1);
+  END IF;
+END $$;
+COMMENT ON COLUMN public.brokers.close_rate IS 'SMC: broker-entered close rate as a FRACTION 0–1 (0.30 = 30%). ROI view only, never in any fee (3.7, FAIS). I-33g.';
+
+-- -----------------------------------------------------------------------------
+-- 3. I-33i — W14 report functions (deployed copy; authoring copy in analytics/).
+-- They call the analytics layer (facts.v_params, facts.cycle_counts, facts.v_broker_todos, facts.v_capacity_day,
+-- facts.v_w14_lv_* views) which is installed by analytics/*.sql, not by a migration. Bodies are therefore not
+-- validated at CREATE time (check_function_bodies off, as pg_dump does); they resolve at call time.
+-- See needs_human in schema.md pass 4: the analytics layer itself still needs a deploy path.
+-- -----------------------------------------------------------------------------
+SET check_function_bodies = off;
+
+-- >>> verbatim from analytics/W14-broker-payload.sql (lines 13–261)
 drop function if exists facts.w14_hold(text);
 drop function if exists facts.w14_reconcile(text, jsonb);
 drop function if exists facts.w14_broker_payload(text);
@@ -260,3 +348,50 @@ end $$;
 -- W14's gate: true = HOLD the report (do not send), alert Jonathan with the failing check names.
 create or replace function facts.w14_hold(p_broker uuid, p_payload jsonb default null) returns boolean language sql stable as $$
   select exists (select 1 from facts.w14_reconcile(p_broker, p_payload) where not ok) $$;
+
+-- >>> verbatim from analytics/W14-lv.sql (lines 86–107)
+-- The payload W14 stores. All numbers come from the views above; keys are stable (the judge W33 diffs them against the console).
+create or replace function facts.w14_lv_payload() returns jsonb language sql stable as $$
+  select jsonb_build_object(
+    'week_ending', (select as_of from facts.v_params),
+    'funnel', (select coalesce(jsonb_agg(to_jsonb(f)), '[]') from facts.v_w14_lv_funnel f),
+    'margin', (select coalesce(jsonb_agg(to_jsonb(m)), '[]') from facts.v_w14_lv_margin m),
+    'renewal_risk', (select coalesce(jsonb_agg(to_jsonb(r)), '[]') from facts.v_w14_lv_renewal r),
+    'creatives', (select coalesce(jsonb_agg(to_jsonb(c) order by c.cost_per_attended nulls last), '[]') from facts.v_w14_lv_creative c),
+    'watchlist', (select coalesce(jsonb_agg(jsonb_build_object('tile_no', tile_no, 'tile', tile, 'scope', scope, 'value', value, 'target', target, 'status', status, 'n', n, 'last_period', last_period)), '[]')
+                  from (select tile_no, tile, scope, value, target, status, n, last_period from facts.v_watchlist_0_cpl_vs_model
+                        union all select tile_no, tile, scope, value, target, status, n, last_period from facts.v_watchlist_1_cost_per_good_fit
+                        union all select tile_no, tile, scope, value, target, status, n, last_period from facts.v_watchlist_2_leads_we_could_reach
+                        union all select tile_no, tile, scope, value, target, status, n, last_period from facts.v_watchlist_3_booked_to_attended
+                        union all select tile_no, tile, scope, value, target, status, n, last_period from facts.v_watchlist_4_broker_good_fit_rate
+                        union all select tile_no, tile, scope, value, target, status, n, last_period from facts.v_watchlist_5_margin_this_cycle
+                        union all select tile_no, tile, scope, value, target, status, n, last_period from facts.v_watchlist_6_capacity_days_left
+                        union all select tile_no, tile, scope, value, target, status, n, last_period from facts.v_watchlist_7_renewal_risk) w),
+    'insight_seeds', (select coalesce(jsonb_agg(jsonb_build_object('kind', kind, 'headline', headline, 'numbers', numbers) order by pri), '[]') from facts.v_w14_lv_insight_seeds),
+    'candidates', (select coalesce(jsonb_agg(jsonb_build_object('rule_id', rule_id, 'scope_id', scope_id, 'action', proposed_action, 'pct', proposed_pct, 'title', title)), '[]') from facts.v_kill_scale_candidates),
+    'recommendation_seed', (select to_jsonb(r) from facts.v_w14_lv_recommendation_seed r)
+  )
+$$;
+
+RESET check_function_bodies;
+
+-- W14 runs as n8n_app; brokers and anon never call these (they read report_history via RLS).
+-- The analytics views they read (facts.v_params, cycle_counts, v_w14_lv_*) carry no grants, so the functions run as
+-- their owner (SECURITY DEFINER, pinned search_path) and only n8n_app may EXECUTE them. Bodies above stay verbatim.
+-- Re-running analytics/W14-*.sql (CREATE OR REPLACE) resets them to SECURITY INVOKER, so n8n_app also gets SELECT on
+-- facts views created later by the analytics files (pseudonymised layer; n8n_app already reads the smc_04/06 facts views).
+ALTER DEFAULT PRIVILEGES IN SCHEMA facts GRANT SELECT ON TABLES TO n8n_app;
+ALTER FUNCTION facts.w14_broker_report(uuid, date, text) SECURITY DEFINER SET search_path = public, facts, pg_temp;
+ALTER FUNCTION facts.w14_reconcile(uuid, jsonb)          SECURITY DEFINER SET search_path = public, facts, pg_temp;
+ALTER FUNCTION facts.w14_hold(uuid, jsonb)               SECURITY DEFINER SET search_path = public, facts, pg_temp;
+ALTER FUNCTION facts.w14_lv_payload()                    SECURITY DEFINER SET search_path = public, facts, pg_temp;
+DO $$
+DECLARE
+  f text;
+BEGIN
+  FOREACH f IN ARRAY ARRAY['facts.vtl(numeric, numeric, numeric)', 'facts.w14_broker_report(uuid, date, text)',
+                           'facts.w14_reconcile(uuid, jsonb)', 'facts.w14_hold(uuid, jsonb)', 'facts.w14_lv_payload()'] LOOP
+    EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated', f);
+    EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO n8n_app', f);
+  END LOOP;
+END $$;

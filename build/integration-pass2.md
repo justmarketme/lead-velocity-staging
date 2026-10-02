@@ -105,3 +105,5 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-35h | Billing Postgres credential must be (or inherit) `n8n_app` so the `smc_vault_*` wrappers are executable; align the two credential names in LOCAL-STAGING.md | devops-security |
 | I-35i | `smc_vault_paystack_sub_token(broker_id)` (n8n_app only) so W19 can disable a Paystack Plan when auto-renew is switched off; until then W22 notice to Jonathan | platform-architect (migration 10/11) |
 | I-35j | Draft `broker_autorenew_off` utility template (+ `broker_booking_changed`, I-35a) | automation-engineer (templates) |
+| I-35k | Analytics layer deploy: W26 runbook applies `analytics/params.sql, watchlist.sql, kill-scale.sql, W14-broker.sql, W14-lv.sql` after migrations (default) — or migration 11 by analytics-reporter once `params.sql` uses CREATE OR REPLACE | devops-security (W26) + analytics-reporter |
+| I-35l | W34 purges `wa_threads` rows past `expires_at` (POPIA ops) | compliance-qa (W34) |

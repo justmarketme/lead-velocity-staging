@@ -227,3 +227,24 @@ Stub tests (rolled back):
   - writes acceptances.
 - Policies written: the value and the timeline row are written, and a negative count is refused.
 - Admin RPCs: every one returns rows for an admin. A broker gets `admin only` from each, and anon gets permission denied.
+
+### Pass 3 addendum — I-33d (in 08 §12)
+`smc_brokers_guard` checks `current_user` first, in its own IF, before `auth.uid()`. As a result, `n8n_app`, service and SECURITY DEFINER paths never call `auth.uid()`, and updates keep working even if the hosted project refuses the §1 grant. Stub test: the `n8n_app` update succeeds with `auth` access revoked, and a broker's own `status` change still gets 42501.
+
+## Pass 4 (2026-10-02) — `20261002_smc_10_pass4.sql` (drafted, NOT applied)
+Additive and idempotent. Validated on the local stub only. Results:
+- Chain 01→10 applied twice with 0 errors, and 0 legacy errors.
+- Seed applied twice with 0 errors.
+- Analytics SQL (including `W14-broker-payload.sql`) ran with 0 errors.
+- Workflow parse-check: 221 statements, 7 errors, all untyped-parameter artefacts. The `wa_threads`, `ctwa_clicks` and `w14_broker_report` errors are gone.
+
+| Item | What 10 does |
+|---|---|
+| I-34a | **`public.wa_threads`**: PK `(brand_id, mobile_hash)` plus `state jsonb` (object), `stage`, `last_inbound_at`, `stall_due_at` (partial index), `expires_at` (index) and `updated_at`. RLS is on. Only `n8n_app` can access it (SELECT, INSERT, UPDATE, and DELETE for the 72 h expiry purge by W34); there are no grants to anon or authenticated. **`ops.ctwa_clicks`**: `(id, ref ≤ 200 chars, clicked_at, ua_class ∈ ios/android/desktop/bot/other)` and no IP, user agent or cookie. `n8n_app` may only insert; admins read under RLS. |
+| I-34a (withdrawn) | **Not created, on purpose:** `leads.lead_token_hash`, `leads.lead_token_expires_at` and any `flow_tokens` table. The lead token is a stateless HMAC (CONTRACTS.md, I-29). |
+| I-33g | `brokers.close_rate` is a fraction from 0 to 1. Any value above 1 is first divided by 100. The new CHECK `brokers_smc_close_rate_fraction` then enforces 0–1, alongside 02's looser 0–100 check. Stub: 30 becomes 0.30 on re-run, and writing 30 is refused. |
+| I-33i | `facts.vtl`, `facts.w14_broker_report(uuid, date, text)`, `facts.w14_reconcile(uuid, jsonb)` and `facts.w14_hold(uuid, jsonb)` are copied verbatim from `analytics/W14-broker-payload.sql`, and `facts.w14_lv_payload()` from `analytics/W14-lv.sql`. They are created with `check_function_bodies = off` because they depend on the analytics layer. They are then altered to SECURITY DEFINER with a pinned search_path; only `n8n_app` may EXECUTE them. `ALTER DEFAULT PRIVILEGES IN SCHEMA facts GRANT SELECT ON TABLES TO n8n_app`, so the analytics views also work when the analytics files are re-run. Stub results as `n8n_app`: the report has 16 keys, `hold` is false, reconcile runs 20 checks with 0 failing, and the LV payload has 9 keys. A broker gets permission denied. |
+
+No new browser-facing RPC, so `smc-types.ts` is unchanged.
+
+**needs_human (proposed):** the analytics layer has no migration. That covers `params.sql`, `watchlist.sql`, `kill-scale.sql`, `W14-broker.sql` and the `v_w14_lv_*` views in `W14-lv.sql`, which hold `facts.v_params`, `cycle_counts`, `renewal_risk_at` and the tile views. The functions in 10 exist but fail at call time until those files are applied. There are two options: fold the layer into a migration 11 (analytics-reporter owns the content, and `params.sql`'s `DROP VIEW … CASCADE` must become CREATE OR REPLACE first), or make the deploy runbook apply `analytics/*.sql` after the migrations. Default: runbook step, until analytics-reporter removes the CASCADE.
