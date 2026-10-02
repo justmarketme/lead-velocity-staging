@@ -7,7 +7,12 @@ services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
-    env_file: ../.env   # POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB (= the DB_POSTGRESDB_* values)
+    # Scoped to the three Postgres values only (integration pass 2, I-15): the full .env
+    # holds every secret and must not reach this container.
+    environment:
+      POSTGRES_USER: ${DB_POSTGRESDB_USER}
+      POSTGRES_PASSWORD: ${DB_POSTGRESDB_PASSWORD}
+      POSTGRES_DB: ${DB_POSTGRESDB_DATABASE}
     volumes:
       - n8n_postgres:/var/lib/postgresql/data
     healthcheck:
