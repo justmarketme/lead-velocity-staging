@@ -13,7 +13,7 @@
       "parameters": {
         "width": 760,
         "height": 360,
-        "content": "W08 Unbooked nurture (4.6 item 5, 4.12 last row, state-machine.md 5). Every 5 min: leads that were disclosed (first_message_at) and have no live booking.\nWeb / lead-ad: unbooked_nudge_2h (+2 h) -> unbooked_nudge_24h (+24 h, intro video; _text with bio_short if no video) -> unbooked_nudge_72h (+72 h, last) -> close as unbooked_closed (+24 h after the last).\nCTWA stall nudges: W03 is the single owner (STALL_HOURS 1/20/68, consent question only before consent). W08 skips every lead with no broker_id (pre-routing CTWA = stop reason ctwa_pre_routing_w03; the candidate query also INNER JOINs brokers).\nTemplate outside the 24-h window; inside it the same words go as a session interactive message. Stops on booking, STOP/opt-out, suppression, handoff, \"No thanks\", closed stage, 12-message cap. \"No thanks\" = objection: the close UPDATE and INSERT INTO suppression (smc_hash_contact(phone), source objection, note no_thanks_nurture, brand NULL = Lead Velocity-wide) run in ONE statement.\nASSUMPTIONS (needs_human): quiet hours 20:00-08:00 SAST shift a nudge to 08:00; close = last nudge + 24 h.\nIdempotency: lead_activities.idempotency_key w08:{lead}:{touch} claimed with ON CONFLICT DO NOTHING RETURNING before any send. Logic: automation/lib/w08.mjs; tests automation/tests/W08.test.mjs.\nSession words (inside the 24-h window) come from lib/w08.mjs sessionWords(): English = the approved template text; Afrikaans leads get LINES.af NUDGE_* once conversation-designer adds them. Templates stay English-only."
+        "content": "W08 Unbooked nurture (4.6 item 5, 4.12 last row, state-machine.md 5). Every 5 min: leads that were disclosed (first_message_at) and have no live booking.\nWeb / lead-ad: unbooked_nudge_2h (+2 h) -> unbooked_nudge_24h (+24 h, intro video; _text with bio_short if no video) -> unbooked_nudge_72h (+72 h, last) -> close as unbooked_closed (+24 h after the last).\nCTWA stall nudges: W03 is the single owner (STALL_HOURS 1/20/68, consent question only before consent). W08 skips every lead with no broker_id (pre-routing CTWA = stop reason ctwa_pre_routing_w03; the candidate query also INNER JOINs brokers).\nTemplate outside the 24-h window; inside it the same words go as a session interactive message. Stops on booking, STOP/opt-out, suppression, handoff, \"No thanks\", closed stage, 12-message cap. \"No thanks\" = objection: the close UPDATE and INSERT INTO suppression (smc_hash_contact(phone), source objection, note no_thanks_nurture, brand NULL = Lead Velocity-wide) run in ONE statement.\nASSUMPTIONS (needs_human): quiet hours 20:00-08:00 SAST shift a nudge to 08:00; close = last nudge + 24 h.\nIdempotency: lead_activities.idempotency_key w08:{lead}:{touch} claimed with ON CONFLICT DO NOTHING RETURNING before any send. Logic: automation/lib/w08.mjs; tests automation/tests/W08.test.mjs.\nSession words (inside the 24-h window) come from lib/w08.mjs sessionWords(): English = the approved template text; Afrikaans leads get LINES.af NUDGE_* once conversation-designer adds them. Templates stay English-only.\nI-39c: a cancelled booking restarts +2/+24/+72 h from appointments.cancelled_at (new idempotency keys :r<ms>; no close here, W10's hourly sweep decides at 96 h); declined_call leads are skipped. leads.last_contact_at is set after every Meta-accepted send (CONTRACTS.md I-38d)."
       }
     },
     {
@@ -47,7 +47,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT l.id, l.first_name, l.language, l.origin, l.stage, l.conv_state, l.opted_out_at, l.first_message_at, l.broker_id, l.brand_id, l.phone,\n       b.contact_person, b.bio_short, b.intro_video_url,\n       EXISTS (SELECT 1 FROM public.appointments a WHERE a.client_id = l.id AND a.brand_id IS NOT NULL AND a.status IN ('booked','confirmed')) AS has_live_booking,\n       EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone)) AS suppressed,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'inbound') AS last_inbound_at,\n       (SELECT count(*) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'outbound') AS outbound_count,\n       COALESCE((SELECT jsonb_agg(x.payload->>'touch') FROM public.lead_activities x WHERE x.lead_id = l.id AND x.activity_type = 'nurture_sent'), '[]'::jsonb) AS sent\n  FROM public.leads l\n  JOIN public.brokers b ON b.id = l.broker_id\n WHERE l.brand_id IS NOT NULL\n   AND l.first_message_at IS NOT NULL\n   AND l.first_message_at > now() - interval '6 days'\n   AND l.opted_out_at IS NULL\n   AND COALESCE(l.stage, 'new') NOT IN ('unbooked_closed','opted_out','disqualified','booked','confirmed','attended','no_show','dispositioned','replacement_due')\n ORDER BY l.first_message_at\n LIMIT 500;",
+        "query": "SELECT l.id, ca.cancelled_at, l.first_name, l.language, l.origin, l.stage, l.conv_state, l.opted_out_at, l.first_message_at, l.broker_id, l.brand_id, l.phone,\n       b.contact_person, b.bio_short, b.intro_video_url,\n       EXISTS (SELECT 1 FROM public.appointments a WHERE a.client_id = l.id AND a.brand_id IS NOT NULL AND a.status IN ('booked','confirmed')) AS has_live_booking,\n       EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone)) AS suppressed,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'inbound') AS last_inbound_at,\n       (SELECT count(*) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'outbound') AS outbound_count,\n       -- I-39c: after a cancellation only touches of the restarted sequence count\n       COALESCE((SELECT jsonb_agg(x.payload->>'touch') FROM public.lead_activities x WHERE x.lead_id = l.id AND x.activity_type = 'nurture_sent' AND (ca.cancelled_at IS NULL OR x.occurred_at >= ca.cancelled_at)), '[]'::jsonb) AS sent\n  FROM public.leads l\n  JOIN public.brokers b ON b.id = l.broker_id\n  LEFT JOIN LATERAL (SELECT max(a.cancelled_at) AS cancelled_at FROM public.appointments a WHERE a.client_id = l.id AND a.brand_id IS NOT NULL AND a.status = 'cancelled') ca ON true\n WHERE l.brand_id IS NOT NULL\n   AND l.first_message_at IS NOT NULL\n   AND GREATEST(l.first_message_at, ca.cancelled_at) > now() - interval '6 days'\n   AND l.opted_out_at IS NULL\n   AND (COALESCE(l.stage, 'new') NOT IN ('unbooked_closed','opted_out','disqualified','booked','confirmed','attended','no_show','dispositioned','replacement_due')\n        OR (l.stage IN ('booked','confirmed') AND ca.cancelled_at IS NOT NULL))  -- cancelled booking: live-booking check in w08.due stops it if rebooked\n   AND NOT COALESCE((l.conv_state->>'declined_call')::boolean, false)  -- C1A (b): said plainly no call -> no nurture\n ORDER BY l.first_message_at\n LIMIT 500;",
         "options": {
           "queryReplacement": "={{ [] }}"
         }
@@ -74,7 +74,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w08.mjs').href);\nconst r = $json; if (!r.id) return { json: { action: 'none' } };\nconst lead = { id: r.id, first_name: r.first_name, language: r.language, origin: r.origin, stage: r.stage, conv_state: r.conv_state || {}, opted_out_at: r.opted_out_at, first_message_at: r.first_message_at, broker_id: r.broker_id };\nconst ctx = { has_live_booking: r.has_live_booking, suppressed: r.suppressed, sent: new Set(r.sent || []), last_inbound_ms: r.last_inbound_at ? Date.parse(r.last_inbound_at) : NaN, outbound_count: Number(r.outbound_count || 0), broker: { contact_person: r.contact_person, bio_short: r.bio_short, intro_video_url: r.intro_video_url } };\nconst d = L.due(lead, ctx, Date.now());\nreturn { json: { ...d, lead_id: r.id, brand_id: r.brand_id, broker_id: r.broker_id, phone: r.phone, lang: r.language === 'af' ? 'af' : 'en' } };"
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w08.mjs').href);\nconst r = $json; if (!r.id) return { json: { action: 'none' } };\nconst lead = { id: r.id, first_name: r.first_name, language: r.language, origin: r.origin, stage: r.stage, conv_state: r.conv_state || {}, opted_out_at: r.opted_out_at, first_message_at: r.first_message_at, cancelled_at: r.cancelled_at, broker_id: r.broker_id };\nconst ctx = { has_live_booking: r.has_live_booking, suppressed: r.suppressed, sent: new Set(r.sent || []), last_inbound_ms: r.last_inbound_at ? Date.parse(r.last_inbound_at) : NaN, outbound_count: Number(r.outbound_count || 0), broker: { contact_person: r.contact_person, bio_short: r.bio_short, intro_video_url: r.intro_video_url } };\nconst d = L.due(lead, ctx, Date.now());\nreturn { json: { ...d, lead_id: r.id, brand_id: r.brand_id, broker_id: r.broker_id, phone: r.phone, lang: r.language === 'af' ? 'af' : 'en' } };"
       }
     },
     {
@@ -504,6 +504,120 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 3000
+    },
+    {
+      "id": "n_i39c_if",
+      "name": "Accepted by Meta? (wamid)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        360
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!($json.messages && $json.messages[0] && $json.messages[0].id)) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n_i39c_touch",
+      "name": "Touch leads.last_contact_at (lead outbound)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        360
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.leads SET last_contact_at = now() WHERE id = $1::uuid;  -- CONTRACTS.md I-38d: only after Meta accepted (wamid), never on dry runs",
+        "options": {
+          "queryReplacement": "={{ [$('Build message (template or session)').item.json.lead_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase Postgres"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n_i39c_if2",
+      "name": "Accepted by Meta? (close line)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!($json.messages && $json.messages[0] && $json.messages[0].id)) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n_i39c_touch2",
+      "name": "Touch leads.last_contact_at (close line)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        880,
+        400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.leads SET last_contact_at = now() WHERE id = $1::uuid;  -- CONTRACTS.md I-38d: only after Meta accepted (wamid), never on dry runs",
+        "options": {
+          "queryReplacement": "={{ [$('On tap (w08.onTap)').item.json.lead.id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase Postgres"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     }
   ],
   "connections": {
@@ -616,6 +730,11 @@
             "node": "Store outbound",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Accepted by Meta? (wamid)",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -680,6 +799,39 @@
         [
           {
             "node": "Send close line",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Accepted by Meta? (wamid)": {
+      "main": [
+        [
+          {
+            "node": "Touch leads.last_contact_at (lead outbound)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send close line": {
+      "main": [
+        [
+          {
+            "node": "Accepted by Meta? (close line)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Accepted by Meta? (close line)": {
+      "main": [
+        [
+          {
+            "node": "Touch leads.last_contact_at (close line)",
             "type": "main",
             "index": 0
           }

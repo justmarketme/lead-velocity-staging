@@ -98,6 +98,8 @@ function routeCore(msg, ctx) {
   if (msg.list_id && /^slot_/u.test(msg.list_id)) return { route: 'W05', reason: 'slot picked from the 10-slot list' };
   if (msg.list_id && BEST_TIME[msg.list_id]) return { route: 'W07_contact', reason: 'best time tap' };
   if (msg.payload && /^slot_/u.test(msg.payload)) return { route: 'W05', reason: 'slot button (Time 1-3)' };
+  // I-39d: "No thanks" tap while a booking is live = C1A (b) no call -> W10 (its router treats no_thanks as no_call)
+  if (tapKey === 'no_thanks' && ctx.has_live_booking) return { route: 'W10', reason: 'no_call (live booking)' };
   if (tapKey && LEAD_TAPS[tapKey]) return { route: LEAD_TAPS[tapKey], reason: `tap ${tapKey}` };
   if (state === 'handoff') return { route: 'paused', reason: 'a person has this conversation' };
   // w07-alignment #13: the optional one-line answer after a W35 pulse tap goes to W35 (conversation/pulse.mjs decides;
@@ -271,10 +273,21 @@ export function planActions(decision, ctx) {
   if (decision.actions.length === 1 && decision.actions[0] === 'none') plan.send = false;
   plan.vars = vars;
   plan.lang = lang;
+  // I-39d (C1A b): a lead WITH a live booking who says plainly they do not want a call -> W10 no_call op (stop messaging,
+  // claim). W10 owns the reply. Without a booking the existing nurture-stop path (close_unbooked -> W08) stays.
+  if (ctx.booking && ctx.booking.id && (nlu.intent === 'declined_call' || NO_CALL_RX.test(String(ctx.text_store || '')))) {
+    plan.delegate = plan.delegate.filter((d) => d.to !== 'W10' && d.to !== 'W08' && d.to !== 'W04');
+    plan.delegate.push({ to: 'W10', action: 'no_call', booking_id: ctx.booking.id });
+    plan.prefix = []; plan.suffix = []; plan.reply_actions = []; plan.send = false;
+    plan.lead_updates = { ...plan.lead_updates }; delete plan.lead_updates.stage;
+    plan.next_state = 'declined_call';
+    return plan;
+  }
   oneMessage(plan, ctx);
   return plan;
 }
 
+export const NO_CALL_RX = /^\s*(no,?\s*thanks?|no\s+thank\s+you)\s*[.!]*\s*$|\b(i\s+)?(don'?t|do\s+not|dont)\s+want\s+(a|the|any|this)\s+call\b|\bnee\s+dankie\b|\bwil\s+nie\s+('n\s+)?oproep\b/iu;
 // #1 one message, never two (I-35e): when W04 (slots) or W10 (reschedule / cancel / method) sends the interactive
 // message, W07's fixed lines travel INSIDE it and W07 sends nothing itself.
 const ONE_MESSAGE = {

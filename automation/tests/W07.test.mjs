@@ -335,3 +335,20 @@ test('#13 W35 optional line routes to W35; #14 disclosed only on sent turns; #12
   assert.equal(W.contactStep(af, { payload: 'call_number_yes' }).reply.body, LINES.af.CONTACT_ALT);
   assert.equal(W.contactStep(mkLead(L01), { payload: 'alt_no' }).reply.body, LINES.en.CONTACT_BEST_TIME);
 });
+
+test('I-39d: "I don\'t want a call" with a live booking -> W10 no_call; without a booking the nurture-stop path stays', () => {
+  const t = turn("I don't want a call anymore", { nlu: { intent: 'cancel' } });
+  assert.deepEqual(t.plan.delegate.map(({ to, action }) => ({ to, action })), [{ to: 'W10', action: 'no_call' }]);
+  assert.equal(t.plan.send, false);
+  const nt = turn('No thanks', { nlu: { intent: 'other' } });
+  assert.equal(nt.plan.delegate.at(-1).action, 'no_call');
+  const ul = mkLead(L01, { conv_state: { state: 'unbooked', disclosed: true } });
+  const um = { text: "I don't want a call", wamid: 'wamid.U', from: ul.phone };
+  const up = W.preStep(um, ul, BROKER_ROW); const un = { intent: 'cancel', topics: [], slots: {}, confidence: 0.9 };
+  const ub = W.planActions(decide('unbooked', un, up.pre, { booking: null, unanswered: 0 }), { lead: ul, booking: null, pre: up.pre, nlu: un, now_ms: NOON, lang: 'en', state: 'unbooked', wamid: 'wamid.U', disclosed: true, adviser_first: up.adviser_first, text_store: up.text_store });
+  ub.delegate.forEach((d) => assert.notEqual(d.action, 'no_call'));
+  assert.ok(ub.delegate.some((d) => d.to === 'W08'), 'no booking: nurture-stop path (close_unbooked -> W08)');
+  const ld = mkLead(L01);
+  assert.equal(W.routeInbound({ from: ld.phone, payload: 'no_thanks:x' }, { lead: ld, has_live_booking: true }).route, 'W10');
+  assert.equal(W.routeInbound({ from: ld.phone, payload: 'no_thanks:x' }, { lead: ld }).route, 'W08');
+});

@@ -47,8 +47,11 @@ export function outOfQuiet(t) {
 
 /** The plan for one lead: [{touch, due_ms}] + close_ms. Pure. */
 export function nurturePlan(lead) {
-  const t0 = Date.parse(lead.first_message_at);
-  const tr = track(lead);
+  // I-39c: a cancelled booking restarts the full +2/+24/+72 h sequence from appointments.cancelled_at (C1A); W10's
+  // hourly sweep decides at 96 h, so a restarted sequence never closes here.
+  const restart = restartFrom(lead);
+  const t0 = restart ?? Date.parse(lead.first_message_at);
+  const tr = restart ? 'unbooked' : track(lead);
   const steps = [];
   for (const s of OFFSETS[tr]) {
     const due = outOfQuiet(t0 + s.after);
@@ -56,7 +59,13 @@ export function nurturePlan(lead) {
     steps.push({ touch: s.touch, due_ms: due });
   }
   const last = steps.length ? steps[steps.length - 1].due_ms : t0;
-  return { track: tr, steps, close_ms: last + CLOSE_AFTER_LAST };
+  return { track: tr, steps, close_ms: last + CLOSE_AFTER_LAST, restart_ms: restart };
+}
+/** cancelled_at of the latest cancelled booking, when it is after first contact (else null). */
+export function restartFrom(lead) {
+  const c = Date.parse(lead.cancelled_at || '');
+  const f = Date.parse(lead.first_message_at || '');
+  return Number.isFinite(c) && (!Number.isFinite(f) || c > f) ? c : null;
 }
 
 /** Why a lead must not be nudged (null = OK). */
@@ -64,7 +73,9 @@ export function stopReason(lead, ctx = {}) {
   if (lead.opted_out_at) return 'opted_out';
   if (ctx.suppressed) return 'suppressed';
   if (ctx.has_live_booking) return 'booked';
-  if (lead.stage && CLOSED.has(lead.stage)) return `stage_${lead.stage}`;
+  // I-39c: stage may still read booked/confirmed after a cancellation; the live-booking check above covers a rebook
+  if (lead.stage && CLOSED.has(lead.stage) && !(restartFrom(lead) && ['booked', 'confirmed'].includes(lead.stage))) return `stage_${lead.stage}`;
+  if (lead.conv_state?.declined_call) return 'declined_call';
   if (lead.conv_state?.state === 'handoff') return 'handoff';
   if (lead.conv_state?.declined_nurture) return 'no_thanks';
   if (!lead.broker_id && lead.origin === 'ctwa') return 'ctwa_pre_routing_w03'; // W03 owns pre-routing stall nudges
@@ -82,10 +93,14 @@ export function due(lead, ctx, now_ms) {
   if (why) return { action: 'stop', reason: why };
   const p = nurturePlan(lead);
   const next = p.steps.find((s) => !(ctx.sent || new Set()).has(s.touch));
-  if (!next) return now_ms >= p.close_ms ? { action: 'close', reason: 'sequence finished', idempotency_key: `w08:${lead.id}:close` } : { action: 'wait' };
+  const cyc = p.restart_ms ? `:r${p.restart_ms}` : ''; // new idempotency keys for the restarted sequence
+  if (!next) {
+    if (p.restart_ms) return { action: 'stop', reason: 'post_cancel_sequence_done_w10_sweep_decides' };
+    return now_ms >= p.close_ms ? { action: 'close', reason: 'sequence finished', idempotency_key: `w08:${lead.id}:close` } : { action: 'wait' };
+  }
   if (now_ms < next.due_ms) return { action: 'wait', touch: next.touch, due_ms: next.due_ms };
   if (new Date(now_ms + SAST).getUTCHours() >= QUIET.from || new Date(now_ms + SAST).getUTCHours() < QUIET.to) return { action: 'wait', reason: 'quiet hours' };
-  return { action: 'send', touch: next.touch, ...message(lead, ctx, next.touch, now_ms), idempotency_key: `w08:${lead.id}:${next.touch}` };
+  return { action: 'send', touch: next.touch, ...message(lead, ctx, next.touch, now_ms), idempotency_key: `w08:${lead.id}:${next.touch}${cyc}`, restart: Boolean(p.restart_ms) };
 }
 
 const firstName = (l) => (l.first_name || '').trim() || 'there';
@@ -118,12 +133,12 @@ export function onTap(lead, payload) {
 }
 
 // ---------- session words (inside the 24-h window): identical to the approved template body (w07-alignment #9, #11) ----------
-// English = the approved template text, unchanged until meta-operator resubmits (K-6 "no obligation" wording is theirs).
+// English = the approved template body word for word (reworded templates: K-6 "no obligation" on +2 h, w07-alignment #10 on +72 h).
 const SESSION_EN = {
-  unbooked_nudge_2h: (v) => `Hi ${v[0]}, following up on your life cover enquiry. A call with ${v[1]} takes about 30 minutes, and there is nothing to buy on the call. Tap below to see open times.`,
+  unbooked_nudge_2h: (v) => `Hi ${v[0]}, following up on your life cover enquiry. A call with ${v[1]} takes about 30 minutes, and there's no obligation to buy anything. Tap below to see open times.`,
   unbooked_nudge_24h: (v) => `Hi ${v[0]}, here is ${v[1]} in about 25 seconds, so you know who you would be speaking to about your enquiry. Tap below to see open times.`,
   unbooked_nudge_24h_text: (v) => `Hi ${v[0]}, a little about the adviser for your enquiry: ${v[1]} Tap below to see open times.`,
-  unbooked_nudge_72h: (v) => `Hi ${v[0]}, this is our last message about your life cover enquiry. If you would still like a 30-minute call with ${v[1]}, tap below to pick a time. If not, no problem, we will not message again.`
+  unbooked_nudge_72h: (v) => `Hi ${v[0]}, this is our last message about your life cover enquiry. On the call, ${v[1]} goes through where you are now, and any next step is your choice. Tap below to pick a time, or if not, no problem, we won't message again.`
 };
 // Afrikaans: taken from conversation/lines.mjs when conversation-designer adds the keys (NUDGE_2H, NUDGE_24H, NUDGE_24H_TEXT,
 // NUDGE_72H with {first_name} / {adviser_first} / {bio_short}); until then an Afrikaans lead gets the approved English words.

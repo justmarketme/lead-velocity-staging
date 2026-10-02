@@ -152,3 +152,21 @@ test('w07-alignment #11: session words come from sessionWords(); English = templ
   const wf = JSON.parse(readFileSync(new URL('../W08.json', import.meta.url), 'utf8'));
   assert.ok(!/nothing to buy/.test(JSON.stringify(wf)), 'no hard-coded copy left in W08.json');
 });
+
+test('I-39c: cancelled booking restarts +2/+24/+72 h from cancelled_at with new keys; no close (W10 sweep at 96 h); last_contact_at after Meta accepts', () => {
+  const first = '2026-10-01T08:00:00Z'; const cx = '2026-10-05T08:00:00Z';
+  const ld = { id: 'lead_cx', first_name: 'Pieter', origin: 'web', stage: 'booked', conv_state: { state: 'unbooked' }, first_message_at: first, cancelled_at: cx, broker_id: 'b1' };
+  const p = N.nurturePlan(ld);
+  assert.equal(p.restart_ms, Date.parse(cx)); assert.equal(p.track, 'unbooked');
+  assert.equal(p.steps[0].due_ms, Date.parse(cx) + 2 * N.H);
+  const d = N.due(ld, { sent: new Set(), broker: { contact_person: 'Mark K' }, outbound_count: 3 }, Date.parse(cx) + 2 * N.H + 60_000);
+  assert.equal(d.action, 'send'); assert.equal(d.touch, 'unbooked_nudge_2h'); assert.equal(d.idempotency_key, `w08:lead_cx:unbooked_nudge_2h:r${Date.parse(cx)}`);
+  const done = N.due(ld, { sent: new Set(['unbooked_nudge_2h', 'unbooked_nudge_24h', 'unbooked_nudge_72h']), outbound_count: 6 }, Date.parse(cx) + 200 * N.H);
+  assert.equal(done.action, 'stop'); assert.match(done.reason, /w10_sweep/);
+  assert.match(N.sessionWords('unbooked_nudge_2h', ['A', 'Mark'], 'en').body, /there's no obligation to buy anything/);
+  assert.doesNotMatch(N.sessionWords('unbooked_nudge_72h', ['A', 'Mark'], 'en').body, /we will not message again/);
+  const wf = JSON.parse(readFileSync(new URL('../W08.json', import.meta.url), 'utf8'));
+  assert.ok(wf.connections['Send WhatsApp'].main[0].some((c) => c.node === 'Accepted by Meta? (wamid)'));
+  assert.match(wf.nodes.find((n) => n.name === 'Touch leads.last_contact_at (lead outbound)').parameters.query, /last_contact_at = now\(\)/);
+  assert.match(wf.nodes.find((n) => /^Candidates/.test(n.name)).parameters.query, /cancelled_at/);
+});
