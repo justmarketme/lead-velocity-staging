@@ -698,7 +698,7 @@
       ],
       "acceptance_test": "node automation/tests/W24.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
+      "status": "in_progress",
       "section": "4.6 inventory"
     },
     {
@@ -1896,7 +1896,7 @@
     },
     {
       "id": "NH-14",
-      "title": "Two products, one CRM: legacy B2B tiers (Pilot/Bronze/Silver/Gold R6k–R16.5k, \"guaranteed\" wording, Ayanda cold calls) vs SortMyCover ladder. Separate by brand_id + SMC_* tier codes; withdraw B2B tiers from site (W25)? NCC cleanse to cover legacy cold-call leads? Money decision.",
+      "title": "Two products, one CRM: legacy B2B tiers (Pilot/Bronze/Silver/Gold R6k–R16.5k, \"guaranteed\" wording, Ayanda cold calls) vs SortMyCover ladder. Separate by brand_id + SMC_* tier codes; withdraw B2B tiers from site (W25)? NCC cleanse to cover legacy cold-call leads? Money decision. compliance-qa recommends YES to cleansing legacy cold-call leads (penalty up to R1m / 10% turnover).",
       "owner": "jonathan",
       "phase": "0",
       "depends_on": [],
@@ -1940,7 +1940,7 @@
     },
     {
       "id": "NH-18",
-      "title": "Contract mechanics drafted by default, need a money/legal yes: (a) dispute outcome after 48 h = LV decides within 2 business days with reasons; (b) \"uncontactable\" = verified lead who then goes silent through the full W08 sequence → replaceable within cap; (c) cycle start = day routing goes live after payment clears; (d) term sheet carries R16,500 typed — exclude signed docs from the W25 hard-coded-price check or generate from pricing; (e) refund within 10 business days when not renewing. Compliance-qa view: (b) as drafted quietly makes \"booked\" the unit sold — limit \"uncontactable\" to messages undelivered after verification or the broker marking unreachable on the booked call; and amend 3.3 so a lead who attends the call counts as verified even without a WhatsApp reply.",
+      "title": "Contract mechanics drafted by default, need a money/legal yes: (a) dispute outcome after 48 h = LV decides within 2 business days with reasons; (b) \"uncontactable\" = verified lead who then goes silent through the full W08 sequence → replaceable within cap; (c) cycle start = day routing goes live after payment clears; (d) term sheet carries R16,500 typed — exclude signed docs from the W25 hard-coded-price check or generate from pricing; (e) refund within 10 business days when not renewing. Compliance-qa view: (b) as drafted quietly makes \"booked\" the unit sold — limit \"uncontactable\" to messages undelivered after verification or the broker marking unreachable on the booked call; and amend 3.3 so a lead who attends the call counts as verified even without a WhatsApp reply. (f) a delivered lead later found on the NCC opt-out registry cannot be contacted by the broker — does it count as uncontactable (replacement-eligible)?",
       "owner": "jonathan",
       "phase": "0",
       "depends_on": [],

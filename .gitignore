@@ -70,3 +70,6 @@ credentials*
 !build/*.json
 !build/*.jsonl
 !evals/**/*.json
+
+# W24 evidence files hold PII hashes — never committed
+compliance/
