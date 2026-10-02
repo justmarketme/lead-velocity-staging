@@ -1,0 +1,315 @@
+{
+  "name": "W21 Ads sync (hourly insights -> ad_metrics)",
+  "nodes": [
+    {
+      "id": "n01",
+      "name": "Sticky: read me",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -200
+      ],
+      "parameters": {
+        "width": 640,
+        "height": 260,
+        "content": "W21 Ads sync. Hourly at :07. Insights are NEVER fetched more often than hourly (meta-ads.js refuses with TOO_SOON). Back-off at 80% of X-Business-Use-Case-Usage (0.3 #11): on RATE_LIMIT_BACKOFF this run ends quietly and the next hour retries; 3 consecutive back-offs -> W22 warning. Reads only: no ad changes here. Needs: META_SYSTEM_USER_TOKEN, META_API_VERSION in n8n env; repo automation/ mounted read-only at /opt/lv/automation; NODE_FUNCTION_ALLOW_BUILTIN=crypto; N8N_BLOCK_ENV_ACCESS_IN_NODE=false. Credential: \"LV Supabase Postgres\"."
+      }
+    },
+    {
+      "id": "n02",
+      "name": "Every hour :07",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "7 * * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n03",
+      "name": "Load brands with an ad account",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT brand_id, ad_account_id, insights_last_fetched_at FROM brands WHERE ad_account_id IS NOT NULL AND coalesce(status,'active') = 'active';",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase Postgres"
+        }
+      }
+    },
+    {
+      "id": "n04",
+      "name": "Fetch insights (back-off aware)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const M = require('/opt/lv/automation/ads/meta-ads.js');\nconst out = [];\nconst client = M.createClient({ token: $env.META_SYSTEM_USER_TOKEN, apiVersion: $env.META_API_VERSION || 'v23.0', maxInlineWaitMs: 20000 });\nfor (const it of $input.all()) {\n  const b = it.json;\n  try {\n    // last_3d re-reads yesterday/day-before so late attribution revisions overwrite (upsert by ad/day).\n    const r = await client.getInsights({ adAccountId: b.ad_account_id, level: 'ad', datePreset: 'last_3d', lastFetchedAt: b.insights_last_fetched_at });\n    out.push({ json: { status: 'ok', brand_id: b.brand_id, fetched_at: r.fetched_at, usage_pct: r.usage && r.usage.pct, truncated: r.truncated, rows: M.insightsToAdMetrics(r.rows, { brandId: b.brand_id }) } });\n  } catch (e) {\n    const status = e.code === 'RATE_LIMIT_BACKOFF' || e.code === 'RATE_LIMIT' ? 'backoff' : e.code === 'TOO_SOON' ? 'too_soon' : 'error';\n    out.push({ json: { status, brand_id: b.brand_id, code: e.code || 'ERR', message: String(e.message).slice(0, 300), retry_after_ms: e.retryAfterMs || null } });\n  }\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "n05",
+      "name": "Fetched ok?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "ok",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n06",
+      "name": "Upsert ad_metrics (ad, day)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        880,
+        -100
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO ad_metrics (date, brand_id, campaign_id, campaign_name, adset_id, adset_name, ad_id, ad_name, concept, angle, format, spend_zar, impressions, clicks, leads_raw, cpl, frequency, hook_rate, hold_rate)\nSELECT x.date, x.brand_id, x.campaign_id, x.campaign_name, x.adset_id, x.adset_name, x.ad_id, x.ad_name, x.concept, x.angle, x.format, x.spend_zar, x.impressions, x.clicks, x.leads_raw, x.cpl, x.frequency, x.hook_rate, x.hold_rate\nFROM jsonb_to_recordset($1::jsonb) AS x(date date, brand_id uuid, campaign_id text, campaign_name text, adset_id text, adset_name text, ad_id text, ad_name text, concept text, angle text, format text, spend_zar numeric, impressions int, clicks int, leads_raw int, cpl numeric, frequency numeric, hook_rate numeric, hold_rate numeric)\nON CONFLICT (date, ad_id) DO UPDATE SET campaign_name = EXCLUDED.campaign_name, adset_name = EXCLUDED.adset_name, ad_name = EXCLUDED.ad_name, spend_zar = EXCLUDED.spend_zar, impressions = EXCLUDED.impressions, clicks = EXCLUDED.clicks, leads_raw = EXCLUDED.leads_raw, cpl = EXCLUDED.cpl, frequency = EXCLUDED.frequency, hook_rate = EXCLUDED.hook_rate, hold_rate = EXCLUDED.hold_rate\n-- qualified / booked / attended / cost_per_* are NOT touched here: the join below (and W29 for broker quality) own them.\nRETURNING 1;",
+        "options": {
+          "queryReplacement": "={{ JSON.stringify($json.rows) }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase Postgres"
+        }
+      }
+    },
+    {
+      "id": "n07",
+      "name": "Join funnel: qualified + cost per qualified",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1100,
+        -100
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- ASSUMPTION: leads.ad_id, leads.qualified (bool), leads.created_at, leads.brand_id exist per build/crm-gap.md. booked / attended / cost_per_attended are joined from bookings + outcomes by W29 once those tables exist.\nUPDATE ad_metrics m SET qualified = s.q, cost_per_qualified = CASE WHEN s.q > 0 THEN round(m.spend_zar / s.q, 2) END\nFROM (SELECT ad_id, (created_at AT TIME ZONE 'Africa/Johannesburg')::date AS d, count(*) FILTER (WHERE qualified) AS q FROM leads WHERE brand_id = $1::uuid AND ad_id IS NOT NULL AND created_at > now() - interval '5 days' GROUP BY 1, 2) s\nWHERE m.ad_id = s.ad_id AND m.date = s.d AND m.brand_id = $1::uuid;\nUPDATE brands SET insights_last_fetched_at = $2::timestamptz WHERE brand_id = $1::uuid;",
+        "options": {
+          "queryReplacement": "={{ [$(\"Fetch insights (back-off aware)\").item.json.brand_id, $(\"Fetch insights (back-off aware)\").item.json.fetched_at] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase Postgres"
+        }
+      }
+    },
+    {
+      "id": "n08",
+      "name": "Real error (not back-off)?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        880,
+        120
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "error",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n09",
+      "name": "W22 Alerts: ads sync failed",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        120
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "",
+          "cachedResultName": "W22 Alerts"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "n10",
+      "name": "Back-off or too soon: retry next hour",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        280
+      ],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Every hour :07": {
+      "main": [
+        [
+          {
+            "node": "Load brands with an ad account",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load brands with an ad account": {
+      "main": [
+        [
+          {
+            "node": "Fetch insights (back-off aware)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch insights (back-off aware)": {
+      "main": [
+        [
+          {
+            "node": "Fetched ok?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetched ok?": {
+      "main": [
+        [
+          {
+            "node": "Upsert ad_metrics (ad, day)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Real error (not back-off)?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert ad_metrics (ad, day)": {
+      "main": [
+        [
+          {
+            "node": "Join funnel: qualified + cost per qualified",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Real error (not back-off)?": {
+      "main": [
+        [
+          {
+            "node": "W22 Alerts: ads sync failed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Back-off or too soon: retry next hour",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "saveManualExecutions": true,
+    "errorWorkflow": "W22 Alerts"
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "ads"
+    },
+    {
+      "name": "meta"
+    }
+  ],
+  "meta": {
+    "notes": "ads-api-engineer. Hourly insights sync. Read-only."
+  }
+}

@@ -350,7 +350,7 @@
       ],
       "acceptance_test": "node automation/tests/W02.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
+      "status": "in_progress",
       "section": "4.6 inventory"
     },
     {
@@ -619,7 +619,7 @@
       ],
       "acceptance_test": "node automation/tests/W21.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
+      "status": "green",
       "section": "4.6 inventory"
     },
     {
@@ -658,7 +658,7 @@
       ],
       "acceptance_test": "node automation/tests/W27.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
+      "status": "green",
       "section": "4.6 inventory"
     },
     {
