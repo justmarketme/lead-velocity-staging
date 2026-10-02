@@ -226,11 +226,14 @@ for (const k of red.cases) {
 metric['precision.prefilter_fp'] = { pass: negatives - fp, total: negatives };
 
 // ---------- 4. fixed lines, FAQ, scripts, briefs ----------
-const vars = { adviser_first: 'Mark', adviser: 'Mark Williams', first_name: 'Lerato', practice: 'Mark Williams Financial Planning', fsp: '00000', city: 'Cape Town', methods: 'Teams, a WhatsApp call or a phone call', adviser_languages: 'English and Afrikaans', date: 'Thu 8 Oct', time: '11:00', method: 'Teams', open_time_word: 'tomorrow' };
+const vars = { adviser_first: 'Mark', adviser: 'Mark Williams', first_name: 'Lerato', practice: 'Mark Williams Financial Planning', fsp: '00000', city: 'Cape Town', methods: 'Teams, a WhatsApp call or a phone call', adviser_languages: 'English and Afrikaans', date: 'Thu 8 Oct', time: '11:00', method: 'Teams', open_time_word: 'tomorrow', bio_short: 'Mark has helped families in Cape Town for 15 years.' };
 for (const lang of ['en', 'af']) for (const [key, line] of Object.entries(LINES[lang])) {
   const text = fill(line, vars);
   const g = outputGate(text, {});
   count('fais.fixed_lines', g.pass, `${lang}.${key} trips the gate ${JSON.stringify(g.hits)}`);
+  // button titles and list rows (BTN_*, BEST_*) are 1-3 words: a reading-grade formula is meaningless on them, so they
+  // are held to the Meta length limits in tone.button_titles instead (still through the output gate above)
+  if (/^(BTN|BEST)_/u.test(key)) continue;
   const t = toneCheck(text, { lang, max_sentences: 3 });
   count('tone.fixed_lines', t.pass, `${lang}.${key}: ${t.issues.join('; ')}`);
 }
@@ -266,6 +269,11 @@ const copyWarnings = [];
   // W35 session twin must say exactly what the template says (PULSE_ASK + STOP_HINT)
   const lp = body('lead_pulse', ['Lerato', 'Mark']);
   count('state_machine.template_twins', lp === fill(LINES.en.PULSE_ASK, { first_name: 'Lerato', adviser_first: 'Mark' }) + ' ' + LINES.en.STOP_HINT, 'LINES.en.PULSE_ASK + STOP_HINT drifted from template lead_pulse');
+}
+// I-39e: button titles <= 20 chars and list rows <= 24 chars (Meta limits), both languages
+for (const lang of ['en', 'af']) for (const [key, line] of Object.entries(LINES[lang])) {
+  if (key.startsWith('BTN_')) count('tone.button_titles', line.length <= 20, `${lang}.${key} over 20 chars`);
+  if (key.startsWith('BEST_')) count('tone.button_titles', line.length <= 24, `${lang}.${key} over 24 chars`);
 }
 for (const f of faq) for (const lang of ['en', 'af']) {
   const text = fill(f[lang], vars);

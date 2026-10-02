@@ -73,7 +73,20 @@ export const LINES = {
     PULSE_LINE_ASK_DOWN: "Thanks for letting us know. If you like, tell us in one line what could have been better.",
     PULSE_LINE_THANKS: "Thanks, that helps us improve.",
     // Opt-out reminder appended to proactive session messages that twin a template (W08 nudges, W35 pulse).
-    STOP_HINT: "Reply STOP to opt out."
+    STOP_HINT: "Reply STOP to opt out.",
+    // Button titles / list rows (<= 20 / 24 chars, Meta limits). W08 nurture buttons, W07 contact buttons and best-time rows (I-39e).
+    BTN_SEE_TIMES: "See open times",
+    BTN_NOT_NOW: "Not now",
+    BTN_NO_THANKS: "No thanks",
+    BTN_CALL_YES: "Yes, this one",
+    BTN_CALL_OTHER: "Use another number",
+    BTN_ALT_ADD: "Add one",
+    BTN_ALT_NO: "No thanks",
+    BEST_MORNINGS: "Mornings",
+    BEST_LUNCHTIME: "Lunchtime",
+    BEST_AFTERNOONS: "Afternoons",
+    BEST_EVENINGS: "Evenings",
+    BEST_ANY: "Any time"
   },
   af: {
     DEFER: "Dit is presies wat {adviser_first} saam met jou op die oproep sal deurgaan.",
@@ -121,7 +134,25 @@ export const LINES = {
     PULSE_LINE_ASK_UP: "Dankie dat jy ons laat weet. As jy wil, vertel ons in een reël wat dit die moeite werd gemaak het.",
     PULSE_LINE_ASK_DOWN: "Dankie dat jy ons laat weet. As jy wil, vertel ons in een reël wat beter kon gewees het.",
     PULSE_LINE_THANKS: "Dankie, dit help ons om te verbeter.",
-    STOP_HINT: "Antwoord STOP as jy nie meer boodskappe wil kry nie."
+    STOP_HINT: "Antwoord STOP as jy nie meer boodskappe wil kry nie.",
+    // I-39e: Afrikaans session twins of the W08 nudge templates (EN stays the approved template text in lib/w08.mjs).
+    // NUDGE_24H_TEXT takes {first_name} + {bio_short} only (sessionWords maps both {adviser_first} and {bio_short} to vars[1]).
+    NUDGE_2H: "Hallo {first_name}, ons volg op oor jou navraag oor lewensdekking. 'n Oproep met {adviser_first} neem omtrent 30 minute, en jy is nie verplig om iets te koop nie. Tik hieronder om oop tye te sien.",
+    NUDGE_24H: "Hallo {first_name}, hier is {adviser_first} in omtrent 25 sekondes, sodat jy weet met wie jy oor jou navraag sal praat. Tik hieronder om oop tye te sien.",
+    NUDGE_24H_TEXT: "Hallo {first_name}, 'n bietjie oor die adviseur vir jou navraag: {bio_short} Tik hieronder om oop tye te sien.",
+    NUDGE_72H: "Hallo {first_name}, dit is ons laaste boodskap oor jou navraag oor lewensdekking. As jy steeds 'n oproep van 30 minute met {adviser_first} wil hê, tik hieronder om 'n tyd te kies. Indien nie, geen probleem nie, ons sal nie weer boodskap nie.",
+    BTN_SEE_TIMES: "Sien oop tye",
+    BTN_NOT_NOW: "Nie nou nie",
+    BTN_NO_THANKS: "Nee dankie",
+    BTN_CALL_YES: "Ja, hierdie een",
+    BTN_CALL_OTHER: "Ander nommer",
+    BTN_ALT_ADD: "Voeg een by",
+    BTN_ALT_NO: "Nee dankie",
+    BEST_MORNINGS: "Oggende",
+    BEST_LUNCHTIME: "Middagete",
+    BEST_AFTERNOONS: "Middae",
+    BEST_EVENINGS: "Aande",
+    BEST_ANY: "Enige tyd"
   }
 };
 

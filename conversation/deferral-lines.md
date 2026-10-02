@@ -100,3 +100,24 @@ Budget amounts appear only in these fixed, tap-only lists (they are our qualifyi
 | `PULSE_LINE_ASK_DOWN` | Thanks for letting us know. If you like, tell us in one line what could have been better. | Dankie dat jy ons laat weet. As jy wil, vertel ons in een reël wat beter kon gewees het. | W35 after Not really. Optional, asked once. |
 | `PULSE_LINE_THANKS` | Thanks, that helps us improve. | Dankie, dit help ons om te verbeter. | W35 after the optional line. Then nothing else from us (4.12 attended row). |
 | `STOP_HINT` | Reply STOP to opt out. | Antwoord STOP as jy nie meer boodskappe wil kry nie. | Appended to proactive session messages that twin a template (W08 nudges, W35 `PULSE_ASK`), same as the template's last sentence. |
+
+## Afrikaans nudges, button titles and list rows (I-39e, 2026-10-02)
+
+| Key | English | Afrikaans | When |
+|---|---|---|---|
+| `NUDGE_2H` | (approved template text, `lib/w08.mjs` SESSION_EN) | Hallo {first_name}, ons volg op oor jou navraag oor lewensdekking. 'n Oproep met {adviser_first} neem omtrent 30 minute, en jy is nie verplig om iets te koop nie. Tik hieronder om oop tye te sien. | W08 +2 h session twin (how long; K-6 no-obligation wording). |
+| `NUDGE_24H` | (approved template text, `lib/w08.mjs` SESSION_EN) | Hallo {first_name}, hier is {adviser_first} in omtrent 25 sekondes, sodat jy weet met wie jy oor jou navraag sal praat. Tik hieronder om oop tye te sien. | W08 +24 h session twin with intro video header. |
+| `NUDGE_24H_TEXT` | (approved template text, `lib/w08.mjs` SESSION_EN) | Hallo {first_name}, 'n bietjie oor die adviseur vir jou navraag: {bio_short} Tik hieronder om oop tye te sien. | W08 +24 h session twin without video; {bio_short} is the broker's approved bio. |
+| `NUDGE_72H` | (approved template text, `lib/w08.mjs` SESSION_EN) | Hallo {first_name}, dit is ons laaste boodskap oor jou navraag oor lewensdekking. As jy steeds 'n oproep van 30 minute met {adviser_first} wil hê, tik hieronder om 'n tyd te kies. Indien nie, geen probleem nie, ons sal nie weer boodskap nie. | W08 +72 h last nudge session twin. |
+| `BTN_SEE_TIMES` | See open times | Sien oop tye | Button title / list row (W08 nurture, W07 contact step). |
+| `BTN_NOT_NOW` | Not now | Nie nou nie | Button title / list row (W08 nurture, W07 contact step). |
+| `BTN_NO_THANKS` | No thanks | Nee dankie | Button title / list row (W08 nurture, W07 contact step). |
+| `BTN_CALL_YES` | Yes, this one | Ja, hierdie een | Button title / list row (W08 nurture, W07 contact step). |
+| `BTN_CALL_OTHER` | Use another number | Ander nommer | Button title / list row (W08 nurture, W07 contact step). |
+| `BTN_ALT_ADD` | Add one | Voeg een by | Button title / list row (W08 nurture, W07 contact step). |
+| `BTN_ALT_NO` | No thanks | Nee dankie | Button title / list row (W08 nurture, W07 contact step). |
+| `BEST_MORNINGS` | Mornings | Oggende | Button title / list row (W08 nurture, W07 contact step). |
+| `BEST_LUNCHTIME` | Lunchtime | Middagete | Button title / list row (W08 nurture, W07 contact step). |
+| `BEST_AFTERNOONS` | Afternoons | Middae | Button title / list row (W08 nurture, W07 contact step). |
+| `BEST_EVENINGS` | Evenings | Aande | Button title / list row (W08 nurture, W07 contact step). |
+| `BEST_ANY` | Any time | Enige tyd | Button title / list row (W08 nurture, W07 contact step). |

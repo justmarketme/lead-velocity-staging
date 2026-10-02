@@ -144,6 +144,23 @@ test('every lead-facing W35 line passes the output gate and the tone check (en +
 test('W07 already routes pulse taps to W35', () => {
   const r = routeInbound({ from: '+27600000001', payload: 'pulse_yes:bkg_L01', text: 'Yes, worth it' }, { lead: { conv_state: { state: 'closed_attended' } }, broker_numbers: new Set() });
   assert.equal(r.route, 'W35');
+  // the optional line: W07 routes it to W35 with { lead, msg }, and W35's handler accepts exactly that item
+  const now = ms(ATTENDED_AT) + H;
+  const cs = P.onPulseTap('pulse_no:bkg_L01', ctxL01(), now - 5 * MIN).conv_state;
+  const leadRow = { id: L01.lead_id, language: 'en', brand_id: 'smc', broker_id: B.broker_id, conv_state: cs };
+  const line = { from: '+27600000001', text: 'Not great, he was late and rushed' };
+  assert.equal(routeInbound(line, { lead: leadRow, broker_numbers: new Set(), now_ms: now }).route, 'W35');
+  assert.equal(routeInbound({ ...line, text: 'So is the R600 policy a good deal?' }, { lead: leadRow, broker_numbers: new Set(), now_ms: now }).route, 'nlu');
+  assert.equal(P.isPulseLine(line.text, leadRow.conv_state, now), true);
+  assert.equal(leadRow.conv_state.pulse_booking_id, 'bkg_L01', 'W35 reads the booking from lead.conv_state');
+});
+
+test('I-39e: W08 session words use the Afrikaans nudge lines (+ STOP_HINT) for an Afrikaans lead', async () => {
+  const W8 = await import('../lib/w08.mjs');
+  const w = W8.sessionWords('unbooked_nudge_24h_text', ['Lerato', 'Mark help al 15 jaar gesinne.'], 'af');
+  assert.equal(w.lang, 'af');
+  assert.equal(w.body, fill(LINES.af.NUDGE_24H_TEXT, { first_name: 'Lerato', bio_short: 'Mark help al 15 jaar gesinne.' }) + ' ' + LINES.af.STOP_HINT);
+  assert.match(W8.sessionWords('unbooked_nudge_2h', ['Lerato', 'Mark'], 'af').body, /nie verplig om iets te koop nie/u);
 });
 
 test('W35.json: inactive, credentials by name only, $env for secrets, SQL matches the schema, idempotent claim before send', () => {
