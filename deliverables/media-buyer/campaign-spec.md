@@ -212,13 +212,13 @@ That is 10 ads (the cap), one per angle plus the colour pair, so all 7 angles ar
 - The 3.4 R3,000 rule still applies as written (pause bottom 50% on raw CPL or qualify rate). If it removes a matrix arm, record that arm as "inconclusive" and the matrix is re-run in the next batch. 3.4 wins over matrix completeness.
 
 ### 4.7 Motion rule: which placements get what (cycle 1)
-Inventory (manifest, 104 rows): native **1:1 and 4:5 video exist only for C01 amber, C03, C14** (the trio). The other 12 concepts have 9:16 video plus 1:1 / 4:5 stills; C02, C08, C12 also have a 6-s 4:5 motion still.
-**Decision: no new 1:1 or 4:5 motion for the other 12 concepts in cycle 1.**
-1. **Reels / Stories / Feed-vertical: the 9:16 video.** Always.
-2. **Feed (4:5) and 1:1: the same 9:16 video with Meta's auto-crop, not a still.** Why: (a) one ad = one creative format, so hook rate, hold rate and the video-vs-static test in 4.5 stay clean (a still in Feed has no hook or hold, which pollutes the leading indicators we judge on); (b) 24 more motion renders cost build time for an unproven gain, and Advantage+ placements give 1:1 little volume; (c) the trio already carries native 4:5 motion where the first approval and the highest spend are.
-3. **Condition (unverified, so checked once):** the 9:16 renders were not designed for a 4:5 centre crop (285 px lost top and bottom). At upload, meta-operator checks every ad's Feed preview in Ads Manager (the same check visual-producer's SUMMARY lists as open). If hook text or the end-card CTA is clipped, attach that concept's fallback for Feed only: the 6-s 4:5 motion still where one exists (C02, C08, C12), otherwise the 4:5 still. Record which ads fell back; fallback ads are read on Reels/Stories hook rate only.
-4. **C01 pair parity overrides rule 3's "native where it exists":** C01 amber has 4:5/1:1 video, teal does not. Both arms ship 9:16-only (auto-crop) so palette stays the only variable; the amber 4:5/1:1 videos stay unattached. If visual-producer renders teal 4:5 and 1:1 video before the upload day, attach all three ratios to **both** arms. Never attach to one arm.
-5. **C03 and C14:** attach 9:16 + 4:5 + 1:1 video (native motion, no crop risk).
+Supersedes the earlier "auto-crop for the other 12" rule, per PCD's ruling. Inventory (manifest, 111 rows): native 4:5 video now exists for C01 amber, C01 teal, C03, C04, C05, C06, C08, C10, C13 and C14 (every live ad). Pool concepts (C02, C07, C09, C11, C12, C15) have no 4:5 video (C02, C12 have a 6-s 4:5 motion still). 1:1 motion is unused; `.srt` files are not uploaded (captions are burned in). Test arm = palette B, teal-on-cream.
+**Decision: every live ad runs 9:16 video + native 4:5 video. Pool ads get native 4:5 on promotion.**
+1. **Reels / Stories / vertical: the 9:16 video.** **Feed: the native 4:5 video.** No auto-crop for live ads, so hook/hold metrics stay on one format and no 4:5 centre-crop clipping risk.
+2. **1:1:** no motion asset; Meta serves 4:5 or 9:16 in those slots. Nothing to attach.
+3. **C01 pair parity:** both arms carry the same two ratios (9:16 + 4:5); palette is the only variable. Never attach to one arm only.
+4. **Pool on promotion:** when a pool ad replaces a live one, visual-producer renders its native 4:5 video first (asks go through the replacement mapping). If a slot must be filled before that, use the fallback column in first-batch.csv (6-s 4:5 motion still for C02/C12, else the 4:5 still) and read that ad on Reels/Stories hook rate only.
+5. Meta-operator still glances at each ad's Feed preview at upload and records any clipping (visual-producer's open safe-zone item).
 6. **Revisit:** add 4:5 motion for a concept only if it becomes a top-3 ad by cost per qualified lead *and* its Feed share of spend is > 40%, or if Feed hook rate trails Reels by > 10 points. Both are visible per placement from week 2.
 
 ### 4.6 A2 (Rich Creative) test, built paused
