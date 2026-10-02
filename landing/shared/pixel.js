@@ -16,7 +16,9 @@
   function store(k, v) { try { w.localStorage.setItem(k, v); } catch (e) { try { w.sessionStorage.setItem(k, v); } catch (e2) {} } }
   function fetchStored(k) { try { return w.localStorage.getItem(k) || w.sessionStorage.getItem(k); } catch (e) { return null; } }
   function cookie(n) { var m = d.cookie.match(new RegExp('(?:^|; )' + n + '=([^;]*)')); return m ? decodeURIComponent(m[1]) : null; }
-  function consent() { return w.SMC_CONSENT_ANALYTICS !== false; }
+  function consent() { return w.SMC_CONSENT_ANALYTICS !== false && fetchStored('smc_ads_off') !== '1'; }
+  // Stored off switch (cookie notice promise): smc.adsOff() / smc.adsOn() persist the choice first-party.
+
 
   function uuid() {
     var c = w.crypto;
@@ -62,6 +64,7 @@
     n.push = n; n.loaded = true; n.version = '2.0'; n.queue = [];
     var s = d.createElement('script'); s.async = true; s.src = 'https://connect.facebook.net/en_US/fbevents.js';
     d.head.appendChild(s);
+    w.fbq('set', 'autoConfig', false, pixelId); // no Automatic Advanced Matching: no form fields hashed in the browser
     w.fbq('init', pixelId);
   }
 
@@ -73,7 +76,7 @@
       fbc: ok ? getFbc(a) : null,
       utm: a.utm || {},
       fbclid: a.fbclid || null,
-      page_url: w.location.href.split('#')[0],
+      page_url: w.location.origin + w.location.pathname, // no query string: utm/fbclid travel in their own fields, never PII
       user_agent: w.navigator.userAgent,
       ts: Math.floor(Date.now() / 1000)
     };

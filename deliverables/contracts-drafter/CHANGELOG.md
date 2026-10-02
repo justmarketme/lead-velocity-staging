@@ -36,3 +36,9 @@ All documents are **DRAFT — for practitioner review**. Markdown only; PDF rend
 ### Not done this session
 - PDF rendering.
 - Full-text Flesch-Kincaid run (no shell available to this agent; hand-sampled estimate reported).
+
+## 2026-10-02 — orchestrator, after compliance-qa phase0-review-1
+- `consent-and-privacy.md` §1.4: advertising-improvement sentence moved inside the consent tick (second sentence of the checkbox label), still separate from the FSP-sharing purpose; `consent_ads_at` stored on tick.
+- §1.6: the same sentence added to both Click-to-WhatsApp consent messages.
+- Processor table: Meta row now names the unhashed IP address / browser type and the adviser's 1–5 rating sent for measurement.
+- `SUMMARY.md` for this folder was not written by the drafter (its write was refused by the harness); the orchestrator's session report carries the summary.

@@ -14,7 +14,7 @@
     },
     {
       "type": "BODY",
-      "text": "Hi {{1}}, {{2}} recorded this short video for people booking a call this week, so you know who you will be speaking to. Your call is on *{{3}} at {{4}}*. Reply STOP to opt out.",
+      "text": "Hi {{1}}, {{2}} recorded this short video so you know who you will be speaking to. Your call is on *{{3}} at {{4}}*. Reply STOP to opt out.",
       "example": {
         "body_text": [
           [

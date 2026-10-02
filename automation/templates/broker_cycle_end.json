@@ -35,17 +35,17 @@
         {
           "type": "URL",
           "text": "See renewal offer",
-          "url": "https://portal.leadvelocity.co.za/{{1}}",
+          "url": "https://app.leadvelocity.co.za/{{1}}",
           "example": [
-            "https://portal.leadvelocity.co.za/renew/cy_2026_10"
+            "https://app.leadvelocity.co.za/renew/cy_2026_10"
           ]
         },
         {
           "type": "URL",
           "text": "Open report",
-          "url": "https://portal.leadvelocity.co.za/{{1}}",
+          "url": "https://app.leadvelocity.co.za/{{1}}",
           "example": [
-            "https://portal.leadvelocity.co.za/r/cy_2026_10"
+            "https://app.leadvelocity.co.za/r/cy_2026_10"
           ]
         }
       ]

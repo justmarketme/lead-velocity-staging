@@ -69,7 +69,7 @@
       ],
       "acceptance_test": "test -s build/gates-batch.md",
       "human_gate": false,
-      "status": "in_progress",
+      "status": "green",
       "section": "4C.6"
     },
     {
@@ -1004,7 +1004,7 @@
     },
     {
       "id": "GATE-DOMAINS",
-      "title": "Register sortmycover.co.za/.com + coverklaar.co.za/.com (~R250, the only pre-payment spend)",
+      "title": "Register sortmycover.co.za/.com + coverklaar.co.za/.com (~R250, the only pre-payment spend); hello@sortmycover.co.za must be a live monitored M365 alias before the holding site is published",
       "owner": "jonathan",
       "phase": "0",
       "depends_on": [],
@@ -1076,7 +1076,7 @@
     },
     {
       "id": "GATE-PIXEL",
-      "title": "Pixel/Dataset, domain verification, CAPI system-user token — verify on test events: API version v23.0, business-messaging Schedule, offline stage events via dataset /events, ZAR as value currency (attribution-analyst ASSUMPTIONS)",
+      "title": "Pixel/Dataset, domain verification, CAPI system-user token — verify on test events: API version v23.0, business-messaging Schedule, offline stage events via dataset /events, ZAR as value currency (attribution-analyst ASSUMPTIONS); Automatic Advanced Matching OFF in Events Manager",
       "owner": "jonathan",
       "phase": "0",
       "depends_on": [
@@ -1927,7 +1927,7 @@
     },
     {
       "id": "NH-18",
-      "title": "Contract mechanics drafted by default, need a money/legal yes: (a) dispute outcome after 48 h = LV decides within 2 business days with reasons; (b) \"uncontactable\" = verified lead who then goes silent through the full W08 sequence → replaceable within cap; (c) cycle start = day routing goes live after payment clears; (d) term sheet carries R16,500 typed — exclude signed docs from the W25 hard-coded-price check or generate from pricing; (e) refund within 10 business days when not renewing.",
+      "title": "Contract mechanics drafted by default, need a money/legal yes: (a) dispute outcome after 48 h = LV decides within 2 business days with reasons; (b) \"uncontactable\" = verified lead who then goes silent through the full W08 sequence → replaceable within cap; (c) cycle start = day routing goes live after payment clears; (d) term sheet carries R16,500 typed — exclude signed docs from the W25 hard-coded-price check or generate from pricing; (e) refund within 10 business days when not renewing. Compliance-qa view: (b) as drafted quietly makes \"booked\" the unit sold — limit \"uncontactable\" to messages undelivered after verification or the broker marking unreachable on the booked call; and amend 3.3 so a lead who attends the call counts as verified even without a WhatsApp reply.",
       "owner": "jonathan",
       "phase": "0",
       "depends_on": [],
@@ -1938,7 +1938,7 @@
     },
     {
       "id": "NH-19",
-      "title": "WhatsApp wording set to confirm: broker_intro_slots keeps the 4.6 sentences + 3 slot lines with buttons Time 1/2/3 · Other times (quick replies cannot carry variables); two 4.12a disposition labels shortened to ≤ 25 chars (\"Good fit – follow-up\", \"Not a fit – covered\") — contract Schedule C, portal and template must use one set; lead_pulse uses text buttons not 👍👎 (4.11 no-emoji rule); AI-assistant disclosure sits in the first free-text reply (W07), not in the utility templates. Default: accept all four.",
+      "title": "WhatsApp wording set to confirm (compliance-qa fixes 1+2): (a) add the AI-assistant disclosure to the three broker_intro_* templates and the CTWA consent message — proposed sentence before \"Reply STOP\": \"This chat is run by Lead Velocity’s AI booking assistant.\" (4.6 calls the intro text exact, so a yes is needed); (b) one disposition label set ≤ 25 chars for buttons, portal, CRM and Schedule C: Good fit – proceeding · Good fit – follow-up · Not a fit – budget · Not a fit – well covered · Not a fit – criteria · Unreachable/wrong number; (c) broker_intro_slots keeps the 4.6 sentences + 3 slot lines with buttons Time 1/2/3 · Other times; (d) lead_pulse uses text buttons, not emoji. Default: accept all.",
       "owner": "jonathan",
       "phase": "0",
       "depends_on": [],

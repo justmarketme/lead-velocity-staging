@@ -31,9 +31,9 @@
         {
           "type": "URL",
           "text": "Review gate",
-          "url": "https://console.leadvelocity.co.za/{{1}}",
+          "url": "https://app.leadvelocity.co.za/{{1}}",
           "example": [
-            "https://console.leadvelocity.co.za/gates/flow_publish"
+            "https://app.leadvelocity.co.za/gates/flow_publish"
           ]
         }
       ]

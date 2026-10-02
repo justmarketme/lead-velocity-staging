@@ -34,17 +34,17 @@
         {
           "type": "URL",
           "text": "Do it now",
-          "url": "https://portal.leadvelocity.co.za/{{1}}",
+          "url": "https://app.leadvelocity.co.za/{{1}}",
           "example": [
-            "https://portal.leadvelocity.co.za/ask/rp_2026w41"
+            "https://app.leadvelocity.co.za/ask/rp_2026w41"
           ]
         },
         {
           "type": "URL",
           "text": "Open report",
-          "url": "https://portal.leadvelocity.co.za/{{1}}",
+          "url": "https://app.leadvelocity.co.za/{{1}}",
           "example": [
-            "https://portal.leadvelocity.co.za/r/rp_2026w41"
+            "https://app.leadvelocity.co.za/r/rp_2026w41"
           ]
         }
       ]

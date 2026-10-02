@@ -48,3 +48,7 @@ Uploads are SHA-256 hashed in n8n only; no raw name/phone/email leaves our syste
 
 ## ASSUMPTIONS to verify on test events
 `v23.0` API version; `Schedule`/`Lead` accepted for business_messaging; value-as-quality-score with currency ZAR placeholder; `fb.1` subdomain index in `_fbc`; offline events sent via the dataset `/events` endpoint with `system_generated` (not the legacy offline-event-set API).
+
+
+## Consent gate (compliance-qa phase0-review-1)
+Every server-side send (`sendEvent`, `sendOffline`, `sendBusinessMessagingLead`, audience uploads) is called by n8n only when `leads.consent_ads_at IS NOT NULL` (the advertising-improvement sentence inside the consent tick, 4.4a). Leads with `consent_ads_at` null are excluded from CAPI, offline events and audience seeds, but still receive the service messages they asked for. The unhashed `client_ip_address` / `client_user_agent` and the broker's 1–5 quality score (as `value`) are named in the privacy notice as data sent to Meta.

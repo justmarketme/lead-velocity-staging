@@ -31,9 +31,9 @@
         {
           "type": "URL",
           "text": "Open today",
-          "url": "https://portal.leadvelocity.co.za/{{1}}",
+          "url": "https://app.leadvelocity.co.za/{{1}}",
           "example": [
-            "https://portal.leadvelocity.co.za/today"
+            "https://app.leadvelocity.co.za/today"
           ]
         }
       ]

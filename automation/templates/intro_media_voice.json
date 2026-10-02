@@ -15,7 +15,7 @@
     },
     {
       "type": "BODY",
-      "text": "Hi {{1}}, {{2}} recorded a short voice note (about 25 seconds) for people booking a call this week. Tap Play to hear it. Your call is on *{{3}} at {{4}}*. Reply STOP to opt out.",
+      "text": "Hi {{1}}, {{2}} recorded a short voice note (about 25 seconds) so you know who you will be speaking to. Tap Play to hear it. Your call is on *{{3}} at {{4}}*. Reply STOP to opt out.",
       "example": {
         "body_text": [
           [

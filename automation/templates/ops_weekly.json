@@ -32,9 +32,9 @@
         {
           "type": "URL",
           "text": "Open memo",
-          "url": "https://console.leadvelocity.co.za/{{1}}",
+          "url": "https://app.leadvelocity.co.za/{{1}}",
           "example": [
-            "https://console.leadvelocity.co.za/memo/2026w41"
+            "https://app.leadvelocity.co.za/memo/2026w41"
           ]
         }
       ]

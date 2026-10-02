@@ -35,7 +35,7 @@ Verbatim from master prompt 2.1.2:
 
 ### 1.4 Advertising-improvement sentence — `CONSENT-ADS-v1`
 
-Shown directly under the checkbox, as its own sentence, in both modes (4.4a compliance note). It is not part of the sharing consent above.
+Rendered as the **second sentence of the checkbox label**, inside the same tick, in both modes — kept as its own sentence so the FSP-sharing purpose and the advertising purpose stay separate (4.4a compliance note), but covered by the one tick (compliance-qa phase0-review-1, fix 4). W01 stores `consent_ads_at` when the box is ticked.
 
 > We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message. [Privacy notice](https://sortmycover.co.za/privacy)
 
@@ -47,12 +47,12 @@ Shown directly under the checkbox, as its own sentence, in both modes (4.4a comp
 
 **Generic — `CTWA-GENERIC-v1`** (verbatim from 4.6 step 2):
 
-> Before we start: if it's a fit, we'll share your details with an authorised financial services provider who'll contact you about life cover. OK to continue?
+> Before we start: if it's a fit, we'll share your details with an authorised financial services provider who'll contact you about life cover. We also use your details in coded (hashed) form to measure and improve our ads; never to message you ads. OK to continue?
 > Buttons: `Yes, continue` · `No thanks`
 
 **Named — `CTWA-NAMED-v1`** (live while `consent_mode = named`; see NH-CD-05):
 
-> Before we start: if it's a fit, we'll share your details with {practice_name} (FSP {fsp_number}), an authorised financial services provider, who'll contact you about life cover. OK to continue?
+> Before we start: if it's a fit, we'll share your details with {practice_name} (FSP {fsp_number}), an authorised financial services provider, who'll contact you about life cover. We also use your details in coded (hashed) form to measure and improve our ads; never to message you ads. OK to continue?
 > Buttons: `Yes, continue` · `No thanks`
 
 **Second line, sent with either version:**
@@ -106,7 +106,7 @@ We do **not** ask for your ID number, bank details or exact income. If you send 
 
 | Provider | What they do for us | Where data may go |
 |---|---|---|
-| Meta (WhatsApp, Facebook, Instagram) | Messages, ads, ad measurement | {{meta_regions — confirm}} |
+| Meta (WhatsApp, Facebook, Instagram) | Messages, ads, ad measurement. For measurement we send your coded (hashed) number and email, plus your IP address and browser type as they are, and — after a call — the adviser's 1–5 rating of the meeting as a number. We never send what was said. | {{meta_regions — confirm}} |
 | Anthropic | AI that helps our WhatsApp assistant reply | {{anthropic_regions — confirm}} |
 | Google | Calendar and video calls (for some advisers), website tools | {{google_regions — confirm}} |
 | Microsoft | Email, calendars and Teams | {{microsoft_regions — confirm}} |

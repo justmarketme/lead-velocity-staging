@@ -30,3 +30,10 @@ The form POSTs that object as `context` to `/lead` or `/book`; n8n reuses `conte
 | - | CTWA button / "I'll pick a time on WhatsApp" link | `smc.track('Contact')` before navigating to wa.me |
 
 Note: row 9 (booking widget) fires nothing; `Schedule` fires only on a confirmed `POST /book`. Each event has its own `event_id`; never reuse the `Lead` id for `Schedule`.
+
+
+## Compliance settings (compliance-qa phase0-review-1)
+- In Events Manager turn **Automatic Advanced Matching OFF** for this pixel before go-live; `pixel.js` also sets `autoConfig=false` so no form field is ever hashed in the browser.
+- `smc.adsOff()` / `smc.adsOn()` store the visitor's ad-measurement choice first-party (`smc_ads_off`); the cookie notice links to it.
+- `page_url` is origin + path only (no query string).
+- Server side, W01 sends CAPI/offline events only when `leads.consent_ads_at` is set (see `automation/capi/event-spec.md`).

@@ -37,9 +37,9 @@
         {
           "type": "URL",
           "text": "Open brief",
-          "url": "https://portal.leadvelocity.co.za/{{1}}",
+          "url": "https://app.leadvelocity.co.za/{{1}}",
           "example": [
-            "https://portal.leadvelocity.co.za/b/bk_8f3a2c"
+            "https://app.leadvelocity.co.za/b/bk_8f3a2c"
           ]
         }
       ]
