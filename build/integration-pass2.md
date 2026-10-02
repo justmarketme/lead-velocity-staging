@@ -129,3 +129,12 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-37j | `app.leadvelocity.co.za` routes `/s/*` to the SPA like `/broker/*` (Hostinger `.htaccess` / Vercel rewrites) | devops-security |
 | I-37k | privacy.html mirrors PN-v1.1 + CN-v1.1 (adviser feedback, transcription provider placeholder, retention placeholders, STOP line, no banner) | search-findability-lead |
 | I-37l | W10 → W13 claims with reason codes `cancel_no_rebook` / `no_call` per Schedule C1A default; W34 reads retention env names matching the PN placeholders | automation-engineer (W10), compliance-qa (W34) |
+
+### I-38 · From W34 (2026-10-02)
+| # | Item | Owner |
+|---|---|---|
+| I-38a | Migration 12: `dsar` in `notifications_kind_check`; `smc_erase_lead` covers `leads.name/company/role`, `appointments.meeting_link/notes/reason_notes`, `lead_conversations`; single hash rule (E.164 digits) in `smc_hash_contact` with W24/W15 aligned; seed `obligations` P7/P8 | platform-architect |
+| I-38b | W22 kinds `dsar_received`, `dsar_due`, `dsar_overdue`, `dsar_erased`, `broker_dsr_erase`, `w34_retention_failure`, `w34_monthly_report`; `W34_MEDIA_ERASE_URL` + "W34 media erase (storage service)" credential; DSR export file deletion | devops-security |
+| I-38c | Template `broker_dsr_erase` (utility, first name only) | automation-engineer (templates) |
+| I-38d | W08/W09/W11 must update `leads.last_contact_at` on outbound (only W03/W07 do now) — or decide inbound-only restarts the clock (practitioner Q) | automation-engineer |
+| I-38e | Breach runbook part of W34 (`incidents`, Regulator + subject notification templates, POPIA s22) | compliance-qa + contracts-drafter |
