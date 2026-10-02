@@ -1,0 +1,43 @@
+/* SortMyCover holding site. Token source: brand kit 4D.4a/4D.4b.4. Replace with /brand/tokens.css when visual-producer ships it. */
+/* Self-hosted DM Sans: visual-producer adds woff2 files, then uncomment.
+@font-face{font-family:"DM Sans";src:url("/fonts/dm-sans-500.woff2") format("woff2");font-weight:500;font-display:swap}
+@font-face{font-family:"DM Sans";src:url("/fonts/dm-sans-800.woff2") format("woff2");font-weight:800;font-display:swap}
+*/
+:root{
+--amber:#F5A623;--charcoal:#1F2933;--offwhite:#FBF8F2;--on-amber:#2A1B02;--muted:#52606D;
+--fs-1:2rem;--fs-2:1.5rem;--fs-3:1.125rem;--fs-4:1rem;--fs-5:.875rem;
+--w-head:800;--w-body:500;--tap:44px;--max:42rem;
+--font:"DM Sans",system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--offwhite);color:var(--charcoal);font:var(--w-body) var(--fs-3)/1.6 var(--font)}
+.wrap{max-width:var(--max);margin:0 auto;padding:0 1.25rem}
+h1,h2,h3{font-weight:var(--w-head);line-height:1.2;margin:0 0 .75rem}
+h1{font-size:var(--fs-1)}h2{font-size:var(--fs-2);margin-top:2rem}h3{font-size:var(--fs-3);margin-top:1.5rem}
+p,ul{margin:0 0 1rem}
+a{color:var(--charcoal);text-decoration:underline;text-underline-offset:.15em}
+a:focus-visible{outline:3px solid var(--charcoal);outline-offset:3px}
+.skip{position:absolute;left:-999px;top:0;background:var(--amber);color:var(--on-amber);padding:.75rem 1rem;z-index:9}
+.skip:focus{left:0}
+.top{background:var(--charcoal);padding:.5rem 0}
+.wm{display:inline-flex;align-items:center;min-height:var(--tap);color:var(--offwhite);font-weight:var(--w-head);font-size:var(--fs-2);text-decoration:none;letter-spacing:-.01em}
+.wm:focus-visible{outline-color:var(--amber)}
+.wm span{display:inline-flex;align-items:center}
+.tick{width:.8em;height:.8em;margin:0 .04em}
+.tick circle{fill:var(--amber)}
+.tick path{fill:none;stroke:var(--charcoal);stroke-width:9;stroke-linecap:round;stroke-linejoin:round}
+.hero{background:var(--charcoal);color:var(--offwhite);padding:2.5rem 0 3rem}
+.hero .lead{font-size:var(--fs-3)}
+.status{font-weight:var(--w-head);font-size:var(--fs-2);margin:1.5rem 0}
+.chips{list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:.5rem}
+.chips li{background:var(--amber);color:var(--on-amber);font-weight:var(--w-head);font-size:var(--fs-5);min-height:var(--tap);display:inline-flex;align-items:center;padding:0 1rem;border-radius:999px}
+.faq,.prose{padding-top:2rem;padding-bottom:2rem}
+.prose ul{padding-left:1.25rem}.prose li{margin-bottom:.5rem}
+.foot{background:var(--charcoal);color:var(--offwhite);padding:1.5rem 0;font-size:var(--fs-5);line-height:1.6}
+.foot a{color:var(--offwhite)}
+.foot a:focus-visible{outline-color:var(--amber)}
+.disc{font-size:var(--fs-4)}
+.links{list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:0 1.25rem;margin:0}
+.links a{display:inline-flex;align-items:center;min-height:var(--tap)}
+@media(min-width:48em){h1{font-size:2.5rem}.hero{padding:4rem 0 4.5rem}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

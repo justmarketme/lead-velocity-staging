@@ -1,0 +1,53 @@
+# SortMyCover holding site, Hostinger (LiteSpeed/Apache). Upload to the site's public_html root.
+Options -Indexes
+ErrorDocument 404 /404.html
+DirectoryIndex index.html
+
+# Staging host flag (sortmycover.leadvelocity.co.za): never indexable
+SetEnvIf Host "^sortmycover\.leadvelocity\.co\.za$" STAGING=1
+<IfModule mod_headers.c>
+Header set X-Robots-Tag "noindex, nofollow, noarchive" env=STAGING
+</IfModule>
+
+<IfModule mod_rewrite.c>
+RewriteEngine On
+# 1. Staging host: no redirects (it sits behind basic auth, see staging/.htpasswd-README.md)
+RewriteCond %{HTTP_HOST} ^sortmycover\.leadvelocity\.co\.za$ [NC]
+RewriteRule ^ - [L]
+# 2. sortmycover.com and www.sortmycover.com -> canonical apex, path preserved, 301
+RewriteCond %{HTTP_HOST} ^(www\.)?sortmycover\.com$ [NC]
+RewriteRule ^(.*)$ https://sortmycover.co.za/$1 [R=301,L]
+# 3. www.sortmycover.co.za -> apex
+RewriteCond %{HTTP_HOST} ^www\.sortmycover\.co\.za$ [NC]
+RewriteRule ^(.*)$ https://sortmycover.co.za/$1 [R=301,L]
+# 4. HTTP -> HTTPS
+RewriteCond %{HTTPS} !=on
+RewriteCond %{HTTP:X-Forwarded-Proto} !https
+RewriteRule ^(.*)$ https://sortmycover.co.za/$1 [R=301,L]
+# 5. Never serve the staging notes
+RewriteRule ^staging/ - [R=404,L]
+</IfModule>
+
+<IfModule mod_headers.c>
+Header always set Strict-Transport-Security "max-age=86400"
+# After a clean week: raise to 31536000; add includeSubDomains only when brand.* is ready
+Header always set X-Content-Type-Options "nosniff"
+Header always set X-Frame-Options "SAMEORIGIN"
+Header always set Referrer-Policy "strict-origin-when-cross-origin"
+Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+Header always set Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
+# Loosen CSP deliberately when the Meta Pixel / Search Console tags are added
+</IfModule>
+
+<IfModule mod_expires.c>
+ExpiresActive On
+ExpiresByType text/css "access plus 1 week"
+ExpiresByType image/svg+xml "access plus 1 week"
+ExpiresByType image/png "access plus 1 month"
+ExpiresByType application/manifest+json "access plus 1 day"
+ExpiresByType text/html "access plus 10 minutes"
+</IfModule>
+AddType application/manifest+json .webmanifest
+<IfModule mod_deflate.c>
+AddOutputFilterByType DEFLATE text/html text/css image/svg+xml application/json application/manifest+json application/ld+json text/xml
+</IfModule>
