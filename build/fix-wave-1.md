@@ -16,3 +16,12 @@
 | media-buyer (from PCD + meta-operator) | campaign-spec §4.4–4.5 concept numbers → test-matrix.md table; A2 carousel "Most bonds don't." → PCD wording; split `SMC_EXC_leads_90d` into `_pix` and `_list`; note Meta does not split delivery evenly between the colour pair. |
 | visual-producer (from PCD) | add teal/cream test tokens + teal tick/wordmark variants; 4:5 end card + 9:16 motion template; fix `brand/templates/feed.html` default "Check yours…" (second person) and remove the R1 420 000 / "3× annual salary" figures. |
 | compliance-qa (fix wave 2) | check the sample "FSP 12345" is not a real FSP number (use an obviously invalid placeholder like FSP 00000 if in doubt); file the 2–4× source URL in deliverables/verified-facts.md when Jonathan supplies the guide. |
+
+## Fix wave 3 (from compliance-qa phase4-review-3, 2026-10-02) — owner items still open
+| Owner | Items |
+|---|---|
+| search-findability-lead + contracts-drafter | `landing/holding/privacy.html` is a "[Pending approval]" placeholder: name the Pixel, list processors, add a visible control that calls `smc.adsOff()` (M; H before any Pixel test traffic) |
+| landing-page-builder | review-2 carry-overs: `template/index.html:186`, `:166` + `strings.json:23`, `strings.json:32`, `index.html:51` (M); `index.html:142` + `strings.json:27`, `config/site.json:9` absolute opt-out URL, `self-employed.json:10` "often have none" (L); myth-bust page: agree with creative-strategist whether the page serves C12 (H18) or C13 and give C13 its own H1 |
+| automation-engineer | W01 test must rebuild the consent text server-side from `consent_version` (after GATE-TEST-W01) |
+| platform-architect | `Profile.tsx:139` unsourced show-rate claim; `Calendar.tsx:153` promises leads something on the broker's behalf; add `policies_reported` to the billing boundary test |
+| intro-media-producer / visual-producer | confirm the SAMPLE tag on the intro-video lower third is visible on the frame Meta sees (opacity 0 at start) |

@@ -43,7 +43,7 @@ const build = {
     const { total_cents } = cycleAmounts(row);
     const body = {
       name: `SortMyCover leads: ${row.name}, one 30-day cycle`,
-      description: `${row.committed_leads} verified qualified leads in one 30-day cycle. One payment, one cycle. No contract, no auto-renew. Prices excl. VAT.`,
+      description: `${row.committed_leads} verified qualified leads in one 30-day cycle. One payment, one cycle. No lock-in; card auto-renew only if you opt in. Prices excl. VAT.`,
       amount: total_cents,
       currency: 'ZAR',
       metadata: {

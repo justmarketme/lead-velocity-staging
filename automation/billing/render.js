@@ -9,7 +9,7 @@ const esc = (s) => String(s === null || s === undefined ? '' : s).replace(/[&<>"
 
 const TAGLINES = { SMC_BRONZE: 'Start here', SMC_SILVER: 'More volume', SMC_GOLD: 'Most volume' };
 
-const LINE_UNDER_CARDS = 'Month to month. No contract. Pay for a month, get your leads, decide again next month.';
+const LINE_UNDER_CARDS = 'Per 30-day cycle. No lock-in. Pay for a cycle, get your leads, decide again next cycle.';
 const LINE_UNDER_CARDS_2 = 'Pay upfront by EFT or card; renew (or not) before your next cycle.';
 const SMALL_PRINT = "Prices exclude VAT. No notice period: if you don't renew, the cycle simply ends.";
 
@@ -91,7 +91,7 @@ function proposalTierBlock(row) {
   const v = tierView(row);
   return [
     `Plan: ${v.name} (${v.tier_code})`,
-    `Price: ${v.price} per 30-day cycle, ${v.vat_line}. Paid in advance. Month to month, no contract.`,
+    `Price: ${v.price} per 30-day cycle, ${v.vat_line}. Paid in advance. Per 30-day cycle, no lock-in.`,
     `Committed: ${statement7(v.committed_leads)}`,
     `Replacements: up to ${v.replacement_cap_cycle} per cycle.`,
     'Included: ad spend, landing pages, WhatsApp assistant, booking, reminders, pre-call briefs, weekly reports. No setup fee. No per-policy fee.',

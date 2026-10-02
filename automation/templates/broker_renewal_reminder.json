@@ -10,7 +10,7 @@
     },
     {
       "type": "BODY",
-      "text": "Hi {{1}}, your SortMyCover cycle ends in {{2}}, on {{3}}. To keep leads coming with no gap, pay for the next cycle before then. Payment reference: *{{4}}*. {{5}} No contract: if you don't renew, the cycle simply ends and your delivered leads stay yours.",
+      "text": "Hi {{1}}, your SortMyCover cycle ends in {{2}}, on {{3}}. To keep leads coming with no gap, pay for the next cycle before then. Payment reference: *{{4}}*. {{5}} No lock-in: if you don't renew, the cycle simply ends and your delivered leads stay yours.",
       "example": {
         "body_text": [
           [

@@ -494,7 +494,7 @@ const email = { subject: 'Your SortMyCover renewal: reference ' + inv.reference,
     '<p>Payment reference: <strong style="font-size:20px">' + inv.reference + '</strong></p>' +
     '<p><a href="' + links[tier.tier_code] + '">Pay by Instant EFT or card</a> (same plan selected). Change plan: ' +
     Object.entries(links).filter(([k]) => k !== tier.tier_code).map(([k, u]) => '<a href="' + u + '">' + k.replace('SMC_', '') + '</a>').join(' · ') + '</p>' +
-    '<p>Manual EFT has no fees: use the reference above exactly. No contract: if you don\\'t renew, the cycle simply ends and your delivered leads stay yours.</p>' };
+    '<p>Manual EFT has no fees: use the reference above exactly. No lock-in: if you don\\'t renew, the cycle simply ends and your delivered leads stay yours.</p>' };
 return [{ json: { row, invoice: inv, links, template, email } }];
 `, ['pricing', 'invoice', 'render', 'reference']), { v: 2, row: 0, col: 6 });
   const insInv = w.add('n8n-nodes-base.postgres', 'Offer: issue renewal invoice (idempotent)', sql(`${AUDIT("'W19 renewal offer T-7'")}-- invoice_no and brand_id are filled by smc_invoices_fill. total_zar must equal amount_excl_vat + vat_zar or the trigger

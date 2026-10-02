@@ -10,7 +10,7 @@
     },
     {
       "type": "BODY",
-      "text": "Your {{1}} cycle ends on {{2}}. Delivered: {{3}} of {{4}} committed leads. Good-fit meetings: {{5}}. Your average rating: {{6}} out of 5. {{7}} Your renewal offer is ready, with your current tier selected and no contract.",
+      "text": "Your {{1}} cycle ends on {{2}}. Delivered: {{3}} of {{4}} committed leads. Good-fit meetings: {{5}}. Your average rating: {{6}} out of 5. {{7}} Your renewal offer is ready, with your current tier selected and no lock-in.",
       "example": {
         "body_text": [
           [

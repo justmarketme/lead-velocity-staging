@@ -134,7 +134,7 @@ function Body() {
               <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 14 }}>{p.s5_notice.map((n, i) => <li key={i}>{n}</li>)}</ul></section>
           )}
           <section className="card roi" id="s6">
-            <h3>6 · Your ROI view <span className="pill info">optional · only you see this</span></h3>
+            <h3>6 · Your ROI view <span className="pill info">optional · stored on your broker record</span></h3>
             <form onSubmit={(e) => { e.preventDefault(); void saveRoi(); }} style={{ fontSize: 14 }}>
               <label htmlFor="cr" style={{ marginTop: 6 }}>Your close rate (% of meetings that become a policy)</label>
               <input id="cr" type="number" inputMode="numeric" min={0} max={100} value={cr} onChange={(e) => setCr(e.target.value)} /> %

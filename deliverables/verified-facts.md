@@ -13,3 +13,5 @@ Written by the orchestrator. One row per 4.0a item. The cloud sandbox blocks out
 | FSCA register entry per broker's FSP number | broker-success / W20, onboarding | Not due (no broker row yet) | — | At Mark's onboarding (GATE-AGREEMENT prerequisites). |
 
 Rule reminder (0.1 Research status): anything else marked ASSUMPTION is measured in production, not researched.
+
+| 2026-10-02 | "Employer group life cover is typically 2–4× annual salary" (C01 hook "Most work life cover stops at 2–4× salary") | docs/MASTER-PROMPT.md l.132 (1.1), l.639 (4.5 row 4), l.1984 (Section 9: "SA life cover buying guides (2026)", grade C) | PROMPT-LEVEL ONLY — no URL on file. Jonathan to paste the guide URL + quoted sentence here before GATE-ADS-APPROVE-3 (NH-PCD-01); if silent, C01 ships with "Work cover is often a few times salary." | compliance-qa phase4-review-3 §4a |
