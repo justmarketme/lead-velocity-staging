@@ -8,3 +8,6 @@ Written by the orchestrator only, from Jonathan's answers in the session thread.
 
 ## 2026-10-02 · NH-22 resolved by default (orchestrator, technical; Jonathan may override)
 `ops` is **not** added to the Supabase exposed schemas. The console reads and writes `ops.*` only through the admin-only `smc_console_*` SECURITY DEFINER functions in migration 08 (admin check inside each; anon revoked). Rationale: smaller attack surface, no PostgREST exposure of the operations schema, and the W32 outbox row is written in the same transaction as the decision. Not a money, legal or publish decision.
+
+## 2026-10-02 · NH-36(a) resolved by the owner (PCD, within 4D.4a remit): test-arm palette = B
+Teal #0F6E6A on cream #F6EFE0 (5.30:1 AA) replaces the NH-36 default A. Rationale: 4D.4a names the arm "teal-on-cream" and cream shows an edge against Facebook's white light-mode feed where the brand off-white does not. Brand colour roles unchanged; only `experiment.tealOnCream` in tokens.json. Not a money, legal or publish decision.

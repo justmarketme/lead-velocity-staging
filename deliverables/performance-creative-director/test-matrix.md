@@ -12,9 +12,23 @@ Campaign A runs at R350/day, which is about 50 raw leads a month across all ads 
 | **1. First-submit trio (2.1.8: 3 approved before the batch)** | `C01_H1_vid-amb`, `C03_H3_vid-amb`, `C14_H10_vid-amb` | Together these clear the three riskiest patterns with Meta: a number in the hook (C01), a life-event scene (C03) and the plain explainer with UI mocks (C14). If all three pass, the other patterns are lower risk |
 | **2. Matrix arm (after the trio is approved)** | `C01_H1_vid-teal` | The only colour twin in cycle 1. It is identical to `C01_H1_vid-amb` except for the palette |
 | **3. Diversity set (after the trio is approved)** | `C04_H4_vid-amb`, `C05_H5_vid-amb`, `C06_H9_vid-amb`, `C08_H6_vid-amb`, `C10_H7_vid-amb`, `C13_H16_vid-amb` | One ad for each remaining angle, so all 7 angles are live (Andromeda: distinct creatives find distinct audiences) |
-| **Pool (rendered, not live)** | C02 (H12 Variant B; H2 on hold), C07, C09, C11, C12 (H18; H8 on hold), C15, all stills, C01/C08/C12 6-s motion stills, C04 carousel | Replacements and the week 2–3 refresh |
+| **Pool (rendered, not live)** | C02 (H12; H2 = C02-R on hold), C07, C09, C11, C12 (H18; H8 = C12-R on hold), C15, all stills, the four 6-s loops (C01, C02 H12, C08, C12 H18), C04 1:1 carousel | Replacements and the week 2–3 refresh |
 
-Total live: **10 ads** (the campaign-spec cap). All are video. Each video ad carries its 9:16 for Reels/Stories and its 4:5 for Feed through placement asset customisation, so hook and hold rates exist for every ad.
+Total live: **10 ads** (the campaign-spec cap). All are video. Each video ad = **9:16 for Reels/Stories + 4:5 for Feed** through placement asset customisation, so hook and hold rates exist for every ad in both placement families.
+
+### Asset set vs what cycle 1 needs (manifest v1.1.1: 104 rows, 2026-10-02)
+| Asset (manifest `fmt`) | Rendered | Cycle-1 use |
+|---|---|---|
+| 9:16 video ×18 (15 concepts + C02 H2 / C12 H8 holds + C01 teal) | all | Reels/Stories leg of every live ad; holds never uploaded |
+| 4:5 motion | C01 amb, C03, C14 | Feed leg. **Owed before upload:** C01 **teal** (arm parity: the pair must be identical except colour) and the six diversity ads **C04, C05, C06, C08, C10, C13**. 7 renders |
+| 1:1 motion | C01 amb, C03, C14 | **Not used in cycle 1.** 4:5 covers Feed on Facebook and Instagram; 1:1 adds placements that are small and outside the plan, and on C01 it would break amber/teal parity. Keep the files; render no more |
+| 4:5 / 1:1 / 9:16 stills ×54 | all | Pool; the C01 static arm is cycle 2 |
+| 6-s loops (`m6`, 4:5) ×4 | C01, C02 H12, C08, C12 H18 | Pool (fatigue refresh, week 2–3) |
+| C04 carousel (1:1, 4 cards) | yes | Pool. C04 runs as video in cycle 1 |
+| `.srt` ×18 | yes | **Not attached** to ads in cycle 1: captions are burned in, and an uploaded caption track would draw a second set over the caption lane. Archive and accessibility copy only |
+
+**The other 12 concepts:** 4:5 motion is **needed** for the six that go live (C04, C05, C06, C08, C10, C13); without it Feed shows a cropped 9:16 with the hook and captions at risk. The six pool concepts (C02, C07, C09, C11, C12, C15) get their 4:5 motion **on promotion**, rendered the same day and before upload. 1:1 motion is needed for none of them.
+**Re-render first (v1.1.1 rulings, one batch):** the cut delta in C01, C03, C05, C12, C14 (C02 H12 is already within 3.0 s), all ratios of each, regenerated `.srt`, with C01 amber and C01 teal (palette B) rendered together. The trio is re-rendered **before** GATE-ADS-APPROVE-3 so Meta reviews the exact files that will run.
 
 ### The one cycle-1 comparison
 | Arm | Ad | Variable | Held constant |

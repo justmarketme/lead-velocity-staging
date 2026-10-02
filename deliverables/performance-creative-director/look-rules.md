@@ -11,7 +11,9 @@
 
 ## Layout physics (Meta creative docs: first frame carries the message, captions carry the sound)
 - **The hook is readable at 0.0 s.** Motion starts by 0.5 s. The payoff is on screen by 6 s. One idea per asset. A cut every 2–3 s. Video length is 15–30 s, and the last 3 s are the end card.
+- **The cut rule, measurable (v1.1.1 ruling, no per-concept exceptions):** a *cut* is any change of the frame's focal element: new ON text, a new screen or visual, a line landing in a kinetic build, or a caption entering. **No gap between cuts may exceed 3.0 s** before the end card. Checked on the `tl` row times in `engine/art.mjs` (max of consecutive differences ≤ 3.0, and E − last row ≤ 3.0). Fix an over-long row by splitting it with copy that is already approved (move the caption to the split, or build the ON text line by line), never by writing new words.
 - **Sound-off first.** Every line that matters is on screen. Captions are burned in. There is no voiceover in cycle 1.
+- **Caption dedupe (accepted):** a caption that repeats the frame's ON text word for word is dropped. Each approved line appears on screen **once** per beat, as ON or as CAP, never both (two copies of one line cost reading time and break the two-element / 12-word rule). The `.srt` sidecar carries the union of ON and CAP lines. compliance-qa confirms nothing approved went missing.
 - **Reels/Stories 1080×1920:** no text in the top 250 px or the bottom 340 px (`--sm-safe-top` / `--sm-safe-bottom`). Side margin 72 px. Captions keep 160 px clear on the right between y 1100 and 1580, so the action rail can sit there (ASSUMPTION: confirm in Ads Manager preview).
 - **Feed 1080×1350 and 1080×1080:** 72 px margins. Wordmark bottom-left. The bottom-right is reserved for the AI label, which stays empty in cycle 1.
 - **At most two text elements per frame** (the hook or kinetic word, plus one caption), plus the tick. **At most 12 words on screen per frame. At most 20 words on a still,** excluding the line and the wordmark.
@@ -41,8 +43,8 @@
 | Gradients, drop shadows, outlines on the logo. Recolouring the tick outside the palette | Logo rules (4D.4b.1) |
 | Text-heavy slides (paragraphs on screen) | The physics: nobody reads paragraphs in a scrolling feed. One line per beat |
 
-## Test-arm palette (to be added to `tokens.json` by visual-producer, under a `test` group, never as roles)
-Proposed: `test.teal` = a deep teal in the #0F6E6A range, and `test.cream` = a warm cream in the #F6EFE0 range. Rough contrast: charcoal on cream ≈ 12.9:1, cream on teal ≈ 5.3:1, teal on cream ≈ 5.3:1, so all pass AA at body size. visual-producer recomputes these in `tokens.md`. The swap is mechanical:
+## Test-arm palette (in `tokens.json` under `experiment.tealOnCream`, never as roles)
+**Ruling (v1.1.1, closes NH-36 a): palette B** = teal #0F6E6A-range on cream #F6EFE0-range (5.30:1, AA, per `brand/tokens.md`), not A (#0F766E on the brand off-white, 5.16:1). Why: 4D.4a names the arm "teal-on-cream", and colour is chosen for contrast in the feed. The brand off-white sits too close to Facebook's white light-mode feed for the light arm to show an edge; cream does. The arm tests a palette that could replace the brand, so it has to be the best version of that palette. Cost: the C01 teal set is re-rendered in the same batch as the C01 cut delta (C01.md), so no extra render. tokens.json role values do not change. The swap is mechanical:
 - the field becomes cream;
 - off-white text becomes charcoal;
 - every amber element becomes teal;
