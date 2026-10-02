@@ -57,3 +57,11 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-31b | W22 maps `kind_requested` + new kinds `sensitive`, `dm_handoff`, `dm_after_link`; note field format is now `kind_requested=<kind>` (was `esc_kind=`) | devops-security |
 | I-31c | `ESC_REAL_KINDS=true` after migration 08 lands; add to `automation/.env.example` (name only) and the W30/W31 sticky notes | automation-engineer |
 | I-31d | Confirm Meta accepts 400 on a bad `hub.challenge` (ASSUMPTION; 403 before) | meta-operator |
+
+### I-32 · From devops pass 3 (2026-10-02)
+| # | Item | Owner |
+|---|---|---|
+| I-32a | intro-media: replace same-origin `/intro/*` cookie with Bearer Supabase token to `{API}/intro`, verified in n8n (static hosting cannot proxy) | intro-media-producer + automation-engineer |
+| I-32b | `ops.page_day.visits` has no source: first-party visit beacon to n8n (preferred, no provider) or analytics provider — decide; until then quiz drop-off pulse is empty | landing-page-builder + analytics-reporter |
+| I-32c | `VITE_GEMINI_API_KEY` in legacy root `.env.example`: if the old CRM calls Gemini from the client, move to an edge function | platform-architect (NH-13/NH-15 follow-up) |
+| I-32d | n8n_app media download needs a Storage API token or service-role key kept server-side in n8n credentials | devops-security, when W20 headshots land |

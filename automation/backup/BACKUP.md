@@ -51,6 +51,9 @@ GRANT USAGE ON SCHEMA ops TO backup_reader;
 GRANT INSERT ON ops.backup_runs TO backup_reader;
 ```
 
+## 5a. Ops feeders (I-22), step 5 of the nightly run
+After the dump is recorded, the nightly script fills `ops.infra_day` for yesterday (SAST) from W22's `uptime_down` / `uptime_recovered` rows (`ops_feeders.sql`). It also loads any Lighthouse reports dropped in `OPS_PAGE_REPORT_DIR` into `ops.page_day` (lab LCP only; visits are never invented) and `ops.page_audits` (`ops_feeders.mjs`), then moves them to `fed/`. It connects as **n8n_app** (`OPS_FEEDER_DB_URL`), never as backup_reader, and a feeder failure only logs a WARN. Pre-VPS, run by hand after `landing/lighthouse.sh`: `node automation/backup/ops_feeders.mjs pages landing/reports --dist landing/dist | psql "$OPS_FEEDER_DB_URL"`. Test: `node --test automation/tests/ops-feeders.test.mjs`.
+
 ## 6. Cron (`cron.lv-backup`)
 ```
 30 0 * * * root /opt/lead-velocity/automation/backup/pg_dump_nightly.sh            # 02:30 SAST nightly

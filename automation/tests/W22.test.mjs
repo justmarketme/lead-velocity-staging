@@ -135,6 +135,25 @@ test('Normalise inbound signal: own shape, raw Meta/Paystack, monitor, error tri
   assert.ok(by('unknown_signal').every((s) => s.severity === 'amber'));
 });
 
+test('Normalise: W27 meta_asset_health is a registered red signal, never unknown_signal (I-26)', () => {
+  const w27 = { signal_key: 'meta_asset_health', scope: 'brand:b1', severity: 'red', what: 'Meta asset health: AD_ACCOUNT_DISABLED',
+    impact: 'Ads, WhatsApp or lead capture may be affected', first_action: 'Open the console Ads screen', since: '2026-10-02T08:00:00Z', source: 'W27' };
+  const out = runCode('Normalise inbound signal', { input: [w27, { signal_key: 'meta_asset_health' }] });
+  assert.equal(out.filter((s) => s.signal_key === 'unknown_signal').length, 0);
+  assert.equal(out[0].severity, 'red');
+  assert.equal(out[0].scope, 'brand:b1', 'producer scope wins');
+  assert.equal(out[1].scope, 'brand:unknown', 'registry default fills a bare payload');
+  assert.ok(out[1].first_action && out[1].impact, 'defaults fill missing fields');
+  // Policy: red, held in DND (not in the 6.8b always-send set), deduped per brand
+  const night = runCode('Policy: severity, DND, redaction', { nowIso: '2026-10-02T21:30:00Z', input: out });
+  assert.deepEqual(night.map((o) => o.status), ['held_dnd', 'held_dnd']);
+  assert.equal(night[0].dedupe_key, 'meta_asset_health|brand:b1|red');
+  const day = runCode('Policy: severity, DND, redaction', { nowIso: '2026-10-02T08:00:00Z', input: [out[0]] });
+  assert.equal(day[0].status, 'sending');
+  assert.equal(day[0].primary_partner, 'jonathan');
+  assert.match(MD, /\| `meta_asset_health` \|/, 'W22.md documents meta_asset_health');
+});
+
 // ---------------------------------------------------------------- policy (DND, always-send, amber, redaction)
 const sig = (k, extra = {}) => ({ kind: 'signal', signal_key: k, scope: 'global', severity: 'red', what: `${k} happened`, impact: 'i', first_action: 'a', since: '2026-10-02T08:00:00Z', ...extra });
 

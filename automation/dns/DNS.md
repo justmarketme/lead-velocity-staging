@@ -45,9 +45,12 @@ On `sortmycover.co.za` (Hostinger `.htaccess`), `/c/*` and `/j/*` are 302-redire
 | `sortmycover` | CNAME *or* A | `<HOSTINGER_CNAME_TARGET>` / `<HOSTINGER_WEB_IP>` for the **staging** site | 3600 | GATE-DNS now. On Hostinger: HTTP basic auth (`.htaccess` `AuthType Basic` + `.htpasswd` *outside* `public_html`, see `landing/holding/staging/.htpasswd-README.md`) and `Header set X-Robots-Tag "noindex, nofollow"`. Never verified with Meta or Search Console |
 | `go` | CNAME *or* A | Hostinger target for the landing pages | 3600 | GATE-DNS now (Section 7: landing pages live on `go.leadvelocity.co.za`) |
 | `app` | CNAME | **Vercel** `cname.vercel-dns.com` (NH-12 recommendation: keep the CRM on Vercel), **or** the Hostinger target if NH-12 goes the other way | 3600 | GATE-DNS now. Add the domain in the Vercel project first; Vercel shows the exact target |
+| `media` | CNAME *or* A | Hostinger target for a static media site | 3600 | **Only if NH-12 puts `app.` on Vercel** (static-hosting.md §5). Otherwise the explainer and clips live at `app.leadvelocity.co.za/media/` and no record is needed |
 | `api` | A | `<VPS_IP>` | 600 | **Only at W26 step 8**, once the VPS has an IP (6.6). Before then, webhooks use the tunnel URL |
 | `n8n` | A | `<VPS_IP>` (editor, Traefik IP allowlist) | 600 | W26 step 8 |
 | `@`, `www`, MX, existing TXT | — | **unchanged** | — | Don't touch the live site or mail (NH-12) |
+
+**Static paths (no new records; static-hosting.md):** the portal site at `app.` also serves `/media/explainer/en/…`, `/media/clips/en/…`, `/portal/intro-media/` and `/checkout/`. Landing `dist/` is served on `sortmycover.leadvelocity.co.za` (staging, basic auth), `go.` and later `sortmycover.co.za`. None of these move to the VPS at W26. Only `api`, `n8n` and `link` point at `<VPS_IP>`. Verify each before publishing: `https://dns.google/resolve?name=app.leadvelocity.co.za&type=CNAME` (or `A`), then an HTTPS GET of `/media/explainer/en/explainer.vtt` and `/checkout/` that returns 200.
 
 `gates-batch.md` (GATE-DNS row) mentions `staging.sortmycover.leadvelocity.co.za`, but 0.1 names `sortmycover.leadvelocity.co.za` as staging. I use the 0.1 name, since 0.1 wins.
 

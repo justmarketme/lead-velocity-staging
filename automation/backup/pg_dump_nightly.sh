@@ -9,7 +9,9 @@
 #   BACKUP_S3_ENDPOINT, BACKUP_S3_BUCKET, BACKUP_S3_REGION, BACKUP_S3_ACCESS_KEY, BACKUP_S3_SECRET_KEY,
 #   BACKUP_LOCAL_DIR (default /var/backups/lv), BACKUP_SCHEMAS (default "public ops facts"),
 #   BACKUP_CONSENT_TABLES (default "public.leads public.consent_records public.suppression"), LV_COMPOSE_DIR (default /opt/lead-velocity),
-#   OPS_PING_URL (optional dead-man heartbeat), PG_DUMP_IMAGE (default postgres:17-alpine).
+#   OPS_PING_URL (optional dead-man heartbeat), PG_DUMP_IMAGE (default postgres:17-alpine),
+#   OPS_FEEDER_DB_URL (n8n_app role; unset = feeders skipped), OPS_MONITORS (default "api"), OPS_PAGE_REPORT_DIR
+#   (default $LV_COMPOSE_DIR/landing/reports), OPS_PAGE_BRAND_CODE (default SMC), OPS_BUILD_SHA, NODE_IMAGE (default node:22-alpine).
 set -Eeuo pipefail
 umask 077
 ENV_FILE="${BACKUP_ENV_FILE:-/etc/lv/backup.env}"
@@ -99,6 +101,27 @@ fi
 for f in "$crm" $n8n; do s3_put "$f" "pg/$D/$(basename "$f")"; done
 sha="$(sha256sum "$crm" | cut -d' ' -f1)"; bytes="$(stat -c %s "$crm")"
 record pg_dump true "$bytes" "$sha" "pg/$D" "crm${n8n:+ + n8n}"
+# --- 5) ops feeders (I-22), best effort: a feeder problem never fails the backup. Runs as n8n_app, not backup_reader
+#        (backup_reader stays dump-only + INSERT on ops.backup_runs). ops.infra_day for yesterday (SAST) from W22's uptime
+#        rows; ops.page_day + ops.page_audits from Lighthouse reports dropped in OPS_PAGE_REPORT_DIR (moved to fed/ after).
+psql_cmd() { if command -v psql >/dev/null; then psql "$@"; else docker run --rm -i --network host "$PG_IMAGE" psql "$@"; fi; }
+feeders() {
+  [[ -n "${OPS_FEEDER_DB_URL:-}" ]] || { log "ops feeders: OPS_FEEDER_DB_URL not set; skipped"; return 0; }
+  local here day rdir dist n
+  here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  day="$(TZ=Africa/Johannesburg date -d yesterday +%F)"
+  if [[ -n "${DRY_RUN:-}" ]]; then log "DRY_RUN: ops.infra_day for $day; pages from ${OPS_PAGE_REPORT_DIR:-$COMPOSE_DIR/landing/reports}"; return 0; fi
+  n="$(psql_cmd "$OPS_FEEDER_DB_URL" -v ON_ERROR_STOP=1 -qtA -v day="$day" -v monitors="${OPS_MONITORS:-api}" < "$here/ops_feeders.sql" | grep -c . || true)"
+  log "ops feeders: infra_day $day, $n monitor row(s)"
+  rdir="${OPS_PAGE_REPORT_DIR:-$COMPOSE_DIR/landing/reports}"; dist="$COMPOSE_DIR/landing/dist"
+  compgen -G "$rdir/*.report.json" >/dev/null || return 0
+  if command -v node >/dev/null; then node "$here/ops_feeders.mjs" pages "$rdir" --dist "$dist"
+  else docker run --rm -i -e OPS_PAGE_BRAND_CODE -e OPS_BUILD_SHA -v "$here":/f:ro -v "$rdir":/r:ro -v "$dist":/d:ro \
+         "${NODE_IMAGE:-node:22-alpine}" node /f/ops_feeders.mjs pages /r --dist /d; fi | psql_cmd "$OPS_FEEDER_DB_URL" -v ON_ERROR_STOP=1 -qtA >/dev/null
+  mkdir -p "$rdir/fed" && mv "$rdir"/*.report.json "$rdir/fed/"
+  log "ops feeders: page reports loaded"
+}
+feeders || log "WARN: ops feeders failed (backup itself is fine)"
 # --- 4) local retention: 7 days of encrypted files (the 30-day copy lives off-server)
 run find "$LOCAL_DIR" -maxdepth 1 -type f \( -name 'crm-*' -o -name 'n8n-*' \) -mtime +7 -delete
 [[ -n "${OPS_PING_URL:-}" ]] && run curl -fsS -m 10 "$OPS_PING_URL" -o /dev/null || true
