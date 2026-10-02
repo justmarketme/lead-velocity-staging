@@ -14,6 +14,7 @@
 --   I-30i smc_faculty_tiles() over facts.pulse_daily
 --   NH-22 default: admin SECURITY DEFINER RPCs for every ops.* read/write the console does,
 --         so `ops` need not be an exposed API schema (facts stays unexposed too)
+--   I-28b smc_brokers_guard checks current_user before auth.uid() (§12)
 -- Inventory lines extended: INV-F02 (has_role), INV-T12 (admin_documents), INV-A06 (own-row pattern).
 -- =============================================================================
 
@@ -751,4 +752,66 @@ BEGIN
     EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon', f);
     EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO authenticated', f);   -- admin check inside each
   END LOOP;
+END $$;
+
+-- -----------------------------------------------------------------------------
+-- 12. I-28 option (b) — smc_brokers_guard tests current_user before auth.uid().
+-- Same rules as 06 (body copied verbatim below the first check); only the order of the bypass checks changes.
+-- Keeps n8n_app UPDATEs on brokers working even if the hosted project refuses the auth.uid() grant in §1.
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.smc_brokers_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  -- I-28 option (b): decide on current_user FIRST, in its own IF (PL/pgSQL does not promise OR short-circuit),
+  -- so n8n_app / service / SECURITY DEFINER paths never call auth.uid() and keep working without the auth grant.
+  IF current_user NOT IN ('authenticated','anon') OR OLD.brand_id IS NULL THEN
+    RETURN NEW;   -- n8n/service connections, SECURITY DEFINER portal RPCs (run as owner), legacy rows
+  END IF;
+  IF auth.uid() IS NULL OR public.smc_is_admin() THEN
+    RETURN NEW;   -- API roles only from here: no session (RLS already blocks) or an admin
+  END IF;
+  IF NEW.status            IS DISTINCT FROM OLD.status
+  OR NEW.brand_id          IS DISTINCT FROM OLD.brand_id
+  OR NEW.tier_code         IS DISTINCT FROM OLD.tier_code
+  OR NEW.ref_code          IS DISTINCT FROM OLD.ref_code
+  OR NEW.user_id           IS DISTINCT FROM OLD.user_id
+  OR NEW.current_cycle_id  IS DISTINCT FROM OLD.current_cycle_id
+  OR NEW.approved_live_by  IS DISTINCT FROM OLD.approved_live_by
+  OR NEW.approved_live_at  IS DISTINCT FROM OLD.approved_live_at
+  OR NEW.fsp_verified_at   IS DISTINCT FROM OLD.fsp_verified_at
+  OR NEW.fsp_check         IS DISTINCT FROM OLD.fsp_check
+  OR NEW.routing_on        IS DISTINCT FROM OLD.routing_on
+  OR NEW.routing_rules     IS DISTINCT FROM OLD.routing_rules
+  OR NEW.consent_mode      IS DISTINCT FROM OLD.consent_mode
+  OR NEW.paystack_customer_code IS DISTINCT FROM OLD.paystack_customer_code
+  OR NEW.calendar_token_ref IS DISTINCT FROM OLD.calendar_token_ref
+  OR NEW.intro_card_url    IS DISTINCT FROM OLD.intro_card_url
+  OR NEW.intro_voice_url   IS DISTINCT FROM OLD.intro_voice_url
+  OR NEW.intro_video_url   IS DISTINCT FROM OLD.intro_video_url
+  -- pass 2 additions
+  OR NEW.onboarding_progress          IS DISTINCT FROM OLD.onboarding_progress
+  OR NEW.onboarding_step              IS DISTINCT FROM OLD.onboarding_step
+  OR NEW.onboarding_completed_at      IS DISTINCT FROM OLD.onboarding_completed_at
+  OR NEW.onboarding_last_progress_at  IS DISTINCT FROM OLD.onboarding_last_progress_at
+  OR NEW.onboarding_nudges            IS DISTINCT FROM OLD.onboarding_nudges
+  OR NEW.first_login_at               IS DISTINCT FROM OLD.first_login_at
+  OR NEW.preflight_card               IS DISTINCT FROM OLD.preflight_card
+  OR NEW.preflight_run_id             IS DISTINCT FROM OLD.preflight_run_id
+  OR NEW.calendar_mode                IS DISTINCT FROM OLD.calendar_mode
+  OR NEW.calendar_status              IS DISTINCT FROM OLD.calendar_status
+  OR NEW.calendar_connected_at        IS DISTINCT FROM OLD.calendar_connected_at
+  OR NEW.next_free_slot_at            IS DISTINCT FROM OLD.next_free_slot_at
+  OR NEW.billing_ref                  IS DISTINCT FROM OLD.billing_ref
+  OR NEW.next_tier_code               IS DISTINCT FROM OLD.next_tier_code
+  OR NEW.card_autorenew               IS DISTINCT FROM OLD.card_autorenew
+  OR NEW.paystack_subscription_code   IS DISTINCT FROM OLD.paystack_subscription_code
+  OR NEW.paystack_subscription_token_ref IS DISTINCT FROM OLD.paystack_subscription_token_ref
+  OR NEW.paystack_authorization_ref   IS DISTINCT FROM OLD.paystack_authorization_ref
+  OR NEW.explainer_watched_at         IS DISTINCT FROM OLD.explainer_watched_at THEN
+    RAISE EXCEPTION 'smc: brokers cannot change status, tier, routing, consent mode, FSP verification, go-live, onboarding state, calendar state, billing or approved media fields'
+      USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
 END $$;
