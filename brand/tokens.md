@@ -78,11 +78,11 @@ Clear space: height of the tick circle on all sides. Minimum width: wordmark 96 
 
 ## Test-arm palette (teal variant): option B chosen
 
-Test-arm only (experiment.tealOnCream); amber stays the default for every brand role. PCD chose option B on 2026-10-02: teal #0F6E6A on cream #F6EFE0 (ink on teal is the same cream). Option A (#0F766E on off-white #FBF8F2) is superseded.
+Test-arm only (experiment.tealOnCream); amber stays the default for every brand role. PCD chose option B on 2026-10-02: teal (`--sm-test-teal-accent`) on cream (`--sm-test-cream`) (ink on teal is the same cream). Option A (the earlier teal on off-white) is superseded.
 
 | Option | Foreground on background | Ratio | AA body (4.5) | AA large (3.0) | Status |
 |---|---|---|---|---|---|
-| A | Teal #0F766E on off-white #FBF8F2 | 5.16:1 | pass | pass | superseded |
-| **B (chosen)** | **Teal #0F6E6A on cream #F6EFE0** | **5.30:1** | pass | pass | **in tokens now (`--sm-test-teal-accent`, `--sm-test-teal-ink`, `--sm-test-cream`)** |
+| A | earlier teal on off-white (values in the 2026-10-02 PCD note) | 5.16:1 | pass | pass | superseded |
+| **B (chosen)** | **`--sm-test-teal-accent` on `--sm-test-cream`** | **5.30:1** | pass | pass | **in tokens now (`--sm-test-teal-accent`, `--sm-test-teal-ink`, `--sm-test-cream`)** |
 
 Both pass AA at every size. Test-arm assets use the cream ground; the logo shapes are unchanged except the tick (teal disc, cream check).

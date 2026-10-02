@@ -30,7 +30,7 @@
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><symbol id="tk" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></symbol></svg>
 <a class="skip" href="#quiz">Skip to the check</a>
 <header class="top"><div class="wrap">
-  <span class="logo" aria-label="SortMyCover">SortMyC<span class="tick" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>ver</span>
+  <span class="logo" role="img" aria-label="SortMyCover">SortMyC<span class="tick" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>ver</span>
   <small>Free 30-min call with a licensed adviser</small>
 </div></header>
 
@@ -145,7 +145,7 @@
     </fieldset>
     </form>
 
-    <div class="q js-step" data-step="7" aria-labelledby="h7q">
+    <div class="q js-step" data-step="7" role="group" aria-labelledby="h7q">
       <h3 id="h7q" tabindex="-1">Pick a time for your call</h3>
       <p class="hint">Live availability, South African time. You can change it on WhatsApp later.</p>
       <p class="status" id="slotStatus" role="status"></p>
@@ -158,7 +158,7 @@
       <div class="nav"><button type="button" class="link" id="skipBook">I’ll pick a time on WhatsApp</button><button type="button" class="btn" id="book">Book my call</button></div>
     </div>
 
-    <div class="q js-step" data-step="8" aria-labelledby="doneH">
+    <div class="q js-step" data-step="8" role="group" aria-labelledby="doneH">
       <div class="done">
         <div class="big" aria-hidden="true">✓</div>
         <h3 id="doneH" tabindex="-1">Booked. Check your WhatsApp.</h3>
@@ -168,7 +168,7 @@
       </div>
     </div>
 
-    <div class="q js-step" data-step="9" aria-labelledby="h9q">
+    <div class="q js-step" data-step="9" role="group" aria-labelledby="h9q">
       <div class="done">
         <h3 id="h9q" tabindex="-1">Thanks for checking.</h3>
         <p>From these answers, a call is not the right fit right now. We have not saved your details.</p>
@@ -194,13 +194,13 @@
 </main>
 
 <footer><div class="wrap">
-  <span class="logo" aria-label="SortMyCover">SortMyC<span class="tick" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>ver</span>
+  <span class="logo" role="img" aria-label="SortMyCover">SortMyC<span class="tick" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>ver</span>
   <span>{{footer_line}}</span>
   <span>Lead Velocity (Pty) Ltd{{{reg_html}}} · <a href="mailto:{{contact_email}}">{{contact_email}}</a></span>
   <nav aria-label="Footer" class="links"><a href="{{privacy_url}}">Privacy notice</a><a href="{{how_we_make_money_url}}">How we make money</a><a href="{{complaints_url}}">Complaints</a><a href="{{optout_url}}">Opt-out</a></nav>
 </div></footer>
 
-<div class="sticky" id="sticky"><div class="wrap"><small>Free · 30 minutes · licensed adviser</small><a class="btn" href="#quiz" id="stickyCta">Check my cover in 60 seconds</a></div></div>
+<aside class="sticky" id="sticky" aria-label="Start the cover check"><div class="wrap"><small>Free · 30 minutes · licensed adviser</small><a class="btn" href="#quiz" id="stickyCta">Check my cover in 60 seconds</a></div></aside>
 <script type="application/json" id="smc-strings">{{{strings_json}}}</script>
 </body>
 </html>

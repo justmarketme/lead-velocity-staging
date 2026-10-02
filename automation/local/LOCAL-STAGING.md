@@ -94,3 +94,18 @@ The cloud (Claude Code on the web) session cannot reach `localhost`. It works th
 
 ## 5. Backups before W26
 The local stack holds synthetic data only, so nothing needs a nightly backup yet. The one thing that must survive a dead laptop is **`N8N_ENCRYPTION_KEY` + `.env`**, kept in the password manager. If wanted, `automation/backup/pg_dump_nightly.sh` runs from WSL against Supabase unchanged (`BACKUP_ENV_FILE=./backup.env`).
+
+## 6. Unattended checks (`Makefile`, S7-05; NH-06 default: Makefile on the n8n host, not GitHub Actions)
+Run from the repo root on the laptop now and on the VPS after W26 (cron or the keeper task, e.g. nightly `make check || <W22 alert>`). Everything is offline except `lighthouse`; every target exits non-zero on any failure.
+
+| Target | What it runs |
+|---|---|
+| `make help` (default) | lists the targets |
+| `make test` | `node landing/build.mjs`, then `node --test automation/tests/*.test.mjs automation/billing/*.test.js optimisation/workflows.test.js` · `automation/media` (`media.test.js`, `w23-auth.test.js`) · `automation/tests/generators.test.mjs` · `scripts/*.test.mjs` (if any) · `landing/tests/quiz.spec.ts` (Playwright e2e) · `landing/tests/a11y.mjs` (axe-core WCAG 2.1 A + AA, fails on serious/critical) · `automation/templates/check.mjs` · `build/validate-tasks.mjs` |
+| `make eval` | `node evals/run.mjs --dry-run`; fails unless it exits 0 **and** prints `PASS` |
+| `make check` | `test` + `eval`: the CI gate; ends with `CHECK PASS` |
+| `make a11y` | landing build + axe pass only (`node landing/tests/a11y.mjs --review` lists axe "needs review" items too) |
+| `make lighthouse` | `landing/lighthouse.sh <slug>` for every angle in `landing/dist` (skips `assets`, `fonts`, `shared`); needs network once for `npx lighthouse` |
+| `make readiness` | `node scripts/readiness.mjs` (Section 7 board); exits non-zero while go-live is blocked, so it is informational and not part of `check` |
+
+Playwright and Chromium come from the host (`/opt/node-tools/node_modules/playwright`, `/opt/pw-browsers`; set `CHROMIUM_PATH` elsewhere); axe-core is a repo devDependency (`npm install`). Portal/console axe scan (report-only, synthetic signed-in broker against a mocked Supabase, nothing live is contacted): `VITE_SMC_ENABLED=true VITE_SUPABASE_URL=https://a11y-mock.supabase.co VITE_SUPABASE_PUBLISHABLE_KEY=x npm run build -- --outDir /tmp/portal-dist && node landing/tests/a11y.mjs --portal /tmp/portal-dist /broker/calendar /broker/billing /broker/reports /console`.

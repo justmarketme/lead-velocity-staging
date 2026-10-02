@@ -385,8 +385,8 @@ const LINES = [
   // S7-05 Acquisition — World-class bar (6B): eval gate in CI with golden set; W35 lead pulse; usability test done; WCAG AA
   // pass; bot protection on /lead and /book; DKIM + DMARC live; W34 DSR + breach runbook; /brand/tokens.json consumed by every
   // surface; single FAQ corpus; rehearsal done; drills scheduled; CPL-vs-model tile pinned for 14 days.
-  // GREEN when: `node evals/run.mjs --dry-run` exits 0 with a golden set >= 200; a CI workflow under .github/workflows runs
-  // evals/run.mjs; W35 suite passes, W35 workflow + lead_pulse template exist; a11y tests exist; W01 + W05 (where Turnstile,
+  // GREEN when: `node evals/run.mjs --dry-run` exits 0 with a golden set >= 200; the Makefile `check` target (NH-06 default) or a CI workflow
+  // runs evals/run.mjs; W35 suite passes, W35 workflow + lead_pulse template exist; a11y tests exist; W01 + W05 (where Turnstile,
   // honeypot and rate limits live) are built and the page loads Turnstile; W34 suite passes, W34 workflow + breach runbook
   // (compliance register Part 3) exist; tokens.json consumed by landing, portal, console portal css and report email;
   // knowledge/faq.md + the landing FAQ config exist; watchlist tile 0 (CPL vs model) exists; TURNSTILE_SECRET_KEY set;
@@ -395,10 +395,13 @@ const LINES = [
   { id: 'S7-05', amber: true, checks: () => [
     command('build', 'evals', 'eval gate dry run passes'),
     custom('build', 'golden set >= 200', () => { const n = exists('evals/golden-set.json') ? (readJson('evals/golden-set.json').cases || []).length : 0; return [n >= 200 ? PASS : MISSING, `${n} golden cases`]; }),
-    custom('build', 'eval gate wired in CI', () => {
+    custom('build', 'eval gate wired in the unattended check', () => {
+      // NH-06 default: unattended runs are a Makefile on the n8n host, not GitHub Actions. Either satisfies the line.
       const d = '.github/workflows';
-      const hit = exists(d) && readdirSync(p(d)).some((f) => /\.ya?ml$/.test(f) && /evals\/run\.mjs/.test(read(`${d}/${f}`)));
-      return [hit ? PASS : MISSING, hit ? 'CI job runs evals/run.mjs' : 'no .github/workflows/*.yml runs evals/run.mjs (evals/README.md "CI", devops-security)'];
+      const ci = exists(d) && readdirSync(p(d)).some((f) => /\.ya?ml$/.test(f) && /evals\/run\.mjs/.test(read(`${d}/${f}`)));
+      const mk = exists('Makefile') && /evals\/run\.mjs/.test(read('Makefile')) && /^check:/m.test(read('Makefile'));
+      const hit = ci || mk;
+      return [hit ? PASS : MISSING, hit ? (mk ? 'make check runs evals/run.mjs (NH-06 Makefile default)' : 'CI job runs evals/run.mjs') : 'neither Makefile `check` nor a .github/workflows job runs evals/run.mjs (NH-06)'];
     }),
     suite('build', 'automation/tests/W35.test.mjs'),
     workflow('build', 'W35'),
