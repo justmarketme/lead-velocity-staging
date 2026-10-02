@@ -171,15 +171,23 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 ### I-41 · 2026-10-02 (from W20 MS connect, W23 scripts, devops pass 6, review 5)
 | # | Item | Owner |
 |---|---|---|
-| I-41a | Portal `Calendar.tsx`: "Connect Outlook" must `fetch` `{API}/ms/connect` with `Authorization: Bearer <session token>` + `Accept: application/json` and navigate to `authorize_url` (plain `VITE_MS_OAUTH_URL` link gets 401); admin-consent link prefers `brokers.calendar_status_detail.admin_consent_url` (W20 writes it) over `VITE_MS_ADMIN_CONSENT_URL`; "Disconnect" → `POST ms/disconnect` | platform-architect — dispatched |
-| I-41b | W34 storage nodes: call the `w34-media-erase` edge function with the HMAC body (`{paths, policy, dsr_id, request_id}`, ≤ 50 `broker-media/<uuid>/` paths, `X-LV-Timestamp` / `X-LV-Signature` signed in a Code node from `$env.W34_MEDIA_ERASE_SECRET`), drop the retired Header Auth credential; LOCAL-STAGING.md §1d has the contract | compliance-qa (W34) — dispatched |
-| I-41c | R5-01 (M): W10 `no_call` must insert into `suppression` (`smc_hash_contact`, `{source:'objection', note:'no_call_c1a'}`) + test, so privacy.html "No thanks → never again" holds | automation-engineer — dispatched |
-| I-41d | R5-02 (M): broker timeline RLS (`smc_05_rls.sql:202-204`) exposes per-lead `lead_pulse` activity; exclude pulse activity types (or write them with `broker_id NULL`) in migration 13 + RLS test; W35 activation blocked until then | platform-architect — dispatched |
+| I-41a ✅ | Portal `Calendar.tsx`: "Connect Outlook" must `fetch` `{API}/ms/connect` with `Authorization: Bearer <session token>` + `Accept: application/json` and navigate to `authorize_url` (plain `VITE_MS_OAUTH_URL` link gets 401); admin-consent link prefers `brokers.calendar_status_detail.admin_consent_url` (W20 writes it) over `VITE_MS_ADMIN_CONSENT_URL`; "Disconnect" → `POST ms/disconnect` | platform-architect — dispatched |
+| I-41b ✅ | W34 storage nodes: call the `w34-media-erase` edge function with the HMAC body (`{paths, policy, dsr_id, request_id}`, ≤ 50 `broker-media/<uuid>/` paths, `X-LV-Timestamp` / `X-LV-Signature` signed in a Code node from `$env.W34_MEDIA_ERASE_SECRET`), drop the retired Header Auth credential; LOCAL-STAGING.md §1d has the contract | compliance-qa (W34) — dispatched |
+| I-41c ✅ | R5-01 (M): W10 `no_call` must insert into `suppression` (`smc_hash_contact`, `{source:'objection', note:'no_call_c1a'}`) + test, so privacy.html "No thanks → never again" holds | automation-engineer — dispatched |
+| I-41d ✅ | R5-02 (M): broker timeline RLS (`smc_05_rls.sql:202-204`) exposes per-lead `lead_pulse` activity; exclude pulse activity types (or write them with `broker_id NULL`) in migration 13 + RLS test; W35 activation blocked until then | platform-architect — dispatched |
 | I-41e | R5-07/R5-08 (L): end card carries only the identity half of DISC-S97-v1 (render verbatim or record the variant); wide intro card 1200×628 — SAMPLE pill overlaps the header FSP, LV strip missing | visual-producer — dispatched |
 | I-41f | R5-10 (L): DISC-CARD-v1 on the intro card waits on contracts-drafter M6 | contracts-drafter → visual-producer |
-| I-41g | R5-11 (open): order of the cancel-confirm question vs `cancel_all` in W10 "Decide no-call" | automation-engineer — dispatched with I-41c |
+| I-41g ✅ | R5-11 (open): order of the cancel-confirm question vs `cancel_all` in W10 "Decide no-call" | automation-engineer — dispatched with I-41c |
 | I-41h | W23 `script-generate`: one `ops.costs` row per LLM call (`kind='llm'`, `source_ref='w23:script-generate'`, broker_id) | intro-media-producer, Phase 5 |
 | I-41i | W22: alert when W20 callback maps AADSTS7000215/7000222/700016 (expired/bad client secret) → `calendar_status_detail.reason` | automation-engineer (W22), Phase 5 |
 | I-41j | W20 callback: a failure after the token exchange could save the refresh token in n8n's error execution (`saveDataErrorExecution: all`) — set the callback lane to not save error data, or null the token field before any throw | automation-engineer, Phase 5 |
-| I-41k | `brokers.verified_credentials jsonb` is read by W23 but defined by no migration — add to migration 13 (or confirm it is intentionally absent and W23 reads null) | platform-architect |
+| I-41k ✅ | `brokers.verified_credentials jsonb` is read by W23 but defined by no migration — add to migration 13 (or confirm it is intentionally absent and W23 reads null) | platform-architect |
 | I-41l | Older W20 queries use `brokers.broker_id`: it is the migration-06 generated alias of `id`, so no change; note kept so nobody "fixes" it | — (closed) |
+
+### I-42 · 2026-10-02 (from fix wave 5)
+| # | Item | Owner |
+|---|---|---|
+| I-42a | Pass 8 hides the lead's pulse tap, answer and W35 replies from the broker's communications thread (RESTRICTIVE policy), not only the timeline — confirm intended under "never with your name"; if the broker should still see that a pulse happened (without text), relax to a redacted view | compliance-qa |
+| I-42b | Who writes `brokers.verified_credentials`: admin console (manual, after the FSCA check) or W20's FSCA node on `verified` — default: W20 writes `[{type:'fsp', number, register_name, verified_at}]` on verdict `verified`; console may add others | broker-success (W20) + platform-architect |
+| I-42c | Parse-check: W10 "Stop messaging (no call)" `$4` joins the known untyped-parameter list (9 items, all prepared-statement artefacts, none runtime) | — (recorded) |
+| I-42d | W34: one timestamp per run across batches — sign per batch (or re-sign on retry) so a long backlog never leaves the ±300 s window | compliance-qa (W34), Phase 5 |
