@@ -124,6 +124,18 @@ export function normaliseScopes(scope) {
   return [...new Set(String(scope || '').split(/\s+/).filter(Boolean).map((s) => (s.startsWith(GRAPH) ? s.slice(GRAPH.length) : s)))].sort();
 }
 
+function failPlan(m, { currentStatus = null, cfg = {} } = {}) {
+  const portal = String(cfg.portalUrl || '').replace(/\/+$/, '') + PORTAL_CALENDAR_PATH;
+  const go = (params) => `${portal}?${new URLSearchParams(params).toString()}`;
+  const wasOk = currentStatus === 'ok';
+  const detail = { reason: m.reason, codes: m.codes, at: new Date(cfg.nowMs ?? Date.now()).toISOString() };
+  if (m.kind === 'consent') detail.admin_consent_url = adminConsentUrl({ clientId: cfg.clientId, redirectUri: cfg.adminConsentRedirectUri, tenant: cfg.tenantHint });
+  const redirect = m.kind === 'consent' ? go({ error: 'admin_consent' }) : m.kind === 'cancelled' ? go({ calendar: 'cancelled' }) : go({ error: 'calendar', reason: m.reason });
+  // A cancelled attempt changes nothing; a failed RE-connect never downgrades a broker whose calendar works.
+  if (!m.status || wasOk) return { action: 'none', detail, redirect, alert: !!m.alert, kept_ok: wasOk && !!m.status };
+  return { action: 'status', status: m.status, detail, redirect, alert: !!m.alert };
+}
+
 /**
  * Decide what /ms/callback does. Inputs: state result, the callback query, the token-endpoint result (or null),
  * the broker's current calendar_status, config. Returns
@@ -134,15 +146,7 @@ export function planCallback({ state, query = {}, token = null, currentStatus = 
   const portal = String(cfg.portalUrl || '').replace(/\/+$/, '') + PORTAL_CALENDAR_PATH;
   const go = (params) => `${portal}?${new URLSearchParams(params).toString()}`;
   if (!state || !state.ok) return { action: 'none', detail: null, redirect: go({ error: 'calendar', reason: 'link_expired' }) };
-  const wasOk = currentStatus === 'ok';
-  const fail = (m) => {
-    const detail = { reason: m.reason, codes: m.codes, at: new Date(cfg.nowMs ?? Date.now()).toISOString() };
-    if (m.kind === 'consent') detail.admin_consent_url = adminConsentUrl({ clientId: cfg.clientId, redirectUri: cfg.adminConsentRedirectUri, tenant: cfg.tenantHint });
-    const redirect = m.kind === 'consent' ? go({ error: 'admin_consent' }) : m.kind === 'cancelled' ? go({ calendar: 'cancelled' }) : go({ error: 'calendar', reason: m.reason });
-    // A cancelled attempt changes nothing; a failed RE-connect never downgrades a broker whose calendar works.
-    if (!m.status || wasOk) return { action: 'none', detail, redirect, alert: !!m.alert, kept_ok: wasOk && !!m.status };
-    return { action: 'status', status: m.status, detail, redirect, alert: !!m.alert };
-  };
+  const fail = (m) => failPlan(m, { currentStatus, cfg });
   if (query.error) return fail(mapError(query));
   if (!query.code) return fail({ kind: 'other', status: 'error', reason: 'no_code', codes: [] });
   if (!token) return fail({ kind: 'other', status: 'error', reason: 'token_exchange_failed', codes: [] });
@@ -189,4 +193,44 @@ export function planConnect({ broker, cfg = {}, json = false, nowMs = Date.now()
 export function connectedEvent({ brokerId, tokenRef, secret, nowMs = Date.now() } = {}) {
   const raw = JSON.stringify({ event_id: `ms-connected:${brokerId}:${tokenRef}`, type: 'calendar.connected', broker_id: brokerId, occurred_at: new Date(nowMs).toISOString(), source: 'w20_ms_callback' });
   return { raw, signature: `sha256=${createHmac('sha256', secret).update(raw).digest('hex')}` };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// I-41j: keep the refresh token out of anything n8n could persist. W20 keeps saveDataErrorExecution 'all' (the other
+// lanes need error data), so the callback lane (a) never ends in an error (every node after the token exchange
+// continues on fail; the run is a success run and saveDataSuccessExecution is 'none'), and (b) the token sits in
+// exactly two places: the HTTP response of "MS token exchange" (unavoidable) and the item "Vault: prepare input"
+// hands to the vault RPC. "MS callback: plan" emits publicPlan() (no token); everything downstream is built fresh.
+// ---------------------------------------------------------------------------------------------------------------
+const SECRET_FIELD = 'refresh_' + 'token';
+/** The plan as every node after "MS callback: plan" sees it: no refresh token, ever. */
+export function publicPlan(plan = {}) {
+  const out = { ...plan };
+  delete out[SECRET_FIELD];
+  return out;
+}
+/** The one item that reaches smc_vault_store_ms_refresh(): read straight from the token response, only on 'store'. */
+export function vaultInput({ plan = {}, token = null } = {}) {
+  const body = token && token.body && typeof token.body === 'object' ? token.body : (token || {});
+  const rt = plan.action === 'store' && typeof body[SECRET_FIELD] === 'string' && body[SECRET_FIELD] ? body[SECRET_FIELD] : null;
+  return { broker_id: plan.broker_id || null, [SECRET_FIELD]: rt, tenant_id: plan.tenant_id ?? null, scopes: plan.scopes ?? null };
+}
+/** Vault RPC failed after a good exchange: same rules as any failure (never downgrades a working calendar). */
+export function planVaultFailure({ brokerId = null, currentStatus = null, cfg = {} } = {}) {
+  return { broker_id: brokerId, ...failPlan({ kind: 'other', status: 'error', reason: 'vault_store_failed', codes: [] }, { currentStatus, cfg }) };
+}
+
+// I-41i: an expired / wrong client secret (or unknown app) breaks connect for EVERY broker -> one W22 red alert.
+export const SECRET_ALERT_KIND = 'ms_client_secret_invalid';
+export function secretAlert(plan = {}, { nowMs = Date.now() } = {}) {
+  const d = plan && plan.detail ? plan.detail : {};
+  if (!plan || !plan.alert || d.reason !== 'app_credentials') return null;
+  const codes = Array.isArray(d.codes) ? d.codes.filter((c) => /^AADSTS\d{5,7}$/.test(c)) : [];
+  return {
+    signal_key: SECRET_ALERT_KIND, scope: 'ms_app:broker_connect', severity: 'red', source: 'W20',
+    what: `Microsoft rejected the broker-connect app credentials (${codes.join(', ') || 'invalid_client'})`,
+    impact: 'No broker can connect or reconnect Outlook until the client secret is fixed',
+    first_action: 'Rotate the client secret in Entra ID, update the n8n credential "Microsoft Graph broker-connect client secret (W20)" and ops.secret_inventory',
+    codes, since: new Date(nowMs).toISOString(),
+  };
 }

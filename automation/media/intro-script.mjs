@@ -15,12 +15,18 @@ export const ANGLES = [
 ];
 export const GATE_VERSION = 'intro-script-v1.0.0';
 export const EXAMPLE_TEXT = "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I work with families who've got a bond and people depending on them, and want to know whether the cover they have through work actually matches their life. On our call I'll ask a few questions and tell you plainly where you stand, and there's nothing to buy and no pressure. Thirty minutes is usually all it takes. Looking forward to speaking with you.";
+// I-42b: brokers.verified_credentials may hold W20's {type:'fsp', number, register_name, verified_at} entry next to
+// admin-set strings. The FSP is already its own fact (facts.fsp), so object entries become a claimable label only if
+// they carry one (label/name); never "[object Object]" in a prompt or the gate.
+export const credLabels = (list) => (Array.isArray(list) ? list : [])
+  .map((c) => (typeof c === 'string' ? c : c && typeof c === 'object' && c.type !== 'fsp' && typeof (c.label || c.name) === 'string' ? (c.label || c.name) : null))
+  .filter((c) => c && String(c).trim());
 const lang = (l) => (['en', 'af'].includes(l) ? l : String(l || 'other').slice(0, 8).replace(/[^a-z-]/gi, '') || 'other');
 
 export function genRequest(broker, answers, angle, language, { model = 'claude-sonnet-5-5' } = {}) {
   const a = (answers && answers.answers) || {};
   const g = (k) => String(a[k] || '').slice(0, 600);
-  const creds = Array.isArray(broker.verified_credentials) && broker.verified_credentials.length ? broker.verified_credentials.join(', ') : 'none';
+  const creds = credLabels(broker.verified_credentials).length ? credLabels(broker.verified_credentials).join(', ') : 'none';
   const user = [`ADVISER: ${broker.adviser_name}`, `PRACTICE: ${broker.practice_name}`, `FSP: ${broker.fsp_number}`, `BASED IN: ${g('where')}`,
     `LANGUAGE OF THIS TAKE: ${lang(language)}`, `ANGLE: ${angle}`, `VERIFIED CREDENTIALS: ${creds}`, 'INTERVIEW ANSWERS:',
     `1. Who do you help most, and what do they usually come to you worried about? ${g('who')}`,
@@ -59,14 +65,14 @@ export function ruleOf(issue) {
 }
 export function detCheck(text, facts, language) {
   if (!String(text || '').trim()) return { pass: false, verdict: 'block', issues: ['no usable output'], rule: 'invalid_output' };
-  const r = scriptCheck(text, { practice: facts.practice, fsp: facts.fsp, verified_credentials: facts.verified_credentials || [] }, { lang: lang(language) });
+  const r = scriptCheck(text, { practice: facts.practice, fsp: facts.fsp, verified_credentials: credLabels(facts.verified_credentials) }, { lang: lang(language) });
   return { pass: r.pass, verdict: r.verdict, issues: r.issues, rule: r.issues.length ? ruleOf(r.issues[0]) : null };
 }
 export function gateRequest(text, facts, language, { model = 'claude-haiku-4-5-20251001' } = {}) {
   // user turn fenced by classifierInput() (redactForLLM, triple quotes collapsed, 1,200 chars); only the system prompt differs (script-gate.md)
   const fenced = classifierInput({ draft: text, question: '', lang: lang(language), surface: 'whatsapp' });
   const draft = /DRAFT: """([\s\S]*?)"""\nLANGUAGE:/.exec(fenced);
-  const user = `PRACTICE: ${facts.practice}\nFSP: ${facts.fsp}\nVERIFIED CREDENTIALS: ${(facts.verified_credentials || []).join(', ') || 'none'}\nLANGUAGE: ${lang(language)}\nSCRIPT: """${draft ? draft[1] : ''}"""`;
+  const user = `PRACTICE: ${facts.practice}\nFSP: ${facts.fsp}\nVERIFIED CREDENTIALS: ${credLabels(facts.verified_credentials).join(', ') || 'none'}\nLANGUAGE: ${lang(language)}\nSCRIPT: """${draft ? draft[1] : ''}"""`;
   return { model, max_tokens: 250, temperature: 0, system: promptBlock('script-gate.md'), messages: [{ role: 'user', content: user }] };
 }
 /** Fails closed: anything that is not a clean {verdict:'pass'|'block'} is a block. */

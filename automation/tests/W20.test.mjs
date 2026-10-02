@@ -14,7 +14,9 @@
 // Run: node --test automation/tests/W20.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync, mkdtempSync, writeFileSync, rmSync, chmodSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { execFileSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
@@ -176,6 +178,8 @@ function offlineSys() {
       // "Save fsp_check": attempts accumulate; fsp_verified_at only on verified
       b.fsp_check = { ...e.fsp_check, attempts: (b.fsp_check?.attempts || 0) + 1 };
       if (e.verdict === 'verified') b.fsp_verified_at = iso(now);
+      // I-42b (same statement): on verified, one {type:'fsp'} entry in verified_credentials (replaces any earlier one)
+      if (e.verdict === 'verified') b.verified_credentials = [...(b.verified_credentials || []).filter((c) => !(c && typeof c === 'object' && c.type === 'fsp')), { type: 'fsp', number: e.fsp_number, register_name: e.register_name, verified_at: iso(now) }];
       if (e.verdict === 'verified') {
         // "Complete profile step": required fields + verified (headshot not required)
         if (b.fsp_verified_at && b.practice_name && b.adviser_name && b.adviser_whatsapp && b.email && b.bio_short && (b.languages || []).length && b.years_advising != null) {
@@ -436,6 +440,8 @@ test(`W20 [${MODE}] S2 FSP on the register, authorised, name matches, long-term 
   const s = await sys.state('brk_test_onb');
   assert.equal(s.broker.fsp_check.status, 'verified');
   assert.ok(s.broker.fsp_verified_at);
+  assert.deepEqual(s.broker.verified_credentials.map((c) => [c.type, c.number, c.register_name]), [['fsp', s.broker.fsp_number, REGISTER_OK.body.register_name]], 'I-42b: one fsp credential');
+  assert.ok(s.broker.verified_credentials[0].verified_at);
   assert.equal(s.broker.onboarding_progress.profile.status, 'done');
   assert.equal(s.alerts.length, 0);
   assert.equal(s.sends.length, 0, 'the portal shows the tick; no WhatsApp');
@@ -455,6 +461,7 @@ for (const [label, register, reason] of [
     const s = await sys.state('brk_test_onb');
     assert.equal(s.broker.fsp_check.status, 'blocked');
     assert.equal(s.broker.fsp_check.reason, reason);
+    assert.ok(!s.broker.verified_credentials, 'I-42b: a non-verified verdict leaves verified_credentials alone');
     assert.equal(s.broker.fsp_verified_at, null);
     assert.equal(s.broker.onboarding_progress.profile.status, 'blocked');
     const a = s.alerts.filter((x) => x.signal_key === 'fsca_check_mismatch');
@@ -896,7 +903,8 @@ test('I-40c W20.json: three lanes, credentials by name, refresh token only reach
   }
   for (const n of msNodes.filter((x) => x.type === 'n8n-nodes-base.respondToWebhook')) assert.ok(!JSON.stringify(n.parameters).includes('refresh'), n.name);
   const after = (from) => (WF.connections[from]?.main || []).map((o) => o.map((c) => c.node));
-  assert.deepEqual(after('Callback action'), [['Vault: store MS refresh token'], ['Set calendar_status (callback)'], ['Respond 302 to portal']]);
+  assert.deepEqual(after('Callback action'), [['Vault: prepare input'], ['Set calendar_status (callback)'], ['Respond 302 to portal']]);
+  assert.deepEqual(after('Vault: prepare input'), [['Vault: store MS refresh token']]);
   assert.deepEqual(after('State valid?'), [['Load broker (callback)'], ['MS callback: bad state redirect']]);
 });
 
@@ -952,4 +960,171 @@ test('I-40c W20 Code nodes run end to end: connect -> Microsoft (modelled) -> ca
   const d = await runMsCode('MS disconnect: verify broker JWT', { headers: { authorization: `Bearer ${BROKER_JWT}` } });
   assert.equal(d.ok, true);
   assert.match(node('Set calendar_status disconnected').parameters.query, /smc_set_calendar_status\(\$1::uuid, 'disconnected'/);
+});
+
+// =============================================================================================
+// I-41j: the refresh token never sits in anything n8n could persist on error.
+// W20 keeps saveDataErrorExecution 'all' (lanes A-D need error data for "Open the failed execution"), so instead:
+// (1) only "MS token exchange" (HTTP response, unavoidable) and "Vault: prepare input" (the vault RPC input) ever
+// hold the token; (2) every node after the exchange continues on fail, so a callback run cannot end as an error
+// execution, and success executions are not saved at all.
+// =============================================================================================
+async function runMsAll(name, input, refs = {}) {
+  const js = node(name).parameters.jsCode;
+  const $ = (n) => { if (!(n in refs)) { const e = new Error(`node ${n} not executed`); return { get isExecuted() { return false; }, first() { throw e; } }; } return { isExecuted: true, first: () => ({ json: refs[n] }) }; };
+  const out = await new MsAsyncFunction('$env', '$input', '$', 'require', js)(MS_ENV, { first: () => ({ json: input }) }, $, require);
+  return JSON.parse(JSON.stringify(out.map((i) => i.json)));
+}
+const RT = TOKEN_OK.body.refresh_token;
+const callbackLane = () => {
+  const seen = new Set(); const q = ['MS token exchange'];
+  while (q.length) { const n = q.shift(); if (seen.has(n)) continue; seen.add(n); for (const o of WF.connections[n]?.main || []) for (const l of o) q.push(l.node); }
+  return [...seen];
+};
+
+test('I-41j W20.json: settings kept, every node after the token exchange continues on fail, only plan + vault input read the token response', () => {
+  assert.equal(WF.settings.saveDataSuccessExecution, 'none', 'a successful callback run is never stored');
+  assert.equal(WF.settings.saveDataErrorExecution, 'all', 'other lanes keep their error data; the callback lane never errors instead');
+  const lane = callbackLane();
+  for (const n of ['MS callback: plan', 'Vault: prepare input', 'Vault: store MS refresh token', 'MS callback: vault failed', 'MS callback: secret alert', 'Raise alert (W22, MS callback)', 'Respond 302 to portal']) assert.ok(lane.includes(n), `${n} is in the callback lane`);
+  for (const name of lane.filter((n) => n !== 'MS token exchange')) {
+    const n = node(name);
+    if (['n8n-nodes-base.if', 'n8n-nodes-base.switch'].includes(n.type)) continue;
+    assert.ok(['continueRegularOutput', 'continueErrorOutput'].includes(n.onError), `${name} continues on fail (no error execution after the exchange)`);
+  }
+  assert.equal(node('Vault: store MS refresh token').onError, 'continueErrorOutput');
+  const after = (from) => (WF.connections[from]?.main || []).map((o) => o.map((c) => c.node));
+  assert.deepEqual(after('Vault: store MS refresh token'), [['Set calendar_status connected'], ['MS callback: vault failed']]);
+  assert.deepEqual(after('Downgrade? (vault failed)'), [['Set calendar_status (callback)'], ['Respond 302 to portal']]);
+  const readers = WF.nodes.filter((n) => n.type === 'n8n-nodes-base.code' && n.parameters.jsCode.includes("$('MS token exchange')")).map((n) => n.name).sort();
+  assert.deepEqual(readers, ['MS callback: plan', 'Vault: prepare input']);
+  assert.match(node('MS callback: plan').parameters.jsCode, /M\.publicPlan\(/);
+  // Nothing reads the vault RPC's input item downstream: the error branch builds its item fresh from the plan.
+  assert.ok(!/\$\('Vault: prepare input'\)|\$input|\$json/.test(node('MS callback: vault failed').parameters.jsCode.split('\n').slice(6).join('\n')));
+});
+
+test('I-41j W20 Code nodes: no node output except the vault RPC input contains the refresh token (success, vault failure, bad secret)', async () => {
+  const st = MS.mintState({ brokerId: BROKER_ID, secret: MS_SECRET });
+  const outputs = {};
+  const keep = (name, items) => { outputs[name] = (outputs[name] || []).concat(items); return items; };
+  // success
+  const [chk] = keep('MS callback: check state', await runMsAll('MS callback: check state', { query: { state: st, code: 'M.C123_code' } }));
+  const row = { broker_id: BROKER_ID, calendar_status: null };
+  const [pl] = keep('MS callback: plan', await runMsAll('MS callback: plan', {}, { 'MS callback: check state': chk, 'Load broker (callback)': row, 'MS token exchange': TOKEN_OK }));
+  assert.equal(pl.action, 'store'); assert.ok(!('refresh_token' in pl));
+  keep('MS callback: secret alert', await runMsAll('MS callback: secret alert', pl));
+  const [vin] = keep('Vault: prepare input', await runMsAll('Vault: prepare input', pl, { 'MS token exchange': TOKEN_OK }));
+  assert.deepEqual(vin, { broker_id: BROKER_ID, refresh_token: RT, tenant_id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', scopes: pl.scopes }, 'exactly the four RPC arguments');
+  const vaultOut = keep('Vault: store MS refresh token', [{ token_ref: `ms_refresh_${BROKER_ID}_1790000000` }]); // modelled RPC result
+  keep('Build calendar.connected event', await runMsAll('Build calendar.connected event', {}, { 'MS callback: plan': pl, 'Vault: store MS refresh token': vaultOut[0] }));
+  // vault RPC fails (n8n error output: the node's own error item); new connect -> error, working calendar -> unchanged
+  const errItem = { message: 'smc_vault_store_ms_refresh: unknown SMC broker', error: { message: 'unknown SMC broker' } };
+  const [vf] = keep('MS callback: vault failed', await runMsAll('MS callback: vault failed', errItem, { 'MS callback: plan': pl, 'Load broker (callback)': row }));
+  assert.deepEqual([vf.action, vf.status, vf.detail.reason], ['status', 'error', 'vault_store_failed']);
+  assert.match(vf.redirect, /error=calendar&reason=vault_store_failed/);
+  const [vfOk] = keep('MS callback: vault failed', await runMsAll('MS callback: vault failed', errItem, { 'MS callback: plan': pl, 'Load broker (callback)': { ...row, calendar_status: 'ok' } }));
+  assert.equal(vfOk.action, 'none', 'a vault failure on a re-connect never downgrades a working calendar');
+  // bad client secret
+  const BAD = { statusCode: 401, body: { error: 'invalid_client', error_description: 'AADSTS7000222: The provided client secret keys are expired.', error_codes: [7000222] } };
+  const [plBad] = keep('MS callback: plan', await runMsAll('MS callback: plan', {}, { 'MS callback: check state': chk, 'Load broker (callback)': row, 'MS token exchange': BAD }));
+  keep('MS callback: secret alert', await runMsAll('MS callback: secret alert', plBad));
+  for (const [name, items] of Object.entries(outputs)) {
+    if (name === 'Vault: prepare input') continue;
+    for (const it of items) assert.ok(!JSON.stringify(it).includes(RT), `${name} output never carries the refresh token`);
+  }
+  assert.ok(JSON.stringify(outputs['Vault: prepare input']).includes(RT), 'the vault RPC input does (control)');
+  // no token response at all -> the vault input holds no token (the RPC then refuses: 22023 -> vault failed branch)
+  assert.equal((await runMsAll('Vault: prepare input', pl, {}))[0].refresh_token, null);
+  assert.equal((await runMsAll('Vault: prepare input', { ...pl, action: 'status' }, { 'MS token exchange': TOKEN_OK }))[0].refresh_token, null, 'never on a non-store plan');
+});
+
+// =============================================================================================
+// I-41i: expired / bad client secret -> calendar_status_detail.reason app_credentials + W22 red ms_client_secret_invalid
+// =============================================================================================
+test('I-41i W20 callback: AADSTS7000215 / 7000222 / 700016 -> W22 red alert ms_client_secret_invalid via Execute Workflow; consent errors do not alert', async () => {
+  const after = (from) => (WF.connections[from]?.main || []).map((o) => o.map((c) => c.node));
+  assert.deepEqual(after('MS callback: plan'), [['Callback action', 'MS callback: secret alert']]);
+  assert.deepEqual(after('MS callback: secret alert'), [['Raise alert (W22, MS callback)']]);
+  const raise = node('Raise alert (W22, MS callback)');
+  assert.equal(raise.type, 'n8n-nodes-base.executeWorkflow');
+  assert.equal(raise.parameters.workflowId.value, node('Raise alert (W22)').parameters.workflowId.value, 'same W22 target as the other W20 alerts');
+  assert.equal(raise.parameters.options.waitForSubWorkflow, false);
+  const st = MS.mintState({ brokerId: BROKER_ID, secret: MS_SECRET });
+  const chk = await runMsCode('MS callback: check state', { query: { state: st, code: 'c0de' } });
+  for (const [code, current] of [[7000215, null], [7000222, null], [700016, 'ok']]) {
+    const tok = { statusCode: 401, body: { error: 'invalid_client', error_description: `AADSTS${code}: secret problem`, error_codes: [code] } };
+    const pl = await runMsCode('MS callback: plan', {}, { 'MS callback: check state': chk, 'Load broker (callback)': { broker_id: BROKER_ID, calendar_status: current }, 'MS token exchange': tok });
+    assert.equal(pl.detail.reason, 'app_credentials', 'what W20 writes to calendar_status_detail.reason');
+    const out = await runMsAll('MS callback: secret alert', pl);
+    assert.equal(out.length, 1, `AADSTS${code} alerts${current === 'ok' ? ' even when the broker keeps a working calendar' : ''}`);
+    assert.deepEqual([out[0].signal_key, out[0].severity, out[0].scope, out[0].source], ['ms_client_secret_invalid', 'red', 'ms_app:broker_connect', 'W20']);
+    assert.ok(out[0].codes.includes(`AADSTS${code}`));
+    assert.ok(!JSON.stringify(out[0]).includes(BROKER_ID), 'app-wide alert: one per 24 h, not one per broker');
+  }
+  const consent = await runMsCode('MS callback: check state', { query: { state: st, error: 'access_denied', error_description: 'AADSTS90094: admin permission' } });
+  const plC = await runMsCode('MS callback: plan', {}, { 'MS callback: check state': consent, 'Load broker (callback)': { broker_id: BROKER_ID, calendar_status: null } });
+  assert.deepEqual(await runMsAll('MS callback: secret alert', plC), []);
+  const plOk = await runMsCode('MS callback: plan', {}, { 'MS callback: check state': chk, 'Load broker (callback)': { broker_id: BROKER_ID, calendar_status: null }, 'MS token exchange': TOKEN_OK });
+  assert.deepEqual(await runMsAll('MS callback: secret alert', plOk), []);
+});
+
+// =============================================================================================
+// I-42b: "Save fsp_check" writes verified_credentials on verified (real Postgres; skipped if unavailable)
+// =============================================================================================
+const PGBIN = ['/usr/lib/postgresql/16/bin', '/usr/lib/postgresql/17/bin', '/usr/local/pgsql/bin'].find((d) => existsSync(join(d, 'initdb')));
+test('I-42b Save fsp_check: verified -> one {type:fsp} entry (replaced, never duplicated, others kept); other verdicts leave the column alone (real Postgres)', { skip: !PGBIN && 'no Postgres binaries on this machine' }, (t) => {
+  const isRoot = process.getuid && process.getuid() === 0;
+  const as = (cmd, args) => execFileSync(isRoot ? 'runuser' : cmd, isRoot ? ['-u', 'postgres', '--', cmd, ...args] : args, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+  const dir = mkdtempSync(join(tmpdir(), 'w20pg-'));
+  chmodSync(dir, 0o777);
+  const port = String(56000 + Math.floor(Math.random() * 900));
+  const data = join(dir, 'data');
+  as(join(PGBIN, 'initdb'), ['-D', data, '-A', 'trust', '-U', 'postgres', '--no-locale', '-E', 'UTF8']);
+  as(join(PGBIN, 'pg_ctl'), ['-D', data, '-o', `-k ${dir} -c listen_addresses='' -p ${port}`, '-w', '-l', join(dir, 'log'), 'start']);
+  t.after(() => { try { as(join(PGBIN, 'pg_ctl'), ['-D', data, '-m', 'immediate', 'stop']); } catch {} rmSync(dir, { recursive: true, force: true }); });
+  const lit = (v) => (v === null || v === undefined ? 'NULL' : `'${String(v).replace(/'/g, "''")}'`);
+  let k = 0;
+  const psql = (sql, params = []) => {
+    const f = join(dir, `q${k++}.sql`); writeFileSync(f, sql.replace(/\$(\d+)/g, (_, n) => lit(params[Number(n) - 1]))); chmodSync(f, 0o644);
+    return as('psql', ['-h', dir, '-p', port, '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-At', '-f', f]).trim();
+  };
+  // the columns the statement touches, as in migrations 06 (broker_id alias of id) and 13 (array check)
+  psql(`create table public.brokers (id uuid primary key, broker_id uuid generated always as (id) stored, fsp_check jsonb, fsp_verified_at timestamptz,
+    verified_credentials jsonb constraint brokers_smc_verified_credentials_array check (verified_credentials is null or jsonb_typeof(verified_credentials) = 'array'));
+    insert into public.brokers (id) values ('${BROKER_ID}');
+    insert into public.brokers (id, verified_credentials) values ('${USER_ID}', '["CFP", {"type":"fsp","number":"1","register_name":"Old","verified_at":"2026-01-01T00:00:00Z"}, {"type":"re5"}]');`);
+  const save = node('Save fsp_check');
+  assert.equal(save.parameters.options.queryReplacement, '={{ [ $json.broker_id, JSON.stringify($json.fsp_check), $json.verdict, $json.fsp_number, $json.register_name ] }}');
+  const run = (id, verdict, fsp = '00000', reg = 'Mark Smith Financial Services (Pty) Ltd') => psql(save.parameters.query, [id, JSON.stringify({ status: verdict }), verdict, fsp, reg]);
+  const vc = (id) => JSON.parse(psql(`select coalesce(verified_credentials::text, 'null') from public.brokers where id = '${id}'`));
+  run(BROKER_ID, 'blocked');
+  assert.equal(vc(BROKER_ID), null, 'blocked: column untouched');
+  run(BROKER_ID, 'pending_manual');
+  assert.equal(vc(BROKER_ID), null, 'pending_manual: column untouched');
+  run(BROKER_ID, 'verified');
+  const one = vc(BROKER_ID);
+  assert.equal(one.length, 1);
+  assert.deepEqual([one[0].type, one[0].number, one[0].register_name], ['fsp', '00000', 'Mark Smith Financial Services (Pty) Ltd']);
+  assert.ok(!Number.isNaN(Date.parse(one[0].verified_at)));
+  run(BROKER_ID, 'verified');
+  assert.equal(vc(BROKER_ID).length, 1, 're-verify replaces, never appends');
+  run(BROKER_ID, 'blocked');
+  assert.equal(vc(BROKER_ID).length, 1, 'a later block does not erase the earlier verified entry (fsp_check carries the new verdict)');
+  run(USER_ID, 'verified', '12345', 'New Name');
+  const mixed = vc(USER_ID);
+  assert.deepEqual(mixed.map((c) => (typeof c === 'string' ? c : c.type)), ['CFP', 're5', 'fsp'], 'other entries kept in order, fsp replaced');
+  assert.equal(mixed[2].number, '12345');
+  assert.equal(psql(`select (fsp_check->>'attempts') from public.brokers where id = '${BROKER_ID}'`), '5', 'attempts still accumulate');
+});
+
+test('I-42b consumers: the W20 {type:fsp} entry never reaches a W23 prompt or the script gate as "[object Object]"; string credentials still pass', async () => {
+  const IS = await import('../media/intro-script.mjs');
+  const vc = ['CFP', { type: 'fsp', number: '00000', register_name: 'Mark Smith Financial Services (Pty) Ltd', verified_at: '2026-10-12T09:00:00+02:00' }, { type: 'designation', label: 'RE5' }];
+  assert.deepEqual(IS.credLabels(vc), ['CFP', 'RE5']);
+  assert.deepEqual(IS.credLabels(null), []);
+  const req = IS.genRequest({ adviser_name: 'Mark', practice_name: 'Mark Smith Financial Services', fsp_number: '00000', verified_credentials: vc }, {}, 'who_i_help', 'en');
+  const text = JSON.stringify(req);
+  assert.ok(!text.includes('[object Object]'));
+  assert.match(text, /VERIFIED CREDENTIALS: CFP, RE5/);
+  assert.match(JSON.stringify(IS.gateRequest('x', { practice: 'P', fsp: '00000', verified_credentials: [vc[1]] }, 'en')), /VERIFIED CREDENTIALS: none/);
 });

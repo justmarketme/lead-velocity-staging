@@ -154,6 +154,37 @@ test('Normalise: W27 meta_asset_health is a registered red signal, never unknown
   assert.match(MD, /\| `meta_asset_health` \|/, 'W22.md documents meta_asset_health');
 });
 
+// ---------------------------------------------------------------- registered producer kinds (exact list)
+const REGISTERED_KINDS = ['broker_dsr_erase', 'dsar_due', 'dsar_erased', 'dsar_overdue', 'dsar_received', 'meta_asset_health', 'ms_client_secret_invalid', 'w34_monthly_report', 'w34_retention_failure'];
+test('PRODUCER_SIGNALS: the registered kinds are exactly this list, each documented in W22.md', () => {
+  const code = node('Normalise inbound signal').parameters.jsCode;
+  const block = code.slice(code.indexOf('const PRODUCER_SIGNALS = {'), code.indexOf('\n};', code.indexOf('const PRODUCER_SIGNALS = {')));
+  const keys = [...block.matchAll(/^  ([a-z0-9_]+): \{/gm)].map((m) => m[1]).sort();
+  assert.deepEqual(keys, REGISTERED_KINDS);
+  for (const k of keys) assert.match(MD, new RegExp(`\\| \`${k}\` \\|`), `${k} row in W22.md`);
+});
+
+test('W20 ms_client_secret_invalid (I-41i): red, both phones, app-wide scope, deduped, held in DND; W20 emits it', () => {
+  const W20 = readFileSync(join(here, '..', 'W20.json'), 'utf8');
+  assert.match(W20, /"name": "Raise alert \(W22, MS callback\)"/, 'W20 raises it through Execute Workflow (W22 producer contract, section 3)');
+  const lib = readFileSync(join(here, '..', 'lib', 'w20-ms.mjs'), 'utf8');
+  assert.match(lib, /SECRET_ALERT_KIND = 'ms_client_secret_invalid'/);
+  const w20 = { signal_key: 'ms_client_secret_invalid', scope: 'ms_app:broker_connect', severity: 'red', source: 'W20',
+    what: 'Microsoft rejected the broker-connect app credentials (AADSTS7000222)', since: '2026-10-02T08:00:00Z', codes: ['AADSTS7000222'] };
+  const out = runCode('Normalise inbound signal', { input: [w20, { signal_key: 'ms_client_secret_invalid' }] });
+  assert.equal(out.filter((s) => s.signal_key === 'unknown_signal').length, 0);
+  assert.deepEqual(out.map((s) => [s.severity, s.scope, s.source]), [['red', 'ms_app:broker_connect', 'W20'], ['red', 'ms_app:broker_connect', 'W20']]);
+  assert.match(out[0].what, /AADSTS7000222/, 'producer text wins');
+  assert.ok(out[1].impact && out[1].first_action, 'registry defaults fill a bare payload');
+  const day = runCode('Policy: severity, DND, redaction', { nowIso: '2026-10-02T08:00:00Z', input: out });
+  assert.equal(day.length, 1, 'two brokers hitting it in one run -> one alert (same dedupe key)');
+  assert.deepEqual([day[0].status, day[0].to, day[0].dedupe_key], ['sending', 'jonathan,kg', 'ms_client_secret_invalid|ms_app:broker_connect|red']);
+  const env = { OPS_WHATSAPP_JONATHAN: '+27000000001', OPS_WHATSAPP_KG: '+27000000002', OPS_EMAIL: 'ops@example.test' };
+  const fan = runCode('Expand recipients', { env, input: [{ notification_id: '9', ...day[0] }] }).map((o) => `${o.channel}:${o.who}`);
+  assert.deepEqual(fan, ['whatsapp:jonathan', 'whatsapp:kg', 'email:ops'], 'both phones + email copy');
+  assert.equal(runCode('Policy: severity, DND, redaction', { nowIso: '2026-10-02T21:30:00Z', input: [out[0]] })[0].status, 'held_dnd', 'not in the 6.8b always-send set');
+});
+
 // ---------------------------------------------------------------- W34 POPIA kinds (I-38b)
 const W34_KINDS = ['dsar_received', 'dsar_due', 'dsar_overdue', 'dsar_erased', 'w34_retention_failure', 'w34_monthly_report']; // broker_dsr_erase goes via the shared WhatsApp sender, not W22 (I-39f)
 const w34 = (kind, extra = {}) => ({ kind, workflow: 'W34', to: ['jonathan'], severity: 'amber', message: `${kind} msg`, ...extra });
