@@ -30,7 +30,7 @@ Sticky top bar, charcoal hero with amber emphasis and gradient, chips, gap bars 
 ## C. Reference differs from the spec table; reference kept (flag for confirmation)
 | # | Spec | Reference / built | Note |
 |---|---|---|---|
-| C1 | H1 <= 10 words | employer-gap H1 is 11 words (reference's own hook "Most work life cover stops at 2-4x salary. Most bonds don't.") | Build allows <= 12 with a warning |
+| C1 | H1 <= 10 words | Resolved (fix-wave-1): every H1 is now 6-8 words. employer-gap H1 = frame-1 hook only (8 words); beat 2 "The bond and the bills don't." opens the sub, because hook + beat 2 is 14 words (> 12 cap) | hook-library-v2 H1 |
 | C2 | Result screen, then details screen (rows 7, 8) | One screen: result heading + 3 fields | Reference wins; fewer taps |
 | C3 | Children/dependants yes/no; work cover yes/no; bond yes/no | Reference options (bond: yes / not yet / no; dependants: 4; work cover: yes / not sure / no) | Reference wins; richer for the adviser; `soon` suits the new-bond angle |
 | C4 | Age "50+" (row 5), "51+" (0.1, 3.3) | "51 or older" | 0.1 wins (no overlap with 45-50) |
@@ -40,6 +40,17 @@ Sticky top bar, charcoal hero with amber emphasis and gradient, chips, gap bars 
 | C8 | Sticky footer carries privacy link (flow step 9) vs "no footer links above the thank-you" (step 4) | Sticky bar = CTA only; privacy link sits in the consent line and the footer | Trust layer is next to the ask |
 | C9 | Proof block (row 11) | Data-driven, renders nothing until `proof[]` has real quotes | |
 | C10 | "Endorsement lock-up" (step 9) | Not built: no endorsement asset exists | brand-naming-lead to supply |
+
+## E. Fix wave 1 (2026-10-02, landing-page-builder row of build/fix-wave-1.md)
+| # | Change | Source |
+|---|---|---|
+| E1 | H1 = ad hook for new-bond (H3), turned-40 (H5), self-employed (H7), virtual (H6), myth-bust (H18, until H8 is sourced), employer-gap (beat 2 in sub); `ad_hook` equals the H1 text, so the message-match warning is gone | hook-library-v2 |
+| E2 | `config/faq.json` aligned to faq-v1.0.1: how-long (FAQ-01) and cost (FAQ-02 + FAQ-09, flat fee per cycle, never commission) are pulled from the corpus at build; privacy answer = one adviser + listed processors + hashed contact for ad measurement, no "no one else" (K-1, K-2) | faq.md v1.0.1 |
+| E3 | "No products, prices or paperwork on the call" replaced with "No obligation to buy. Any next step is your choice." (K-6) | phase4-review-2 |
+| E4 | Opt-out link is host-relative: `/privacy.html#opt-out` | holding page anchor |
+| E5 | `/lead` and `/book` send `started_at` (page load, ISO) and `request_id` (uuid; /book id is reused on a retry, renewed after a 409 or success); `/book` re-runs an invisible Turnstile with `action=book` (`turnstile_token`); stubbed (empty token) while `turnstile_sitekey` is empty | automation/W03-notes.md B.3 |
+| E6 | `new-bond` sub no longer says "Many bonds are bigger than work cover" (unsourced); uses the ad's own beat 2 | 2.1.5 |
+| OPEN | W03-notes B.3 #6: `/slots` and `/book` need the `lead_token` returned by `/lead`. Not wired: header/field name is not in the contract. Page still sends `broker` + `lead_id` on /slots | needs_human (automation-engineer) |
 
 ## D. Proposals (NOT in the page)
 | # | Proposal | Evidence line | Test |

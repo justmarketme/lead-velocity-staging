@@ -127,7 +127,8 @@ test('qualified path: validation, consent, /lead payload, Teams booking with ema
   const lead = calls.find((c) => c.url.endsWith('/lead'))!;
   assert.deepEqual(
     Object.keys(lead.body).sort(),
-    ['age_band', 'angle', 'bond', 'budget_band', 'company_website', 'consent', 'consent_mode', 'consent_text', 'consent_version', 'context', 'dependants', 'first_name', 'lang', 'mobile', 'page_url', 'turnstile_token', 'work_cover'].sort());
+    ['age_band', 'angle', 'bond', 'budget_band', 'company_website', 'consent', 'consent_mode', 'consent_text', 'consent_version', 'context', 'dependants', 'first_name', 'lang', 'mobile', 'page_url', 'request_id', 'started_at', 'turnstile_token', 'work_cover'].sort());
+  assert.match(lead.body.request_id, /^[0-9a-f-]{36}$/); assert.ok(!isNaN(Date.parse(lead.body.started_at)));
   assert.equal(lead.body.mobile, '+27821234567');
   assert.equal(lead.body.consent, true);
   assert.equal(lead.body.consent_mode, 'named');
@@ -184,7 +185,9 @@ test('qualified path: validation, consent, /lead payload, Teams booking with ema
   const books = calls.filter((c) => c.url.endsWith('/book'));
   assert.equal(books.length, 2);
   const b = books[1].body;
-  assert.deepEqual(Object.keys(b).sort(), ['angle', 'broker_id', 'context', 'email', 'lead_id', 'method', 'slot_start'].sort());
+  assert.deepEqual(Object.keys(b).sort(), ['angle', 'broker_id', 'context', 'email', 'lead_id', 'method', 'request_id', 'slot_start', 'started_at', 'turnstile_token'].sort());
+  assert.match(b.request_id, /^[0-9a-f-]{36}$/); assert.equal(b.request_id !== lead.body.request_id, true); assert.equal(b.started_at, lead.body.started_at); assert.equal(b.turnstile_token, '', 'stubbed Turnstile (empty site key) sends an empty token');
+  assert.notEqual(books[0].body.request_id, b.request_id, 'new request_id after a 409');
   assert.equal(b.lead_id, 'ld_test1'); assert.equal(b.broker_id, 'brk_test'); assert.equal(b.method, 'teams');
   assert.equal(b.email, 'thabo@gmail.com'); assert.equal(b.slot_start, '2026-10-12T09:30:00+02:00');
   assert.equal(b.context.event_name, 'Schedule');

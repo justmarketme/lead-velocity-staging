@@ -35,15 +35,38 @@
     loadTurnstile();
   }
   /* Turnstile-class challenge: only loads when a site key is configured, and only after the first quiz interaction (keeps LCP clean). */
-  var tsToken = '', tsLoaded = false;
+  var tsToken = '', tsLoaded = false, tsReady = false, tsWidgets = {}, tsWaiters = {};
+  function uuid() { return (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) { var r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); }); }
+  var STARTED_AT = new Date().toISOString(); /* page load; server needs fill time >= 3 s and < 1 h (W03-notes B.3 #3) */
+  var leadRequestId = uuid(), bookRequestId = null;
+  function renderTs(action) {
+    var slot = $(action === 'book' ? 'turnstile-slot-book' : 'turnstile-slot');
+    if (!slot || tsWidgets[action] != null) return;
+    try {
+      tsWidgets[action] = window.turnstile.render(slot, { sitekey: SITEKEY, size: 'invisible', action: action, execution: action === 'book' ? 'execute' : 'render',
+        callback: function (t) { if (action === 'lead') tsToken = t; if (tsWaiters[action]) { tsWaiters[action](t); tsWaiters[action] = null; } } });
+    } catch (e) {}
+  }
   function loadTurnstile() {
     if (!SITEKEY || tsLoaded) return; tsLoaded = true;
-    window.__smcTs = function () {
-      try { window.turnstile.render('#turnstile-slot', { sitekey: SITEKEY, size: 'invisible', callback: function (t) { tsToken = t; } }); } catch (e) {}
-    };
+    window.__smcTs = function () { tsReady = true; renderTs('lead'); };
     var s = document.createElement('script');
     s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=__smcTs'; s.async = true;
     document.head.appendChild(s);
+  }
+  /* Fresh single-use token for /book with action=book. Empty site key (stub) or any failure resolves '' after at most 8 s: the server decides. */
+  function bookToken() {
+    if (!SITEKEY) return Promise.resolve('');
+    loadTurnstile();
+    return new Promise(function (resolve) {
+      var done = false, to = setTimeout(function () { if (!done) { done = true; resolve(''); } }, 8000);
+      tsWaiters.book = function (t) { if (!done) { done = true; clearTimeout(to); resolve(t || ''); } };
+      (function go(n) {
+        if (!tsReady) { if (n < 40) setTimeout(function () { go(n + 1); }, 200); return; }
+        renderTs('book');
+        try { if (tsWidgets.book != null) { window.turnstile.reset(tsWidgets.book); window.turnstile.execute(tsWidgets.book); } } catch (e) {}
+      })(0);
+    });
   }
 
   /* ---------- step navigation ---------- */
@@ -150,7 +173,7 @@
       first_name: $('name').value.trim(), mobile: e164, consent: true,
       consent_text: form.elements.consent_text.value, consent_version: form.elements.consent_version.value, consent_mode: form.elements.consent_mode.value,
       age_band: answers.age_band, bond: answers.bond, dependants: answers.dependants, work_cover: answers.work_cover, budget_band: answers.budget_band,
-      angle: ANGLE, lang: root.getAttribute('data-lang'), page_url: location.origin + location.pathname,
+      angle: ANGLE, lang: root.getAttribute('data-lang'), started_at: STARTED_AT, request_id: leadRequestId, page_url: location.origin + location.pathname,
       company_website: '', turnstile_token: tsToken || (form.elements['cf-turnstile-response'] ? form.elements['cf-turnstile-response'].value : ''),
       context: leadCtx
     };
@@ -257,10 +280,14 @@
     if (needs && !checkEmail(true)) { $('email').focus(); return; }
     showErr('bookErr', ''); booking = true; $('book').disabled = true; $('book').textContent = str('booking');
     scheduleCtx = scheduleCtx || track('Schedule'); /* own event_id, never the Lead id */
-    var body = { lead_id: lead.id, broker_id: lead.broker_id, slot_start: chosenSlot, method: chosenMethod, angle: ANGLE, context: scheduleCtx };
+    if (!bookRequestId) bookRequestId = uuid(); /* same id on a retry of the same attempt (idempotent), new id after a 409 or success */
+    var slotNow = chosenSlot, methodNow = chosenMethod;
+    bookToken().then(function (tok) {
+    var body = { lead_id: lead.id, broker_id: lead.broker_id, slot_start: slotNow, method: methodNow, angle: ANGLE, started_at: STARTED_AT, request_id: bookRequestId, turnstile_token: tok, context: scheduleCtx };
     if (needs) body.email = $('email').value.trim();
-    api('/book', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) {
+    return api('/book', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }).then(function (r) {
       booking = false; $('book').disabled = false; $('book').textContent = str('book');
+      if (r.status === 409 || r.ok) bookRequestId = null;
       if (r.ok && (r.json.booked !== false)) { finish(true, { start: r.json.start || chosenSlot, method: r.json.method || chosenMethod, ics_url: r.json.ics_url }); }
       else if (r.status === 409) { /* collision: slot taken in the last second, show the next 3 */
         var nxt = normalise(r.json.slots).slice(0, 3);

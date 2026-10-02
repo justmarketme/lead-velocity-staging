@@ -5,12 +5,13 @@
   "a": "The check takes about a minute. The call is 30 minutes, at a time you pick.",
   "source": [
    "FAQ-01"
-  ]
+  ],
+  "prefix": "The quiz takes about a minute. "
  },
  {
   "id": "cost",
   "q": "Does the call cost anything?",
-  "a": "Nothing. The call is free and there is no obligation to buy anything. Advisers pay us a flat fee to be introduced. We never earn commission on anything you buy.",
+  "a": "No, the call is free, and there's no obligation to buy anything. Advisers pay Lead Velocity the same flat fee for each 30-day cycle, and you pay nothing. It is never a commission and never a share of any policy.",
   "source": [
    "FAQ-02",
    "FAQ-09"
@@ -24,7 +25,7 @@
  {
   "id": "info",
   "q": "What happens to my information?",
-  "a": "Lead Velocity (Pty) Ltd looks after it under POPIA. We share it with the adviser you are introduced to, and no one else. Reply STOP to any message and we stop. You can ask us to delete it at any time. The privacy notice has the detail."
+  "a": "Lead Velocity (Pty) Ltd looks after it under POPIA. Your details go to one adviser, the one you are introduced to, and we never sell them. The service providers we use are listed in the privacy notice, and Meta gets a coded (hashed) contact for ad measurement, as the consent line says. Reply STOP to any message and we stop. You can ask us to delete your details at any time."
  },
  {
   "id": "cancel",
