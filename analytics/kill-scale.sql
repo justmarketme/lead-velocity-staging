@@ -1,22 +1,27 @@
 -- analytics/kill-scale.sql — the 3.4 kill / scale rules as READ-ONLY candidate actions.
 -- This file never pauses, scales or edits anything. Every row is a candidate for the optimisation-advisor, who writes it to ops.proposals
 -- (source = 'kill_rule') for Approve / Snooze / Decline; ads-api-engineer applies approved changes with confirm-to-apply (6.2).
--- Reads: facts.fact_ad_day, fact_lead, fact_outcome, fact_broker_day + facts.v_params (analytics/params.sql).
+-- Reads the real facts layer (smc_04): fact_ad_day, fact_lead, fact_outcome, v_capacity_day (watchlist.sql, over fact_booking + brokers) + facts.v_params (params.sql).
+-- Ad name comes from public.ad_metrics (no personal data). Ad status is DERIVED (active = spent in the last 2 days) until ads-api-engineer's ad_objects
+-- table (integration I-04) lands; then point `ad.status` at it.
 -- Window: the last verdict_days (14) ending verify_lag_days (3) before today, so "qualified" (which needs a 72 h reply) is read on leads old enough to have been verified.
 -- Evidence discipline (Binet & Field / 3.4): no rule fires before its spend gate or sample minimum; the gates view shows why a rule has not fired.
 
 create or replace view facts.v_ks_ad_window as
 with p as (select * from facts.v_params),
 w as (select p.as_of - p.verify_lag_days as w_end, p.as_of - p.verify_lag_days - (p.verdict_days - 1) as w_start from p),
+nm as (select ad_id, max(ad_name) as ad_name from public.ad_metrics group by ad_id),
 ad as (
-  select a.campaign_id, a.ad_id, max(a.ad_name) as ad_name, max(a.angle) as angle,
-         (array_agg(a.status order by a.day desc))[1] as status,
-         sum(a.spend_zar) as spend, sum(a.leads_raw) as raw_leads
-  from facts.fact_ad_day a, w where a.day between w.w_start and w.w_end group by a.campaign_id, a.ad_id),
+  select a.campaign_id, a.ad_id, coalesce(max(nm.ad_name), a.ad_id) as ad_name, max(a.angle) as angle,
+         case when max(a.date) filter (where a.spend_zar > 0) >= (select as_of from p) - 1 then 'active' else 'paused' end as status,
+         sum(a.spend_zar) as spend, sum(a.leads_meta) as raw_leads
+  from facts.fact_ad_day a join w on a.date between w.w_start and w.w_end
+  left join nm on nm.ad_id = a.ad_id
+  group by a.campaign_id, a.ad_id),
 q as (
-  select l.ad_id, count(*) filter (where l.qualified and l.verified_at is not null) as qualified
+  select l.ad_id, count(*) filter (where l.qualified and l.verified) as qualified
   from facts.fact_lead l, w
-  where (l.created_at at time zone 'Africa/Johannesburg')::date between w.w_start and w.w_end group by l.ad_id)
+  where l.created_date between w.w_start and w.w_end group by l.ad_id)
 select ad.campaign_id, ad.ad_id, ad.ad_name, ad.angle, ad.status, ad.spend, ad.raw_leads, coalesce(q.qualified, 0) as qualified,
        round(ad.spend / nullif(ad.raw_leads, 0), 0) as raw_cpl,
        round(ad.spend / nullif(q.qualified, 0), 0) as cost_per_qualified,
@@ -28,25 +33,27 @@ select c.campaign_id, sum(spend) as spend, sum(raw_leads) as raw_leads, sum(qual
        round(sum(spend) / nullif(sum(raw_leads), 0), 0) as raw_cpl,
        round(sum(spend) / nullif(sum(qualified), 0), 0) as cost_per_qualified,
        round(sum(qualified)::numeric / nullif(sum(raw_leads), 0), 3) as qualify_rate,
-       (select (select as_of from facts.v_params) - min(a.day) + 1 from facts.fact_ad_day a where a.campaign_id = c.campaign_id) as campaign_days
+       (select (select as_of from facts.v_params) - min(a.date) + 1 from facts.fact_ad_day a where a.campaign_id = c.campaign_id) as campaign_days
 from facts.v_ks_ad_window c group by c.campaign_id;
 
 create or replace view facts.v_ks_ad_quality as   -- cumulative (not windowed): "once n >= 5 dispositions" (3.4, 4.12a)
-select o.ad_id, max(o.angle) as angle,
+select l.ad_id, max(l.angle) as angle,
        count(*) filter (where facts.disp_class(o.disposition_code) in ('fit', 'nofit')) as n_dispositions,
        count(*) filter (where facts.disp_class(o.disposition_code) = 'nofit') as n_nofit,
        count(o.quality_score) as n_scores,
        round(avg(o.quality_score), 2) as quality_index,
        round(count(*) filter (where facts.disp_class(o.disposition_code) = 'nofit')::numeric
              / nullif(count(*) filter (where facts.disp_class(o.disposition_code) in ('fit', 'nofit')), 0), 3) as nofit_rate
-from facts.fact_outcome o group by o.ad_id;
+from facts.fact_outcome o join facts.fact_lead l on l.lead_key = o.lead_key
+where l.ad_id is not null
+group by l.ad_id;
 
 create or replace view facts.v_ks_capacity as
-select b.broker_id, b.slots_booked_7d, b.slots_total_7d, b.media_trimmed,
+select b.broker_id::text as broker_id, b.slots_booked_7d, b.slots_total_7d, b.media_trimmed,
        round(b.slots_booked_7d::numeric / nullif(b.slots_total_7d, 0), 3) as fill_7d,
-       (select bool_and(z.slots_booked_7d >= z.slots_total_7d) and count(*) = 5
-          from (select * from facts.fact_broker_day y where y.broker_id = b.broker_id and y.day <= p.as_of order by y.day desc limit 5) z) as full_five_days
-from facts.fact_broker_day b cross join facts.v_params p
+       (select bool_and(z.slots_booked_7d >= z.slots_total_7d and z.slots_total_7d > 0) and count(*) = 5
+          from (select * from facts.v_capacity_day y where y.broker_id = b.broker_id and y.day <= p.as_of order by y.day desc limit 5) z) as full_five_days
+from facts.v_capacity_day b cross join facts.v_params p
 where b.day = p.as_of;
 
 create or replace view facts.v_kill_scale_candidates as
@@ -89,8 +96,8 @@ r_k2 as (
 -- K3 (3.4): show rate < 50% over 14 days -> review reminder sequence and qualification (per adviser and overall)
 k3 as (
   select s.scope, s.den, s.num, round(s.num::numeric / s.den, 3) as show_rate from (
-    select coalesce(broker_id, 'ALL') as scope, count(*) filter (where outcome in ('attended','no_show')) as den, count(*) filter (where outcome = 'attended') as num
-    from facts.fact_outcome o, p where (o.marked_at at time zone 'Africa/Johannesburg')::date between p.as_of - (p.verdict_days - 1) and p.as_of
+    select coalesce(broker_id::text, 'ALL') as scope, count(*) filter (where outcome in ('attended','no_show')) as den, count(*) filter (where outcome = 'attended') as num
+    from facts.fact_outcome o, p where o.slot_date between p.as_of - (p.verdict_days - 1) and p.as_of
     group by grouping sets ((broker_id), ())) s),
 r_k3 as (
   select 'K3_REVIEW_SHOW_RATE', '3.4 bullet 3', 'broker', k3.scope, k3.scope,

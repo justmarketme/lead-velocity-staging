@@ -14,7 +14,7 @@ Disposition spelling: this file uses 4.12a codes (fit_proceeding, nofit_budget..
 
 ## M01 Cost per good-fit meeting
 - **Means:** What we pay in ads for one meeting the adviser rated a good fit.
-- **Target and why:** Up to R900 (6A2 item 2 example). **needs_human:** the 3.5/3.7 model implies about R1,100 to R1,600 per good-fit meeting at full-cycle volume, so R900 may be unreachable. It is the one number that joins what we spend to what the adviser actually valued; a cheap lead rated 1 out of 5 is an expensive lead (3.4, 4.12a). Ad spend excludes 15% VAT.
+- **Target and why:** Up to R1,300 (target (default pending NH-25); stretch R900, the 6A2 item 2 example). **needs_human:** the 3.5/3.7 model implies about R1,100 to R1,600 per good-fit meeting at full-cycle volume, so R900 may be unreachable. It is the one number that joins what we spend to what the adviser actually valued; a cheap lead rated 1 out of 5 is an expensive lead (3.4, 4.12a). Ad spend excludes 15% VAT.
 - **If it moves:** If it rises for 7 days, find the angle whose good-fit rate dropped (M15) and move budget to the best angle; under 5 good-fit meetings the tile shows grey, not a verdict.
 - **Tooltip (jargon):** CPA on an offline conversion; cost per qualified meeting.
 - **Shown on:** Watchlist tile 1; LV weekly; Ask the data
@@ -55,7 +55,7 @@ from facts.fact_outcome where outcome in ('attended', 'no_show') and (marked_at 
 
 ## M04 Meetings the adviser rated a good fit
 - **Means:** Of the meetings the adviser rated good fit or not a fit, the share rated good fit.
-- **Target and why:** At least 60%, the mirror of the 40% not-a-fit pause line (3.4, 4.12a). The adviser is the only person who knows if a lead was good (4.12a).
+- **Target and why:** At least 60% (target (default pending NH-25)), the mirror of the 40% not-a-fit pause line (3.4, 4.12a). The adviser is the only person who knows if a lead was good (4.12a).
 - **If it moves:** If it falls, look at M16 by ad: pause any ad above 40% not-a-fit with 5 or more ratings; if budget is the reason, review the budget question.
 - **Tooltip (jargon):** Lead quality rate; disposition mix.
 - **Shown on:** Watchlist tile 4; broker report
@@ -119,7 +119,7 @@ select round(sum(spend_zar) / nullif(sum(leads_raw), 0), 0) as raw_cpl_zar, sum(
 
 ## M09 Cost of a qualified lead
 - **Means:** What we pay in ads for each lead that met the contract definition and replied on WhatsApp.
-- **Target and why:** At most R400 after 14 days (3.4); with R200 raw cost and 70% qualify it is about R290 (3.2). **needs_human:** the pulse list in 6.8 says R250, which conflicts with 3.4's R400 (a raw R250 at 65% qualify is already about R385); this file uses 3.4. Raw CPL flatters; this is what margin runs on (3.2). Read on leads at least 3 days old so the 72-hour reply has happened.
+- **Target and why:** At most R400 after 14 days (3.4; qualified CPL escalation R400, target (default pending NH-25)); with R200 raw cost and 70% qualify it is about R290 (3.2). **needs_human:** the pulse list in 6.8 says R250, which conflicts with 3.4's R400 (a raw R250 at 65% qualify is already about R385); this file uses 3.4. Raw CPL flatters; this is what margin runs on (3.2). Read on leads at least 3 days old so the 72-hour reply has happened.
 - **If it moves:** Above R400 after 14 days: stop and escalate to Jonathan (K2). Between R290 and R400: look at the qualify rate (M10) before the cost.
 - **Tooltip (jargon):** Qualified CPL; CPQL.
 - **Shown on:** LV weekly; kill/scale; pulse

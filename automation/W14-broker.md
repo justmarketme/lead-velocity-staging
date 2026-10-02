@@ -83,3 +83,6 @@ None eligible: `s7_ask = null`. Button deep links `ask/<report_id>` land on the 
 | R10 | Layout and section order unchanged from the template |
 | R11 | No cost, creative name or targeting detail |
 Failures write `reports.payload_json.judge = {pass:false, failed:[ids]}` and block sending.
+
+## Formula (analytics-reporter)
+Policies tracking (`s6_roi.tracking_to`), per integration I-02 (analytics' formula wins): `round(close_rate x (attended + booked_upcoming x show_rate))`, where `attended` = meetings attended this cycle so far, `booked_upcoming` = meetings still booked after today in this cycle, `show_rate` = this cycle's attended / (attended + no-show). Null when `close_rate` is not set or no meeting has been held yet (never an invented rate). It does not scale up for undelivered leads. `basis` carries the contract keys `attended`, `committed`, `delivered` plus two additive keys `booked_upcoming` and `show_rate`; broker-success's copy should quote those. `meetings_to_policies.v` = policies reported / attended this cycle; `last` = the previous cycle's ratio. Policies reported never feed any fee, ranking or alert (FAIS, 3.7). Implemented in `analytics/W14-broker-payload.sql` (`facts.w14_broker_report`). Open: `s2_progress.booked.last` is 0.60 in the example JSON but a count in the WhatsApp mapping; the function emits the count (what the template reads).

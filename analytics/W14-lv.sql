@@ -1,32 +1,33 @@
 -- analytics/W14-lv.sql — the query set W14 runs Sunday 23:00 for the Lead Velocity internal weekly (4.6 W14, 4.9).
 -- Template and narrative rules: analytics/weekly-lv-report.md. W14 stores the result of facts.w14_lv_payload() in report_history
 -- (report_kind = 'lv_weekly', report_data = payload) and hands it to Sonnet for the 3 insights + 1 recommendation (the SQL only seeds them).
--- Never selects policies/close rate (facts.fact_broker_roi): FAIS, 3.7. Never selects personal fields (facts holds none).
--- Requires: params.sql, watchlist.sql (cycle_margin, renewal_risk_at), kill-scale.sql.
+-- Never selects policies/close rate (public.brokers.close_rate, public.cycles.policies_written_reported): FAIS, 3.7. Never selects personal fields (facts holds none).
+-- Requires: params.sql, watchlist.sql (cycle_margin, renewal_risk_at), kill-scale.sql. Reads the real facts layer (smc_04).
 
--- Section 1. Funnel per adviser: this week vs last week, event-dated flows (7-day windows ending today / 7 days ago).
+-- Section 1. Funnel per adviser: this week vs last week. Event-dated where facts has the date (bookings by booked_date, meetings by slot_date);
+-- sign-up and qualified counts are cohorts by sign-up day (facts has no verified_at timestamp).
 create or replace view facts.v_w14_lv_funnel as
 with p as (select * from facts.v_params),
 wk as (select 0 as wk_no, p.as_of - 6 as d0, p.as_of as d1 from p union all select 1, p.as_of - 13, p.as_of - 7 from p),
 b as (select distinct broker_id from facts.fact_cycle),
 j as (select b.broker_id, wk.* from b cross join wk)
-select j.broker_id, case j.wk_no when 0 then 'this_week' else 'last_week' end as period,
-  (select count(*) from facts.fact_lead l where l.broker_id = j.broker_id and (l.created_at at time zone 'Africa/Johannesburg')::date between j.d0 and j.d1) as raw_leads,
-  (select count(*) from facts.fact_lead l where l.broker_id = j.broker_id and l.qualified and (l.verified_at at time zone 'Africa/Johannesburg')::date between j.d0 and j.d1) as qualified_verified,
-  (select count(*) from facts.fact_booking k where k.broker_id = j.broker_id and k.status <> 'cancelled' and (k.booked_at at time zone 'Africa/Johannesburg')::date between j.d0 and j.d1) as booked,
-  (select count(*) from facts.fact_outcome o where o.broker_id = j.broker_id and o.outcome = 'attended' and (o.marked_at at time zone 'Africa/Johannesburg')::date between j.d0 and j.d1) as attended,
-  (select count(*) from facts.fact_outcome o where o.broker_id = j.broker_id and o.outcome = 'no_show' and (o.marked_at at time zone 'Africa/Johannesburg')::date between j.d0 and j.d1) as no_show,
-  (select count(*) from facts.fact_outcome o where o.broker_id = j.broker_id and facts.disp_class(o.disposition_code) = 'fit' and (o.marked_at at time zone 'Africa/Johannesburg')::date between j.d0 and j.d1) as good_fit,
-  (select count(*) from facts.fact_outcome o where o.broker_id = j.broker_id and facts.disp_class(o.disposition_code) = 'nofit' and (o.marked_at at time zone 'Africa/Johannesburg')::date between j.d0 and j.d1) as not_a_fit
+select j.broker_id::text as broker_id, case j.wk_no when 0 then 'this_week' else 'last_week' end as period,
+  (select count(*) from facts.fact_lead l where l.broker_id = j.broker_id and l.created_date between j.d0 and j.d1) as raw_leads,
+  (select count(*) from facts.fact_lead l where l.broker_id = j.broker_id and l.qualified and l.verified and l.created_date between j.d0 and j.d1) as qualified_verified,
+  (select count(*) from facts.fact_booking k where k.broker_id = j.broker_id and k.status <> 'cancelled' and not k.is_reschedule and k.booked_date between j.d0 and j.d1) as booked,
+  (select count(*) from facts.fact_outcome o where o.broker_id = j.broker_id and o.outcome = 'attended' and o.slot_date between j.d0 and j.d1) as attended,
+  (select count(*) from facts.fact_outcome o where o.broker_id = j.broker_id and o.outcome = 'no_show' and o.slot_date between j.d0 and j.d1) as no_show,
+  (select count(*) from facts.fact_outcome o where o.broker_id = j.broker_id and facts.disp_class(o.disposition_code) = 'fit' and o.slot_date between j.d0 and j.d1) as good_fit,
+  (select count(*) from facts.fact_outcome o where o.broker_id = j.broker_id and facts.disp_class(o.disposition_code) = 'nofit' and o.slot_date between j.d0 and j.d1) as not_a_fit
 from j;
 
 -- Section 2. Margin vs 3.5 per active cycle (projected, to date, and at the stress cost per lead).
 create or replace view facts.v_w14_lv_margin as
-select c.cycle_id, c.broker_id, c.tier_code, c.price_zar, m.committed, m.delivered_net, m.replacement_cap,
-       (select count(*) from facts.fact_lead l where l.cycle_id = c.cycle_id and l.replaced) as replacements_used,
+select c.cycle_id, c.broker_id::text as broker_id, c.tier_code, c.price_zar, m.committed, m.delivered_net, m.replacement_cap,
+       c.replacements_used,
        m.media_incl_vat, m.wa_llm, m.fixed, m.projected_cost, m.margin_to_date, m.margin_projected, m.margin_at_stress,
        (m.margin_at_stress >= (select margin_floor from facts.v_params)) as clears_30_at_stress,
-       (c.ends_at - (select as_of from facts.v_params)) as days_left, c.extended_until
+       (facts.sa_date(coalesce(c.extended_until, c.ends_at)) - (select as_of from facts.v_params)) as days_left, c.extended_until
 from facts.fact_cycle c cross join lateral facts.cycle_margin(c.cycle_id, (select as_of from facts.v_params)) m
 where c.status in ('active', 'extended');
 
@@ -36,20 +37,23 @@ create or replace view facts.v_w14_lv_renewal as select * from facts.renewal_ris
 -- Section 4. Cost per attended meeting and per good-fit meeting, per creative (cumulative since each ad launched; n shown, never judged below n = 5).
 create or replace view facts.v_w14_lv_creative as
 with p as (select * from facts.v_params),
-sp as (select ad_id, max(ad_name) as ad_name, max(angle) as angle, sum(spend_zar) as spend, sum(leads_raw) as raw_leads from facts.fact_ad_day group by ad_id),
-qv as (select ad_id, count(*) filter (where qualified and verified_at is not null) as qualified from facts.fact_lead group by ad_id),
-oc as (select ad_id, count(*) filter (where outcome = 'attended') as attended,
-              count(*) filter (where facts.disp_class(disposition_code) = 'fit') as good_fit,
-              count(*) filter (where facts.disp_class(disposition_code) in ('fit','nofit')) as dispositions,
-              round(avg(quality_score), 2) as quality_index from facts.fact_outcome group by ad_id)
-select sp.ad_id, sp.ad_name, sp.angle, sp.spend, sp.raw_leads, coalesce(qv.qualified, 0) as qualified,
-       coalesce(oc.attended, 0) as attended, coalesce(oc.good_fit, 0) as good_fit, oc.quality_index,
+nm as (select ad_id, max(ad_name) as ad_name from public.ad_metrics group by ad_id),
+sp as (select a.ad_id, coalesce(max(nm.ad_name), a.ad_id) as ad_name, max(a.angle) as angle, sum(a.spend_zar) as spend, sum(a.leads_meta) as raw_leads
+         from facts.fact_ad_day a left join nm on nm.ad_id = a.ad_id group by a.ad_id),
+ld as (select l.ad_id, count(*) filter (where l.qualified and l.verified) as qualified,
+              count(*) filter (where l.attended) as attended,
+              count(*) filter (where facts.disp_class(l.disposition_code) = 'fit') as good_fit,
+              count(*) filter (where facts.disp_class(l.disposition_code) in ('fit','nofit')) as dispositions,
+              round(avg(l.quality_score), 2) as quality_index
+         from facts.fact_lead l where l.ad_id is not null group by l.ad_id)
+select sp.ad_id, sp.ad_name, sp.angle, sp.spend, sp.raw_leads, coalesce(ld.qualified, 0) as qualified,
+       coalesce(ld.attended, 0) as attended, coalesce(ld.good_fit, 0) as good_fit, ld.quality_index,
        round(sp.spend / nullif(sp.raw_leads, 0), 0) as raw_cpl,
-       round(sp.spend / nullif(qv.qualified, 0), 0) as cost_per_qualified,
-       round(sp.spend / nullif(oc.attended, 0), 0) as cost_per_attended,
-       round(sp.spend / nullif(oc.good_fit, 0), 0) as cost_per_good_fit,
-       (coalesce(oc.dispositions, 0) >= p.min_dispositions) as enough_data
-from sp left join qv using (ad_id) left join oc using (ad_id) cross join p;
+       round(sp.spend / nullif(ld.qualified, 0), 0) as cost_per_qualified,
+       round(sp.spend / nullif(ld.attended, 0), 0) as cost_per_attended,
+       round(sp.spend / nullif(ld.good_fit, 0), 0) as cost_per_good_fit,
+       (coalesce(ld.dispositions, 0) >= p.min_dispositions) as enough_data
+from sp left join ld using (ad_id) cross join p;
 
 -- Section 5. Insight seeds (deterministic; Sonnet words them, never invents a number). Ranked by how far each is from its target.
 create or replace view facts.v_w14_lv_insight_seeds as

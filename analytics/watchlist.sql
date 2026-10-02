@@ -1,16 +1,58 @@
 -- analytics/watchlist.sql — the owner's watchlist (6A2 item 3): seven tiles + the launch tile (6B.12).
--- Every view returns the same columns:  tile_no, tile (plain name), scope ('ALL' or broker_id), value, unit, target, target_rule,
+-- Every tile view returns the same first columns:  tile_no, tile (plain name), scope ('ALL' or broker uuid as text), value, unit, target, target_rule,
 -- status (green/amber/red/grey), n (sample behind the value), last_period (value 7 days ago), trend_28d (jsonb [{d,v}], one point per day),
 -- look_out (one sentence: what to do if it moves).  Definitions, SQL and jargon: knowledge/metrics.md.
--- Depends on: analytics/params.sql and the facts.* contract (analytics/tests/facts-contract.test.sql lists the columns).
--- Timezone: all day buckets are Africa/Johannesburg.
+-- Reads the REAL facts layer (supabase/migrations/20261002_smc_04_facts.sql); the column contract is analytics/tests/facts-contract.test.sql.
+-- Event dates use the real columns: leads by created_date, meetings and outcomes by slot_date, bookings by booked_date, costs and ads by date.
+-- facts has no verified_at / qualified_at timestamps, so lead-side numbers are COHORT-dated (by sign-up day), which is how 3.4 reads them anyway.
+-- Overlap with facts.v_watchlist (smc_04): that view is the console's plain value-and-target feed; these views add trend, traffic light, n and
+-- the what-to-do sentence. analytics/tests/watchlist-reconcile.test.sql compares the two and prints the definition differences.
 -- Requires facts.as_of() and facts.v_params (params.sql).
 
 create or replace view facts.v_scope_day as
 select s.scope, d::date as day
-from (select 'ALL'::text as scope union select broker_id from facts.fact_cycle) s
-cross join generate_series(facts.as_of() - 70, facts.as_of(), interval '1 day') d;
+from (select 'ALL'::text as scope union select broker_id::text from facts.fact_cycle) s
+cross join generate_series((facts.as_of() - 70)::timestamp, facts.as_of()::timestamp, interval '1 day') d;
 
+-- Capacity per broker per day, forward-looking windows. Same rule as facts.fact_broker_day (smc_04): capacity_slots = brokers.max_meetings_per_day on days
+-- listed in brokers.meeting_hours unless bookings are paused; meetings_scheduled = bookings in status booked/confirmed/attended/no_show on that SA day.
+-- It is rebuilt here from facts.fact_booking + public.brokers because fact_broker_day evaluates facts.fact_lead (with its laterals) once per broker per day
+-- per column, which is O(days x leads) and took 2 s on 30 leads (14 s for the renewal tile); this version is one pass. tests/watchlist-reconcile.test.sql
+-- checks the two agree on capacity_slots, meetings_scheduled and bookings_made, so they cannot drift unseen.
+-- media_trimmed: no column holds the trim state yet; reads brokers.media_share_pct if platform-architect adds it (requested), else false.
+drop view if exists facts.v_capacity_day cascade;   -- column set changed between drafts; re-running the file rebuilds every dependant below and in kill-scale.sql / W14-lv.sql
+create view facts.v_capacity_day as
+with b as (select id as broker_id, meeting_hours, bookings_paused, max_meetings_per_day, horizon_days, to_jsonb(br) as j from public.brokers br where br.brand_id is not null),
+days as (
+  select b.*, g::date as day
+  from b cross join lateral generate_series((facts.as_of() - 70)::timestamp, (facts.as_of() + b.horizon_days)::timestamp, interval '1 day') g),
+sched as (select broker_id, slot_date as day, count(*) filter (where status in ('booked','confirmed','attended','no_show')) as meetings_scheduled
+          from facts.fact_booking group by 1, 2),
+made as (select broker_id, booked_date as day, count(*) filter (where not is_reschedule) as bookings_made from facts.fact_booking group by 1, 2),
+base as (
+  select d.broker_id, d.day,
+         case when d.meeting_hours ? lower(to_char(d.day, 'Dy')) and not d.bookings_paused then d.max_meetings_per_day else 0 end as capacity_slots,
+         coalesce(s.meetings_scheduled, 0) as meetings_scheduled, coalesce(m.bookings_made, 0) as bookings_made,
+         (coalesce((d.j ->> 'media_share_pct')::numeric, 100) < 100) as media_trimmed
+  from days d left join sched s on s.broker_id = d.broker_id and s.day = d.day left join made m on m.broker_id = d.broker_id and m.day = d.day)
+select bd.broker_id, bd.day, bd.capacity_slots, bd.meetings_scheduled, bd.bookings_made,
+       coalesce(sum(greatest(bd.capacity_slots - bd.meetings_scheduled, 0)) over w14, 0)::int as slots_open_14d,
+       coalesce(sum(bd.capacity_slots) over w7, 0)::int                                         as slots_total_7d,
+       coalesce(sum(bd.meetings_scheduled) over w7, 0)::int                                     as slots_booked_7d,
+       (sum(bd.bookings_made) over (partition by bd.broker_id order by bd.day rows between 6 preceding and current row))::numeric / 7 as bookings_per_day,
+       bd.media_trimmed
+from base bd
+window w7  as (partition by bd.broker_id order by bd.day rows between 1 following and 7 following),
+       w14 as (partition by bd.broker_id order by bd.day rows between 1 following and 14 following);
+
+-- Open to-dos per broker as of facts.as_of(): meetings that have ended with no outcome tapped + outcomes the system auto-marked and the adviser has not confirmed.
+create or replace view facts.v_broker_todos as
+select b.id as broker_id,
+       (select count(*) from facts.fact_booking fb
+         where fb.broker_id = b.id and fb.status in ('booked','confirmed') and fb.ends_at < least(now(), ((facts.as_of() + 1)::timestamp at time zone 'Africa/Johannesburg'))
+           and not exists (select 1 from facts.fact_outcome fo where fo.booking_id = fb.booking_id))::int as unmarked,
+       (select count(*) from facts.fact_outcome fo where fo.broker_id = b.id and fo.unconfirmed)::int as unconfirmed
+from public.brokers b where b.brand_id is not null;
 
 -- Tile 0: Cost of a lead vs the model (first 14 days)
 create or replace view facts.v_watchlist_0_cpl_vs_model as
@@ -18,14 +60,12 @@ with p as (select * from facts.v_params),
 sd as (select * from facts.v_scope_day where scope = 'ALL'),
 num as (
   select sd.scope, sd.day, coalesce(sum(x.spend_zar), 0) as v
-  from sd left join facts.fact_ad_day x
-    on x.day = sd.day and true 
+  from sd left join facts.fact_ad_day x on x.date = sd.day
   group by 1, 2
 ),
 den as (
-  select sd.scope, sd.day, coalesce(sum(x.leads_raw), 0) as v
-  from sd left join facts.fact_ad_day x
-    on x.day = sd.day and true 
+  select sd.scope, sd.day, coalesce(sum(x.leads_meta), 0) as v
+  from sd left join facts.fact_ad_day x on x.date = sd.day
   group by 1, 2
 ),
 roll as (
@@ -47,20 +87,20 @@ select 0 as tile_no, 'Cost of a lead vs the model (first 14 days)' as tile, r.sc
 from roll r cross join p
 where r.day = p.as_of;
 
--- Tile 1: Cost per good-fit meeting
+-- Tile 1: Cost per good-fit meeting.  Target (default pending NH-25): R1,300; stretch R900 (params.sql).
 create or replace view facts.v_watchlist_1_cost_per_good_fit as
 with p as (select * from facts.v_params),
 sd as (select * from facts.v_scope_day),
 num as (
   select sd.scope, sd.day, coalesce(sum(x.amount_zar), 0) as v
   from sd left join facts.fact_cost x
-    on x.day = sd.day and (sd.scope = 'ALL' or x.broker_id = sd.scope) and x.kind = 'media'
+    on x.date = sd.day and (sd.scope = 'ALL' or x.broker_id::text = sd.scope) and x.kind = 'media'
   group by 1, 2
 ),
 den as (
-  select sd.scope, sd.day, coalesce(sum(case when x.outcome_id is not null then 1 else 0 end), 0) as v
+  select sd.scope, sd.day, count(x.outcome_id) as v
   from sd left join facts.fact_outcome x
-    on (x.marked_at at time zone 'Africa/Johannesburg')::date = sd.day and (sd.scope = 'ALL' or x.broker_id = sd.scope) and facts.disp_class(x.disposition_code) = 'fit'
+    on x.slot_date = sd.day and (sd.scope = 'ALL' or x.broker_id::text = sd.scope) and x.good_fit
   group by 1, 2
 ),
 roll as (
@@ -78,24 +118,29 @@ select 1 as tile_no, 'Cost per good-fit meeting' as tile, r.scope,
        (select round(t.snum / nullif(t.sden, 0), 3) from roll t where t.scope = r.scope and t.day = p.as_of - 7) as last_period,
        (select jsonb_agg(jsonb_build_object('d', t.day, 'v', round(t.snum / nullif(t.sden, 0), 3)) order by t.day)
           from roll t where t.scope = r.scope and t.day > p.as_of - 28) as trend_28d,
-       'If it rises for 7 days, find which angle''s good-fit rate dropped and move its budget to the best angle.' as look_out
+       'If it rises for 7 days, find which angle''s good-fit rate dropped and move its budget to the best angle.' as look_out,
+       p.cost_per_good_fit_stretch_zar as stretch_target
 from roll r cross join p
 where r.day = p.as_of;
 
--- Tile 2: Leads we could actually reach
+-- Tile 2: Leads we could actually reach (cohort: sign-ups old enough to have had their 72 hours)
 create or replace view facts.v_watchlist_2_leads_we_could_reach as
 with p as (select * from facts.v_params),
 sd as (select * from facts.v_scope_day),
 num as (
-  select sd.scope, sd.day, coalesce(sum(case when x.lead_key is not null then 1 else 0 end), 0) as v
+  select sd.scope, sd.day, count(x.lead_key) as v
   from sd left join facts.fact_lead x
-    on (x.first_contact_at at time zone 'Africa/Johannesburg')::date = sd.day and sd.day <= (select as_of - verify_lag_days from facts.v_params) and (sd.scope = 'ALL' or x.broker_id = sd.scope) and x.consent_ok and x.first_contact_at is not null and x.verified_at is not null and x.verified_at <= x.first_contact_at + interval '72 hours'
+    on x.created_date = sd.day and sd.day <= (select as_of - verify_lag_days from facts.v_params)
+   and (sd.scope = 'ALL' or x.broker_id::text = sd.scope)
+   and x.consented and x.first_message_seconds is not null and x.verified_within_72h
   group by 1, 2
 ),
 den as (
-  select sd.scope, sd.day, coalesce(sum(case when x.lead_key is not null then 1 else 0 end), 0) as v
+  select sd.scope, sd.day, count(x.lead_key) as v
   from sd left join facts.fact_lead x
-    on (x.first_contact_at at time zone 'Africa/Johannesburg')::date = sd.day and sd.day <= (select as_of - verify_lag_days from facts.v_params) and (sd.scope = 'ALL' or x.broker_id = sd.scope) and x.consent_ok and x.first_contact_at is not null
+    on x.created_date = sd.day and sd.day <= (select as_of - verify_lag_days from facts.v_params)
+   and (sd.scope = 'ALL' or x.broker_id::text = sd.scope)
+   and x.consented and x.first_message_seconds is not null
   group by 1, 2
 ),
 roll as (
@@ -122,15 +167,15 @@ create or replace view facts.v_watchlist_3_booked_to_attended as
 with p as (select * from facts.v_params),
 sd as (select * from facts.v_scope_day),
 num as (
-  select sd.scope, sd.day, coalesce(sum(case when x.outcome_id is not null then 1 else 0 end), 0) as v
+  select sd.scope, sd.day, count(x.outcome_id) as v
   from sd left join facts.fact_outcome x
-    on (x.marked_at at time zone 'Africa/Johannesburg')::date = sd.day and (sd.scope = 'ALL' or x.broker_id = sd.scope) and x.outcome = 'attended'
+    on x.slot_date = sd.day and (sd.scope = 'ALL' or x.broker_id::text = sd.scope) and x.outcome = 'attended'
   group by 1, 2
 ),
 den as (
-  select sd.scope, sd.day, coalesce(sum(case when x.outcome_id is not null then 1 else 0 end), 0) as v
+  select sd.scope, sd.day, count(x.outcome_id) as v
   from sd left join facts.fact_outcome x
-    on (x.marked_at at time zone 'Africa/Johannesburg')::date = sd.day and (sd.scope = 'ALL' or x.broker_id = sd.scope) and x.outcome in ('attended','no_show')
+    on x.slot_date = sd.day and (sd.scope = 'ALL' or x.broker_id::text = sd.scope) and x.outcome in ('attended','no_show')
   group by 1, 2
 ),
 roll as (
@@ -152,20 +197,21 @@ select 3 as tile_no, 'Booked calls that happen' as tile, r.scope,
 from roll r cross join p
 where r.day = p.as_of;
 
--- Tile 4: Meetings the adviser rated a good fit
+-- Tile 4: Meetings the adviser rated a good fit.  Target (default pending NH-25): 60%.
+-- Unreachable is a replacement matter, not a fit judgement, so it is left out of the denominator (see watchlist-reconcile.test.sql).
 create or replace view facts.v_watchlist_4_broker_good_fit_rate as
 with p as (select * from facts.v_params),
 sd as (select * from facts.v_scope_day),
 num as (
-  select sd.scope, sd.day, coalesce(sum(case when x.outcome_id is not null then 1 else 0 end), 0) as v
+  select sd.scope, sd.day, count(x.outcome_id) as v
   from sd left join facts.fact_outcome x
-    on (x.marked_at at time zone 'Africa/Johannesburg')::date = sd.day and (sd.scope = 'ALL' or x.broker_id = sd.scope) and facts.disp_class(x.disposition_code) = 'fit'
+    on x.slot_date = sd.day and (sd.scope = 'ALL' or x.broker_id::text = sd.scope) and facts.disp_class(x.disposition_code) = 'fit'
   group by 1, 2
 ),
 den as (
-  select sd.scope, sd.day, coalesce(sum(case when x.outcome_id is not null then 1 else 0 end), 0) as v
+  select sd.scope, sd.day, count(x.outcome_id) as v
   from sd left join facts.fact_outcome x
-    on (x.marked_at at time zone 'Africa/Johannesburg')::date = sd.day and (sd.scope = 'ALL' or x.broker_id = sd.scope) and facts.disp_class(x.disposition_code) in ('fit','nofit')
+    on x.slot_date = sd.day and (sd.scope = 'ALL' or x.broker_id::text = sd.scope) and facts.disp_class(x.disposition_code) in ('fit','nofit')
   group by 1, 2
 ),
 roll as (
@@ -176,9 +222,9 @@ roll as (
 )
 select 4 as tile_no, 'Meetings the adviser rated a good fit' as tile, r.scope,
        round(snum / nullif(sden, 0), 3) as value, 'ratio' as unit,
-       (1 - p.nofit_max) as target, '>=' as target_rule,
+       p.good_fit_target as target, '>=' as target_rule,
        case when r.sden < p.min_dispositions then 'grey'
-            else facts.tile_status(round(snum / nullif(sden, 0), 3), (1 - p.nofit_max), true, null) end as status,
+            else facts.tile_status(round(snum / nullif(sden, 0), 3), p.good_fit_target, true, null) end as status,
        r.sden::int as n,
        (select round(t.snum / nullif(t.sden, 0), 3) from roll t where t.scope = r.scope and t.day = p.as_of - 7) as last_period,
        (select jsonb_agg(jsonb_build_object('d', t.day, 'v', round(t.snum / nullif(t.sden, 0), 3)) order by t.day)
@@ -189,69 +235,84 @@ where r.day = p.as_of;
 
 -- ---------------------------------------------------------------------------------------------
 -- Cycle economics at a given day (used by tile 5, the W14 reports and the reconcile check).
--- Revenue is the cycle price less any shortfall credit. Variable costs are scaled to what it will take to
--- deliver committed + replacement-cap leads (the 3.5 model buys ~24 qualified for 20 committed). Fixed costs (infra, fees) are not scaled.
+-- Revenue is the cycle price less any shortfall credit (public.cycles.shortfall_credit_zar; not in facts.fact_cycle). Variable costs are scaled to
+-- what it will take to deliver committed + replacement-cap leads (the 3.5 model buys ~24 qualified for 20 committed). Fixed costs (infra, fees) are not scaled.
 -- stress_* re-prices the same raw-lead volume at the 3.5 stress CPL (R250) + R4/raw lead, VAT on media.
-create or replace function facts.cycle_margin(p_cycle text, p_day date)
-returns table (cycle_id text, broker_id text, price_net numeric, committed int, replacement_cap int,
+-- delivered_net = verified + qualified, replacement leads excluded: the same rule as facts.fact_cycle.delivered and public.v_cycle_progress.verified.
+-- Costs: facts.fact_cost for the broker from the cycle's first day to p_day (shared media is allocated by lead share inside fact_cost).
+create or replace view facts.v_cycle_margin_day as
+with p as (select * from facts.v_params),
+cy as (select c.id as cycle_id, c.broker_id, c.starts_at, c.committed_leads, c.replacement_cap, c.price_zar - coalesce(c.shortfall_credit_zar, 0) as price_net
+         from public.cycles c where c.brand_id is not null),
+days as (
+  select cy.*, g::date as day
+  from cy cross join p cross join lateral generate_series(greatest(facts.sa_date(cy.starts_at), p.as_of - 40)::timestamp, p.as_of::timestamp, interval '1 day') g),
+ld as (select fl.cycle_id, fl.created_date as day, count(*) as raw_leads, count(*) filter (where fl.qualified and fl.verified) as gross_verified,
+              count(*) filter (where fl.qualified and fl.verified and not fl.is_replacement_lead) as delivered_net
+         from facts.fact_lead fl where fl.cycle_id is not null group by 1, 2),
+cd as (select cy.cycle_id, fc.date as day,
+              sum(fc.amount_zar) filter (where fc.kind = 'media') as media_ex,
+              sum(fc.amount_zar) filter (where fc.kind in ('whatsapp','llm')) as wa_llm,
+              sum(fc.amount_zar) filter (where fc.kind in ('infra','fees','other')) as fixed
+         from facts.fact_cost fc join cy on fc.broker_id = cy.broker_id and fc.date >= facts.sa_date(cy.starts_at) group by 1, 2),
+cum as (
+  select d.*,
+    (select coalesce(sum(l.raw_leads), 0) from ld l where l.cycle_id = d.cycle_id and l.day <= d.day) as raw_leads,
+    (select coalesce(sum(l.gross_verified), 0) from ld l where l.cycle_id = d.cycle_id and l.day <= d.day) as gross_verified,
+    (select coalesce(sum(l.delivered_net), 0) from ld l where l.cycle_id = d.cycle_id and l.day <= d.day) as delivered_net,
+    (select coalesce(sum(k.media_ex), 0) from cd k where k.cycle_id = d.cycle_id and k.day <= d.day) as media_ex,
+    (select coalesce(sum(k.wa_llm), 0) from cd k where k.cycle_id = d.cycle_id and k.day <= d.day) as wa_llm,
+    (select coalesce(sum(k.fixed), 0) from cd k where k.cycle_id = d.cycle_id and k.day <= d.day) as fixed
+  from days d),
+x as (
+  select cum.*, cum.media_ex * (1 + p.vat_media) as media_incl_vat,
+         case when cum.delivered_net >= cum.committed_leads then 1.0
+              when cum.gross_verified = 0 then null
+              else greatest(1.0, (cum.committed_leads + cum.replacement_cap)::numeric / cum.gross_verified) end as scale,
+         p.stress_cpl_zar, p.vat_media, p.stress_overhead_per_raw_zar
+  from cum cross join p)
+select x.cycle_id, x.broker_id, x.day, x.price_net, x.committed_leads as committed, x.replacement_cap,
+       x.gross_verified::int as gross_verified, x.delivered_net::int as delivered_net, x.raw_leads::int as raw_leads,
+       round(x.media_incl_vat, 2) as media_incl_vat, round(x.wa_llm, 2) as wa_llm, round(x.fixed, 2) as fixed, round(x.scale, 3) as scale,
+       round((x.media_incl_vat + x.wa_llm) * x.scale + x.fixed, 2) as projected_cost,
+       round((x.price_net - (x.media_incl_vat + x.wa_llm + x.fixed)) / nullif(x.price_net, 0), 3) as margin_to_date,
+       round((x.price_net - ((x.media_incl_vat + x.wa_llm) * x.scale + x.fixed)) / nullif(x.price_net, 0), 3) as margin_projected,
+       round(x.raw_leads * x.scale * (x.stress_cpl_zar * (1 + x.vat_media) + x.stress_overhead_per_raw_zar) + x.fixed, 2) as stress_cost,
+       round((x.price_net - (x.raw_leads * x.scale * (x.stress_cpl_zar * (1 + x.vat_media) + x.stress_overhead_per_raw_zar) + x.fixed)) / nullif(x.price_net, 0), 3) as margin_at_stress
+from x;
+
+-- Thin wrapper kept for callers (W14-lv, tests): one cycle on one SA day (within 40 days of facts.as_of()).
+create or replace function facts.cycle_margin(p_cycle uuid, p_day date)
+returns table (cycle_id uuid, broker_id uuid, price_net numeric, committed int, replacement_cap int,
                gross_verified int, delivered_net int, raw_leads int,
                media_incl_vat numeric, wa_llm numeric, fixed numeric,
                scale numeric, projected_cost numeric, margin_to_date numeric,
                margin_projected numeric, stress_cost numeric, margin_at_stress numeric)
 language sql stable as $$
-  with p as (select * from facts.v_params),
-  c as (select * from facts.fact_cycle where fact_cycle.cycle_id = p_cycle),
-  l as (
-    select count(*) filter (where qualified and verified_at is not null and (verified_at at time zone 'Africa/Johannesburg')::date <= p_day) as gross_verified,
-           count(*) filter (where qualified and verified_at is not null and (verified_at at time zone 'Africa/Johannesburg')::date <= p_day
-                            and not coalesce(replaced, false)) as delivered_net,
-           count(*) filter (where (created_at at time zone 'Africa/Johannesburg')::date <= p_day) as raw_leads
-    from facts.fact_lead where fact_lead.cycle_id = p_cycle),
-  k as (
-    select coalesce(sum(amount_zar) filter (where kind = 'media'), 0) as media_ex,
-           coalesce(sum(amount_zar) filter (where kind in ('whatsapp','llm')), 0) as wa_llm,
-           coalesce(sum(amount_zar) filter (where kind in ('infra','fees')), 0) as fixed
-    from facts.fact_cost where fact_cost.cycle_id = p_cycle and day <= p_day),
-  x as (
-    select c.cycle_id, c.broker_id, c.price_zar - coalesce(c.shortfall_credit_zar, 0) as price_net,
-           c.committed_leads, c.replacement_cap, l.gross_verified, l.delivered_net, l.raw_leads,
-           k.media_ex * (1 + p.vat_media) as media_incl_vat, k.wa_llm, k.fixed,
-           case when l.delivered_net >= c.committed_leads then 1.0
-                when l.gross_verified = 0 then null
-                else greatest(1.0, (c.committed_leads + c.replacement_cap)::numeric / l.gross_verified) end as scale,
-           p.stress_cpl_zar, p.vat_media, p.stress_overhead_per_raw_zar
-    from c, l, k, p)
-  select x.cycle_id, x.broker_id, x.price_net, x.committed_leads, x.replacement_cap, x.gross_verified::int, x.delivered_net::int, x.raw_leads::int,
-         round(x.media_incl_vat, 2), round(x.wa_llm, 2), round(x.fixed, 2), round(x.scale, 3),
-         round((x.media_incl_vat + x.wa_llm) * x.scale + x.fixed, 2),
-         round((x.price_net - (x.media_incl_vat + x.wa_llm + x.fixed)) / nullif(x.price_net, 0), 3),
-         round((x.price_net - ((x.media_incl_vat + x.wa_llm) * x.scale + x.fixed)) / nullif(x.price_net, 0), 3),
-         round(x.raw_leads * x.scale * (x.stress_cpl_zar * (1 + x.vat_media) + x.stress_overhead_per_raw_zar) + x.fixed, 2),
-         round((x.price_net - (x.raw_leads * x.scale * (x.stress_cpl_zar * (1 + x.vat_media) + x.stress_overhead_per_raw_zar) + x.fixed)) / nullif(x.price_net, 0), 3)
-  from x
+  select m.cycle_id, m.broker_id, m.price_net, m.committed, m.replacement_cap, m.gross_verified, m.delivered_net, m.raw_leads,
+         m.media_incl_vat, m.wa_llm, m.fixed, m.scale, m.projected_cost, m.margin_to_date, m.margin_projected, m.stress_cost, m.margin_at_stress
+  from facts.v_cycle_margin_day m where m.cycle_id = p_cycle and m.day = p_day
 $$;
 
 -- Tile 5: Margin this cycle (projected to the end of the cycle). One row per broker with an active cycle + ALL.
 create or replace view facts.v_watchlist_5_margin_this_cycle as
 with p as (select * from facts.v_params),
-cy as (select * from facts.fact_cycle where status in ('active', 'extended')),
+cy as (select c.id as cycle_id, c.broker_id from public.cycles c where c.brand_id is not null and c.status in ('active', 'extended')),
 daily as (
-  select cy.broker_id, d::date as day, m.price_net, m.projected_cost, m.margin_projected, m.margin_at_stress, m.stress_cost
-  from cy cross join p
-  cross join lateral generate_series(greatest(cy.starts_at, p.as_of - 27), p.as_of, interval '1 day') d
-  cross join lateral facts.cycle_margin(cy.cycle_id, d::date) m),
+  select cy.broker_id::text as broker_id, m.day, m.price_net, m.projected_cost, m.stress_cost, m.raw_leads
+  from cy join facts.v_cycle_margin_day m on m.cycle_id = cy.cycle_id),
 scoped as (
-  select broker_id as scope, day, price_net, projected_cost, stress_cost from daily
+  select broker_id as scope, day, price_net, projected_cost, stress_cost, raw_leads from daily
   union all
-  select 'ALL', day, sum(price_net), sum(projected_cost), sum(stress_cost) from daily group by day),
+  select 'ALL', day, sum(price_net), sum(projected_cost), sum(stress_cost), sum(raw_leads) from daily group by day),
 series as (
-  select scope, day, round((price_net - projected_cost) / nullif(price_net, 0), 3) as v,
+  select scope, day, raw_leads, round((price_net - projected_cost) / nullif(price_net, 0), 3) as v,
          round((price_net - stress_cost) / nullif(price_net, 0), 3) as v_stress
   from scoped)
 select 5 as tile_no, 'Margin this cycle' as tile, s.scope,
        s.v as value, 'ratio' as unit, p.margin_floor as target, '>=' as target_rule,
        case when s.v is null then 'grey' else facts.tile_status(s.v, p.margin_floor, true) end as status,
-       (select count(*) from facts.fact_lead l where l.cycle_id in (select cycle_id from cy where s.scope = 'ALL' or cy.broker_id = s.scope))::int as n,
+       s.raw_leads::int as n,
        (select t.v from series t where t.scope = s.scope and t.day = p.as_of - 7) as last_period,
        (select jsonb_agg(jsonb_build_object('d', t.day, 'v', t.v) order by t.day) from series t where t.scope = s.scope and t.day > p.as_of - 28) as trend_28d,
        'If it falls under 30%, check cost per qualified lead and leads per ad first; do not change prices mid-cycle.' as look_out,
@@ -262,13 +323,9 @@ where s.day = p.as_of;
 -- Tile 6: Days of broker capacity left (calendar days until the adviser's free slots run out at the current booking pace).
 create or replace view facts.v_watchlist_6_capacity_days_left as
 with p as (select * from facts.v_params),
-pace as (
-  select b.broker_id, b.day, b.slots_open_14d, b.slots_total_7d, b.slots_booked_7d, b.media_trimmed,
-         (select count(*) from facts.fact_booking k where k.broker_id = b.broker_id
-            and (k.booked_at at time zone 'Africa/Johannesburg')::date between b.day - 6 and b.day) / 7.0 as bookings_per_day
-  from facts.fact_broker_day b),
+pace as (select * from facts.v_capacity_day where day <= (select as_of from p)),
 v as (
-  select broker_id as scope, day, slots_open_14d, slots_total_7d, slots_booked_7d, media_trimmed,
+  select broker_id::text as scope, day, slots_open_14d, slots_total_7d, slots_booked_7d, media_trimmed,
          round(least(99, slots_open_14d / greatest(bookings_per_day, 0.1)), 1) as days_left,
          round(slots_booked_7d::numeric / nullif(slots_total_7d, 0), 3) as fill_7d
   from pace
@@ -291,26 +348,31 @@ from v cross join p where v.day = p.as_of;
 -- Renewal risk per broker at a given day (4.10a "what it gives us": show rate, disposition rate, to-dos ignored, report opened).
 -- Points: show rate (<65% = 1, <50% = 2) + marked-by-adviser rate (<90% = 1, <70% = 2) + open to-dos (>=3 = 1, >=6 = 2)
 --       + report unopened two weeks running (2) + average quality (<3.0 = 1, <2.5 = 2).  green 0-1, amber 2-3, red 4+.  ASSUMPTION weights: calibrate on cycle-1 renewals.
+-- NOTE: facts.v_watchlist #7 (smc_04) uses a simpler 0/1/2 rule; this one gives the reasons the console shows. See watchlist-reconcile.test.sql.
+-- Report opened = public.report_history (broker_weekly) opened_portal_at / opened_wa_at on either of the last two sent reports.
 create or replace function facts.renewal_risk_at(d date)
 returns table (broker_id text, score int, level text, reasons jsonb, show_rate numeric, marked_rate numeric, quality_avg numeric, todos_open int, report_unopened_2wk boolean)
 language sql stable as $$
   with p as (select * from facts.v_params),
   o as (
-    select broker_id,
-           count(*) filter (where outcome in ('attended','no_show')) as show_den,
-           count(*) filter (where outcome = 'attended') as show_num,
-           count(*) as marked_den, count(*) filter (where not coalesce(auto_marked, false)) as marked_num,
-           count(quality_score) as q_n, avg(quality_score) as q_avg
-    from facts.fact_outcome
-    where (marked_at at time zone 'Africa/Johannesburg')::date between d - 27 and d
-    group by broker_id),
-  t as (select distinct on (broker_id) broker_id, todos_open from facts.fact_broker_day where day <= d order by broker_id, day desc),
+    select fo.broker_id::text as broker_id,
+           count(*) filter (where fo.outcome in ('attended','no_show')) as show_den,
+           count(*) filter (where fo.outcome = 'attended') as show_num,
+           count(*) as marked_den, count(*) filter (where not coalesce(fo.auto_marked, false)) as marked_num,
+           count(fo.quality_score) as q_n, avg(fo.quality_score) as q_avg
+    from facts.fact_outcome fo
+    where fo.slot_date between d - 27 and d
+    group by fo.broker_id),
+  t as (select bt.broker_id::text as broker_id, (bt.unmarked + bt.unconfirmed) as todos_open from facts.v_broker_todos bt),   -- as of facts.as_of() (outcomes have no history of being open)
   r as (
-    select broker_id, (count(*) = 2 and bool_and(report_opened_at is null)) as unopened_2wk
-    from (select broker_id, report_opened_at, row_number() over (partition by broker_id order by day desc) rn
-          from facts.fact_broker_day where day <= d and report_sent_at is not null) z
-    where rn <= 2 group by broker_id),
-  b as (select distinct broker_id from facts.fact_cycle where status in ('active', 'extended')),
+    select z.broker_id::text as broker_id, (count(*) = 2 and bool_and(not z.opened)) as unopened_2wk
+    from (select rh.broker_id, (rh.opened_portal_at is not null or rh.opened_wa_at is not null) as opened,
+                 row_number() over (partition by rh.broker_id order by rh.week desc) rn
+          from public.report_history rh
+          where rh.brand_id is not null and rh.report_kind = 'broker_weekly' and rh.week <= d
+            and (rh.sent_wa_at is not null or rh.sent_email_at is not null)) z
+    where z.rn <= 2 group by z.broker_id),
+  b as (select distinct fc.broker_id::text as broker_id from facts.fact_cycle fc where fc.status in ('active', 'extended')),
   s as (
     select b.broker_id,
            o.show_num::numeric / nullif(o.show_den, 0) as show_rate,

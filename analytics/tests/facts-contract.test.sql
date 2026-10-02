@@ -1,69 +1,52 @@
--- TEST-ONLY stand-in for the `facts` schema (6A2 item 1).
--- In production platform-architect ships facts.* as pseudonymised VIEWS over the operational tables
--- (build/crm-gap.md A5). `create table if not exists` is a no-op when a view of the same name exists,
--- so this file never shadows the real layer. Column names below are THE CONTRACT analytics/*.sql reads.
--- ALIGN WHEN SCHEMA LANDS: platform-architect has not yet published facts DDL (no supabase/migrations/*smc*).
-create schema if not exists facts;
+-- analytics/tests/facts-contract.test.sql — CONTRACT TEST against the REAL schema (supabase/migrations/20261002_smc_04_facts.sql and the tables it reads).
+-- This file used to be a stand-in DDL; the real facts layer now exists, so it only CHECKS that every column analytics/*.sql reads is there.
+-- Run after the smc migrations and before params.sql. Raises an exception listing anything missing. Prints the OPTIONAL objects that were
+-- requested from platform-architect (integration I-04 / smc_06) and are not yet present, so nothing is silently assumed.
+do $$
+declare missing text;
+begin
+  with need(schema_name, rel, col) as (values
+    ('facts','fact_lead','lead_key'),('facts','fact_lead','brand_id'),('facts','fact_lead','broker_id'),('facts','fact_lead','cycle_id'),('facts','fact_lead','created_date'),
+    ('facts','fact_lead','created_at'),('facts','fact_lead','origin'),('facts','fact_lead','campaign_id'),('facts','fact_lead','adset_id'),('facts','fact_lead','ad_id'),
+    ('facts','fact_lead','concept'),('facts','fact_lead','angle'),('facts','fact_lead','placement'),('facts','fact_lead','consented'),('facts','fact_lead','first_message_seconds'),
+    ('facts','fact_lead','verified'),('facts','fact_lead','verified_within_72h'),('facts','fact_lead','qualified'),('facts','fact_lead','disqualified_reason'),('facts','fact_lead','booked'),
+    ('facts','fact_lead','attended'),('facts','fact_lead','no_show'),('facts','fact_lead','disposition_code'),('facts','fact_lead','good_fit'),('facts','fact_lead','quality_score'),
+    ('facts','fact_lead','lead_pulse'),('facts','fact_lead','is_replacement_lead'),('facts','fact_lead','replacement_claimed'),('facts','fact_lead','is_synthetic'),
+    ('facts','fact_booking','booking_id'),('facts','fact_booking','lead_key'),('facts','fact_booking','broker_id'),('facts','fact_booking','cycle_id'),('facts','fact_booking','slot_date'),
+    ('facts','fact_booking','starts_at'),('facts','fact_booking','ends_at'),('facts','fact_booking','status'),('facts','fact_booking','method'),('facts','fact_booking','booked_date'),('facts','fact_booking','is_reschedule'),
+    ('facts','fact_outcome','outcome_id'),('facts','fact_outcome','booking_id'),('facts','fact_outcome','lead_key'),('facts','fact_outcome','broker_id'),('facts','fact_outcome','cycle_id'),
+    ('facts','fact_outcome','slot_date'),('facts','fact_outcome','outcome'),('facts','fact_outcome','disposition_code'),('facts','fact_outcome','good_fit'),('facts','fact_outcome','quality_score'),
+    ('facts','fact_outcome','lead_reach_check'),('facts','fact_outcome','auto_marked'),('facts','fact_outcome','unconfirmed'),
+    ('facts','fact_ad_day','date'),('facts','fact_ad_day','brand_id'),('facts','fact_ad_day','ad_id'),('facts','fact_ad_day','campaign_id'),('facts','fact_ad_day','angle'),
+    ('facts','fact_ad_day','spend_zar'),('facts','fact_ad_day','impressions'),('facts','fact_ad_day','leads_meta'),('facts','fact_ad_day','frequency'),('facts','fact_ad_day','hook_rate'),
+    ('facts','fact_ad_day','emq'),('facts','fact_ad_day','leads'),('facts','fact_ad_day','qualified'),('facts','fact_ad_day','good_fit'),
+    ('facts','fact_broker_day','broker_id'),('facts','fact_broker_day','date'),('facts','fact_broker_day','cycle_id'),('facts','fact_broker_day','capacity_slots'),
+    ('facts','fact_broker_day','bookings_made'),('facts','fact_broker_day','meetings_scheduled'),('facts','fact_broker_day','meetings_held'),('facts','fact_broker_day','outcomes_unmarked'),('facts','fact_broker_day','report_opened'),
+    ('facts','fact_cycle','cycle_id'),('facts','fact_cycle','broker_id'),('facts','fact_cycle','brand_id'),('facts','fact_cycle','tier_code'),('facts','fact_cycle','cycle_no'),('facts','fact_cycle','status'),
+    ('facts','fact_cycle','starts_at'),('facts','fact_cycle','ends_at'),('facts','fact_cycle','extended_until'),('facts','fact_cycle','price_zar'),('facts','fact_cycle','committed_leads'),
+    ('facts','fact_cycle','replacement_cap'),('facts','fact_cycle','delivered'),('facts','fact_cycle','replacements_used'),('facts','fact_cycle','margin_pct'),
+    ('facts','fact_cost','date'),('facts','fact_cost','kind'),('facts','fact_cost','brand_id'),('facts','fact_cost','broker_id'),('facts','fact_cost','amount_zar'),
+    ('facts','fact_message','message_id'),('facts','fact_message','lead_key'),('facts','fact_message','date'),('facts','fact_message','channel'),('facts','fact_message','direction'),
+    ('facts','fact_message','template_name'),('facts','fact_message','llm_model'),('facts','fact_message','latency_ms'),('facts','fact_message','guardrail_trip'),('facts','fact_message','cost_zar'),
+    ('facts','fact_comment','comment_row_id'),('facts','fact_comment','ad_id'),('facts','fact_comment','date'),('facts','fact_comment','sla_seconds'),('facts','fact_comment','origin_lead_key'),
+    ('public','ad_metrics','ad_name'),('public','cycles','shortfall_credit_zar'),('public','cycles','policies_written_reported'),('public','brokers','close_rate'),('public','brokers','contact_person'),
+    ('public','report_history','report_kind'),('public','report_history','week'),('public','report_history','opened_portal_at'),('public','report_history','opened_wa_at'),('public','report_history','ask'),
+    ('public','insights','text'),('public','insights','n'),('public','broker_media','approved_at'),('public','broker_media','is_current'),
+    ('public','v_cycle_progress','verified'),('public','v_cycle_progress','replacements_used'),('public','v_cycle_progress','good_fit'),
+    ('facts','v_watchlist','metric_code'),('facts','v_watchlist','value'))
+  select string_agg(n.schema_name || '.' || n.rel || '.' || n.col, ', ') into missing
+    from need n left join information_schema.columns c on c.table_schema = n.schema_name and c.table_name = n.rel and c.column_name = n.col
+   where c.column_name is null;
+  if missing is not null then raise exception 'facts contract broken, missing: %', missing; end if;
+  raise notice 'facts contract OK: every column analytics/*.sql reads exists';
+end $$;
 
-create table if not exists facts.fact_lead (
-  lead_key text primary key,            -- hash; never a name, number or email
-  brand_id text, broker_id text, cycle_id text,
-  created_at timestamptz not null,
-  origin text,                          -- page / lead_ad / ctwa / comment / dm   (6.3)
-  campaign_id text, adset_id text, ad_id text, concept text, angle text, placement text,
-  consent_ok boolean,
-  qualified boolean,                    -- meets 3.3 items 1,2,4,5 (age, budget, call, not duplicate)
-  disqualified_reason text,
-  first_contact_at timestamptz,         -- first WhatsApp template delivered (wa_delivered_at)
-  first_message_seconds numeric,        -- submit -> first message delivered
-  verified_at timestamptz,              -- replied/tapped within 72 h (3.3 item 3)
-  replaced boolean default false,       -- W13 replaced this lead (counts toward cap, not toward committed)
-  lead_pulse_thumbs smallint            -- W35: 1 = worth it, 0 = not; null = no answer
-);
-create table if not exists facts.fact_booking (
-  booking_id text primary key, lead_key text, broker_id text, cycle_id text, ad_id text, angle text,
-  booked_at timestamptz, slot_start timestamptz, status text, method text
-);
-create table if not exists facts.fact_outcome (
-  outcome_id text primary key, booking_id text, lead_key text, broker_id text, cycle_id text, ad_id text, angle text,
-  marked_at timestamptz, outcome text,            -- attended / no_show / rescheduled / broker_no_show
-  disposition_code text,                          -- fit_proceeding fit_followup nofit_budget nofit_covered nofit_criteria unreachable (4.12a)
-  quality_score smallint, auto_marked boolean default false, unconfirmed boolean default false,
-  lead_reach_check text                           -- yes / no / none (W12 T+30)
-);
-create table if not exists facts.fact_ad_day (
-  day date, brand_id text, campaign_id text, ad_id text, ad_name text, concept text, angle text, placement text,
-  status text, spend_zar numeric, impressions int, clicks int, leads_raw int, emq numeric, frequency numeric, hook_rate numeric,
-  primary key (day, ad_id)
-);
-create table if not exists facts.fact_broker_day (
-  day date, broker_id text, cycle_id text,
-  slots_total_7d int,          -- bookable slots in the next 7 days (hours x caps)
-  slots_booked_7d int,         -- of those, already booked
-  slots_open_14d int,          -- bookable and still free in the next 14 days
-  todos_open int,              -- outcomes unmarked + follow-ups due
-  media_trimmed boolean default false,
-  report_sent_at timestamptz, report_opened_at timestamptz,
-  primary key (day, broker_id)
-);
-create table if not exists facts.fact_cycle (
-  cycle_id text primary key, broker_id text, brand_id text, tier_code text, tier_name text,
-  price_zar numeric, committed_leads int, replacement_cap int,
-  starts_at date, ends_at date, extended_until date, status text, shortfall_credit_zar numeric default 0
-);
-create table if not exists facts.fact_cost (
-  day date, brand_id text, broker_id text, cycle_id text, ad_id text,
-  kind text,                   -- media / whatsapp / llm / infra / fees
-  amount_zar numeric           -- media is ex-VAT (VAT added by v_params.vat_media until registered, 3.1)
-);
-create table if not exists facts.fact_message (
-  msg_key text primary key, lead_key text, created_at timestamptz, channel text, direction text, author text,
-  template_name text, llm_model text, latency_ms int, guardrail_trip boolean, cost_zar numeric
-);
-create table if not exists facts.fact_comment (
-  comment_id text primary key, ad_id text, created_at timestamptz, sla_seconds int, origin_lead_key text
-);
-create table if not exists facts.fact_system_day (day date primary key, uptime_pct numeric, webhook_p95_ms numeric, webhook_count int);
-create table if not exists facts.fact_lead_theme (lead_key text, broker_id text, cycle_id text, theme text, created_at timestamptz);
--- Broker-entered ROI inputs. Deliberately OUTSIDE the shared layer and outside Ask-the-data (FAIS: never in any fee or ranking, 3.7).
-create table if not exists facts.fact_broker_roi (cycle_id text primary key, broker_id text, close_rate numeric, policies_written_reported int);
+-- Requested in integration I-04 (smc_06) and read by optional metrics only. Listed so a missing one is visible, never assumed.
+select o.what, case when exists (select 1 from information_schema.columns c where c.table_schema = o.s and c.table_name = o.t and (o.c is null or c.column_name = o.c)) then 'present' else 'MISSING (needs smc_06)' end as status, o.used_by
+from (values ('facts.fact_system_day', 'facts', 'fact_system_day', null, 'M21 uptime, M22 webhook p95'),
+             ('facts.fact_lead_theme', 'facts', 'fact_lead_theme', null, 'Ask the data: themes (W14 uses public.insights instead)'),
+             ('facts.fact_broker_roi', 'facts', 'fact_broker_roi', null, 'M39 (W14 reads public.brokers.close_rate / public.cycles instead)'),
+             ('facts.fact_page_day', 'facts', 'fact_page_day', null, 'M30 landing-page sign-up rate'),
+             ('facts.fact_cycle.renewed', 'facts', 'fact_cycle', 'renewed', 'M35 cycles renewed'),
+             ('facts.fact_ad_day.status', 'facts', 'fact_ad_day', 'status', 'kill rules (derived from spend until ad_objects lands)'),
+             ('public.brokers.media_share_pct', 'public', 'brokers', 'media_share_pct', 'K6 trim state (false until it exists)')) o(what, s, t, c, used_by);
