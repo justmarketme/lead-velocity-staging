@@ -60,3 +60,13 @@ supabase/.temp/
 credentials*
 # task graph is tracked despite the *.json rule above
 !build/tasks.json
+# SortMyCover build deliverables are tracked (exceptions to the *.json / *.txt rules above)
+!automation/**/*.json
+!automation/**/*.txt
+!deliverables/**/*.json
+!deliverables/**/*.txt
+!landing/**/*.json
+!brand/**/*.json
+!build/*.json
+!build/*.jsonl
+!evals/**/*.json

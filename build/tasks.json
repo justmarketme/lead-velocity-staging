@@ -30,7 +30,7 @@
       ],
       "acceptance_test": "test -s build/inventory.md && test -s build/crm-gap.md && grep -q \"reuse as-is\" build/crm-gap.md",
       "human_gate": false,
-      "status": "pending",
+      "status": "in_progress",
       "section": "0.2"
     },
     {
@@ -69,7 +69,7 @@
       ],
       "acceptance_test": "test -s build/gates-batch.md",
       "human_gate": false,
-      "status": "pending",
+      "status": "in_progress",
       "section": "4C.6"
     },
     {
