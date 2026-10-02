@@ -56,7 +56,7 @@
       ],
       "acceptance_test": "for a in market-research-analyst creative-strategist media-buyer conversation-designer contracts-drafter compliance-qa; do test -s deliverables/$a/first-principles.md || exit 1; done",
       "human_gate": false,
-      "status": "in_progress",
+      "status": "green",
       "section": "4B"
     },
     {
@@ -2107,7 +2107,7 @@
       ],
       "acceptance_test": "test -s evals/golden-set.json && test -s evals/red-team.json && node evals/run.mjs --dry-run && test -s knowledge/faq.md",
       "human_gate": false,
-      "status": "in_progress",
+      "status": "green",
       "section": "4.11 / 6B.1 / 6B.9"
     },
     {
@@ -2212,6 +2212,17 @@
       "human_gate": true,
       "status": "needs_human",
       "section": "deliverables/billing-automation/SUMMARY.md"
+    },
+    {
+      "id": "NH-28",
+      "title": "Conversation rules to confirm: (a) a booked lead who later types an out-of-band age/budget keeps the booking and is flagged to a person (not auto-closed); (b) STOP while booked: the acceptance tests cancel the booking + Graph event, Thandi's design keeps the booking unless the lead replies CANCEL - pick one; (c) human-handoff hours 08:00-20:00 every day incl. weekends/holidays?; (d) which extra languages to build golden cases for (isiZulu, Sesotho, isiXhosa, Setswana) - none goes live without passing cases; Afrikaans lines need one native-speaker read.",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "conversation/state-machine.md"
     }
   ]
 }
