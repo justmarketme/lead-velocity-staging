@@ -70,3 +70,6 @@ Sticky top bar, charcoal hero with amber emphasis and gradient, chips, gap bars 
 | F4 | self-employed gap_p: "Self-employed people have no work cover to start with." | review-3 §3 |
 | F5 | `site.json` `optout_url` is `https://sortmycover.co.za/privacy.html#opt-out`. | review-3 §1 #9 |
 | F6 | Myth-bust page keeps H18 ("No price in this ad. On purpose.") and serves C12. C13 gets its own H1 from creative-strategist (angle variant to be added once given). | review-3 message-match note |
+
+## G. C13 landing variant (creative-strategist v1.1.1, review 4 #25)
+`angles/c13-check-not-buy.json` is the page for **C13** (H16 "Checking cover is not the same as buying."). C13 traffic goes to `/c13-check-not-buy/`, not `/myth-bust/`, which keeps H18 and serves C12. The sub-line is taken from the C13 primary text (no new claims). Same quiz, config and FAQ as the other angles.
