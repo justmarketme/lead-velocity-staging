@@ -12,6 +12,7 @@ Owner: `billing-automation`. Sources: MASTER-PROMPT 0.1, 3.6, 6.1 (steps 0 and 7
 | Renewal offer, reminders, cycle end, card retries | `automation/W19.json` | daily 07:00 SAST |
 | Pricing & website sync + diff check | `automation/W25.json` | `pricing` change (NOTIFY `pricing_changed`), console publish, manual |
 | Logic (tested offline) | `automation/billing/*.js` | `node --test automation/billing/billing.test.js` |
+| FAIS boundary (CI) | `automation/billing/fais-boundary.test.js` | `npm test` in `automation/billing/` (runs with `billing.test.js`): fails if any billing file or W16-W19/W25 references the broker ROI / sale-outcome fields; money code never reads sale outcomes |
 | Rebuild workflows after a module change | `node automation/billing/build-workflows.mjs` | the generator inlines the modules into the Code nodes |
 
 n8n settings needed: `NODE_FUNCTION_ALLOW_BUILTIN=crypto`; env `PAYSTACK_SECRET_KEY`, `PAYSTACK_ENABLED` (false until KYC), `PAYSTACK_EFT_CHANNELS` (optional), `FNB_SENDER_DOMAINS` / `FNB_SENDER_ADDRESSES`, `SUPABASE_URL`, `BILLING_API_BASE`, `BANK_*` (checkout display), `W25_TARGET` (`staging` | `production`), `W25_REMOTE_ROOT`, `W25_REMOTE_STAGING_ROOT`, `REPO_DIR`. Credentials, by name: "Paystack secret key (Authorization: Bearer)", "Supabase CRM (Postgres, billing role)", "Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send)", "Supabase service role (W16 magic link)", "Hostinger SFTP (static sites)", "Console -> n8n shared secret".
