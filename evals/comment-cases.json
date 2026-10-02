@@ -43,7 +43,7 @@
       "expected_public": {"action": "reply", "template": "question_process"},
       "expected_private": {"send": true, "template": "private_question"},
       "expected_actions": [], "must_defer": false,
-      "notes": "Cost of the call is not a price of cover. Only 'nothing to buy' allowed."
+      "notes": "Cost of the call is not a price of cover. Only 'the call is free' and 'no obligation to buy' allowed."
     },
     {
       "id": "C03", "surface": "fb_comment", "lang": "af", "is_nested_reply": false, "prior_exchanges": 0,
@@ -97,7 +97,7 @@
       "expected_public": {"action": "reply", "template": "objection_calm"},
       "expected_private": {"send": true, "template": "private_objection"},
       "expected_actions": ["log_objection_theme"], "must_defer": false,
-      "notes": "Answer: flat fee, nothing sold on the call. Must not argue or promise an outcome."
+      "notes": "Answer: flat fee, the call is free, no obligation to buy. Must not argue or promise an outcome."
     },
     {
       "id": "C09", "surface": "fb_comment", "lang": "af", "is_nested_reply": false, "prior_exchanges": 0,
