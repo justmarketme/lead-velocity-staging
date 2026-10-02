@@ -26,16 +26,25 @@ Why Traefik does not serve these files after W26 (n8n self-hosting docs + Hostin
 
 **Deploy method (all rows):** build locally (or in the cloud session), upload the folder with hPanel File Manager / FTP (credentials in `.env` as `HOSTINGER_FTP_*` names only, never in chat), then verify with `dns.google` + an HTTPS GET (0.3 #6). Video files are **not committed to git** (size, and the repo is not a CDN): they are uploaded from the render output straight to `/media/` on the site.
 
-**Hostinger `.htaccess` for the portal site** (static SPA + media + checkout), to be placed in the site root:
-- SPA fallback to `/index.html` for everything that is not a real file (same as `vercel.json` today), **excluding** `/media/`, `/checkout/`, `/portal/intro-media/`.
+**Hostinger `.htaccess` for the portal site** (static SPA + media + checkout): built as `deploy/hostinger-app/.htaccess` (I-37j). Copy it to `dist/.htaccess` after `npm run build`; it is kept out of `public/` so the current Vercel build does not ship it. What it does:
+- SPA fallback to `/index.html` for everything that is not a real file (same as `vercel.json` today), **excluding** `/media/`, `/checkout/`, `/portal/intro-media/`. `/s/*` (the WhatsApp template short links `/s/calendar?day=YYYY-MM-DD`, `/s/billing`, I-37c) and `/broker/*` have explicit rules, so a template button can never 404 on `app.` (I-37j). The query string is kept; `SmcShortLink` in `src/App.tsx` then redirects inside the SPA, so login and the broker switch still apply.
+- HTTP → HTTPS 301 to `https://app.leadvelocity.co.za`, path and query kept. `/assets/*` cached 1 year (hashed names), HTML `no-cache`, `X-Robots-Tag: noindex, nofollow` on the whole site.
 - Headers: `X-Content-Type-Options nosniff`, `X-Frame-Options DENY` (the portal is never framed), `Referrer-Policy strict-origin-when-cross-origin`, `Strict-Transport-Security max-age=31536000`, a CSP whose `connect-src` lists `VITE_SUPABASE_URL` and the current `VITE_N8N_WEBHOOK_BASE` origin (OWASP ASVS L1 V14).
 - `/media/*`: `Cache-Control: public, max-age=604800`, `Accept-Ranges bytes` (Apache default; needed for video seeking), `X-Robots-Tag noindex`.
 - `/checkout/*`, `/portal/*`: `Cache-Control: no-cache` (HTML), `X-Robots-Tag noindex`.
+
+### 2a. Deploy-time fill for the app `.htaccess` (names only)
+The CSP ships as **Report-Only** until one clean staging run with the real bundle (browser console shows no violations on login, portal, calendar, billing, checkout, intro-media), then the header is renamed to `Content-Security-Policy` (same pattern as the holding site's HSTS ramp). Before upload, replace the placeholders, then confirm none is left (`grep -c '{{' dist/.htaccess` must print 0):
+- `{{SUPABASE_ORIGIN}}` = origin of `VITE_SUPABASE_URL` (`https://<ref>.supabase.co`); `{{SUPABASE_WSS}}` = the same host as `wss://` (Realtime).
+- `{{API_ORIGIN}}` = origin of `VITE_N8N_WEBHOOK_BASE` (tunnel origin pre-VPS; `https://api.leadvelocity.co.za` from W26). It changes with the tunnel, so it is refilled on every rebuild in §3.
+
+**Vercel variant (only if NH-12 keeps `app.` on Vercel):** `vercel.json` now lists `/s/:path*` and `/broker/:path*` → `/index.html` ahead of the catch-all. Vercel serves real files before rewrites, so this changes nothing for the current deployment; it makes the short-link contract explicit and survives a future narrowing of the catch-all. The exclusions in the paragraph at the end of §5 still apply.
 
 ## 3. Pre-VPS (now → W26): local n8n + tunnel (0.3 #7)
 - Dynamic calls (slots, book, checkout initialise, intro gate, portal webhooks) go to the local n8n through the cloudflared quick tunnel (`automation/local/LOCAL-STAGING.md` §2). Base = `N8N_PUBLIC_URL` + `/webhook`.
 - **Known limit (6.6 "limits of free"):** the quick-tunnel URL changes when the tunnel restarts, and static builds bake the base in. When the keeper rotates the URL: rebuild the three static outputs with the new base and re-upload (portal `dist/`, checkout `data-api-base`, landing `{{api_base}}`). Staging carries synthetic data only, so a stale base breaks a test, not a lead. If rotation becomes frequent, the R0 fix is a stable tunnel hostname (LOCAL-STAGING.md §2, ngrok free static domain; one 4.0a check), not a server.
 - The tunnel origin must be in the n8n webhook CORS allowlist for the three page origins (`app.`, `sortmycover.leadvelocity.co.za`, `go.`), and nowhere else.
+- **`PUBLIC_ALLOWED_ORIGINS` (I-37i):** staging (laptop) keeps `sortmycover.co.za`, `www.sortmycover.co.za`, `sortmycover.leadvelocity.co.za`, `app.leadvelocity.co.za`. Production (VPS overlay default, set at W26) drops the staging subdomain: `sortmycover.co.za`, `www.sortmycover.co.za`, `app.leadvelocity.co.za`. Both values are in `automation/.env.example`; the overlay reads the env, so no file edit at W26.
 
 ## 4. Post-VPS (W26 step 8 onward): Traefik in front of n8n only
 - `api.leadvelocity.co.za` A → `<VPS_IP>` (DNS.md §3, W26 step 8). Traefik issues the Let's Encrypt certificate (0.3 #6).

@@ -154,6 +154,81 @@ test('Normalise: W27 meta_asset_health is a registered red signal, never unknown
   assert.match(MD, /\| `meta_asset_health` \|/, 'W22.md documents meta_asset_health');
 });
 
+// ---------------------------------------------------------------- W34 POPIA kinds (I-38b)
+const W34_KINDS = ['dsar_received', 'dsar_due', 'dsar_overdue', 'dsar_erased', 'broker_dsr_erase', 'w34_retention_failure', 'w34_monthly_report'];
+const w34 = (kind, extra = {}) => ({ kind, workflow: 'W34', to: ['jonathan'], severity: 'amber', message: `${kind} msg`, ...extra });
+
+test('W34 kinds: every kind W34.json emits is registered in W22 and documented in W22.md', () => {
+  const W34 = readFileSync(join(here, '..', 'W34.json'), 'utf8');
+  const emitted = [...new Set([...W34.matchAll(/kind: (?:[\w.]+ \? )?'([a-z0-9_]+)'(?: : '([a-z0-9_]+)')?, workflow: 'W34'/g)].flatMap((m) => m.slice(1).filter(Boolean)))].sort();
+  assert.deepEqual(emitted, [...W34_KINDS].sort(), 'W34 emits exactly the seven I-38b kinds');
+  const code = node('Normalise inbound signal').parameters.jsCode;
+  for (const k of W34_KINDS) {
+    assert.match(code, new RegExp(`\\b${k}: \\{`), `${k} in PRODUCER_SIGNALS`);
+    assert.match(MD, new RegExp(`\\| \`${k}\` \\|`), `${k} row in W22.md`);
+  }
+});
+
+test('W34 kinds: severity, IO recipient, scope; never unknown_signal (I-38b)', () => {
+  const env = { W34_IO_RECIPIENT: 'kg' };
+  const out = runCode('Normalise inbound signal', { env, input: [
+    w34('dsar_received', { dsr_id: 'd1', deep_link: 'https://app.example.test/compliance/dsr/d1' }),
+    w34('dsar_due'),
+    w34('dsar_overdue', { to: ['jonathan', 'kg'], severity: 'red' }),
+    w34('dsar_erased', { dsr_id: 'd1', severity: 'info' }),
+    w34('dsar_erased', { dsr_id: 'd2', severity: 'red' }),
+    w34('broker_dsr_erase', { to_broker_id: 'b1', severity: 'info', first_name: 'Thandi' }),
+    w34('w34_retention_failure', { severity: 'red' }),
+    w34('w34_monthly_report', { severity: 'info' }),
+  ] });
+  assert.equal(out.length, 8);
+  assert.equal(out.filter((s) => s.signal_key === 'unknown_signal').length, 0);
+  const g = (i) => [out[i].signal_key, out[i].severity, out[i].scope, out[i].recipients.join()];
+  assert.deepEqual(g(0), ['dsar_received', 'amber', 'dsr:d1', 'kg']);
+  assert.equal(out[0].notify_now, true);
+  assert.match(out[0].first_action, /compliance\/dsr\/d1/);
+  assert.deepEqual(g(1), ['dsar_due', 'amber', 'dsr:clock', 'kg']);
+  assert.deepEqual(g(2), ['dsar_overdue', 'red', 'dsr:clock', 'jonathan,kg'], 'overdue: both phones');
+  assert.deepEqual(g(3), ['dsar_erased', 'amber', 'dsr:d1', 'kg']);
+  assert.equal(out[3].info, true);
+  assert.deepEqual(g(4), ['dsar_erased', 'red', 'dsr:d2', 'kg'], 'erased late = red to the IO');
+  assert.deepEqual(g(5), ['broker_dsr_erase', 'amber', 'broker:b1', 'broker:b1']);
+  assert.deepEqual(g(6), ['w34_retention_failure', 'red', 'w34:nightly', 'jonathan,kg']);
+  assert.deepEqual(g(7), ['w34_monthly_report', 'amber', 'w34:monthly', 'jonathan']);
+  assert.ok(out.every((s) => s.kind === 'signal' && s.source === 'W34'));
+  // IO falls back to jonathan when unset or not a partner
+  for (const e of [{}, { W34_IO_RECIPIENT: 'someone@else' }]) {
+    assert.equal(runCode('Normalise inbound signal', { env: e, input: [w34('dsar_due')] })[0].recipients.join(), 'jonathan');
+  }
+
+  // Policy at 10:00 SAST
+  const pol = runCode('Policy: severity, DND, redaction', { nowIso: '2026-10-02T08:00:00Z', input: out });
+  const st = (i) => [pol[i].status, pol[i].to];
+  assert.deepEqual(st(0), ['sending', 'kg'], 'dsar_received goes straight to the IO');
+  assert.deepEqual(st(1), ['amber_to_pulse', 'kg']);
+  assert.deepEqual(st(2), ['sending', 'jonathan,kg']);
+  assert.deepEqual(st(3), ['amber_to_pulse', 'kg']);
+  assert.deepEqual(st(4), ['sending', 'kg']);
+  assert.deepEqual(st(5), ['amber_to_pulse', 'broker:b1']);
+  assert.deepEqual(st(6), ['sending', 'jonathan,kg']);
+  assert.deepEqual(st(7), ['amber_to_pulse', 'jonathan']);
+  assert.match(pol[5].payload, /Thandi/, 'broker notice keeps the first name only');
+  // night: the IO alert waits for 07:00 like any non-always-send item
+  assert.equal(runCode('Policy: severity, DND, redaction', { nowIso: '2026-10-02T21:30:00Z', input: [out[0]] })[0].status, 'held_dnd');
+  // a non-W34 signal keeps the default recipients
+  assert.equal(runCode('Policy: severity, DND, redaction', { input: [sig('fsca_mismatch')] })[0].to, 'jonathan,kg');
+
+  // Fan-out: IO only; broker rows have no ops phone
+  const env2 = { OPS_WHATSAPP_JONATHAN: '+27000000001', OPS_WHATSAPP_KG: '+27000000002', OPS_EMAIL: 'ops@example.test' };
+  const fan = (n) => runCode('Expand recipients', { env: env2, input: [{ notification_id: '5', ...n }] }).map((o) => `${o.channel}:${o.who}`);
+  assert.deepEqual(fan({ status: 'sending', severity: 'amber', to: 'kg' }), ['whatsapp:kg']);
+  assert.deepEqual(fan({ status: 'sending', severity: 'red', to: 'jonathan,kg' }), ['whatsapp:jonathan', 'whatsapp:kg', 'email:ops']);
+  assert.deepEqual(fan({ status: 'sending', severity: 'amber', to: 'broker:b1' }), []);
+  // DND release keeps the stored recipient
+  const [rel] = runCode('Escalation policy', { nowIso: '2026-10-03T05:00:00Z', input: [row({ status: 'held_dnd', first_sent_at: null, to: 'kg', severity: 'amber' })] });
+  assert.equal(rel.recipients.join(), 'kg');
+});
+
 // ---------------------------------------------------------------- policy (DND, always-send, amber, redaction)
 const sig = (k, extra = {}) => ({ kind: 'signal', signal_key: k, scope: 'global', severity: 'red', what: `${k} happened`, impact: 'i', first_action: 'a', since: '2026-10-02T08:00:00Z', ...extra });
 
@@ -318,6 +393,9 @@ test('SQL: DDL, dedupe 24 h, delivery log, escalation query, Flow revert (real P
   assert.equal(psql(`SELECT seen_count FROM ops.notifications WHERE id = ${first[0][0]}`)[0][0], '2');
   const amber = psql(dedupe, ['fsca_mismatch|broker:mark|amber', 'fsca_mismatch', 'broker:mark', 'amber', false, 'amber_to_pulse', 'W20', 'w', 'i', 'a', '10:00', 'jonathan', '{}']);
   assert.equal(amber[0][1], 'amber_to_pulse', 'different severity = different key');
+  assert.equal(psql(`SELECT "to" FROM ops.notifications WHERE id = ${first[0][0]}`)[0][0], 'jonathan,kg', 'no recipient -> both partners');
+  const io = psql(dedupe, ['dsar_received|dsr:d1|amber', 'dsar_received', 'dsr:d1', 'amber', false, 'sending', 'W34', 'w', 'i', 'a', '10:00', 'jonathan', '{}', 'kg'])[0];
+  assert.equal(io[10], 'kg', 'I-38b: the IO recipient is stored and returned');
   psql(`UPDATE ops.notifications SET created_at = now() - interval '25 hours' WHERE id = ${first[0][0]}`);
   const again = psql(dedupe, p)[0];
   assert.equal(again[1], 'sending', 'after 24 h the same signal may notify again');

@@ -3,6 +3,7 @@
 # Runs on the VPS from /etc/cron.d/lv-backup (see BACKUP.md). Idempotent; safe to re-run; never writes plaintext off-box.
 #   pg_dump_nightly.sh            nightly: CRM schemas on Supabase + n8n's own Postgres -> age-encrypt -> S3-compatible bucket
 #   pg_dump_nightly.sh --consent  monthly: consent-evidence archive (5-year prefix, see BACKUP.md section 3)
+#   pg_dump_nightly.sh --dsr-exports  only step 6: delete DSR export files older than 7 days (W34, I-38b)
 #   pg_dump_nightly.sh --selftest offline check of the encrypt/decrypt path with a throwaway key (no network, no DB)
 #   DRY_RUN=1 pg_dump_nightly.sh  print what would happen
 # Config (names only; values in /etc/lv/backup.env, root 0600): BACKUP_DB_URL, BACKUP_AGE_RECIPIENT | BACKUP_GPG_RECIPIENT,
@@ -11,7 +12,8 @@
 #   BACKUP_CONSENT_TABLES (default "public.leads public.consent_records public.suppression"), LV_COMPOSE_DIR (default /opt/lead-velocity),
 #   OPS_PING_URL (optional dead-man heartbeat), PG_DUMP_IMAGE (default postgres:17-alpine),
 #   OPS_FEEDER_DB_URL (n8n_app role; unset = feeders skipped), OPS_MONITORS (default "api"), OPS_PAGE_REPORT_DIR
-#   (default $LV_COMPOSE_DIR/landing/reports), OPS_PAGE_BRAND_CODE (default SMC), OPS_BUILD_SHA, NODE_IMAGE (default node:22-alpine).
+#   (default $LV_COMPOSE_DIR/landing/reports), OPS_PAGE_BRAND_CODE (default SMC), OPS_BUILD_SHA, NODE_IMAGE (default node:22-alpine),
+#   W34_EXPORT_DIR (default /home/node/compliance/dsr-exports), LV_COMPOSE_PROJECT (default lv), DSR_EXPORT_HOST_DIR (optional).
 set -Eeuo pipefail
 umask 077
 ENV_FILE="${BACKUP_ENV_FILE:-/etc/lv/backup.env}"
@@ -44,6 +46,27 @@ if [[ "$MODE" == "--selftest" ]]; then
   age -d -i "$t/k" < "$t/c" | cmp - "$t/p"
   echo "selftest: encrypt/decrypt round trip OK ($(ext))"; exit 0
 fi
+
+# --- 6) DSR export files (W34 "D Export", I-38b). They hold personal information and are kept only until the IO has
+#        sent them: anything older than 7 days is deleted every night. Best effort (never fails the backup); logs counts,
+#        never file names. Default: inside the running n8n container of compose project LV_COMPOSE_PROJECT (default lv);
+#        DSR_EXPORT_HOST_DIR instead when the folder is a host bind mount. Also runnable alone: --dsr-exports.
+dsr_exports() {
+  local dir="${W34_EXPORT_DIR:-/home/node/compliance/dsr-exports}" mins=$((7 * 1440)) n=0 cid
+  [[ "$dir" =~ ^/[A-Za-z0-9._/-]+$ && "$dir" != *..* ]] || { log "dsr exports: W34_EXPORT_DIR is not a plain absolute path; skipped"; return 1; }
+  if [[ -n "${DSR_EXPORT_HOST_DIR:-}" ]]; then
+    [[ -d "$DSR_EXPORT_HOST_DIR" ]] || { log "dsr exports: host dir absent; nothing to delete"; return 0; }
+    n="$(find "$DSR_EXPORT_HOST_DIR" -maxdepth 1 -type f -mmin +"$mins" | wc -l)"
+    run find "$DSR_EXPORT_HOST_DIR" -maxdepth 1 -type f -mmin +"$mins" -delete
+  elif command -v docker >/dev/null; then
+    cid="$(docker ps -q --filter "label=com.docker.compose.project=${LV_COMPOSE_PROJECT:-lv}" --filter label=com.docker.compose.service=n8n | head -n1)"
+    [[ -n "$cid" ]] || { log "dsr exports: n8n container not running; skipped"; return 0; }
+    n="$(docker exec "$cid" sh -c "if [ -d '$dir' ]; then find '$dir' -maxdepth 1 -type f -mmin +$mins | wc -l; else echo 0; fi")"
+    run docker exec "$cid" sh -c "[ ! -d '$dir' ] || find '$dir' -maxdepth 1 -type f -mmin +$mins -delete"
+  else log "dsr exports: no docker and no DSR_EXPORT_HOST_DIR; skipped"; return 0; fi
+  log "dsr exports: $((n)) file(s) older than 7 days ${DRY_RUN:+would be }deleted"
+}
+if [[ "$MODE" == "--dsr-exports" ]]; then dsr_exports; exit $?; fi
 
 s3_put() { # file key  (SigV4 via curl >= 7.75; key is write-only to one bucket)
   local f="$1" k="$2"
@@ -124,5 +147,6 @@ feeders() {
 feeders || log "WARN: ops feeders failed (backup itself is fine)"
 # --- 4) local retention: 7 days of encrypted files (the 30-day copy lives off-server)
 run find "$LOCAL_DIR" -maxdepth 1 -type f \( -name 'crm-*' -o -name 'n8n-*' \) -mtime +7 -delete
+dsr_exports || log "WARN: DSR export clean-up failed (backup itself is fine)"
 [[ -n "${OPS_PING_URL:-}" ]] && run curl -fsS -m 10 "$OPS_PING_URL" -o /dev/null || true
 log "nightly OK ($bytes bytes CRM${n8n:+, n8n included})"

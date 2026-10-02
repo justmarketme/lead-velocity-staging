@@ -29,7 +29,7 @@
 
 ## 2. The Code node per provider (paste under the inlined block)
 
-### Meta: WhatsApp (W03 ingress), Lead Ads `page` object (W02 ingress), Page feed + Instagram comments (W30)
+### Meta: WhatsApp (W07 ingress), Lead Ads `page` object (W02 ingress), Page feed + Instagram comments (W30)
 ```js
 // Run Once for All Items
 const item = $input.first();
@@ -98,14 +98,14 @@ A Meta app has **one callback URL per object type** (`whatsapp_business_account`
 
 | Object / provider | Ingress (verifies) | Routes `field` → workflow |
 |---|---|---|
-| `whatsapp_business_account` | **W03** webhook (`/webhook/wa`) | `messages` with CTWA `referral` → W03 · other `messages` → W07 · `statuses` → W06 delivery log · `message_template_status_update`, `phone_number_quality_update`, `account_update` → W27 → **W22** |
+| `whatsapp_business_account` | **W07** webhook (`POST /webhook/whatsapp`; the GET subscription handshake on the same path is W03's *Meta webhook verify* node) | `messages` with CTWA `referral` → W03 · other `messages` → W07 · `statuses` → W06 delivery log · `message_template_status_update`, `phone_number_quality_update`, `account_update` → W27 → **W22** |
 | `page` | **W02** webhook (`/webhook/meta-page`) | `leadgen` → W02 · `feed` → W30 · `messages` (Messenger) → W31 |
 | `instagram` | **W30** webhook (`/webhook/meta-ig`) | `comments` → W30 · `messages` → W31 |
 | Paystack | **W16** webhook (`/webhook/paystack`) | `charge.success` → W16 · failures → W19 + W22 |
 | Twilio | W06 / W22 status callbacks | — |
 | Flow endpoint (W28) | its own route. `X-Hub-Signature-256` is checked first and a failure returns **432**, as `flows/booking-flow-endpoint.md` says. Then decryption uses Meta's reference code; a failure there returns 421 | — |
 
-If automation-engineer uses n8n's built-in *WhatsApp Trigger* node instead of a Webhook node for W03, the explicit, tested check above is lost and the raw body is not exposed. Use the Webhook node pattern here.
+If automation-engineer uses n8n's built-in *WhatsApp Trigger* node instead of a Webhook node for the W07 ingress, the explicit, tested check above is lost and the raw body is not exposed. Use the Webhook node pattern here.
 
 ## 5. Checklist per webhook (part of each workflow's acceptance test)
 - [ ] Raw Body ON, and verification runs before any JSON use.

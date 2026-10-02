@@ -3,7 +3,7 @@
 //   node --test automation/tests/W26.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, rmSync, utimesSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -96,10 +96,54 @@ test('CORS (I-34c): browser endpoints on API_HOST allow X-Lead-Token + Authoriza
   assert.match(y, /routers\.n8n-cors\.tls\.certresolver=le/);
   assert.match(y, /routers\.n8n-cors\.middlewares=api-cors,api-ratelimit,sec-headers/);
   const origins = y.match(/accessControlAllowOriginList=\$\{PUBLIC_ALLOWED_ORIGINS:-([^}]+)\}/)[1].split(',');
-  assert.deepEqual(origins, ['https://sortmycover.co.za', 'https://sortmycover.leadvelocity.co.za', 'https://app.leadvelocity.co.za']);
+  assert.deepEqual(origins, ['https://sortmycover.co.za', 'https://www.sortmycover.co.za', 'https://app.leadvelocity.co.za'], 'I-37i: production default');
+  assert.ok(!origins.some((o) => /leadvelocity\.co\.za$/.test(o) && o.includes('sortmycover')), 'staging subdomain never in the production default');
+  const ex = readFileSync(join(A, '.env.example'), 'utf8');
+  assert.match(ex, /#\s+Production[^\n]*https:\/\/sortmycover\.co\.za,https:\/\/www\.sortmycover\.co\.za,https:\/\/app\.leadvelocity\.co\.za\s*$/m);
+  assert.match(ex, /#\s+Staging[^\n]*https:\/\/www\.sortmycover\.co\.za,https:\/\/sortmycover\.leadvelocity\.co\.za,https:\/\/app\.leadvelocity\.co\.za\s*$/m);
+  assert.match(ex, /^PUBLIC_ALLOWED_ORIGINS=$/m, 'value empty in the example');
   assert.match(y, /accessControlAllowHeaders=Content-Type,X-Lead-Token,Authorization/);
   assert.match(y, /accessControlAllowCredentials=false/);
   assert.doesNotMatch(y, /accessControlAllowOriginList=\*/);
+});
+
+test('backup step 6 (I-38b): DSR export files older than 7 days are deleted, newer kept; dry run and bad dir are safe', () => {
+  const S = join(A, 'backup/pg_dump_nightly.sh');
+  const src = readFileSync(S, 'utf8');
+  assert.match(src, /\ndsr_exports \|\| log "WARN: DSR export clean-up failed/, 'nightly run calls step 6 best-effort');
+  assert.match(src, /-mmin \+"?\$mins"?/);
+  const d = mkdtempSync(join(tmpdir(), 'dsr-'));
+  try {
+    const old = join(d, 'dsr-old.json'); const fresh = join(d, 'dsr-new.json');
+    writeFileSync(old, '{}'); writeFileSync(fresh, '{}');
+    const t = Date.now() / 1000 - 8 * 86400; utimesSync(old, t, t);
+    const env = { PATH: process.env.PATH, BACKUP_ENV_FILE: '/nonexistent', DSR_EXPORT_HOST_DIR: d };
+    let r = spawnSync('bash', [S, '--dsr-exports'], { env: { ...env, DRY_RUN: '1' }, encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr); assert.match(r.stdout, /1 file\(s\) older than 7 days would be deleted/);
+    assert.ok(existsSync(old), 'dry run deletes nothing');
+    r = spawnSync('bash', [S, '--dsr-exports'], { env, encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr); assert.doesNotMatch(r.stdout, /dsr-old|dsr-new/, 'counts only, no file names');
+    assert.ok(!existsSync(old), 'older than 7 days: deleted'); assert.ok(existsSync(fresh), 'newer: kept');
+    r = spawnSync('bash', [S, '--dsr-exports'], { env: { ...env, W34_EXPORT_DIR: "/x'; rm -rf /" }, encoding: 'utf8' });
+    assert.notEqual(r.status, 0); assert.match(r.stdout, /not a plain absolute path/);
+  } finally { rmSync(d, { recursive: true, force: true }); }
+});
+
+test('app. hosting (I-37j): /s/* and /broker/* reach the SPA on Hostinger and Vercel; sub-apps excluded', () => {
+  const h = readFileSync(join(A, '..', 'deploy/hostinger-app/.htaccess'), 'utf8');
+  const rules = h.split('\n').filter((l) => /^Rewrite(Rule|Cond)/.test(l));
+  const idx = (re) => rules.findIndex((l) => re.test(l));
+  const excl = idx(/\^\(media\|checkout\|portal\/intro-media\)/), s = idx(/RewriteRule \^s\(\/\.\*\)\?\$ \/index\.html/),
+    b = idx(/RewriteRule \^broker\(\/\.\*\)\?\$ \/index\.html/), all = idx(/RewriteRule \^ \/index\.html \[L\]/);
+  assert.ok(excl >= 0 && s > excl && b > excl && all > Math.max(s, b), 'exclusions first, then /s and /broker, then catch-all');
+  assert.doesNotMatch(h, /QSD|\?\s*\[/, 'query string kept (/s/calendar?day=)');
+  assert.match(h, /X-Frame-Options "DENY"/);
+  assert.doesNotMatch(h, /sb_secret_|eyJhbGci|sk_live_/);
+  const v = JSON.parse(readFileSync(join(A, '..', 'vercel.json'), 'utf8')).rewrites.map((r) => r.source);
+  assert.ok(v.indexOf('/s/:path*') >= 0 && v.indexOf('/s/:path*') < v.indexOf('/(.*)'));
+  assert.ok(v.indexOf('/broker/:path*') >= 0 && v.indexOf('/broker/:path*') < v.indexOf('/(.*)'));
+  const routes = readFileSync(join(A, '..', 'src/App.tsx'), 'utf8').match(/path="\/s\/[a-z]+"/g) || [];
+  assert.ok(routes.length >= 2, 'the SPA defines the /s/* short links');
 });
 
 test('apply-analytics.sh (I-35k): fixed order, one transaction, dry run rolls back, halts before migrations', () => {
