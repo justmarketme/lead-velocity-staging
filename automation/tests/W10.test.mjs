@@ -166,6 +166,35 @@ test('C1A point 2: plain "I don\'t want a call" / "No thanks" -> stop at once + 
   assert.equal(R.applyCancel(bk(), ld({ conv_state: { declined_call: true } }), { now_ms: RESCHED_TAP }).rebook_offer, false, 'no rebooking offer after a plain no');
 });
 
+test('R5-01: plain "no call" = objection -> suppression record (W08 style) on both branches; W10.json writes suppression via smc_hash_contact in the same statement', () => {
+  for (const b of [cBk(), bk()]) {
+    const nc = R.applyNoCall(b, ld());
+    assert.deepEqual(nc.suppress, { source: 'objection', note: 'no_call_c1a' });
+    assert.equal(nc.w09, 'cancel_all'); assert.equal(nc.conv_state_patch.declined_call, true); // C1A (a)+(b) default unchanged
+  }
+  const node = WF.nodes.find((x) => x.name === 'Stop messaging (no call)');
+  const q = node.parameters.query;
+  assert.match(q, /INSERT INTO public\.suppression \(mobile_hash, source, brand_id, lead_id, note\)/);
+  assert.match(q, /public\.smc_hash_contact\(upd\.phone\)/);
+  assert.match(q, /ON CONFLICT DO NOTHING/);
+  assert.match(q, /WITH upd AS \(UPDATE public\.leads/, 'close + suppress in ONE statement');
+  const rep = node.parameters.options.queryReplacement;
+  assert.match(rep, /\$json\.nc\.suppress\.source/); assert.match(rep, /\$json\.nc\.suppress\.note/);
+  // the W10.json node is fed by "Decide no-call", which carries applyNoCall's output as $json.nc
+  assert.ok(WF.connections['Decide no-call (C1A point 2)'].main[0].some((c) => c.node === 'Stop messaging (no call)'));
+  assert.deepEqual(checkSql(workflowSql(WF)), []);
+});
+
+test('R5-11: no-call with a live booking asks the cancel confirm and does NOT run W09 cancel_all or cancel the booking first', () => {
+  const live = R.applyNoCall(bk(), ld());
+  assert.equal(live.action, 'confirm_cancel_first'); assert.equal(live.send_to_lead, 'cancel_confirm');
+  const ifn = WF.connections['Booking still live? (confirm cancel first)'].main;
+  assert.deepEqual(ifn[0].map((c) => c.node), ['Cancel confirm buttons'], 'true branch: only the question');
+  assert.deepEqual(ifn[1].map((c) => c.node), ['W09 cancel all (no call)'], 'false branch: no live booking -> stop reminders');
+  assert.ok(!WF.connections['Decide no-call (C1A point 2)'].main[0].some((c) => c.node === 'W09 cancel all (no call)'));
+  assert.ok(!/status\s*=\s*'cancelled'/.test(WF.nodes.find((x) => x.name === 'Stop messaging (no call)').parameters.query), 'no-call never cancels the booking itself');
+});
+
 test('C1A point 1 and exclusions: rebook, broker cancel, unverified, STOP, already claimed -> nothing claimed', () => {
   assert.equal(c1a({ rebooked: true }).claim, false); assert.equal(c1a({ rebooked: true }).why, 'rebooked_new_call_judged_as_usual');
   assert.equal(c1a({ rebooked: true, inbound_after_cancel: [{ content: 'No thanks' }] }).claim, false, 'a later booking wins');

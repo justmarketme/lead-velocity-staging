@@ -1339,9 +1339,9 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "-- C1A point 2: W08 stops on declined_nurture / unbooked_closed; W07 sees declined_call. Stage kept while a booking is live.\nUPDATE public.leads\n   SET conv_state = COALESCE(conv_state, '{}'::jsonb) || $2::jsonb,\n       stage = COALESCE($3, stage),\n       updated_at = now()\n WHERE id = $1::uuid\nRETURNING id;",
+        "query": "-- C1A point 2: W08 stops on declined_nurture / unbooked_closed; W07 sees declined_call. Stage kept while a booking is live.\n-- R5-01: the plain \"no call\" is an objection -> the number hash goes on the suppression list in the SAME statement (as W08 \"Save tap result\").\nWITH upd AS (UPDATE public.leads\n   SET conv_state = COALESCE(conv_state, '{}'::jsonb) || $2::jsonb,\n       stage = COALESCE($3, stage),\n       updated_at = now()\n WHERE id = $1::uuid\nRETURNING id, phone),\nsup AS (INSERT INTO public.suppression (mobile_hash, source, brand_id, lead_id, note)\n        SELECT public.smc_hash_contact(upd.phone), $4, NULL, upd.id, $5 FROM upd WHERE $4 IS NOT NULL AND upd.phone IS NOT NULL\n        ON CONFLICT DO NOTHING RETURNING id)\nSELECT (SELECT count(*) FROM upd) AS updated, (SELECT count(*) FROM sup) AS suppressed;",
         "options": {
-          "queryReplacement": "={{ [$json.ld.id, JSON.stringify($json.nc.conv_state_patch), $json.nc.lead_stage] }}"
+          "queryReplacement": "={{ [$json.ld.id, JSON.stringify($json.nc.conv_state_patch), $json.nc.lead_stage, $json.nc.suppress ? $json.nc.suppress.source : null, $json.nc.suppress ? $json.nc.suppress.note : null] }}"
         }
       },
       "credentials": {

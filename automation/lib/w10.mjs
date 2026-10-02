@@ -220,7 +220,8 @@ export function c1aDecision(x) {
  * applyNoCall(booking, lead) -> what W10 does the moment a lead says plainly they do not want a call (C1A point 2).
  * Messaging stops at once whatever the NH-42 option: W08 stops on declined_nurture / stage unbooked_closed, W09 jobs are
  * cancelled. A still-live booking goes through the normal cancel confirm first (typed "cancel" asks, 4.11), with
- * declined_call already set so the cancel sends no rebooking offer.
+ * declined_call already set so the cancel sends no rebooking offer. The number hash goes on the suppression list on
+ * both branches (R5-01).
  */
 export function applyNoCall(booking, lead) {
   const live = ACTIVE.has(booking?.status);
@@ -229,7 +230,11 @@ export function applyNoCall(booking, lead) {
     conv_state_patch: { declined_call: true, declined_nurture: true, state: 'closed_unbooked' },
     lead_stage: live ? null : 'unbooked_closed',
     w09: 'cancel_all',
-    send_to_lead: live ? 'cancel_confirm' : null
+    send_to_lead: live ? 'cancel_confirm' : null,
+    // R5-01: a plain "no call / don't contact me" is a POPIA s11(3)/s69 objection, same as W08's "No thanks"
+    // (privacy.html: "No thanks -> we never message you again"). W10.json "Stop messaging (no call)" closes the lead AND
+    // inserts smc_hash_contact(phone) into suppression in ONE statement, exactly as W08 "Save tap result" does.
+    suppress: { source: 'objection', note: 'no_call_c1a' }
   };
 }
 
