@@ -50,9 +50,9 @@ Ads: `C{concept}_{angle}_{format}_{date}` (6.2). `{concept}` two digits; `{angle
 |---|---|---|
 | Campaign | `SMC_{A|B|C}_{objective}_{ZA}_c{cycle}` | `SMC_A_LEADS-IF_ZA_c1` |
 | Ad set | `SMC_{A|B|C}_BROAD_ZA_35-50` | `SMC_A_BROAD_ZA_35-50` |
-| Ad | `C{concept}_{angle}_{format}_{date}` | `C01_H1_sta-amb_20261015` |
+| Ad | `C{concept}_{angle}_{format}_{date}` | `C01_H1_vid-amb_20261015` |
 | Form | `SMC_A1_HI_v{n}_{named|generic}_{date}` / `SMC_A2_RC_...` | `SMC_A1_HI_v1_named_20261015` |
-| Audience | `SMC_{EXC|ENG|LAL}_{description}_{window}` | `SMC_EXC_leads_90d` |
+| Audience | `SMC_{EXC|ENG|LAL}_{description}_{window}` | `SMC_EXC_leads_90d_pix` / `SMC_EXC_leads_90d_list` |
 
 URL parameters (Campaign B ads; the instant form needs none because W02 reads campaign/adset/ad IDs from the lead object):
 `utm_source=meta&utm_medium=paid_social&utm_campaign={{campaign.name}}&utm_content={{ad.name}}&utm_term={{placement}}&cid={{campaign.id}}&asid={{adset.id}}&adid={{ad.id}}`
@@ -110,7 +110,7 @@ Do not add: email (collected only inside WhatsApp, and only for Teams/Zoom/Meet)
 
 **3.6 Thank-you screen:** Title "Thanks. Check WhatsApp." Body "Check WhatsApp. Your adviser's details and times are on their way." Button "What happens next" -> `https://sortmycover.co.za/what-happens-next` (placeholder: confirm the page exists, else the home page).
 
-**3.7 A2 Rich Creative sections (paused; same questions/consent/endings as A1):** How it works (3 steps) / cover-gap carousel (3 cards: "Most work life cover stops at 2-4x salary." / "Most bonds don't." / "A licensed adviser can look at the gap on a 30-minute call.") / trust points / what happens on the call. Exact draft text in `instant-form-spec.json` `_rich_creative_a2`; compliance-qa must pass it (no second-person finance claims) before it is submitted.
+**3.7 A2 Rich Creative sections (paused; same questions/consent/endings as A1):** How it works (3 steps) / cover-gap carousel (3 cards: "Most work life cover stops at 2-4x salary." / "The bond and the bills don't." / "A licensed adviser can look at the gap on a 30-minute call.") / trust points / what happens on the call. Exact draft text in `instant-form-spec.json` `_rich_creative_a2`; compliance-qa must pass it (no second-person finance claims) before it is submitted.
 
 **3.8 Lead delivery:** webhook only (W02, `leadgen`); no CSV download, no CRM connector, no Meta notification emails with PII. Test with Meta's Lead Ads Testing Tool before publish; confirm W02 returns the lead in < 5 s and W03/W01 send `broker_intro_slots` in < 60 s end to end.
 
@@ -148,7 +148,7 @@ Do not add: email (collected only inside WhatsApp, and only for Teams/Zoom/Meet)
 | Languages | Leave empty (do not restrict; SA is multilingual) |
 | Audience control | **Advantage+ audience ON.** Audience suggestions: **none in cycle 1** (no interests, no lookalike). Optional suggestion later per section 11 |
 | Detailed targeting | **None** (no interest stacking) |
-| **Exclusions (hard, custom audiences)** | `SMC_EXC_leads_90d` (hashed `Lead`, 90 d), `SMC_EXC_booked`, `SMC_EXC_attended` (section 7). All three, always |
+| **Exclusions (hard, custom audiences)** | `SMC_EXC_leads_90d_pix` (pixel/CAPI `Lead`, 90 d), `SMC_EXC_leads_90d_list` (hashed customer list, 90 d), `SMC_EXC_booked`, `SMC_EXC_attended` (section 7). All four, always |
 | Placements | **Advantage+ placements, with Audience Network excluded** (and Messenger inbox, if the screen lists it). Everything else automatic. RECORD the final list. ASSUMPTION: Audience Network adds junk submissions; revisit with placement-level cost per qualified lead after 14 days, not before |
 | Optimisation and delivery | Impressions billing; default delivery |
 | Dynamic creative | Off (we test as separate ads for clean attribution) |
@@ -156,30 +156,36 @@ Do not add: email (collected only inside WhatsApp, and only for Teams/Zoom/Meet)
 ### 4.3 Ads (all in the one ad set)
 All ads: Page identity `{page_id}`, Instagram `{ig_user_id}`, destination = Instant form (A1, unless stated), call to action **Learn more** (never "Get quote"/"Get offer"), primary text / headline / description exactly as in the creative-strategist ad manifest keyed by concept ID, assets from the visual-producer manifest (9:16, 1:1, 4:5), AI disclosure per 2.1.5 where applicable, no boosting, no tags that imply financial status. Reject any asset naming a product, insurer, premium, cover amount or broker (compliance-qa gate).
 
-**4.4 Pre-approval trio (publish first; 2.1.8):** `C01_H1_sta-amb`, `C01_H1_vid-amb`, `C02_H3_vid-amb`. All three must be approved by Meta before anything else is added. If any is disapproved, see section 10 and 11 (do not re-submit blindly).
+**4.4 Pre-approval trio (publish first; 2.1.8):** `C01_H1_vid-amb`, `C03_H3_vid-amb`, `C14_H10_vid-amb` (concept ids and hooks per `deliverables/performance-creative-director/test-matrix.md`; hook wording per `hook-library-v2.md`). Together they clear the three riskiest Meta patterns: a number in the hook (C01), a life-event scene (C03), the plain explainer with UI mocks (C14). All three must be approved by Meta before anything else is added. If any is disapproved, see section 10 and 11 (do not re-submit blindly).
 
-### 4.5 Test matrix (4D.4a): colour x format on H1 and H3, separate ads, same ad set
-| Ad name (date = upload date) | Hook | Colour | Format |
+### 4.5 Cycle-1 test: one colour pair on H1 video, plus the diversity set (10 ads live, all video, same ad set)
+Basis: NH-22 (d) default. Cycle 1 tests colour on H1 video only; the full 2x2 on H1 and H3 is not run (arithmetic in test-matrix.md: ~50 raw leads/month cannot power 8 arms). If Jonathan picks the full 2x2, the cycle-2 arms start on day 1 and nothing else changes.
+
+| Step | Ad name (date = upload date) | Hook (frame-1 text, exactly) | Colour |
 |---|---|---|---|
-| `C01_H1_sta-amb_{date}` | H1 "Most work life cover stops at 2-4x salary." | amber | static |
-| `C01_H1_sta-teal_{date}` | H1 | teal on cream | static |
-| `C01_H1_vid-amb_{date}` | H1 | amber | video (9:16, 15-30 s) |
-| `C01_H1_vid-teal_{date}` | H1 | teal | video |
-| `C02_H3_sta-amb_{date}` | H3 "Just got bond approval? Read this before the champagne." | amber | static |
-| `C02_H3_sta-teal_{date}` | H3 | teal | static |
-| `C02_H3_vid-amb_{date}` | H3 | amber | video |
-| `C02_H3_vid-teal_{date}` | H3 | teal | video |
+| 1. Trio | `C01_H1_vid-amb_{date}` | H1 "Most work life cover stops at 2-4x salary." Beat 2: "The bond and the bills don't." | amber on charcoal |
+| 1. Trio | `C03_H3_vid-amb_{date}` | H3 "Bond approved. Champagne open. Cover checked?" | amber |
+| 1. Trio | `C14_H10_vid-amb_{date}` | H10 "Here's exactly what happens on the call." | amber |
+| 2. Matrix arm (after trio approved) | `C01_H1_vid-teal_{date}` | H1, identical to `C01_H1_vid-amb` except palette | teal on cream |
+| 3. Diversity (after trio approved) | `C04_H4_vid-amb_{date}` | H4 "New baby. New bond. Same old cover?" | amber |
+| 3. Diversity | `C05_H5_vid-amb_{date}` | H5 "Cover set up at 28. Life at 40." | amber |
+| 3. Diversity | `C06_H9_vid-amb_{date}` | H9 "Many families carry more than one household." | amber |
+| 3. Diversity | `C08_H6_vid-amb_{date}` | H6 "No sales visit. No jargon. 30 minutes." | amber |
+| 3. Diversity | `C10_H7_vid-amb_{date}` | H7 "No boss. No payslip. No group cover." | amber |
+| 3. Diversity | `C13_H16_vid-amb_{date}` | H16 "Checking cover is not the same as buying." | amber |
 
-Plus **up to two diversity ads** (amber, video) for Andromeda creative variety, from the creative-strategist's ranking: default `C03_H10_vid-amb` (what happens on the call) and `C04_H5_vid-amb`. Maximum 10 ads live. Same copy within a hook across colour/format so colour and format are the only variables (single-variable discipline).
+That is 10 ads (the cap), one per angle plus the colour pair, so all 7 angles are live. Each video carries its 9:16 (Reels/Stories) and 4:5 (Feed) through placement asset customisation. Not live (pool, replacements and the week 2-3 refresh): C02 (H12 Variant B; H2 on hold, NH-PCD-02), C07, C09, C11, C12 (H18; H8 on hold, NH-PCD-04), C15, all stills, 6-s motion stills, the C04 carousel. Statics are not live in cycle 1; static vs video is a cycle-2 test (`C01_H1_sta-{col}` vs `C01_H1_vid-{col}`), and the H3 teal twin (`C03_H3_vid-teal`) enters in cycle 2 if Jonathan keeps that arm. Replacement mapping after the 2,000-impression rule is in test-matrix.md (e.g. C06 -> C07, C08 -> C09, C10 -> C11, C13 -> C12, C14 -> C15; C01 arms are never swapped mid-test). Same copy within the C01 pair so colour is the only variable (single-variable discipline); upload both on the same day and never edit either.
 
-**Reading the matrix (CXL discipline):**
-- Pool by colour (4 ads each) and by format (4 ads each) before judging. Report hook, hold, raw CPL, WhatsApp reply rate, booking rate, per arm.
-- A leader is declared only at **>= 30 leads per pooled arm**. At ~R350/day (about 50 raw leads/month) a colour arm reaches 30 leads only after roughly 6–8 weeks. Therefore the matrix is expected to run into cycle 2 (needs_human 4 asks whether to accept this or reduce the matrix to a single variable). Until then, use leading indicators (hook, hold, reply rate) to inform the *next batch*, never to kill an arm on lead count.
+**Delivery-split note (NH-PCD-06):** Meta does not split delivery evenly between the two colour ads inside one ad set. **Default: accept this for cycle 1.** If either arm gets < 25% of the pair's impressions over 7 days, record that week as inconclusive. Alternative, decided at cycle-1 close: run the C01 pair as a Meta A/B test (two ad sets, even split) in cycle 2, once Campaign A has >= 30 leads.
+
+**Reading the colour test (CXL discipline):**
+- Compare the pair (`C01_H1_vid-amb` vs `C01_H1_vid-teal`). Leading read once each has >= 2,000 impressions: hook, hold, CTR, WhatsApp reply rate, booking rate. This informs the *next batch* only; it never pauses an arm.
+- Verdict only at **>= 30 leads per arm**. Teal wins only if its cost per qualified lead is >= 20% lower and hook rate points the same way; any smaller difference or a split signal means amber stays. At ~R350/day the pair draws roughly 10-15 leads in cycle 1, so the verdict lands in cycle 2 or 3 (needs_human 4 is answered by the NH-22 (d) default). Never kill an arm on lead count.
 - Creative hygiene (4D.4a): any ad under hook < 30% (Reels) / < 25% (Feed) or hold < 35% after 2,000 impressions is replaced in the *next batch*, not mid-flight.
 - The 3.4 R3,000 rule still applies as written (pause bottom 50% on raw CPL or qualify rate). If it removes a matrix arm, record that arm as "inconclusive" and the matrix is re-run in the next batch. 3.4 wins over matrix completeness.
 
 ### 4.6 A2 (Rich Creative) test, built paused
-Duplicate the single best ad by cost per qualified lead (or `C01_H1_sta-amb` if none yet) with form A2, in the same ad set. Activate only when A1 has >= 30 leads on that creative, then run both forms at equal exposure for 14 days. Decide on cost per qualified lead and reply rate, not raw CPL. Not before.
+Duplicate the single best ad by cost per qualified lead (or `C01_H1_vid-amb` if none yet) with form A2, in the same ad set. Activate only when A1 has >= 30 leads on that creative, then run both forms at equal exposure for 14 days. Decide on cost per qualified lead and reply rate, not raw CPL. Not before.
 
 ---
 
@@ -222,7 +228,8 @@ Hashing: SHA-256 in n8n only (event-spec POPIA note). Consent gate: only rows wi
 
 | Name | Type | Source | Use in cycle 1 | Refresh |
 |---|---|---|---|---|
-| `SMC_EXC_leads_90d` | Customer list + pixel `Lead` 90 d | `leads` consented, last 90 d (hashed phone, email only when collected) | **Exclude in A, B, C** | nightly upload |
+| `SMC_EXC_leads_90d_pix` | Website/pixel + CAPI `Lead` 90 d | pixel and CAPI `Lead` events, last 90 d | **Exclude in A, B, C** | automatic |
+| `SMC_EXC_leads_90d_list` | Customer list | `leads` consented, last 90 d (hashed phone, email only when collected) | **Exclude in A, B, C** | nightly upload |
 | `SMC_EXC_booked` | Customer list | leads with a booking | **Exclude** | nightly |
 | `SMC_EXC_attended` | Customer list | leads with outcome attended | **Exclude** | nightly |
 | `SMC_ENG_video75_30d` | Engagement | Reel/video viewers >= 75% | none yet (accumulating seed; 4.4b Day 0) | automatic |
