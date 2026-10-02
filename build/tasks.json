@@ -43,7 +43,7 @@
       ],
       "acceptance_test": "test -s deliverables/verified-facts.md",
       "human_gate": false,
-      "status": "pending",
+      "status": "green",
       "section": "4.0a"
     },
     {
@@ -56,7 +56,7 @@
       ],
       "acceptance_test": "for a in market-research-analyst creative-strategist media-buyer conversation-designer contracts-drafter compliance-qa; do test -s deliverables/$a/first-principles.md || exit 1; done",
       "human_gate": false,
-      "status": "pending",
+      "status": "in_progress",
       "section": "4B"
     },
     {
@@ -817,7 +817,8 @@
       "owner": "landing-page-builder",
       "phase": "2",
       "depends_on": [
-        "P0-INVENTORY"
+        "P0-INVENTORY",
+        "LP-TEMPLATE"
       ],
       "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
       "human_gate": false,
@@ -830,7 +831,8 @@
       "owner": "landing-page-builder",
       "phase": "2",
       "depends_on": [
-        "P0-INVENTORY"
+        "P0-INVENTORY",
+        "LP-TEMPLATE"
       ],
       "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
       "human_gate": false,
@@ -843,7 +845,8 @@
       "owner": "landing-page-builder",
       "phase": "2",
       "depends_on": [
-        "P0-INVENTORY"
+        "P0-INVENTORY",
+        "LP-TEMPLATE"
       ],
       "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
       "human_gate": false,
@@ -856,7 +859,8 @@
       "owner": "landing-page-builder",
       "phase": "2",
       "depends_on": [
-        "P0-INVENTORY"
+        "P0-INVENTORY",
+        "LP-TEMPLATE"
       ],
       "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
       "human_gate": false,
@@ -869,7 +873,8 @@
       "owner": "landing-page-builder",
       "phase": "2",
       "depends_on": [
-        "P0-INVENTORY"
+        "P0-INVENTORY",
+        "LP-TEMPLATE"
       ],
       "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
       "human_gate": false,
@@ -882,7 +887,8 @@
       "owner": "landing-page-builder",
       "phase": "2",
       "depends_on": [
-        "P0-INVENTORY"
+        "P0-INVENTORY",
+        "LP-TEMPLATE"
       ],
       "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
       "human_gate": false,
@@ -895,7 +901,8 @@
       "owner": "landing-page-builder",
       "phase": "2",
       "depends_on": [
-        "P0-INVENTORY"
+        "P0-INVENTORY",
+        "LP-TEMPLATE"
       ],
       "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
       "human_gate": false,
@@ -908,7 +915,8 @@
       "owner": "landing-page-builder",
       "phase": "2",
       "depends_on": [
-        "P0-INVENTORY"
+        "P0-INVENTORY",
+        "LP-TEMPLATE"
       ],
       "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
       "human_gate": false,
@@ -921,7 +929,8 @@
       "owner": "landing-page-builder",
       "phase": "2",
       "depends_on": [
-        "P0-INVENTORY"
+        "P0-INVENTORY",
+        "LP-TEMPLATE"
       ],
       "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
       "human_gate": false,
@@ -934,7 +943,8 @@
       "owner": "landing-page-builder",
       "phase": "2",
       "depends_on": [
-        "P0-INVENTORY"
+        "P0-INVENTORY",
+        "LP-TEMPLATE"
       ],
       "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
       "human_gate": false,
@@ -947,7 +957,8 @@
       "owner": "landing-page-builder",
       "phase": "2",
       "depends_on": [
-        "P0-INVENTORY"
+        "P0-INVENTORY",
+        "LP-TEMPLATE"
       ],
       "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
       "human_gate": false,
@@ -960,7 +971,8 @@
       "owner": "landing-page-builder",
       "phase": "2",
       "depends_on": [
-        "P0-INVENTORY"
+        "P0-INVENTORY",
+        "LP-TEMPLATE"
       ],
       "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
       "human_gate": false,
@@ -973,7 +985,8 @@
       "owner": "landing-page-builder",
       "phase": "2",
       "depends_on": [
-        "P0-INVENTORY"
+        "P0-INVENTORY",
+        "LP-TEMPLATE"
       ],
       "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
       "human_gate": false,
@@ -1966,7 +1979,7 @@
       "depends_on": [],
       "acceptance_test": "test -s automation/templates/samples/intro_card_sample.png && test -s automation/templates/samples/intro_video_sample.mp4",
       "human_gate": false,
-      "status": "pending",
+      "status": "in_progress",
       "section": "4.6 templates; automation-engineer SUMMARY"
     },
     {
@@ -1977,8 +1990,162 @@
       "depends_on": [],
       "acceptance_test": "node -e \"JSON.parse(require(fs).readFileSync(automation/templates/broker_fit_followup.json))\"",
       "human_gate": false,
-      "status": "pending",
+      "status": "in_progress",
       "section": "4.12a; automation-engineer SUMMARY"
+    },
+    {
+      "id": "P1-RESEARCH",
+      "title": "Compile /deliverables/market-research-analyst/research.md from Sections 1–4D + assumptions register (no new research)",
+      "owner": "market-research-analyst",
+      "phase": "1",
+      "depends_on": [
+        "P0-SEED"
+      ],
+      "acceptance_test": "test -s deliverables/market-research-analyst/research.md && test -s deliverables/market-research-analyst/assumptions-register.md",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "5 Phase 1"
+    },
+    {
+      "id": "P1-BRAND-KIT",
+      "title": "Brand kit v1: /brand/tokens.json + tokens.css, SVG logo system (8 variants), favicon set, placement exports, template samples (incl. intro_card_sample.png)",
+      "owner": "visual-producer",
+      "phase": "1",
+      "depends_on": [
+        "P0-SEED"
+      ],
+      "acceptance_test": "test -s brand/tokens.json && test -s brand/tokens.css && ls brand/logo/*.svg | wc -l | xargs test 6 -le && test -s brand/favicon/favicon.svg",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "4D.4b"
+    },
+    {
+      "id": "P1-BRAND-GUIDE",
+      "title": "Brand bible v1 (markdown) + availability/legal check list + disclosure wording — brand-naming-lead",
+      "owner": "brand-naming-lead",
+      "phase": "1",
+      "depends_on": [
+        "P0-SEED"
+      ],
+      "acceptance_test": "test -s brand/brand-bible.md && test -s deliverables/brand-naming-lead/availability-checks.md",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "4D.6"
+    },
+    {
+      "id": "P1-SERP-PAGES",
+      "title": "SERP plan + 5 YMYL educational pages (static HTML) + schema",
+      "owner": "search-findability-lead",
+      "phase": "1",
+      "depends_on": [
+        "P0-SEED"
+      ],
+      "acceptance_test": "ls landing/holding/learn/*.html | wc -l | xargs test 5 -le && test -s deliverables/search-findability-lead/serp-plan.md",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "4D.6"
+    },
+    {
+      "id": "P2-SCHEMA",
+      "title": "Supabase migrations (drafted, NOT applied): security fix migration 1, brands/brokers/pricing/cycles/leads/bookings/outcomes/replacements/invoices/bank_credits/ad_metrics/comments/reports/suppression/dsr/ops.*/facts.* + RLS + audit log + pricing seed",
+      "owner": "platform-architect",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "ls supabase/migrations/2026100*_smc_*.sql | wc -l | xargs test 3 -le && test -s deliverables/platform-architect/schema.md",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "6.4 / crm-gap §D"
+    },
+    {
+      "id": "P2-CONCEPTS",
+      "title": "15 broker-neutral ad concepts (concepts.md + CSV) per 4.2 + 4D.4a hook library",
+      "owner": "creative-strategist",
+      "phase": "2",
+      "depends_on": [
+        "P0-SEED"
+      ],
+      "acceptance_test": "test -s deliverables/creative-strategist/concepts.md && test -s deliverables/creative-strategist/concepts.csv",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "4.2"
+    },
+    {
+      "id": "P2-WEBSITE-WORDING",
+      "title": "leadvelocity.co.za wording rewrite per 3.5a (before/after per section, FAQ, banned-word scan)",
+      "owner": "creative-strategist",
+      "phase": "2",
+      "depends_on": [
+        "P0-SEED"
+      ],
+      "acceptance_test": "test -s deliverables/creative-strategist/website-wording.md",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "3.5a"
+    },
+    {
+      "id": "P2-CAMPAIGN-SPEC",
+      "title": "campaign-spec.md — exact Meta settings for Campaigns A/B/C, audiences, CAPI stages, test matrix, kill/scale",
+      "owner": "media-buyer",
+      "phase": "2",
+      "depends_on": [
+        "P0-SEED"
+      ],
+      "acceptance_test": "test -s deliverables/media-buyer/campaign-spec.md",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "4.4"
+    },
+    {
+      "id": "P2-CONVERSATION-AGENT",
+      "title": "Thandi: system prompts (intent/slot, reply, guardrail classifier), state machine, golden set (200 turns + 50 red-team), eval harness, deferral lines, pre-call brief prompt, FAQ corpus /knowledge/faq.md",
+      "owner": "conversation-designer",
+      "phase": "2",
+      "depends_on": [
+        "P0-SEED"
+      ],
+      "acceptance_test": "test -s evals/golden-set.json && test -s evals/red-team.json && node evals/run.mjs --dry-run && test -s knowledge/faq.md",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "4.11 / 6B.1 / 6B.9"
+    },
+    {
+      "id": "P2-TEST-DRAFTS",
+      "title": "Draft acceptance tests + synthetic-lead fixtures for the 8 core-path workflows for Jonathan to approve (GATE-TEST-*)",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "for w in W01 W04 W05 W06 W09 W12 W13 W15; do test -s automation/tests/$w.test.mjs || exit 1; done && test -s automation/tests/fixtures/synthetic-leads.json",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "4C.2"
+    },
+    {
+      "id": "LP-TEMPLATE",
+      "title": "Quiz landing page template + per-angle JSON + Playwright quiz test + Lighthouse script (built from the 4.5 spec table; reconcile with the approved reference when it lands — NH-21)",
+      "owner": "landing-page-builder",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "test -s landing/template/index.html && test -s landing/tests/quiz.spec.ts && ls landing/angles/*.json | wc -l | xargs test 6 -le",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "4.5"
+    },
+    {
+      "id": "NH-21",
+      "title": "Approved landing reference `/landing/reference/sortmycover-landing.html` (and docs/design mocks) are not in the repo — 0.0 step 4 said copy from Downloads. Jonathan/laptop to add them; LP-TEMPLATE is built from the 4.5 spec table meanwhile and reconciled when the reference lands.",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "test -s landing/reference/sortmycover-landing.html",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.5 Reference implementation"
     }
   ]
 }
