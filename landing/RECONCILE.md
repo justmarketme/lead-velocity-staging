@@ -47,7 +47,7 @@ Sticky top bar, charcoal hero with amber emphasis and gradient, chips, gap bars 
 | E1 | H1 = ad hook for new-bond (H3), turned-40 (H5), self-employed (H7), virtual (H6), myth-bust (H18, until H8 is sourced), employer-gap (beat 2 in sub); `ad_hook` equals the H1 text, so the message-match warning is gone | hook-library-v2 |
 | E2 | `config/faq.json` aligned to faq-v1.0.1: how-long (FAQ-01) and cost (FAQ-02 + FAQ-09, flat fee per cycle, never commission) are pulled from the corpus at build; privacy answer = one adviser + listed processors + hashed contact for ad measurement, no "no one else" (K-1, K-2) | faq.md v1.0.1 |
 | E3 | "No products, prices or paperwork on the call" replaced with "No obligation to buy. Any next step is your choice." (K-6) | phase4-review-2 |
-| E4 | Opt-out link is host-relative: `/privacy.html#opt-out` | holding page anchor |
+| E4 | (superseded by F5) Opt-out link was host-relative: `/privacy.html#opt-out` | holding page anchor |
 | E5 | `/lead` and `/book` send `started_at` (page load, ISO) and `request_id` (uuid; /book id is reused on a retry, renewed after a 409 or success); `/book` re-runs an invisible Turnstile with `action=book` (`turnstile_token`); stubbed (empty token) while `turnstile_sitekey` is empty | automation/W03-notes.md B.3 |
 | E6 | `new-bond` sub no longer says "Many bonds are bigger than work cover" (unsourced); uses the ad's own beat 2 | 2.1.5 |
 | OPEN | W03-notes B.3 #6: `/slots` and `/book` need the `lead_token` returned by `/lead`. Not wired: header/field name is not in the contract. Page still sends `broker` + `lead_id` on /slots | needs_human (automation-engineer) |
@@ -60,3 +60,13 @@ Sticky top bar, charcoal hero with amber emphasis and gradient, chips, gap bars 
 | D3 | Make the sticky bar hide while the quiz card is on screen (IntersectionObserver) | Avoids two CTAs competing (CXL single goal) | Click-through on both CTAs |
 | D4 | Move the "What happens next" box above the consent line on small screens | Baymard: proof beside the ask | Details-step completion |
 | D5 | Pre-select no contact method (currently the broker's first method is pre-selected, so a Teams-first broker shows the email field straight away) | Baymard: fewer visible fields; email asked only when needed (0.1) | Booked rate by method |
+
+## F. Fix wave 3 (2026-10-02; I-34b, I-34e, review-3 carry-overs)
+| # | Change | Source |
+|---|---|---|
+| F1 | `/lead` response field `lead_token` is kept in memory and `sessionStorage` (`smc_lt`, never a cookie or URL). `/slots?days=5` and `/book` send `X-Lead-Token`. `broker=` and `lead_id=` query params and `broker_id` in the `/book` body are gone; the page no longer needs `broker_id` in the `/lead` response. Booking starts only if a token came back, else the not-booked thank-you. `started_at`, `request_id` and Turnstile unchanged. CORS on `API_HOST` must allow `X-Lead-Token` (I-34c). Closes the E-wave OPEN row. | CONTRACTS lead_token, I-34b |
+| F2 | Quiz codes are the schema set (`leads_smc_checks`): age `lt35 / 35_44 / 45_50 / 51plus`, budget `lt750 / 750_1250 / 1250plus`. The schema has one band below R750, so the two low budget cards ("Under R500", "R500 to R750") are merged into one card "Under R750" (both were exits). Template, page.js and quiz.spec.ts follow. **Fixtures and W01 must follow** (automation-engineer; I-34e): the old codes `<35`, `51+`, `<500`, `500-750`, `750-1250`, `1250+` are no longer sent. | I-34e |
+| F3 | Copy: delete "and a short intro from them" (step 2); done-booked "Your adviser's details are on their way. Add the call to your calendar below."; result_yes "A licensed adviser can check what your work cover includes, and what it does not."; gap note "Typical employer cover"; "In about a minute" (index.html, strings.json). | review-3 §1 #12-16 |
+| F4 | self-employed gap_p: "Self-employed people have no work cover to start with." | review-3 §3 |
+| F5 | `site.json` `optout_url` is `https://sortmycover.co.za/privacy.html#opt-out`. | review-3 §1 #9 |
+| F6 | Myth-bust page keeps H18 ("No price in this ad. On purpose.") and serves C12. C13 gets its own H1 from creative-strategist (angle variant to be added once given). | review-3 message-match note |

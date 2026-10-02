@@ -1,9 +1,9 @@
 # SortMyCover — 15 ad concepts (cycle 1)
 
-**Owner:** creative-strategist · **Status:** v1.1, fix wave 1 applied (compliance-qa `phase4-review-2.md` §1 + `performance-creative-director/hook-library-v2.md`). Next: compliance-qa re-check of the two new texts (C02 H12, C12 H18), then visual-producer re-renders C01, C02, C03, C05, C12, C14 (4D.5 code pipeline), then meta-operator submits. **Date:** 2026-10-02
+**Owner:** creative-strategist · **Status:** v1.1.1 (v1.1 fix wave 1 + compliance review 3 follow-up: the myth-bust page serves C12 / H18; C13 has its own H1, H16), fix wave 1 applied (compliance-qa `phase4-review-2.md` §1 + `performance-creative-director/hook-library-v2.md`). Next: compliance-qa re-check of the two new texts (C02 H12, C12 H18), then visual-producer re-renders C01, C02, C03, C05, C12, C14 (4D.5 code pipeline), then meta-operator submits. **Date:** 2026-10-02
 **Rules applied:** broker-neutral (1.2). No product, insurer, premium, cover amount or broker. No second-person money, family, age or health claims (2.1.8). No unsourced "most / never" statistics (2.1.5). No fear, no price hook, no price anchor, no testimonial. No exclamation marks. Grade ≤ 7. Hooks ≤ 8 words. Primary text ≤ 90 words. CTA from the "Check my cover" family, never "get a quote".
 
-## Fix wave 1 — what changed (v1.0 → v1.1)
+## Fix wave 1 — what changed (v1.0 → v1.1 → v1.1.1)
 
 | Concept | Change | Source |
 |---|---|---|
@@ -13,7 +13,7 @@
 | C04 | "It happens a lot." deleted. Headline → "New family. Check the old cover." | compliance-qa C-4, C-5 |
 | C05 | Hook and first line → "Cover set up at 28. Life at 40." Repeated "Cover set up at 28" later in the text → "That cover". | hook-library-v2 H5 |
 | C12 | Ships H18 "No price in this ad. On purpose." The MYTH/FACT card is gone. The H8 claim version moves to reserve as **C12-R, hold: NH-PCD-04** | compliance-qa C-6 / 1a; hook-library-v2 H8, H18 |
-| C13 | In for cycle 1. It is also the myth-bust page H1 (compliance-qa L-2) | compliance-qa 1a |
+| C13 | In for cycle 1. **v1.1.1:** C13 no longer supplies the myth-bust page H1. The page serves C12 / H18 (landing `myth-bust.json` keeps H18), and C13's own H1 is its hook-library-v2 hook H16 "Checking cover is not the same as buying." | compliance-qa 1a; compliance review 3 (coordinator decision) |
 | C14 | "name, photo and licence number" → "name and licence number" (copy and caption) | compliance-qa C-3 |
 | All | Everyday-spend price anchor removed from every file (declined, NH-PCD-05) | compliance-qa 1b |
 
@@ -226,7 +226,7 @@
 | Variants | **9:16** full. **4:5** same. **1:1** static: the struck blank tag + hook + tick. |
 | Video (18 s) | 0.0 Blank price tag + hook. 0.3 amber strike draws · 2.5 cut: big type "The real cost depends on…" CAP "Age, health, smoking and what the cover must do." **(payoff by 3 s)** · 6.0 cut: CAP "Every family is different." · 8.5 cut: CAP "A licensed adviser works it out. 30 minutes." · 11.5 cut: CAP "Video, WhatsApp or phone." · 13.0 cut: CAP "Free to check. You decide after." · 15.0 end card. |
 | Reading grade | 8 / 59 / 82 → **FK 3.7** |
-| Compliance self-check | **PASS (self).** No premium, no figure, no comparative claim. The hook is literally true: the ad has no price. **New copy: needs compliance-qa re-check before upload.** For message match, the myth-bust landing page H1 uses C13 (compliance-qa L-2). |
+| Compliance self-check | **PASS (self).** No premium, no figure, no comparative claim. The hook is literally true: the ad has no price. **New copy: needs compliance-qa re-check before upload.** For message match, the myth-bust landing page H1 is this ad's hook, H18 (landing `myth-bust.json`; decided in compliance review 3). |
 
 ### C12-R — reserve · H8 · **hold: NH-PCD-04** (not rendered for upload)
 | Field | Copy |
@@ -234,7 +234,7 @@
 | Hook (8) | Life cover costs less than most people think. |
 | Status | **Held.** The claim has no source on file (2.1.5). It runs only if Jonathan files a source (an SA source preferred) and compliance-qa clears it. The old MYTH card ("Cover costs a fortune") is retired with it, because it makes the same claim. If it comes back, the primary text is the C12 text above with the hook as its first sentence. |
 
-## C13 — Myth-bust · H16 · **cycle 1 (also the myth-bust page H1)**
+## C13 — Myth-bust · H16 · **cycle 1 (own H1: H16 "Checking cover is not the same as buying."; the myth-bust page serves C12 / H18)**
 | Field | Copy |
 |---|---|
 | Hook (8) | Checking cover is not the same as buying. |

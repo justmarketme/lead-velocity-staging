@@ -20,7 +20,8 @@
   var card = $('card'), prog = $('prog'), form = $('lead'), live = $('live');
   var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var TOTAL = 7;
-  var step = 1, answers = {}, lead = null;
+  var step = 1, answers = {}, lead = null, leadToken = '';
+  try { leadToken = sessionStorage.getItem('smc_lt') || ''; } catch (e) {}
   var started = false, leadCtx = null, scheduleCtx = null, sending = false, booking = false;
   var chosenSlot = null, chosenMethod = null, bookable = [];
 
@@ -103,8 +104,8 @@
   ['heroCta', 'stickyCta'].forEach(function (id) { var a = $(id); if (a) a.addEventListener('click', function () { startQuiz(); }); });
 
   function qualifies() {
-    var ageOk = answers.age_band === '35-44' || answers.age_band === '45-50';
-    var budgetOk = answers.budget_band === '750-1250' || answers.budget_band === '1250+';
+    var ageOk = answers.age_band === '35_44' || answers.age_band === '45_50';
+    var budgetOk = answers.budget_band === '750_1250' || answers.budget_band === '1250plus';
     return ageOk && budgetOk;
   }
   function advance() {
@@ -181,9 +182,10 @@
       sending = false; btn.disabled = false; btn.firstChild.nodeValue = str('send') + ' ';
       if (r.ok) {
         var j = r.json;
-        lead = { id: j.lead_id, broker_id: j.broker_id, methods: (j.methods_supported && j.methods_supported.length) ? j.methods_supported : ['whatsapp_call', 'phone'] };
+        leadToken = j.lead_token || ''; try { sessionStorage.setItem('smc_lt', leadToken); } catch (e) {}
+        lead = { id: j.lead_id, methods: (j.methods_supported && j.methods_supported.length) ? j.methods_supported : ['whatsapp_call', 'phone'] };
         if (j.out_of_band) { show(9); return; }
-        if (BOOKING && lead.broker_id) startBooking(); else finish(false);
+        if (BOOKING && leadToken) startBooking(); else finish(false);
       } else if (r.status === 429) showErr('formErr', str('err_rate'));
       else if (r.status === 422 && r.json.error === 'out_of_band') show(9);
       else if (r.status === 422 && /mobile/.test(r.json.error || '')) { setField('fPhone', true, 'phone'); showErr('formErr', str('err_mobile_server')); }
@@ -197,8 +199,7 @@
     show(7);
     $('slotStatus').textContent = str('loading_slots'); $('slots').textContent = '';
     renderMethods();
-    var q = '/slots?broker=' + encodeURIComponent(lead.broker_id) + '&lead_id=' + encodeURIComponent(lead.id || '') + '&days=5';
-    api(q, { method: 'GET', headers: { Accept: 'application/json' } }).then(function (r) {
+    api('/slots?days=5', { method: 'GET', headers: { Accept: 'application/json', 'X-Lead-Token': leadToken } }).then(function (r) {
       var list = r.ok ? normalise(r.json.slots) : [];
       if (!list.length) { $('slotStatus').textContent = str('no_slots'); $('slotStatus').className = 'status warn'; setTimeout(function () { finish(false); }, 2500); return; }
       renderSlots(list, true);
@@ -283,9 +284,9 @@
     if (!bookRequestId) bookRequestId = uuid(); /* same id on a retry of the same attempt (idempotent), new id after a 409 or success */
     var slotNow = chosenSlot, methodNow = chosenMethod;
     bookToken().then(function (tok) {
-    var body = { lead_id: lead.id, broker_id: lead.broker_id, slot_start: slotNow, method: methodNow, angle: ANGLE, started_at: STARTED_AT, request_id: bookRequestId, turnstile_token: tok, context: scheduleCtx };
+    var body = { lead_id: lead.id, slot_start: slotNow, method: methodNow, angle: ANGLE, started_at: STARTED_AT, request_id: bookRequestId, turnstile_token: tok, context: scheduleCtx };
     if (needs) body.email = $('email').value.trim();
-    return api('/book', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }).then(function (r) {
+    return api('/book', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Lead-Token': leadToken }, body: JSON.stringify(body) }); }).then(function (r) {
       booking = false; $('book').disabled = false; $('book').textContent = str('book');
       if (r.status === 409 || r.ok) bookRequestId = null;
       if (r.ok && (r.json.booked !== false)) { finish(true, { start: r.json.start || chosenSlot, method: r.json.method || chosenMethod, ics_url: r.json.ics_url }); }

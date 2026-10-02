@@ -6,7 +6,7 @@
   "privacy_url": "https://sortmycover.co.za/privacy.html",
   "how_we_make_money_url": "https://sortmycover.co.za/how-we-make-money.html",
   "complaints_url": "https://sortmycover.co.za/complaints.html",
-  "optout_url": "/privacy.html#opt-out",
+  "optout_url": "https://sortmycover.co.za/privacy.html#opt-out",
   "contact_email": "hello@sortmycover.co.za",
   "company_reg_no": "",
   "api_base": "https://REPLACE-N8N-HOST/webhook/smc",

@@ -48,7 +48,7 @@
   <h2 id="gapH">{{gap_h2}}</h2>
   <p>{{gap_p}}</p>
   <div class="bars">
-    <div class="bar work"><div class="lab"><span>Typical work cover</span><span>2–4× salary</span></div><div class="track" aria-hidden="true"><div class="fill"></div></div><span class="note">What most employers provide</span></div>
+    <div class="bar work"><div class="lab"><span>Typical work cover</span><span>2–4× salary</span></div><div class="track" aria-hidden="true"><div class="fill"></div></div><span class="note">Typical employer cover</span></div>
     <div class="bar need"><div class="lab"><span>Bond + income + schooling</span><span>Often much more</span></div><div class="track" aria-hidden="true"><div class="fill"></div></div><span class="note">Over the years a family needs it</span></div>
   </div>
 </div></section>
@@ -63,10 +63,10 @@
       <legend><h3 id="h1q" tabindex="-1">How old are you?</h3></legend>
       <p class="hint">Tap one.<!--FIRST-TAP--></p>
       <div class="opts">
-        <label class="opt"><input type="radio" name="age_band" value="<35" required><span>Under 35</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
-        <label class="opt"><input type="radio" name="age_band" value="35-44"><span>35 to 44</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
-        <label class="opt"><input type="radio" name="age_band" value="45-50"><span>45 to 50</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
-        <label class="opt"><input type="radio" name="age_band" value="51+"><span>51 or older</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
+        <label class="opt"><input type="radio" name="age_band" value="lt35" required><span>Under 35</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
+        <label class="opt"><input type="radio" name="age_band" value="35_44"><span>35 to 44</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
+        <label class="opt"><input type="radio" name="age_band" value="45_50"><span>45 to 50</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
+        <label class="opt"><input type="radio" name="age_band" value="51plus"><span>51 or older</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
       </div>
       <div class="nav js-only"><span></span><button type="button" class="btn secondary js-next" hidden>Next</button></div>
     </fieldset>
@@ -109,10 +109,9 @@
       <legend><h3 id="h5q" tabindex="-1">If the numbers made sense, what could you comfortably set aside each month?</h3></legend>
       <p class="hint">This is not a quote. It helps the adviser prepare for the call.</p>
       <div class="opts">
-        <label class="opt"><input type="radio" name="budget_band" value="<500" required><span>Under R500</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
-        <label class="opt"><input type="radio" name="budget_band" value="500-750"><span>R500 to R750</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
-        <label class="opt"><input type="radio" name="budget_band" value="750-1250"><span>R750 to R1 250</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
-        <label class="opt"><input type="radio" name="budget_band" value="1250+"><span>R1 250 or more</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
+        <label class="opt"><input type="radio" name="budget_band" value="lt750" required><span>Under R750</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
+        <label class="opt"><input type="radio" name="budget_band" value="750_1250"><span>R750 to R1 250</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
+        <label class="opt"><input type="radio" name="budget_band" value="1250plus"><span>R1 250 or more</span><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7"/></svg></span></label>
       </div>
       <div class="nav js-only"><button type="button" class="link" data-back>Back</button><button type="button" class="btn secondary js-next" hidden>Next</button></div>
     </fieldset>
@@ -139,7 +138,7 @@
       <div class="beside">
         <b>What happens next</b>
         <span>A licensed financial adviser. 30-minute video or phone call. No obligation.</span>
-        <span>Within a minute you get a WhatsApp with your adviser’s name, practice and FSP number.</span>
+        <span>In about a minute you get a WhatsApp with your adviser’s name, practice and FSP number.</span>
         <span>You pick a time that suits you. Reminders before the call.</span>
         <span>No obligation to buy. Any next step is your choice.</span>
       </div>
@@ -163,7 +162,7 @@
       <div class="done">
         <div class="big" aria-hidden="true">✓</div>
         <h3 id="doneH" tabindex="-1">Booked. Check your WhatsApp.</h3>
-        <p id="doneP">Your adviser’s details and a calendar invite are on their way.</p>
+        <p id="doneP">Your adviser’s details are on their way. Add the call to your calendar below.</p>
         <div class="summary" id="summary"></div>
         <div><a class="btn secondary" id="cal" href="#" hidden download="sortmycover-call.ics">Add to calendar</a></div>
       </div>
@@ -183,7 +182,7 @@
   <h2>How it works</h2>
   <div class="steps">
     <div class="step"><div class="n" aria-hidden="true">1</div><div><b>Answer five quick questions</b><span>About a minute. No typing until the end.</span></div></div>
-    <div class="step"><div class="n" aria-hidden="true">2</div><div><b>Meet your adviser on WhatsApp</b><span>You get their name, practice and FSP number straight away, and a short intro from them.</span></div></div>
+    <div class="step"><div class="n" aria-hidden="true">2</div><div><b>Meet your adviser on WhatsApp</b><span>You get their name, practice and FSP number straight away.</span></div></div>
     <div class="step"><div class="n" aria-hidden="true">3</div><div><b>Have the call</b><span>30 minutes, video or phone. They look at your actual numbers. You decide after.</span></div></div>
   </div>
 </div></section>

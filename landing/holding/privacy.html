@@ -4,8 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Privacy notice | SortMyCover</title>
-<meta name="description" content="How SortMyCover handles personal information.">
-<meta name="robots" content="noindex">
+<meta name="description" content="How SortMyCover uses your details, who we share them with, how we measure our ads, and how to turn ad measurement off.">
 <link rel="canonical" href="https://sortmycover.co.za/privacy.html">
 <link rel="alternate" hreflang="en-ZA" href="https://sortmycover.co.za/privacy.html">
 <meta name="theme-color" content="#F5A623">
@@ -26,8 +25,9 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="mask-icon" href="/mask-icon.svg" color="#F5A623">
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="manifest" href="/manifest.webmanifest">
 <link rel="stylesheet" href="/styles.css">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","@id":"https://sortmycover.co.za/privacy.html#webpage","url":"https://sortmycover.co.za/privacy.html","name":"Privacy notice | SortMyCover","inLanguage":"en-ZA","isPartOf":{"@type":"WebSite","name":"SortMyCover","url":"https://sortmycover.co.za/"},"publisher":{"@type":"Organization","name":"Lead Velocity (Pty) Ltd"}}</script>
+<style>.draftnote{border:2px solid var(--charcoal);background:#fff;padding:.75rem 1rem;font-size:var(--fs-5)}.ph{background:#FFE9B8;padding:0 .25rem;border-radius:3px}.optbox{border:2px solid var(--charcoal);background:#fff;padding:1rem 1.25rem;border-radius:8px}.optbtn{min-height:var(--tap);padding:0 1.25rem;font:inherit;font-weight:var(--w-head);background:var(--amber);color:var(--on-amber);border:2px solid var(--charcoal);border-radius:8px;cursor:pointer}.optbtn:focus-visible{outline:3px solid var(--charcoal);outline-offset:3px}.prose table{border-collapse:collapse;width:100%;font-size:var(--fs-5)}.prose th,.prose td{border:1px solid var(--muted);padding:.5rem;text-align:left;vertical-align:top}</style>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -35,25 +35,121 @@
 <main id="main">
 <div class="wrap prose">
 <h1>Privacy notice</h1>
-<p>Plain-language notice under the Protection of Personal Information Act (POPIA).</p>
-<!-- CONTENT: from deliverables/contracts-drafter/consent-and-privacy.md once approved -->
+<p>Last updated: <span class="ph">{{date}}</span> &middot; Version PN-v1</p>
+<p class="draftnote"><strong>DRAFT for practitioner review.</strong> This text is not approved yet. Items in <span class="ph">shaded boxes</span> are still to be filled in.</p>
+<p>This notice tells you how we use your details. It follows the Protection of Personal Information Act (POPIA).</p>
+
 <h2>Who is responsible</h2>
-<p>[Pending approval]</p>
+<p>SortMyCover is a service of <strong>Lead Velocity (Pty) Ltd</strong>, registration number <span class="ph">{{CIPC_REG_NO}}</span>, <span class="ph">{{ADDRESS_STREET}}, {{ADDRESS_CITY}}, {{ADDRESS_POSTCODE}}</span>. We are the <strong>responsible party</strong> for the details you give us. That means we decide how they are used, and we must keep them safe.</p>
+<p>We connect you with authorised financial services providers. We do not give financial advice, compare products or quote premiums.</p>
+
 <h2>What we collect and why</h2>
-<p>[Pending approval]</p>
+<ul>
+<li><strong>From you on our page, form or WhatsApp:</strong> your first name, mobile number, age band, budget band, whether you have a bond or dependants, how you want to meet, and the time you book.</li>
+<li><strong>Only if you pick a Teams, Zoom or Meet call:</strong> your email. We use it only for the invite.</li>
+<li><strong>Only if you give it:</strong> another number to call, a backup number, and the best time to reach you.</li>
+<li><strong>Automatically:</strong> the ad or link you came from, your device type, your IP address and cookies.</li>
+<li><strong>Your chats</strong> with our WhatsApp assistant.</li>
+</ul>
+<p>We do not ask for your ID number, bank details or exact income. If you send health details or an ID number in chat, we remove them from our records.</p>
+<p>We use your details to:</p>
+<ul>
+<li>check that a call with an adviser suits you;</li>
+<li>pass your details to the adviser you agreed to;</li>
+<li>book your call and send reminders on WhatsApp;</li>
+<li>keep a record that you agreed, and a list of people who opted out;</li>
+<li>measure and improve our ads (see the Pixel section below).</li>
+</ul>
+
 <h2>Who we share it with</h2>
-<p>[Pending approval]</p>
-<h2>How long we keep it</h2>
-<p>[Pending approval]</p>
-<h2>Your rights</h2>
-<p>[Pending approval]</p>
-<h2>Information Officer and contact</h2>
-<p>[Pending approval]</p>
+<p><strong>One adviser.</strong> One authorised financial services provider gets your details. It is the one named when you agreed, or named in our first WhatsApp to you. That message shows their name, practice and FSP number. From then on the adviser is also responsible for your details. We never sell your details. We never give them to anyone else to market to you.</p>
+<p><strong>Service providers who work for us.</strong> They may use your details only to give us their service.</p>
+<table>
+<thead><tr><th>Provider</th><th>What they do for us</th><th>Where data may go</th></tr></thead>
+<tbody>
+<tr><td>Hostinger</td><td>Hosts our website and systems</td><td><span class="ph">{{hostinger_region}}</span></td></tr>
+<tr><td>Supabase</td><td>Holds our database</td><td><span class="ph">{{supabase_region}}</span></td></tr>
+<tr><td>Meta (WhatsApp, Facebook, Instagram)</td><td>Sends our WhatsApp messages. Runs our ads. Measures our ads using your coded (hashed) number and email.</td><td><span class="ph">{{meta_regions}}</span></td></tr>
+<tr><td>Anthropic</td><td>The AI model that helps our WhatsApp assistant reply</td><td><span class="ph">{{anthropic_regions}}</span></td></tr>
+<tr><td>Google</td><td>Calendar and video calls for some advisers, and website tools</td><td><span class="ph">{{google_regions}}</span></td></tr>
+<tr><td>Microsoft</td><td>Email, calendars and Teams</td><td><span class="ph">{{microsoft_regions}}</span></td></tr>
+<tr><td>Twilio</td><td>Checks that a number is a mobile. Sends SMS backup.</td><td><span class="ph">{{twilio_regions}}</span></td></tr>
+<tr><td>Paystack</td><td>Takes payments from advisers (not from you)</td><td><span class="ph">{{paystack_regions}}</span></td></tr>
+</tbody></table>
+<p>Some of these providers may keep data outside South Africa. When that happens, we only use providers that are bound by law or by a written agreement to protect it to a standard like POPIA. Section 72 of POPIA asks for this.</p>
+
+<h2 id="pixel">Meta Pixel and ad measurement</h2>
+<p>Our website uses the <strong>Meta Pixel</strong>. Our systems also use Meta&rsquo;s <strong>Conversions API</strong>. They tell Meta when someone views our page, sends the form or books a call.</p>
+<p>The Pixel sets two cookies, <code>_fbp</code> and <code>_fbc</code>. They last about 90 days. We also keep the ad link you came from in your browser, so your enquiry keeps its source.</p>
+<p>Before we send your number and email to Meta, we code (hash) them. Meta can match them but cannot read them. We also send your IP address and browser type as they are. After a call, we send the adviser&rsquo;s 1 to 5 rating of the meeting as a number. We never send what was said.</p>
+<p>We use this to measure our ads, to stop showing ads to people who already talk to us, and to find similar people. We never use your details to send you ads by message.</p>
+<p>You can turn off ad measurement for this browser. See the control below.</p>
+
 <h2 id="opt-out">How to opt out</h2>
-<p>You can stop us contacting you at any time. Reply STOP on WhatsApp, or email <a href="mailto:howzit@leadvelocity.co.za">howzit@leadvelocity.co.za</a> with the word STOP. We act on it straight away, and if you complain we respond within 48 hours.</p>
-<h2>Complaints</h2>
-<p>[Pending approval] See also <a href="/complaints.html">complaints</a>.</p>
+<h3>Turn off ad measurement for this browser</h3>
+<div class="optbox">
+<p id="ads-state" role="status" aria-live="polite">Checking your setting&hellip;</p>
+<p><button type="button" class="optbtn" id="ads-off-btn">Turn off ad measurement for this browser</button></p>
+<p><a href="#opt-out" id="ads-on-link" role="button">Turn it back on</a></p>
+<noscript><p>This control needs JavaScript. You can also block cookies in your browser settings, or email <a href="mailto:howzit@leadvelocity.co.za">howzit@leadvelocity.co.za</a>.</p></noscript>
 </div>
+<p>When it is off, the Meta Pixel does not load, and we do not read or set the <code>_fbp</code> and <code>_fbc</code> cookies. The site still works. The choice is saved only in this browser. If you clear your browser data or use another browser, you need to choose again.</p>
+<h3>Stop messages</h3>
+<p>You can stop us contacting you at any time. Reply <strong>STOP</strong> on WhatsApp, or email <a href="mailto:howzit@leadvelocity.co.za">howzit@leadvelocity.co.za</a> with the word STOP. We stop at once and tell the adviser. You can also join the National Consumer Commission opt-out registry. We check our records against it every month. A registered block always wins, even if you agreed before.</p>
+
+<h2>How long we keep it</h2>
+<ul>
+<li>Your details and messages: <strong>12 months</strong> after our last contact with you. Then we delete them.</li>
+<li>Your consent record and opt-out: <strong>5 years</strong>, as proof.</li>
+<li>Form entries that do not fit our criteria: deleted within <strong>24 hours</strong>.</li>
+<li>If you say &ldquo;No thanks&rdquo; on WhatsApp: we keep only a coded copy of your number, so we never message you again.</li>
+</ul>
+
+<h2>Automated checks and our AI assistant</h2>
+<p>Our system checks your answers against fixed criteria (age band and budget band). If they do not fit, we close politely and do not pass your details on. You can ask a person to look again. Email <a href="mailto:howzit@leadvelocity.co.za">howzit@leadvelocity.co.za</a>.</p>
+<p>Our WhatsApp assistant uses AI. It can answer questions about the call and help you book. It never gives advice. Type &ldquo;person&rdquo; at any time to reach a human.</p>
+
+<h2>Your rights</h2>
+<p>You may:</p>
+<ul>
+<li>ask what details we hold about you, and get a copy;</li>
+<li>ask us to correct or delete them;</li>
+<li>object to how we use them;</li>
+<li>take back your consent at any time;</li>
+<li>complain to the Information Regulator.</li>
+</ul>
+<p>We answer within <strong>30 days</strong>. We may ask you to prove who you are first. If you ask us to delete your details, we also tell the adviser. The adviser must delete them unless a law says they must keep a record.</p>
+
+<h2>Information Officer and contact</h2>
+<p><strong>Information Officer:</strong> Jonathan <span class="ph">{{jonathan_surname}}</span><br>
+<strong>Deputy Information Officer:</strong> <span class="ph">{{kg_full_name}}</span><br>
+<strong>Email:</strong> <a href="mailto:howzit@leadvelocity.co.za">howzit@leadvelocity.co.za</a><br>
+<strong>Phone:</strong> <span class="ph">{{io_direct_phone}}</span><br>
+<strong>Postal address:</strong> <span class="ph">{{ADDRESS_STREET}}, {{ADDRESS_CITY}}, {{ADDRESS_POSTCODE}}</span></p>
+
+<h2>Complaints</h2>
+<p>Email <a href="mailto:howzit@leadvelocity.co.za">howzit@leadvelocity.co.za</a>, or send <strong>COMPLAINT</strong> on our WhatsApp. We reply within <strong>48 hours</strong>. See also <a href="/complaints.html">complaints</a>.</p>
+<p>Complaints about an adviser&rsquo;s advice go to the adviser&rsquo;s own complaints process. If it is not solved, you can go to the FAIS Ombud.</p>
+<p>You can also complain to the Information Regulator: <span class="ph">{{regulator_contact}}</span>.</p>
+
+<h2>Age and changes</h2>
+<p>Our service is for people 18 and older. If we change this notice, we change the date at the top. For big changes, we also say so on our page.</p>
+</div>
+<script>
+(function(){
+var K='smc_ads_off',st=document.getElementById('ads-state'),off=document.getElementById('ads-off-btn'),on=document.getElementById('ads-on-link');
+function get(){try{return window.localStorage.getItem(K)==='1'}catch(e){return false}}
+function set(v){
+ // Prefer the shared pixel.js switch when it is loaded; otherwise store the same first-party flag it reads.
+ if(window.smc&&typeof window.smc[v?'adsOff':'adsOn']==='function'){window.smc[v?'adsOff':'adsOn']();return}
+ try{if(v)window.localStorage.setItem(K,'1');else window.localStorage.removeItem(K)}catch(e){}
+}
+function show(){var o=get();st.textContent=o?'Ad measurement is OFF for this browser.':'Ad measurement is ON for this browser.';off.hidden=o;on.hidden=!o;}
+off.addEventListener('click',function(){set(true);show()});
+on.addEventListener('click',function(e){e.preventDefault();set(false);show()});
+show();
+})();
+</script>
 </main>
 <footer class="foot"><div class="wrap">
 <p class="disc">SortMyCover is a service of Lead Velocity (Pty) Ltd. We connect you with authorised financial services providers. We do not give financial advice, compare products or quote premiums.</p>

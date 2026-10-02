@@ -18,6 +18,10 @@
   function cookie(n) { var m = d.cookie.match(new RegExp('(?:^|; )' + n + '=([^;]*)')); return m ? decodeURIComponent(m[1]) : null; }
   function consent() { return w.SMC_CONSENT_ANALYTICS !== false && fetchStored('smc_ads_off') !== '1'; }
   // Stored off switch (cookie notice promise): smc.adsOff() / smc.adsOn() persist the choice first-party.
+  function remove(k) { try { w.localStorage.removeItem(k); } catch (e) {} try { w.sessionStorage.removeItem(k); } catch (e) {} }
+  function adsOff() { store('smc_ads_off', '1'); return false; }
+  function adsOn() { remove('smc_ads_off'); return consent(); }
+  function adsEnabled() { return consent(); }
 
 
   function uuid() {
@@ -103,7 +107,7 @@
   // ctx = smc.prepare('Schedule'); post ctx with the booking; on success smc.fire(ctx).
   function prepare(name) { if (EVENTS.indexOf(name) < 0) return null; init(); var ctx = context(); ctx.event_name = name; return ctx; }
   function fire(ctx, params) { if (!ctx || !ctx.event_name) return null; if (pixelId && consent() && w.fbq) w.fbq('track', ctx.event_name, clean(params), { eventID: ctx.event_id }); last = ctx; return ctx; }
-  var smc = w.smc = { track: track, prepare: prepare, fire: fire, context: function () { return last ? Object.assign({}, last, { ts: Math.floor(Date.now() / 1000) }) : context(); }, events: EVENTS };
+  var smc = w.smc = { track: track, prepare: prepare, fire: fire, adsOff: adsOff, adsOn: adsOn, adsEnabled: adsEnabled, context: function () { return last ? Object.assign({}, last, { ts: Math.floor(Date.now() / 1000) }) : context(); }, events: EVENTS };
   attribution();
   function boot() { if (!w.SMC_NO_AUTO_PAGEVIEW) smc.track('PageView'); }
   if (d.readyState === 'loading') d.addEventListener('DOMContentLoaded', boot); else boot();

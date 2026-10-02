@@ -46,17 +46,17 @@ const slotsFor = (n: number) => {
 async function newPage(opts: { js?: boolean } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, javaScriptEnabled: opts.js !== false, reducedMotion: 'reduce' });
   const page = await ctx.newPage();
-  const calls: { method: string; url: string; body: any }[] = [];
+  const calls: { method: string; url: string; body: any; token?: string }[] = [];
   const state = { bookCount: 0, bookFirst409: true, methods: ['teams', 'phone'] as string[], slots: slotsFor(7) as any[] };
   await page.addInitScript(STUB);
   await page.route('**/connect.facebook.net/**', (r: any) => r.abort());
   await page.route(`${API}/**`, async (route: any) => {
     const req = route.request(); const u = new URL(req.url());
     let body: any = null; try { body = req.postDataJSON(); } catch { body = req.postData(); }
-    calls.push({ method: req.method(), url: u.pathname + u.search, body });
+    calls.push({ method: req.method(), url: u.pathname + u.search, body, token: req.headers()['x-lead-token'] });
     const json = (status: number, o: any) => route.fulfill({ status, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(o) });
-    if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type', 'access-control-allow-methods': 'GET,POST' } });
-    if (u.pathname.endsWith('/lead')) return json(200, { ok: true, lead_id: 'ld_test1', broker_id: 'brk_test', methods_supported: state.methods });
+    if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type,x-lead-token', 'access-control-allow-methods': 'GET,POST' } });
+    if (u.pathname.endsWith('/lead')) return json(200, { ok: true, lead_id: 'ld_test1', lead_token: 'lt1.test', methods_supported: state.methods });
     if (u.pathname.endsWith('/slots')) return json(200, { slots: state.slots, tz: 'Africa/Johannesburg' });
     if (u.pathname.endsWith('/book')) {
       state.bookCount++;
@@ -78,13 +78,13 @@ async function quiz(page: any, a: Record<string, string>) {
 const fbq = (page: any) => page.evaluate(() => (window as any).__fbq.map((c: any[]) => ({ cmd: c[0], name: c[1], params: c[2], opt: c[3] })).filter((c: any) => c.cmd === 'track'));
 
 test('every age x budget band: only 35-44/45-50 with R750+ qualify, others exit with no capture', async () => {
-  const ages = ['<35', '35-44', '45-50', '51+'], budgets = ['<500', '500-750', '750-1250', '1250+'];
+  const ages = ['lt35', '35_44', '45_50', '51plus'], budgets = ['lt750', '750_1250', '1250plus'];
   const { ctx, page, calls } = await newPage();
   await page.goto(PAGE());
   for (const age of ages) for (const budget of budgets) {
     await page.reload();
     await quiz(page, { age, budget });
-    const ok = (age === '35-44' || age === '45-50') && (budget === '750-1250' || budget === '1250+');
+    const ok = (age === '35_44' || age === '45_50') && (budget === '750_1250' || budget === '1250plus');
     await page.locator(`.q.on[data-step="${ok ? 6 : 9}"]`).waitFor({ timeout: 3000 });
     if (!ok) assert.match(await page.locator('.q.on').innerText(), /not the right fit right now/);
     else assert.match(await page.locator('#h6q').innerText(), /licensed adviser/i);
@@ -96,7 +96,7 @@ test('every age x budget band: only 35-44/45-50 with R750+ qualify, others exit 
 test('qualified path: validation, consent, /lead payload, Teams booking with email, collision, Pixel calls', async () => {
   const { ctx, page, calls } = await newPage();
   await page.goto(PAGE('new-bond'));
-  await quiz(page, { age: '45-50', bond: 'soon', deps: 'extended', work: 'unsure', budget: '1250+' });
+  await quiz(page, { age: '45_50', bond: 'soon', deps: 'extended', work: 'unsure', budget: '1250plus' });
   await page.locator('.q.on[data-step="6"]').waitFor();
 
   // consent is unticked by default and the label carries the named line + ads sentence
@@ -135,16 +135,17 @@ test('qualified path: validation, consent, /lead payload, Teams booking with ema
   assert.equal(lead.body.consent_version, 'CONSENT-NAMED-v1+CONSENT-ADS-v1');
   assert.equal(lead.body.angle, 'new-bond');
   assert.equal(lead.body.company_website, '');
-  assert.deepEqual([lead.body.age_band, lead.body.bond, lead.body.dependants, lead.body.work_cover, lead.body.budget_band], ['45-50', 'soon', 'extended', 'unsure', '1250+']);
+  assert.deepEqual([lead.body.age_band, lead.body.bond, lead.body.dependants, lead.body.work_cover, lead.body.budget_band], ['45_50', 'soon', 'extended', 'unsure', '1250plus']);
   assert.match(lead.body.consent_text, /^I agree that Lead Velocity may share my details with/);
   assert.equal(lead.body.context.event_name, 'Lead');
   assert.ok(lead.body.context.event_id);
   assert.ok(!Object.keys(lead.body.context).some((k) => /^(fn|ln|em|ph|first_?name|phone|mobile|email)$/i.test(k)), 'context carries no PII keys');
 
-  // slots: GET /slots?broker=, 7 days offered -> only 5 shown, grouped
+  // slots: GET /slots with X-Lead-Token and no broker/lead_id params, 7 days offered -> only 5 shown, grouped
   await page.locator('.slot').first().waitFor();
   const slotCall = calls.find((c) => c.url.includes('/slots'))!;
-  assert.match(slotCall.url, /broker=brk_test/);
+  assert.equal(slotCall.token, 'lt1.test'); assert.doesNotMatch(slotCall.url, /broker=|lead_id=/);
+  assert.ok(calls.filter((c) => c.url.endsWith('/book')).length === 0 || calls.filter((c) => c.url.endsWith('/book')).every((c) => c.token === 'lt1.test'));
   assert.equal(await page.locator('h4.day').count(), 5);
   // only the routed broker's methods; Teams first -> email shown
   assert.deepEqual(await page.locator('.method').allInnerTexts(), ['Video (Teams)', 'Phone']);
@@ -185,10 +186,10 @@ test('qualified path: validation, consent, /lead payload, Teams booking with ema
   const books = calls.filter((c) => c.url.endsWith('/book'));
   assert.equal(books.length, 2);
   const b = books[1].body;
-  assert.deepEqual(Object.keys(b).sort(), ['angle', 'broker_id', 'context', 'email', 'lead_id', 'method', 'request_id', 'slot_start', 'started_at', 'turnstile_token'].sort());
+  assert.deepEqual(Object.keys(b).sort(), ['angle', 'context', 'email', 'lead_id', 'method', 'request_id', 'slot_start', 'started_at', 'turnstile_token'].sort());
   assert.match(b.request_id, /^[0-9a-f-]{36}$/); assert.equal(b.request_id !== lead.body.request_id, true); assert.equal(b.started_at, lead.body.started_at); assert.equal(b.turnstile_token, '', 'stubbed Turnstile (empty site key) sends an empty token');
   assert.notEqual(books[0].body.request_id, b.request_id, 'new request_id after a 409');
-  assert.equal(b.lead_id, 'ld_test1'); assert.equal(b.broker_id, 'brk_test'); assert.equal(b.method, 'teams');
+  assert.equal(b.lead_id, 'ld_test1'); assert.equal(b.method, 'teams');
   assert.equal(b.email, 'thabo@gmail.com'); assert.equal(b.slot_start, '2026-10-12T09:30:00+02:00');
   assert.equal(b.context.event_name, 'Schedule');
   assert.notEqual(b.context.event_id, lead.body.context.event_id, 'Schedule never reuses the Lead event_id');
@@ -207,7 +208,7 @@ test('qualified path: validation, consent, /lead payload, Teams booking with ema
 test('phone method: no email asked, email absent from /book', async () => {
   const { ctx, page, calls } = await newPage();
   await page.goto(PAGE('virtual'));
-  await quiz(page, { age: '35-44', budget: '750-1250' });
+  await quiz(page, { age: '35_44', budget: '750_1250' });
   await page.fill('#name', 'Lerato'); await page.fill('#phone', '+27 71 234 5678'); await page.check('#consent'); await page.click('#send');
   await page.locator('.slot').first().waitFor();
   await page.click('.method[data-m="phone"]');
@@ -225,7 +226,7 @@ test('phone method: no email asked, email absent from /book', async () => {
 test('skip link keeps the lead: not-booked thank-you, Lead fired, no Schedule, no /book', async () => {
   const { ctx, page, calls } = await newPage();
   await page.goto(PAGE('turned-40'));
-  await quiz(page, { age: '45-50', budget: '1250+', work: 'no' });
+  await quiz(page, { age: '45_50', budget: '1250plus', work: 'no' });
   await page.fill('#name', 'Sipho'); await page.fill('#phone', '0831234567'); await page.check('#consent'); await page.click('#send');
   await page.locator('#skipBook').click();
   await page.locator('.q.on[data-step="8"]').waitFor();
@@ -241,7 +242,7 @@ test('slots failure falls back to the not-booked thank-you (lead is kept)', asyn
   const { ctx, page, state } = await newPage();
   state.slots = [];
   await page.goto(PAGE());
-  await quiz(page, { age: '35-44', budget: '1250+' });
+  await quiz(page, { age: '35_44', budget: '1250plus' });
   await page.fill('#name', 'Ayesha'); await page.fill('#phone', '0721112233'); await page.check('#consent'); await page.click('#send');
   await page.locator('.q.on[data-step="8"]').waitFor({ timeout: 6000 });
   assert.match(await page.locator('#doneH').innerText(), /^Thanks, Ayesha/);
@@ -251,7 +252,7 @@ test('slots failure falls back to the not-booked thank-you (lead is kept)', asyn
 test('honeypot filled: nothing is sent', async () => {
   const { ctx, page, calls } = await newPage();
   await page.goto(PAGE());
-  await quiz(page, { age: '35-44', budget: '1250+' });
+  await quiz(page, { age: '35_44', budget: '1250plus' });
   await page.fill('#name', 'Bot'); await page.fill('#phone', '0721112233'); await page.check('#consent');
   await page.evaluate(() => { (document.querySelector('input[name=company_website]') as HTMLInputElement).value = 'spam'; });
   await page.click('#send');
@@ -263,7 +264,7 @@ test('honeypot filled: nothing is sent', async () => {
 test('keyboard: arrow-key selection does not auto-advance; Next appears', async () => {
   const { ctx, page } = await newPage();
   await page.goto(PAGE());
-  await page.locator('input[name="age_band"][value="<35"]').focus();
+  await page.locator('input[name="age_band"][value="lt35"]').focus();
   await page.keyboard.press('ArrowDown');
   await page.waitForTimeout(500);
   assert.equal(await page.locator('.q.on').getAttribute('data-step'), '1');
@@ -283,11 +284,11 @@ test('no-JS: capture step is a real POST form with every field named', async () 
   const form = page.locator('form#lead');
   assert.equal((await form.getAttribute('method')).toLowerCase(), 'post');
   assert.equal(await form.getAttribute('action'), `${API}/lead`);
-  await page.locator('input[name=age_band][value="35-44"]').check();
+  await page.locator('input[name=age_band][value="35_44"]').check();
   await page.locator('input[name=bond][value=yes]').check();
   await page.locator('input[name=dependants][value=kids]').check();
   await page.locator('input[name=work_cover][value=yes]').check();
-  await page.locator('input[name=budget_band][value="750-1250"]').check();
+  await page.locator('input[name=budget_band][value="750_1250"]').check();
   await page.fill('#name', 'Naledi'); await page.fill('#phone', '082 123 4567'); await page.check('#consent');
   await page.click('#send');
   await page.waitForTimeout(500);
