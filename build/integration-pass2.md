@@ -49,3 +49,11 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-30j | W32 consumes `ops.notifications` kind `approval` (console never calls a W32 webhook) | automation-engineer / optimisation-advisor | |
 | I-30k | `close_rate` stored as fraction (0.30) — confirm | analytics-reporter | |
 | I-30l | Magic-link login (spec 6.1) not built; password only today | platform-architect | backlog unless Jonathan wants it for cycle 1 |
+
+### I-31 · W30/W31 follow-ups (from fix wave 2, 2026-10-02)
+| # | Item | Owner |
+|---|---|---|
+| I-31a | n8n Code node must be able to `import()` `conversation/guardrail.mjs` from `$env.REPO_DIR`; if the runtime blocks it, ship a CJS shim or inline `classifierInput` | devops-security (n8n settings) / automation-engineer |
+| I-31b | W22 maps `kind_requested` + new kinds `sensitive`, `dm_handoff`, `dm_after_link`; note field format is now `kind_requested=<kind>` (was `esc_kind=`) | devops-security |
+| I-31c | `ESC_REAL_KINDS=true` after migration 08 lands; add to `automation/.env.example` (name only) and the W30/W31 sticky notes | automation-engineer |
+| I-31d | Confirm Meta accepts 400 on a bad `hub.challenge` (ASSUMPTION; 403 before) | meta-operator |

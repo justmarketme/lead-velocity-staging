@@ -14,15 +14,21 @@
       "id": "w31-n01", "name": "Meta Verify (GET)", "type": "n8n-nodes-base.webhook", "typeVersion": 2, "position": [0, -300], "webhookId": "w31-meta-dm-verify"
     },
     {
-      "parameters": { "conditions": { "boolean": [ { "value1": "={{ $json.query['hub.mode'] === 'subscribe' && $json.query['hub.verify_token'] === $env.META_VERIFY_TOKEN }}", "value2": true } ] } },
+      "parameters": {
+        "jsCode": "let res;\ntry {\n  const dir = $env.AUTOMATION_DIR || '/home/node/automation';\n  const v = require(dir + '/security/verify-webhooks.js');\n  res = v.metaVerifyHandshake($json.query || {}, $env.META_VERIFY_TOKEN);\n} catch (e) { res = { ok: false, reason: 'verifier_error', status: 403, body: 'Forbidden' }; }\nreturn { json: { ok: res.ok === true, status: res.status || 403, body: res.body || 'Forbidden', reason: res.reason || '' } };"
+      },
+      "id": "w31-n49", "name": "Handshake (security module)", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [110, -300]
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ $json.ok }}", "value2": true } ] } },
       "id": "w31-n02", "name": "Token ok?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [220, -300]
     },
     {
-      "parameters": { "respondWith": "text", "responseBody": "={{ $json.query['hub.challenge'] }}", "options": {} },
+      "parameters": { "respondWith": "text", "responseBody": "={{ $json.body }}", "options": {} },
       "id": "w31-n03", "name": "Respond challenge", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [440, -380]
     },
     {
-      "parameters": { "respondWith": "text", "responseBody": "forbidden", "options": { "responseCode": 403 } },
+      "parameters": { "respondWith": "text", "responseBody": "={{ $json.body }}", "options": { "responseCode": "={{ $json.status }}" } },
       "id": "w31-n04", "name": "Respond 403", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [440, -220]
     },
     {
@@ -181,7 +187,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const cfg = $('Load config').first().json.cfg;\nconst NL = String.fromCharCode(10);\nconst r = $json || {};\nconst draft = ((r.content && r.content[0] && r.content[0].text) || '').trim();\nconst reasons = [];\nif (!draft || draft.indexOf('NO_ANSWER') >= 0) reasons.push('no_answer');\nif (draft.indexOf('!') >= 0) reasons.push('exclamation');\nconst low = draft.toLowerCase();\nif (low.indexOf('http') >= 0 || low.indexOf('www.') >= 0 || low.indexOf('.co.za') >= 0 || low.indexOf('.com') >= 0) reasons.push('link');\nconst digits = draft.replace(new RegExp('[^0-9]', 'g'), '');\nif (digits.length > 0 && digits !== '30') reasons.push('digits');\nconst banned = ['premium', 'price', 'rand', 'insurer', 'policy', 'policies', 'cover amount', 'how much cover', 'compare', 'comparison', 'cheapest', 'best cover', 'you should', 'guarantee', 'financial advice', 'appointment', 'discovery', 'sanlam', 'old mutual', 'liberty', 'momentum', 'outsurance', 'hollard', '1life', 'assupol', 'brightrock', 'tax', 'recommend', 'suits you', 'suitable'];\nfor (const b of banned) { if (low.indexOf(b) >= 0) reasons.push('banned:' + b); }\nconst sentences = draft.split('.').join('|').split('?').join('|').split('|').filter((s) => s.trim().length > 1).length;\nif (sentences > 2) reasons.push('too_long');\nconst stub = 'You are the FAIS guardrail gate for chat replies by SortMyCover, a South African lead-generation service that is not a financial services provider. A reply FAILS if it mentions or implies any premium, price, rand amount, cover amount, product, insurer, comparison, suitability, tax treatment, recommendation, or uses the phrase you should. A reply PASSES only if it answers about the call or the company in the third person, or defers to the licensed adviser.';\nconst sys = (cfg.guardrail ? cfg.guardrail : stub) + NL + NL + 'Community gate mode: judge the DRAFT reply below. Output exactly PASS or FAIL and nothing else.';\nconst gate_body = { model: 'claude-haiku-4-5-20251001', max_tokens: 10, temperature: 0, system: sys, messages: [ { role: 'user', content: 'DRAFT: ' + draft } ] };\nreturn { json: { draft: draft, lint_ok: reasons.length === 0, reasons: reasons, gate_body: gate_body } };",
+        "jsCode": "const cfg = $('Load config').first().json.cfg;\nconst NL = String.fromCharCode(10);\nconst r = $json || {};\nconst draft = ((r.content && r.content[0] && r.content[0].text) || '').trim();\nconst reasons = [];\nif (!draft || draft.indexOf('NO_ANSWER') >= 0) reasons.push('no_answer');\nif (draft.indexOf('!') >= 0) reasons.push('exclamation');\nconst low = draft.toLowerCase();\nif (low.indexOf('http') >= 0 || low.indexOf('www.') >= 0 || low.indexOf('.co.za') >= 0 || low.indexOf('.com') >= 0) reasons.push('link');\nconst digits = draft.replace(new RegExp('[^0-9]', 'g'), '');\nif (digits.length > 0 && digits !== '30') reasons.push('digits');\nconst banned = ['premium', 'price', 'rand', 'insurer', 'policy', 'policies', 'cover amount', 'how much cover', 'compare', 'comparison', 'cheapest', 'best cover', 'you should', 'guarantee', 'financial advice', 'appointment', 'discovery', 'sanlam', 'old mutual', 'liberty', 'momentum', 'outsurance', 'hollard', '1life', 'assupol', 'brightrock', 'tax', 'recommend', 'suits you', 'suitable'];\nfor (const b of banned) { if (low.indexOf(b) >= 0) reasons.push('banned:' + b); }\nconst sentences = draft.split('.').join('|').split('?').join('|').split('|').filter((s) => s.trim().length > 1).length;\nif (sentences > 2) reasons.push('too_long');\nconst stub = 'You are the FAIS guardrail gate for chat replies by SortMyCover, a South African lead-generation service that is not a financial services provider. A reply FAILS if it mentions or implies any premium, price, rand amount, cover amount, product, insurer, comparison, suitability, tax treatment, recommendation, or uses the phrase you should. A reply PASSES only if it answers about the call or the company in the third person, or defers to the licensed adviser.';\nconst sys = (cfg.guardrail ? cfg.guardrail : stub) + NL + NL + 'Community gate mode: judge the DRAFT reply below. Output exactly PASS or FAIL and nothing else.';\nlet userTurn = '';\ntry {\n  const dd = $('Decide DM').item.json;\n  const url = require('url');\n  const gm = await import(url.pathToFileURL(($env.REPO_DIR || '/home/node/repo') + '/conversation/guardrail.mjs').href);\n  userTurn = gm.classifierInput({ draft: draft, question: dd.text_redacted || '', lang: (dd.plan && dd.plan.lang) || 'en', surface: 'whatsapp' });\n} catch (e) { reasons.push('classifier_input_unavailable'); }\nconst gate_body = { model: 'claude-haiku-4-5-20251001', max_tokens: 10, temperature: 0, system: sys, messages: [ { role: 'user', content: userTurn } ] };\nreturn { json: { draft: draft, lint_ok: reasons.length === 0, reasons: reasons, gate_body: gate_body } };",
         "mode": "runOnceForEachItem"
       },
       "id": "w31-n28", "name": "Lint draft", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [3960, -120]
@@ -212,7 +218,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const plan = $json.plan;\nconst ev = $('Normalise DM events').item.json;\nconst af = plan.lang === 'af';\nconst t = af ? ['Onder 35', '35 tot 44', '45 tot 50', '51 en ouer'] : ['Under 35', '35 to 44', '45 to 50', '51 and over'];\nconst pl = ['AGE_LT35', 'AGE_35_44', 'AGE_45_50', 'AGE_51P'];\nconst qr = plan.ask ? t.map((x, i) => ({ content_type: 'text', title: x, payload: pl[i] })) : [];\nconst newState = Object.assign({}, plan.state, plan.patch, { last_mid: ev.mid || plan.state.last_mid || '' });\nconst out = { channel: plan.channel, owner_id: plan.owner_id, sender_id: plan.sender_id, reply_text: plan.reply_text || '', quick_replies: qr, esc: plan.esc, paused: plan.pause === true, new_state: newState, queue: !plan.in_hours && !!plan.reply_text, due_at: plan.due_at, window_expires_at: new Date(Date.now() + 86400000).toISOString(), key: plan.key, guardrail_trip: plan.guardrail_trip === true };\nreturn { json: out };",
+        "jsCode": "const plan = $json.plan;\nconst ev = $('Normalise DM events').item.json;\nconst af = plan.lang === 'af';\nconst t = af ? ['Onder 35', '35 tot 44', '45 tot 50', '51 en ouer'] : ['Under 35', '35 to 44', '45 to 50', '51 and over'];\nconst pl = ['AGE_LT35', 'AGE_35_44', 'AGE_45_50', 'AGE_51P'];\nconst qr = plan.ask ? t.map((x, i) => ({ content_type: 'text', title: x, payload: pl[i] })) : [];\nconst newState = Object.assign({}, plan.state, plan.patch, { last_mid: ev.mid || plan.state.last_mid || '' });\nconst MAP = { sensitive: 'human_handoff', dm_handoff: 'dm', dm_after_link: 'dm' };\nconst esc = plan.esc ? Object.assign({}, plan.esc, { kind_requested: plan.esc.kind, kind_stored: ($env.ESC_REAL_KINDS === 'true') ? plan.esc.kind : (MAP[plan.esc.kind] || plan.esc.kind) }) : null;\nconst out = { channel: plan.channel, owner_id: plan.owner_id, sender_id: plan.sender_id, reply_text: plan.reply_text || '', quick_replies: qr, esc: esc, paused: plan.pause === true, new_state: newState, queue: !plan.in_hours && !!plan.reply_text, due_at: plan.due_at, window_expires_at: new Date(Date.now() + 86400000).toISOString(), key: plan.key, guardrail_trip: plan.guardrail_trip === true };\nreturn { json: out };",
         "mode": "runOnceForEachItem"
       },
       "id": "w31-n32", "name": "Finalise DM", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [4840, 0]
@@ -233,8 +239,8 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "insert into escalations (kind, ref_table, ref_id, raised_at, assigned_agent, note) values (case $1 when 'sensitive' then 'human_handoff' when 'dm_handoff' then 'dm' when 'dm_after_link' then 'dm' else $1 end, 'dm_threads', $2, now(), $3, $4 || '; esc_kind=' || $1) returning id",
-        "options": { "queryReplacement": "={{ [ $('Finalise DM').item.json.esc.kind, $('Finalise DM').item.json.channel + ':' + $('Finalise DM').item.json.sender_id, $('Finalise DM').item.json.esc.to.join(','), 'bot paused; first human touch within ' + $('Finalise DM').item.json.esc.human_within_seconds + 's' ] }}" }
+        "query": "insert into escalations (kind, ref_table, ref_id, raised_at, assigned_agent, note) values ($5, 'dm_threads', $2, now(), $3, $4 || '; kind_requested=' || $1) returning id",
+        "options": { "queryReplacement": "={{ [ $('Finalise DM').item.json.esc.kind_requested || $('Finalise DM').item.json.esc.kind, $('Finalise DM').item.json.channel + ':' + $('Finalise DM').item.json.sender_id, $('Finalise DM').item.json.esc.to.join(','), 'bot paused; first human touch within ' + $('Finalise DM').item.json.esc.human_within_seconds + 's', $('Finalise DM').item.json.esc.kind_stored || $('Finalise DM').item.json.esc.kind ] }}" }
       },
       "id": "w31-n35", "name": "Insert escalation", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [5500, -100],
       "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
@@ -245,7 +251,7 @@
         "url": "={{ $env.N8N_INTERNAL_URL + '/webhook/w22-alert' }}",
         "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
         "sendBody": true, "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ severity: 'amber', kind: $('Finalise DM').item.json.esc.kind, to: $('Finalise DM').item.json.esc.to, text: 'Community DM on ' + $('Finalise DM').item.json.channel + ': ' + $('Finalise DM').item.json.esc.kind + '. The bot is paused. First human touch due within 30 minutes.', deep_link: $env.CONSOLE_URL + '/community/escalations/' + $json.id, source: 'W31' }) }}",
+        "jsonBody": "={{ JSON.stringify({ severity: 'amber', kind: $('Finalise DM').item.json.esc.kind, kind_requested: $('Finalise DM').item.json.esc.kind_requested || $('Finalise DM').item.json.esc.kind, to: $('Finalise DM').item.json.esc.to, text: 'Community DM on ' + $('Finalise DM').item.json.channel + ': ' + $('Finalise DM').item.json.esc.kind + '. The bot is paused. First human touch due within 30 minutes.', deep_link: $env.CONSOLE_URL + '/community/escalations/' + $json.id, source: 'W31' }) }}",
         "options": { "response": { "response": { "neverError": true } } }
       },
       "id": "w31-n36", "name": "Alert W22 (escalation)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [5720, -100],
@@ -339,7 +345,8 @@
     }
   ],
   "connections": {
-    "Meta Verify (GET)": { "main": [ [ { "node": "Token ok?", "type": "main", "index": 0 } ] ] },
+    "Meta Verify (GET)": { "main": [ [ { "node": "Handshake (security module)", "type": "main", "index": 0 } ] ] },
+    "Handshake (security module)": { "main": [ [ { "node": "Token ok?", "type": "main", "index": 0 } ] ] },
     "Token ok?": { "main": [ [ { "node": "Respond challenge", "type": "main", "index": 0 } ], [ { "node": "Respond 403", "type": "main", "index": 0 } ] ] },
     "Meta Events (POST)": { "main": [ [ { "node": "Verify signature", "type": "main", "index": 0 } ] ] },
     "Verify signature": { "main": [ [ { "node": "Signature ok?", "type": "main", "index": 0 } ] ] },
