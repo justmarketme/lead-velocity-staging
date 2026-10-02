@@ -77,7 +77,7 @@ s3() { # docker compose down every compose project except lv (volumes kept), fre
 # 4. Ship code (no git credentials on the VPS: tar of committed HEAD over SSH)
 # Runtime dirs only: n8n mounts $REMOTE_DIR read-only at /repo (REPO_DIR) and Code nodes import()/read from these
 # (I-35b): conversation/ (guardrail, lines, logic, prompts), knowledge/ (FAQ), community/, billing/ (checkout page),
-# analytics/ (step 14 SQL). supabase/ is shipped for the migration files only; the VPS never holds a service-role key.
+# analytics/ (step 12 SQL). supabase/ is shipped for the migration files only; the VPS never holds a service-role key.
 SHIP_DIRS=(automation conversation knowledge community billing analytics supabase/migrations)
 s4() { # git archive HEAD of the runtime dirs | ssh tar -x into /opt/lead-velocity (mounted read-only into n8n at /repo)
   remote "mkdir -p $REMOTE_DIR"
@@ -87,7 +87,7 @@ s4() { # git archive HEAD of the runtime dirs | ssh tar -x into /opt/lead-veloci
 # 5. Ship .env (0600) with production overrides; service-role key stays on the laptop
 s5() { # write /opt/lead-velocity/.env and /etc/lv/backup.env over SSH, mode 0600
   local tmp; tmp="$(mktemp)"; trap 'rm -f "$tmp"' RETURN
-  grep -vE '^(SUPABASE_SERVICE_ROLE_KEY|ANALYTICS_DB_URL|BACKUP_S3_READ_|AGE_KEY_FILE|N8N_PUBLIC_URL|WEBHOOK_URL|N8N_HOST|N8N_PROTOCOL|NODE_ENV|API_HOST|N8N_UI_HOST|DRY_RUN_SENDS)=' "$ENVF" > "$tmp"
+  grep -vE '^(SUPABASE_SERVICE_ROLE_KEY|SUPABASE_ACCESS_TOKEN|ANALYTICS_DB_URL|BACKUP_S3_READ_|AGE_KEY_FILE|N8N_PUBLIC_URL|WEBHOOK_URL|N8N_HOST|N8N_PROTOCOL|NODE_ENV|API_HOST|N8N_UI_HOST|DRY_RUN_SENDS)=' "$ENVF" > "$tmp"
   printf 'NODE_ENV=production\nN8N_PUBLIC_URL=https://%s\nWEBHOOK_URL=https://%s/\nN8N_HOST=%s\nN8N_PROTOCOL=https\nAPI_HOST=%s\nN8N_UI_HOST=%s\nDRY_RUN_SENDS=false\n' \
     "$API_HOST" "$API_HOST" "$N8N_UI_HOST" "$API_HOST" "$N8N_UI_HOST" >> "$tmp"
   remote "umask 077; cat > $REMOTE_DIR/.env" < "$tmp"
@@ -159,11 +159,23 @@ s11() { # Meta app subscriptions (WABA, page, instagram), Flow endpoint_uri; pri
 s12a() { # apply analytics/params, watchlist, kill-scale, W14-broker, W14-lv in order, one transaction (apply-analytics.sh; --analytics-dry-run = ROLLBACK)
   PROVISION_ENV_FILE="$ENVF" "$REPO/automation/vps/apply-analytics.sh" "$ANALYTICS_MODE"
 }
-# 13. Synthetic suite against production URLs (Phase 5 rule: only end-to-end counts)
+# 13. Edge function for W34 media erasure (I-39j/I-40f). Runs on the laptop with the Supabase CLI; the VPS never holds the server key.
+s12b() { # supabase secrets set W34_MEDIA_ERASE_SECRET (from .env, via a 0600 --env-file, never argv) + supabase functions deploy w34-media-erase --no-verify-jwt (HMAC, not JWT); SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are injected by Supabase
+  local ref="${SUPABASE_PROJECT_REF:-${VITE_SUPABASE_PROJECT_ID:-}}" tmp
+  for v in SUPABASE_ACCESS_TOKEN W34_MEDIA_ERASE_SECRET; do [[ -n "${!v:-}" ]] || { say "missing $v in .env"; return 1; }; done
+  [[ "$ref" =~ ^[a-z0-9]{20}$ ]] || { say "missing or malformed SUPABASE_PROJECT_REF in .env"; return 1; }
+  command -v supabase >/dev/null || { say "Supabase CLI not installed (https://supabase.com/docs/guides/cli)"; return 1; }
+  tmp="$(mktemp)"; chmod 600 "$tmp"; trap 'rm -f "$tmp"' RETURN
+  printf 'W34_MEDIA_ERASE_SECRET=%s\n' "$W34_MEDIA_ERASE_SECRET" > "$tmp"
+  ( cd "$REPO" && supabase secrets set --project-ref "$ref" --env-file "$tmp" >/dev/null )
+  ( cd "$REPO" && supabase functions deploy w34-media-erase --project-ref "$ref" --no-verify-jwt )
+  say "deployed; set W34_MEDIA_ERASE_URL=https://$ref.supabase.co/functions/v1/w34-media-erase in the VPS .env if not already"
+}
+# 14. Synthetic suite against production URLs (Phase 5 rule: only end-to-end counts)
 s12() { # node --test 'automation/tests/*.test.mjs' with N8N_PUBLIC_URL=https://API_HOST and TEST_TARGET=production
   ( cd "$REPO" && N8N_PUBLIC_URL="https://$API_HOST" TEST_TARGET=production node --test 'automation/tests/*.test.mjs' )
 }
-# 14. Ready: tell W26 on the VPS; W26 sets brokers.status = ready_for_go_live and WhatsApps Jonathan
+# 15. Ready: tell W26 on the VPS; W26 sets brokers.status = ready_for_go_live and WhatsApps Jonathan
 s13() { # signed POST https://API_HOST/webhook/w26/status {ok:true}; nothing is unpaused (Go live stays a human tap)
   notify true "https://$API_HOST"
   say "PROVISIONED in $(( ($(date +%s) - T0) / 60 )) min. Go live remains Jonathan's tap in the console."
@@ -173,4 +185,5 @@ s13() { # signed POST https://API_HOST/webhook/w26/status {ok:true}; nothing is 
 step 1 "preflight" s1;  step 2 "harden" s2;  step 3 "retire-template" s3;  step 4 "ship-code" s4
 step 5 "ship-env" s5;   step 6 "compose-up" s6; step 7 "restore-n8n" s7;  step 8 "dns" s8
 step 9 "tls" s9;        step 10 "backups" s10;  step 11 "webhooks" s11;   step 12 "analytics" s12a
-step 13 "synthetic-suite" s12; step 14 "ready" s13
+step 13 "edge-functions" s12b
+step 14 "synthetic-suite" s12; step 15 "ready" s13

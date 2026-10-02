@@ -128,6 +128,8 @@
         approved: S.approved || null, show_rate: null, whatsapp_capture: { number: WA_NUMBER_DEMO, link: 'https://wa.me/' + WA_NUMBER_DEMO + '?text=Intro%20video', qr_url: null }
       };
       if (p === '/interview') { if (body && body.complete) { S.scripts = MOCK_SCRIPTS.map(function (s) { return { id: s.id, label: s.label, text: s.text.replace('{first}', DEMO_BROKER.first_name).replace('{practice}', DEMO_BROKER.practice).replace('{fsp}', DEMO_BROKER.fsp) }; }); save(); } return { ok: true, text: body instanceof FormData ? '' : undefined }; }
+      if (p === '/script-generate') return { variants: MOCK_SCRIPTS.map(function (x, i) { return { id: 'v' + (i + 1), label: x.label, angle: 'x', text: x.text.replace('{first}', DEMO_BROKER.first_name).replace('{practice}', DEMO_BROKER.practice).replace('{fsp}', DEMO_BROKER.fsp), gate_pass: true, rule: null, issues: [] }; }) };
+      if (p === '/script-recheck') { var rc = lintScript(body.text, DEMO_BROKER); return { pass: rc.pass, rule: rc.pass ? null : 'lint', issues: rc.failing ? rc.failing.map(function (c) { return c.msg; }) : [], warnings: [], verdict: rc.pass ? 'pass' : 'block' }; }
       if (p === '/script-select') { var g = lintScript(body.text, DEMO_BROKER); return { pass: g.pass, checks: g.checks }; }
       if (p === '/upload-confirm') return { ok: true };
       if (p === '/upload') return body && body.confirm ? { ok: true } : { take_id: 'mock-' + Date.now(), object_key: 'mock', upload_url: null };
@@ -286,10 +288,14 @@
       box.appendChild(document.createTextNode('Fix before recording:'));
       var ul = el('ul'); g.failing.forEach(function (c) { ul.appendChild(el('li', { text: c.msg })); }); box.appendChild(ul);
     }
+    // I-40i: W23 script-recheck returns { pass, rule, issues }; a failed check is a normal answer, an error keeps the local quick check.
+    function recheckToGate(r) {
+      var msg = r.rule === 'gate_unavailable' ? "We couldn't check this script right now, try again in a minute." : r.rule === 'review' ? 'This language needs a human check before you can record. We will look at it.' : (r.issues && r.issues[0]) || 'The compliance check did not pass this wording.';
+      return { pass: !!r.pass, checks: [], failing: r.pass ? [] : [{ msg: msg }] };
+    }
     function serverGate(id, text, box) {
-      api('POST', '/script-select', { script_id: id, text: text, gate_only: true, language: S.lang }).then(function (r) {
-        var g = { pass: !!r.pass, checks: r.checks || [], failing: (r.checks || []).filter(function (c) { return !c.ok; }) };
-        if (gates[id] && gates[id].pass && !g.pass && !g.failing.length) g.failing = [{ msg: r.message || 'The compliance check did not pass this wording.' }];
+      api('POST', '/script-recheck', { text: text, lang: S.lang }).then(function (r) {
+        var g = recheckToGate(r);
         gates[id] = Object.assign({ server: true }, g); paintGate(box, g, true); sync();
       }).catch(function () { /* keep the quick local check; the pick below re-checks on the server */ });
     }
@@ -298,17 +304,20 @@
     $('#use').addEventListener('click', function () {
       var card = $('.script.sel', list); if (!card || $('#use').getAttribute('aria-disabled') === 'true') return;
       var text = $('textarea', card).value, id = card.getAttribute('data-id'), orig = (S.scripts || []).filter(function (x) { return x.id === id; })[0];
-      api('POST', '/script-select', { script_id: id, text: text, edited: !orig || orig.text !== text, language: S.lang }).then(function (r) {
+      var edited = !orig || orig.text !== text;
+      (edited ? api('POST', '/script-recheck', { text: text, lang: S.lang, choose: true }).then(function (r) { var g = recheckToGate(r); r.checks = g.failing.map(function (f) { return { ok: false, msg: f.msg }; }); return r; })
+        : api('POST', '/script-select', { script_id: id, text: text, edited: false, language: S.lang })).then(function (r) {
         if (!r.pass) { gates[id] = { pass: false, failing: (r.checks || []).filter(function (c) { return !c.ok; }) }; paintGate($('.gate', card), gates[id], true); sync(); toast('The compliance check did not pass this wording. Fix the points shown.'); return; }
         S.chosen = { id: id, text: text }; save(); location.href = 'record.html' + (MOCK ? '?mock=1' : '');
       }).catch(function () { toast('Could not check the script. Try again.'); });
     });
     // load or wait for generation (Sonnet + gate run in n8n)
-    var tries = 0;
+    var tries = 0, started = false;
     (function load() {
       api('GET', '/status').then(function (s) {
         broker = s.broker || broker; S.scripts = s.scripts && s.scripts.length ? s.scripts : (S.scripts || []); save();
         if (S.scripts.length) { $('#wait').hidden = true; render(S.scripts); return; }
+        if (!started && !(s.scripts && s.scripts.length)) { started = true; api('POST', '/script-generate', { lang: S.lang }).then(function (g) { var ok = (g.variants || []).filter(function (v) { return v.gate_pass; }).map(function (v) { return { id: v.id, label: v.label, text: v.text }; }); if (ok.length && !S.scripts.length) { S.scripts = ok; save(); $('#wait').hidden = true; render(S.scripts); } }).catch(function (e) { if (e.status === 429) return; /* already generated within the hour: status will list them */ }); }
         if (++tries > 40) { $('#wait').textContent = 'This is taking longer than usual. Refresh in a minute, or message us.'; return; }
         $('#wait').hidden = false; setTimeout(load, 1500);
       }).catch(function () { $('#wait').textContent = 'Could not load your scripts. Check your connection and refresh.'; });

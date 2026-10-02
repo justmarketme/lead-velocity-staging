@@ -179,6 +179,96 @@ return [{ json: { ok, broker_id: broker, take_id, mime, object_key: broker + '/'
   okb.parameters.conditions.conditions[0].leftValue = `={{ !!$json.broker_id && ${ob}.startsWith($json.broker_id + '/') && !${ob}.includes('..') }}`;
   N('Respond 403 (upload)').parameters.responseBody = '{"error":"forbidden"}';
   const dl = N('Download raw (object storage)'); dl.parameters.bucketName = "={{ $env.INTRO_RAW_BUCKET || 'broker-media' }}"; }
+
+// ===================================================================== I-40i: script-generate + script-recheck
+// Logic lives in automation/media/intro-script.mjs (imported from $env.REPO_DIR like W07, so the tested code is the running code).
+// Contract: conversation/prompts/intro-script.md. LLM calls: x-api-key from $env.ANTHROPIC_API_KEY (the W07 pattern; no n8n credential holds a key).
+// Order of the rules is the contract's: generate -> scriptCheck (deterministic) -> gate LLM (Haiku, fails closed; pass < 0.8 re-checked on Sonnet).
+for (const n of w.nodes.filter((x) => x.id.startsWith('w23-y'))) delete w.connections[n.name];
+w.nodes = w.nodes.filter((x) => !x.id.startsWith('w23-y'));
+let yid = 0; const Y = () => 'w23-y' + String(++yid).padStart(2, '0');
+const PRE = "const url = require('url');\nconst M = await import(url.pathToFileURL(($env.REPO_DIR || '/home/node/repo') + '/automation/media/intro-script.mjs').href);\n";
+const mcode = (name, pos, body, mode) => ({ parameters: Object.assign({ jsCode: PRE + body }, mode ? { mode } : {}), id: Y(), name, type: 'n8n-nodes-base.code', typeVersion: 2, position: pos });
+const llm = (name, pos, expr, timeout) => ({ parameters: { method: 'POST', url: 'https://api.anthropic.com/v1/messages', sendHeaders: true, headerParameters: { parameters: [{ name: 'x-api-key', value: '={{ $env.ANTHROPIC_API_KEY }}' }, { name: 'anthropic-version', value: '2023-06-01' }, { name: 'content-type', value: 'application/json' }] }, sendBody: true, specifyBody: 'json', jsonBody: expr, options: { timeout, response: { response: { neverError: true } } } }, id: Y(), name, type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: pos, onError: 'continueRegularOutput' });
+const ifx = (name, pos, expr) => ifOk(Y(), name, pos, expr);
+const SONNET = '$env.ANTHROPIC_MODEL_STRONG || undefined', HAIKU = '$env.ANTHROPIC_MODEL_FAST || undefined';
+const BROKER_SQL = "select b.id::text as broker_id, b.contact_person as adviser_name, b.firm_name as practice_name, b.fsp_number, coalesce(to_jsonb(b)->'verified_credentials', '[]'::jsonb) as verified_credentials, coalesce(b.positioning_answers, '{}'::jsonb) as positioning_answers from brokers b where b.user_id::text = $1 limit 1";
+
+// the gate half shared by generate (per variant) and recheck. `from` = node holding {text, facts, lang, det}; returns the node to link a det-pass item into and the final node name.
+function gateChain(sfx, y, from) {
+  const h = llm(`Script gate LLM (Haiku, fails closed) ${sfx}`, [0, y], '={{ JSON.stringify($json.gate_body) }}', 8000);
+  const pg_ = mcode(`Parse gate ${sfx}`, [0, y], `const src = $('${from}').item.json; const g = M.parseGate($json);\nreturn [{ json: Object.assign({}, src, { gate: g, sonnet_body: g.needs_sonnet ? M.gateRequest(src.text, src.facts, src.lang, { model: ${SONNET} }) : null }) }];`);
+  const conf = ifx(`Gate confident? ${sfx}`, [0, y], '={{ $json.gate.needs_sonnet !== true }}');
+  const hs = llm(`Script gate re-check (Sonnet) ${sfx}`, [0, y], '={{ JSON.stringify($json.sonnet_body) }}', 15000);
+  const pr = mcode(`Parse re-check ${sfx}`, [0, y], `const src = $('Parse gate ${sfx}').item.json; const rc = M.parseGate($json);\nreturn [{ json: Object.assign({}, src, { gate: M.finalGate(src.gate, rc) }) }];`);
+  [h, pg_, conf, hs, pr].forEach((n, i) => { n.position = [1500 + i * 220, y]; });
+  w.nodes.push(h, pg_, conf, hs, pr);
+  link(h.name, pg_.name); link(pg_.name, conf.name); link(conf.name, hs.name, 1); link(hs.name, pr.name);
+  return { entry: h.name, okOut: conf.name, reOut: pr.name };
+}
+
+// ---------------- POST intro/script-generate
+{ const g = gate('script-generate', 'POST', 4000);
+  const load = pg(Y(), 'Load broker + answers (generate)', [680, 4000], BROKER_SQL, '={{ [ ' + g.sub + ' ] }}');
+  const complete = ifx('Interview complete? (generate)', [900, 4000], "={{ !!$json.broker_id && !!$json.positioning_answers.interview_complete_at }}");
+  const r409 = respond(Y(), 'Respond 409 (script-generate)', [1120, 4120], 409, '{"error":"interview_incomplete"}');
+  const allowed = ifx('Generation allowed? (generate)', [1120, 4000], "={{ !$json.positioning_answers.script_generated_at || (Date.now() - Date.parse($json.positioning_answers.script_generated_at)) > 3600000 }}");
+  const r429 = respond(Y(), 'Respond 429 (script-generate)', [1340, 4120], 429, '{"error":"try_again_in_an_hour"}');
+  const lang = `['en', 'af'].includes(${g.body}.lang) ? ${g.body}.lang : (/^[a-z]{2,8}$/.test(String(${g.body}.lang || '')) ? ${g.body}.lang : 'en')`;
+  const explode = mcode('Explode 3 angles', [1340, 4000], `const b = $json; const lang = ${lang};
+const facts = { practice: b.practice_name, fsp: b.fsp_number, verified_credentials: b.verified_credentials };
+return M.ANGLES.map((m) => ({ json: Object.assign({}, m, { facts, lang, attempt: 1, broker: { adviser_name: b.adviser_name, practice_name: b.practice_name, fsp_number: b.fsp_number, verified_credentials: b.verified_credentials }, answers: b.positioning_answers, req: M.genRequest({ adviser_name: b.adviser_name, practice_name: b.practice_name, fsp_number: b.fsp_number, verified_credentials: b.verified_credentials }, b.positioning_answers, m.angle, lang, { model: ${SONNET} }) }) }));`);
+  w.nodes.push(load, complete, r409, allowed, r429, explode);
+  link(g.ok, load.name, 0); link(load.name, complete.name); link(complete.name, allowed.name, 0); link(complete.name, r409.name, 1); link(allowed.name, explode.name, 0); link(allowed.name, r429.name, 1);
+  // one attempt = generate -> check -> det pass? -> gate (-> sonnet re-check) -> variant result
+  const attempt = (n, srcNode, x0) => {
+    const gen = llm(`Generate variant (Sonnet) (${n})`, [x0, 4000], '={{ JSON.stringify($json.req) }}', 30000);
+    const chk = mcode(`Check variant (${n})`, [x0 + 220, 4000], `const src = $('${srcNode}').item.json; const text = M.parseGenerated($json, src.angle); const det = M.detCheck(text, src.facts, src.lang);\nreturn [{ json: Object.assign({}, src, { text, det, gate: null, gate_body: det.pass ? M.gateRequest(text, src.facts, src.lang, { model: ${HAIKU} }) : null }) }];`);
+    const dp = ifx(`Det pass? (${n})`, [x0 + 440, 4000], '={{ $json.det.pass === true }}');
+    const res = mcode(`Variant result (${n})`, [x0 + 2800, 4000], "const j = $json; return [{ json: Object.assign({}, j, { v: M.variant({ id: j.id, label: j.label, angle: j.angle }, j.text, j.det, j.gate || null) }) }];");
+    w.nodes.push(gen, chk, dp, res);
+    const gc = gateChain(`(${n})`, 4000, `Check variant (${n})`);
+    link(gen.name, chk.name); link(chk.name, dp.name); link(dp.name, gc.entry, 0); link(dp.name, res.name, 1); link(gc.okOut, res.name, 0); link(gc.reOut, res.name);
+    return { entry: gen.name, out: res.name };
+  };
+  const a1 = attempt(1, 'Explode 3 angles', 1560); link(explode.name, a1.entry);
+  const needs = ifx('Needs retry? (generate)', [4900, 4000], '={{ $json.v.gate_pass !== true }}');
+  const retry = mcode('Retry prep (generate)', [5120, 4100], "return [{ json: Object.assign({}, $json, { attempt: 2, det: null, gate: null, v: null }) }];");
+  w.nodes.push(needs, retry); link(a1.out, needs.name); link(needs.name, retry.name, 0);
+  const a2 = attempt(2, 'Retry prep (generate)', 5340); link(retry.name, a2.entry);
+  const merge = { parameters: { mode: 'append' }, id: Y(), name: 'Merge variants', type: 'n8n-nodes-base.merge', typeVersion: 3, position: [8200, 4000] };
+  const collect = mcode('Collect 3 (generate)', [8420, 4000], "const list = $input.all().map((i) => i.json.v).filter(Boolean);\nreturn [{ json: { variants: M.collectThree(list), gate_version: M.GATE_VERSION } }];", 'runOnceForAllItems');
+  const store = pg(Y(), 'Store candidates (generate)', [8640, 4000], `update brokers set positioning_answers = (coalesce(positioning_answers, '{}'::jsonb) - 'chosen_script') || jsonb_build_object('script_candidates', $2::jsonb, 'script_generated_at', now(), 'script_gate_version', $3::text) where user_id::text = $1 and positioning_answers->'interview_complete_at' is not null returning id::text as broker_id`, "={{ [ " + g.sub + ", JSON.stringify($('Collect 3 (generate)').item.json.variants), $('Collect 3 (generate)').item.json.gate_version ] }}");
+  const stored = ifx('Stored? (generate)', [8860, 4000], '={{ !!$json.broker_id }}');
+  const r200 = respond(Y(), 'Respond 200 (script-generate)', [9080, 3940], 200, "={{ { variants: $('Collect 3 (generate)').item.json.variants } }}");
+  const r409b = respond(Y(), 'Respond 409 (script-generate store)', [9080, 4100], 409, '{"error":"interview_incomplete"}');
+  w.nodes.push(merge, collect, store, stored, r200, r409b);
+  w.connections[a2.out] = { main: [[{ node: merge.name, type: 'main', index: 1 }]] };
+  // Merge input 0 = variants that passed first time, input 1 = retried ones
+  w.connections[needs.name].main[1] = [{ node: merge.name, type: 'main', index: 0 }];
+  link(merge.name, collect.name); link(collect.name, store.name); link(store.name, stored.name); link(stored.name, r200.name, 0); link(stored.name, r409b.name, 1); }
+
+// ---------------- POST intro/script-recheck (edited text; fails closed; a failed check is a normal 200 answer)
+{ const g = gate('script-recheck', 'POST', 5000);
+  const b = g.body;
+  const load = pg(Y(), 'Load broker facts (recheck)', [680, 5000], BROKER_SQL, '={{ [ ' + g.sub + ' ] }}');
+  const found = ifx('Broker found? (recheck)', [900, 5000], '={{ !!$json.broker_id }}');
+  const r403 = respond(Y(), 'Respond 403 (script-recheck)', [1120, 5140], 403, '{"error":"no_broker"}');
+  const chk = mcode('Check edited text', [1120, 5000], `const b = ${b}; const br = $json; const text = String(b.text || '');
+const lang = ['en', 'af'].includes(b.lang) ? b.lang : (/^[a-z]{2,8}$/.test(String(b.lang || '')) ? b.lang : 'en');
+const facts = { practice: br.practice_name, fsp: br.fsp_number, verified_credentials: br.verified_credentials };
+const tooLong = text.length > 1500;
+const det = tooLong || !text.trim() ? { pass: false, verdict: 'block', issues: ['empty or over 1,500 characters'], rule: 'invalid_input' } : M.detCheck(text, facts, lang);
+return [{ json: { text, facts, lang, det, choose: b.choose === true, gate: null, gate_body: det.pass ? M.gateRequest(text, facts, lang, { model: ${HAIKU} }) : null } }];`);
+  const dp = ifx('Det pass? (recheck)', [1340, 5000], '={{ $json.det.pass === true }}');
+  const res = mcode('Recheck result', [4000, 5000], "const j = $json; return [{ json: Object.assign({}, j, { result: M.recheckResult(j.text, j.facts, j.lang, j.det, j.gate || null) }) }];");
+  const choose = ifx('Store chosen script? (recheck)', [4220, 5000], '={{ $json.result.pass === true && $json.choose === true }}');
+  const store = pg(Y(), 'Store chosen script (recheck)', [4440, 4940], `update brokers set positioning_answers = coalesce(positioning_answers, '{}'::jsonb) || jsonb_build_object('chosen_script', jsonb_build_object('id', 'custom', 'label', 'Your edited script', 'text', $2::text, 'language', $3::text, 'checked_at', now(), 'gate_version', $4::text)) where user_id::text = $1 returning id::text as broker_id`, "={{ [ " + g.sub + ", $('Recheck result').item.json.text, $('Recheck result').item.json.lang, 'intro-script-v1.0.0' ] }}");
+  const r200 = respond(Y(), 'Respond 200 (script-recheck)', [4660, 5000], 200, "={{ $('Recheck result').item.json.result }}");
+  w.nodes.push(load, found, r403, chk, dp, res, choose, store, r200);
+  link(g.ok, load.name, 0); link(load.name, found.name); link(found.name, chk.name, 0); link(found.name, r403.name, 1); link(chk.name, dp.name);
+  const gc = gateChain('(recheck)', 5000, 'Check edited text'); link(dp.name, gc.entry, 0); link(dp.name, res.name, 1); link(gc.okOut, res.name, 0); link(gc.reOut, res.name);
+  link(res.name, choose.name); link(choose.name, store.name, 0); link(choose.name, r200.name, 1); link(store.name, r200.name); }
 // Alert nodes that used the body now read from the verify node
 writeFileSync(file, JSON.stringify(w, null, 2) + '\n');
 console.log('W23 patched:', w.nodes.length, 'nodes');

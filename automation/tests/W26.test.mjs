@@ -32,7 +32,11 @@ test('provision.sh: default is a dry run that lists the 14 W26 steps in order an
     assert.match(out, /^DRY RUN \(no changes\)/);
     const steps = [...out.matchAll(/step (\d+) ([a-z0-9-]+): PLAN: (.+)/g)];
     assert.deepEqual(steps.map((m) => m[2]), ['preflight', 'harden', 'retire-template', 'ship-code', 'ship-env', 'compose-up',
-      'restore-n8n', 'dns', 'tls', 'backups', 'webhooks', 'analytics', 'synthetic-suite', 'ready']);
+      'restore-n8n', 'dns', 'tls', 'backups', 'webhooks', 'analytics', 'edge-functions', 'synthetic-suite', 'ready']);
+    assert.deepEqual(steps.map((m) => Number(m[1])), Array.from({ length: 15 }, (_, i) => i + 1), 'steps numbered 1..15');
+    const ef = steps.find((m) => m[2] === 'edge-functions')[3];
+    assert.match(ef, /W34_MEDIA_ERASE_SECRET/); assert.match(ef, /--env-file/); assert.match(ef, /functions deploy w34-media-erase --no-verify-jwt/);
+    assert.doesNotMatch(out, /supabase (secrets|functions) .*(sb_secret_|eyJ)/, 'no secret values in the plan');
     assert.ok(steps.every((m) => m[3].trim().length > 10), 'every step has a description');
     assert.doesNotMatch(out, /203\.0\.113\.10.*->/, 'dry run performs no DNS actions');
   } finally { rmSync(d, { recursive: true, force: true }); }
