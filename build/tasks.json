@@ -2256,6 +2256,17 @@
       "human_gate": true,
       "status": "needs_human",
       "section": "deliverables/meta-operator/setup-checklist.md §14"
+    },
+    {
+      "id": "NH-32",
+      "title": "Bot-protection default: if the Turnstile verification service is down, /lead fails OPEN (lead stored with bot_check=unverified, tighter rate limits) while /book fails CLOSED. Confirm, or make /lead fail closed too (fewer junk leads, more lost real ones during an outage).",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "automation/W03-notes.md §B"
     }
   ]
 }

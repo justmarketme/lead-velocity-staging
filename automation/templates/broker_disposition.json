@@ -35,7 +35,7 @@
         },
         {
           "type": "QUICK_REPLY",
-          "text": "Not a fit – covered"
+          "text": "Not a fit – well covered"
         },
         {
           "type": "QUICK_REPLY",
@@ -43,7 +43,7 @@
         },
         {
           "type": "QUICK_REPLY",
-          "text": "Unreachable / wrong no."
+          "text": "Unreachable/wrong number"
         }
       ]
     }

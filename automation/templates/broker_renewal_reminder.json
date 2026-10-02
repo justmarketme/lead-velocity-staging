@@ -1,0 +1,44 @@
+{
+  "name": "broker_renewal_reminder",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "Your cycle ends soon"
+    },
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, your SortMyCover cycle ends in {{2}}, on {{3}}. To keep leads coming with no gap, pay for the next cycle before then. Payment reference: *{{4}}*. {{5}} No contract: if you don't renew, the cycle simply ends and your delivered leads stay yours.",
+      "example": {
+        "body_text": [
+          [
+            "Mark",
+            "3 days",
+            "Fri 13 Nov",
+            "LV-1042-B-202611",
+            "Card auto-renew is off."
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover by Lead Velocity"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Pay now",
+          "url": "https://app.leadvelocity.co.za/billing/checkout/?ref={{1}}",
+          "example": [
+            "https://app.leadvelocity.co.za/billing/checkout/?ref=LV-1042-B-202611"
+          ]
+        }
+      ]
+    }
+  ]
+}

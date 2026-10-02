@@ -27,9 +27,9 @@ export const BUTTON_TO_CODE = {
   'Good fit – proceeding': 'fit_proceeding',
   'Good fit – follow-up': 'fit_followup',
   'Not a fit – budget': 'nofit_budget',
-  'Not a fit – covered': 'nofit_covered',
+  'Not a fit – well covered': 'nofit_covered',
   'Not a fit – criteria': 'nofit_criteria',
-  'Unreachable / wrong no.': 'unreachable',
+  'Unreachable/wrong number': 'unreachable',
 };
 
 export function postCallPlan(slotEnd) {

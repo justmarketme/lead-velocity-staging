@@ -59,8 +59,10 @@ REST=(
   reminder_10m what_to_expect reschedule_offer attended_thanks prep_nudge intro_media intro_media_voice
   unbooked_nudge_2h unbooked_nudge_24h unbooked_nudge_24h_text unbooked_nudge_72h reach_check lead_pulse
   broker_new_booking broker_outcome_check broker_disposition broker_quality broker_feedback_thanks broker_fit_followup
-  broker_daily_digest precall_brief broker_weekly broker_midcycle broker_cycle_end
-  ops_pulse ops_action ops_alert ops_weekly ops_gate
+  broker_daily_digest precall_brief broker_weekly broker_weekly_noask broker_midcycle broker_cycle_end broker_renewal_reminder
+  broker_onb_welcome broker_onb_next broker_onb_calendar_ok broker_onb_ready broker_onb_nudge_24h broker_onb_nudge_72h
+  broker_onb_issue broker_onb_live
+  ops_pulse ops_pulse_quiet ops_action ops_alert ops_weekly ops_gate
   broker_intro_slots_v2 reschedule_offer_v2
 )
 

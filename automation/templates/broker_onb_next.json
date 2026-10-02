@@ -1,0 +1,43 @@
+{
+  "name": "broker_onb_next",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "Your next step"
+    },
+    {
+      "type": "BODY",
+      "text": "Nice one, {{1}}. {{2}} is done. Next: {{3}}. It takes about {{4}}. Tap below to carry on.",
+      "example": {
+        "body_text": [
+          [
+            "Mark",
+            "Your details",
+            "Connect your Outlook calendar",
+            "1 minute"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover by Lead Velocity"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Next step",
+          "url": "https://app.leadvelocity.co.za/s/{{1}}",
+          "example": [
+            "https://app.leadvelocity.co.za/s/calendar"
+          ]
+        }
+      ]
+    }
+  ]
+}

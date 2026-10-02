@@ -1,0 +1,37 @@
+{
+  "name": "broker_onb_ready",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "Setup complete"
+    },
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, your setup is done and checked. Jonathan will switch you on shortly, and we will message you the moment you are live.",
+      "example": {
+        "body_text": [
+          [
+            "Mark"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover by Lead Velocity"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Open my portal",
+          "url": "https://app.leadvelocity.co.za/start"
+        }
+      ]
+    }
+  ]
+}
