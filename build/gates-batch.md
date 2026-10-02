@@ -95,3 +95,15 @@ GATE-HIDE-WORDS (Phase 2) · GATE-TEST-W01/W04/W05/W06/W09/W12/W13/W15 — you w
 ---
 
 **Record of answers:** the orchestrator writes each answer to `build/decisions.md` (NH/Q items) and `build/gates.jsonl` (GATE items) and flips the task node. You never edit those files yourself.
+
+## A2 · Decisions added 2026-10-02 (afternoon) — details in build/needs-human-log.md
+| # | Decision | Recommended default if silent |
+|---|---|---|
+| NH-34 | Landing sub-lines (new-bond, turned-40, myth-bust) and employer-gap H1/sub | Ship as drafted (compliance-qa signed off) |
+| NH-35 | Creative renders: open `deliverables/visual-producer/review-sheet.html` on a phone | C02 ships H12, C12 ships H18; R1.4m example refused, H8 held |
+| NH-36 | PCD choices: test-arm palette A (#0F766E on off-white) or B (#0F6E6A on cream); C14 phone height-fill; 4:5 safe zones | A; height-fill; check in Ads Manager after GATE-AD-ACCOUNT |
+| NH-37 | 3.5a mandated text "no lock-in"; C01 wording until the 2–4× URL is filed; "Former Broker" claims true?; NH-14 Promotions | "no lock-in" ships; PCD wording until URL filed; claims need your yes |
+| NH-38 | Paste the 2–4× buying-guide URL + sentence into verified-facts.md; NH-19a AI sentence in broker_intro templates; "one month" → "one 30-day cycle"; Afrikaans reader | If silent: C01 falls back to "Work cover is often a few times salary."; AI sentence yes; "month" stays |
+| NH-39 | Re-render follow-ups | Owner alignment only, nothing for you |
+| NH-40 | Consent fixture L04–L06 generic vs named (0.1) at GATE-TEST-W01 | Update fixture to named |
+| NH-22 | `ops` schema exposure | Resolved by default: RPC only (migration 08); say so if you want `ops` exposed instead |
