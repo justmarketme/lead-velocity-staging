@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import Home from "./pages/Home";
 import About from "./pages/About";
 import Services from "./pages/Services";
@@ -54,6 +54,11 @@ const PortalLeads = lazy(() => import("./pages/portal/Leads"));
 const PortalReports = lazy(() => import("./pages/portal/Reports"));
 const PortalHelp = lazy(() => import("./pages/portal/Help"));
 const SmcBrokerSwitch = lazy(() => import("./pages/portal/SmcBrokerSwitch"));
+/** /s/* short links from WhatsApp template buttons: keep ?day=… etc. and land on the portal route (auth + broker switch apply there). */
+function SmcShortLink({ to }: { to: string }) {
+  const { search } = useLocation();
+  return <Navigate to={`${to}${search}`} replace />;
+}
 const smc = (el: ReactNode) => <Suspense fallback={<div className="min-h-screen bg-background" />}>{el}</Suspense>;
 /** Legacy route that SMC brokers share: SMC page for brand brokers, the legacy page for everyone else (flag off = legacy only). */
 const shared = (smcEl: ReactNode, legacyEl: ReactNode) => (SMC_ENABLED ? smc(<SmcBrokerSwitch smc={smcEl} legacy={legacyEl} />) : legacyEl);
@@ -106,6 +111,9 @@ const App = () => {
                 <Route path="/broker/agreement" element={smc(<PortalAgreement />)} />
                 <Route path="/broker/billing" element={smc(<PortalAgreement />)} />
                 <Route path="/broker/help" element={smc(<PortalHelp />)} />
+                {/* WhatsApp template buttons (I-37c): short links on app.leadvelocity.co.za/s/* forward to the portal pages, query kept */}
+                <Route path="/s/calendar" element={<SmcShortLink to="/broker/calendar" />} />
+                <Route path="/s/billing" element={<SmcShortLink to="/broker/billing" />} />
               </>
             )}
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

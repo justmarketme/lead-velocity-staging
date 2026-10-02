@@ -15,6 +15,7 @@
 ## Routes (flag on)
 - Console (admin; non-admin sees a refusal, no session → `/admin`): `/console` (Today), `/console/ads`, `/console/ask`.
 - Portal, SMC-only: `/broker/start`, `/broker/intro-card`, `/broker/intro-media`, `/broker/agreement`, `/broker/billing` (same page), `/broker/help`.
+- WhatsApp template short links (I-37c, flag on): `/s/calendar?day=YYYY-MM-DD` → `/broker/calendar?day=…` (query kept). The Calendar page scrolls to "Your hours", shows the date asked about, and outlines that weekday. `/s/billing` → `/broker/billing`. Both redirect inside the SPA (`SmcShortLink` in `src/App.tsx`), so login and `SmcBrokerSwitch` still apply. The host needs the SPA history fallback for `/s/*` (same as `/broker/*`).
 - Portal, shared with legacy: `/broker/leads`, `/broker/calendar`, `/broker/reports`, `/broker/profile` go through `SmcBrokerSwitch`. A broker with `brokers.brand_id` set gets the SMC page; every other broker gets the legacy page, unchanged. With the flag off these four routes render the legacy pages exactly as before.
 
 ## Data contract per screen

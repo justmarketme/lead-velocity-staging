@@ -248,3 +248,11 @@ Additive and idempotent. Validated on the local stub only. Results:
 No new browser-facing RPC, so `smc-types.ts` is unchanged.
 
 **needs_human (proposed):** the analytics layer has no migration. That covers `params.sql`, `watchlist.sql`, `kill-scale.sql`, `W14-broker.sql` and the `v_w14_lv_*` views in `W14-lv.sql`, which hold `facts.v_params`, `cycle_counts`, `renewal_risk_at` and the tile views. The functions in 10 exist but fail at call time until those files are applied. There are two options: fold the layer into a migration 11 (analytics-reporter owns the content, and `params.sql`'s `DROP VIEW … CASCADE` must become CREATE OR REPLACE first), or make the deploy runbook apply `analytics/*.sql` after the migrations. Default: runbook step, until analytics-reporter removes the CASCADE.
+
+## Pass 5 (2026-10-02) — `20261002_smc_11_pass5.sql` (drafted, NOT applied)
+This migration contains only the two items below. Stub run: chain 01→11 twice with 0 errors, 0 legacy errors, seed twice and analytics with 0 errors. The workflow parse-check found 227 statements and 7 distinct errors, all of them untyped-parameter artefacts; the one new artefact is in W08, which another agent added.
+
+| Item | What 11 does |
+|---|---|
+| I-37g | `ops.notifications.attempts integer NOT NULL DEFAULT 0`, plus a CHECK that it is ≥ 0. |
+| I-35i | `smc_vault_paystack_sub_token(broker_id)`: a SECURITY DEFINER function that only `n8n_app` can run. It returns the decrypted Paystack subscription email token named in `brokers.paystack_subscription_token_ref`, whether or not `card_autorenew` is on, so W19 can disable the Plan when the broker switches auto-renew off. Stub result: token stored by `smc_vault_store_paystack_sub` → read back. `authenticated` gets permission denied. |

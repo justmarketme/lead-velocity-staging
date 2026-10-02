@@ -5,6 +5,7 @@
  * Part B: hours, methods, capacity → own brokers columns; events availability.saved + step.completed(availability).
  */
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import PortalShell, { StepClip, usePortal } from "./PortalShell";
 import { CLIPS_BASE, MS_ADMIN_CONSENT_URL, MS_OAUTH_URL, SUPPORT_EMAIL, errText, fmtDayTime, methodLabel, portalEvent, postWebhook, smcDb } from "@/lib/smc";
 import type { SmcMeetingHours, SmcMethod } from "@/integrations/supabase/smc-types";
@@ -17,8 +18,23 @@ const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
 
 interface SlotResp { slots?: { start: string }[]; more_this_week?: number; count_week?: number }
 
+/** ?day=YYYY-MM-DD (WhatsApp template button, I-37c) → that date's weekday key, or null if absent/invalid. */
+function dayParam(v: string | null): { key: (typeof DAYS)[number]; label: string } | null {
+  if (!v || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+  const d = new Date(`${v}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return null;
+  const key = DAYS[(d.getUTCDay() + 6) % 7];
+  const label = d.toLocaleDateString("en-ZA", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+  return { key, label };
+}
+
 function Body() {
   const { broker, reload } = usePortal();
+  const [params] = useSearchParams();
+  const focus = dayParam(params.get("day"));
+  useEffect(() => {
+    if (focus) document.getElementById("hours")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [focus?.key]); // eslint-disable-line react-hooks/exhaustive-deps
   const firstWin = Object.values(broker.meeting_hours || {}).find((w) => w && w.length)?.[0] || ["09:00", "17:00"];
   const [days, setDays] = useState<string[]>(DAYS.filter((d) => (broker.meeting_hours?.[d] || []).length));
   const [from, setFrom] = useState(firstWin[0]);
@@ -121,9 +137,10 @@ function Body() {
       <section className="card" id="hours">
         <h2>Your hours and how you meet</h2>
         <p className="muted">We started you on a normal week. Change anything, or just tap Looks right.</p>
+        {focus && <p className="pill info" role="status">You asked about {focus.label}. Your {DAY_LABEL[focus.key]} hours are highlighted below.</p>}
         <label>Days</label>
         <div className="days">
-          {DAYS.map((d) => <button key={d} type="button" className={days.includes(d) ? "on" : ""} aria-pressed={days.includes(d)} onClick={() => setDays(days.includes(d) ? days.filter((x) => x !== d) : [...days, d])}>{DAY_LABEL[d]}</button>)}
+          {DAYS.map((d) => <button key={d} type="button" className={days.includes(d) ? "on" : ""} aria-pressed={days.includes(d)} aria-current={focus?.key === d ? "date" : undefined} style={focus?.key === d ? { outline: "3px solid currentColor", outlineOffset: 2 } : undefined} onClick={() => setDays(days.includes(d) ? days.filter((x) => x !== d) : [...days, d])}>{DAY_LABEL[d]}</button>)}
         </div>
         <div className="row2">
           <div><label htmlFor="from">From</label><select id="from" value={from} onChange={(e) => setFrom(e.target.value)}>{TIMES.map((t) => <option key={t}>{t}</option>)}</select></div>
