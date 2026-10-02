@@ -822,8 +822,9 @@
       ],
       "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
       "human_gate": false,
-      "status": "pending",
-      "section": "4.5 page spec"
+      "status": "green",
+      "section": "4.5 page spec",
+      "note": "Lighthouse mobile PASS on all 10 pages (landing/tests/test-log.md, 2026-10-02 23:15 UTC) + quiz.spec 9/9; public-URL re-run at S7-15"
     },
     {
       "id": "LP02",
@@ -836,8 +837,9 @@
       ],
       "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
       "human_gate": false,
-      "status": "pending",
-      "section": "4.5 page spec"
+      "status": "green",
+      "section": "4.5 page spec",
+      "note": "Lighthouse mobile PASS on all 10 pages (landing/tests/test-log.md, 2026-10-02 23:15 UTC) + quiz.spec 9/9; public-URL re-run at S7-15"
     },
     {
       "id": "LP03",
@@ -850,8 +852,9 @@
       ],
       "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
       "human_gate": false,
-      "status": "pending",
-      "section": "4.5 page spec"
+      "status": "green",
+      "section": "4.5 page spec",
+      "note": "Lighthouse mobile PASS on all 10 pages (landing/tests/test-log.md, 2026-10-02 23:15 UTC) + quiz.spec 9/9; public-URL re-run at S7-15"
     },
     {
       "id": "LP04",
@@ -864,8 +867,9 @@
       ],
       "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
       "human_gate": false,
-      "status": "pending",
-      "section": "4.5 page spec"
+      "status": "green",
+      "section": "4.5 page spec",
+      "note": "Lighthouse mobile PASS on all 10 pages (landing/tests/test-log.md, 2026-10-02 23:15 UTC) + quiz.spec 9/9; public-URL re-run at S7-15"
     },
     {
       "id": "LP05",
@@ -878,8 +882,9 @@
       ],
       "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
       "human_gate": false,
-      "status": "pending",
-      "section": "4.5 page spec"
+      "status": "green",
+      "section": "4.5 page spec",
+      "note": "Lighthouse mobile PASS on all 10 pages (landing/tests/test-log.md, 2026-10-02 23:15 UTC) + quiz.spec 9/9; public-URL re-run at S7-15"
     },
     {
       "id": "LP06",
@@ -892,8 +897,9 @@
       ],
       "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
       "human_gate": false,
-      "status": "pending",
-      "section": "4.5 page spec"
+      "status": "green",
+      "section": "4.5 page spec",
+      "note": "Lighthouse mobile PASS on all 10 pages (landing/tests/test-log.md, 2026-10-02 23:15 UTC) + quiz.spec 9/9; public-URL re-run at S7-15"
     },
     {
       "id": "LP07",
@@ -906,8 +912,9 @@
       ],
       "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
       "human_gate": false,
-      "status": "pending",
-      "section": "4.5 page spec"
+      "status": "green",
+      "section": "4.5 page spec",
+      "note": "Lighthouse mobile PASS on all 10 pages (landing/tests/test-log.md, 2026-10-02 23:15 UTC) + quiz.spec 9/9; public-URL re-run at S7-15"
     },
     {
       "id": "LP08",
@@ -920,8 +927,9 @@
       ],
       "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
       "human_gate": false,
-      "status": "pending",
-      "section": "4.5 page spec"
+      "status": "green",
+      "section": "4.5 page spec",
+      "note": "Lighthouse mobile PASS on all 10 pages (landing/tests/test-log.md, 2026-10-02 23:15 UTC) + quiz.spec 9/9; public-URL re-run at S7-15"
     },
     {
       "id": "LP09",
@@ -934,8 +942,9 @@
       ],
       "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
       "human_gate": false,
-      "status": "pending",
-      "section": "4.5 page spec"
+      "status": "green",
+      "section": "4.5 page spec",
+      "note": "Lighthouse mobile PASS on all 10 pages (landing/tests/test-log.md, 2026-10-02 23:15 UTC) + quiz.spec 9/9; public-URL re-run at S7-15"
     },
     {
       "id": "LP10",
@@ -948,8 +957,9 @@
       ],
       "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
       "human_gate": false,
-      "status": "pending",
-      "section": "4.5 page spec"
+      "status": "green",
+      "section": "4.5 page spec",
+      "note": "Lighthouse mobile PASS on all 10 pages (landing/tests/test-log.md, 2026-10-02 23:15 UTC) + quiz.spec 9/9; public-URL re-run at S7-15"
     },
     {
       "id": "LP11",
@@ -962,8 +972,9 @@
       ],
       "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
       "human_gate": false,
-      "status": "pending",
-      "section": "4.5 page spec"
+      "status": "green",
+      "section": "4.5 page spec",
+      "note": "Lighthouse mobile PASS on all 10 pages (landing/tests/test-log.md, 2026-10-02 23:15 UTC) + quiz.spec 9/9; public-URL re-run at S7-15"
     },
     {
       "id": "LP12",
@@ -976,8 +987,9 @@
       ],
       "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
       "human_gate": false,
-      "status": "pending",
-      "section": "4.5 page spec"
+      "status": "green",
+      "section": "4.5 page spec",
+      "note": "Lighthouse mobile PASS on all 10 pages (landing/tests/test-log.md, 2026-10-02 23:15 UTC) + quiz.spec 9/9; public-URL re-run at S7-15"
     },
     {
       "id": "LP13",
@@ -990,8 +1002,9 @@
       ],
       "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
       "human_gate": false,
-      "status": "pending",
-      "section": "4.5 page spec"
+      "status": "green",
+      "section": "4.5 page spec",
+      "note": "Lighthouse mobile PASS on all 10 pages (landing/tests/test-log.md, 2026-10-02 23:15 UTC) + quiz.spec 9/9; public-URL re-run at S7-15"
     },
     {
       "id": "GATE-REPO",
