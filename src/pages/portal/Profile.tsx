@@ -136,7 +136,7 @@ function Body() {
 
       <section className="card">
         <h2>Your photo and two lines</h2>
-        <p className="muted">Leads see these before they meet you. A real face lifts show rate.</p>
+        <p className="muted">Leads see these before they meet you.</p>
         <label htmlFor="ph">Headshot</label>
         <input id="ph" type="file" accept="image/*" capture="user" onChange={(e) => setFile(e.target.files?.[0] || null)} />
         <p className="hint">{broker.headshot_url ? "We have your photo. Pick a new one to replace it." : "Plain background, you looking at the camera. We crop it square. No photo yet? Your card uses your initials for now."}</p>

@@ -150,7 +150,7 @@ function Body() {
           </div>
         </details>
         <label className={`chip${paused ? " on" : ""}`} style={{ display: "flex", marginTop: 12 }}>
-          <input type="checkbox" checked={paused} onChange={(e) => setPaused(e.target.checked)} /> Pause new bookings. <span className="small">Booked meetings stay booked. Leads still arrive and are told you'll be in touch.</span>
+          <input type="checkbox" checked={paused} onChange={(e) => setPaused(e.target.checked)} /> Pause new bookings. <span className="small">Meetings already booked stay booked. While paused, no new times with you are offered.</span>
         </label>
         {err && <p className="err" role="alert">{err}</p>}
         {saved && <p className="pill ok" role="status">Saved. Your next free slot updates above.</p>}

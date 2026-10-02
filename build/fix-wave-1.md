@@ -25,3 +25,4 @@
 | automation-engineer | W01 test must rebuild the consent text server-side from `consent_version` (after GATE-TEST-W01) |
 | platform-architect | `Profile.tsx:139` unsourced show-rate claim; `Calendar.tsx:153` promises leads something on the broker's behalf; add `policies_reported` to the billing boundary test |
 | intro-media-producer / visual-producer | confirm the SAMPLE tag on the intro-video lower third is visible on the frame Meta sees (opacity 0 at start) |
+| compliance-qa (review 4) | "lifts show rate" in `src/lib/smc.ts` STEPS step 7 and "far less likely to no-show" in `src/pages/portal/IntroMedia.tsx` — source (4.10b show-rate test is the only planned evidence) or reword to "we measure whether it helps" |

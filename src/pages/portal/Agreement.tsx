@@ -1,13 +1,14 @@
 /**
  * 06 Agreement and billing (portal/spec/06-agreement-and-billing.md; prototype agreement.html). Extends BrokerDocuments.tsx (INV-P07).
- * Part A e-sign: typed name + timestamp + SHA-256 of the exact document → smc_sign_document() (SECURITY DEFINER, own row, once);
+ * Part A e-sign: typed name + timestamp + SHA-256 of the exact document + acceptances → smc_sign_document() 6-arg form
+ *   (smc_08: acceptances stored on admin_documents.acceptances; signer IP captured server-side, p_signer_ip stays null);
  *   signatory fields → own brokers row; acceptances + hash → smc_portal_event('step.completed','agreement') (stamped timeline, W20 sends copies).
  * Part B billing: cycles, pricing, invoices_smc (own rows by RLS) and three pay options linking to billing/checkout/. No lock-in, no grace.
  */
 import { useEffect, useState } from "react";
 import PortalShell, { StepClip, usePortal } from "./PortalShell";
 import { CHECKOUT_URL, CLIPS_BASE, errText, fmtDay, fmtDayTime, fmtZar, portalEvent, postWebhook, sha256Hex, smcDb } from "@/lib/smc";
-import type { SmcAdminDocument, SmcCycle, SmcInvoice, SmcPricing } from "@/integrations/supabase/smc-types";
+import type { SmcAdminDocument, SmcAgreementAcceptances, SmcCycle, SmcInvoice, SmcPricing, SmcSignDocumentArgs } from "@/integrations/supabase/smc-types";
 
 const DOC_BUCKET = "admin-documents"; // INV-08; must be private (NH-15 S3)
 
@@ -77,18 +78,20 @@ function Body() {
       const hash = await docHash(f);
       if (f.doc_sha256 && f.doc_sha256 !== hash) { setErr("We updated the agreement while you were reading. Please read it again."); setBusy(false); return; }
       const ua = navigator.userAgent.slice(0, 300);
-      const { error } = await smcDb.rpc("smc_sign_document", { p_document_id: f.id, p_signed_by_name: name.trim(), p_doc_sha256: hash, p_signer_ip: null, p_user_agent: ua });
+      const acceptances: SmcAgreementAcceptances = { read: true, clause_11_2: c112, annex_1: annex, no_page: noPage, version: f.version || undefined };
+      const args: SmcSignDocumentArgs = { p_document_id: f.id, p_signed_by_name: name.trim(), p_doc_sha256: hash, p_signer_ip: null, p_user_agent: ua, p_acceptances: acceptances };
+      const { error } = await smcDb.rpc("smc_sign_document", args);
       if (error) throw error;
       let letterHash: string | null = null;
       if (letter && annex) {
         letterHash = await docHash(letter);
-        const r2 = await smcDb.rpc("smc_sign_document", { p_document_id: letter.id, p_signed_by_name: name.trim(), p_doc_sha256: letterHash, p_signer_ip: null, p_user_agent: ua });
+        const r2 = await smcDb.rpc("smc_sign_document", { ...args, p_document_id: letter.id, p_doc_sha256: letterHash } satisfies SmcSignDocumentArgs);
         if (r2.error) throw r2.error;
       }
       await smcDb.from("brokers").update({ signatory_name: name.trim(), signatory_role: role.trim() || null, fb_page_name: noPage ? null : page.trim() || null, fb_page_id: noPage ? null : pageId.trim() || null }).eq("id", broker.id);
       await portalEvent("step.completed", "agreement", {
         document_id: f.id, version: f.version, doc_sha256: hash, letter_id: letter?.id || null, letter_sha256: letterHash,
-        acceptances: { read: true, clause_11_2: c112, annex_1: annex, no_fb_page: noPage }, signed_by_name: name.trim(), signed_at_client: new Date().toISOString(),
+        acceptances: { read: true, clause_11_2: c112, annex_1: annex, no_page: noPage }, signed_by_name: name.trim(), signed_at_client: new Date().toISOString(),
       });
       setDone(hash);
       void reload();

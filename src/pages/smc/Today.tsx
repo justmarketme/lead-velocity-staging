@@ -1,9 +1,11 @@
 /**
  * Console · Today (6.8b), built from the approved mock deliverables/console/pulse-mock.html.
- * Reads: ops.pulses, ops.proposals, ops.signals, ops.quality_grades, ops.judge_runs, ops.build_state_latest (admin RLS; NH-22),
- *        public.smc_watchlist_tiles() (admin-only RPC over facts.v_watchlist_1..7 / facts.v_watchlist).
- * Writes: ops.proposals (Approve · Snooze 7 d · Decline(reason); judge "turn into fix") + one ops.notifications outbox row per decision
- *         (W32 picks it up: task creation + confirmation to both partners). Salesforce: smc_audit() logs every write.
+ * `ops` is never exposed (NH-22 default = RPC only). Reads go through admin-only SECURITY DEFINER RPCs (smc_08 pass 3):
+ *   smc_console_pulses / _signals_open / _quality_grades / _judge_runs / _build_state / _proposals,
+ *   smc_watchlist_tiles() (facts.v_watchlist*) and smc_faculty_tiles() (facts.pulse_daily).
+ * Writes: smc_console_decide_proposal (Approve · Snooze 7 d · Decline(reason); proposal update + ops.notifications outbox row
+ *   in one server-side transaction, snooze date server-side) and smc_console_proposal_from_grade (judge "turn into fix").
+ *   Salesforce: smc_audit() logs every write.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ConsoleLayout from "./ConsoleLayout";
@@ -12,8 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { FACULTIES, addDays, errText, fmtDay, fmtNum, fmtPct, fmtTime, fmtZar, opsDb, saDate, smcDb, useIsAdmin } from "@/lib/smc";
-import type { OpsBuildStateLatest, OpsJudgeRun, OpsProposal, OpsPulse, OpsQualityGrade, OpsSignal, WatchlistTile } from "@/integrations/supabase/smc-types";
+import { FACULTIES, errText, fmtDay, fmtNum, fmtPct, fmtTime, fmtZar, smcDb } from "@/lib/smc";
+import type { FacultyTile, OpsBuildStateLatest, OpsJudgeRun, OpsProposal, OpsPulse, OpsQualityGrade, OpsSignal, WatchlistTile } from "@/integrations/supabase/smc-types";
 
 type Section<T> = { data: T; error: string | null };
 const PILL: Record<string, string> = {
@@ -57,14 +59,21 @@ function tileTarget(t: WatchlistTile): string {
   return "target " + tileValue({ ...t, value: t.target, value_label: null });
 }
 
+/** facts.pulse_daily values: ratios (0–1) as %, else number; prefer the 7-day value (slos.json burn window). */
+function fmtFac(t: FacultyTile): string {
+  const v = t.value_7d ?? t.value;
+  if (v === null || v === undefined) return "n/a";
+  return t.denominator_7d !== null && Math.abs(v) <= 1 ? fmtPct(v) : fmtNum(v, 2);
+}
+
 export default function Today() {
-  const { userId } = useIsAdmin();
   const { toast } = useToast();
   const [pulses, setPulses] = useState<Section<OpsPulse[]>>({ data: [], error: null });
   const [selected, setSelected] = useState<string | null>(null);
   const [proposals, setProposals] = useState<Section<OpsProposal[]>>({ data: [], error: null });
   const [tiles, setTiles] = useState<Section<WatchlistTile[]>>({ data: [], error: null });
   const [signals, setSignals] = useState<Section<OpsSignal[]>>({ data: [], error: null });
+  const [facTiles, setFacTiles] = useState<Section<FacultyTile[]>>({ data: [], error: null });
   const [grades, setGrades] = useState<Section<OpsQualityGrade[]>>({ data: [], error: null });
   const [runs, setRuns] = useState<OpsJudgeRun[]>([]);
   const [build, setBuild] = useState<Section<OpsBuildStateLatest | null>>({ data: null, error: null });
@@ -76,29 +85,32 @@ export default function Today() {
 
   const loadCore = useCallback(async () => {
     const [p, s, g, r, b] = await Promise.all([
-      opsDb().from("pulses").select("*").order("date", { ascending: false }).limit(14),
-      opsDb().from("signals").select("*").is("resolved_at", null).order("detected_at", { ascending: false }).limit(200),
-      opsDb().from("quality_grades").select("*").gte("graded_at", new Date(Date.now() - 48 * 3600e3).toISOString()).order("passed").order("graded_at", { ascending: false }).limit(30),
-      opsDb().from("judge_runs").select("*").order("date", { ascending: false }).limit(10),
-      opsDb().from("build_state_latest").select("*").maybeSingle(),
+      smcDb.rpc("smc_console_pulses", { p_limit: 14 }),
+      smcDb.rpc("smc_console_signals_open"),
+      smcDb.rpc("smc_console_quality_grades", { p_hours: 48, p_limit: 30 }),
+      smcDb.rpc("smc_console_judge_runs", { p_limit: 10 }),
+      smcDb.rpc("smc_console_build_state"),
     ]);
     setPulses({ data: (p.data as OpsPulse[]) || [], error: p.error ? errText(p.error) : null });
     setSignals({ data: (s.data as OpsSignal[]) || [], error: s.error ? errText(s.error) : null });
     setGrades({ data: (g.data as OpsQualityGrade[]) || [], error: g.error ? errText(g.error) : null });
     setRuns((r.data as OpsJudgeRun[]) || []);
-    setBuild({ data: (b.data as OpsBuildStateLatest) || null, error: b.error ? errText(b.error) : null });
+    setBuild({ data: ((b.data as OpsBuildStateLatest[]) || [])[0] || null, error: b.error ? errText(b.error) : null });
   }, []);
 
   const loadTiles = useCallback(async () => {
-    const { data, error } = await smcDb.rpc("smc_watchlist_tiles", { p_include_synthetic: synthetic });
-    setTiles({ data: (data as WatchlistTile[]) || [], error: error ? errText(error) : null });
+    const [w, f] = await Promise.all([
+      smcDb.rpc("smc_watchlist_tiles", { p_include_synthetic: synthetic }),
+      smcDb.rpc("smc_faculty_tiles", { p_days: 28, p_include_synthetic: synthetic }),
+    ]);
+    setTiles({ data: (w.data as WatchlistTile[]) || [], error: w.error ? errText(w.error) : null });
+    setFacTiles({ data: (f.data as FacultyTile[]) || [], error: f.error ? errText(f.error) : null });
   }, [synthetic]);
 
   const loadProposals = useCallback(async (date: string | null) => {
-    let q = opsDb().from("proposals").select("*");
-    q = date ? q.eq("pulse_date", date) : q.eq("status", "proposed");
-    const { data, error } = await q.order("created_at", { ascending: true }).limit(date ? 10 : 3);
-    setProposals({ data: (data as OpsProposal[]) || [], error: error ? errText(error) : null });
+    // p_pulse_date null → open proposals (server returns status 'proposed')
+    const { data, error } = await smcDb.rpc("smc_console_proposals", { p_pulse_date: date });
+    setProposals({ data: ((data as OpsProposal[]) || []).slice(0, date ? 10 : 3), error: error ? errText(error) : null });
   }, []);
 
   useEffect(() => { void loadCore(); }, [loadCore]);
@@ -107,23 +119,10 @@ export default function Today() {
 
   async function decide(p: OpsProposal, decision: "approve" | "snooze" | "decline", reason?: string) {
     setBusy(p.id);
-    const now = new Date().toISOString();
-    const patch: Partial<OpsProposal> & Record<string, unknown> = { decided_by: userId, decided_at: now, decided_by_label: "console" };
-    if (decision === "approve") patch.status = "approved";
-    if (decision === "snooze") { patch.status = "snoozed"; patch.snooze_until = addDays(saDate(), 7); }
-    if (decision === "decline") { patch.status = "declined"; patch.decline_reason = reason; }
-    const { error } = await opsDb().from("proposals").update(patch).eq("id", p.id).eq("status", "proposed");
-    if (!error) {
-      const { error: nErr } = await opsDb().from("notifications").insert({
-        kind: "approval", recipient: "jonathan", channel: "console", ref_table: "ops.proposals", ref_id: p.id, proposal_id: p.id,
-        dedupe_key: `proposal:${p.id}:${decision}`, status: "queued", source: "console", what: p.title,
-        payload: { decision, proposal_id: p.id, decided_by: userId, reason: reason || null, via: "console" },
-      });
-      if (nErr) toast({ title: "Decision saved, notification not queued", description: errText(nErr), variant: "destructive" });
-      else toast({ title: decision === "approve" ? "Approved" : decision === "snooze" ? "Snoozed 7 days" : "Declined", description: p.title });
-    } else {
-      toast({ title: "Could not save", description: errText(error), variant: "destructive" });
-    }
+    const { error } = await smcDb.rpc("smc_console_decide_proposal", { p_proposal_id: p.id, p_decision: decision, p_reason: reason || null });
+    toast(error
+      ? { title: "Could not save", description: errText(error), variant: "destructive" }
+      : { title: decision === "approve" ? "Approved" : decision === "snooze" ? "Snoozed 7 days" : "Declined", description: p.title });
     setBusy(null);
     setDecline(null);
     void loadProposals(pulse?.date || null);
@@ -131,11 +130,7 @@ export default function Today() {
 
   async function turnIntoFix(g: OpsQualityGrade) {
     setBusy(g.id);
-    const faculty = (FACULTIES.find((f) => f.id === g.faculty)?.id || "conversation");
-    const { error } = await opsDb().from("proposals").insert({
-      source: "judge", faculty, title: `Fix: ${g.rule}`.slice(0, 200), metric: null, owner_agent: g.owner_agent,
-      evidence: `${g.sample_ref}${g.exact_text ? ` · "${g.exact_text.slice(0, 200)}"` : ""}`, pulse_date: saDate(),
-    });
+    const { error } = await smcDb.rpc("smc_console_proposal_from_grade", { p_grade_id: g.id });
     setBusy(null);
     toast(error ? { title: "Could not create the fix", description: errText(error), variant: "destructive" } : { title: "Fix proposed", description: "It appears under Do today." });
     void loadProposals(pulse?.date || null);
@@ -145,7 +140,8 @@ export default function Today() {
   const facultyState = FACULTIES.map((f) => {
     const open = signals.data.filter((s) => s.faculty === f.id);
     const status = open.some((s) => s.burning) ? "red" : open.length ? "amber" : "green";
-    return { ...f, open: open.length, status };
+    const tile = facTiles.data.find((t) => t.faculty === f.id && t.metric === f.metric) || facTiles.data.find((t) => t.faculty === f.id) || null;
+    return { ...f, open: open.length, status, tile };
   });
 
   const comp = (pulse?.compliance || {}) as Record<string, number | boolean | null>;
@@ -261,12 +257,15 @@ export default function Today() {
             {facultyState.map((f) => (
               <div key={f.id} className={`min-w-0 rounded-lg border border-border border-l-4 ${EDGE[f.status]} bg-card p-2`}>
                 <div className="truncate text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{f.name}</div>
+                <div className="text-base font-bold tabular-nums leading-tight">{f.tile ? fmtFac(f.tile) : "n/a"}</div>
                 <div className="truncate text-xs">{f.headline} <span className="text-muted-foreground">{f.slo}</span></div>
+                <Sparkline className="mt-1 h-6 w-full" tone={f.status as "green" | "amber" | "red"} points={(f.tile?.trend || []).map((p) => (p.v === null ? null : Number(p.v)))} label={`${f.name}, 28 days`} />
                 <div className="text-[11px]">{f.open ? <b className="text-amber-400">{f.open} signal{f.open > 1 ? "s" : ""}</b> : <span className="text-muted-foreground">no signals</span>}</div>
               </div>
             ))}
           </div>
           {signals.error && <p className="mt-1 text-xs text-destructive">Signals unavailable: {signals.error}</p>}
+          {facTiles.error && <p className="mt-1 text-xs text-destructive">Faculty values unavailable: {facTiles.error}</p>}
         </section>
 
         <div className="grid gap-4 md:grid-cols-2">

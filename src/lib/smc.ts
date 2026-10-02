@@ -32,8 +32,7 @@ export const SUPPORT_EMAIL = "howzit@leadvelocity.co.za";
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const smcDb = supabase as unknown as SupabaseClient<any, "public", any>;
-/** `ops` schema (admin-only RLS). Needs `ops` in the API exposed schemas (NH-22). */
-export const opsDb = () => smcDb.schema("ops");
+// `ops` is never exposed to the API (NH-22 default): the console reads/writes ops.* only via admin-only RPCs (smc_08).
 
 export function errText(e: unknown): string {
   if (!e) return "Unknown error";
@@ -148,18 +147,18 @@ export function progressSummary(p: SmcOnboardingProgress | null | undefined) {
 }
 
 // ---------------------------------------------------------------- 11 faculties (optimisation/slos.json; ids, names, headline metric + SLO)
-export const FACULTIES: { id: OpsFaculty; name: string; headline: string; slo: string }[] = [
-  { id: "media", name: "Media", headline: "Cost per qualified lead", slo: "≤ R250" },
-  { id: "page_flow", name: "Page & Flow", headline: "Page conversion", slo: "≥ 18%" },
-  { id: "conversation", name: "Conversation", headline: "First message < 60 s", slo: "100%" },
-  { id: "nurture_show", name: "Nurture & show", headline: "Show rate", slo: "≥ 65%" },
-  { id: "comments_dms", name: "Comments & DMs", headline: "Public reply SLA", slo: "≥ 95%" },
-  { id: "broker", name: "Broker", headline: "Disposition rate", slo: "≥ 90%" },
-  { id: "billing", name: "Billing", headline: "Cycle-1 renewal", slo: "see slos.json" },
-  { id: "compliance", name: "Compliance", headline: "Consent stored", slo: "100%" },
-  { id: "infra_cost", name: "Infra & cost", headline: "Uptime", slo: "≥ 99.5%" },
-  { id: "brand_search", name: "Brand & search", headline: "Branded search w/w", slo: "rising" },
-  { id: "build", name: "Build", headline: "Tasks blocked", slo: "0" },
+export const FACULTIES: { id: OpsFaculty; name: string; headline: string; metric: string; slo: string }[] = [
+  { id: "media", metric: "qualified_cpl", name: "Media", headline: "Cost per qualified lead", slo: "≤ R250" },
+  { id: "page_flow", metric: "page_conversion", name: "Page & Flow", headline: "Page conversion", slo: "≥ 18%" },
+  { id: "conversation", metric: "first_message_under_60s", name: "Conversation", headline: "First message < 60 s", slo: "100%" },
+  { id: "nurture_show", metric: "show_rate", name: "Nurture & show", headline: "Show rate", slo: "≥ 65%" },
+  { id: "comments_dms", metric: "public_sla_share", name: "Comments & DMs", headline: "Public reply SLA", slo: "≥ 95%" },
+  { id: "broker", metric: "disposition_rate", name: "Broker", headline: "Disposition rate", slo: "≥ 90%" },
+  { id: "billing", metric: "renewal_rate_cycle1", name: "Billing", headline: "Cycle-1 renewal", slo: "see slos.json" },
+  { id: "compliance", metric: "consent_stored_pct", name: "Compliance", headline: "Consent stored", slo: "100%" },
+  { id: "infra_cost", metric: "uptime_pct", name: "Infra & cost", headline: "Uptime", slo: "≥ 99.5%" },
+  { id: "brand_search", metric: "branded_search_wow", name: "Brand & search", headline: "Branded search w/w", slo: "rising" },
+  { id: "build", metric: "tasks_blocked", name: "Build", headline: "Tasks blocked", slo: "0" },
 ];
 
 // ---------------------------------------------------------------- auth hooks
