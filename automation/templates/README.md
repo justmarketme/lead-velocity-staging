@@ -38,6 +38,7 @@ Each `*.json` file is the exact body for `POST /{WABA_ID}/message_templates`: `n
 | 21 | `broker_outcome_check` | 2 | UTILITY | none | 1 adviser first name · 2 time · 3 lead first name + initial | QR Attended · No-show · Rescheduled | W12 (T+15 min) |
 | 22 | `broker_disposition` | 2 | UTILITY | none | 1 lead first name + initial | QR × 6 (payload = `fit_proceeding`, `fit_followup`, `nofit_budget`, `nofit_covered`, `nofit_criteria`, `unreachable`) | W12. Inside the 24-h window, send an interactive list instead, with the full 4.12a labels |
 | 23 | `broker_quality` | 2 | UTILITY | none | 1 lead first name + initial | QR 1 · 2 · 3 · 4 · 5 | W12 |
+| 23a | `broker_fit_followup` | 2 | UTILITY | none | 1 adviser first name · 2 call date ("Thu 15 Oct") · 3 lead first name + initial | QR Followed up · Still to do (payload = `fit_followup:{lead_id}:done` / `:open`) · URL Open in portal (1 = lead path) | W12/W29: 7 days after a `fit_followup` disposition (4.12a "his follow-up, our nudge"). Sent once; no further nudge. *Added: not in the 4.6 list* |
 | 24 | `broker_feedback_thanks` | 3 | UTILITY | none | 1 "what changed" line (W29) | — | W12/W29 |
 | 25 | `broker_daily_digest` | 2 | UTILITY | TEXT | 1 adviser first name · 2 count · 3 "09:00 Lerato M. (Teams); …" | URL Open today | W11 (07:30) |
 | 26 | `precall_brief` | 2 | UTILITY | TEXT | 1 lead first name + initial · 2 time · 3 method · 4 number to call · 5 best time · 6 age band · 7 budget band · 8 asked before the call (redacted, 2.1.7) · 9 language | URL Open brief | W11 (T-15 min) |
@@ -59,5 +60,6 @@ Each `*.json` file is the exact body for `POST /{WABA_ID}/message_templates`: `n
 - `broker_intro_slots` uses the exact 4.6 sentences in order. Three slot lines are added after "Pick a time below.", because quick-reply button text cannot carry variables.
 - `_v2` uses the exact 4.6 text with no slot lines.
 - `broker_disposition` buttons are shortened to fit Meta's 25-character limit (see SUMMARY `needs_human`).
+- `broker_fit_followup` (added 2026-10-02) names the lead only as first name + initial, says the follow-up is the broker's own (FAIS), and carries no lead data beyond that. Second submission batch, not CORE.
 - `lead_pulse` uses text buttons instead of the thumbs-up and thumbs-down emoji named in 6B.2, following the 4.11 no-emoji rule.
 - When `ops_pulse` is Green, it still carries its button. The body reads "All within limits. Nothing to do today."

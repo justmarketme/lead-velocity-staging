@@ -1345,7 +1345,7 @@
     },
     {
       "id": "GATE-TEST-W01",
-      "title": "Jonathan writes/approves the acceptance test for W01",
+      "title": "Jonathan writes/approves the acceptance test for W01 — draft ready: automation/tests/W01.test.mjs (see automation/tests/README.md)",
       "owner": "jonathan",
       "phase": "2",
       "depends_on": [],
@@ -1356,7 +1356,7 @@
     },
     {
       "id": "GATE-TEST-W04",
-      "title": "Jonathan writes/approves the acceptance test for W04",
+      "title": "Jonathan writes/approves the acceptance test for W04 — draft ready: automation/tests/W04.test.mjs (see automation/tests/README.md)",
       "owner": "jonathan",
       "phase": "2",
       "depends_on": [],
@@ -1367,7 +1367,7 @@
     },
     {
       "id": "GATE-TEST-W05",
-      "title": "Jonathan writes/approves the acceptance test for W05",
+      "title": "Jonathan writes/approves the acceptance test for W05 — draft ready: automation/tests/W05.test.mjs (see automation/tests/README.md)",
       "owner": "jonathan",
       "phase": "2",
       "depends_on": [],
@@ -1378,7 +1378,7 @@
     },
     {
       "id": "GATE-TEST-W06",
-      "title": "Jonathan writes/approves the acceptance test for W06",
+      "title": "Jonathan writes/approves the acceptance test for W06 — draft ready: automation/tests/W06.test.mjs (see automation/tests/README.md)",
       "owner": "jonathan",
       "phase": "2",
       "depends_on": [],
@@ -1389,7 +1389,7 @@
     },
     {
       "id": "GATE-TEST-W09",
-      "title": "Jonathan writes/approves the acceptance test for W09",
+      "title": "Jonathan writes/approves the acceptance test for W09 — draft ready: automation/tests/W09.test.mjs (see automation/tests/README.md)",
       "owner": "jonathan",
       "phase": "2",
       "depends_on": [],
@@ -1400,7 +1400,7 @@
     },
     {
       "id": "GATE-TEST-W12",
-      "title": "Jonathan writes/approves the acceptance test for W12",
+      "title": "Jonathan writes/approves the acceptance test for W12 — draft ready: automation/tests/W12.test.mjs (see automation/tests/README.md)",
       "owner": "jonathan",
       "phase": "2",
       "depends_on": [],
@@ -1411,7 +1411,7 @@
     },
     {
       "id": "GATE-TEST-W13",
-      "title": "Jonathan writes/approves the acceptance test for W13",
+      "title": "Jonathan writes/approves the acceptance test for W13 — draft ready: automation/tests/W13.test.mjs (see automation/tests/README.md)",
       "owner": "jonathan",
       "phase": "2",
       "depends_on": [],
@@ -1422,7 +1422,7 @@
     },
     {
       "id": "GATE-TEST-W15",
-      "title": "Jonathan writes/approves the acceptance test for W15",
+      "title": "Jonathan writes/approves the acceptance test for W15 — draft ready: automation/tests/W15.test.mjs (see automation/tests/README.md)",
       "owner": "jonathan",
       "phase": "2",
       "depends_on": [],
@@ -1990,7 +1990,7 @@
       "depends_on": [],
       "acceptance_test": "node -e \"JSON.parse(require(fs).readFileSync(automation/templates/broker_fit_followup.json))\"",
       "human_gate": false,
-      "status": "in_progress",
+      "status": "green",
       "section": "4.12a; automation-engineer SUMMARY"
     },
     {
@@ -2120,7 +2120,7 @@
       ],
       "acceptance_test": "for w in W01 W04 W05 W06 W09 W12 W13 W15; do test -s automation/tests/$w.test.mjs || exit 1; done && test -s automation/tests/fixtures/synthetic-leads.json",
       "human_gate": false,
-      "status": "in_progress",
+      "status": "green",
       "section": "4C.2"
     },
     {
