@@ -740,7 +740,7 @@
       ],
       "acceptance_test": "node automation/tests/W30.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "in_progress",
+      "status": "green",
       "section": "4.6 inventory"
     },
     {
@@ -753,7 +753,7 @@
       ],
       "acceptance_test": "node automation/tests/W31.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "in_progress",
+      "status": "green",
       "section": "4.6 inventory"
     },
     {
@@ -2278,6 +2278,83 @@
       "human_gate": true,
       "status": "needs_human",
       "section": "conversation/handoff.md trigger 6"
+    },
+    {
+      "id": "NH-34",
+      "title": "Landing sub-lines + employer-gap H1 (signed off by compliance-qa review 3; Jonathan confirms copy)",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.5"
+    },
+    {
+      "id": "NH-35",
+      "title": "Creative renders: review sheet; NH-PCD-01 source, NH-PCD-02 refused, NH-PCD-04 held",
+      "owner": "jonathan",
+      "phase": "3",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4D"
+    },
+    {
+      "id": "NH-36",
+      "title": "PCD choices: test-arm palette A/B, C14 phone zone, 4:5 safe zones",
+      "owner": "jonathan",
+      "phase": "3",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4D.4a"
+    },
+    {
+      "id": "NH-37",
+      "title": "Creative fix wave 1 sign-offs: 3.5a 'no lock-in', C01 wording, 2–4× URL, Former Broker claims, NH-14",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "3.5a"
+    },
+    {
+      "id": "NH-38",
+      "title": "Review 3 decisions: NH-PCD-01 URL, NH-19a AI sentence, 'no lock-in' + '30-day cycle' in mandated text, Afrikaans reader",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "2.1"
+    },
+    {
+      "id": "NH-39",
+      "title": "Re-render follow-ups (owner alignment; nothing for Jonathan)",
+      "owner": "jonathan",
+      "phase": "3",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4D.5"
+    },
+    {
+      "id": "NH-40",
+      "title": "Consent fixture vs named default — decide at GATE-TEST-W01",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4C.2"
     }
   ]
 }
