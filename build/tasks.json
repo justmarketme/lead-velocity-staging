@@ -1076,7 +1076,7 @@
     },
     {
       "id": "GATE-PIXEL",
-      "title": "Pixel/Dataset, domain verification, CAPI system-user token",
+      "title": "Pixel/Dataset, domain verification, CAPI system-user token — verify on test events: API version v23.0, business-messaging Schedule, offline stage events via dataset /events, ZAR as value currency (attribution-analyst ASSUMPTIONS)",
       "owner": "jonathan",
       "phase": "0",
       "depends_on": [
@@ -1094,7 +1094,8 @@
       "owner": "jonathan",
       "phase": "0",
       "depends_on": [
-        "GATE-WABA"
+        "GATE-WABA",
+        "P2-TEMPLATE-SAMPLES"
       ],
       "acceptance_test": "human approval recorded in build/gates.jsonl",
       "human_gate": true,
@@ -1846,6 +1847,138 @@
       "human_gate": true,
       "status": "needs_human",
       "section": "0.1 conflict rule"
+    },
+    {
+      "id": "NH-11",
+      "title": "Live schema drift: 12 tables referenced but undefined in repo; types.ts stale; appointments defined twice. Need a read-only schema dump of the live Supabase project before the first migration.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "build/crm-gap.md §E"
+    },
+    {
+      "id": "NH-12",
+      "title": "Hosting: CRM (incl. the public LV site pages) deploys to Vercel; prompt 6.7 says Hostinger + app.leadvelocity.co.za static. Keep Vercel for the CRM app? Confirm the live LV site is this repo.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "build/crm-gap.md §E"
+    },
+    {
+      "id": "NH-13",
+      "title": "Email transport: code sends via Resend; prompt 6.7 says Graph Mail.Send from howzit@. SortMyCover mail via Graph (bounce detection, audit trail); legacy stays on Resend; magic-link SMTP choice.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "build/crm-gap.md §E"
+    },
+    {
+      "id": "NH-14",
+      "title": "Two products, one CRM: legacy B2B tiers (Pilot/Bronze/Silver/Gold R6k–R16.5k, \"guaranteed\" wording, Ayanda cold calls) vs SortMyCover ladder. Separate by brand_id + SMC_* tier codes; withdraw B2B tiers from site (W25)? NCC cleanse to cover legacy cold-call leads? Money decision.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "build/crm-gap.md §E; contracts needs-human NH-CD-17"
+    },
+    {
+      "id": "NH-15",
+      "title": "Pre-existing security/POPIA defects in the live CRM (public PII read/write, USING(true) RLS, public bucket, unauthenticated service-role functions, browser-exposed Gemini key, passwords in tracked scripts). Approve migration 1 = security fixes + rotate + untrack scripts. Changes live product behaviour.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "build/inventory.md §11"
+    },
+    {
+      "id": "NH-16",
+      "title": "Name collisions: put 6.8b/4.15 tables (proposals, notifications, pulses, signals, quality_grades, costs) in a Postgres schema `ops`. Default: yes.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "build/crm-gap.md §E"
+    },
+    {
+      "id": "NH-17",
+      "title": "POPIA processor list: add Supabase, Vercel, Twilio, Resend (+ Hostinger, ElevenLabs if voice fallback on) with regions to the privacy notice and processing register. Default: yes, regions read from each dashboard.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "build/crm-gap.md §E; contracts needs-human NH-CD-18"
+    },
+    {
+      "id": "NH-18",
+      "title": "Contract mechanics drafted by default, need a money/legal yes: (a) dispute outcome after 48 h = LV decides within 2 business days with reasons; (b) \"uncontactable\" = verified lead who then goes silent through the full W08 sequence → replaceable within cap; (c) cycle start = day routing goes live after payment clears; (d) term sheet carries R16,500 typed — exclude signed docs from the W25 hard-coded-price check or generate from pricing; (e) refund within 10 business days when not renewing.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "deliverables/contracts-drafter/needs-human.md NH-CD-09/11/12/14/16"
+    },
+    {
+      "id": "NH-19",
+      "title": "WhatsApp wording set to confirm: broker_intro_slots keeps the 4.6 sentences + 3 slot lines with buttons Time 1/2/3 · Other times (quick replies cannot carry variables); two 4.12a disposition labels shortened to ≤ 25 chars (\"Good fit – follow-up\", \"Not a fit – covered\") — contract Schedule C, portal and template must use one set; lead_pulse uses text buttons not 👍👎 (4.11 no-emoji rule); AI-assistant disclosure sits in the first free-text reply (W07), not in the utility templates. Default: accept all four.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "deliverables/automation-engineer/SUMMARY.md"
+    },
+    {
+      "id": "NH-20",
+      "title": "Company and personal details needed to finish legal docs and the holding site: CIPC registration number, registered address, Jonathan full name, KG full name + role (deputy IO), FNB account name for the EFT reference block, data regions per processor. Placeholders stay until supplied.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "contracts needs-human NH-CD-22/23; holding deploy.md step 0"
+    },
+    {
+      "id": "P2-TEMPLATE-SAMPLES",
+      "title": "Review samples for media-header templates: automation/templates/samples/intro_card_sample.png + intro_video_sample.mp4 (needed before Meta accepts the IMAGE/VIDEO templates)",
+      "owner": "visual-producer",
+      "phase": "1",
+      "depends_on": [],
+      "acceptance_test": "test -s automation/templates/samples/intro_card_sample.png && test -s automation/templates/samples/intro_video_sample.mp4",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 templates; automation-engineer SUMMARY"
+    },
+    {
+      "id": "P2-TEMPLATE-FIT-FOLLOWUP",
+      "title": "Draft the missing broker 7-day fit_followup reminder template (4.12a) in automation/templates/",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "node -e \"JSON.parse(require(fs).readFileSync(automation/templates/broker_fit_followup.json))\"",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.12a; automation-engineer SUMMARY"
     }
   ]
 }
