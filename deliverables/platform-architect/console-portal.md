@@ -59,3 +59,21 @@ Pass 1:
 3. Serve the static media, intro-media and checkout under the app domain.
 4. Add magic-link login (INV-A01 is password-only today).
 5. Do one browser pass at 360 px and on desktop.
+
+## Readiness (Go-live screen) — spec only, React page not built yet
+**What it is:** this is the console side of the Section 7 checklist (crm-gap line "Approve & go live + Section 7 readiness checklist", **new**; it sits inside the INV-01 console). The checker is `scripts/readiness.mjs`. It runs on Node 18 or later, has no dependencies, needs no network and prints no secrets. Every S7 node's acceptance test, "console readiness check (auto)", is this script. `node --test scripts/readiness.test.mjs` pins the output contract.
+- **Feed.** A scheduled run calls `node scripts/readiness.mjs --json`: hourly with the `make build` loop (4C.0), and on demand from a "Re-check" button through an n8n webhook. It posts the document into the current day's `ops.pulses` row under `build.readiness`. That column is already `jsonb`, so no DDL is needed. The screen reads it through the admin RPC `smc_console_pulses` (smc_08). If a later pass needs hourly history, it can add an `ops.notifications`/`ops.build_state` `readiness` kind. That needs a migration, so it is not done now.
+- **Contract (`lv.readiness.v1`).**
+  - Top-level fields: `generated_at`, `git_sha`, `counts {green, amber, red}`, `go_live_ready` (true only when all 28 lines are green) and `exceptions[]`.
+  - `lines[]` has 28 entries, S7-01 to S7-28. Each entry has `id`, `section`, `title`, `status`, `note`, `build_done`, `evidence[]`, `missing[]` and `checks[]`. Each check is `{name, half: build|live|info, state: pass|missing|fail, detail}`.
+- **Status rules.**
+  - **Green:** every check passes.
+  - **Amber:** the repo half is complete and passing, and only live evidence is missing. In other words, the line is waiting on the outside world.
+  - **Red:** a build item is missing, any check fails, or a purely external line has no evidence yet.
+  - **S7-26 exception:** before payment it shows amber "ready to provision".
+- **Screen.** One row per line, grouped by section (Acquisition / Conversation & booking / Broker / Platform & money / Compliance), with Pipedrive-style status pills.
+  - Each row shows the title, and a `missing[]` list expands open on red or amber lines.
+  - Each gate-backed item deep-links to its gate in the batched list.
+  - The **Go live** button appears only when `go_live_ready` is true (Section 7: red blocks it) and is one tap (6.1 step 4).
+  - A stale document (`generated_at` older than 2 h) shows grey with "re-check". It never shows green.
+- **Evidence.** Live checks read `build/evidence/S7-xx.jsonl`, `whatsapp-templates.jsonl` and `capi-test-events.jsonl`. These are append-only JSON lines holding IDs and booleans only, with no secrets and no PII. They are written by the owning workflows (W20/W21/W22/W26/W27) or by a console "record evidence" action that writes an `audit_log` row. Gate items come from `build/tasks.json` gate status. Each line's comment in the script names the exact keys that turn it green.
