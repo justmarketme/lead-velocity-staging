@@ -1,0 +1,339 @@
+{
+  "_note": "PROPOSED by broker-success for W20. Not submitted. automation-engineer to move each object into automation/templates/<name>.json and add to the README index. Category UTILITY; accept Meta's decision (0.3 #1). Parameter values must have no newlines.",
+  "templates": [
+    {
+      "name": "broker_onboarding_welcome",
+      "language": "en",
+      "category": "UTILITY",
+      "components": [
+        {
+          "type": "HEADER",
+          "format": "TEXT",
+          "text": "Welcome to SortMyCover"
+        },
+        {
+          "type": "BODY",
+          "text": "Hi {{1}}, welcome to SortMyCover. Your account is ready. Setup takes about 12 minutes, and the 3-minute video shows every step. Tap Open my portal, then watch the video first.",
+          "example": {
+            "body_text": [
+              [
+                "Mark"
+              ]
+            ]
+          }
+        },
+        {
+          "type": "FOOTER",
+          "text": "SortMyCover by Lead Velocity"
+        },
+        {
+          "type": "BUTTONS",
+          "buttons": [
+            {
+              "type": "URL",
+              "text": "Open my portal",
+              "url": "https://app.leadvelocity.co.za/m/{{1}}",
+              "example": [
+                "https://app.leadvelocity.co.za/m/mk_7f3a9c"
+              ]
+            },
+            {
+              "type": "URL",
+              "text": "3-minute video",
+              "url": "https://app.leadvelocity.co.za/v/{{1}}",
+              "example": [
+                "https://app.leadvelocity.co.za/v/start"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "broker_onboarding_next",
+      "language": "en",
+      "category": "UTILITY",
+      "components": [
+        {
+          "type": "HEADER",
+          "format": "TEXT",
+          "text": "Your next step"
+        },
+        {
+          "type": "BODY",
+          "text": "Nice one, {{1}}. {{2}} is done. Next: {{3}}. It takes about {{4}}. Tap below to carry on.",
+          "example": {
+            "body_text": [
+              [
+                "Mark",
+                "Your details",
+                "Connect your Outlook calendar",
+                "1 minute"
+              ]
+            ]
+          }
+        },
+        {
+          "type": "FOOTER",
+          "text": "SortMyCover by Lead Velocity"
+        },
+        {
+          "type": "BUTTONS",
+          "buttons": [
+            {
+              "type": "URL",
+              "text": "Next step",
+              "url": "https://app.leadvelocity.co.za/s/{{1}}",
+              "example": [
+                "https://app.leadvelocity.co.za/s/calendar"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "broker_calendar_ok",
+      "language": "en",
+      "category": "UTILITY",
+      "components": [
+        {
+          "type": "HEADER",
+          "format": "TEXT",
+          "text": "Calendar connected"
+        },
+        {
+          "type": "BODY",
+          "text": "Hi {{1}}, your calendar is connected. Your next free slot is {{2}}. Leads are only ever booked into free times like this one.",
+          "example": {
+            "body_text": [
+              [
+                "Mark",
+                "Tue 6 Oct, 10:00"
+              ]
+            ]
+          }
+        },
+        {
+          "type": "FOOTER",
+          "text": "SortMyCover by Lead Velocity"
+        },
+        {
+          "type": "BUTTONS",
+          "buttons": [
+            {
+              "type": "URL",
+              "text": "Next step",
+              "url": "https://app.leadvelocity.co.za/s/{{1}}",
+              "example": [
+                "https://app.leadvelocity.co.za/s/availability"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "broker_onboarding_ready",
+      "language": "en",
+      "category": "UTILITY",
+      "components": [
+        {
+          "type": "HEADER",
+          "format": "TEXT",
+          "text": "Setup complete"
+        },
+        {
+          "type": "BODY",
+          "text": "Hi {{1}}, your setup is done and checked. Jonathan will switch you on shortly, and we will message you the moment you are live.",
+          "example": {
+            "body_text": [
+              [
+                "Mark"
+              ]
+            ]
+          }
+        },
+        {
+          "type": "FOOTER",
+          "text": "SortMyCover by Lead Velocity"
+        },
+        {
+          "type": "BUTTONS",
+          "buttons": [
+            {
+              "type": "URL",
+              "text": "Open my portal",
+              "url": "https://app.leadvelocity.co.za/start"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "broker_onboarding_nudge_24h",
+      "language": "en",
+      "category": "UTILITY",
+      "components": [
+        {
+          "type": "HEADER",
+          "format": "TEXT",
+          "text": "SortMyCover setup"
+        },
+        {
+          "type": "BODY",
+          "text": "Hi {{1}}, a quick reminder. Next for you: {{2}}. It takes about {{3}}. {{4}} Tap below to carry on, or reply here if you want a hand.",
+          "example": {
+            "body_text": [
+              [
+                "Mark",
+                "Connect your Outlook calendar",
+                "1 minute",
+                "One tap. It lets leads book real free times with you."
+              ]
+            ]
+          }
+        },
+        {
+          "type": "FOOTER",
+          "text": "SortMyCover by Lead Velocity"
+        },
+        {
+          "type": "BUTTONS",
+          "buttons": [
+            {
+              "type": "URL",
+              "text": "Carry on",
+              "url": "https://app.leadvelocity.co.za/s/{{1}}",
+              "example": [
+                "https://app.leadvelocity.co.za/s/calendar"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "broker_onboarding_nudge_72h",
+      "language": "en",
+      "category": "UTILITY",
+      "components": [
+        {
+          "type": "HEADER",
+          "format": "TEXT",
+          "text": "SortMyCover setup"
+        },
+        {
+          "type": "BODY",
+          "text": "Hi {{1}}, your SortMyCover setup is still waiting on one thing: {{2}}. {{3}} Leads can't be sent to you until it's done. Reply here and we'll help, no call needed.",
+          "example": {
+            "body_text": [
+              [
+                "Mark",
+                "Sign your agreement",
+                "You can read it first. It's month to month, with no lock-in."
+              ]
+            ]
+          }
+        },
+        {
+          "type": "FOOTER",
+          "text": "SortMyCover by Lead Velocity"
+        },
+        {
+          "type": "BUTTONS",
+          "buttons": [
+            {
+              "type": "URL",
+              "text": "Finish setup",
+              "url": "https://app.leadvelocity.co.za/s/{{1}}",
+              "example": [
+                "https://app.leadvelocity.co.za/s/agreement"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "broker_onboarding_issue",
+      "language": "en",
+      "category": "UTILITY",
+      "components": [
+        {
+          "type": "HEADER",
+          "format": "TEXT",
+          "text": "A small snag"
+        },
+        {
+          "type": "BODY",
+          "text": "Hi {{1}}, a small snag with your setup: {{2}} {{3}} Tap below to fix it, or reply here and we'll sort it.",
+          "example": {
+            "body_text": [
+              [
+                "Mark",
+                "We could not match your FSP number to your practice name.",
+                "Check the number and try again. After three tries we'll check it by hand."
+              ]
+            ]
+          }
+        },
+        {
+          "type": "FOOTER",
+          "text": "SortMyCover by Lead Velocity"
+        },
+        {
+          "type": "BUTTONS",
+          "buttons": [
+            {
+              "type": "URL",
+              "text": "Fix it",
+              "url": "https://app.leadvelocity.co.za/s/{{1}}",
+              "example": [
+                "https://app.leadvelocity.co.za/s/profile"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "broker_live",
+      "language": "en",
+      "category": "UTILITY",
+      "components": [
+        {
+          "type": "HEADER",
+          "format": "TEXT",
+          "text": "You're live"
+        },
+        {
+          "type": "BODY",
+          "text": "Hi {{1}}, you're live. New leads can now be booked into your calendar. Each one reaches you as a WhatsApp message with the time and method. You'll get a morning list at 07:30, a short brief 15 minutes before each call, and your first report on {{2}} at 07:00.",
+          "example": {
+            "body_text": [
+              [
+                "Mark",
+                "Monday"
+              ]
+            ]
+          }
+        },
+        {
+          "type": "FOOTER",
+          "text": "SortMyCover by Lead Velocity"
+        },
+        {
+          "type": "BUTTONS",
+          "buttons": [
+            {
+              "type": "URL",
+              "text": "Open my leads",
+              "url": "https://app.leadvelocity.co.za/leads"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

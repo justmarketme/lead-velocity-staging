@@ -42,7 +42,7 @@ Bio text on all: the 4D.2 rule-8 disclosure line, link to the home page, same lo
 
 1. `dns.google` check for `sortmycover.co.za`, `www`, `.com` (0.3 #6). SSL active. 301s correct (`deploy.md` section 6).
 2. No `noindex` on production, no `X-Robots-Tag`. `robots.txt` allows all and names the sitemap. `privacy.html` stays `noindex` and out of the sitemap until the real text is signed off, then both flip.
-3. All `{{...}}` placeholders replaced (grep `{{` returns nothing). In particular `{{REVIEWER_NAME_FSP}}` on the five learn pages: a real, signed-off licensed adviser must be named, or those pages stay out of the sitemap and keep `noindex`. Do not publish a reviewer claim that is not true.
+3. All `{{...}}` placeholders replaced (grep `{{` returns nothing). The five learn pages carry no reviewer line (author is "SortMyCover editorial team"); a reviewer line may be added only after a real review by someone who is NOT a broker we route leads to (NH-30 D).
 4. Rich Results Test and Schema Markup Validator on the home page (Organization, FAQPage) and one learn page (Article, FAQPage, BreadcrumbList). Note: Google restricts FAQ rich results to a small set of sites, so treat FAQ schema as machine-readable markup, not a promised rich result. Do not count on the display.
 5. **Search Console.** Preferred: Domain property, verified by DNS TXT at GoDaddy (covers http/https/www and subdomains). Fallbacks: URL-prefix property with the HTML file or meta tag method, or Google Analytics/Tag Manager if present. Do not verify the staging host as a property of the production domain.
 6. Submit `https://sortmycover.co.za/sitemap.xml` (11 URLs: home, About, How we make money, Complaints, learn hub, five learn pages). Use URL Inspection and Request indexing for `/`, `/about.html`, `/learn/`.
@@ -109,7 +109,7 @@ Staging host: `sortmycover.leadvelocity.co.za` (or Hostinger password-protected 
 
 ## 8. needs_human (this plan)
 1. GATE-DOMAINS go or defer (pending, Jonathan). If defer: accept the late-indexing trade-off above and fix the cutover date at least 7 days before the first ad.
-2. Named licensed reviewer and FSP number for `{{REVIEWER_NAME_FSP}}` on the five learn pages (compliance-qa and a real adviser; do not publish a false reviewer claim).
+2. Optional, not blocking: a reviewer line on the learn pages, only after a real review by someone who is NOT a broker we route leads to (NH-30 D). No placeholder exists on the pages.
 3. GBP: primary category (compliance) and whether a public address and phone number will be shown.
 4. Google Ads: budget, and the pre-spend verification re-check (ASSUMPTION flagged in Section 6).
 5. HelloPeter business profile: only if there is a named person to answer complaints.

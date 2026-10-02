@@ -3,7 +3,7 @@
 Owner: devops-security with Jonathan (human gates). Nothing here is done yet.
 
 ## 0. Pre-flight (before upload)
-- [ ] `grep -rn "{{" landing/holding --include=*.html` and fill every placeholder: `{{CIPC_REG_NO}}`, `{{ADDRESS_STREET}}`, `{{ADDRESS_CITY}}`, `{{ADDRESS_POSTCODE}}`, `leadvelocity.co.za`, `{{META_DOMAIN_VERIFICATION}}`, `{{REVIEWER_NAME_FSP}}` (learn/ pages: reviewer name and FSP number, needs a real signed-off adviser; the pages must not go live with the placeholder) (copy from Meta Business Settings > Brand Safety > Domains). Also the Organization JSON-LD in index.html.
+- [ ] `grep -rn "{{" landing/holding --include=*.html` and fill every placeholder: `{{CIPC_REG_NO}}`, `{{ADDRESS_STREET}}`, `{{ADDRESS_CITY}}`, `{{ADDRESS_POSTCODE}}`, `leadvelocity.co.za`, `{{META_DOMAIN_VERIFICATION}}` (copy from Meta Business Settings > Brand Safety > Domains). Also the Organization JSON-LD in index.html.
 - [ ] Add real `icon-192.png`, `icon-512.png`, `og-image.png` (1200x630), `apple-touch-icon.png`, `favicon.ico` from visual-producer. Until then these paths 404.
 - [ ] compliance-qa signed off the copy; contracts-drafter privacy text pasted into privacy.html, then add privacy.html back to sitemap.xml and remove its `noindex`.
 - [ ] Do not upload `staging/` or `deploy.md` / `README.md` (not needed on the server).

@@ -6,7 +6,7 @@ About 12 minutes to be ready to go live. Do them in this order. Everything you t
 2. [ ] Your details: practice name, FSP number, your name, WhatsApp number. We check your FSP on the public FSCA register. Add a photo and two lines about you. (3 min)
 3. [ ] Connect your Outlook calendar: tap "Sign in with Microsoft". You will see your next free slot. Using Google instead? There is a button for that. If Microsoft says "Need admin approval", use the link on the page. (1 min)
 4. [ ] Check your hours and how you meet. We started you on Mon-Fri 9 to 5, 3 a day, 12 a week, Teams and phone. Tap "Looks right" or change them. (1 min)
-5. [ ] Sign your agreement. Plain words, one flat price per 30-day cycle, no contract. You get a copy. (3 min)
+5. [ ] Sign your agreement. Plain words, one flat price per 30-day cycle, no lock-in. You get a copy. (3 min)
 6. [ ] Approve your intro card: the picture leads see on WhatsApp. (1 min)
 7. [ ] Record your 25-second intro (optional, 10 min). People show up for people.
 

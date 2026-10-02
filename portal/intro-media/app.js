@@ -123,6 +123,31 @@
     ['advice', /\b(you should|you need to|you must|i recommend|i advise|i suggest|my advice|you ought|make sure you|switch to|take out)\b/i, 'sounds like advice or a sales push'],
     ['urgency', /\b(limited|today only|hurry|don't miss|last chance|act now|before it'?s too late|spots? left|only \d+|expires?|deadline|urgent|now or never)\b/i, 'creates urgency']
   ];
+  // Rules I-1 to I-5 (compliance-qa phase4-review-2 section 5d). I-2 cannot be verified here: any credential, years or award claim fails closed
+  // until the server gate confirms it against the FSCA register / designation body (brokers.verified_credentials).
+  var BANNED_I = [
+    ['health_promise', /\b(even if you smoke|no medicals?|no medical (exam|test)s?|no health (questions|checks?)|anyone can (get|qualify)|everyone (qualifies|is accepted)|guaranteed acceptance|regardless of (your )?health|pre-?existing)\b/i, 'promises acceptance or talks about health'],
+    ['credentials', /\b(\d+\+?\s*(years?|yrs)|(years?|decades?) of experience|award[- ]winning|awards?|top performer|cfp|chartered|certified|accredited|qualified as|mdrt|fellow of|designation)\b/i, 'is a credential, years or award claim (only verified ones can be said)'],
+    ['client_story', /\b(my clients?|one (of my )?clients?|a client of mine|testimonials?|thousands of|hundreds of|\d[\d,. ]*\s*(clients|families|people|policyholders)|(helped|helping) (over |more than )?\d+|mr\.?\s+[A-Z]\w+|mrs\.?\s+[A-Z]\w+|ms\.?\s+[A-Z]\w+)\b/i, 'tells a client story or gives client numbers'],
+    ['endorsement', /\b(sortmycover|sort my cover|lead velocity|selected me|chose me|chosen me|matched (me )?(you|with)|(recommended|endorsed|vetted|approved|hand-?picked) (by|me)|they (picked|chose|matched))\b/i, 'says SortMyCover or Lead Velocity chose, matched or endorses you'],
+    ['tax', /\b(tax[- ]free|tax[- ]efficient|tax deduct\w*|tax benefits?|tax saving\w*|tax break|save on tax|sars)\b/i, 'makes a tax claim']
+  ];
+  // Rule I-6: Afrikaans word lists for rules 5-12 and I-1 to I-5 (the gate must work in the language recorded). Applied to every script, any language.
+  var BANNED_AF = [
+    ['product', /\b(produk|produkte|polis|polisse|beleggings?|begrafnisdekking|inkomstebeskerming|fonds)\b/i, 'names a product'],
+    ['premium', /\b(premie|premies|per maand|'n maand|maandeliks|rand|persent|prosent)\b/i, 'talks about money or premiums'],
+    ['insurer', /\b(versekeraar|versekeraars|versekeringsmaatskappy)\b/i, 'names an insurer'],
+    ['return', /\b(opbrengs|rendement|groei|prestasie)\b/i, 'talks about returns'],
+    ['guarantee', /\b(waarborg|gewaarborg|waarborge|belofte|beloof|risikovry|verseker dat)\b/i, 'promises or guarantees something'],
+    ['best', /\b(beste|goedkoopste|goedkoop|laagste|voorste|nommer een|bekostigbaar)\b/i, 'uses "best/cheapest" style claims'],
+    ['advice', /\b(jy moet|u moet|ek beveel aan|ek raai aan|ek stel voor|my raad|oorskakel na|neem 'n)\b/i, 'sounds like advice or a sales push'],
+    ['urgency', /\b(beperk|net vandag|haas|laaste kans|voor dit te laat is|net \d+ plekke|dringend|moet nie mis nie)\b/i, 'creates urgency'],
+    ['health_promise', /\b(selfs al rook|geen mediese|enigiemand kan dekking kry|ongeag jou gesondheid)\b/i, 'promises acceptance or talks about health'],
+    ['credentials', /\b(\d+\+?\s*jaar|jare ervaring|bekroon|toekenning|gesertifiseer|geakkrediteer)\b/i, 'is a credential, years or award claim'],
+    ['client_story', /\b(my kliente?|getuigskrif|duisende|honderde)\b/i, 'tells a client story or gives client numbers'],
+    ['endorsement', /\b(het my gekies|aanbeveel deur|goedgekeur deur)\b/i, 'says SortMyCover or Lead Velocity chose or endorses you'],
+    ['tax', /\b(belastingvry|belastingvoordeel|belastingaftrekking)\b/i, 'makes a tax claim']
+  ];
   function lintScript(text, broker) {
     var n = words(text).length, checks = [];
     function add(id, ok, msg, fix) { checks.push({ id: id, ok: ok, msg: msg, fix: fix || null }); }
@@ -134,6 +159,10 @@
     add('fsp', fc === 1, fc === 1 ? 'FSP number included once' : (fc === 0 ? 'FSP number "FSP ' + (broker && broker.fsp) + '" is missing' : 'FSP number appears ' + fc + ' times; say it once'));
     add('first_person', /\b(I|I'm|I'll|I've|my|me)\b/.test(text), /\b(I|I'm|I'll|I've|my|me)\b/.test(text) ? 'First person' : 'Speak as yourself: use "I" and "my"');
     BANNED.forEach(function (b) { var m = text.match(b[1]); add(b[0], !m, m ? 'Remove "' + m[0] + '": it ' + b[2] : 'No ' + b[0] + ' wording'); });
+    BANNED_I.forEach(function (b) { var m = text.match(b[1]); add(b[0], !m, m ? 'Remove "' + m[0] + '": it ' + b[2] : 'No ' + b[0] + ' wording'); });
+    var af = null;
+    BANNED_AF.forEach(function (b) { var m = text.match(b[1]); if (m && !af) af = [b, m]; });
+    add('afrikaans', !af, af ? 'Remove "' + af[1][0] + '": it ' + af[0][2] : 'No Afrikaans banned wording');
     var bad = checks.filter(function (c) { return !c.ok; });
     return { pass: bad.length === 0, checks: checks, failing: bad };
   }
