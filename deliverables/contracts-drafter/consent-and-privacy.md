@@ -169,7 +169,7 @@ If we change this notice, we update the date at the top. Big changes are also sh
 1. **Who we are.** SortMyCover is a service of Lead Velocity (Pty) Ltd. We connect people with authorised financial services providers. We do not give financial advice, compare products or quote premiums.
 2. **What this site is.** General information about life cover and what a call with a licensed adviser involves. It is not advice. Only a licensed adviser can tell you what fits you.
 3. **It's free for you.** There is no charge and no obligation to buy anything.
-4. **How we make money.** Advisers pay us a flat monthly fee to run our service. The fee is the same whether or not you buy anything. We earn nothing from any policy.
+4. **How we make money.** Advisers pay us a flat fee per 30-day cycle to run our service. The fee is the same whether or not you buy anything. We earn nothing from any policy.
 5. **Who you'll talk to.** When you agree, your details go to one adviser. Their name, practice and FSP number are in your first WhatsApp from us. The adviser is responsible for any advice they give.
 6. **Your details.** Our Privacy Notice explains how we use them.
 7. **Using the site.** Please don't misuse the site, send false details, or enter someone else's number.

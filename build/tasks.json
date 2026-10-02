@@ -2029,7 +2029,7 @@
       ],
       "acceptance_test": "test -s brand/brand-bible.md && test -s deliverables/brand-naming-lead/availability-checks.md",
       "human_gate": false,
-      "status": "in_progress",
+      "status": "green",
       "section": "4D.6"
     },
     {
@@ -2157,6 +2157,17 @@
       "human_gate": true,
       "status": "needs_human",
       "section": "deliverables/media-buyer/SUMMARY.md"
+    },
+    {
+      "id": "NH-23",
+      "title": "Brand decisions: (a) CoverKlaar — run Afrikaans under SortMyCover and keep CoverKlaar as a defensive registration only (\"klaar\" = finished reads badly next to life cover)? (b) CIPC trade-mark filing for the word mark + tick (classes 35/36) costs fees before first payment — file now or after payment? (c) Google Business Profile only if eligible for a virtual-only service, never a fake address.",
+      "owner": "jonathan",
+      "phase": "1",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "deliverables/brand-naming-lead/first-principles.md"
     }
   ]
 }
