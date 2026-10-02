@@ -153,6 +153,30 @@ Every call is an n8n **Execute Workflow** by name (`cachedResultName`), fire-and
 **Still listening in W03:** `GET /whatsapp` (Meta's one-time verify handshake, because W07 has no GET node) and `GET /wa/:ref` (I-09 tracked redirect). These are GET only and do not compete with W07.
 
 **Open points:**
-- W03 → `W07 Conversation agent (forward)` (existing 90-day lead found by W03's own dedupe) can loop if W07 routes the same item back to W03. W07 must treat `source = 'W03'` as a known lead and never route it to W03 again (automation-engineer, W07 follow-up).
-- `automation/W23.json` uses an n8n **WhatsApp Trigger** (broker media capture). That registers its own app subscription and competes with W07's callback. W23 should be called by W07/W12 instead (needs_human, owner of W23).
+- W03 → `W07 Conversation agent (forward)` (existing 90-day lead found by W03's own dedupe) can loop if W07 routes the same item back to W03. W07 must treat `source = 'W03'` as a known lead and never route it to W03 again (automation-engineer, W07 follow-up). **Resolved, fix wave 4 (I-37e):** W03's `Mark origin w03 (loop guard)` sets `origin: 'w03'` on the hand-back; W07's sub-call trigger sends it through `W03 forward: loop guard` to Load context, and `routeInbound` never returns `W03` for it (known lead → `nlu`, otherwise `ignore_loop`, logged only). W32 Approve/Later taps (`approve:<uuid>` / `later:<uuid>` from `OPS_WHATSAPP_JONATHAN`/`_KG`) route to W32 `Console decision (sub-call)`.
+- `automation/W23.json` uses an n8n **WhatsApp Trigger** (broker media capture). That registers its own app subscription and competes with W07's callback. W23 should be called by W07/W12 instead (needs_human, owner of W23). **Resolved, fix wave 4 (I-37d):** W23 starts at `Called by W07 (broker media)` (Execute Workflow Trigger); W07 routes broker video (any status) and broker audio while the broker is pre-live (`invited`…`ready_for_go_live`) there with a Cloud API message item (`w23MediaItem`); a live broker's audio stays W29 feedback.
 - Ops taps (W32 Approve / Later on `ops_action`) arrive on the same callback. W07's router has no W32 route yet (follow-up, automation-engineer with optimisation-advisor).
+
+## `leads.last_contact_at` — every outbound to the lead updates it (I-38d, 2026-10-02)
+
+**Rule:** every message we send that concerns a lead and that Meta accepts (a `wamid` comes back) sets `leads.last_contact_at = now()` for that lead, in the same branch as the send. W34 runs its 12-month pseudonymise clock and its 5-year consent clock from the latest of `last_contact_at`, `opted_out_at` and `created_at`, so a workflow that sends without touching it makes the lead's data expire early. Dry runs (`DRY_RUN_SENDS=true`) and rejected sends do not touch it. Broker-only and ops messages that are not about a specific lead do not touch it.
+
+| Workflow | Status |
+|---|---|
+| W03, W07 | Already update it (CTWA intake, conversation agent). |
+| W10 | Done: `Touch leads.last_contact_at (lead outbound)` after `Send WhatsApp`; broker notices are skipped (`lib/w10.mjs leadOutbound`). |
+| W11 | Done: the 07:30 digest touches every lead on the broker's list for today, and the T-15 brief touches its lead. Both go to the broker, but each comes right before the broker's call with that lead. If the practitioner rules that only messages *to* the lead restart the clock, remove these two nodes (NH, I-38d practitioner question). |
+| **W08** (unbooked nurture) | **To do, owned by the W08 engineer:** add the same `UPDATE public.leads SET last_contact_at = now() WHERE id = $1::uuid AND $2 <> ''` (wamid) after each nudge send. |
+| **W09** (reminder sequence, core path) | **To do, owner of W09:** same update after every reminder / what-to-expect / intro-media / prep send. |
+| W05, W06, W12, W13, W15, W35 | Owners check their lead-facing sends against this rule at their next pass. |
+
+The alternative (only inbound restarts the clock) is the open practitioner question in I-38d; until it is answered, this rule applies.
+
+## W10 → W13 — Schedule C1A claims (I-37l, default pending NH-42)
+
+W10 sends `W13 No-show & replacement` `{ op: 'claim', lead_id, booking_id, outcome_id: null, reason, code, reason_code, idempotency_key: 'w10:c1a:{booking_id}' }`:
+- a verified lead (replied or tapped within 72 h of the first message) who cancelled and did not rebook by the end of the one rebooking offer and the follow-up sequence (96 h after the cancel): `reason: 'uncontactable'`, `code: 'unreachable'`, `reason_code: 'cancel_no_rebook'`;
+- a verified lead who said plainly "I don't want a call" / "No thanks" after cancelling: `reason: 'disqualified'`, `code: 'nofit_criteria'`, `reason_code: 'no_call'`. W10 op `no_call` stops messaging at once (`conv_state.declined_call`, W09 `cancel_all`, stage `unbooked_closed`).
+- a rebook, a broker-side cancel (Schedule D), an unverified lead, or a STOP with no plain "no call": nothing is claimed.
+
+`W10_C1A_MODE` = `a+b` (default, the drafted agreement default) · `a` · `b` · `off`, switched when Jonathan answers NH-42. W13 must accept `outcome_id: null` for C1A claims (there is no meeting, so no `outcomes` row) and store `reason_code` as given. W07 must delegate `{ action: 'no_call' }` to W10 when a lead with a booking says plainly they do not want a call. W08 must restart its +2 h / +24 h / +72 h sequence from the cancel, not from `first_message_at`, for a lead whose booking was cancelled; otherwise "the full follow-up sequence" in C1A point 3 is never sent.

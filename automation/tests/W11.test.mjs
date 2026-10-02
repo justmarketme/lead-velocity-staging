@@ -114,3 +114,16 @@ test('W11.json: physical columns only; outcome insert cannot override W12; brief
   const guard = WF.nodes.find((n) => n.name === 'Meetings starting within 15 min, not yet briefed').parameters.query;
   assert.match(guard, /extract\(epoch FROM a\.appointment_date\)::bigint/);
 });
+
+test('I-38d: digest and pre-call brief sends touch leads.last_contact_at (only when Meta accepted the send)', () => {
+  const byName = (n) => WF.nodes.find((x) => x.name === n);
+  assert.equal(WF.connections['Send digest'].main[0][0].node, 'Touch last_contact_at (digest leads)');
+  assert.equal(WF.connections['Send pre-call brief'].main[0][0].node, 'Touch last_contact_at (brief lead)');
+  for (const n of ['Touch last_contact_at (digest leads)', 'Touch last_contact_at (brief lead)']) {
+    const q = byName(n).parameters.query;
+    assert.match(q, /SET last_contact_at = now\(\)/); assert.match(q, /<> ''/, `${n}: guarded by the wamid`);
+    assert.match(byName(n).parameters.options.queryReplacement, /messages\[0\]\.id/);
+  }
+  assert.match(byName('Touch last_contact_at (digest leads)').parameters.query, /status IN \('booked','confirmed'\)/);
+  assert.deepEqual(checkSql(workflowSql(WF)), []);
+});

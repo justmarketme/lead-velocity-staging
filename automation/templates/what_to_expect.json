@@ -10,7 +10,7 @@
     },
     {
       "type": "BODY",
-      "text": "Hi {{1}}, here is what to expect on your call with {{2}}:\n- It takes about 30 minutes, by {{3}}.\n- The adviser will ask a few simple questions to understand what matters to you.\n- There is nothing to buy on the call.\nReply STOP to opt out.",
+      "text": "Hi {{1}}, here is what to expect on your call with {{2}}:\n- It takes about 30 minutes, by {{3}}.\n- The adviser will ask a few simple questions to understand what matters to you.\n- There is no obligation to buy anything on the call.\nReply STOP to opt out.",
       "example": {
         "body_text": [
           [

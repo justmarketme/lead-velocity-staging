@@ -87,7 +87,8 @@ export function applyCancel(booking, lead, ctx) {
     graph: { op: 'delete', event_id: booking.graph_event_id },
     w09: 'cancel_all',
     broker_notice: { what: 'cancelled', at: booking.appointment_date },
-    rebook_offer: !offered && !lead.opted_out_at,
+    // C1A (b): a lead who has already said plainly "no call" gets no rebooking offer (stop messaging at once).
+    rebook_offer: !offered && !lead.opted_out_at && !lead.conv_state?.declined_call,
     conv_state_patch: { rebook_offered: true, state: 'unbooked' },
     lead_stage: 'qualified',
     replacement: 'none',
@@ -135,6 +136,7 @@ export function classifyOp(input) {
   const d = input.delegate || {};
   if (d.action === 'cancel_confirm') return 'cancel_ask';
   if (d.action === 'change_method') return 'change_method';
+  if (d.action === 'no_call') return 'no_call';     // W07 intent: "I don't want a call" / "No thanks" (C1A b)
   if (d.action === 'reschedule' || d.action === 'reschedule_slots') return 'offer';
   const m = input.msg || {};
   const p = String(m.payload || m.list_id || '');
@@ -144,5 +146,97 @@ export function classifyOp(input) {
   if (k === 'cancel') return 'cancel';          // explicit button tap: cancel at once
   if (k === 'cancel_yes') return 'cancel';
   if (k === 'keep_it') return 'keep';
+  if (k === 'no_call') return 'no_call';           // C1A (b) button / W07 delegate payload
   return 'offer';
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Schedule C1A - "When the person cancels" (broker-services-agreement.md, Schedule C).
+// DEFAULT PENDING NH-42: options (a) AND (b) are both on (the agreement's drafted default). Jonathan picks one of
+// 'a' | 'b' | 'a+b' (or 'off'); the workflow passes $env.W10_C1A_MODE, which defaults to 'a+b'. Nothing else changes
+// when he picks: the mode only switches which of the two claims below W10 sends to W13.
+//   1. They book again            -> nothing is claimed; the new call is judged as usual (C2 row "cancelled and booked again").
+//   2. They say plainly "no call" -> stop messaging at once; (b) W13 claim reason 'disqualified', code nofit_criteria,
+//                                    reason_code no_call. Under (a) only: stop messaging, no claim.
+//   3. They go quiet              -> one rebooking offer (applyCancel) + the full follow-up sequence; not rebooked by the
+//                                    end -> (a) W13 claim reason 'uncontactable', code unreachable, reason_code
+//                                    cancel_no_rebook. Under (b) only: no claim.
+// Only a VERIFIED lead counts (0.1: replied/tapped within 72 h of the first message). A broker-side cancel is
+// Schedule D (we rebook, no replacement). Evidence = the message log (communications + lead_activities); the 48-h
+// dispute window in C3 is W13's. W10 never writes `replacements` - it calls W13 `claim` (CONTRACTS.md).
+// ---------------------------------------------------------------------------------------------------------------
+export const C1A_DEFAULT_MODE = 'a+b'; // NH-42 default
+// End of "the full follow-up sequence" after a cancel: the rebooking offer at the cancel, then W08's +2 h / +24 h /
+// +72 h nudges and its close 24 h after the last nudge (lib/w08.mjs CLOSE_AFTER_LAST ASSUMPTION) = 96 h.
+export const C1A_SEQUENCE_MS = 96 * H;
+const modeHas = (mode, x) => String(mode || C1A_DEFAULT_MODE).split('+').includes(x);
+
+/** Deterministic backstop for the "plainly does not want a call" test (W07's intent model is the primary reader). */
+const NO_CALL_RE = /\b(i\s+)?(do\s*n[o']?t|dont|do not)\s+want\s+(a|the|any)?\s*call\b|\bno\s+call(s)?\b|^\s*no,?\s+thanks?\s*[.!]*\s*$|^\s*no\s+thank\s+you\s*[.!]*\s*$/iu;
+export function isNoCall(m = {}) {
+  const p = String(m.payload || m.list_id || '').split(':')[0];
+  if (p === 'no_call' || p === 'no_thanks') return true;
+  return NO_CALL_RE.test(String(m.text || m.content || ''));
+}
+
+/** verified = replied/tapped within 72 h of the first message (0.1, 3.3; same test as facts.fact_lead.verified_within_72h). */
+export function isVerified(lead) {
+  const v = Date.parse(lead.verified_at || ''); const f = Date.parse(lead.first_message_at || '');
+  return Number.isFinite(v) && Number.isFinite(f) && v <= f + 72 * H;
+}
+
+/**
+ * c1aDecision(input) -> { claim: false, why, stop_messaging? } | { claim: true, stop_messaging, w13, activity }
+ * input = { lead: {id, verified_at, first_message_at, opted_out_at, conv_state}, booking: {id, brand_id, broker_id, cycle_id,
+ *           status, cancelled_at}, cancelled_by: 'lead'|'broker', rebooked: bool, rebook_offered: bool,
+ *           inbound_after_cancel: [{text|content, payload}], declined: bool, already_claimed: bool, now_ms, mode }
+ */
+export function c1aDecision(x) {
+  const { lead = {}, booking = {}, now_ms, mode = C1A_DEFAULT_MODE } = x;
+  if (mode === 'off') return { claim: false, why: 'c1a_off' };
+  if (booking.status !== 'cancelled') return { claim: false, why: 'booking_not_cancelled' };
+  if (x.rebooked) return { claim: false, why: 'rebooked_new_call_judged_as_usual' };
+  if (x.cancelled_by === 'broker') return { claim: false, why: 'schedule_d_broker_cancel' };
+  const declined = Boolean(x.declined || lead.conv_state?.declined_call || lead.conv_state?.declined_nurture || (x.inbound_after_cancel || []).some(isNoCall));
+  if (!isVerified(lead)) return { claim: false, why: 'never_verified_never_counted', stop_messaging: declined };
+  if (x.already_claimed) return { claim: false, why: 'already_claimed', stop_messaging: declined };
+  const base = { lead_id: lead.id, booking_id: booking.id, outcome_id: null, brand_id: booking.brand_id, broker_id: booking.broker_id, cycle_id: booking.cycle_id, at: new Date(now_ms).toISOString(), idempotency_key: `w10:c1a:${booking.id}`, schedule: 'C1A', c1a_mode: mode };
+  if (declined) {
+    if (!modeHas(mode, 'b')) return { claim: false, why: 'no_call_not_replaced_under_option_a', stop_messaging: true };
+    return { claim: true, stop_messaging: true, w13: { op: 'claim', ...base, reason: 'disqualified', code: 'nofit_criteria', reason_code: 'no_call' }, activity: 'c1a_no_call' };
+  }
+  // STOP is an opt-out from messages, not a statement about the call; C1A does not cover it -> no claim (needs_human NH-42 note).
+  if (lead.opted_out_at) return { claim: false, why: 'opted_out_not_covered_by_c1a' };
+  const cancelled = Date.parse(booking.cancelled_at || '');
+  if (!x.rebook_offered) return { claim: false, why: 'rebook_offer_not_sent_yet' };
+  if (!Number.isFinite(cancelled) || now_ms < cancelled + C1A_SEQUENCE_MS) return { claim: false, why: 'sequence_running' };
+  if (!modeHas(mode, 'a')) return { claim: false, why: 'cancel_no_rebook_not_replaced_under_option_b' };
+  return { claim: true, stop_messaging: false, w13: { op: 'claim', ...base, reason: 'uncontactable', code: 'unreachable', reason_code: 'cancel_no_rebook' }, activity: 'c1a_cancel_no_rebook' };
+}
+
+/**
+ * applyNoCall(booking, lead) -> what W10 does the moment a lead says plainly they do not want a call (C1A point 2).
+ * Messaging stops at once whatever the NH-42 option: W08 stops on declined_nurture / stage unbooked_closed, W09 jobs are
+ * cancelled. A still-live booking goes through the normal cancel confirm first (typed "cancel" asks, 4.11), with
+ * declined_call already set so the cancel sends no rebooking offer.
+ */
+export function applyNoCall(booking, lead) {
+  const live = ACTIVE.has(booking?.status);
+  return {
+    action: live ? 'confirm_cancel_first' : 'stop',
+    conv_state_patch: { declined_call: true, declined_nurture: true, state: 'closed_unbooked' },
+    lead_stage: live ? null : 'unbooked_closed',
+    w09: 'cancel_all',
+    send_to_lead: live ? 'cancel_confirm' : null
+  };
+}
+
+/**
+ * I-38d rule (CONTRACTS.md): every outbound to the lead updates leads.last_contact_at (W34 12-month clock).
+ * leadOutbound(item) -> lead id to touch, or null for broker/ops messages and dry runs.
+ */
+export function leadOutbound(item = {}, sent_id = '') {
+  if (!sent_id || item.to === 'broker') return null;
+  if (item.wa && item.br && item.wa.to === item.br.whatsapp_number) return null;
+  return item.ld?.id || item.lead_id || null;
 }

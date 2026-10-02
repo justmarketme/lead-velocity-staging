@@ -93,7 +93,7 @@ test('qualification tuning: nofit_budget > 15% -> budget_drift; nofit_covered cl
 
 test('thanks line is always true and never promises spend; renders in broker_feedback_thanks', () => {
   const few = F.thanksLine({ quality_index: null, quality_n: 2 });
-  assert.equal(few, 'That is 2 of your calls rated from this ad so far.');
+  assert.equal(few, 'So far 2 of your calls from this ad have a rating.');
   const many = F.thanksLine({ quality_index: 4.2, quality_n: 6 });
   assert.equal(many, 'That ad is now rated 4.2 from 6 of your calls.');
   assert.ok(!/budget|more behind|spend/i.test(few + many));

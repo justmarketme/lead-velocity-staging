@@ -13,7 +13,7 @@
       "parameters": {
         "width": 760,
         "height": 360,
-        "content": "W10 Reschedule / cancel (4.6 item 8; W28 reschedule Flow; Schedule C/D). Entry: Execute Workflow from W07 (taps Reschedule / Other times / Cancel / Keep it, typed intents, slot picks slot_{ISO}:resched:{booking}) and W12 (broker tapped Rescheduled).\nSlots ALWAYS come from the W04 slot engine (sub-workflow 'W04 Slots API', excluding the booking being moved). Booking UI: brands.booking_ui = flow -> reschedule Flow with the current booking pre-filled (automation/flows/reschedule-flow.json, completion goes W28 -> here as a pick); list -> 10-slot list in-window, reschedule_offer template (3 slots on 3 days) outside it.\nMove = same appointments row + same Graph event (PATCH), reschedule_count + 1, re-checked against Outlook getSchedule AND our own bookings (buffer) inside one statement; the gist exclusion constraint is the last line of defence. Slot gone -> next 3.\nSecond reschedule -> flagged (escalations kind other, esc_kind=second_reschedule). Cancel -> Graph DELETE, status cancelled, W09 jobs cancelled, broker told, ONE rebooking offer.\nReplacements: none of these events opens one (lead choice / Schedule D); a rebooking after a no-show writes lead_activities 'rebooked_after_no_show' so W13 stops its 48-h clock.\nBroker notice: session message if the broker's 24-h window is open, else utility template broker_booking_changed (automation/templates, I-35a; pending Meta review) plus email from howzit@. Logic automation/lib/w10.mjs; tests automation/tests/W10.test.mjs."
+        "content": "W10 Reschedule / cancel (4.6 item 8; W28 reschedule Flow; Schedule C/D). Entry: Execute Workflow from W07 (taps Reschedule / Other times / Cancel / Keep it, typed intents, slot picks slot_{ISO}:resched:{booking}) and W12 (broker tapped Rescheduled).\nSlots ALWAYS come from the W04 slot engine (sub-workflow 'W04 Slots API', excluding the booking being moved). Booking UI: brands.booking_ui = flow -> reschedule Flow with the current booking pre-filled (automation/flows/reschedule-flow.json, completion goes W28 -> here as a pick); list -> 10-slot list in-window, reschedule_offer template (3 slots on 3 days) outside it.\nMove = same appointments row + same Graph event (PATCH), reschedule_count + 1, re-checked against Outlook getSchedule AND our own bookings (buffer) inside one statement; the gist exclusion constraint is the last line of defence. Slot gone -> next 3.\nSecond reschedule -> flagged (escalations kind other, esc_kind=second_reschedule). Cancel -> Graph DELETE, status cancelled, W09 jobs cancelled, broker told, ONE rebooking offer.\nReplacements: none of these events opens one (lead choice / Schedule D); a rebooking after a no-show writes lead_activities 'rebooked_after_no_show' so W13 stops its 48-h clock.\nBroker notice: session message if the broker's 24-h window is open, else utility template broker_booking_changed (automation/templates, I-35a; pending Meta review) plus email from howzit@. Logic automation/lib/w10.mjs; tests automation/tests/W10.test.mjs.\n\n**Schedule C1A (default pending NH-42, options a + b; `W10_C1A_MODE` = a | b | a+b | off):** a verified lead who cancels and does not rebook by the end of the rebooking offer + follow-up sequence (96 h) -> W13 `claim` uncontactable / `unreachable` / `cancel_no_rebook`; a plain \"I don't want a call\" / \"No thanks\" -> messaging stops at once (op `no_call`), then W13 `claim` disqualified / `nofit_criteria` / `no_call`; a rebook -> nothing claimed. Hourly sweep, one decision row per cancelled booking (`w10:c1a:{booking_id}`). Every send to the lead updates `leads.last_contact_at` (I-38d)."
       }
     },
     {
@@ -242,6 +242,28 @@
                     "id": "s6",
                     "leftValue": "={{ $json.op }}",
                     "rightValue": "broker_rescheduled",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "no_call",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s8",
+                    "leftValue": "={{ $json.op }}",
+                    "rightValue": "no_call",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
@@ -1291,6 +1313,267 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
+    },
+    {
+      "id": "n44",
+      "name": "Decide no-call (C1A point 2)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        1400
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w10.mjs').href);\n// Schedule C1A point 2 (default pending NH-42): a plain \"I don't want a call\" / \"No thanks\" stops messaging AT ONCE.\n// The W13 claim (option b: nofit_criteria / no_call) is made by the hourly C1A sweep below from the message log.\nconst j = $json; const nc = L.applyNoCall(j.bk, j.ld);\nreturn { json: { ...j, nc, op: 'cancel_all', booking_id: j.bk.id } };"
+      }
+    },
+    {
+      "id": "n45",
+      "name": "Stop messaging (no call)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        1300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- C1A point 2: W08 stops on declined_nurture / unbooked_closed; W07 sees declined_call. Stage kept while a booking is live.\nUPDATE public.leads\n   SET conv_state = COALESCE(conv_state, '{}'::jsonb) || $2::jsonb,\n       stage = COALESCE($3, stage),\n       updated_at = now()\n WHERE id = $1::uuid\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$json.ld.id, JSON.stringify($json.nc.conv_state_patch), $json.nc.lead_stage] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase Postgres"
+        }
+      }
+    },
+    {
+      "id": "n46",
+      "name": "Booking still live? (confirm cancel first)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        1500
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.nc.action === 'confirm_cancel_first') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n47",
+      "name": "W09 cancel all (no call)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        1600
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "",
+          "cachedResultName": "W09 Reminder sequence"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Called with { op: 'cancel_all', booking_id }. Idempotent."
+    },
+    {
+      "id": "n48",
+      "name": "Hourly (C1A sweep)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        1800
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1,
+              "triggerAtMinute": 17
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n49",
+      "name": "C1A candidates (latest booking cancelled, not yet decided)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        220,
+        1800
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- W10 Schedule C1A sweep - DEFAULT PENDING NH-42 (options a + b). Latest booking per lead is cancelled (last 30 days),\n-- no C1A decision row yet. Evidence = message log: who cancelled (W10 timeline actor), rebook offered, inbound after cancel.\nWITH latest AS (\n  SELECT DISTINCT ON (a.client_id) a.id, a.client_id, a.broker_id, a.brand_id, a.cycle_id, a.status, a.cancelled_at, a.created_at\n    FROM public.appointments a\n   WHERE a.brand_id IS NOT NULL\n   ORDER BY a.client_id, a.created_at DESC)\nSELECT t.id AS booking_id, t.client_id AS lead_id, t.broker_id, t.brand_id, t.cycle_id, t.status, t.cancelled_at,\n       l.verified_at, l.first_message_at, l.opted_out_at, l.conv_state,\n       (SELECT x.actor_type FROM public.lead_activities x WHERE x.idempotency_key = 'w10:cancelled:' || t.id::text LIMIT 1) AS cancelled_by,\n       EXISTS (SELECT 1 FROM public.appointments a2 WHERE a2.client_id = t.client_id AND a2.id <> t.id AND a2.created_at > t.cancelled_at) AS rebooked,\n       COALESCE((l.conv_state->>'rebook_offered')::boolean, false) AS rebook_offered,\n       COALESCE((SELECT jsonb_agg(jsonb_build_object('content', q.content))\n                   FROM (SELECT c.content FROM public.communications c\n                          WHERE c.lead_id = t.client_id AND c.direction = 'inbound' AND c.created_at > t.cancelled_at\n                          ORDER BY c.created_at LIMIT 20) q), '[]'::jsonb) AS inbound_after_cancel,\n       EXISTS (SELECT 1 FROM public.replacements r WHERE r.lead_id = t.client_id AND r.status <> 'rejected') AS already_claimed\n  FROM latest t\n  JOIN public.leads l ON l.id = t.client_id\n WHERE t.status = 'cancelled'\n   AND t.cancelled_at > now() - interval '30 days'\n   AND NOT EXISTS (SELECT 1 FROM public.lead_activities y WHERE y.idempotency_key = 'w10:c1a:' || t.id::text);",
+        "options": {
+          "queryReplacement": "={{ [] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase Postgres"
+        }
+      }
+    },
+    {
+      "id": "n50",
+      "name": "C1A decide (w10.c1aDecision)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        1800
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w10.mjs').href);\nconst r = $json;\nconst d = L.c1aDecision({ lead: { id: r.lead_id, verified_at: r.verified_at, first_message_at: r.first_message_at, opted_out_at: r.opted_out_at, conv_state: r.conv_state || {} },\n  booking: { id: r.booking_id, brand_id: r.brand_id, broker_id: r.broker_id, cycle_id: r.cycle_id, status: r.status, cancelled_at: r.cancelled_at },\n  cancelled_by: r.cancelled_by === 'broker' ? 'broker' : 'lead', rebooked: r.rebooked, rebook_offered: r.rebook_offered,\n  inbound_after_cancel: r.inbound_after_cancel || [], already_claimed: r.already_claimed, now_ms: Date.now(), mode: $env.W10_C1A_MODE || L.C1A_DEFAULT_MODE });\nreturn { json: { ...r, d } };"
+      }
+    },
+    {
+      "id": "n51",
+      "name": "C1A claim?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        1800
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.d.claim === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n52",
+      "name": "C1A decision row (idempotency + evidence)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        880,
+        1700
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- One row per cancelled booking ('w10:c1a:{booking_id}'); the claim goes to W13 only if this insert wins.\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W10', 'system', $5, $6::jsonb, now(), $7)\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$json.lead_id, $json.brand_id, $json.broker_id, $json.cycle_id, $json.d.activity, JSON.stringify({ schedule: 'C1A', default_pending: 'NH-42', mode: $json.d.w13.c1a_mode, reason: $json.d.w13.reason, code: $json.d.w13.code, reason_code: $json.d.w13.reason_code, booking_id: $json.booking_id }), $json.d.w13.idempotency_key] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase Postgres"
+        }
+      }
+    },
+    {
+      "id": "n53",
+      "name": "W13 claim payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        1700
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const d = $('C1A decide (w10.c1aDecision)').item.json.d;\nreturn { json: d.w13 };"
+      }
+    },
+    {
+      "id": "n54",
+      "name": "-> W13 claim (C1A)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1320,
+        1700
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "",
+          "cachedResultName": "W13 No-show & replacement"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Called with { op: 'claim', lead_id, booking_id, outcome_id: null, reason, code, reason_code, idempotency_key }. W13 owns replacements, the cap and the 48-h dispute window (C3)."
+    },
+    {
+      "id": "n55",
+      "name": "Touch leads.last_contact_at (lead outbound)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        220,
+        1000
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- I-38d / CONTRACTS.md: every outbound to the lead updates last_contact_at (W34 retention clock). Broker notices and\n-- unaccepted sends (no wamid) do not.\nUPDATE public.leads SET last_contact_at = now()\n WHERE id = $1::uuid AND $2 = 'lead' AND $3 <> ''\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ (() => { const h = $('Has WhatsApp payload + live?').item.json; const m = $('Merge context').item.json; const toBroker = h.to === 'broker' || (h.wa && m.br && h.wa.to === m.br.whatsapp_number); return [m.ld ? m.ld.id : null, toBroker ? 'broker' : 'lead', ($json.messages && $json.messages[0] && $json.messages[0].id) || '']; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase Postgres"
+        }
+      }
     }
   ],
   "connections": {
@@ -1385,6 +1668,13 @@
         [
           {
             "node": "Broker said Rescheduled: offer (template, Schedule D)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Decide no-call (C1A point 2)",
             "type": "main",
             "index": 0
           }
@@ -1791,6 +2081,118 @@
         [
           {
             "node": "Email broker from howzit@ (Graph sendMail)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide no-call (C1A point 2)": {
+      "main": [
+        [
+          {
+            "node": "Stop messaging (no call)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Booking still live? (confirm cancel first)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Booking still live? (confirm cancel first)": {
+      "main": [
+        [
+          {
+            "node": "Cancel confirm buttons",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "W09 cancel all (no call)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hourly (C1A sweep)": {
+      "main": [
+        [
+          {
+            "node": "C1A candidates (latest booking cancelled, not yet decided)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "C1A candidates (latest booking cancelled, not yet decided)": {
+      "main": [
+        [
+          {
+            "node": "C1A decide (w10.c1aDecision)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "C1A decide (w10.c1aDecision)": {
+      "main": [
+        [
+          {
+            "node": "C1A claim?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "C1A claim?": {
+      "main": [
+        [
+          {
+            "node": "C1A decision row (idempotency + evidence)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "C1A decision row (idempotency + evidence)": {
+      "main": [
+        [
+          {
+            "node": "W13 claim payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W13 claim payload": {
+      "main": [
+        [
+          {
+            "node": "-> W13 claim (C1A)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Touch leads.last_contact_at (lead outbound)",
             "type": "main",
             "index": 0
           }

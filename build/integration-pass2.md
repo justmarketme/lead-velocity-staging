@@ -138,3 +138,16 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-38c | Template `broker_dsr_erase` (utility, first name only) | automation-engineer (templates) |
 | I-38d | W08/W09/W11 must update `leads.last_contact_at` on outbound (only W03/W07 do now) — or decide inbound-only restarts the clock (practitioner Q) | automation-engineer |
 | I-38e | Breach runbook part of W34 (`incidents`, Regulator + subject notification templates, POPIA s22) | compliance-qa + contracts-drafter |
+
+### I-39 · From the W07 alignment + W10 C1A passes (2026-10-02)
+| # | Item | Owner |
+|---|---|---|
+| I-39a | W10 sends `delegate.body` as its interactive message text when present; add `RESCHED_INTRO` + `SAME_METHOD` and bodies for `cancel_confirm` / `change_method` (w07-alignment change 2) | automation-engineer (W10) — dispatched |
+| I-39b | W04 sends `delegate.body` for slots (core path, after GATE-TEST-W04); W13 `claim` accepts `outcome_id: null` with `reason_code` for C1A claims | automation-engineer, after GATE-TEST-* |
+| I-39c | W08: restart the +2/+24/+72 h sequence from `cancelled_at` for a cancelled lead (C1A "full follow-up sequence"); `last_contact_at` after each send; session copy "no obligation to buy" | automation-engineer (W08) — dispatched |
+| I-39d | W07 delegates `{action:'no_call'}` to W10 when a lead with a booking says they do not want a call | automation-engineer (W07) — dispatched |
+| I-39e | Afrikaans copy: `LINES.af.NUDGE_2H/24H/24H_TEXT/72H`, nudge button titles, best-time rows, contact buttons; W35 `suppressed` lookup → `smc_hash_contact` | conversation-designer — dispatched |
+| I-39f | W34: drop job 3b "Clear residual identifiers" (`smc_erase_lead` covers it; references `leads.name`); 3 suppression lookups → `smc_hash_contact` | compliance-qa (W34) — dispatched |
+| I-39g | Migration 12 carries the updated `facts.w14_broker_report` / `w14_reconcile` (no ROI fields) | platform-architect — dispatched |
+| I-39h | Sonnet re-check node for low-confidence classifier passes (today: fail closed) | automation-engineer + conversation-designer, Phase 5 |
+| I-39i | Practitioner: does a broker-facing digest/brief restart the lead's retention clock? (W11 touches it today) | contracts-drafter (brief Q24) |

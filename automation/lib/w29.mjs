@@ -106,7 +106,7 @@ export function tuning(rows) {
 /** The "what changed" line for broker_feedback_thanks ({{1}}). Only true statements; no promise of spend. */
 export function thanksLine(q) {
   if (q.quality_index !== null && q.quality_n >= MIN_N) return `That ad is now rated ${q.quality_index.toFixed(1)} from ${q.quality_n} of your calls.`;
-  return `That is ${q.quality_n} of your calls rated from this ad so far.`;
+  return `So far ${q.quality_n} of your calls from this ad have a rating.`;
 }
 
 /** fit_followup reminder due? (+7 d after the disposition; once) */

@@ -140,3 +140,15 @@ test('pre-routing CTWA lead (no broker_id) is never nudged by W08 (W03 owns stal
   assert.equal(N.stopReason(lead, {}), 'ctwa_pre_routing_w03');
   assert.equal(N.due(lead, { sent: new Set() }, Date.parse('2026-10-05T10:00:00Z')).action, 'stop');
 });
+
+test('w07-alignment #11: session words come from sessionWords(); English = template text; Afrikaans lead gets AF only when lines.mjs has it', () => {
+  const en = N.sessionWords('unbooked_nudge_2h', ['Lerato', 'Mark'], 'en');
+  assert.match(en.body, /^Hi Lerato, following up on your life cover enquiry\. A call with Mark/); assert.match(en.body, /Reply STOP to opt out\.$/);
+  const af = N.sessionWords('unbooked_nudge_72h', ['Pieter', 'Mark'], 'af');
+  assert.ok(['af', 'en'].includes(af.lang) && af.body.length > 20);
+  const now = Date.parse('2026-10-05T10:00:00Z');
+  const m = N.message({ id: 'l1', first_name: 'Pieter', language: 'af' }, { broker: { contact_person: 'Mark K' }, last_inbound_ms: now - 3600_000 }, 'unbooked_nudge_2h', now);
+  assert.equal(m.channel, 'session'); assert.equal(m.template_lang, 'en'); assert.equal(m.lang, 'af'); assert.ok(m.session.body.includes('Pieter'));
+  const wf = JSON.parse(readFileSync(new URL('../W08.json', import.meta.url), 'utf8'));
+  assert.ok(!/nothing to buy/.test(JSON.stringify(wf)), 'no hard-coded copy left in W08.json');
+});

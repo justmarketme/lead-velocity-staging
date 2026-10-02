@@ -12,6 +12,7 @@
 import { prefilter, redactForLLM, redactForStorage, outputGate, classifierInput, toneCheck, sanitiseField } from '../../conversation/guardrail.mjs';
 import { decide, DEFER_TOPICS, FAQ_TOPICS, INTENTS, ALL_TOPICS } from '../../conversation/logic.mjs';
 import { LINES, fill, fixedLines } from '../../conversation/lines.mjs';
+import { isPulseLine } from '../../conversation/pulse.mjs';
 
 export const WORKFLOW = 'W07';
 export const HOURS = { open: 8, close: 20 }; // handoff.md (6.8a): 08:00-20:00 SAST, every day until Jonathan says otherwise
@@ -99,6 +100,9 @@ function routeCore(msg, ctx) {
   if (msg.payload && /^slot_/u.test(msg.payload)) return { route: 'W05', reason: 'slot button (Time 1-3)' };
   if (tapKey && LEAD_TAPS[tapKey]) return { route: LEAD_TAPS[tapKey], reason: `tap ${tapKey}` };
   if (state === 'handoff') return { route: 'paused', reason: 'a person has this conversation' };
+  // w07-alignment #13: the optional one-line answer after a W35 pulse tap goes to W35 (conversation/pulse.mjs decides;
+  // advice / person / STOP / complaint / claim / distress return false and stay on the normal W07 path).
+  if (msg.text && isPulseLine(msg.text, ctx.lead.conv_state || {}, Number.isFinite(ctx.now_ms) ? ctx.now_ms : Date.now())) return { route: 'W35', reason: 'lead pulse line' };
   return { route: 'nlu', reason: 'free text' };
 }
 
@@ -128,6 +132,42 @@ export function parseNlu(raw) {
   if (!o || typeof o !== 'object' || !INTENTS.includes(o.intent)) return fallback;
   const topics = Array.isArray(o.topics) ? o.topics.filter((t) => ALL_TOPICS.includes(t)) : [];
   return { intent: o.intent, secondary_intents: (o.secondary_intents || []).filter((i) => INTENTS.includes(i)), topics, consent_answer: o.consent_answer ?? null, slots: o.slots && typeof o.slots === 'object' ? o.slots : {}, sentiment: o.sentiment || 'neutral', language: o.language || 'en', confidence: typeof o.confidence === 'number' ? o.confidence : 0.5, valid: true };
+}
+
+// ---------- 4b. facts for the reply request / fallbacks (w07-alignment #6, #7) ----------
+export const METHOD_LABEL = { en: { teams: 'Teams', zoom: 'Zoom', meet: 'Google Meet', whatsapp_call: 'WhatsApp call', phone: 'phone' }, af: { teams: 'Teams', zoom: 'Zoom', meet: 'Google Meet', whatsapp_call: 'WhatsApp-oproep', phone: 'telefoon' } };
+/** Booking row (appointment_date timestamptz, method) -> { day, date, time (HH:MM SAST), method, method_label }. */
+export function bookingView(b, lang = 'en') {
+  if (!b) return null;
+  const at = Date.parse(b.appointment_date || b.at || '');
+  if (!Number.isFinite(at)) return { ...b, method_label: (METHOD_LABEL[lang] || METHOD_LABEL.en)[b.method] || b.method || '' };
+  const loc = lang === 'af' ? 'af-ZA' : 'en-ZA'; const tz = 'Africa/Johannesburg';
+  const d = new Date(at);
+  const day = d.toLocaleDateString(loc, { weekday: 'long', timeZone: tz });
+  const date = d.toLocaleDateString(loc, { day: 'numeric', month: 'long', timeZone: tz });
+  const time = new Date(at + SAST).toISOString().slice(11, 16);
+  return { ...b, day, date, time, method_label: (METHOD_LABEL[lang] || METHOD_LABEL.en)[b.method] || b.method || '' };
+}
+export const bookingFact = (bv) => (bv && bv.time ? `${bv.day} ${bv.date} ${bv.time} by ${bv.method_label}` : null);
+/** knowledge/faq.md -> { 'FAQ-01': { topic, type, en, af } } (same parse as evals/run.mjs). */
+export function parseFaqMd(md) {
+  const out = {};
+  for (const block of String(md || '').split(/\n### /).slice(1)) {
+    const id = block.match(/^(FAQ-\d+|DEF-\d+)/)?.[1];
+    const field = (k) => block.match(new RegExp(`^- ${k}: (.*)$`, 'm'))?.[1]?.trim();
+    if (id) out[id] = { topic: field('topic'), type: field('type'), en: field('en'), af: field('af') };
+  }
+  return out;
+}
+const KNOWN_FIELDS = ['first_name', 'age_band', 'budget_band', 'bond', 'dependants', 'method_pref', 'email', 'call_number', 'best_time', 'language'];
+/** Slots already stored, so the model never asks twice (4.11 memory). Names only, never values. */
+export const knownSlots = (lead = {}, booking = null) => KNOWN_FIELDS.filter((k) => lead[k] !== null && lead[k] !== undefined && lead[k] !== '').concat(booking ? ['booking'] : []);
+/** reply.md DECISION.facts: approved FAQ answers (lead's language), known slots, booking with time. */
+export function replyFacts({ plan, adviser_first, booking, faq = {}, lead = {} }) {
+  const lang = plan.lang === 'af' ? 'af' : 'en';
+  const f = {};
+  for (const a of plan.reply_actions || []) if (a.startsWith('answer:')) { const e = faq[a.slice(7)]; if (e && e.type === 'answer') f[a.slice(7)] = e[lang] || e.en; }
+  return { adviser_first, booking: bookingFact(booking), faq: f, known: knownSlots(lead, booking) };
 }
 
 // ---------- 5. actions -> plan ----------
@@ -180,7 +220,8 @@ export function planActions(decision, ctx) {
   const L = LINES[lang];
   const first = sanitiseField('first_name', ctx.lead?.first_name || '').value;
   const vars = { first_name: first || '', adviser_first: ctx.adviser_first, open_time_word: openTimeWord(now_ms, lang), date: ctx.booking?.date, time: ctx.booking?.time, method: ctx.booking?.method_label };
-  const plan = { actions: decision.actions, next_state: decision.next_state, prefix: [], suffix: [], reply_actions: [], delegate: [], escalation: null, pause_reminders: false, send: true, unanswered: 0, themes: leadThemes(nlu, pre, ctx.text_store || ''), lead_updates: {} };
+  // #5: outputGate's injected_field check needs the RAW stored name, not the sanitised one
+  const plan = { actions: decision.actions, next_state: decision.next_state, prefix: [], suffix: [], reply_actions: [], delegate: [], escalation: null, pause_reminders: false, send: true, unanswered: 0, themes: leadThemes(nlu, pre, ctx.text_store || ''), lead_updates: {}, first_name_raw: String(ctx.lead?.first_name || ''), discloses: false };
   const has = (a) => decision.actions.includes(a);
   const esc = (kind) => { plan.escalation = escalationRow(kind, { lead_id: ctx.lead?.id, broker_id: ctx.lead?.broker_id, brand_id: ctx.lead?.brand_id, wamid: ctx.wamid }); };
 
@@ -217,31 +258,86 @@ export function planActions(decision, ctx) {
     if (a === 'capture_contact') plan.delegate.push({ to: 'W07_contact', email: nlu.slots?.email || null, call_number: nlu.slots?.call_number || null });
     if (a === 'set_language' && nlu.language) plan.lead_updates.language = nlu.language;
   }
-  if (has('greet') || has('booking_status')) plan.reply_actions.push(has('greet') ? 'greet' : 'booking_status');
+  // #8 (reply.md v1.0.2): greet / booking_status never reach the model. Booked -> BOOKING_STATUS; not booked -> W04 slots.
+  if (has('greet') || has('booking_status')) {
+    if (ctx.booking && ctx.booking.time) plan.prefix.push(L.BOOKING_STATUS);
+    else if (!plan.delegate.some((d) => d.to === 'W04')) plan.delegate.push({ to: 'W04', action: 'send_slots', preferred_day: null, preferred_time: null });
+  }
   // 4.11 disclosure: the first free-text reply carries DISCLOSE (W06's intro card already named the practice + FSP)
-  if (!ctx.disclosed && (plan.prefix.length || plan.suffix.length || plan.reply_actions.length)) plan.prefix.unshift(ctx.adviser_first ? L.DISCLOSE : L.DISCLOSE_PRE_ROUTE);
+  if (!ctx.disclosed && (plan.prefix.length || plan.suffix.length || plan.reply_actions.length || plan.delegate.some((d) => ONE_MESSAGE[d.to]?.(d)))) {
+    plan.prefix.unshift(ctx.adviser_first ? L.DISCLOSE : L.DISCLOSE_PRE_ROUTE);
+    plan.discloses = true;
+  }
   if (decision.actions.length === 1 && decision.actions[0] === 'none') plan.send = false;
   plan.vars = vars;
   plan.lang = lang;
+  oneMessage(plan, ctx);
   return plan;
+}
+
+// #1 one message, never two (I-35e): when W04 (slots) or W10 (reschedule / cancel / method) sends the interactive
+// message, W07's fixed lines travel INSIDE it and W07 sends nothing itself.
+const ONE_MESSAGE = {
+  W04: (d) => d.action === 'send_slots' || d.action === 'offer_slots',
+  W10: (d) => ['reschedule', 'reschedule_slots', 'cancel_confirm', 'change_method'].includes(d.action)
+};
+export const WA_BODY_MAX = 1024;
+function delegateIntroKey(d) {
+  if (d.to === 'W04') return 'SLOTS_INTRO';
+  return { reschedule: 'RESCHED_INTRO', reschedule_slots: 'RESCHED_INTRO', cancel_confirm: 'CANCEL_CONFIRM_Q', change_method: 'METHOD_CHANGED' }[d.action];
+}
+function oneMessage(plan, ctx) {
+  const d = plan.delegate.find((x) => ONE_MESSAGE[x.to]?.(x));
+  if (!d) return;
+  const L = LINES[plan.lang];
+  const vars = { ...plan.vars, method: d.action === 'change_method' ? methodLabel(d.method, plan.lang) || plan.vars.method : plan.vars.method };
+  // FAQ answers on the same turn go in verbatim (approved text, no LLM) so nothing is lost and nothing is sent twice
+  const faqLines = plan.reply_actions.filter((a) => a.startsWith('answer:')).map((a) => replyFallback(a, { lang: plan.lang, faq: ctx.faq })).filter(Boolean);
+  const before = plan.prefix.map((l) => fill(l, vars));
+  const after = [...faqLines, ...plan.suffix.map((l) => fill(l, vars))];
+  d.lead_lines = [...before, ...after];
+  d.intro_line = fill(L[delegateIntroKey(d)] || '', vars);
+  d.body = [...before, d.intro_line, ...after].map((x) => String(x || '').trim()).filter(Boolean).join(' ');
+  d.lang = plan.lang;
+  d.carries_disclose = plan.discloses;
+  if (d.body.length > WA_BODY_MAX) d.body = [...before, d.intro_line].join(' ').slice(0, WA_BODY_MAX); // never over the Cloud API limit
+  plan.prefix = []; plan.suffix = []; plan.reply_actions = [];
+  plan.send = false;
+}
+const methodLabel = (m, lang) => (m ? (METHOD_LABEL[lang] || METHOD_LABEL.en)[m] || m : '');
+
+/** #14: `disclosed` only once a disclosure actually went out (own message sent, or carried by the W04/W10 message). */
+export function disclosedAfter(prev, plan, sent) {
+  if (prev) return true;
+  if (!plan || !plan.discloses) return false;
+  return Boolean(sent) || plan.delegate.some((d) => d.carries_disclose);
 }
 
 // ---------- 6. reply + gates ----------
 export function replyFallback(action, ctx) {
-  const af = ctx.lang === 'af';
-  if (action.startsWith('answer:')) return ctx.faq?.[action.slice(7)]?.[af ? 'af' : 'en'] || '';
-  if (action === 'send_slots' || action === 'offer_slots') return `Here are the next open times with ${ctx.adviser_first}.`;
-  if (action === 'reschedule' || action === 'reschedule_slots') return 'No problem, here are some other times.';
-  if (action === 'cancel_confirm') return `Do you want me to cancel your call on ${ctx.booking?.date} at ${ctx.booking?.time}?`;
-  if (action === 'change_method') return `I'll change it to ${ctx.new_method_label || 'that'}.`;
-  if (action === 'capture_contact') return "Thanks, I've saved that.";
-  if (action === 'set_language') return af ? 'Reg so, ons kan in Afrikaans gesels.' : 'Sure, we can chat in English.';
-  if (action === 'booking_status' && ctx.booking) return `Your call with ${ctx.adviser_first} is on ${ctx.booking.date} at ${ctx.booking.time}.`;
+  const lang = ctx.lang === 'af' ? 'af' : 'en';
+  const L = LINES[lang];
+  const vars = { adviser_first: ctx.adviser_first, date: ctx.booking?.date, time: ctx.booking?.time, method: ctx.new_method_label || ctx.booking?.method_label || '' };
+  if (action.startsWith('answer:')) { const e = ctx.faq?.[action.slice(7)]; return (e && (e[lang] || e.en)) || ''; }
+  if (action === 'send_slots' || action === 'offer_slots') return fill(L.SLOTS_INTRO, vars);
+  if (action === 'reschedule' || action === 'reschedule_slots') return fill(L.RESCHED_INTRO, vars);
+  if (action === 'cancel_confirm') return ctx.booking?.time ? fill(L.CANCEL_CONFIRM_Q, vars) : '';
+  if (action === 'change_method') return ctx.new_method_label ? fill(L.METHOD_CHANGED, vars) : '';
+  if (action === 'capture_contact') return L.SAVED;
+  if (action === 'set_language') return L.LANG_SWITCH;
+  if ((action === 'booking_status' || action === 'greet') && ctx.booking?.time) return fill(L.BOOKING_STATUS, vars);
   return '';
 }
 
 /** Build the classifier user turn (I-27: the classifier must see the lead's question; surface whatsapp). */
 export const classifierTurn = (draft, question, lang) => classifierInput({ draft, question, lang, surface: 'whatsapp' });
+
+/** #3: outputGate runs BEFORE the classifier (guardrail.md); a trip skips the paid classifier call. */
+export function preClassifierGate(plan, draft, question = '') {
+  const gate = outputGate(draft, { fixed_lines: fixedLines(plan.lang, plan.vars), question, first_name_raw: plan.first_name_raw ?? plan.vars.first_name });
+  return gate.pass ? { pass: true, verdict: null } : { pass: false, verdict: { verdict: 'block', confidence: 1, categories: gate.categories.map((c) => `outputGate:${c}`) } };
+}
+export const CLASSIFIER_MIN_CONFIDENCE = 0.8; // #4: a pass below this is re-checked (Sonnet) or, until then, blocked
 
 export function parseVerdict(raw) {
   try {
@@ -264,8 +360,10 @@ export function gateAndAssemble(plan, { draft = '', verdict = null, question = '
   let rule = null;
   let used = 'none';
   if (plan.reply_actions.length) {
-    const gate = outputGate(draft, { fixed_lines: fixed, question, first_name_raw: plan.vars.first_name });
-    const v = verdict || { verdict: 'block', categories: ['not_run'] };
+    const gate = outputGate(draft, { fixed_lines: fixed, question, first_name_raw: plan.first_name_raw ?? plan.vars.first_name });
+    const v0 = verdict || { verdict: 'block', categories: ['not_run'] };
+    // #4: low-confidence pass is not a pass (fails closed until the Sonnet re-check node exists); a block is never appealed
+    const v = v0.verdict === 'pass' && !(Number(v0.confidence) >= CLASSIFIER_MIN_CONFIDENCE) ? { verdict: 'block', categories: ['low_confidence_pass'] } : v0;
     const tone = toneCheck(draft, { fixed_lines: fixed, lead_used_emoji, lang: plan.lang });
     if (draft && gate.pass && v.verdict === 'pass' && tone.pass) { body = draft; used = 'llm'; }
     else {
@@ -287,13 +385,16 @@ export const inWindow = (last_inbound_ms, now_ms) => Number.isFinite(last_inboun
 // ---------- 7. post-booking contact confirms (4.6 "Flow in practice"; W05 calls this; taps come back via routeInbound) ----------
 const CALL_METHODS = new Set(['whatsapp_call', 'phone']);
 /** First question after a booking. Teams/Zoom/Meet: nothing (the link is the contact). */
-export function contactStart(booking, broker) {
+export function contactStart(booking, broker, lang = 'en') {
   if (!CALL_METHODS.has(booking.method)) return null;
+  const L = LINES[lang === 'af' ? 'af' : 'en'];
   const adviser = String(broker.contact_person || '').split(' ')[0];
-  return { type: 'buttons', body: `Is this the number ${adviser} should call you on?`, buttons: [['call_number_yes', 'Yes, this one'], ['call_number_other', 'Use another number']] };
+  return { type: 'buttons', body: fill(L.CONTACT_CALL_NUMBER, { adviser_first: adviser }), buttons: [['call_number_yes', 'Yes, this one'], ['call_number_other', 'Use another number']] };
 }
-const ALT_Q = { type: 'buttons', body: "If we can't reach you, is there another number?", buttons: [['alt_add', 'Add one'], ['alt_no', 'No thanks']] };
-const BEST_Q = { type: 'list', body: 'Best time, if we ever need to reach you?', rows: Object.entries(BEST_TIME).map(([id, v]) => [id, { mornings: 'Mornings', lunchtime: 'Lunchtime', afternoons: 'Afternoons', evenings: 'Evenings', any: 'Any time' }[v]]) };
+// Button / row titles are not in lines.mjs yet (request to conversation-designer); bodies are.
+const BEST_LABELS = { mornings: 'Mornings', lunchtime: 'Lunchtime', afternoons: 'Afternoons', evenings: 'Evenings', any: 'Any time' };
+const altQ = (L) => ({ type: 'buttons', body: L.CONTACT_ALT, buttons: [['alt_add', 'Add one'], ['alt_no', 'No thanks']] });
+const bestQ = (L) => ({ type: 'list', body: L.CONTACT_BEST_TIME, rows: Object.entries(BEST_TIME).map(([id, v]) => [id, BEST_LABELS[v]]) });
 
 /** SA mobile to E.164 (+27...). Returns null when it cannot be a SA number. */
 export function toE164(raw) {
@@ -314,12 +415,14 @@ export function contactStep(lead, msg, lookup = null) {
   const cs = { contact_step: 'call_number', attempts: 0, ...(lead.conv_state || {}) };
   const key = String(msg.payload || msg.list_id || '').split(':')[0];
   const out = { update: {}, conv_state: { ...cs }, reply: null, lookup_needed: null };
+  const L = LINES[lead.language === 'af' ? 'af' : 'en'];
+  const ALT_Q = altQ(L); const BEST_Q = bestQ(L);
   const toAlt = () => { out.conv_state.contact_step = 'alt'; out.conv_state.attempts = 0; out.reply = ALT_Q; };
   const toBest = () => { out.conv_state.contact_step = 'best_time'; out.reply = BEST_Q; };
-  if (BEST_TIME[key]) { out.update.best_time = BEST_TIME[key]; out.conv_state.contact_step = 'done'; out.reply = { type: 'text', body: "Thanks, I've saved that." }; return out; }
+  if (BEST_TIME[key]) { out.update.best_time = BEST_TIME[key]; out.conv_state.contact_step = 'done'; out.reply = { type: 'text', body: L.SAVED }; return out; }
   if (key === 'call_number_yes') { out.update.call_number = lead.phone; out.update.call_number_line_type = lead.line_type || 'mobile'; toAlt(); return out; }
-  if (key === 'call_number_other') { out.conv_state.contact_step = 'typed_number'; out.reply = { type: 'text', body: 'Sure, please type the number.' }; return out; }
-  if (key === 'alt_add') { out.conv_state.contact_step = 'typed_alt'; out.reply = { type: 'text', body: 'Sure, please type the other number.' }; return out; }
+  if (key === 'call_number_other') { out.conv_state.contact_step = 'typed_number'; out.reply = { type: 'text', body: L.CONTACT_TYPE_NUMBER }; return out; }
+  if (key === 'alt_add') { out.conv_state.contact_step = 'typed_alt'; out.reply = { type: 'text', body: L.CONTACT_TYPE_ALT }; return out; }
   if (key === 'alt_no') { toBest(); return out; }
   if (cs.contact_step === 'typed_number' || cs.contact_step === 'typed_alt') {
     const e = toE164(msg.text);
@@ -333,11 +436,11 @@ export function contactStep(lead, msg, lookup = null) {
     }
     out.conv_state.attempts = (cs.attempts || 0) + 1;
     if (out.conv_state.attempts >= 2) {
-      if (alt) { toBest(); out.reply = { ...BEST_Q, pre: "No problem, we'll keep the number we have." }; }
-      else { out.update.call_number = lead.phone; out.update.call_number_line_type = lead.line_type || 'mobile'; toAlt(); out.reply = { ...ALT_Q, pre: "No problem, we'll use this WhatsApp number." }; }
+      if (alt) { toBest(); out.reply = { ...BEST_Q, pre: L.CONTACT_KEEP_NUMBER }; }
+      else { out.update.call_number = lead.phone; out.update.call_number_line_type = lead.line_type || 'mobile'; toAlt(); out.reply = { ...ALT_Q, pre: L.CONTACT_USE_WA }; }
       return out;
     }
-    out.reply = { type: 'text', body: "That doesn't look like a South African mobile number. Please try again, for example 082 123 4567." };
+    out.reply = { type: 'text', body: L.CONTACT_BAD_NUMBER };
     return out;
   }
   return out;

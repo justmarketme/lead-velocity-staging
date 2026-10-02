@@ -725,6 +725,52 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
+    },
+    {
+      "id": "n28",
+      "name": "Touch last_contact_at (digest leads)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1760,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- I-38d / CONTRACTS.md: the digest is about today's calls with these leads, so their W34 retention clock restarts.\n-- Only when Meta accepted the send (wamid). Same leads as the digest: this broker's live meetings today (SAST).\nUPDATE public.leads l SET last_contact_at = now()\n  FROM public.appointments a\n WHERE a.client_id = l.id AND a.broker_id = $1::uuid AND a.brand_id IS NOT NULL\n   AND a.status IN ('booked','confirmed')\n   AND (a.appointment_date AT TIME ZONE 'Africa/Johannesburg')::date = $2::date\n   AND $3 <> ''\nRETURNING l.id;",
+        "options": {
+          "queryReplacement": "={{ (() => { const j = $('Digest template payload').item.json; return [j.broker.id, new Date(Date.now() + 7200000).toISOString().slice(0, 10), ($json.messages && $json.messages[0] && $json.messages[0].id) || '']; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase Postgres"
+        }
+      }
+    },
+    {
+      "id": "n29",
+      "name": "Touch last_contact_at (brief lead)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        220,
+        400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- I-38d / CONTRACTS.md: the T-15 brief precedes the broker's call to this lead; restart the W34 retention clock.\n-- Only when Meta accepted the send (wamid).\nUPDATE public.leads SET last_contact_at = now()\n WHERE id = $1::uuid AND $2 <> ''\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [($('Brief input (w11.briefInput)').item.json.r || {}).client_id || null, ($json.messages && $json.messages[0] && $json.messages[0].id) || ''] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase Postgres"
+        }
+      }
     }
   ],
   "connections": {
@@ -965,6 +1011,28 @@
         [
           {
             "node": "Escalate: Jonathan calls the broker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send digest": {
+      "main": [
+        [
+          {
+            "node": "Touch last_contact_at (digest leads)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send pre-call brief": {
+      "main": [
+        [
+          {
+            "node": "Touch last_contact_at (brief lead)",
             "type": "main",
             "index": 0
           }

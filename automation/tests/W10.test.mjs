@@ -125,3 +125,81 @@ test('W10.json: physical columns only; move re-checks overlap + buffer in SQL; s
   assert.ok(!JSON.stringify(WF).includes("INSERT INTO public.replacements"), 'W10 never writes replacements');
   assert.ok(JSON.stringify(WF).includes('DRY_RUN_SENDS'));
 });
+
+// ---- Schedule C1A (I-37l): default pending NH-42 = options (a) + (b) ----
+const CANCELLED_AT = '2026-10-12T10:00:00+02:00';
+const vLead = (over = {}) => ({ id: L03.lead_id, verified_at: '2026-10-08T09:05:00+02:00', first_message_at: '2026-10-08T09:00:40+02:00', opted_out_at: null, conv_state: { rebook_offered: true }, ...over });
+const cBk = (over = {}) => bk({ status: 'cancelled', cancelled_at: CANCELLED_AT, brand_id: 'brand_smc', cycle_id: 'cyc_1', ...over });
+const c1a = (over = {}) => R.c1aDecision({ lead: vLead(), booking: cBk(), cancelled_by: 'lead', rebooked: false, rebook_offered: true, inbound_after_cancel: [], already_claimed: false, now_ms: ms(CANCELLED_AT) + R.C1A_SEQUENCE_MS + MIN, ...over });
+
+test('C1A default is a+b (pending NH-42)', () => {
+  assert.equal(R.C1A_DEFAULT_MODE, 'a+b');
+  assert.equal(R.C1A_SEQUENCE_MS, 96 * H, 'rebooking offer + W08 +2/+24/+72 h + close 24 h after the last nudge');
+});
+
+test('C1A point 3: verified lead cancels, goes quiet after the one offer + sequence -> W13 claim unreachable / cancel_no_rebook', () => {
+  const d = c1a();
+  assert.equal(d.claim, true); assert.equal(d.stop_messaging, false);
+  assert.deepEqual({ op: d.w13.op, reason: d.w13.reason, code: d.w13.code, reason_code: d.w13.reason_code, outcome_id: d.w13.outcome_id }, { op: 'claim', reason: 'uncontactable', code: 'unreachable', reason_code: 'cancel_no_rebook', outcome_id: null });
+  assert.equal(d.w13.idempotency_key, 'w10:c1a:bk_L03'); assert.equal(d.w13.lead_id, L03.lead_id); assert.equal(d.activity, 'c1a_cancel_no_rebook');
+  assert.equal(c1a({ now_ms: ms(CANCELLED_AT) + 95 * H }).why, 'sequence_running', 'not before the sequence ends');
+  assert.equal(c1a({ rebook_offered: false }).why, 'rebook_offer_not_sent_yet');
+  assert.equal(c1a({ inbound_after_cancel: [{ content: 'Maybe next week' }] }).w13.reason_code, 'cancel_no_rebook', 'a reply that is not a plain "no call" is still no rebook');
+});
+
+test('C1A point 2: plain "I don\'t want a call" / "No thanks" -> stop at once + W13 claim nofit_criteria / no_call (no wait for the sequence)', () => {
+  for (const m of [{ content: "I don't want a call" }, { content: 'No thanks' }, { content: 'no thank you.' }, { payload: 'no_thanks' }]) {
+    const d = c1a({ inbound_after_cancel: [m], now_ms: ms(CANCELLED_AT) + H });
+    assert.equal(d.claim, true, JSON.stringify(m)); assert.equal(d.stop_messaging, true);
+    assert.deepEqual([d.w13.reason, d.w13.code, d.w13.reason_code], ['disqualified', 'nofit_criteria', 'no_call']);
+  }
+  assert.equal(c1a({ lead: vLead({ conv_state: { declined_call: true } }), now_ms: ms(CANCELLED_AT) + H }).w13.reason_code, 'no_call', 'W10 op no_call flag');
+  assert.equal(R.isNoCall({ text: 'no thanks, maybe Friday works' }), false, 'not plain: no claim on that line');
+  assert.equal(R.isNoCall({ text: 'Can you call me tomorrow?' }), false);
+  assert.equal(R.classifyOp({ delegate: { action: 'no_call' } }), 'no_call');
+  assert.equal(R.classifyOp({ msg: { payload: `no_call:bk_L03` } }), 'no_call');
+  const stop = R.applyNoCall(cBk(), ld());
+  assert.equal(stop.action, 'stop'); assert.equal(stop.lead_stage, 'unbooked_closed'); assert.equal(stop.w09, 'cancel_all');
+  assert.equal(stop.conv_state_patch.declined_call, true); assert.equal(stop.conv_state_patch.declined_nurture, true, 'W08 stops on it');
+  const live = R.applyNoCall(bk(), ld());
+  assert.equal(live.action, 'confirm_cancel_first'); assert.equal(live.lead_stage, null);
+  assert.equal(R.applyCancel(bk(), ld({ conv_state: { declined_call: true } }), { now_ms: RESCHED_TAP }).rebook_offer, false, 'no rebooking offer after a plain no');
+});
+
+test('C1A point 1 and exclusions: rebook, broker cancel, unverified, STOP, already claimed -> nothing claimed', () => {
+  assert.equal(c1a({ rebooked: true }).claim, false); assert.equal(c1a({ rebooked: true }).why, 'rebooked_new_call_judged_as_usual');
+  assert.equal(c1a({ rebooked: true, inbound_after_cancel: [{ content: 'No thanks' }] }).claim, false, 'a later booking wins');
+  assert.equal(c1a({ cancelled_by: 'broker' }).why, 'schedule_d_broker_cancel');
+  assert.equal(c1a({ lead: vLead({ verified_at: null }) }).why, 'never_verified_never_counted');
+  assert.equal(c1a({ lead: vLead({ verified_at: '2026-10-12T09:01:00+02:00' }) }).why, 'never_verified_never_counted', 'verified after 72 h does not count');
+  assert.equal(c1a({ lead: vLead({ opted_out_at: '2026-10-12T11:00:00+02:00' }) }).why, 'opted_out_not_covered_by_c1a');
+  assert.equal(c1a({ already_claimed: true }).claim, false);
+  assert.equal(c1a({ booking: bk() }).why, 'booking_not_cancelled');
+});
+
+test('C1A options: (a) only, (b) only, off', () => {
+  const no = [{ content: 'No thanks' }];
+  assert.equal(c1a({ mode: 'a' }).w13.reason_code, 'cancel_no_rebook');
+  assert.deepEqual([c1a({ mode: 'a', inbound_after_cancel: no }).claim, c1a({ mode: 'a', inbound_after_cancel: no }).stop_messaging], [false, true]);
+  assert.equal(c1a({ mode: 'b' }).claim, false); assert.equal(c1a({ mode: 'b', inbound_after_cancel: no }).w13.reason_code, 'no_call');
+  assert.equal(c1a({ mode: 'off', inbound_after_cancel: no }).claim, false);
+});
+
+test('W10.json C1A wiring + last_contact_at: no_call op, hourly sweep, one decision row per booking, W13 claim, lead sends touch last_contact_at', () => {
+  const byName = (n) => WF.nodes.find((x) => x.name === n);
+  const op = byName('Op').parameters.rules.values.map((v) => v.outputKey);
+  assert.ok(op.includes('no_call'));
+  assert.equal(WF.connections.Op.main[op.indexOf('no_call')][0].node, 'Decide no-call (C1A point 2)');
+  const sweep = byName('C1A candidates (latest booking cancelled, not yet decided)').parameters.query;
+  assert.match(sweep, /NH-42/); assert.match(sweep, /'w10:c1a:' \|\| t\.id::text/); assert.match(sweep, /'w10:cancelled:'/);
+  assert.match(byName('C1A decision row (idempotency + evidence)').parameters.query, /ON CONFLICT \(idempotency_key\) DO NOTHING\s+RETURNING id/);
+  assert.equal(byName('-> W13 claim (C1A)').parameters.workflowId.cachedResultName, 'W13 No-show & replacement');
+  assert.match(byName('C1A decide (w10.c1aDecision)').parameters.jsCode, /W10_C1A_MODE \|\| L\.C1A_DEFAULT_MODE/);
+  assert.equal(WF.connections['Send WhatsApp'].main[0][0].node, 'Touch leads.last_contact_at (lead outbound)');
+  assert.match(byName('Touch leads.last_contact_at (lead outbound)').parameters.query, /SET last_contact_at = now\(\)/);
+  assert.deepEqual(checkSql(workflowSql(WF)), []);
+  assert.equal(R.leadOutbound({ to: 'lead', ld: { id: 'L' } }, 'wamid.1'), 'L');
+  assert.equal(R.leadOutbound({ to: 'broker', ld: { id: 'L' } }, 'wamid.1'), null);
+  assert.equal(R.leadOutbound({ wa: { to: '+27820000000' }, br: { whatsapp_number: '+27820000000' }, ld: { id: 'L' } }, 'wamid.1'), null);
+  assert.equal(R.leadOutbound({ to: 'lead', ld: { id: 'L' } }, ''), null, 'not sent (dry run / rejected)');
+});

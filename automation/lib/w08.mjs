@@ -17,6 +17,7 @@
 //  - ASSUMPTION: close = 24 h after the last nudge (so a tap on the last nudge still books).
 //  - Idempotency: lead_activities.idempotency_key = w08:{lead_id}:{touch}; INSERT ... ON CONFLICT DO NOTHING
 //    RETURNING id, and only a returned row is sent. A scheduler that fires twice sends once.
+import { LINES } from '../../conversation/lines.mjs';
 export const H = 3600_000;
 const SAST = 2 * H;
 export const OFFSETS = {
@@ -102,7 +103,8 @@ export function message(lead, ctx, touch, now_ms) {
   }
   const window = Number.isFinite(ctx.last_inbound_ms) && now_ms - ctx.last_inbound_ms < 24 * H;
   const buttons = touch === 'unbooked_nudge_72h' ? [['see_open_times', 'See open times'], ['no_thanks', 'No thanks']] : [['see_open_times', 'See open times'], ['not_now', 'Not now']];
-  return { channel: window ? 'session' : 'template', template, vars, header, buttons, payload_suffix: `:${lead.id}` };
+  // templates are approved in English only; inside the window the session words follow the lead's language (#11)
+  return { channel: window ? 'session' : 'template', template, template_lang: 'en', lang, vars, header, buttons, payload_suffix: `:${lead.id}`, ...(window ? { session: sessionWords(template, vars, lang) } : {}) };
 }
 
 /** Tap handlers (routed here by W07). */
@@ -113,4 +115,23 @@ export function onTap(lead, payload) {
   if (key === 'no_thanks') return { stage: 'unbooked_closed', conv_state: { ...(lead.conv_state || {}), declined_nurture: true, state: 'closed_unbooked' }, reply_line: 'CLOSE_UNBOOKED', suppress: { source: 'objection', note: 'no_thanks_nurture' } };
   if (key === 'not_now') return { stage: lead.stage, conv_state: lead.conv_state || {}, reply_line: null }; // keep the plan; no reply (no nagging)
   return null;
+}
+
+// ---------- session words (inside the 24-h window): identical to the approved template body (w07-alignment #9, #11) ----------
+// English = the approved template text, unchanged until meta-operator resubmits (K-6 "no obligation" wording is theirs).
+const SESSION_EN = {
+  unbooked_nudge_2h: (v) => `Hi ${v[0]}, following up on your life cover enquiry. A call with ${v[1]} takes about 30 minutes, and there is nothing to buy on the call. Tap below to see open times.`,
+  unbooked_nudge_24h: (v) => `Hi ${v[0]}, here is ${v[1]} in about 25 seconds, so you know who you would be speaking to about your enquiry. Tap below to see open times.`,
+  unbooked_nudge_24h_text: (v) => `Hi ${v[0]}, a little about the adviser for your enquiry: ${v[1]} Tap below to see open times.`,
+  unbooked_nudge_72h: (v) => `Hi ${v[0]}, this is our last message about your life cover enquiry. If you would still like a 30-minute call with ${v[1]}, tap below to pick a time. If not, no problem, we will not message again.`
+};
+// Afrikaans: taken from conversation/lines.mjs when conversation-designer adds the keys (NUDGE_2H, NUDGE_24H, NUDGE_24H_TEXT,
+// NUDGE_72H with {first_name} / {adviser_first} / {bio_short}); until then an Afrikaans lead gets the approved English words.
+const AF_KEY = { unbooked_nudge_2h: 'NUDGE_2H', unbooked_nudge_24h: 'NUDGE_24H', unbooked_nudge_24h_text: 'NUDGE_24H_TEXT', unbooked_nudge_72h: 'NUDGE_72H' };
+export function sessionWords(template, vars, lang = 'en') {
+  const af = lang === 'af' && LINES.af && LINES.af[AF_KEY[template]];
+  const fillv = (l) => String(l).replace(/\{(first_name|adviser_first|bio_short)\}/g, (m, k) => (k === 'first_name' ? vars[0] : vars[1]));
+  const body = af ? fillv(af) : (SESSION_EN[template] ? SESSION_EN[template](vars) : '');
+  const used = af ? 'af' : 'en';
+  return { body: body ? body + ' ' + LINES[used].STOP_HINT : '', lang: used };
 }

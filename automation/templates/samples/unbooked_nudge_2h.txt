@@ -1,0 +1,6 @@
+unbooked_nudge_2h (UTILITY, en)
+
+Hi Lerato, following up on your life cover enquiry. A call with Mark Smith takes about 30 minutes, and there's no obligation to buy anything. Tap below to see open times. Reply STOP to opt out.
+[footer] SortMyCover
+[button] See open times
+[button] Not now
