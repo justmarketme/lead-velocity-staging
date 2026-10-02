@@ -117,3 +117,5 @@ GATE-HIDE-WORDS (Phase 2) · GATE-TEST-W01/W04/W05/W06/W09/W12/W13/W15 — you w
 | NH-48 | Add go.leadvelocity.co.za to CORS origins? | No (SortMyCover domains only) |
 | NH-19a | AI-assistant sentence "Our WhatsApp assistant uses AI." is now IN the three `broker_intro_*` templates (NH-38 default applied); delete it before GATE-TEMPLATES if you decide no | Keep |
 | NH-MO-08b | EMQ may stay below the §7 target of 6 because no email goes to Meta (0.1) | Record the value, note "email excluded by 0.1", pull the fbc / external_id / IP+UA levers |
+| NH-49 | Microsoft scopes for the broker's Outlook connect: calendar + Teams links + profile only, no Mail.*? | Yes (no Mail.*; invites from howzit@) |
+| NH-50 | W26 day: install the Supabase CLI and put `SUPABASE_ACCESS_TOKEN` + `SUPABASE_PROJECT_REF` in the laptop `.env` before running step 13 | Reminder only, no decision |

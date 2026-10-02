@@ -2443,6 +2443,28 @@
       "human_gate": true,
       "status": "needs_human",
       "section": "6.7"
+    },
+    {
+      "id": "NH-49",
+      "title": "Microsoft scopes for the broker Outlook connect: no Mail.* (default) — decide only if a broker mailbox must send invites",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.6"
+    },
+    {
+      "id": "NH-50",
+      "title": "W26 day reminder: Supabase CLI + SUPABASE_ACCESS_TOKEN / SUPABASE_PROJECT_REF on the laptop before provision.sh step 13 (edge-function deploy)",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.7 / W26"
     }
   ]
 }

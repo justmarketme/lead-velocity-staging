@@ -157,13 +157,29 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 ### I-40 · 2026-10-02 (late)
 | # | Item | Owner |
 |---|---|---|
-| I-40a | `automation/build-w03-w28.mjs` must emit the current W03 (W07 sub-call, loop-guard node, no POST webhook) — re-sync, add a test that regenerating W03 is a no-op against the committed file | automation-engineer |
+| I-40a ✅ | `automation/build-w03-w28.mjs` must emit the current W03 (W07 sub-call, loop-guard node, no POST webhook) — re-sync, add a test that regenerating W03 is a no-op against the committed file | automation-engineer |
 | I-40b | Migration 13: `ops.proposals.decided_via text` (optimisation/sql-additions.sql); MS Graph token vault wrappers `smc_vault_store_ms_refresh(broker_id, token)` / `smc_vault_ms_refresh(broker_id)` (n8n_app-only); edge function `supabase/functions/w34-media-erase` skeleton per I-39j | platform-architect — dispatched |
-| I-40c | Microsoft OAuth connect/callback for the broker calendar (`/ms/connect`, `/ms/callback` in W20, refresh token via the I-40b wrappers, `calendar_status` on the broker row) — GAPS G-06 | automation-engineer, after the credential rename lands |
+| I-40c ✅ | Microsoft OAuth connect/callback for the broker calendar (`/ms/connect`, `/ms/callback` in W20, refresh token via the I-40b wrappers, `calendar_status` on the broker row) — GAPS G-06 | automation-engineer, after the credential rename lands |
 | I-40d | `script_candidates` generator (interview answers → 3 FAIS-gated script variants, `gate_pass` per variant) and a FAIS re-check endpoint for edited script text; `EMAIL_Q`/`TZ` lines into lines.mjs | conversation-designer — dispatched |
 | I-40e | Dedicated lead-pulse rubric for W33 | optimisation-advisor — dispatched |
-| I-40f | W23 storage credential is service-role: move signed-URL issue + delete behind the `w34-media-erase`-style edge function | devops-security + platform-architect |
+| I-40f (devops half ✅, W34 half → I-41b) | W23 storage credential is service-role: move signed-URL issue + delete behind the `w34-media-erase`-style edge function | devops-security + platform-architect |
 | I-40g | W33 "Judge samples": wrap the `lead-pulse` branch in `to_jsonb(...)` so the UNION with `ops.judge_samples().samples` (`jsonb[]`) type-checks | optimisation-advisor |
 | I-40h | W28: use `LINES[lang].EMAIL_Q` / `TZ` from conversation/lines.mjs instead of its own copies | automation-engineer (W28) |
-| I-40i | W23 `script-generate` / `script-recheck` nodes per deliverables/conversation-designer/intro-script-generator.md | intro-media-producer |
+| I-40i ✅ | W23 `script-generate` / `script-recheck` nodes per deliverables/conversation-designer/intro-script-generator.md | intro-media-producer |
 | I-40j | If Q24 default (2) stands: remove the two W11 "Touch last_contact_at" nodes; W10/W08 keep theirs | automation-engineer, after practitioner answer |
+
+### I-41 · 2026-10-02 (from W20 MS connect, W23 scripts, devops pass 6, review 5)
+| # | Item | Owner |
+|---|---|---|
+| I-41a | Portal `Calendar.tsx`: "Connect Outlook" must `fetch` `{API}/ms/connect` with `Authorization: Bearer <session token>` + `Accept: application/json` and navigate to `authorize_url` (plain `VITE_MS_OAUTH_URL` link gets 401); admin-consent link prefers `brokers.calendar_status_detail.admin_consent_url` (W20 writes it) over `VITE_MS_ADMIN_CONSENT_URL`; "Disconnect" → `POST ms/disconnect` | platform-architect — dispatched |
+| I-41b | W34 storage nodes: call the `w34-media-erase` edge function with the HMAC body (`{paths, policy, dsr_id, request_id}`, ≤ 50 `broker-media/<uuid>/` paths, `X-LV-Timestamp` / `X-LV-Signature` signed in a Code node from `$env.W34_MEDIA_ERASE_SECRET`), drop the retired Header Auth credential; LOCAL-STAGING.md §1d has the contract | compliance-qa (W34) — dispatched |
+| I-41c | R5-01 (M): W10 `no_call` must insert into `suppression` (`smc_hash_contact`, `{source:'objection', note:'no_call_c1a'}`) + test, so privacy.html "No thanks → never again" holds | automation-engineer — dispatched |
+| I-41d | R5-02 (M): broker timeline RLS (`smc_05_rls.sql:202-204`) exposes per-lead `lead_pulse` activity; exclude pulse activity types (or write them with `broker_id NULL`) in migration 13 + RLS test; W35 activation blocked until then | platform-architect — dispatched |
+| I-41e | R5-07/R5-08 (L): end card carries only the identity half of DISC-S97-v1 (render verbatim or record the variant); wide intro card 1200×628 — SAMPLE pill overlaps the header FSP, LV strip missing | visual-producer — dispatched |
+| I-41f | R5-10 (L): DISC-CARD-v1 on the intro card waits on contracts-drafter M6 | contracts-drafter → visual-producer |
+| I-41g | R5-11 (open): order of the cancel-confirm question vs `cancel_all` in W10 "Decide no-call" | automation-engineer — dispatched with I-41c |
+| I-41h | W23 `script-generate`: one `ops.costs` row per LLM call (`kind='llm'`, `source_ref='w23:script-generate'`, broker_id) | intro-media-producer, Phase 5 |
+| I-41i | W22: alert when W20 callback maps AADSTS7000215/7000222/700016 (expired/bad client secret) → `calendar_status_detail.reason` | automation-engineer (W22), Phase 5 |
+| I-41j | W20 callback: a failure after the token exchange could save the refresh token in n8n's error execution (`saveDataErrorExecution: all`) — set the callback lane to not save error data, or null the token field before any throw | automation-engineer, Phase 5 |
+| I-41k | `brokers.verified_credentials jsonb` is read by W23 but defined by no migration — add to migration 13 (or confirm it is intentionally absent and W23 reads null) | platform-architect |
+| I-41l | Older W20 queries use `brokers.broker_id`: it is the migration-06 generated alias of `id`, so no change; note kept so nobody "fixes" it | — (closed) |
