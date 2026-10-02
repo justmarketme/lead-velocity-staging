@@ -96,7 +96,7 @@ for (const n of w.nodes.filter((x) => x.id.startsWith('w23-x'))) delete w.connec
 w.nodes = w.nodes.filter((x) => !x.id.startsWith('w23-x'));
 let xid = 0;
 const X = () => 'w23-x' + String(++xid).padStart(2, '0');
-const pg = (id, name, pos, query, repl) => ({ parameters: { operation: 'executeQuery', query, options: { queryReplacement: repl } }, id, name, type: 'n8n-nodes-base.postgres', typeVersion: 2.5, position: pos, alwaysOutputData: true, credentials: { postgres: { name: 'Supabase Postgres (service role)' } } });
+const pg = (id, name, pos, query, repl) => ({ parameters: { operation: 'executeQuery', query, options: { queryReplacement: repl } }, id, name, type: 'n8n-nodes-base.postgres', typeVersion: 2.5, position: pos, alwaysOutputData: true, credentials: { postgres: { name: 'LV Supabase - n8n_app (least privilege)' } } });
 const newHook = (tag, method, y) => { const n = { parameters: { httpMethod: method, path: 'intro/' + tag, authentication: 'none', responseMode: 'responseNode', options: { allowedOrigins: ORIGIN } }, id: X(), name: `Intro ${tag} (browser, Bearer JWT)`, type: 'n8n-nodes-base.webhook', typeVersion: 2, position: [0, y], webhookId: 'intro/' + tag }; return n; };
 function gate(tag, method, y) {
   const h = newHook(tag, method, y), v = codeNode(X(), `Verify broker JWT (${tag})`, [220, y]);

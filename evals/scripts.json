@@ -1,5 +1,5 @@
 {
- "version": "scripts-v1.1.0",
+ "version": "scripts-v1.1.0 +I-40d S37-S42",
  "facts": {
   "practice": "Mark Williams Financial Planning",
   "fsp": "00000",
@@ -277,6 +277,43 @@
      }
     ]
    }
+  },
+  {
+   "id": "S37",
+   "expect": "pass",
+   "note": "I-40d pass: who_i_help angle, first name + practice + FSP once",
+   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I mostly help parents in their late thirties and forties who are busy and not sure what their work benefits really cover. On our call I'll ask a few easy questions and explain where you stand in plain words. There's no obligation to buy and no pressure. Thirty minutes is enough to get clear on it. Looking forward to speaking with you."
+  },
+  {
+   "id": "S38",
+   "expect": "pass",
+   "note": "I-40d pass: what_happens angle",
+   "text": "Hello, it's Mark, from Mark Williams Financial Planning, FSP 00000. Here's what our call looks like. First I listen, then I ask a few simple questions about your home, your family and what you already have. I'll explain things plainly, and there's no obligation to buy anything. It takes 30 minutes, and most people say it was worth the time. Speak soon."
+  },
+  {
+   "id": "S39",
+   "expect": "pass",
+   "lang": "af",
+   "note": "I-40d pass: Afrikaans personal angle",
+   "text": "Hallo, ek is Mark van Mark Williams Financial Planning, FSP 00000. Ek woon al my hele lewe in die Kaap en ek praat graag Afrikaans en Engels. Op ons oproep vra ek 'n paar maklike vrae en verduidelik eenvoudig waar jy staan. Daar is geen druk nie en niks om te koop nie. Dertig minute is genoeg om 'n duidelike prentjie te kry. Ek sien uit daarna om met jou te praat."
+  },
+  {
+   "id": "S40",
+   "expect": "block",
+   "note": "I-40d fail: insurer + premium figure (outputGate)",
+   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I help families with a bond and kids. On our call I'll show you how Old Mutual and Sanlam compare, and most people end up paying around R450 a month. There's no obligation to buy and no pressure. Thirty minutes is all it takes to see the numbers side by side. Looking forward to speaking with you."
+  },
+  {
+   "id": "S41",
+   "expect": "block",
+   "note": "I-40d fail: weekday close + urgency (rule 14, rule 12)",
+   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I help people who have a bond and others depending on them. On our call I'll ask a few questions and explain where you stand. There's no obligation to buy and no pressure. Spots are limited this week, so book now while I still have time. Thirty minutes is all it takes. See you on Thursday."
+  },
+  {
+   "id": "S42",
+   "expect": "block",
+   "note": "I-40d fail: unverified credential + client count + advice (I-2, I-3, suitability)",
+   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. With 20 years of experience and over 500 happy clients, I know exactly what you need. On our call I'll ask a few questions and tell you which cover you should take. There's no obligation to buy and no pressure. Thirty minutes is all it takes. Looking forward to speaking with you."
   }
  ]
 }

@@ -288,3 +288,23 @@ Stub tests:
 4. This is Salesforce's least privilege applied to the one dangerous capability. It also keeps the 0.3 #10 rule (secrets only in `.env`, and a leak means rotate) small: a leaked n8n secret can delete media, not read the CRM.
 5. It costs nothing (Supabase edge functions are already in the stack, INV inventory) and is about 40 lines. `W34_MEDIA_ERASE_URL` points at the function.
 6. Owner: devops-security builds it with automation-engineer (I-38b). Until it exists, W34 queues media erasure as a manual `ops.notifications` action and does not hold the service key.
+
+## Pass 7 (2026-10-02) — `20261002_smc_13_pass7.sql` (drafted, NOT applied) — I-40b
+Stub, chain 01→13:
+- Applied twice, plus the seed twice and the analytics SQL: 0 errors, and 0 legacy errors.
+- Workflow parse-check: 257 statements. The W34 `lr.name` error is gone (owner fixed). One new error is not from 13: W33 "Judge samples" unions `ops.judge_samples().samples` (`jsonb[]`) with a `jsonb` branch. W33 should wrap the first branch in `to_jsonb(samples)`.
+
+| Item | What 13 does |
+|---|---|
+| decided_via | `ops.proposals.decided_via text` (as optimisation/sql-additions.sql). |
+| MS Graph token | **`smc_vault_store_ms_refresh(broker_id, refresh_token, tenant_id, scopes)`** stores the token in Vault under the name `ms_refresh_<broker>_<epoch>`. It sets `calendar_token_ref` (the NAME, CHECK-enforced), `ms_tenant_id`, the new `calendar_scopes`, `calendar_mode = oauth`, `calendar_status = ok` and `calendar_connected_at`. **`smc_vault_ms_refresh(broker_id)`** returns the token only while `calendar_status = 'ok'`. **`smc_set_calendar_status(broker_id, status, detail)`** is for W20. All three are SECURITY DEFINER and only `n8n_app` can run them. |
+| Status vocabulary | `calendar_status` keeps the 06 values that W20 and the portal already use: `ok`, `needs_reconnect`, `blocked_admin_consent`. The RPC accepts the I-40b words and maps them: connected → ok; disconnected and error → needs_reconnect; consent_pending → blocked_admin_consent. The word sent and any detail are stored in the new `calendar_status_detail` (jsonb), with a timestamp in `calendar_status_at`. |
+| Edge function | `supabase/functions/w34-media-erase/index.ts` and `README.md`, a skeleton that is not deployed (I-39j); config.toml sets `verify_jwt = false`. **Auth:** HMAC-SHA256 with `W34_MEDIA_ERASE_SECRET` over `timestamp + "." + body`, ±300 s replay window, constant-time compare. **Scope:** 1–50 paths per call, only under `broker-media/<uuid>/`, no `..`, `//`, `*` or trailing `/`. Deletes with `SUPABASE_SERVICE_ROLE_KEY` from env and writes one `retention_log` row per object (`action = delete`). Returns JSON counts. |
+
+Stub tests:
+- Store, then read back while `ok`; after `error` the read returns NULL, and the row shows `needs_reconnect`; `consent_pending` maps to `blocked_admin_consent`.
+- An unknown status is refused; `authenticated` is denied.
+- Path rule: 1 allowed and 6 rejected cases as expected.
+- The TypeScript parses with 0 diagnostics. Deno is not installed in the sandbox, so the function was not run.
+
+No browser-facing RPC; `smc-types.ts` unchanged.

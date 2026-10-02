@@ -163,3 +163,6 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-40d | `script_candidates` generator (interview answers → 3 FAIS-gated script variants, `gate_pass` per variant) and a FAIS re-check endpoint for edited script text; `EMAIL_Q`/`TZ` lines into lines.mjs | conversation-designer — dispatched |
 | I-40e | Dedicated lead-pulse rubric for W33 | optimisation-advisor — dispatched |
 | I-40f | W23 storage credential is service-role: move signed-URL issue + delete behind the `w34-media-erase`-style edge function | devops-security + platform-architect |
+| I-40g | W33 "Judge samples": wrap the `lead-pulse` branch in `to_jsonb(...)` so the UNION with `ops.judge_samples().samples` (`jsonb[]`) type-checks | optimisation-advisor |
+| I-40h | W28: use `LINES[lang].EMAIL_Q` / `TZ` from conversation/lines.mjs instead of its own copies | automation-engineer (W28) |
+| I-40i | W23 `script-generate` / `script-recheck` nodes per deliverables/conversation-designer/intro-script-generator.md | intro-media-producer |

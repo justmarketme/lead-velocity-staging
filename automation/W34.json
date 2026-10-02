@@ -64,7 +64,7 @@
       },
       "credentials": {
         "postgres": {
-          "name": "Supabase CRM (Postgres, W34 role)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -89,7 +89,7 @@
       },
       "credentials": {
         "postgres": {
-          "name": "Supabase CRM (Postgres, W34 role)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -114,7 +114,7 @@
       },
       "credentials": {
         "postgres": {
-          "name": "Supabase CRM (Postgres, W34 role)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -139,7 +139,7 @@
       },
       "credentials": {
         "postgres": {
-          "name": "Supabase CRM (Postgres, W34 role)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -164,7 +164,7 @@
       },
       "credentials": {
         "postgres": {
-          "name": "Supabase CRM (Postgres, W34 role)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -316,7 +316,7 @@
       },
       "credentials": {
         "postgres": {
-          "name": "Supabase CRM (Postgres, W34 role)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -489,7 +489,7 @@
       },
       "credentials": {
         "postgres": {
-          "name": "Supabase CRM (Postgres, W34 role)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": false,
@@ -571,7 +571,7 @@
       },
       "credentials": {
         "postgres": {
-          "name": "Supabase CRM (Postgres, W34 role)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -642,7 +642,7 @@
       },
       "credentials": {
         "postgres": {
-          "name": "Supabase CRM (Postgres, W34 role)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -809,7 +809,7 @@
       },
       "credentials": {
         "postgres": {
-          "name": "Supabase CRM (Postgres, W34 role)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -867,7 +867,7 @@
       },
       "credentials": {
         "postgres": {
-          "name": "Supabase CRM (Postgres, W34 role)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -891,7 +891,7 @@
       },
       "credentials": {
         "postgres": {
-          "name": "Supabase CRM (Postgres, W34 role)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -915,7 +915,7 @@
       },
       "credentials": {
         "postgres": {
-          "name": "Supabase CRM (Postgres, W34 role)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -1017,7 +1017,7 @@
       },
       "credentials": {
         "postgres": {
-          "name": "Supabase CRM (Postgres, W34 role)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -1150,7 +1150,7 @@
       },
       "credentials": {
         "postgres": {
-          "name": "Supabase CRM (Postgres, W34 role)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,
@@ -1254,7 +1254,7 @@
       },
       "credentials": {
         "postgres": {
-          "name": "Supabase CRM (Postgres, W34 role)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "executeOnce": true,

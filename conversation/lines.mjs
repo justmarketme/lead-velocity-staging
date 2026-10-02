@@ -55,6 +55,9 @@ export const LINES = {
     CANCEL_DONE: "Done, your call is cancelled. If you'd like another time later, just say.",
     // I-39k: W05/W10 slot re-check failed (getSchedule) -> list of the next open times follows in the same message.
     SLOT_TAKEN: "Sorry, that time was just taken. Here are the next open times with {adviser_first}.",
+    // I-40d: moved from automation/flows/w28-endpoint.js. EMAIL_Q only for Teams/Zoom/Meet (0.1 Email rule).
+    EMAIL_Q: "Where should we send the {method} invite? Reply with your email address.",
+    TZ: "Times are South African time.",
     // I-39k: lead asked for a method the adviser does not offer. Buttons: Keep {method} / Choose another.
     METHOD_NOT_OFFERED: "{adviser_first} doesn't offer that way of meeting. You can keep {method} or pick another option.",
     METHOD_CHANGED: "I'll change it to {method}.",
@@ -123,6 +126,8 @@ export const LINES = {
     CANCEL_CONFIRM_Q: "Wil jy hê ek moet jou oproep op {date} om {time} kanselleer?",
     CANCEL_DONE: "Klaar, jou oproep is gekanselleer. As jy later 'n ander tyd wil hê, sê net.",
     SLOT_TAKEN: "Jammer, daardie tyd is pas gevat. Hier is die volgende oop tye met {adviser_first}.",
+    EMAIL_Q: "Waarheen moet ons die {method}-uitnodiging stuur? Antwoord met jou e-posadres.",
+    TZ: "Die tye is in Suid-Afrikaanse tyd.",
     METHOD_NOT_OFFERED: "{adviser_first} bied nie daardie manier van vergader aan nie. Jy kan by {method} bly of 'n ander opsie kies.",
     METHOD_CHANGED: "Ek sal dit na {method} verander.",
     SAVED: "Dankie, ek het dit gestoor.",

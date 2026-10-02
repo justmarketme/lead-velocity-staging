@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Version | `script-generator-v1.1.0` (2026-10-02: day-neutral close per NH-24 a; "no obligation to buy" per NH-new-B default; rubric rules 15-20 (I-1…I-6) mirrored from `deliverables/intro-media/rubric.md`; `{verified_credentials}` input) |
+| Version | `script-generator-v1.2.0` (2026-10-02, I-40d: optional `ANGLE` line in the user turn = one script per call for W23 `script-generate`, see `intro-script.md`. v1.1.0: day-neutral close per NH-24 a; "no obligation to buy" per NH-new-B default; rubric rules 15-20 (I-1…I-6) mirrored from `deliverables/intro-media/rubric.md`; `{verified_credentials}` input) |
 | Model | `claude-sonnet-5-5` (4A: intro-media-producer runtime "Sonnet for script generation"), temperature 0.7, max_tokens 900 |
 | Owner | intro-media-producer owns the portal step; conversation-designer owns this prompt and the gate (4.10b lists both) |
 | Input | the broker's positioning-interview answers (4.10, 8-10 questions, typed or transcribed), `brokers` row (adviser name, practice, FSP number, languages, city, `verified_credentials`), the language of the take |
@@ -36,6 +36,8 @@ Write in the LANGUAGE OF THIS TAKE. In Afrikaans the same rules apply in Afrikaa
 
 Make the three scripts genuinely different: one leads with who they help, one with what happens on the call, one with a personal detail from the answers. If the answers do not give a personal detail, use where they are based.
 
+If the input has an ANGLE line, write only the one script for that angle and return {"scripts": [{"angle": "<that angle>", "text": "..."}]}.
+
 Return exactly one JSON object and nothing else:
 {"scripts": [{"angle": "who_i_help" | "what_happens" | "personal", "text": "..."}, {...}, {...}]}
 ```
@@ -48,6 +50,7 @@ PRACTICE: {practice_name}
 FSP: {fsp_number}
 BASED IN: {city}
 LANGUAGE OF THIS TAKE: {en|af|other}
+ANGLE: {who_i_help|what_happens|personal}   # optional; present = one script per call (W23 script-generate)
 VERIFIED CREDENTIALS: {verified_credentials, comma list from brokers.verified_credentials, or "none"}
 INTERVIEW ANSWERS:
 1. Who do you help most, and what do they usually come to you worried about? {a1}
