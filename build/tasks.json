@@ -1896,7 +1896,7 @@
     },
     {
       "id": "NH-14",
-      "title": "Two products, one CRM: legacy B2B tiers (Pilot/Bronze/Silver/Gold R6k–R16.5k, \"guaranteed\" wording, Ayanda cold calls) vs SortMyCover ladder. Separate by brand_id + SMC_* tier codes; withdraw B2B tiers from site (W25)? NCC cleanse to cover legacy cold-call leads? Money decision. compliance-qa recommends YES to cleansing legacy cold-call leads (penalty up to R1m / 10% turnover).",
+      "title": "Two products, one CRM: legacy B2B tiers (Pilot/Bronze/Silver/Gold R6k–R16.5k, \"guaranteed\" wording, Ayanda cold calls) vs SortMyCover ladder. Separate by brand_id + SMC_* tier codes; withdraw B2B tiers from site (W25)? NCC cleanse to cover legacy cold-call leads? Money decision. compliance-qa recommends YES to cleansing legacy cold-call leads (penalty up to R1m / 10% turnover). The live Promotions page says \"10% of broker commission (on placed business)\" — the Raspberry Academy pattern (2.1.1) — plus \"guaranteed\" ×4 and sum-insured figures; creative-strategist recommends it comes down in W25 whatever else is decided.",
       "owner": "jonathan",
       "phase": "0",
       "depends_on": [],
@@ -2068,7 +2068,7 @@
       ],
       "acceptance_test": "test -s deliverables/creative-strategist/concepts.md && test -s deliverables/creative-strategist/concepts.csv",
       "human_gate": false,
-      "status": "in_progress",
+      "status": "green",
       "section": "4.2"
     },
     {
@@ -2081,7 +2081,7 @@
       ],
       "acceptance_test": "test -s deliverables/creative-strategist/website-wording.md",
       "human_gate": false,
-      "status": "in_progress",
+      "status": "green",
       "section": "3.5a"
     },
     {
