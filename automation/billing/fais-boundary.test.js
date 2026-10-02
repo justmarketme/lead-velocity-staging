@@ -19,6 +19,8 @@ const FORBIDDEN = [
   ['close', 'rate'].join('_'),
   'commiss' + 'ion',
   ['fact', 'broker', 'roi'].join('_'),
+  ['policies', 'reported'].join('_'),
+  ['tracking', 'to'].join('_'),
 ];
 const PATTERN = new RegExp('(' + FORBIDDEN.join('|') + ')', 'i');
 

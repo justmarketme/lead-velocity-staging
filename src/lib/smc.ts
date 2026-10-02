@@ -133,7 +133,7 @@ export const STEPS: StepDef[] = [
   { key: "availability", title: "Your hours and how you meet", reason: "We filled in a sensible start. Check it.", minutes: 1, blocking: true, path: "/broker/calendar#hours" },
   { key: "agreement", title: "Sign your agreement", reason: "Plain words.", minutes: 3, blocking: true, path: "/broker/agreement" },
   { key: "card", title: "Approve your intro card", reason: "What leads see before they meet you.", minutes: 1, blocking: true, path: "/broker/intro-card" },
-  { key: "media", title: "Record your 25-second intro", reason: "Not needed to go live, but it lifts show rate.", minutes: 10, blocking: false, path: "/broker/intro-media" },
+  { key: "media", title: "Record your 25-second intro", reason: "Not needed to go live. We're testing whether it helps people turn up.", minutes: 10, blocking: false, path: "/broker/intro-media" },
 ];
 const DONEISH = new Set(["done", "skipped", "defaulted"]);
 export function stepDone(p: SmcOnboardingProgress | null | undefined, k: SmcStepKey): boolean {

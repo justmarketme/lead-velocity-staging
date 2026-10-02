@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Version | `faq-v1.0.2` (2026-10-02). Changelog at the end of this file. |
+| Version | `faq-v1.0.3` (2026-10-02). Changelog at the end of this file. |
 | Owner | conversation-designer |
 | Used by | Thandi / W07 (WhatsApp), W30/W31 comment and DM replies (4.14), the landing-page FAQ block, the broker explainer |
 | Change rule | Any edit runs `node evals/run.mjs --dry-run` (and the live eval when `ANTHROPIC_API_KEY` is set) in CI and cannot merge below the baseline (6B.1). Bump the version on every change. |
-| **Compliance sign-off** | compliance-qa: `PENDING` (v1.0.0 withheld in phase4-review-2; v1.0.1 applies K-1…K-7; v1.0.2 adds the FAQ-23 provider line — English Parts A+B cleared in phase4-review-3 §9 pending this edit; Afrikaans unsigned) · name: ______ · date: ______ · version signed: ______ |
+| **Compliance sign-off** | compliance-qa: `PENDING` (v1.0.0 withheld in phase4-review-2; v1.0.1 applies K-1…K-7; v1.0.2 adds the FAQ-23 provider line; v1.0.3 the absolute privacy link — English Parts A+B signed in phase4-review-4 at v1.0.3; Afrikaans unsigned) · name: ______ · date: ______ · version signed: ______ |
 | Practitioner review (2.3) | `PENDING`, within 30 days of launch |
 
 **How this file is read by code.** `evals/run.mjs` and W07 parse every `### ` entry. Each entry has `topic` (the intent model's topic label, see `conversation/prompts/intent-slot.md`), `type` (`answer` = Thandi may send it, `defer` = Thandi must send the fixed deferral line), `en` and `af`. Placeholders are filled from the `brokers` row: `{adviser_first}`, `{adviser}`, `{practice}`, `{fsp}`, `{city}`, `{methods}`, `{adviser_languages}`.
@@ -175,8 +175,8 @@
 - topic: data_sharing
 - type: answer
 - asked as: "Will I get calls from other people?" · "Do you sell my number?" · "Verkoop julle my nommer?"
-- en: No, only {practice} gets your details. The firms that handle data for us (hosting, WhatsApp, the AI model and Meta) are listed at /privacy.
-- af: Nee, net {practice} kry jou besonderhede. Die firmas wat data vir ons hanteer (hosting, WhatsApp, die KI-model en Meta) word by /privacy gelys.
+- en: No, only {practice} gets your details. The firms that handle data for us (hosting, WhatsApp, the AI model and Meta) are listed at sortmycover.co.za/privacy.
+- af: Nee, net {practice} kry jou besonderhede. Die firmas wat data vir ons hanteer (hosting, WhatsApp, die KI-model en Meta) word by sortmycover.co.za/privacy gelys.
 
 ### FAQ-24 · Why do you need my email?
 - topic: email_why
@@ -295,6 +295,7 @@ Every entry below is answered with the fixed deferral line from `conversation/li
 
 | Version | Date | Change | Source |
 |---|---|---|---|
+| `faq-v1.0.3` | 2026-10-02 | FAQ-23: privacy link written as sortmycover.co.za/privacy (WhatsApp has no relative links; review 4 #13). | compliance-qa phase4-review-4 |
 | `faq-v1.0.2` | 2026-10-02 | FAQ-23: service-provider line added (review 3 §9). | compliance-qa phase4-review-3 |
 | `faq-v1.0.1` | 2026-10-02 | FAQ-05 and FAQ-23: "only to {practice}" replaced; details go to {practice} as the only adviser, providers listed at /privacy (K-1, K-2, NH-17). FAQ-09: flat fee per 30-day cycle, never a commission or a share of any policy (K-3, 2.1.1). FAQ-25: names the one follow-up question after the call (W35 lead pulse) (K-4). FAQ-11: unsourced "many people who book already have some cover" removed (K-5, 2.1.5). FAQ-02, FAQ-10, FAQ-16: "nothing to buy / no selling / not a sale" replaced with "no obligation to buy" / "any next step is your choice" (K-6, NH-new-B default b). Part B: DEF-09 claims (+ a person for refused claims), DEF-10 investments / RAs / savings / medical aid, DEF-11 wills / estate / beneficiaries, DEF-12 adviser commission (K-7). Self-harm and bereavement note. | compliance-qa phase4-review-2 §3a |
 | `faq-v1.0.0` | 2026-10-02 | First version: 25 answers, 8 defer topics. | conversation-designer |

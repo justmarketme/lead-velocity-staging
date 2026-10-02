@@ -168,11 +168,11 @@ for (const k of ['charcoal', 'offwhite']) {
 // 7. co-brand lock-up: tick mark + "{Practice name} · FSP {number}"
 {
   const D = 520, size = 300;
-  const sample = text(f500, 'Mark Smith Financial Services · FSP 12345', D + 200, D / 2 + size * 0.35, size, 0);
+  const sample = text(f500, 'Mark Smith Financial Services · FSP 00000 (SAMPLE)', D + 200, D / 2 + size * 0.35, size, 0);
   const bb = bbUnion([sample.bb, { x1: 0, y1: 0, x2: D, y2: D }]);
   const body = `<path fill="${rgb('amber')}" d="${circle(D / 2, D / 2, D / 2)}"/><path fill="${rgb('accentText')}" d="${tickD(D / 2, D / 2, D, TR, 4.6)}"/>`;
   out('lockup-cobrand-sample.svg', svg({
-    name: 'lockup-cobrand-sample', title: 'SortMyCover tick, Mark Smith Financial Services, FSP 12345 (fictional sample)', w: 720,
+    name: 'lockup-cobrand-sample', title: 'SortMyCover tick, Mark Smith Financial Services, FSP 00000 (SAMPLE) (fictional sample)', w: 720,
     comment: 'FICTIONAL SAMPLE. Co-brand lock-up: the only place a broker identity sits next to ours (intro card, pre-call brief header, booking confirmation). Clear space: tick height all sides. Practice name is outlined here; production renders it live from the brokers row via lockup-cobrand.template.svg or the HTML .sm-cobrand component.',
     vb: [bb.x1, bb.y1, bb.x2 - bb.x1, bb.y2 - bb.y1],
     body: `${body}<path fill="${rgb('charcoal')}" d="${sample.d}"/>`,

@@ -26,3 +26,12 @@
 | platform-architect | `Profile.tsx:139` unsourced show-rate claim; `Calendar.tsx:153` promises leads something on the broker's behalf; add `policies_reported` to the billing boundary test |
 | intro-media-producer / visual-producer | confirm the SAMPLE tag on the intro-video lower third is visible on the frame Meta sees (opacity 0 at start) |
 | compliance-qa (review 4) | "lifts show rate" in `src/lib/smc.ts` STEPS step 7 and "far less likely to no-show" in `src/pages/portal/IntroMedia.tsx` — source (4.10b show-rate test is the only planned evidence) or reword to "we measure whether it helps" |
+
+## Fix wave 4 (from compliance-qa phase4-review-4, 2026-10-02)
+| Owner | Items |
+|---|---|
+| attribution-analyst | #27: drop hashed email from CAPI (`automation/capi/capi.js:46,136-138`, event-spec.md, tests) and from `privacy.html:72,84`; email is used only for the Teams/Zoom/Meet invite (0.1) |
+| automation-engineer | W03 named consent → `ctwa-named-v2` (responsible party + STOP + privacy link); W08 "No thanks" adds the number hash to `suppression`; one owner for unfinished-CTWA nudges (W03 keeps them, W08 skips pre-routing); W19 reminder states the amount and how to switch auto-renew off; `scripts/build-broker-report-email.mjs` drops the close-rate/policies section from the emailed PDF; I-37d W23 trigger → sub-call; I-37e W07 loop guard + W32 tap routes |
+| contracts-drafter | PN-v1: adviser rating/note about the lead, voice-note transcription provider (named by env, no email to Meta); Schedule C1 options (NH-42); cookie notice aligned with `adsOff()` |
+| visual-producer | re-run `brand/exports/render.mjs` + `build-logos.mjs` so the intro-card PNGs and cobrand sample carry FSP 00000 (SAMPLE); confirm the SAMPLE tag is visible on the intro-video first frame (#11) |
+| landing-page-builder + creative-strategist | C13 landing variant (H16) before any C13 traffic (#25) |

@@ -28,7 +28,7 @@ function Body() {
     <>
       <section className="card">
         <h2>Record your 25-second intro</h2>
-        <p className="muted">People show up for people. A lead who has seen your face and heard your voice for 25 seconds before the call is far less likely to no-show. It takes 10 minutes once.</p>
+        <p className="muted">People show up for people. We expect a lead who has seen your face and heard your voice for 25 seconds before the call to be more likely to turn up, and we measure it on your first 100 bookings. It takes 10 minutes once.</p>
         <a className="btn" href={INTRO_MEDIA_URL}>{takes.length ? "Record another take" : "Start: 10 minutes"}</a>
         <a className="btn ghost" href={`${INTRO_MEDIA_URL}${INTRO_MEDIA_URL.includes("?") ? "&" : "?"}audio=1`}>Voice note only</a>
         {!stepDone(broker.onboarding_progress, "media") && <button className="btn ghost" type="button" onClick={skip}>Skip for now</button>}

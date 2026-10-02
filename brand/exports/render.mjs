@@ -7,7 +7,7 @@ import { launch, root, shot, svgToPng, pngSize, fileUrl } from '../scripts/lib.m
 const X = p => path.join(root, 'exports', p);
 const tpl = n => fileUrl(`templates/${n}`);
 const F = { // fictional sample data: never a real adviser
-  adviser: 'Mark Smith', practice: 'Mark Smith Financial Services', fsp: '12345',
+  adviser: 'Mark Smith', practice: 'Mark Smith Financial Services', fsp: '00000 (SAMPLE)',
   bio: 'I help young families and first-time home owners understand their cover.',
   languages_line: 'Speaks English and Afrikaans', method_line: '30-min Teams or phone call · No obligation', sample: true,
 };
