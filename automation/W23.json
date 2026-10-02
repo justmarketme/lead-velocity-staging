@@ -4,25 +4,22 @@
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "w23-portal-upload",
-        "authentication": "headerAuth",
-        "responseMode": "onReceived",
-        "options": {}
+        "path": "intro/upload-confirm",
+        "authentication": "none",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "https://app.leadvelocity.co.za"
+        }
       },
       "id": "w23-01",
-      "name": "Portal upload confirmed",
+      "name": "Portal upload confirmed (browser, Bearer JWT)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
         0,
         0
       ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "name": "W23 portal webhook (header auth)"
-        }
-      },
-      "webhookId": "w23-portal-upload"
+      "webhookId": "intro/upload-confirm"
     },
     {
       "parameters": {
@@ -49,25 +46,22 @@
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "w23-approve",
-        "authentication": "headerAuth",
-        "responseMode": "onReceived",
-        "options": {}
+        "path": "intro/approve",
+        "authentication": "none",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "https://app.leadvelocity.co.za"
+        }
       },
       "id": "w23-03",
-      "name": "Approve webhook",
+      "name": "Approve webhook (browser, Bearer JWT)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
         0,
         1500
       ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "name": "W23 portal webhook (header auth)"
-        }
-      },
-      "webhookId": "w23-approve"
+      "webhookId": "intro/approve"
     },
     {
       "parameters": {},
@@ -83,9 +77,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "select b.id::text as broker_id, b.contact_person as adviser_name, b.firm_name as practice_name, b.fsp_number, b.whatsapp_number as to_number from brokers b where b.id::text = $1 limit 1",
+        "query": "select b.id::text as broker_id, b.contact_person as adviser_name, b.firm_name as practice_name, b.fsp_number, b.whatsapp_number as to_number from brokers b where b.user_id::text = $1 limit 1",
         "options": {
-          "queryReplacement": "={{ $json.body.broker_id }}"
+          "queryReplacement": "={{ [ $json.sub ] }}"
         }
       },
       "id": "w23-05",
@@ -100,13 +94,14 @@
         "postgres": {
           "name": "Supabase Postgres (service role)"
         }
-      }
+      },
+      "alwaysOutputData": true
     },
     {
       "parameters": {
         "operation": "download",
         "bucketName": "={{ $env.INTRO_RAW_BUCKET || 'intro-raw' }}",
-        "fileKey": "={{ $('Portal upload confirmed').item.json.body.object_key }}"
+        "fileKey": "={{ $('Portal upload confirmed (browser, Bearer JWT)').item.json.body.object_key }}"
       },
       "id": "w23-06",
       "name": "Download raw (object storage)",
@@ -165,31 +160,31 @@
             {
               "id": "a6",
               "name": "take_id",
-              "value": "={{ $('Portal upload confirmed').item.json.body.take_id }}",
+              "value": "={{ $('Portal upload confirmed (browser, Bearer JWT)').item.json.body.take_id }}",
               "type": "string"
             },
             {
               "id": "a7",
               "name": "kind",
-              "value": "={{ $('Portal upload confirmed').item.json.body.kind === 'audio' ? 'audio' : 'video' }}",
+              "value": "={{ $('Portal upload confirmed (browser, Bearer JWT)').item.json.body.kind === 'audio' ? 'audio' : 'video' }}",
               "type": "string"
             },
             {
               "id": "a8",
               "name": "language",
-              "value": "={{ $('Portal upload confirmed').item.json.body.language || 'en' }}",
+              "value": "={{ $('Portal upload confirmed (browser, Bearer JWT)').item.json.body.language || 'en' }}",
               "type": "string"
             },
             {
               "id": "a9",
               "name": "script_text",
-              "value": "={{ $('Portal upload confirmed').item.json.body.script_text || '' }}",
+              "value": "={{ $('Portal upload confirmed (browser, Bearer JWT)').item.json.body.script_text || '' }}",
               "type": "string"
             },
             {
               "id": "a10",
               "name": "ext",
-              "value": "={{ ($('Portal upload confirmed').item.json.body.mime || '').includes('mp4') ? ($('Portal upload confirmed').item.json.body.kind === 'audio' ? 'm4a' : 'mp4') : (($('Portal upload confirmed').item.json.body.mime || '').includes('quicktime') ? 'mov' : ($('Portal upload confirmed').item.json.body.kind === 'audio' ? 'ogg' : 'webm')) }}",
+              "value": "={{ ($('Portal upload confirmed (browser, Bearer JWT)').item.json.body.mime || '').includes('mp4') ? ($('Portal upload confirmed (browser, Bearer JWT)').item.json.body.kind === 'audio' ? 'm4a' : 'mp4') : (($('Portal upload confirmed (browser, Bearer JWT)').item.json.body.mime || '').includes('quicktime') ? 'mov' : ($('Portal upload confirmed (browser, Bearer JWT)').item.json.body.kind === 'audio' ? 'ogg' : 'webm')) }}",
               "type": "string"
             }
           ]
@@ -1144,9 +1139,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "with t as (select id, kind, language, url from broker_media where broker_id::text = $1 and ai_check->>'take_id' = $2 and ai_check->>'state' = 'ready'),\noff as (update broker_media m set is_current = false from t where m.broker_id::text = $1 and m.kind = t.kind and m.language = t.language and m.is_current and m.id <> t.id returning m.id),\non_ as (update broker_media m set is_current = true, approved_at = now(), approved_by = case when $3 ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then $3::uuid end from t where m.id = t.id returning m.id, m.kind, m.language, m.url),\nb as (update brokers set intro_video_url = coalesce(intro_video_url, '{}'::jsonb) || coalesce((select jsonb_object_agg(language, url) from on_ where kind = 'video'), '{}'::jsonb), intro_voice_url = coalesce(intro_voice_url, '{}'::jsonb) || coalesce((select jsonb_object_agg(language, url) from on_ where kind = 'voice'), '{}'::jsonb), onboarding_progress = coalesce(onboarding_progress, '{}'::jsonb) || '{\"intro_media\":\"done\"}'::jsonb where id::text = $1 and exists (select 1 from on_) returning id)\nselect (select count(*) from on_) as approved, (select count(*) from broker_media where broker_id::text = $1 and compliance_checked_by is not null) as spot_checked",
+        "query": "with me as (select id::text as bid from brokers where user_id::text = $1),\nt as (select id, kind, language, url from broker_media where broker_id::text in (select bid from me) and ai_check->>'take_id' = $2 and ai_check->>'state' = 'ready'),\noff as (update broker_media m set is_current = false from t where m.broker_id::text in (select bid from me) and m.kind = t.kind and m.language = t.language and m.is_current and m.id <> t.id returning m.id),\non_ as (update broker_media m set is_current = true, approved_at = now(), approved_by = case when $1 ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then $1::uuid end from t where m.id = t.id returning m.id, m.kind, m.language, m.url),\nb as (update brokers set intro_video_url = coalesce(intro_video_url, '{}'::jsonb) || coalesce((select jsonb_object_agg(language, url) from on_ where kind = 'video'), '{}'::jsonb), intro_voice_url = coalesce(intro_voice_url, '{}'::jsonb) || coalesce((select jsonb_object_agg(language, url) from on_ where kind = 'voice'), '{}'::jsonb), onboarding_progress = coalesce(onboarding_progress, '{}'::jsonb) || '{\"intro_media\":\"done\"}'::jsonb where id::text in (select bid from me) and exists (select 1 from on_) returning id)\nselect (select count(*) from on_) as approved, (select count(*) from broker_media where broker_id::text in (select bid from me) and compliance_checked_by is not null) as spot_checked",
         "options": {
-          "queryReplacement": "={{ [ $json.body.broker_id, $json.body.take_id, $json.body.approved_by || '' ] }}"
+          "queryReplacement": "={{ [ $json.sub, $json.body.take_id ] }}"
         }
       },
       "id": "w23-48",
@@ -1229,7 +1224,7 @@
         "url": "={{ $env.OPS_ALERT_WEBHOOK }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ source: 'W23', severity: 'info', text: 'First intro media approved for broker ' + $('Approve webhook').item.json.body.broker_id + ': compliance-qa spot-check due (set broker_media.compliance_checked_by).' }) }}",
+        "jsonBody": "={{ JSON.stringify({ source: 'W23', severity: 'info', text: 'First intro media approved for broker ' + $('Verify broker JWT (approve)').item.json.sub + ': compliance-qa spot-check due (set broker_media.compliance_checked_by).' }) }}",
         "options": {}
       },
       "id": "w23-51",
@@ -1247,7 +1242,7 @@
         "url": "={{ $env.OPS_ALERT_WEBHOOK }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ source: 'W23', severity: 'warning', text: 'Approve called but no ready take found: broker ' + $('Approve webhook').item.json.body.broker_id + ' take ' + $('Approve webhook').item.json.body.take_id }) }}",
+        "jsonBody": "={{ JSON.stringify({ source: 'W23', severity: 'warning', text: 'Approve called but no ready take found: broker ' + $('Verify broker JWT (approve)').item.json.sub + ' take ' + $('Verify broker JWT (approve)').item.json.body.take_id }) }}",
         "options": {}
       },
       "id": "w23-52",
@@ -1258,25 +1253,232 @@
         860,
         1600
       ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// --- inlined lead-token.js sha256:8e1d7716a492 (regenerate: node automation/security/inline-for-n8n.mjs) ---\nconst LT = (function () { const module = { exports: {} }; const exports = module.exports;\n'use strict';\n// lead_token (I-29) + caller resolution for GET /slots (I-30a). Contract: automation/CONTRACTS.md \"lead_token\".\n// Zero dependencies (node:crypto only). CommonJS like verify-webhooks.js so inline-for-n8n.mjs can inline it\n// into an n8n Code node (needs NODE_FUNCTION_ALLOW_BUILTIN=crypto). Secrets are passed in by the caller from\n// $env.LEAD_TOKEN_SECRET / $env.LEAD_TOKEN_SECRET_PREVIOUS / $env.SUPABASE_JWT_SECRET; nothing is read here.\n//\n// Token:  lt1.<lead_id>.<exp>.<sig>\n//   lead_id  the leads.id as stored (uuid in production; [A-Za-z0-9_-]{1,64})\n//   exp      unix seconds, mint time + 14 days\n//   sig      base64url( HMAC-SHA256( secret, `${lead_id}|${exp}` ) )\n// Stateless: nothing is stored. Revocation = the lead row check the endpoint does after verify\n// (row exists, opted_out_at is null, not erased). Rotation: verify accepts LEAD_TOKEN_SECRET_PREVIOUS too.\n\nconst crypto = require('crypto');\n\nconst VERSION = 'lt1';\nconst TTL_SECONDS = 14 * 24 * 3600;\nconst LEAD_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;\nconst MAX_TOKEN_LEN = 256;\nconst MIN_SECRET_LEN = 32;\nconst HEADER = 'x-lead-token';\n\nconst b64url = (buf) => Buffer.from(buf).toString('base64').replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');\nconst fromB64url = (s) => Buffer.from(String(s).replace(/-/g, '+').replace(/_/g, '/'), 'base64');\n\nfunction sign(secret, leadId, exp) {\n  return crypto.createHmac('sha256', secret).update(`${leadId}|${exp}`).digest();\n}\n\nfunction safeEqual(a, b) {\n  // constant-time for equal lengths; a length mismatch still burns one compare so timing does not leak which part failed\n  if (!Buffer.isBuffer(a) || !Buffer.isBuffer(b)) return false;\n  if (a.length !== b.length) { crypto.timingSafeEqual(a, a); return false; }\n  return crypto.timingSafeEqual(a, b);\n}\n\nfunction assertSecret(secret) {\n  if (typeof secret !== 'string' || secret.length < MIN_SECRET_LEN) throw new Error('LEAD_TOKEN_SECRET missing or shorter than 32 chars');\n}\n\n/** Mint at lead insert (W01/W02/W03). Returns { token, exp, expires_at }. */\nfunction mintLeadToken(leadId, { secret, nowMs = Date.now(), ttlSeconds = TTL_SECONDS } = {}) {\n  assertSecret(secret);\n  if (!LEAD_ID_RE.test(String(leadId || ''))) throw new Error('lead_id not token-safe');\n  const exp = Math.floor(nowMs / 1000) + ttlSeconds;\n  const token = `${VERSION}.${leadId}.${exp}.${b64url(sign(secret, leadId, exp))}`;\n  return { token, exp, expires_at: new Date(exp * 1000).toISOString() };\n}\n\n/** Verify. Returns { ok:true, lead_id, exp } or { ok:false, reason } (reason is logged, never returned to the browser). */\nfunction verifyLeadToken(token, { secret, previousSecret, nowMs = Date.now() } = {}) {\n  assertSecret(secret);\n  if (typeof token !== 'string' || !token || token.length > MAX_TOKEN_LEN) return { ok: false, reason: 'missing' };\n  const parts = token.split('.');\n  if (parts.length !== 4 || parts[0] !== VERSION) return { ok: false, reason: 'malformed' };\n  const [, leadId, expStr, sigStr] = parts;\n  if (!LEAD_ID_RE.test(leadId) || !/^\\d{1,12}$/.test(expStr) || !/^[A-Za-z0-9_-]{43}$/.test(sigStr)) return { ok: false, reason: 'malformed' };\n  const exp = Number(expStr);\n  const given = fromB64url(sigStr);\n  const secrets = [secret].concat(typeof previousSecret === 'string' && previousSecret.length >= MIN_SECRET_LEN ? [previousSecret] : []);\n  let match = false;\n  for (const s of secrets) if (safeEqual(sign(s, leadId, exp), given)) match = true; // no early exit\n  if (!match) return { ok: false, reason: 'bad_signature' };\n  if (exp * 1000 <= nowMs) return { ok: false, reason: 'expired' };\n  if (exp - Math.floor(nowMs / 1000) > TTL_SECONDS + 300) return { ok: false, reason: 'exp_too_far' }; // never longer than the TTL\n  return { ok: true, lead_id: leadId, exp };\n}\n\n// ---------- broker-authenticated path (I-30a): Supabase access token, HS256 ----------\n// ASSUMPTION: the project signs access tokens with the legacy shared secret (HS256, SUPABASE_JWT_SECRET).\n// If the live project uses asymmetric signing keys, swap this for a JWKS verify; the caller contract is unchanged.\nfunction verifySupabaseJwt(jwt, { secret, nowMs = Date.now(), leewaySec = 30 } = {}) {\n  if (typeof secret !== 'string' || secret.length < MIN_SECRET_LEN) throw new Error('SUPABASE_JWT_SECRET missing');\n  if (typeof jwt !== 'string' || jwt.length > 4096) return { ok: false, reason: 'missing' };\n  const parts = jwt.split('.');\n  if (parts.length !== 3) return { ok: false, reason: 'malformed' };\n  let header, claims;\n  try {\n    header = JSON.parse(fromB64url(parts[0]).toString('utf8'));\n    claims = JSON.parse(fromB64url(parts[1]).toString('utf8'));\n  } catch { return { ok: false, reason: 'malformed' }; }\n  if (!header || header.alg !== 'HS256') return { ok: false, reason: 'alg' }; // blocks alg=none and key-confusion\n  const expect = crypto.createHmac('sha256', secret).update(`${parts[0]}.${parts[1]}`).digest();\n  if (!safeEqual(expect, fromB64url(parts[2]))) return { ok: false, reason: 'bad_signature' };\n  const now = Math.floor(nowMs / 1000);\n  if (typeof claims.exp !== 'number' || claims.exp + leewaySec <= now) return { ok: false, reason: 'expired' };\n  if (typeof claims.nbf === 'number' && claims.nbf - leewaySec > now) return { ok: false, reason: 'not_yet_valid' };\n  const aud = Array.isArray(claims.aud) ? claims.aud : [claims.aud];\n  if (!aud.includes('authenticated') || claims.role !== 'authenticated') return { ok: false, reason: 'role' };\n  if (!/^[0-9a-f-]{36}$/i.test(String(claims.sub || ''))) return { ok: false, reason: 'sub' };\n  return { ok: true, user_id: claims.sub, exp: claims.exp };\n}\n\nfunction headerValue(headers, name) {\n  if (!headers) return undefined;\n  const k = Object.keys(headers).find((h) => h.toLowerCase() === name);\n  const v = k === undefined ? undefined : headers[k];\n  return Array.isArray(v) ? v[0] : v;\n}\n\n/**\n * Decide who is calling GET /slots. Broker ids in the query are NEVER read (I-29): the lead path takes the broker\n * from leads.broker_id, the broker path from brokers.user_id = jwt.sub. Returns\n *   { ok:true, mode:'lead',   lead_id, limit, date }      -> SELECT broker_id FROM leads WHERE id = lead_id\n *   { ok:true, mode:'broker', user_id, limit }            -> SELECT * FROM brokers WHERE user_id = user_id\n *   { ok:false, status, reason }\n */\nfunction resolveSlotsCaller({ headers = {}, query = {} } = {}, { leadSecret, leadPreviousSecret, jwtSecret, nowMs = Date.now() } = {}) {\n  const auth = headerValue(headers, 'authorization');\n  const lt = headerValue(headers, HEADER);\n  if (auth && lt) return { ok: false, status: 400, reason: 'ambiguous_caller' };\n  const date = /^\\d{4}-\\d{2}-\\d{2}$/.test(String(query.date || '')) ? query.date : null;\n  if (auth) {\n    const m = /^Bearer\\s+(\\S+)$/i.exec(String(auth));\n    if (!m) return { ok: false, status: 401, reason: 'malformed' };\n    const v = verifySupabaseJwt(m[1], { secret: jwtSecret, nowMs });\n    if (!v.ok) return { ok: false, status: 401, reason: v.reason };\n    const limit = Math.min(Math.max(parseInt(query.limit, 10) || 1, 1), 3); // portal \"next free slot\": 1 by default, 3 max\n    return { ok: true, mode: 'broker', user_id: v.user_id, limit };\n  }\n  if (lt) {\n    const v = verifyLeadToken(String(lt), { secret: leadSecret, previousSecret: leadPreviousSecret, nowMs });\n    if (!v.ok) return { ok: false, status: 401, reason: v.reason };\n    const limit = Math.min(Math.max(parseInt(query.limit, 10) || 3, 1), 20);\n    return { ok: true, mode: 'lead', lead_id: v.lead_id, limit, date };\n  }\n  return { ok: false, status: 401, reason: 'no_credentials' };\n}\n\n\n// ---------- flow_token (W28): same HMAC scheme, so no flow_tokens table is needed ----------\n// ft1.<lead_id>.<kind>.<booking_id|->.<exp>.<sig>, sig = HMAC-SHA256(secret, `ft1|lead_id|kind|booking_id|exp`)\n// Minted by W06/W10 when they send the Flow template; the W28 endpoint trusts only this mapping (never payload ids).\nconst FLOW_KINDS = new Set(['book', 'reschedule']);\nfunction mintFlowToken(leadId, kind, bookingId, { secret, nowMs = Date.now(), ttlSeconds = TTL_SECONDS } = {}) {\n  assertSecret(secret);\n  if (!LEAD_ID_RE.test(String(leadId || '')) || !FLOW_KINDS.has(kind)) throw new Error('bad flow token input');\n  const b = bookingId ? String(bookingId) : '-';\n  if (b !== '-' && !LEAD_ID_RE.test(b)) throw new Error('booking_id not token-safe');\n  const exp = Math.floor(nowMs / 1000) + ttlSeconds;\n  const sig = b64url(crypto.createHmac('sha256', secret).update(`ft1|${leadId}|${kind}|${b}|${exp}`).digest());\n  return `ft1.${leadId}.${kind}.${b}.${exp}.${sig}`;\n}\nfunction verifyFlowToken(token, { secret, previousSecret, nowMs = Date.now() } = {}) {\n  assertSecret(secret);\n  if (typeof token !== 'string' || token.length > MAX_TOKEN_LEN) return { ok: false, reason: 'missing' };\n  const p = token.split('.');\n  if (p.length !== 6 || p[0] !== 'ft1' || !LEAD_ID_RE.test(p[1]) || !FLOW_KINDS.has(p[2]) || !(p[3] === '-' || LEAD_ID_RE.test(p[3])) || !/^\\d{1,12}$/.test(p[4]) || !/^[A-Za-z0-9_-]{43}$/.test(p[5])) return { ok: false, reason: 'malformed' };\n  const given = fromB64url(p[5]);\n  let match = false;\n  for (const s of [secret].concat(previousSecret && previousSecret.length >= MIN_SECRET_LEN ? [previousSecret] : [])) {\n    if (safeEqual(crypto.createHmac('sha256', s).update(`ft1|${p[1]}|${p[2]}|${p[3]}|${p[4]}`).digest(), given)) match = true;\n  }\n  if (!match) return { ok: false, reason: 'bad_signature' };\n  if (Number(p[4]) * 1000 <= nowMs) return { ok: false, reason: 'expired' };\n  return { ok: true, lead_id: p[1], kind: p[2], booking_id: p[3] === '-' ? null : p[3], exp: Number(p[4]) };\n}\n\nmodule.exports = { mintFlowToken, verifyFlowToken, VERSION, TTL_SECONDS, HEADER, mintLeadToken, verifyLeadToken, verifySupabaseJwt, resolveSlotsCaller, safeEqual };\n\nreturn module.exports; })();\n// I-32a. Browser-facing W23 endpoints: Bearer Supabase access token only. Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto.\nconst it = $input.first().json;\nconst hdr = it.headers || {};\nconst auth = String(hdr.authorization || hdr.Authorization || '');\nconst m = /^Bearer\\s+(\\S+)$/i.exec(auth);\nlet v = { ok: false, reason: 'missing' };\nif (m) { try { v = LT.verifySupabaseJwt(m[1], { secret: $env.SUPABASE_JWT_SECRET }); } catch (e) { v = { ok: false, reason: 'server_config' }; } }\n// body is passed through for the take fields only (take_id, kind, language, mime, script_text). broker_id in it is never read.\nconst body = Object.assign({}, it.body || {}); delete body.broker_id; delete body.approved_by;\nreturn [{ json: { ok: v.ok, reason: v.ok ? null : v.reason, sub: v.ok ? v.user_id : null, body } }];\n"
+      },
+      "id": "w23-60",
+      "name": "Verify broker JWT (upload)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.ok === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "w23-61",
+      "name": "JWT valid? (upload)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"error\":\"unauthorised\"}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "id": "w23-62",
+      "name": "Respond 401 (upload)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        680,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ !!$json.broker_id }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "w23-63",
+      "name": "Broker found? (upload)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        920,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"error\":\"no_broker\"}",
+        "options": {
+          "responseCode": 403
+        }
+      },
+      "id": "w23-64",
+      "name": "Respond 403 (upload)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1160,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"ok\":true,\"state\":\"processing\"}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "w23-65",
+      "name": "Respond 200 (upload)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1160,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// --- inlined lead-token.js sha256:8e1d7716a492 (regenerate: node automation/security/inline-for-n8n.mjs) ---\nconst LT = (function () { const module = { exports: {} }; const exports = module.exports;\n'use strict';\n// lead_token (I-29) + caller resolution for GET /slots (I-30a). Contract: automation/CONTRACTS.md \"lead_token\".\n// Zero dependencies (node:crypto only). CommonJS like verify-webhooks.js so inline-for-n8n.mjs can inline it\n// into an n8n Code node (needs NODE_FUNCTION_ALLOW_BUILTIN=crypto). Secrets are passed in by the caller from\n// $env.LEAD_TOKEN_SECRET / $env.LEAD_TOKEN_SECRET_PREVIOUS / $env.SUPABASE_JWT_SECRET; nothing is read here.\n//\n// Token:  lt1.<lead_id>.<exp>.<sig>\n//   lead_id  the leads.id as stored (uuid in production; [A-Za-z0-9_-]{1,64})\n//   exp      unix seconds, mint time + 14 days\n//   sig      base64url( HMAC-SHA256( secret, `${lead_id}|${exp}` ) )\n// Stateless: nothing is stored. Revocation = the lead row check the endpoint does after verify\n// (row exists, opted_out_at is null, not erased). Rotation: verify accepts LEAD_TOKEN_SECRET_PREVIOUS too.\n\nconst crypto = require('crypto');\n\nconst VERSION = 'lt1';\nconst TTL_SECONDS = 14 * 24 * 3600;\nconst LEAD_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;\nconst MAX_TOKEN_LEN = 256;\nconst MIN_SECRET_LEN = 32;\nconst HEADER = 'x-lead-token';\n\nconst b64url = (buf) => Buffer.from(buf).toString('base64').replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');\nconst fromB64url = (s) => Buffer.from(String(s).replace(/-/g, '+').replace(/_/g, '/'), 'base64');\n\nfunction sign(secret, leadId, exp) {\n  return crypto.createHmac('sha256', secret).update(`${leadId}|${exp}`).digest();\n}\n\nfunction safeEqual(a, b) {\n  // constant-time for equal lengths; a length mismatch still burns one compare so timing does not leak which part failed\n  if (!Buffer.isBuffer(a) || !Buffer.isBuffer(b)) return false;\n  if (a.length !== b.length) { crypto.timingSafeEqual(a, a); return false; }\n  return crypto.timingSafeEqual(a, b);\n}\n\nfunction assertSecret(secret) {\n  if (typeof secret !== 'string' || secret.length < MIN_SECRET_LEN) throw new Error('LEAD_TOKEN_SECRET missing or shorter than 32 chars');\n}\n\n/** Mint at lead insert (W01/W02/W03). Returns { token, exp, expires_at }. */\nfunction mintLeadToken(leadId, { secret, nowMs = Date.now(), ttlSeconds = TTL_SECONDS } = {}) {\n  assertSecret(secret);\n  if (!LEAD_ID_RE.test(String(leadId || ''))) throw new Error('lead_id not token-safe');\n  const exp = Math.floor(nowMs / 1000) + ttlSeconds;\n  const token = `${VERSION}.${leadId}.${exp}.${b64url(sign(secret, leadId, exp))}`;\n  return { token, exp, expires_at: new Date(exp * 1000).toISOString() };\n}\n\n/** Verify. Returns { ok:true, lead_id, exp } or { ok:false, reason } (reason is logged, never returned to the browser). */\nfunction verifyLeadToken(token, { secret, previousSecret, nowMs = Date.now() } = {}) {\n  assertSecret(secret);\n  if (typeof token !== 'string' || !token || token.length > MAX_TOKEN_LEN) return { ok: false, reason: 'missing' };\n  const parts = token.split('.');\n  if (parts.length !== 4 || parts[0] !== VERSION) return { ok: false, reason: 'malformed' };\n  const [, leadId, expStr, sigStr] = parts;\n  if (!LEAD_ID_RE.test(leadId) || !/^\\d{1,12}$/.test(expStr) || !/^[A-Za-z0-9_-]{43}$/.test(sigStr)) return { ok: false, reason: 'malformed' };\n  const exp = Number(expStr);\n  const given = fromB64url(sigStr);\n  const secrets = [secret].concat(typeof previousSecret === 'string' && previousSecret.length >= MIN_SECRET_LEN ? [previousSecret] : []);\n  let match = false;\n  for (const s of secrets) if (safeEqual(sign(s, leadId, exp), given)) match = true; // no early exit\n  if (!match) return { ok: false, reason: 'bad_signature' };\n  if (exp * 1000 <= nowMs) return { ok: false, reason: 'expired' };\n  if (exp - Math.floor(nowMs / 1000) > TTL_SECONDS + 300) return { ok: false, reason: 'exp_too_far' }; // never longer than the TTL\n  return { ok: true, lead_id: leadId, exp };\n}\n\n// ---------- broker-authenticated path (I-30a): Supabase access token, HS256 ----------\n// ASSUMPTION: the project signs access tokens with the legacy shared secret (HS256, SUPABASE_JWT_SECRET).\n// If the live project uses asymmetric signing keys, swap this for a JWKS verify; the caller contract is unchanged.\nfunction verifySupabaseJwt(jwt, { secret, nowMs = Date.now(), leewaySec = 30 } = {}) {\n  if (typeof secret !== 'string' || secret.length < MIN_SECRET_LEN) throw new Error('SUPABASE_JWT_SECRET missing');\n  if (typeof jwt !== 'string' || jwt.length > 4096) return { ok: false, reason: 'missing' };\n  const parts = jwt.split('.');\n  if (parts.length !== 3) return { ok: false, reason: 'malformed' };\n  let header, claims;\n  try {\n    header = JSON.parse(fromB64url(parts[0]).toString('utf8'));\n    claims = JSON.parse(fromB64url(parts[1]).toString('utf8'));\n  } catch { return { ok: false, reason: 'malformed' }; }\n  if (!header || header.alg !== 'HS256') return { ok: false, reason: 'alg' }; // blocks alg=none and key-confusion\n  const expect = crypto.createHmac('sha256', secret).update(`${parts[0]}.${parts[1]}`).digest();\n  if (!safeEqual(expect, fromB64url(parts[2]))) return { ok: false, reason: 'bad_signature' };\n  const now = Math.floor(nowMs / 1000);\n  if (typeof claims.exp !== 'number' || claims.exp + leewaySec <= now) return { ok: false, reason: 'expired' };\n  if (typeof claims.nbf === 'number' && claims.nbf - leewaySec > now) return { ok: false, reason: 'not_yet_valid' };\n  const aud = Array.isArray(claims.aud) ? claims.aud : [claims.aud];\n  if (!aud.includes('authenticated') || claims.role !== 'authenticated') return { ok: false, reason: 'role' };\n  if (!/^[0-9a-f-]{36}$/i.test(String(claims.sub || ''))) return { ok: false, reason: 'sub' };\n  return { ok: true, user_id: claims.sub, exp: claims.exp };\n}\n\nfunction headerValue(headers, name) {\n  if (!headers) return undefined;\n  const k = Object.keys(headers).find((h) => h.toLowerCase() === name);\n  const v = k === undefined ? undefined : headers[k];\n  return Array.isArray(v) ? v[0] : v;\n}\n\n/**\n * Decide who is calling GET /slots. Broker ids in the query are NEVER read (I-29): the lead path takes the broker\n * from leads.broker_id, the broker path from brokers.user_id = jwt.sub. Returns\n *   { ok:true, mode:'lead',   lead_id, limit, date }      -> SELECT broker_id FROM leads WHERE id = lead_id\n *   { ok:true, mode:'broker', user_id, limit }            -> SELECT * FROM brokers WHERE user_id = user_id\n *   { ok:false, status, reason }\n */\nfunction resolveSlotsCaller({ headers = {}, query = {} } = {}, { leadSecret, leadPreviousSecret, jwtSecret, nowMs = Date.now() } = {}) {\n  const auth = headerValue(headers, 'authorization');\n  const lt = headerValue(headers, HEADER);\n  if (auth && lt) return { ok: false, status: 400, reason: 'ambiguous_caller' };\n  const date = /^\\d{4}-\\d{2}-\\d{2}$/.test(String(query.date || '')) ? query.date : null;\n  if (auth) {\n    const m = /^Bearer\\s+(\\S+)$/i.exec(String(auth));\n    if (!m) return { ok: false, status: 401, reason: 'malformed' };\n    const v = verifySupabaseJwt(m[1], { secret: jwtSecret, nowMs });\n    if (!v.ok) return { ok: false, status: 401, reason: v.reason };\n    const limit = Math.min(Math.max(parseInt(query.limit, 10) || 1, 1), 3); // portal \"next free slot\": 1 by default, 3 max\n    return { ok: true, mode: 'broker', user_id: v.user_id, limit };\n  }\n  if (lt) {\n    const v = verifyLeadToken(String(lt), { secret: leadSecret, previousSecret: leadPreviousSecret, nowMs });\n    if (!v.ok) return { ok: false, status: 401, reason: v.reason };\n    const limit = Math.min(Math.max(parseInt(query.limit, 10) || 3, 1), 20);\n    return { ok: true, mode: 'lead', lead_id: v.lead_id, limit, date };\n  }\n  return { ok: false, status: 401, reason: 'no_credentials' };\n}\n\n\n// ---------- flow_token (W28): same HMAC scheme, so no flow_tokens table is needed ----------\n// ft1.<lead_id>.<kind>.<booking_id|->.<exp>.<sig>, sig = HMAC-SHA256(secret, `ft1|lead_id|kind|booking_id|exp`)\n// Minted by W06/W10 when they send the Flow template; the W28 endpoint trusts only this mapping (never payload ids).\nconst FLOW_KINDS = new Set(['book', 'reschedule']);\nfunction mintFlowToken(leadId, kind, bookingId, { secret, nowMs = Date.now(), ttlSeconds = TTL_SECONDS } = {}) {\n  assertSecret(secret);\n  if (!LEAD_ID_RE.test(String(leadId || '')) || !FLOW_KINDS.has(kind)) throw new Error('bad flow token input');\n  const b = bookingId ? String(bookingId) : '-';\n  if (b !== '-' && !LEAD_ID_RE.test(b)) throw new Error('booking_id not token-safe');\n  const exp = Math.floor(nowMs / 1000) + ttlSeconds;\n  const sig = b64url(crypto.createHmac('sha256', secret).update(`ft1|${leadId}|${kind}|${b}|${exp}`).digest());\n  return `ft1.${leadId}.${kind}.${b}.${exp}.${sig}`;\n}\nfunction verifyFlowToken(token, { secret, previousSecret, nowMs = Date.now() } = {}) {\n  assertSecret(secret);\n  if (typeof token !== 'string' || token.length > MAX_TOKEN_LEN) return { ok: false, reason: 'missing' };\n  const p = token.split('.');\n  if (p.length !== 6 || p[0] !== 'ft1' || !LEAD_ID_RE.test(p[1]) || !FLOW_KINDS.has(p[2]) || !(p[3] === '-' || LEAD_ID_RE.test(p[3])) || !/^\\d{1,12}$/.test(p[4]) || !/^[A-Za-z0-9_-]{43}$/.test(p[5])) return { ok: false, reason: 'malformed' };\n  const given = fromB64url(p[5]);\n  let match = false;\n  for (const s of [secret].concat(previousSecret && previousSecret.length >= MIN_SECRET_LEN ? [previousSecret] : [])) {\n    if (safeEqual(crypto.createHmac('sha256', s).update(`ft1|${p[1]}|${p[2]}|${p[3]}|${p[4]}`).digest(), given)) match = true;\n  }\n  if (!match) return { ok: false, reason: 'bad_signature' };\n  if (Number(p[4]) * 1000 <= nowMs) return { ok: false, reason: 'expired' };\n  return { ok: true, lead_id: p[1], kind: p[2], booking_id: p[3] === '-' ? null : p[3], exp: Number(p[4]) };\n}\n\nmodule.exports = { mintFlowToken, verifyFlowToken, VERSION, TTL_SECONDS, HEADER, mintLeadToken, verifyLeadToken, verifySupabaseJwt, resolveSlotsCaller, safeEqual };\n\nreturn module.exports; })();\n// I-32a. Browser-facing W23 endpoints: Bearer Supabase access token only. Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto.\nconst it = $input.first().json;\nconst hdr = it.headers || {};\nconst auth = String(hdr.authorization || hdr.Authorization || '');\nconst m = /^Bearer\\s+(\\S+)$/i.exec(auth);\nlet v = { ok: false, reason: 'missing' };\nif (m) { try { v = LT.verifySupabaseJwt(m[1], { secret: $env.SUPABASE_JWT_SECRET }); } catch (e) { v = { ok: false, reason: 'server_config' }; } }\n// body is passed through for the take fields only (take_id, kind, language, mime, script_text). broker_id in it is never read.\nconst body = Object.assign({}, it.body || {}); delete body.broker_id; delete body.approved_by;\nreturn [{ json: { ok: v.ok, reason: v.ok ? null : v.reason, sub: v.ok ? v.user_id : null, body } }];\n"
+      },
+      "id": "w23-66",
+      "name": "Verify broker JWT (approve)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        1500
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.ok === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "w23-67",
+      "name": "JWT valid? (approve)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        420,
+        1500
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"error\":\"unauthorised\"}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "id": "w23-68",
+      "name": "Respond 401 (approve)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        620,
+        1360
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"ok\":true,\"compliance_spot_check\":\"pending\"}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "w23-69",
+      "name": "Respond 200 (approve)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        820,
+        1380
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"error\":\"nothing_to_approve\"}",
+        "options": {
+          "responseCode": 403
+        }
+      },
+      "id": "w23-70",
+      "name": "Respond 403 (approve)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        820,
+        1700
+      ]
     }
   ],
   "connections": {
-    "Portal upload confirmed": {
-      "main": [
-        [
-          {
-            "node": "Load broker (portal)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Load broker (portal)": {
       "main": [
         [
           {
-            "node": "Download raw (object storage)",
+            "node": "Broker found? (upload)",
             "type": "main",
             "index": 0
           }
@@ -1753,17 +1955,6 @@
         ]
       ]
     },
-    "Approve webhook": {
-      "main": [
-        [
-          {
-            "node": "Approve: make current, update brokers.intro_*_url (previous versions kept)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Approve: make current, update brokers.intro_*_url (previous versions kept)": {
       "main": [
         [
@@ -1782,11 +1973,21 @@
             "node": "First intro for this broker? (compliance-qa spot-check)",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Respond 200 (approve)",
+            "type": "main",
+            "index": 0
           }
         ],
         [
           {
             "node": "Alert ops (approve found nothing)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Respond 403 (approve)",
             "type": "main",
             "index": 0
           }
@@ -1809,6 +2010,109 @@
         [
           {
             "node": "Alert ops (workflow error)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Portal upload confirmed (browser, Bearer JWT)": {
+      "main": [
+        [
+          {
+            "node": "Verify broker JWT (upload)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approve webhook (browser, Bearer JWT)": {
+      "main": [
+        [
+          {
+            "node": "Verify broker JWT (approve)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify broker JWT (upload)": {
+      "main": [
+        [
+          {
+            "node": "JWT valid? (upload)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JWT valid? (upload)": {
+      "main": [
+        [
+          {
+            "node": "Load broker (portal)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 401 (upload)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Broker found? (upload)": {
+      "main": [
+        [
+          {
+            "node": "Respond 200 (upload)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Download raw (object storage)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 403 (upload)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify broker JWT (approve)": {
+      "main": [
+        [
+          {
+            "node": "JWT valid? (approve)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JWT valid? (approve)": {
+      "main": [
+        [
+          {
+            "node": "Approve: make current, update brokers.intro_*_url (previous versions kept)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 401 (approve)",
             "type": "main",
             "index": 0
           }

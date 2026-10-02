@@ -1,1 +1,1 @@
-{ "name": "w23-media", "private": true, "type": "commonjs", "scripts": { "test": "node --test media.test.js" } }
+{ "name": "w23-media", "private": true, "type": "commonjs", "scripts": { "test": "node --test media.test.js w23-auth.test.js" } }

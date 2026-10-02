@@ -11,11 +11,11 @@ Static, phone-first, no framework, no build. Templatised from the approved desig
 | `approve.html` | E: pick a take, WhatsApp message mock (the real `intro_media` / `intro_media_voice` template wording), Approve, record another language |
 | `app.js`, `step.css` | all logic / styles. `step.css` imports `../../brand/tokens.css` |
 
-Try it: `python3 -m http.server` from the repo root, open `/portal/intro-media/index.html?mock=1` on a phone (HTTPS or localhost is needed for camera access). `?mock=1` uses an offline fake server and a fictional adviser (Mark Williams, FSP 00000); `?mock=0` leaves it. Without `?mock`, calls go to `/intro/*` (same origin, magic-link session cookie).
+Try it: `python3 -m http.server` from the repo root, open `/portal/intro-media/index.html?mock=1` on a phone (HTTPS or localhost is needed for camera access). `?mock=1` uses an offline fake server and a fictional adviser (Mark Williams, FSP 00000); `?mock=0` leaves it. Without `?mock`, calls go to `<data-api>/...` with `Authorization: Bearer <Supabase access token>` (I-32a; no cookie). Run `VITE_N8N_WEBHOOK_BASE=https://<base>/webhook VITE_SUPABASE_PROJECT_ID=<ref> node portal/intro-media/inject-api.mjs [outDir]` at build to bake `data-api="<base>/intro"` (and `data-sb-key`) into the five pages.
 
 Eight questions, not ten: the ten prompts in 4.10 are folded into the eight the approved design promises ("where you're from" + languages share one; "years and why" + the personal detail share one).
 
-## API contract to n8n (portal back end proxies these to the W23 webhooks; all JSON, session cookie auth, broker id comes from the session, never from the client)
+## API contract to n8n (I-32a: the browser calls `{API_BASE}/intro/...` directly, `API_BASE` = `VITE_N8N_WEBHOOK_BASE`; all JSON; `Authorization: Bearer <Supabase access token>` read from the portal session in localStorage `sb-<ref>-auth-token` (same origin as the portal, nothing in the URL); n8n verifies HS256 with `SUPABASE_JWT_SECRET` and takes the broker from `brokers.user_id = sub`, never from the client. Token missing/expired -> the page says to open the portal and come back. Built in W23: `upload-confirm` and `approve`. Not built yet (needs_human): `status`, `interview`, `script-select`, and the signed-URL half of `upload`)
 
 **`POST /intro/interview`**
 - Answer: `{question_id, text}` -> `{ok:true}`
@@ -28,7 +28,7 @@ Eight questions, not ten: the ten prompts in 4.10 are folded into the eight the 
 
 **`POST /intro/upload`** (two calls, signed upload to object storage on the VPS)
 1. `{filename, mime, size, kind:"video"|"audio", language, take_no, duration_s, client_checks, script_text}` -> `{take_id, object_key, upload_url, method:"PUT", headers, expires_at}`
-2. The browser `PUT`s the blob to `upload_url`, then `{confirm:true, take_id, object_key}` -> `{ok:true}`. The portal back end then calls W23 `POST /webhook/w23-portal-upload` (header auth) with `{broker_id, take_id, object_key, kind, language, mime, duration_s, script_text}`.
+2. The browser `PUT`s the blob to `upload_url`, then `POST /intro/upload-confirm` `{take_id, object_key, kind, language, mime, duration_s, script_text}` -> `200 {ok:true,state:"processing"}` (`401` bad/missing token, `403` no broker for this user). This is W23 webhook path `intro/upload-confirm`; no broker id is sent.
 - Size cap 200 MB raw (W23 compresses the output to <= 16 MB). Take limit is 3 per language, enforced in the UI and again by the server.
 
 **`GET /intro/status`** -> 
@@ -41,7 +41,7 @@ Eight questions, not ten: the ten prompts in 4.10 are folded into the eight the 
 ```
 State is `broker_media.state`, a generated column (never written): `approved`/`superseded` from `approved_at` + `is_current`, else `ai_check->>'state'` (W23 writes `processing`, then `ready` or `rejected` with the reason), else `processing` while `url` is null. `url` is null until the take is ready. `show_rate` is returned only once the broker has 20 bookings.
 
-**`POST /intro/approve`** (not in the original four; needed for step 7) `{take_id, language, script_text}` -> `{ok:true}`. The back end calls W23 `POST /webhook/w23-approve` with `{broker_id, take_id, approved_by}` (`approved_by` = the approving auth user's uuid, or omitted/null; stored in `broker_media.approved_by uuid`), which makes the take current, updates `brokers.intro_video_url` / `intro_voice_url` (jsonb per language, previous versions stay in `broker_media`), marks the onboarding step done, and alerts compliance-qa for the first-per-broker spot check.
+**`POST /intro/approve`** (not in the original four; needed for step 7) `{take_id, language, script_text}` -> `{ok:true}`. W23 webhook path `intro/approve` (JWT-gated; broker and `approved_by` both come from the token's `sub`, so the body carries no ids but `take_id`; `401`/`403` as above, `403 nothing_to_approve` if no ready take of this broker matches), which makes the take current, updates `brokers.intro_video_url` / `intro_voice_url` (jsonb per language, previous versions stay in `broker_media`), marks the onboarding step done, and alerts compliance-qa for the first-per-broker spot check.
 
 ## Checks in the browser (heuristics, coaching only; the server check is authoritative)
 Face found and centred (`FaceDetector` where the browser has it, else a skin-tone mass estimate, which is cruder and says "can't see your face" rather than guessing); brightness on the face and a backlight test (background much brighter than face); voice level, noise floor (10th percentile of the level while recording) and clipping from the Web Audio analyser; duration 15 to 40 s. Each failed check shows one plain-English fix. Thresholds live at the top of the `judge*` functions in `app.js` and mirror `automation/media/check.js` (`LIMITS`).

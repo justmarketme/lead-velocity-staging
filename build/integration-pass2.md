@@ -116,3 +116,6 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-36c | W14 email send step: run `scripts/build-broker-report-email.mjs --pdf`, attach, send via Graph from howzit@ (same credential as W17) | automation-engineer |
 | I-36d | Canonical broker PDF = email builder print view (initials only); portal `/r/<id>/print` stays an on-screen view | analytics-reporter + platform-architect (update W14-broker.md) |
 | I-36e | `NODE_FUNCTION_ALLOW_BUILTIN` must include `url` (and `fs`, `path`) for W30/W31/W07 `import()` — see I-35b | devops-security |
+| I-32a | **done** (recorder → Bearer to `{API}/intro`, W23 JWT check); follow-ups: I-37a | — |
+| I-37a | n8n endpoints for `/intro/status`, `/intro/interview`, `/intro/script-select`, signed-URL `/intro/upload` with the same JWT check; script generation behind conversation-designer's gate; take-ownership check on upload-confirm | automation-engineer + conversation-designer |
+| I-37b | W23/W19/W04 webhook CORS allowlist: portal origin + staging subdomain + tunnel origin (env-driven) | devops-security |

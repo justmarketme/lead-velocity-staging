@@ -80,9 +80,30 @@
   };
 
   // ---------------------------------------------------------------- API (real, with a clearly-labelled offline mock for design review)
+  // The page is served from the portal's own origin (/portal/intro-media/), so the Supabase session the React app stored
+  // (localStorage 'sb-<project-ref>-auth-token') is readable here. Nothing is passed in the URL. Expired -> sign in again in the portal.
+  function accessToken() {
+    var want = document.documentElement.getAttribute('data-sb-key') || '';
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (want ? k !== want : !/^sb-.+-auth-token$/.test(k)) continue;
+        var j = JSON.parse(localStorage.getItem(k));
+        var sess = Array.isArray(j) ? { access_token: j[0] } : (j && j.currentSession) || j;
+        if (!sess || typeof sess.access_token !== 'string') continue;
+        if (sess.expires_at && sess.expires_at * 1000 < Date.now() + 5000) return null;
+        return sess.access_token;
+      }
+    } catch (e) { /* unreadable storage = signed out */ }
+    return null;
+  }
   function api(method, path, body) {
     if (MOCK) return mockApi(method, path, body);
-    var opt = { method: method, credentials: 'include', headers: { Accept: 'application/json' } };
+    var tok = accessToken();
+    if (!tok) { var ne = new Error('Your portal sign-in has expired. Open the portal, then come back to this step.'); ne.status = 401; return Promise.reject(ne); }
+    // I-32a: static hosting cannot proxy same-origin /intro/*, so no cookie. The broker's Supabase access token goes in a Bearer
+    // header and n8n (W23 "Verify broker JWT") derives the broker from brokers.user_id = sub. The page never sends a broker id.
+    var opt = { method: method, credentials: 'omit', headers: { Accept: 'application/json', Authorization: 'Bearer ' + tok } };
     if (body instanceof FormData) opt.body = body;
     else if (body) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
     return fetch(API + path, opt).then(function (r) {
@@ -106,6 +127,7 @@
       };
       if (p === '/interview') { if (body && body.complete) { S.scripts = MOCK_SCRIPTS.map(function (s) { return { id: s.id, label: s.label, text: s.text.replace('{first}', DEMO_BROKER.first_name).replace('{practice}', DEMO_BROKER.practice).replace('{fsp}', DEMO_BROKER.fsp) }; }); save(); } return { ok: true, text: body instanceof FormData ? '' : undefined }; }
       if (p === '/script-select') { var g = lintScript(body.text, DEMO_BROKER); return { pass: g.pass, checks: g.checks }; }
+      if (p === '/upload-confirm') return { ok: true };
       if (p === '/upload') return body && body.confirm ? { ok: true } : { take_id: 'mock-' + Date.now(), object_key: 'mock', upload_url: null };
       if (p === '/approve') { S.approved = { at: new Date().toISOString(), take_id: body.take_id }; save(); return { ok: true, compliance_spot_check: 'pending' }; }
       throw new Error('unknown mock path ' + p);
@@ -374,7 +396,7 @@
         .then(function (sig) {
           t.server_id = sig.take_id;
           var put = sig.upload_url ? fetch(sig.upload_url, { method: sig.method || 'PUT', headers: sig.headers || { 'Content-Type': t.mime }, body: blob }).then(function (r) { if (!r.ok) throw new Error('upload ' + r.status); }) : Promise.resolve();
-          return put.then(function () { return api('POST', '/upload', { confirm: true, take_id: sig.take_id, object_key: sig.object_key }); });
+          return put.then(function () { return api('POST', '/upload-confirm', { take_id: sig.take_id, object_key: sig.object_key, kind: t.kind, language: t.lang, mime: t.mime, duration_s: Math.round(t.dur * 10) / 10, script_text: S.chosen && S.chosen.text }); });
         }).then(function () { t.uploaded = true; save(); });
     });
   }
