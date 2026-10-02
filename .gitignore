@@ -73,3 +73,4 @@ credentials*
 
 # W24 evidence files hold PII hashes — never committed
 compliance/
+*.whl

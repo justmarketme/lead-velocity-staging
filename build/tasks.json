@@ -645,7 +645,7 @@
       ],
       "acceptance_test": "node automation/tests/W23.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
+      "status": "green",
       "section": "4.6 inventory"
     },
     {
@@ -2168,6 +2168,17 @@
       "human_gate": true,
       "status": "needs_human",
       "section": "deliverables/brand-naming-lead/first-principles.md"
+    },
+    {
+      "id": "NH-24",
+      "title": "Intro video: (a) script close is day-neutral (\"looking forward to speaking\") rather than \"see you on {day}\" because one recording serves many dates — confirm; (b) who is the consenting real person for the 15-s example-adviser clip (no avatar, no stock)?",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "deliverables/intro-media/script-prompt.md"
     }
   ]
 }

@@ -1,0 +1,1838 @@
+{
+  "name": "W23 Media processing (intro video and voice)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "w23-portal-upload",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "w23-01",
+      "name": "Portal upload confirmed",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "W23 portal webhook (header auth)"
+        }
+      },
+      "webhookId": "w23-portal-upload"
+    },
+    {
+      "parameters": {
+        "updates": [
+          "messages"
+        ],
+        "options": {}
+      },
+      "id": "w23-02",
+      "name": "WhatsApp inbound (known broker capture)",
+      "type": "n8n-nodes-base.whatsAppTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        260
+      ],
+      "credentials": {
+        "whatsAppTriggerApi": {
+          "name": "WhatsApp Trigger (SortMyCover)"
+        }
+      },
+      "webhookId": "w23-wa-inbound"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "w23-approve",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "w23-03",
+      "name": "Approve webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1500
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "W23 portal webhook (header auth)"
+        }
+      },
+      "webhookId": "w23-approve"
+    },
+    {
+      "parameters": {},
+      "id": "w23-04",
+      "name": "Error trigger (set this workflow as its own error workflow)",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        1800
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select b.id::text as broker_id, b.contact_person as adviser_name, b.firm_name as practice_name, b.fsp_number, b.whatsapp_number as to_number from brokers b where b.id::text = $1 limit 1",
+        "options": {
+          "queryReplacement": "={{ $json.body.broker_id }}"
+        }
+      },
+      "id": "w23-05",
+      "name": "Load broker (portal)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        240,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "Supabase Postgres (service role)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "bucketName": "={{ $env.INTRO_RAW_BUCKET || 'intro-raw' }}",
+        "fileKey": "={{ $('Portal upload confirmed').item.json.body.object_key }}"
+      },
+      "id": "w23-06",
+      "name": "Download raw (object storage)",
+      "type": "n8n-nodes-base.s3",
+      "typeVersion": 1,
+      "position": [
+        480,
+        0
+      ],
+      "credentials": {
+        "s3": {
+          "name": "MinIO intro media"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a0",
+              "name": "source",
+              "value": "portal",
+              "type": "string"
+            },
+            {
+              "id": "a1",
+              "name": "broker_id",
+              "value": "={{ $('Load broker (portal)').item.json.broker_id }}",
+              "type": "string"
+            },
+            {
+              "id": "a2",
+              "name": "adviser_name",
+              "value": "={{ $('Load broker (portal)').item.json.adviser_name }}",
+              "type": "string"
+            },
+            {
+              "id": "a3",
+              "name": "practice_name",
+              "value": "={{ $('Load broker (portal)').item.json.practice_name }}",
+              "type": "string"
+            },
+            {
+              "id": "a4",
+              "name": "fsp_number",
+              "value": "={{ $('Load broker (portal)').item.json.fsp_number }}",
+              "type": "string"
+            },
+            {
+              "id": "a5",
+              "name": "to_number",
+              "value": "={{ $('Load broker (portal)').item.json.to_number }}",
+              "type": "string"
+            },
+            {
+              "id": "a6",
+              "name": "take_id",
+              "value": "={{ $('Portal upload confirmed').item.json.body.take_id }}",
+              "type": "string"
+            },
+            {
+              "id": "a7",
+              "name": "kind",
+              "value": "={{ $('Portal upload confirmed').item.json.body.kind === 'audio' ? 'audio' : 'video' }}",
+              "type": "string"
+            },
+            {
+              "id": "a8",
+              "name": "language",
+              "value": "={{ $('Portal upload confirmed').item.json.body.language || 'en' }}",
+              "type": "string"
+            },
+            {
+              "id": "a9",
+              "name": "script_text",
+              "value": "={{ $('Portal upload confirmed').item.json.body.script_text || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "a10",
+              "name": "ext",
+              "value": "={{ ($('Portal upload confirmed').item.json.body.mime || '').includes('mp4') ? ($('Portal upload confirmed').item.json.body.kind === 'audio' ? 'm4a' : 'mp4') : (($('Portal upload confirmed').item.json.body.mime || '').includes('quicktime') ? 'mov' : ($('Portal upload confirmed').item.json.body.kind === 'audio' ? 'ogg' : 'webm')) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "w23-07",
+      "name": "Prepare job (portal)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ ['video','audio'].includes($json.messages?.[0]?.type) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "w23-08",
+      "name": "Is a video or audio message?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        240,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select b.id::text as broker_id, b.contact_person as adviser_name, b.firm_name as practice_name, b.fsp_number, b.whatsapp_number as to_number, coalesce((select m.script_text from broker_media m where m.broker_id = b.id and m.script_text is not null order by m.version desc limit 1),'') as script_text from brokers b where regexp_replace(coalesce(b.whatsapp_number,''),'\\D','','g') = regexp_replace($1,'\\D','','g') and b.status <> 'ended' limit 1",
+        "options": {
+          "queryReplacement": "={{ $('WhatsApp inbound (known broker capture)').item.json.messages[0].from }}"
+        }
+      },
+      "id": "w23-09",
+      "name": "Find broker by number (unknown numbers stop here)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        480,
+        260
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "Supabase Postgres (service role)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION || 'v21.0' }}/{{ $('WhatsApp inbound (known broker capture)').item.json.messages[0][$('WhatsApp inbound (known broker capture)').item.json.messages[0].type].id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "w23-10",
+      "name": "Get media URL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        260
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "WhatsApp Graph bearer (system user)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          },
+          "timeout": 120000
+        }
+      },
+      "id": "w23-11",
+      "name": "Download media",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        260
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "WhatsApp Graph bearer (system user)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a0",
+              "name": "source",
+              "value": "whatsapp",
+              "type": "string"
+            },
+            {
+              "id": "a1",
+              "name": "broker_id",
+              "value": "={{ $('Find broker by number (unknown numbers stop here)').item.json.broker_id }}",
+              "type": "string"
+            },
+            {
+              "id": "a2",
+              "name": "adviser_name",
+              "value": "={{ $('Find broker by number (unknown numbers stop here)').item.json.adviser_name }}",
+              "type": "string"
+            },
+            {
+              "id": "a3",
+              "name": "practice_name",
+              "value": "={{ $('Find broker by number (unknown numbers stop here)').item.json.practice_name }}",
+              "type": "string"
+            },
+            {
+              "id": "a4",
+              "name": "fsp_number",
+              "value": "={{ $('Find broker by number (unknown numbers stop here)').item.json.fsp_number }}",
+              "type": "string"
+            },
+            {
+              "id": "a5",
+              "name": "to_number",
+              "value": "={{ $('Find broker by number (unknown numbers stop here)').item.json.to_number }}",
+              "type": "string"
+            },
+            {
+              "id": "a6",
+              "name": "script_text",
+              "value": "={{ $('Find broker by number (unknown numbers stop here)').item.json.script_text }}",
+              "type": "string"
+            },
+            {
+              "id": "a7",
+              "name": "take_id",
+              "value": "={{ 'wa-' + $('WhatsApp inbound (known broker capture)').item.json.messages[0].id.replace(/[^A-Za-z0-9]/g,'').slice(-12) }}",
+              "type": "string"
+            },
+            {
+              "id": "a8",
+              "name": "kind",
+              "value": "={{ $('WhatsApp inbound (known broker capture)').item.json.messages[0].type === 'audio' ? 'audio' : 'video' }}",
+              "type": "string"
+            },
+            {
+              "id": "a9",
+              "name": "language",
+              "value": "en",
+              "type": "string"
+            },
+            {
+              "id": "a10",
+              "name": "ext",
+              "value": "={{ $('WhatsApp inbound (known broker capture)').item.json.messages[0].type === 'audio' ? 'ogg' : 'mp4' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "w23-12",
+      "name": "Prepare job (WhatsApp)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1200,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "={{ $env.WA_PHONE_NUMBER_ID }}",
+        "recipientPhoneNumber": "={{ $json.to_number }}",
+        "textBody": "Got it. We're adding captions and your details now. It will show in your portal for approval in a minute or two."
+      },
+      "id": "w23-13",
+      "name": "WhatsApp: got it",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        1440,
+        400
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "name": "WhatsApp Cloud API (SortMyCover)"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "=/data/intro/_inbox/{{ $json.broker_id }}_{{ $json.take_id }}.{{ $json.ext }}",
+        "dataPropertyName": "data",
+        "options": {
+          "append": false
+        }
+      },
+      "id": "w23-14",
+      "name": "Write raw file",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1440,
+        130
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// the write node may not carry the job fields through, so rebuild them from whichever prepare node ran\nlet j; try { j = $('Prepare job (portal)').first().json; } catch (e) { j = $('Prepare job (WhatsApp)').first().json; }\nreturn [{ json: j }];"
+      },
+      "id": "w23-15",
+      "name": "Job",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        130
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into broker_media (broker_id, kind, language, version, script_text, ai_check, is_current) select b.id, k, $2, coalesce((select max(m.version) from broker_media m where m.broker_id = b.id and m.language = $2),0) + 1, $4, jsonb_build_object('state','processing','take_id',$5), false from brokers b, unnest(case when $3 = 'audio' then array['voice'] else array['video','voice'] end) as k where b.id::text = $1 returning id::text as id, kind, version",
+        "options": {
+          "queryReplacement": "={{ [ $('Job').first().json.broker_id, $('Job').first().json.language, $('Job').first().json.kind, $('Job').first().json.script_text, $('Job').first().json.take_id ] }}"
+        }
+      },
+      "id": "w23-16",
+      "name": "Insert media rows (state: processing)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1800,
+        130
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "Supabase Postgres (service role)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// shell-safe commands (names like O'Brien must not break out of the quotes)\nconst j = $('Job').first().json;\nconst q = (s) => \"'\" + String(s ?? '').replace(/'/g, \"'\\\\''\") + \"'\";\nconst dir = `/data/intro/${j.broker_id}/${j.language}/${j.take_id}`;\nconst raw = `/data/intro/_inbox/${j.broker_id}_${j.take_id}.${j.ext}`;\nconst retry = $input.first().json.retry === true;\nconst tr = `/data/intro/_inbox/${j.broker_id}_${j.take_id}.transcript.json`;\nconst media = $('Insert media rows (state: processing)').all().map(i => i.json);\nconst media_ids = media.map(m => m.id).join(',');\nconst version = media[0]?.version;\nreturn [{ json: { ...j, dir, raw, tr, retry, media_ids, version,\n  check_cmd: `node /opt/lv/automation/media/check.js ${q(raw)} --json || true`,\n  pipeline_cmd: `${retry ? 'TARGET_MB=8 ' : ''}bash -c ${q(`/opt/lv/automation/media/pipeline.sh --in ${q(raw)} --out-dir ${q(dir)} --transcript ${q(tr)} --name ${q(j.adviser_name)} --practice ${q(j.practice_name)} --fsp ${q(j.fsp_number)} --lang ${q(j.language)} ${j.kind === 'audio' ? '--audio-only' : ''}; rc=$?; echo; if [ -f ${q(dir + '/result.json')} ]; then tr -d '\\\\n' < ${q(dir + '/result.json')}; else echo \"{\\\\\"ok\\\\\":false,\\\\\"system\\\\\":true,\\\\\"reason\\\\\":\\\\\"pipeline exit $rc\\\\\"}\"; fi; echo`)}` } }];"
+      },
+      "id": "w23-17",
+      "name": "Build commands",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        130
+      ]
+    },
+    {
+      "parameters": {
+        "command": "={{ $json.check_cmd }}"
+      },
+      "id": "w23-18",
+      "name": "Pre-check raw take (duration, loudness)",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        2160,
+        130
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const j = $('Build commands').last().json;\nlet r = {}; try { r = JSON.parse(($json.stdout || '').trim().split('\\n').filter(Boolean).pop()); } catch (e) { r = { ok: false, reason: 'We could not read this file. Try recording again.', issues: [] }; }\nreturn [{ json: { ...j, raw_ok: !!r.ok, raw_reason: r.reason || '', raw_check: r } }];"
+      },
+      "id": "w23-19",
+      "name": "Parse pre-check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        130
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.raw_ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "w23-20",
+      "name": "Raw take OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2640,
+        130
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "={{ $json.raw }}",
+        "options": {
+          "dataPropertyName": "data"
+        }
+      },
+      "id": "w23-21",
+      "name": "Read raw file",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        2880,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.TRANSCRIBE_URL }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "model",
+              "value": "={{ $env.WHISPER_MODEL }}"
+            },
+            {
+              "name": "response_format",
+              "value": "verbose_json"
+            },
+            {
+              "name": "timestamp_granularities[]",
+              "value": "word"
+            },
+            {
+              "name": "timestamp_granularities[]",
+              "value": "segment"
+            },
+            {
+              "name": "language",
+              "value": "={{ $('Build commands').last().json.language }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "w23-22",
+      "name": "Transcribe (Whisper-class, model by env)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3120,
+        60
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Transcription API (bearer)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1) keep the transcript as a file for captions.js  2) spoken-word FAIS gate (same banned list as deliverables/intro-media/rubric.md)\nconst j = $('Build commands').last().json;\nconst tr = $json; const text = (tr.text || (tr.segments || []).map(s => s.text).join(' ')).trim();\nconst BANNED = [['product', /\\b(product|products|policy|policies|investment|funeral cover|income protection)\\b/i], ['premium or money', /\\b(premium|premiums|rand|per month|a month|percent|%)\\b|\\bR\\s?\\d/i], ['insurer', /\\b(insurer|insurers|insurance compan(y|ies)|old mutual|sanlam|discovery|liberty|momentum|outsurance|hollard|assupol|metropolitan|clientele)\\b/i], ['returns', /\\b(returns?|yield|growth|performance)\\b/i], ['guarantee', /\\b(guarantee|guaranteed|guarantees|risk[- ]free)\\b/i], ['best/cheapest', /\\b(best|cheapest|cheap|lowest|number one|affordable|bargain)\\b/i], ['advice', /\\b(you should|you need to|you must|i recommend|i advise|my advice|switch to|take out)\\b/i], ['urgency', /\\b(limited|today only|hurry|last chance|act now|too late|spots? left|urgent)\\b/i]];\nconst hits = BANNED.filter(([, re]) => re.test(text)).map(([k]) => k);\nconst lower = text.toLowerCase();\nconst warn = [];\nif (j.practice_name && !lower.includes(String(j.practice_name).toLowerCase())) warn.push('practice name not spoken (it is in the lower-third)');\nconst buf = Buffer.from(JSON.stringify(tr));\nconst bin = await this.helpers.prepareBinaryData(buf, 'transcript.json', 'application/json');\nreturn [{ json: { ...j, transcript_text: text, transcript_words: text.split(/\\s+/).filter(Boolean).length, spoken_hits: hits, spoken_warn: warn, spoken_ok: hits.length === 0 }, binary: { data: bin } }];"
+      },
+      "id": "w23-23",
+      "name": "Spoken-word FAIS gate + transcript file",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3360,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.spoken_ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "w23-24",
+      "name": "Spoken words allowed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3600,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $json.tr }}",
+        "dataPropertyName": "data",
+        "options": {
+          "append": false
+        }
+      },
+      "id": "w23-25",
+      "name": "Write transcript file",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        3840,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "command": "={{ $('Spoken-word FAIS gate + transcript file').last().json.pipeline_cmd }}"
+      },
+      "id": "w23-26",
+      "name": "Run pipeline.sh (trim, 9:16, captions, lower-third, end-frame, thumbnail, OGG)",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        4080,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const b = $('Spoken-word FAIS gate + transcript file').last().json;\nlet r; try { r = JSON.parse(($json.stdout || '').trim().split('\\n').filter(Boolean).pop()); } catch (e) { r = { ok: false, system: true, reason: 'pipeline output unreadable' }; }\nconst issues = (r.check && r.check.issues) || [];\nconst oversize = issues.some(i => i.code === 'too_big');\n// a check failure carries plain-English reasons; anything else (ffmpeg missing, no transcript) is a system failure -> ops alert\nconst system = r.system === true || (!r.ok && !issues.some(i => i.severity === 'error'));\nreturn [{ json: { ...b, result: r, pipeline_ok: !!r.ok, oversize, retried: b.retry === true, system_failure: system } }];"
+      },
+      "id": "w23-27",
+      "name": "Parse pipeline result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.oversize && !$json.retried }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "w23-28",
+      "name": "Oversize and not yet retried?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4560,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r1",
+              "name": "retry",
+              "value": true,
+              "type": "boolean"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      },
+      "id": "w23-29",
+      "name": "Retry with TARGET_MB=8",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4800,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.pipeline_ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "w23-30",
+      "name": "Pipeline OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4800,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.kind === 'video' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "w23-31",
+      "name": "Is it a video?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5040,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "={{ $json.dir }}/thumb_{{ $json.language }}.jpg",
+        "options": {
+          "dataPropertyName": "data"
+        }
+      },
+      "id": "w23-32",
+      "name": "Read thumbnail",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        5280,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const b = $('Parse pipeline result').last().json;\nconst buf = await this.helpers.getBinaryDataBuffer(0, 'data');\nreturn [{ json: { ...b, thumb_b64: buf.toString('base64') } }];"
+      },
+      "id": "w23-33",
+      "name": "Thumbnail to base64",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5520,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: $env.ANTHROPIC_MODEL_CHECK, max_tokens: 200, temperature: 0, messages: [{ role: 'user', content: [ { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: $json.thumb_b64 } }, { type: 'text', text: 'This is a frame from a financial adviser recording a short intro video for a lead. Reply with JSON only: {\"face_present\":bool,\"single_person\":bool,\"face_centred\":bool,\"well_lit\":bool,\"notes\":\"one plain-English sentence for the adviser, or empty\"}. Do not identify anyone.' } ] }] }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "w23-34",
+      "name": "AI picture check (Haiku, thumbnail only)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5760,
+        -60
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Anthropic API key (x-api-key)"
+        }
+      },
+      "alwaysOutputData": true,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const b = $('Parse pipeline result').last().json;\nlet v = {}; try { const t = ($json.content || []).map(c => c.text || '').join(''); v = JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1)); } catch (e) { v = { unavailable: true }; }\nconst noFace = v.face_present === false;\nreturn [{ json: { ...b, picture: v, picture_reject: noFace, picture_reason: noFace ? \"We couldn't see your face in the video. Face the window, put your face in the middle of the frame and record again.\" : '' } }];"
+      },
+      "id": "w23-35",
+      "name": "Interpret picture check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6000,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ !$json.picture_reject }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "w23-36",
+      "name": "Picture check passed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        6240,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "={{ $('Parse pipeline result').last().json.dir }}/*",
+        "options": {
+          "dataPropertyName": "data"
+        }
+      },
+      "id": "w23-37",
+      "name": "Read output files",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        6480,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "={{ $env.INTRO_MEDIA_BUCKET || 'intro-media' }}",
+        "fileName": "=intro/{{ $('Parse pipeline result').last().json.broker_id }}/{{ $('Parse pipeline result').last().json.language }}/v{{ $('Parse pipeline result').last().json.version }}/{{ $binary.data.fileName }}",
+        "binaryData": true,
+        "binaryPropertyName": "data",
+        "additionalFields": {}
+      },
+      "id": "w23-38",
+      "name": "Upload to versioned storage key",
+      "type": "n8n-nodes-base.s3",
+      "typeVersion": 1,
+      "position": [
+        6720,
+        60
+      ],
+      "credentials": {
+        "s3": {
+          "name": "MinIO intro media"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const b = $('Parse pipeline result').last().json;\nconst base = ($env.INTRO_PUBLIC_BASE || 'https://media.sortmycover.co.za').replace(/\\/$/, '');\nconst p = `${base}/intro/${b.broker_id}/${b.language}/v${b.version}`;\nconst ai = { state: 'ready', take_id: b.take_id, source: b.source, raw_check: b.raw_check, check: b.result.check, picture: b.picture || null, spoken_warn: b.spoken_warn, transcript_words: b.transcript_words };\nreturn [{ json: { ...b, video_url: b.kind === 'video' ? `${p}/intro_${b.language}.mp4` : '', voice_url: `${p}/intro_${b.language}.ogg`, thumb_url: b.kind === 'video' ? `${p}/thumb_${b.language}.jpg` : '', ai_check: ai } }];"
+      },
+      "id": "w23-39",
+      "name": "Compose URLs and ai_check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6960,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update broker_media set url = case when kind = 'video' then $2 else $3 end, thumbnail_url = case when kind = 'video' then nullif($4,'') end, transcript = $5, ai_check = $6::jsonb where id::text = any(string_to_array($1, ',')) returning id::text",
+        "options": {
+          "queryReplacement": "={{ [ $json.media_ids, $json.video_url, $json.voice_url, $json.thumb_url, $json.transcript_text, JSON.stringify($json.ai_check) ] }}"
+        }
+      },
+      "id": "w23-40",
+      "name": "Mark rows ready (not current until approved)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        7200,
+        60
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "Supabase Postgres (service role)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "={{ $env.WA_PHONE_NUMBER_ID }}",
+        "recipientPhoneNumber": "={{ $('Compose URLs and ai_check').first().json.source === 'whatsapp' ? $('Compose URLs and ai_check').first().json.to_number : '' }}",
+        "textBody": "Your intro is ready. Open your portal to watch it and tap Approve: {{ $env.PORTAL_URL }}/intro-media/approve.html"
+      },
+      "id": "w23-41",
+      "name": "WhatsApp: ready to approve",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        7440,
+        0
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "name": "WhatsApp Cloud API (SortMyCover)"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const j = $('Build commands').last().json;\nconst all = ['Parse pre-check','Spoken-word FAIS gate + transcript file','Parse pipeline result','Interpret picture check'].map(n => { try { return $(n).last().json; } catch (e) { return null; } }).filter(Boolean);\nconst last = all[all.length - 1] || j;\nlet reason = '', system = false, code_ = 'rejected';\nif (last.raw_ok === false) { reason = last.raw_reason; code_ = 'raw_check'; }\nelse if (last.spoken_ok === false) { reason = `Something said on the recording can't be used in a lead message (it touches on: ${last.spoken_hits.join(', ')}). Please record again using your approved script.`; code_ = 'spoken_gate'; }\nelse if (last.picture_reject) { reason = last.picture_reason; code_ = 'picture'; }\nelse if (last.pipeline_ok === false) { reason = (last.result && last.result.reason) || 'We could not process this recording.'; system = !!last.system_failure; code_ = system ? 'system' : 'pipeline_check'; reason = system ? 'We hit a problem on our side processing this. We have been told and will fix it. You do not need to do anything yet.' : reason; }\nreturn [{ json: { ...j, reject_reason: reason, system_failure: system, reject_code: code_, ai_check: { state: 'rejected', take_id: j.take_id, source: j.source, reason, code: code_ } } }];"
+      },
+      "id": "w23-42",
+      "name": "Compose rejection",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5280,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update broker_media set ai_check = $2::jsonb where id::text = any(string_to_array($1, ',')) returning id::text",
+        "options": {
+          "queryReplacement": "={{ [ $json.media_ids, JSON.stringify($json.ai_check) ] }}"
+        }
+      },
+      "id": "w23-43",
+      "name": "Mark rows rejected (reason shown in portal)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        5520,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "Supabase Postgres (service role)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "={{ $env.WA_PHONE_NUMBER_ID }}",
+        "recipientPhoneNumber": "={{ $('Compose rejection').first().json.source === 'whatsapp' ? $('Compose rejection').first().json.to_number : '' }}",
+        "textBody": "={{ $('Compose rejection').first().json.reject_reason }}"
+      },
+      "id": "w23-44",
+      "name": "Reply on WhatsApp with the reason",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        5760,
+        240
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "name": "WhatsApp Cloud API (SortMyCover)"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $('Compose rejection').first().json.system_failure }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "w23-45",
+      "name": "System failure?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5760,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.OPS_ALERT_WEBHOOK }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ source: 'W23', severity: 'warning', text: 'Intro media failed: ' + ($('Compose rejection').first().json.reject_code || 'unknown') + ' broker ' + ($('Compose rejection').first().json.broker_id || '?') + ' take ' + ($('Compose rejection').first().json.take_id || '?') }) }}",
+        "options": {}
+      },
+      "id": "w23-46",
+      "name": "Alert ops",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        6000,
+        400
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.OPS_ALERT_WEBHOOK }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ source: 'W23', severity: 'critical', text: 'W23 execution failed at ' + ($json.execution?.lastNodeExecuted || '?') + ': ' + ($json.execution?.error?.message || '') }) }}",
+        "options": {}
+      },
+      "id": "w23-47",
+      "name": "Alert ops (workflow error)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        1800
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "with t as (select id, kind, language, url from broker_media where broker_id::text = $1 and ai_check->>'take_id' = $2 and ai_check->>'state' = 'ready'),\noff as (update broker_media m set is_current = false from t where m.broker_id::text = $1 and m.kind = t.kind and m.language = t.language and m.is_current and m.id <> t.id returning m.id),\non_ as (update broker_media m set is_current = true, approved_at = now(), approved_by = 'broker:' || $1 from t where m.id = t.id returning m.id, m.kind, m.language, m.url),\nb as (update brokers set intro_video_url = coalesce(intro_video_url, '{}'::jsonb) || coalesce((select jsonb_object_agg(language, url) from on_ where kind = 'video'), '{}'::jsonb), intro_voice_url = coalesce(intro_voice_url, '{}'::jsonb) || coalesce((select jsonb_object_agg(language, url) from on_ where kind = 'voice'), '{}'::jsonb), onboarding_progress = coalesce(onboarding_progress, '{}'::jsonb) || '{\"intro_media\":\"done\"}'::jsonb where id::text = $1 and exists (select 1 from on_) returning id)\nselect (select count(*) from on_) as approved, (select count(*) from broker_media where broker_id::text = $1 and compliance_checked_by is not null) as spot_checked",
+        "options": {
+          "queryReplacement": "={{ [ $json.body.broker_id, $json.body.take_id ] }}"
+        }
+      },
+      "id": "w23-48",
+      "name": "Approve: make current, update brokers.intro_*_url (previous versions kept)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        260,
+        1500
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "Supabase Postgres (service role)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ Number($json.approved) > 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "w23-49",
+      "name": "Approved something?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        560,
+        1500
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ Number($json.spot_checked) === 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "w23-50",
+      "name": "First intro for this broker? (compliance-qa spot-check)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        860,
+        1440
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.OPS_ALERT_WEBHOOK }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ source: 'W23', severity: 'info', text: 'First intro media approved for broker ' + $('Approve webhook').item.json.body.broker_id + ': compliance-qa spot-check due (set broker_media.compliance_checked_by).' }) }}",
+        "options": {}
+      },
+      "id": "w23-51",
+      "name": "Alert compliance-qa to spot-check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1160,
+        1380
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.OPS_ALERT_WEBHOOK }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ source: 'W23', severity: 'warning', text: 'Approve called but no ready take found: broker ' + $('Approve webhook').item.json.body.broker_id + ' take ' + $('Approve webhook').item.json.body.take_id }) }}",
+        "options": {}
+      },
+      "id": "w23-52",
+      "name": "Alert ops (approve found nothing)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        860,
+        1600
+      ]
+    }
+  ],
+  "connections": {
+    "Portal upload confirmed": {
+      "main": [
+        [
+          {
+            "node": "Load broker (portal)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load broker (portal)": {
+      "main": [
+        [
+          {
+            "node": "Download raw (object storage)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download raw (object storage)": {
+      "main": [
+        [
+          {
+            "node": "Prepare job (portal)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare job (portal)": {
+      "main": [
+        [
+          {
+            "node": "Write raw file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp inbound (known broker capture)": {
+      "main": [
+        [
+          {
+            "node": "Is a video or audio message?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is a video or audio message?": {
+      "main": [
+        [
+          {
+            "node": "Find broker by number (unknown numbers stop here)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find broker by number (unknown numbers stop here)": {
+      "main": [
+        [
+          {
+            "node": "Get media URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get media URL": {
+      "main": [
+        [
+          {
+            "node": "Download media",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download media": {
+      "main": [
+        [
+          {
+            "node": "Prepare job (WhatsApp)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare job (WhatsApp)": {
+      "main": [
+        [
+          {
+            "node": "Write raw file",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "WhatsApp: got it",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write raw file": {
+      "main": [
+        [
+          {
+            "node": "Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Job": {
+      "main": [
+        [
+          {
+            "node": "Insert media rows (state: processing)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert media rows (state: processing)": {
+      "main": [
+        [
+          {
+            "node": "Build commands",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build commands": {
+      "main": [
+        [
+          {
+            "node": "Pre-check raw take (duration, loudness)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pre-check raw take (duration, loudness)": {
+      "main": [
+        [
+          {
+            "node": "Parse pre-check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse pre-check": {
+      "main": [
+        [
+          {
+            "node": "Raw take OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Raw take OK?": {
+      "main": [
+        [
+          {
+            "node": "Read raw file",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Compose rejection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read raw file": {
+      "main": [
+        [
+          {
+            "node": "Transcribe (Whisper-class, model by env)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe (Whisper-class, model by env)": {
+      "main": [
+        [
+          {
+            "node": "Spoken-word FAIS gate + transcript file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Spoken-word FAIS gate + transcript file": {
+      "main": [
+        [
+          {
+            "node": "Spoken words allowed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Spoken words allowed?": {
+      "main": [
+        [
+          {
+            "node": "Write transcript file",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Compose rejection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write transcript file": {
+      "main": [
+        [
+          {
+            "node": "Run pipeline.sh (trim, 9:16, captions, lower-third, end-frame, thumbnail, OGG)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run pipeline.sh (trim, 9:16, captions, lower-third, end-frame, thumbnail, OGG)": {
+      "main": [
+        [
+          {
+            "node": "Parse pipeline result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse pipeline result": {
+      "main": [
+        [
+          {
+            "node": "Oversize and not yet retried?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Oversize and not yet retried?": {
+      "main": [
+        [
+          {
+            "node": "Retry with TARGET_MB=8",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pipeline OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retry with TARGET_MB=8": {
+      "main": [
+        [
+          {
+            "node": "Build commands",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pipeline OK?": {
+      "main": [
+        [
+          {
+            "node": "Is it a video?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Compose rejection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is it a video?": {
+      "main": [
+        [
+          {
+            "node": "Read thumbnail",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Read output files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read thumbnail": {
+      "main": [
+        [
+          {
+            "node": "Thumbnail to base64",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Thumbnail to base64": {
+      "main": [
+        [
+          {
+            "node": "AI picture check (Haiku, thumbnail only)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI picture check (Haiku, thumbnail only)": {
+      "main": [
+        [
+          {
+            "node": "Interpret picture check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Interpret picture check": {
+      "main": [
+        [
+          {
+            "node": "Picture check passed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Picture check passed?": {
+      "main": [
+        [
+          {
+            "node": "Read output files",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Compose rejection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read output files": {
+      "main": [
+        [
+          {
+            "node": "Upload to versioned storage key",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to versioned storage key": {
+      "main": [
+        [
+          {
+            "node": "Compose URLs and ai_check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compose URLs and ai_check": {
+      "main": [
+        [
+          {
+            "node": "Mark rows ready (not current until approved)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark rows ready (not current until approved)": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp: ready to approve",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compose rejection": {
+      "main": [
+        [
+          {
+            "node": "Mark rows rejected (reason shown in portal)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark rows rejected (reason shown in portal)": {
+      "main": [
+        [
+          {
+            "node": "Reply on WhatsApp with the reason",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "System failure?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "System failure?": {
+      "main": [
+        [
+          {
+            "node": "Alert ops",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approve webhook": {
+      "main": [
+        [
+          {
+            "node": "Approve: make current, update brokers.intro_*_url (previous versions kept)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approve: make current, update brokers.intro_*_url (previous versions kept)": {
+      "main": [
+        [
+          {
+            "node": "Approved something?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approved something?": {
+      "main": [
+        [
+          {
+            "node": "First intro for this broker? (compliance-qa spot-check)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Alert ops (approve found nothing)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "First intro for this broker? (compliance-qa spot-check)": {
+      "main": [
+        [
+          {
+            "node": "Alert compliance-qa to spot-check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error trigger (set this workflow as its own error workflow)": {
+      "main": [
+        [
+          {
+            "node": "Alert ops (workflow error)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "saveManualExecutions": true,
+    "executionTimeout": 900
+  },
+  "tags": [
+    {
+      "name": "W23"
+    },
+    {
+      "name": "intro-media"
+    }
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "notes": "Credentials are referenced by name only; no secrets here. Needs N8N_BLOCK_ENV_ACCESS_IN_NODE=false and the Execute Command node enabled (NODES_EXCLUDE=[]), ffmpeg + node on the n8n host, and /opt/lv/automation/media mounted. See portal/intro-media/README.md and automation/media/pipeline.sh."
+  }
+}
