@@ -196,7 +196,7 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 ### I-43 · 2026-10-02 (from the I-41/I-42 wave + Lighthouse run)
 | # | Item | Owner |
 |---|---|---|
-| I-43a | 9:16 end card: move CTA + S97 fine print up so the last text row ends ≤ y 1579 (Reels bottom safe zone); re-render the 18 9:16 MP4s; measure the last text row on C14 | visual-producer — dispatched |
+| I-43a ✅ | 9:16 end card: move CTA + S97 fine print up so the last text row ends ≤ y 1579 (Reels bottom safe zone); re-render the 18 9:16 MP4s; measure the last text row on C14 | visual-producer — dispatched |
 | I-43b | Migration 13 COMMENT on `brokers.verified_credentials`: now an array of objects `{type, number, register_name, verified_at}` written by W20 on `verified` (admin console may add others) | platform-architect |
 | I-43c | W14 broker report + portal pulse tile: report the lead pulse per cycle only, or hide the week-on-week delta when < 5 new answers arrived, so a broker cannot difference totals to one lead's answer (compliance ruling W35-pulse-visibility.md) | analytics-reporter + broker-success |
 | I-43d | Phase 5 synthetic run on local n8n: W34 one-batch loop passes every batch result on; Summarise night reads all batches; signing-failure item shape | compliance-qa + devops-security, Phase 5 |
