@@ -27,13 +27,13 @@ Weekly: generated Sun 23:00, sent Mon 07:00 SAST (before the 07:30 digest). Day-
     "mix": {"fit_proceeding": 1, "fit_followup": 2, "nofit_budget": 0, "nofit_covered": 0, "nofit_criteria": 0, "unreachable": 0},
     "themes": [{"text": "Is my work cover enough?", "count": 4, "of": 7}]},
   "s5_notice": ["A new ad about bond cover went live Friday. Expect more leads mentioning a bond."],
-  "s6_roi": {"shown": true, "close_rate": 0.30, "policies_reported": 1, "tracking_to": 3, "basis": {"attended": 4, "committed": 20, "delivered": 7}, "meetings_to_policies": {"v": 0.25, "last": 0}},
+  "s6_roi": {"shown": false},
   "s7_ask": {"code": "mark_outcomes", "text": "Mark Thursday's two outcomes. It keeps your replacements accurate and your pre-call briefs sharp.", "button": "Mark outcomes (2)", "deep_link": "ask/rp_2026w41"},
   "s8_cycle": {"line": "Cycle 1 (Bronze) ends Wed 28 Oct. Your renewal offer arrives Wed 21 Oct. No lock-in."},
   "wa": {"v1": "...", "v2": "...", "v3": "...", "v4": "...", "v5": "...", "v6": "..."}
 }
 ```
-Rules: `s6_roi.shown` only when `brokers.close_rate` is set; `tracking_to = round(close_rate * attended * committed / delivered)` (his numbers, straight line, basis shown; null if delivered = 0); policies reported never feed any fee, ranking or alert. `s5_notice` only true statements, never spend, CPL, creative names or other brokers. Empty week: `s1_one_line` says so and `s7_ask` is null. The `wa` block is computed by the same code that builds the payload, so WhatsApp can never differ from the portal.
+Rules: `s6_roi` is always `{"shown": false}`. No close rate, policies-reported or tracking figure is stored in the payload, the WhatsApp summary, the email or the PDF (compliance review 4, NH-43). The portal ROI view reads `cycles.policies_written_reported` and `brokers.close_rate` directly, on screen only.
 
 ## WhatsApp mapping (templates already in `automation/templates`)
 `broker_weekly` body: "This week: {{1}} / Delivered: {{2}} / Booked: {{3}} · Show rate: {{4}} / To-dos: {{5}} / One ask: {{6}} / Tap below..." Buttons: **Do it now** (`ask/<id>`), **Open report** (`r/<id>`).
@@ -85,4 +85,4 @@ None eligible: `s7_ask = null`. Button deep links `ask/<report_id>` land on the 
 Failures write `reports.payload_json.judge = {pass:false, failed:[ids]}` and block sending.
 
 ## Formula (analytics-reporter)
-Policies tracking (`s6_roi.tracking_to`), per integration I-02 (analytics' formula wins): `round(close_rate x (attended + booked_upcoming x show_rate))`, where `attended` = meetings attended this cycle so far, `booked_upcoming` = meetings still booked after today in this cycle, `show_rate` = this cycle's attended / (attended + no-show). Null when `close_rate` is not set or no meeting has been held yet (never an invented rate). It does not scale up for undelivered leads. `basis` carries the contract keys `attended`, `committed`, `delivered` plus two additive keys `booked_upcoming` and `show_rate`; broker-success's copy should quote those. `meetings_to_policies.v` = policies reported / attended this cycle; `last` = the previous cycle's ratio. Policies reported never feed any fee, ranking or alert (FAIS, 3.7). Implemented in `analytics/W14-broker-payload.sql` (`facts.w14_broker_report`). Open: `s2_progress.booked.last` is 0.60 in the example JSON but a count in the WhatsApp mapping; the function emits the count (what the template reads).
+Policies tracking: removed from the payload (review 4 §2). The former formula `round(close_rate × (attended + booked_upcoming × show_rate))` lives only in the portal on-screen ROI view, computed at render time from `cycles.policies_written_reported` and `brokers.close_rate`, never stored or sent.

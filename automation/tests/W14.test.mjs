@@ -92,12 +92,12 @@ test('s6_roi is {shown:false} and nothing else when no close rate is set', () =>
   assert.doesNotMatch(JSON.stringify(FX.weekly_no_close_rate), /policies_reported|tracking_to|close_rate/, 'policies never leak outside s6 (FAIS)');
 });
 
-test('s6_roi with a close rate: close_rate is a fraction (I-30k), basis carries the contract keys', () => {
-  const r = FX.weekly_close_rate.s6_roi;
-  assert.equal(r.shown, true);
-  assert.ok(r.close_rate > 0 && r.close_rate <= 1, 'fraction (0.30), never 30');
-  for (const k of ['attended', 'committed', 'delivered', 'booked_upcoming', 'show_rate']) assert.ok(k in r.basis, `basis.${k}`);
-  assert.ok(r.tracking_to === null || Number.isInteger(r.tracking_to));
+test('s6_roi is {shown:false} in every payload; no policies or close-rate figure is stored (compliance review 4)', () => {
+  for (const [k, p] of Object.entries(FX)) {
+    if (!p || !p.s1_one_line) continue;
+    assert.deepEqual(p.s6_roi, { shown: false }, k);
+    assert.doesNotMatch(JSON.stringify(p), /policies_reported|tracking_to|meetings_to_policies|"close_rate"/, k);
+  }
 });
 
 test('s8_cycle.line says "no lock-in" (I-30f); "no contract" and "guarantee" appear nowhere', () => {

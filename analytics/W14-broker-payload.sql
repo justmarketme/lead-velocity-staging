@@ -27,7 +27,7 @@ declare
   show_now numeric; show_prev numeric; rated_now numeric; rated_prev numeric; light_show text; light_rep text;
   lastwk jsonb; nxt jsonb; unmarked jsonb; followups jsonb; not_reached jsonb; mix jsonb; themes jsonb; notices jsonb := '[]'::jsonb;
   n_unmarked int; n_follow int; n_missed int; todo_words text;
-  booked_upcoming int; roi jsonb; tracking numeric; prev_ratio numeric; held_total int;
+  roi jsonb;
   ask jsonb := null; ask_code text; ask_short text; recent_asks text[]; free7 int; has_intro boolean; intro_old boolean; week_key text;
   one_line text; quiet boolean; offer_on date; cycle_line text; wa jsonb; status_line text; end_note text; cap_row record; ang record;
 begin
@@ -106,18 +106,9 @@ begin
     end if;
   end loop;
 
-  -- 6. ROI view (voluntary). Formula (analytics-reporter): tracking_to = round(close_rate x (attended + upcoming booked meetings x his own show rate)).
-  select count(*) into booked_upcoming from public.appointments a where a.broker_id = p_broker and a.cycle_id = c.id and a.brand_id is not null
-     and a.status in ('booked','confirmed') and facts.sa_date(a.appointment_date) > d;
-  held_total := n.held;
-  tracking := case when b.close_rate is null or held_total = 0 then null else round(b.close_rate * (n.attended + booked_upcoming * show_now)) end;
-  select round(c2.policies_written_reported::numeric / nullif((select count(*) from public.outcomes o2 where o2.cycle_id = c2.id and o2.outcome = 'attended'), 0), 2) into prev_ratio
-    from public.cycles c2 where c2.id = c.previous_cycle_id;
-  roi := case when b.close_rate is null then jsonb_build_object('shown', false)
-              else jsonb_build_object('shown', true, 'close_rate', b.close_rate, 'policies_reported', c.policies_written_reported, 'tracking_to', tracking,
-                     'basis', jsonb_build_object('attended', n.attended, 'committed', c.committed_leads, 'delivered', n.delivered,
-                                                 'booked_upcoming', booked_upcoming, 'show_rate', show_now),
-                     'meetings_to_policies', jsonb_build_object('v', round(c.policies_written_reported::numeric / nullif(n.attended, 0), 2), 'last', prev_ratio)) end;
+  -- 6. ROI view: compliance review 4 - policies_reported, tracking_to and every close-rate figure are NOT stored in the payload.
+  -- The portal reads cycles.policies_written_reported / brokers.close_rate directly for the broker's own view; reports.payload_json carries only {shown:false}.
+  roi := jsonb_build_object('shown', false);
 
   -- 7. One ask: first eligible in the broker-success order; the same non-priority-0/1 ask is not repeated three weeks running.
   select array_agg(x.ask) into recent_asks from (select rh.ask from public.report_history rh where rh.broker_id = p_broker and rh.brand_id is not null
@@ -249,7 +240,7 @@ begin
   return query select 'every_figure_has_target_and_last', null, null,
                       (pl #> '{s2_progress,delivered}') ?& array['v','target','last'] and (pl #> '{s2_progress,booked}') ?& array['v','target','last']
                       and (pl #> '{s2_progress,show_rate}') ?& array['v','target','last'] and (pl #> '{s4_quality,avg_rating}') ?& array['v','target','last'];
-  return query select 'roi_hidden_without_close_rate', null, null, (pl #>> '{s6_roi,shown}')::boolean or not (pl -> 's6_roi') ? 'policies_reported';
+  return query select 'roi_not_in_payload', null, null, (pl -> 's6_roi') = '{"shown": false}'::jsonb and pl::text !~ 'policies_reported|tracking_to|meetings_to_policies';
   return query select 'no_cost_or_jargon_in_payload', null, null, slim::text !~* banned;
   return query select 'no_cost_or_jargon_in_whatsapp', null, null, (pl -> 'wa')::text !~* banned;
   return query select 'no_other_adviser_ids', null, null, not exists (select 1 from public.brokers x where x.id <> p_broker and pl::text like '%' || x.id::text || '%');

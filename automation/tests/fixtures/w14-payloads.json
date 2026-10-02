@@ -34,21 +34,7 @@
    "first_name": "Mark"
   },
   "s6_roi": {
-   "basis": {
-    "attended": 6,
-    "committed": 20,
-    "delivered": 16,
-    "show_rate": 0.6,
-    "booked_upcoming": 2
-   },
-   "shown": true,
-   "close_rate": 0.3,
-   "tracking_to": 2,
-   "policies_reported": null,
-   "meetings_to_policies": {
-    "v": null,
-    "last": null
-   }
+   "shown": false
   },
   "s7_ask": {
    "code": "mark_outcomes",
