@@ -6,7 +6,7 @@ Static, dependency-free, about 25 KB total, no images, no JavaScript, no externa
 
 **What it is not:** the quiz landing page. That is landing-page-builder's job from the approved reference. It collects no data (no form, no list sign-up) until compliance approves consent and privacy.
 
-**Placeholders to replace:** the wordmark tick (inline SVG) is a stand-in for visual-producer's logo system. Also `{{CIPC_REG_NO}}`, `{{ADDRESS_*}}`, `{{HOWZIT_DOMAIN}}`, `{{META_DOMAIN_VERIFICATION}}`, `icon-192.png`, `icon-512.png`, `og-image.png`, and the privacy text. See `deploy.md`.
+**Placeholders to replace:** the wordmark tick (inline SVG) is a stand-in for visual-producer's logo system. Also `{{CIPC_REG_NO}}`, `{{ADDRESS_*}}`, `leadvelocity.co.za`, `{{META_DOMAIN_VERIFICATION}}`, `icon-192.png`, `icon-512.png`, `og-image.png`, and the privacy text. See `deploy.md`.
 
 ## SERP plan: brand-query ownership checklist
 - [ ] Exact domain `sortmycover.co.za` live on HTTPS; `.com` 301s to it

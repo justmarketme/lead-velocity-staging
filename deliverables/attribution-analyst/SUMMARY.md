@@ -1,0 +1,8 @@
+# attribution-analyst: Phase 0 summary
+
+Prepared, not deployed: `landing/shared/pixel.js` (+ `pixel.README.md`) loads the Meta Pixel from `smc-pixel-id`/`SMC_PIXEL_ID`, issues a UUID `event_id` per event via `smc.track()`, persists utm/fbclid, reads `_fbp`/`_fbc` (building `_fbc` from `fbclid`) and returns the context the form posts to `/lead` and `/book`; `automation/capi/capi.js` (Node 18+, crypto + fetch only) normalises and SHA-256-hashes PII, sends web, offline (`Qualified`/`Attended`/`GoodFit`) and business-messaging events with 3x retry, and hashes audience rows; `capi.test.js` has 11 offline tests (all pass); `event-spec.md` is the event dictionary, join-key column list and staged rollout; `.env.names` lists the five variable names. All of it drops in when GATE-PIXEL yields a pixel_id and token.
+
+needs_human: `node --test automation/capi/` (directory form) fails on Node 22 (it resolves the directory as a module; works on Node 18/20). Use `node --test automation/capi/capi.test.js` or `cd automation/capi && node --test`. Repo root has `"type":"module"`, so I added `automation/capi/package.json` with `"type":"commonjs"`.
+needs_human: offline `value` = broker quality score (1-5) per 4.4b, but Meta requires a currency with value; defaulted to `ZAR` as a placeholder. Confirm Meta accepts this for value-based lookalikes.
+needs_human: business-messaging `Schedule` and offline stage events via the dataset `/events` endpoint are ASSUMPTIONS to verify on test events at GATE-PIXEL; API version `v23.0` is also an ASSUMPTION.
+needs_human: whether `ViewContent`/`Contact` are also sent server-side is not specified; defaulted to browser-only (Contact has no server twin, the CTWA business-messaging `Lead` is the server signal).
