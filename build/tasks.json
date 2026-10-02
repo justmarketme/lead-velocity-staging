@@ -1979,7 +1979,7 @@
       "depends_on": [],
       "acceptance_test": "test -s automation/templates/samples/intro_card_sample.png && test -s automation/templates/samples/intro_video_sample.mp4",
       "human_gate": false,
-      "status": "in_progress",
+      "status": "green",
       "section": "4.6 templates; automation-engineer SUMMARY"
     },
     {
@@ -2016,7 +2016,7 @@
       ],
       "acceptance_test": "test -s brand/tokens.json && test -s brand/tokens.css && ls brand/logo/*.svg | wc -l | xargs test 6 -le && test -s brand/favicon/favicon.svg",
       "human_gate": false,
-      "status": "in_progress",
+      "status": "green",
       "section": "4D.4b"
     },
     {

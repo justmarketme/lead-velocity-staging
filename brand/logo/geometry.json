@@ -1,0 +1,21 @@
+{
+  "note": "Reference geometry for animation code (tick draw). Tick path in a 24 box: M5 13 L9 17 L19 7, stroke 4, round caps and joins. Wordmark tick ratio 0.68 of the disc; standalone mark 0.74 with stroke 4.6.",
+  "tickPoints24": [
+    [
+      5,
+      13
+    ],
+    [
+      9,
+      17
+    ],
+    [
+      19,
+      7
+    ]
+  ],
+  "wordmarkTickRatio": 0.68,
+  "standaloneTickRatio": 0.74,
+  "standaloneStroke24": 4.6,
+  "discEm": 0.95
+}

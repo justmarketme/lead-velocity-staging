@@ -1,0 +1,20 @@
+{
+  "name": "sortmycover-brand",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "SortMyCover brand system: tokens, logo SVGs, favicon set, templates, exports. Single source every surface imports.",
+  "scripts": {
+    "tokens": "node scripts/build-tokens.mjs",
+    "logos": "node scripts/build-logos.mjs",
+    "favicon": "node scripts/build-favicon.mjs",
+    "render": "node exports/render.mjs",
+    "video": "node scripts/render-intro-video.mjs",
+    "sync": "node scripts/sync-landing-holding.mjs",
+    "all": "npm run tokens && npm run logos && npm run favicon && npm run render && npm run video && npm run sync"
+  },
+  "devDependencies": {
+    "@fontsource/dm-sans": "^5.2.8",
+    "opentype.js": "^1.3.4"
+  }
+}

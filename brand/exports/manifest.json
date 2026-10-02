@@ -1,0 +1,412 @@
+{
+  "generated": "2026-10-02T10:14:26.061Z",
+  "brandVersion": "1.0.0",
+  "files": [
+    {
+      "file": "exports/profile/fb-profile-1024.png",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 22454,
+      "ok": true
+    },
+    {
+      "file": "exports/profile/ig-profile-1024.png",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 22454,
+      "ok": true
+    },
+    {
+      "file": "exports/profile/whatsapp-profile-640.png",
+      "width": 640,
+      "height": 640,
+      "bytes": 13158,
+      "ok": true
+    },
+    {
+      "file": "exports/gbp/gbp-logo-720.png",
+      "width": 720,
+      "height": 720,
+      "bytes": 15182,
+      "ok": true
+    },
+    {
+      "file": "exports/cover/fb-cover-851x315.png",
+      "width": 851,
+      "height": 315,
+      "bytes": 20873,
+      "ok": true
+    },
+    {
+      "file": "exports/cover/fb-cover-851x315@2x.png",
+      "width": 1702,
+      "height": 630,
+      "bytes": 42728,
+      "ok": true
+    },
+    {
+      "file": "exports/gbp/gbp-cover-1024x576.png",
+      "width": 1024,
+      "height": 576,
+      "bytes": 37387,
+      "ok": true
+    },
+    {
+      "file": "exports/og/og-image-1200x630.png",
+      "width": 1200,
+      "height": 630,
+      "bytes": 72224,
+      "ok": true
+    },
+    {
+      "file": "exports/email/email-header-600x120.png",
+      "width": 600,
+      "height": 120,
+      "bytes": 9933,
+      "ok": true
+    },
+    {
+      "file": "exports/email/email-header-600x120@2x.png",
+      "width": 1200,
+      "height": 240,
+      "bytes": 21806,
+      "ok": true
+    },
+    {
+      "file": "exports/feed/feed-1x1-1080x1080_H1-sample.png",
+      "width": 1080,
+      "height": 1080,
+      "bytes": 58544,
+      "ok": true
+    },
+    {
+      "file": "exports/feed/feed-4x5-1080x1350_H1-sample.png",
+      "width": 1080,
+      "height": 1350,
+      "bytes": 63308,
+      "ok": true
+    },
+    {
+      "file": "exports/reels/reels-endcard-1080x1920.png",
+      "width": 1080,
+      "height": 1920,
+      "bytes": 97580,
+      "ok": true
+    },
+    {
+      "file": "exports/whatsapp/intro-card-1080x1080_sample.png",
+      "width": 1080,
+      "height": 1080,
+      "bytes": 46483,
+      "ok": true
+    },
+    {
+      "file": "exports/whatsapp/intro-card-1200x628_sample.png",
+      "width": 1200,
+      "height": 628,
+      "bytes": 84716,
+      "ok": true
+    },
+    {
+      "file": "exports/whatsapp/what-to-expect-1080x1080.png",
+      "width": 1080,
+      "height": 1080,
+      "bytes": 114646,
+      "ok": true
+    },
+    {
+      "file": "exports/whatsapp/what-to-expect-1200x628.png",
+      "width": 1200,
+      "height": 628,
+      "bytes": 63470,
+      "ok": true
+    },
+    {
+      "file": "exports/whatsapp/reminder-1080x1080_sample.png",
+      "width": 1080,
+      "height": 1080,
+      "bytes": 89225,
+      "ok": true
+    },
+    {
+      "file": "exports/whatsapp/reminder-1200x628_sample.png",
+      "width": 1200,
+      "height": 628,
+      "bytes": 70366,
+      "ok": true
+    },
+    {
+      "file": "exports/video-frames/lower-third-1920x1080_sample.png",
+      "width": 1920,
+      "height": 1080,
+      "bytes": 50468,
+      "ok": true
+    },
+    {
+      "file": "exports/video-frames/endcard-1920x1080.png",
+      "width": 1920,
+      "height": 1080,
+      "bytes": 94620,
+      "ok": true
+    },
+    {
+      "file": "exports/documents/a4-header-footer-preview.png",
+      "width": 1588,
+      "height": 2246,
+      "bytes": 69135,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/wordmark-charcoal.png",
+      "width": 480,
+      "height": 70,
+      "bytes": 11203,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/wordmark-charcoal@2x.png",
+      "width": 960,
+      "height": 140,
+      "bytes": 23422,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/wordmark-charcoal@3x.png",
+      "width": 1440,
+      "height": 210,
+      "bytes": 34913,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/stacked-charcoal.png",
+      "width": 320,
+      "height": 277,
+      "bytes": 16072,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/stacked-charcoal@2x.png",
+      "width": 640,
+      "height": 554,
+      "bytes": 32527,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/stacked-charcoal@3x.png",
+      "width": 960,
+      "height": 831,
+      "bytes": 50362,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/wordmark-offwhite.png",
+      "width": 480,
+      "height": 70,
+      "bytes": 10884,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/wordmark-offwhite@2x.png",
+      "width": 960,
+      "height": 140,
+      "bytes": 22627,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/wordmark-offwhite@3x.png",
+      "width": 1440,
+      "height": 210,
+      "bytes": 33548,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/stacked-offwhite.png",
+      "width": 320,
+      "height": 277,
+      "bytes": 15480,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/stacked-offwhite@2x.png",
+      "width": 640,
+      "height": 554,
+      "bytes": 31337,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/stacked-offwhite@3x.png",
+      "width": 960,
+      "height": 831,
+      "bytes": 48680,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/wordmark-black.png",
+      "width": 480,
+      "height": 70,
+      "bytes": 7515,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/wordmark-black@2x.png",
+      "width": 960,
+      "height": 140,
+      "bytes": 15959,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/wordmark-black@3x.png",
+      "width": 1440,
+      "height": 210,
+      "bytes": 23379,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/stacked-black.png",
+      "width": 320,
+      "height": 277,
+      "bytes": 10996,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/stacked-black@2x.png",
+      "width": 640,
+      "height": 554,
+      "bytes": 22391,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/stacked-black@3x.png",
+      "width": 960,
+      "height": 831,
+      "bytes": 34333,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/wordmark-white.png",
+      "width": 480,
+      "height": 70,
+      "bytes": 8123,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/wordmark-white@2x.png",
+      "width": 960,
+      "height": 140,
+      "bytes": 17451,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/wordmark-white@3x.png",
+      "width": 1440,
+      "height": 210,
+      "bytes": 25633,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/stacked-white.png",
+      "width": 320,
+      "height": 277,
+      "bytes": 11838,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/stacked-white@2x.png",
+      "width": 640,
+      "height": 554,
+      "bytes": 24490,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/stacked-white@3x.png",
+      "width": 960,
+      "height": 831,
+      "bytes": 37746,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/tick-mark.png",
+      "width": 128,
+      "height": 128,
+      "bytes": 3910,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/tick-mark@2x.png",
+      "width": 256,
+      "height": 256,
+      "bytes": 7349,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/tick-mark@3x.png",
+      "width": 384,
+      "height": 384,
+      "bytes": 11674,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/tick-reversed.png",
+      "width": 128,
+      "height": 128,
+      "bytes": 3968,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/tick-reversed@2x.png",
+      "width": 256,
+      "height": 256,
+      "bytes": 7626,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/tick-reversed@3x.png",
+      "width": 384,
+      "height": 384,
+      "bytes": 12006,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/lockup-horizontal-charcoal.png",
+      "width": 900,
+      "height": 58,
+      "bytes": 18029,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/lockup-horizontal-charcoal@2x.png",
+      "width": 1800,
+      "height": 116,
+      "bytes": 39553,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/lockup-horizontal-charcoal@3x.png",
+      "width": 2700,
+      "height": 174,
+      "bytes": 61365,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/lockup-endorsement-charcoal.png",
+      "width": 720,
+      "height": 58,
+      "bytes": 15087,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/lockup-endorsement-charcoal@2x.png",
+      "width": 1440,
+      "height": 116,
+      "bytes": 32444,
+      "ok": true
+    },
+    {
+      "file": "exports/logo/lockup-endorsement-charcoal@3x.png",
+      "width": 2160,
+      "height": 174,
+      "bytes": 49108,
+      "ok": true
+    }
+  ]
+}
