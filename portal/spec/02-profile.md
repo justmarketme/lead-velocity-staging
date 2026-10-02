@@ -6,10 +6,10 @@
 | Field label | Column | Required | Validation |
 |---|---|---|---|
 | Practice name | `practice_name` (= `firm_name`) | Yes | 2-120 chars, trimmed. Should match the FSP licence name (the FSCA check compares) |
-| FSP number | `fsp_number` | Yes | Strip spaces and a leading "FSP". Must match `^\d{3,6}$` (**ASSUMPTION**: FSP numbers are 3-6 digits; confirm against Mark's real number, see needs_human). Immutable once `verified` except via Jonathan |
+| FSP number | `fsp_number` | Yes | Strip spaces and a leading "FSP". Must match `^\d{3,6}$` (**ASSUMPTION, still unconfirmed in the build**: FSP numbers are 3-6 digits; confirm against Mark's real number before go-live; the W20 FSCA lookup, not this regex, is the authority). Immutable once `verified` except via Jonathan |
 | Adviser name | `adviser_name` (= `contact_person`) | Yes | 2-80 chars. Used in the intro card and every lead message |
 | WhatsApp number | `adviser_whatsapp` (= `whatsapp_number`) | Yes | E.164, SA mobile (`+27` + 9 digits starting 6/7/8). Twilio Lookup (line type mobile) on Save. Receives the daily list, briefs and outcome taps |
-| Email | `email` | Yes (prefilled from magic link) | Valid email. Never asked twice |
+| Email | `email` | Yes (prefilled from the login email) | Valid email. Never asked twice |
 | Headshot | `headshot_url` | No (see fallback) | JPG/PNG/HEIC, up to 8 MB, min 600 px. Private bucket, cropped square client-side with a face guide. Phone camera allowed (`capture=user`) |
 | Two lines about you | `bio_short` | Yes | 40-220 chars. In his own words: who he helps, how he works. The same LLM no-advice gate used for scripts runs on Save (no product, insurer, premium, amount, return, "best/cheapest", "guarantee") and shows the exact word that tripped it |
 | Languages | `languages text[]` | Yes, at least 1 | From a list (English, Afrikaans, isiZulu, isiXhosa, Sesotho, Setswana, Sepedi, Xitsonga, Tshivenda, siSwati, isiNdebele, Other). Drives language routing and the video variants |

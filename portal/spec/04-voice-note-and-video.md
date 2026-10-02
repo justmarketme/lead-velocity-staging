@@ -17,5 +17,17 @@
 ## What this page reads from the broker row (so the broker never re-enters anything)
 `practice_name`, `fsp_number`, `adviser_name`, `languages`, `bio_short`, `years_advising` pre-fill the positioning interview (questions 6-8 are skipped when we already know the answer).
 
+## Audio routing rule (decided 2026-10-02; W20 sticky note, W07 and W23/W29 follow it)
+A WhatsApp **voice note or video** from a broker's number goes to exactly one place, chosen by `brokers.status` at the moment it arrives:
+| `brokers.status` | Routed to | Treated as |
+|---|---|---|
+| `onboarding`, `onboarded`, `ready_for_go_live` (pre-live), also `invited`/`prospect` | **W23** media processing | The broker's intro voice note or video (stored as an unapproved version; he approves it in the portal, step 7). Sending to leads still waits for approval and the 11.2 tick |
+| `active` (routing on) | **W29** feedback loop | The optional voice note on the outcome flow (4.12a step 4): transcribed, summarised, stored on the lead, never sent to a lead |
+| `paused`, `churned` | W29 only if a booking is awaiting an outcome, else logged and ignored | - |
+Tie-break: an `active` broker who wants to re-record his intro does it in the portal (`/broker/intro-media`), not on WhatsApp. A WhatsApp audio from an `active` broker is never an intro. Pre-live, an audio sent right after an outcome prompt does not exist (no leads yet), so there is no ambiguity. W20 never handles audio. If W07 cannot tell the status (row missing), it routes to W29's unknown-sender path and alerts, never to W23.
+
+## Build status
+The portal does not yet record the voice note or video itself; brokers reply on WhatsApp (platform-architect, console-portal.md), which is why this rule matters. The page links to `portal/intro-media/`.
+
 ## Does not do
 No voice cloning. No avatar. No "AI presenter". No blocking go-live.

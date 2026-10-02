@@ -20,8 +20,8 @@
 ### On Sign (server side, one transaction)
 | Writes | Where |
 |---|---|
-| `signed_at`, `signed_by_name`, `signer_ip`, `signed_user_agent`, `doc_sha256`, `version` | `admin_documents` row `kind = agreement` (crm-gap A2) |
-| Acceptances `{read:true, clause_11_2:bool, annex_1:true}` | `admin_documents.metadata` |
+| `signed_at`, `signed_by_name`, `signer_ip` + `signer_ip_source` (**captured server-side by `smc_sign_document` from the gateway headers; the browser sends `p_signer_ip = null` and any value is ignored**), `signed_user_agent`, `doc_sha256` (of the stored file or content), `version` | `admin_documents` row `kind = agreement` (crm-gap A2) |
+| Acceptances `{read, clause_11_2, annex_1, no_page, version}` | **`admin_documents.acceptances` (jsonb, written once by the 6-argument `smc_sign_document`, on the signed document itself; the repo has no `metadata` column)**. The Annex 1 letter row is signed with the same arguments |
 | A second row `kind = authorisation_letter` (Annex 1 rendered with the Page and FSCA check date) | `admin_documents` |
 | `signatory_name`, `signatory_role`, `fb_page_name`, `fb_page_id`, `practice_legal_name` | `brokers` |
 | `onboarding_progress.agreement = done` | `brokers` |
@@ -51,6 +51,9 @@ Payment already happened at checkout (6.1 step 0) before the account existed. Th
 | 0:12 | Scroll the document; tick the boxes | "Read it, tick the boxes, and type your name. Your photo and video tick is optional." |
 | 0:22 | Tap Sign; confirmation | "Tap Sign. You and howzit@ get a copy straight away." |
 | 0:28 | Billing section, three pay buttons | "When your cycle ends, you pick how to pay: Instant EFT, EFT with a reference, or card. Card is optional." |
+
+## Short link (built)
+`/s/billing` redirects inside the SPA to `/broker/billing` (same page as the agreement). Used by the renewal and payment-reminder templates. Pay links are `VITE_SMC_CHECKOUT_URL?tier=&pay=instant_eft|manual_eft|card_autorenew&cycle=next`.
 
 ## Events and measures
 Events: `agreement.signed`, `step.completed(agreement)`. Measures: time from login to signed; share who open the full document; share who tick 11.2; support questions tagged "agreement".

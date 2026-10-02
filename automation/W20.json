@@ -11,7 +11,7 @@
         -560
       ],
       "parameters": {
-        "content": "## W20 Onboarding wizard (broker-success)\nSpec: portal/spec/README.md (state machine, events) and portal/spec/10-nudges-and-go-live.md (copy). Timezone Africa/Johannesburg.\nLanes: A broker events (signed webhook) | B pre-flight result | C Approve & go live (HUMAN GATE, console tap) | D 30-min sweep (24 h / 72 h nudges, availability defaults, 48-h SLA stamp).\nEvery send goes through ONE channel router: WhatsApp via Meta Cloud API (templates in portal/spec/proposed-templates.json until automation-engineer adds them to automation/templates), email via Graph sendMail from HOWZIT_MAILBOX with bcc to HOWZIT_MAILBOX (one audit trail, 4.10 item 0).\nCredentials by name only. Config from env: INTERNAL_HMAC_SECRET, FSCA_REGISTER_URL, SLOTS_API_URL, COMPLIANCE_PREFLIGHT_URL, GO_LIVE_HANDOFF_URL, PORTAL_URL, SUPABASE_URL, META_GRAPH_VERSION, PHONE_NUMBER_ID, WHATSAPP_TEST_PHONE_NUMBER_ID, WHATSAPP_TEST_RECIPIENTS, DRY_RUN_SENDS, HOWZIT_MAILBOX, BRAND_ID. Replace REPLACE_WITH_W22_WORKFLOW_ID on import.\nHuman gates: the only one is Jonathan's Approve & go live. Nothing here publishes ads or touches payment.",
+        "content": "## W20 Onboarding wizard (broker-success)\nSpec: portal/spec/README.md (state machine, events) and portal/spec/10-nudges-and-go-live.md (copy). Timezone Africa/Johannesburg.\nLanes: A broker events (signed webhook) | B pre-flight result | C Approve & go live (HUMAN GATE, console tap) | D 30-min sweep (24 h / 72 h nudges, availability defaults, 48-h SLA stamp).\nEvery send goes through ONE channel router: WhatsApp via Meta Cloud API (templates in portal/spec/proposed-templates.json until automation-engineer adds them to automation/templates), email via Graph sendMail from HOWZIT_MAILBOX with bcc to HOWZIT_MAILBOX (one audit trail, 4.10 item 0).\nCredentials by name only. Config from env: INTERNAL_HMAC_SECRET, FSCA_REGISTER_URL, SLOTS_API_URL, COMPLIANCE_PREFLIGHT_URL, GO_LIVE_HANDOFF_URL, PORTAL_URL, SUPABASE_URL, META_GRAPH_VERSION, PHONE_NUMBER_ID, WHATSAPP_TEST_PHONE_NUMBER_ID, WHATSAPP_TEST_RECIPIENTS, DRY_RUN_SENDS, HOWZIT_MAILBOX, BRAND_ID. Replace REPLACE_WITH_W22_WORKFLOW_ID on import.\nStale pass (> 24 h) at go-live: 409 preflight_stale AND the pre-flight is re-run in the background (Stale pre-flight? lane); Jonathan taps again when the fresh card lands.\nBroker audio routing (portal/spec/04): a broker voice note while status is pre-live (onboarding, onboarded, ready_for_go_live) is an intro-voice recording for W23; once status = active it is a W29 feedback voice note. W20 never handles audio itself.\nHuman gates: the only one is Jonathan's Approve & go live. Nothing here publishes ads or touches payment.",
         "height": 420,
         "width": 640
       }
@@ -1843,6 +1843,82 @@
         }
       },
       "notes": "W22 input: {kind:'signal'|'w20_go_live_ready', signal_key, scope:'broker:<id>', severity, what, impact, first_action, since} (same shape as W22's own signals). W22 owns dedupe (<=1 per 24 h per signal_key+scope), DND and the WhatsApp ops_alert / ops_gate templates. 'w20_go_live_ready' must map to the ops_gate template (needs W22 change: needs_human NH-BS-10)."
+    },
+    {
+      "id": "w20-stale-if",
+      "name": "Stale pre-flight?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        1920
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "s1",
+              "leftValue": "={{ $json.why }}",
+              "rightValue": "preflight_stale",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w20-stale-run",
+      "name": "Re-run pre-flight (stale)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        1860
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.COMPLIANCE_PREFLIGHT_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ broker_id: $json.broker_id, run_id: 'pf-' + $json.broker_id + '-' + Date.now(), callback_url: $env.N8N_PUBLIC_URL + '/webhook/w20/preflight-result', checks: ['fsp_verified','consent_mode_set','intro_card_gate','calendar_slots','test_lead_e2e'] }) }}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w20-stale-save",
+      "name": "Save preflight run (re-run)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1760,
+        1860
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Stale pass re-run: keep the old card (the gate still explains itself) and only point at the new run_id; the callback replaces the card. Status stays ready_for_go_live (Set ready_for_go_live only moves onboarded rows), so the broker is not messaged twice.\nupdate public.brokers set preflight_run_id = $2 where broker_id = $1::uuid and status = 'ready_for_go_live' returning broker_id;",
+        "options": {
+          "queryReplacement": "={{ [ $('Check gate preconditions').first().json.broker_id, $json.run_id || '' ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "Supabase CRM (Postgres, W20 role)"
+        }
+      }
     }
   ],
   "connections": {
@@ -2326,6 +2402,11 @@
             "node": "Respond 409 (go-live)",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Stale pre-flight?",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -2692,6 +2773,29 @@
         [
           {
             "node": "Channel router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stale pre-flight?": {
+      "main": [
+        [
+          {
+            "node": "Re-run pre-flight (stale)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Re-run pre-flight (stale)": {
+      "main": [
+        [
+          {
+            "node": "Save preflight run (re-run)",
             "type": "main",
             "index": 0
           }

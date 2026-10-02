@@ -66,5 +66,8 @@ Public holidays: SA public holidays (verified yearly by automation-engineer) are
 | 0:10 | Methods, then daily and weekly caps | "Choose how you can meet. Teams and phone are on already. Then set your most per day and per week. We never go over." |
 | 0:24 | Tap Looks right; slot line updates | "Change anything and the next free slot updates. Happy? Tap Looks right." |
 
+## Short link (built)
+WhatsApp templates deep-link with `/s/calendar?day=YYYY-MM-DD`, which redirects inside the SPA to `/broker/calendar?day=...` (login and the SMC/legacy switch still apply). The page scrolls to "Your hours", shows the date asked about and outlines that weekday. The host needs the SPA history fallback for `/s/*`. Source: platform-architect console-portal.md.
+
 ## Events and measures
 Events: `calendar.connected`, `calendar.failed`, `step.completed(availability)`. Measures: calendar connect first-try success; admin-consent rate (**risk 0.3 #4**); time from login to a visible slot; share on fallback calendar; zero-slot rate at connect.

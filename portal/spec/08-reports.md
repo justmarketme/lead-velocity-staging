@@ -23,9 +23,10 @@ Footer row: History (Week 1 . Week 2 ...; cycle summaries), "Download PDF", "Sen
 | Load | `reports` row for (`broker_id`, `week`); `payload_json` is the only source for numbers (the page computes nothing) |
 | Page opened | `reports.opened_portal_at` (first view only) |
 | One-ask button | Deep link per ask code (see W14-broker.md); sets `reports.ask_done_at` when the underlying action completes |
-| Close rate / policies / commission | `brokers.close_rate`, `brokers.avg_commission`, `cycles.policies_written_reported` |
+| Close rate / commission | `brokers.close_rate` (stored as a fraction), `brokers.avg_commission_zar` |
+| Policies written (his number) | **Only via the RPC `smc_report_policies_written(p_count, p_cycle_id)`** (0-1000, own cycle, stored on `cycles`). It is **portal-only: never in `reports.payload_json`, the WhatsApp message, the email or any PDF, and never in a fee, ranking or alert** (NH-43, FAIS). The section 6 sentence "tracking to about N policies" is computed in the portal from his own inputs at view time, not stored in the payload |
 | Mark outcome inline | Same function as My leads (`outcomes`) |
-| Download PDF | Server-rendered from the same payload, A4, 2 pages; the portal download shows full lead names (he is the data recipient, logged in); the emailed PDF shows first name + initial only |
+| Download PDF | Server-rendered from the same payload, A4, 2 pages; **one canonical PDF only: first name + initial, no policies-written section, the same file that is emailed and stored in `reports.pdf_url`** (NH-44 default). Full lead names are on screen in the logged-in portal view only. The button reads "Download PDF (first name and initial, safe to forward)" |
 | Report not ready (before Sunday 23:00 run) | "Your first report arrives on Monday at 07:00." Empty weeks still produce a report (the one-liner says "No meetings this week") |
 
 ## UX rules (4.10a)

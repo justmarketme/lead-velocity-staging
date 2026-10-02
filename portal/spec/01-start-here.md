@@ -4,7 +4,7 @@
 
 ## What it shows (top to bottom)
 1. **Header:** "Welcome, {first_name}". Progress bar with "{n} of 7 done" and "about {m} minutes to go live".
-2. **The 3-minute video** (first thing seen after the magic link). `<video>` with poster, burned-in captions plus a WebVTT track, chapter list (9 chapters, tap to jump), captions on by default, muted autoplay is off (tap to play). H.264 MP4 under 6 MB, 16:9 plus a 9:16 variant for phones held upright. A line under it: "Prefer a page to print? One-page checklist (PDF)."
+2. **The 3-minute video** (first thing seen after the first login; **build today: password login, magic link not built yet, see GAPS G-01**; the spec target stays the magic link). `<video>` with poster, burned-in captions plus a WebVTT track, chapter list (9 chapters, tap to jump), captions on by default, muted autoplay is off (tap to play). H.264 MP4 under 6 MB, 16:9 plus a 9:16 variant for phones held upright. A line under it: "Prefer a page to print? One-page checklist (PDF)."
 3. **The 7-step checklist** (crm-gap: tracks `explainer_watched_at`). Done steps ticked and greyed, the current step highlighted with "Next >". Each row: title, one-line reason, time. Order never changes.
 4. **"What we need before you go live"** card: names the four blocking steps (FSP checked, calendar connected, agreement signed, intro card approved) and says video can come later.
 5. **One primary button:** "Next: {current step title}" (full width). Under it: "Stuck? Help. Or WhatsApp us. No call needed."
@@ -14,7 +14,7 @@
 |---|---|---|
 | Video watched | `explainer_watched_at` | Set at 90% played; "I'll watch it later" sets step `skipped`, not the timestamp |
 | Progress | `onboarding_step`, `onboarding_progress` | Written by each step page and by W20; never by this page except step 1 |
-| First open | `first_login_at` | Set once on the first session after the magic link |
+| First open | `first_login_at` | Set once on the first session after login (magic link or, until it is built, the first password login) |
 | Presence | `last_seen_at` | Heartbeat every 60 s while the portal is visible (W20 uses it to skip prompts) |
 | Cached next slot | `next_free_slot_at` | Shown on Start after step 3 as "Your next free slot: Tue 10:00" |
 

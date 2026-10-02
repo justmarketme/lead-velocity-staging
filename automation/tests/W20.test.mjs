@@ -241,6 +241,7 @@ function offlineSys() {
     // "Check gate preconditions"
     const fresh = b.preflight_card?.ran_at && ms(b.preflight_card.ran_at) > now - 24 * H;
     const ok = b.status === 'ready_for_go_live' && b.preflight_card?.all_pass === true && fresh && st.admins.has(actor);
+    if (!ok && b.status === 'ready_for_go_live' && !fresh) st.preflightCalls.push({ broker_id: id, run_id: `pf-${id}-${now}`, at: iso(now), rerun: true, checks: ['fsp_verified', 'consent_mode_set', 'intro_card_gate', 'calendar_slots', 'test_lead_e2e'] }); // Stale pre-flight? -> Re-run pre-flight (stale)
     if (!ok) return { status: 409, error: b.status !== 'ready_for_go_live' ? 'not_ready' : (!fresh ? 'preflight_stale' : 'not_allowed') };
     Object.assign(b, { status: 'active', routing_on: true, approved_live_at: iso(now) }); // "Activate broker"
     const activated = { broker_id: id, adviser_name: b.adviser_name, adviser_whatsapp: b.adviser_whatsapp, email: b.email, practice_name: b.practice_name };
@@ -385,9 +386,10 @@ test(`W20 [${MODE}] every WhatsApp W20 sends matches a submitted template: same 
   for (const n of ['broker_onb_welcome', 'broker_onb_issue', 'broker_onb_calendar_ok', 'broker_onb_next', 'broker_onb_nudge_24h', 'broker_onb_nudge_72h']) assert.ok(used.has(n), `${n} exercised`);
 });
 
-test('W20 W20.json sends the submitted template names (broker_onb_*) directly', { todo: 'W20 owner swaps the 8 names per RENAME (needs_human I-07)' }, () => {
+test('W20 W20.json sends the submitted template names (broker_onb_*) directly', () => {
   const sent = new Set([...JSON.stringify(WF).matchAll(/template: '([a-z_0-9]+)'/g)].map((m) => m[1]));
   for (const n of sent) assert.equal(submitted(n), n, `${n} -> ${submitted(n)}`);
+  assert.ok(sent.size >= 6, 'the broker_onb_* sends are found');
 });
 
 // =============================================================================================
@@ -511,14 +513,14 @@ test(`W20 [${MODE}] S3 24 h without progress -> exactly one nudge naming the sta
   assert.equal(s.alerts.filter((a) => a.signal_key === 'broker_onboarding_stalled').length, 1, 'console to-do for Jonathan via W22');
 });
 
-test(`W20 [${MODE}] S3 no WhatsApp nudge between 20:00 and 08:00 SAST; a nudge due at 21:00 goes at 08:00`, async () => {
+test(`W20 [${MODE}] S3 no WhatsApp nudge between 19:00 and 08:00 SAST (spec 10 rule 3); a nudge due at 21:00 goes at 08:00`, async () => {
   const sys = fresh();
   const late = ms('2026-10-12T21:00:00+02:00');
   await sys.seed(newBroker({ last_seen_at: iso(late), onboarding_last_progress_at: iso(late), first_login_at: iso(late) }));
   await sweepEvery30(sys, late, late + 4 * D);
   const s = await sys.state('brk_test_onb');
   assert.ok(s.sends.length >= 1);
-  for (const m of s.sends) { const h = sast(ms(m.at)).hh; assert.ok(h >= 8 && h < 20, `${m.template} at ${m.at}`); }
+  for (const m of s.sends) { const h = sast(ms(m.at)).hh; assert.ok(h >= 8 && h < 19, `${m.template} at ${m.at}`); }
   assert.equal(sendsOf(s, 'broker_onb_nudge_24h')[0].at, '2026-10-14T08:00:00+02:00');
 });
 
@@ -664,10 +666,31 @@ test(`W20 [${MODE}] S5 stale pass (> 24 h) -> Approve & go live refused 409 pref
   assert.equal(s.broker.status, 'ready_for_go_live'); assert.equal(s.broker.routing_on, false);
 });
 
-test('W20 S5 stale pass -> W20 re-runs the pre-flight itself before go-live', { todo: 'spec scenario 5 says "re-run"; W20.json only returns 409 preflight_stale (needs_human: W20 owner adds a re-run on the 409 path or the console re-runs it)' }, () => {
-  const n = WF.nodes.find((x) => x.name === 'Respond 409 (go-live)');
+test(`W20 [${MODE}] S5 stale pass -> 409 AND the pre-flight is re-run once; a not-ready 409 does not re-run`, async () => {
+  const sys = fresh();
+  const run = await toOnboarded(sys);
+  await sys.preflightResult('brk_test_onb', card(run, iso(T0 + 5 * MIN)), { now: T0 + 5 * MIN });
+  const r = await sys.goLive('brk_test_onb', { now: T0 + 25 * H });
+  assert.equal(r.status, 409); assert.equal(r.error, 'preflight_stale');
+  const s = await sys.state('brk_test_onb');
+  assert.equal(s.preflight_calls.length, 2, 'original run + one re-run');
+  assert.equal(s.broker.status, 'ready_for_go_live'); assert.equal(s.broker.routing_on, false);
+});
+
+test('W20 S5 workflow wiring: the 409 path of "Gate preconditions met?" also reaches a pre-flight re-run, and the 409 body is unchanged', () => {
   const next = (WF.connections['Gate preconditions met?']?.main?.[1] || []).map((l) => l.node);
-  assert.ok(next.some((x) => /pre-?flight/i.test(x)), `409 path goes to ${next.join(', ')} (${n.name})`);
+  assert.ok(next.includes('Respond 409 (go-live)'), 'still answers 409');
+  assert.ok(next.some((x) => /pre-?flight/i.test(x)), `409 path goes to ${next.join(', ')}`);
+  assert.deepEqual((WF.connections['Stale pre-flight?'].main[0] || []).map((l) => l.node), ['Re-run pre-flight (stale)']);
+  assert.deepEqual((WF.connections['Re-run pre-flight (stale)'].main[0] || []).map((l) => l.node), ['Save preflight run (re-run)']);
+  const q = node('Save preflight run (re-run)').parameters.query;
+  assert.match(q, /status = 'ready_for_go_live'/, 'only touches a broker still waiting for the gate');
+  assert.doesNotMatch(q, /preflight_card\s*=/, 'does not wipe the old card');
+});
+
+test('W20 broker audio routing is stated on the sticky note (pre-live -> W23, active -> W29)', () => {
+  const c = node('About W20').parameters.content;
+  assert.match(c, /pre-live[^\n]*W23/); assert.match(c, /active[^\n]*W29/);
 });
 
 // =============================================================================================
