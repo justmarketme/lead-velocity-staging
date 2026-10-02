@@ -17,7 +17,6 @@ const isHash = (s) => /^[a-f0-9]{64}$/.test(s);
 // --- normalisation (Meta customer-information-parameter rules) ---
 const norm = {
   trim: (v) => (v == null ? '' : String(v).trim().toLowerCase()),
-  email: (v) => norm.trim(v),
   // E.164 digits without "+". SA default: 0821234567 -> 27821234567; 00-prefix dropped.
   phone: (v, cc = '27') => {
     let d = String(v == null ? '' : v).replace(/\D/g, '');
@@ -39,11 +38,11 @@ function hashed(v, fn) {
   return isHash(n) ? n : sha256(n); // already-hashed values pass through
 }
 
-// Build Meta user_data. fbp/fbc/ip/ua are NEVER hashed.
+// Build Meta user_data. fbp/fbc/ip/ua are NEVER hashed. Email is deliberately never read.
 function buildUserData(u = {}) {
   const out = {};
   const put = (k, v) => { if (v) out[k] = [v]; };
-  put('em', hashed(u.email, norm.email));
+  // No `em`: email is never sent to Meta (CLAUDE.md 0.1 Email row: collected only for an invite, used only for that). u.email is ignored.
   put('ph', hashed(u.phone, (x) => norm.phone(x)));
   put('fn', hashed(u.fn, norm.name));
   put('ln', hashed(u.ln, norm.name));
@@ -133,9 +132,9 @@ function sendBusinessMessagingLead(o) {
 }
 
 // Hashed customer-list row (nightly exclusions / seeds). Output order follows `schema`.
-const AUDIENCE_SCHEMA = ['PHONE', 'EMAIL', 'FN', 'LN', 'COUNTRY', 'EXTID'];
+const AUDIENCE_SCHEMA = ['PHONE', 'FN', 'LN', 'COUNTRY', 'EXTID']; // no EMAIL: email never goes to Meta
 function hashAudienceRow(row = {}, schema = AUDIENCE_SCHEMA) {
-  const f = { PHONE: [row.phone, (x) => norm.phone(x)], EMAIL: [row.email, norm.email], FN: [row.fn, norm.name], LN: [row.ln, norm.name],
+  const f = { PHONE: [row.phone, (x) => norm.phone(x)], FN: [row.fn, norm.name], LN: [row.ln, norm.name],
     COUNTRY: [row.country || 'za', norm.country], EXTID: [row.external_id, (x) => String(x).trim()] };
   return schema.map((k) => { const p = f[k]; if (!p) throw new Error('unknown schema field ' + k); return hashed(p[0], p[1]) || ''; });
 }

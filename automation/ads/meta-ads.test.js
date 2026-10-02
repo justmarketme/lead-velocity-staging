@@ -234,7 +234,7 @@ test('insights: hourly guard, pagination, ad_metrics mapping', async () => {
 
 test('customer-list audience accepts hashed rows only', async () => {
   const { c, calls } = client(() => ({ body: { id: 'AUD1' } }));
-  const schema = ['PHONE', 'EMAIL'];
+  const schema = ['PHONE', 'FN'];
   const tok = () => tap(c, { action: 'create_customer_list_audience', target: 'act_9', params: { name: 'SMC_EXC_leads_90d', rows: 1 } }).confirmToken;
   await assert.rejects(() => c.createCustomerListAudience({ adAccountId: '9', name: 'SMC_EXC_leads_90d', schema, hashedRows: [['27821234567', '']], confirmToken: tok(), confirmedBy: 'j' }), (e) => e.code === 'RAW_PII_REJECTED');
   assert.equal(calls.length, 0);
@@ -242,6 +242,11 @@ test('customer-list audience accepts hashed rows only', async () => {
   assert.equal(r.result.audience.id, 'AUD1');
   assert.equal(calls.length, 2);
   assert.ok(calls[1].url.includes('AUD1/users'));
+});
+
+test('customer-list audience rejects an EMAIL column', async () => {
+  const { c } = client(() => ({ body: { id: 'AUD1' } }));
+  await assert.rejects(() => c.createCustomerListAudience({ adAccountId: '9', name: 'x', schema: ['PHONE', 'EMAIL'], hashedRows: [], confirmToken: 'x', confirmedBy: 'j' }), (e) => e.code === 'EMAIL_NOT_ALLOWED' || e.code);
 });
 
 test('lookalike seed gate and ratio', async () => {

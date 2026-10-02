@@ -13,10 +13,10 @@ Code: `landing/shared/pixel.js` (browser), `automation/capi/capi.js` (server).
 |---|---|---|---|---|---|
 | `PageView` | Browser only (pixel.js on load) | browser UUID | website | n/a (pixel cookies) | Browser-only; not sent via CAPI (volume, no PII) |
 | `ViewContent` (quiz start) | Browser (`smc.track('ViewContent')`); CAPI optional, off by default | browser UUID | website | `fbp`,`fbc` | 48 h if CAPI enabled |
-| `Lead` (web form) | Browser at details submit **and** W01 server | browser UUID from `context.event_id` | website | `ph`<-`mobile`, `fn`<-`first_name`, `em` (only if collected), `external_id`<-`id`, `fbp`,`fbc`, `client_ip_address`,`client_user_agent`, `country`=za | 48 h (Meta dedupe) |
+| `Lead` (web form) | Browser at details submit **and** W01 server | browser UUID from `context.event_id` | website | `ph`<-`mobile`, `fn`<-`first_name`, `external_id`<-`id`, `fbp`,`fbc`, `client_ip_address`,`client_user_agent`, `country`=za | 48 h (Meta dedupe) |
 | `Schedule` | Browser on confirmed booking **and** W05 | browser UUID from `/book` `context.event_id` (chat/Flow bookings: `evt_<lead_id>_schedule`) | website (page) / system_generated (chat, Flow) | same as Lead | 48 h |
 | `Contact` (CTWA click) | Browser click on WhatsApp link; W03 has no server twin (the CTWA `Lead` below is the server signal) | browser UUID | website | `fbp`,`fbc` | browser only |
-| `Qualified` (offline) | W12/W29 daily batch, after verified + bands met | `evt_<lead_id>_qualified` | system_generated | `ph`,`fn`,`em`?, `external_id`, `fbc` if known | n/a, id-idempotent |
+| `Qualified` (offline) | W12/W29 daily batch, after verified + bands met | `evt_<lead_id>_qualified` | system_generated | `ph`,`fn`, `external_id`, `fbc` if known | n/a, id-idempotent |
 | `Attended` (offline) | W12 on broker outcome = attended (or 24 h auto) | `evt_<lead_id>_attended` | system_generated | as above; `value` = broker quality score 1-5 when present (W29) | id-idempotent |
 | `GoodFit` (offline) | W29, quality >= 4 | `evt_<lead_id>_goodfit` | system_generated | as above; `value` = quality score | id-idempotent |
 | business-messaging `Lead` (CTWA) | W03 when a conversation starts from a CTWA ad (referral present) | `evt_<lead_id>_ctwa_lead` | business_messaging (+`messaging_channel: whatsapp`) | `ctwa_clid` (<- referral), `whatsapp_business_account_id`; `ph` optional | id-idempotent |
@@ -25,7 +25,9 @@ Code: `landing/shared/pixel.js` (browser), `automation/capi/capi.js` (server).
 Offline events also carry `custom_data.event_source = "crm"` and `lead_event_source = "SortMyCover"` (Conversion Leads style). Use `sendOffline`; business-messaging via `sendBusinessMessagingLead` (a `Schedule` variant can reuse `sendEvent` with `actionSource: 'business_messaging'`, `messagingChannel: 'whatsapp'`).
 
 ## Aggregated Event Measurement priority and EMQ
-Priority order set by meta-operator on the verified domain: **`Lead` > `Schedule` > `Contact`** (ViewContent/PageView after). EMQ target **>= 6/10** on test events (Great >= 8): send `ph`, `fn`, `external_id`, `fbp`, `fbc`, IP and UA on every web `Lead`/`Schedule`; `em` only when collected (Teams/Zoom/Meet bookings), since email is not asked otherwise.
+Priority order set by meta-operator on the verified domain: **`Lead` > `Schedule` > `Contact`** (ViewContent/PageView after). EMQ target **>= 6/10** on test events (Great >= 8): send `ph`, `fn`, `external_id`, `fbp`, `fbc`, IP and UA on every web `Lead`/`Schedule`.
+
+**Email is never sent to Meta (no `em`, no EMAIL audience column).** CLAUDE.md 0.1: email is collected only for a Teams/Zoom/Meet invite and used only for that. `capi.js` ignores any `email` passed to it. Expect a lower EMQ than an `em`-bearing setup (`em` is one of the heaviest-weighted keys); the >= 6 target is a measurement to confirm in Events Manager, not a promise. What lifts it without email: (1) `fbp` and `fbc` on every web event (capture `fbclid` -> `fbc` on landing, store on the lead); (2) `external_id` = SHA-256 of `lead_id`, identical on browser and server events and on offline `Qualified`/`Attended`; (3) client IP and user agent captured server-side at form submit and sent unhashed; (4) `ph` normalised to E.164 (already done) plus `fn`/`ln`/`ct`/`country`; (5) `ctwa_clid` + WABA id for CTWA events. Do not collect email for Meta's benefit.
 
 ## Join keys (6.3): one record per lead
 `fbclid` (page) / `event_id` (browser) / `leadgen_id` (Lead Ads, W02) / `ctwa_clid` (CTWA, W03) -> `leads.id` -> WhatsApp conversation -> `bookings` -> `outcomes`. Every stage stamps `campaign_id`/`adset_id`/`ad_id` on the lead so cost per qualified lead, booking and attended meeting is per creative.
@@ -44,7 +46,7 @@ Columns for platform-architect to add (additive; reuse existing where the gap ma
 - [ ] **Phase 3 (>= 1,000 `Attended`/`GoodFit` or >= 200 leads/mo):** value-based quality lookalike (LAL-Q 1%/3%) as Advantage+ suggestion; Conversion Leads optimisation. Seed gates per 4.4b (>= 300 for `Lead`/`Qualified` LALs).
 
 ## POPIA note
-Uploads are SHA-256 hashed in n8n only; no raw name/phone/email leaves our systems or the browser. Customer-list audiences are used only for **exclusion** and **lookalike seeding**, never for messaging. The consent line carries a separate sentence "to measure and improve our advertising" (distinct from the FSP-sharing purpose); privacy policy names Pixel, CAPI and cookies. No third-party lists. Final wording is contracts-drafter / compliance-qa's.
+Uploads are SHA-256 hashed in n8n only; no raw name/phone leaves our systems and email is never sent to Meta at all or the browser. Customer-list audiences are used only for **exclusion** and **lookalike seeding**, never for messaging. The consent line carries a separate sentence "to measure and improve our advertising" (distinct from the FSP-sharing purpose); privacy policy names Pixel, CAPI and cookies. No third-party lists. Final wording is contracts-drafter / compliance-qa's.
 
 ## ASSUMPTIONS to verify on test events
 `v23.0` API version; `Schedule`/`Lead` accepted for business_messaging; value-as-quality-score with currency ZAR placeholder; `fb.1` subdomain index in `_fbc`; offline events sent via the dataset `/events` endpoint with `system_generated` (not the legacy offline-event-set API).

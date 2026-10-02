@@ -19,7 +19,8 @@ test('user_data hashing: PII hashed, fbp/fbc/ip/ua untouched', () => {
   const u = c.buildUserData({ phone: '0821234567', email: '  Lerato.M@Gmail.com ', fn: ' Lerato ', ct: 'Cape Town', country: 'ZA',
     external_id: 'lead_1', fbp: 'fb.1.1.2', fbc: 'fb.1.1.IwAR', client_ip: '1.2.3.4', client_user_agent: 'UA/1' });
   assert.deepEqual(u.ph, [h('27821234567')]);
-  assert.deepEqual(u.em, [h('lerato.m@gmail.com')]);
+  assert.equal(u.em, undefined); // email is never sent to Meta
+  assert.ok(!JSON.stringify(u).includes(h('lerato.m@gmail.com')));
   assert.deepEqual(u.fn, [h('lerato')]);
   assert.deepEqual(u.ct, [h('capetown')]);
   assert.deepEqual(u.country, [h('za')]);
@@ -82,9 +83,17 @@ test('sendBusinessMessagingLead: channel + ctwa_clid', async () => {
   assert.equal(e.user_data.ctwa_clid, 'ARAx'); assert.equal(e.event_id, 'evt_L2_ctwa_lead');
 });
 
-test('hashAudienceRow hashes only, schema order', () => {
-  const r = c.hashAudienceRow({ phone: '0821234567', email: 'A@B.com' }, ['EMAIL', 'PHONE', 'FN']);
-  assert.deepEqual(r, [h('a@b.com'), h('27821234567'), '']);
+test('hashAudienceRow hashes only, schema order; EMAIL is not a supported column', () => {
+  const r = c.hashAudienceRow({ phone: '0821234567', email: 'A@B.com' }, ['FN', 'PHONE']);
+  assert.deepEqual(r, ['', h('27821234567')]);
+  assert.ok(!c.AUDIENCE_SCHEMA.includes('EMAIL'));
+  assert.throws(() => c.hashAudienceRow({ email: 'A@B.com' }, ['EMAIL']), /unknown schema field/);
+});
+
+test('buildEvent never carries em even if a caller passes email or a pre-hashed em', () => {
+  const ev = c.buildEvent({ eventName: 'Lead', leadId: 'L9', stage: 'lead', user: { phone: '0821234567', email: 'x@y.com', em: h('x@y.com') } });
+  assert.equal(ev.user_data.em, undefined);
+  assert.ok(!JSON.stringify(ev).includes(h('x@y.com')));
 });
 
 test('default API version is v23.0 when env unset', () => {

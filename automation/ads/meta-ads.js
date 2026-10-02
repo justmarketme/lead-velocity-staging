@@ -423,7 +423,7 @@ function createClient(opts = {}) {
   }
 
   /* Hashed rows only (accept pre-hashed output of capi.hashAudienceRow). Raw PII is rejected. */
-  async function createCustomerListAudience({ adAccountId, name, description = '', schema = ['PHONE', 'EMAIL', 'FN', 'LN', 'COUNTRY', 'EXTID'], hashedRows = [], confirmToken, confirmedBy }) {
+  async function createCustomerListAudience({ adAccountId, name, description = '', schema = ['PHONE', 'FN', 'LN', 'COUNTRY', 'EXTID'], hashedRows = [], confirmToken, confirmedBy }) {
     verifyShape(confirmToken);
     assertHashedRows(schema, hashedRows);
     const acct = normAcct(adAccountId);
@@ -483,6 +483,7 @@ const normAcct = (id) => { if (!id) throw new MetaError('adAccountId required', 
 
 function assertHashedRows(schema, rows) {
   if (!Array.isArray(schema) || !schema.length) throw new MetaError('schema required', { code: 'BAD_INPUT' });
+  if (schema.some((k) => /^EMAIL/i.test(String(k)))) throw new MetaError('EMAIL is never sent to Meta (email is for the invite only)', { code: 'EMAIL_NOT_ALLOWED' });
   rows.forEach((r, i) => {
     if (!Array.isArray(r) || r.length !== schema.length) throw new MetaError(`row ${i}: expected ${schema.length} cells`, { code: 'BAD_ROW' });
     r.forEach((c) => { if (c !== '' && !isHash(c)) throw new MetaError(`row ${i}: cell is not a SHA-256 hex digest: raw PII is never accepted`, { code: 'RAW_PII_REJECTED' }); });
