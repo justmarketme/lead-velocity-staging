@@ -1,0 +1,394 @@
+{
+  "name": "W31 DM handler (Messenger + Instagram)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## W31 DM handler (community-response-lead, 4.14)\n\nTrigger: Messenger and Instagram `messages` webhook (path /webhook/meta-dm). Flow: signature check (automation/security/verify-webhooks.js) -> load rules/corpus/prompt -> fetch first name -> upsert conversation -> route (STOP, human handoff, paused, age answer, classify) -> Haiku classify (strict JSON, fail closed to human) -> disclose + FAQ answer (Haiku draft, FAIS lint, shared guardrail) -> ONE age-band question (quick replies) -> CTWA link -> stop. The person typing person, human or manager hands off to Jonathan/KG and pauses the bot. STOP is honoured silently (suppression, no further message).\n\nWe only ever reply inside the 24-hour window after the person's last message (RESPONSE messaging type). Replies 07:00-22:00 SAST; overnight replies are written to dm_queue and sent from 07:15 if the window is still open (otherwise marked expired and nothing is sent). Nobody is DMed unless they commented (private reply) or messaged first. No reply from the person means nothing further.\n\nCredentials by name: `SortMyCover Postgres`, `Meta Page Token`, `Anthropic API`, `W22 Internal Webhook`. Env: REPO_DIR, AUTOMATION_DIR, META_APP_SECRET, META_VERIFY_TOKEN, META_GRAPH_VERSION, CTWA_BASE_URL, CONSOLE_URL, N8N_INTERNAL_URL. Tables: conversations (channel, external_id, state, paused, opted_out), dm_queue, escalations (see community/comments-schema-additions.sql).\n\nDM text is never stored: only the conversation state (step, counts, age band) and the last message id are saved. Success runs are not saved.",
+        "height": 480,
+        "width": 620
+      },
+      "id": "w31-note", "name": "Notes", "type": "n8n-nodes-base.stickyNote", "typeVersion": 1, "position": [-400, -600]
+    },
+    {
+      "parameters": { "httpMethod": "GET", "path": "meta-dm", "responseMode": "responseNode", "options": {} },
+      "id": "w31-n01", "name": "Meta Verify (GET)", "type": "n8n-nodes-base.webhook", "typeVersion": 2, "position": [0, -300], "webhookId": "w31-meta-dm-verify"
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ $json.query['hub.mode'] === 'subscribe' && $json.query['hub.verify_token'] === $env.META_VERIFY_TOKEN }}", "value2": true } ] } },
+      "id": "w31-n02", "name": "Token ok?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [220, -300]
+    },
+    {
+      "parameters": { "respondWith": "text", "responseBody": "={{ $json.query['hub.challenge'] }}", "options": {} },
+      "id": "w31-n03", "name": "Respond challenge", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [440, -380]
+    },
+    {
+      "parameters": { "respondWith": "text", "responseBody": "forbidden", "options": { "responseCode": 403 } },
+      "id": "w31-n04", "name": "Respond 403", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [440, -220]
+    },
+    {
+      "parameters": { "httpMethod": "POST", "path": "meta-dm", "responseMode": "onReceived", "options": { "rawBody": true } },
+      "id": "w31-n05", "name": "Meta Events (POST)", "type": "n8n-nodes-base.webhook", "typeVersion": 2, "position": [0, 0], "webhookId": "w31-meta-dm"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst out = [];\nfor (let i = 0; i < items.length; i++) {\n  const it = items[i];\n  let ok = false;\n  let reason = 'unverified';\n  try {\n    const raw = await this.helpers.getBinaryDataBuffer(i, 'data');\n    const sig = (it.json.headers || {})['x-hub-signature-256'] || '';\n    const dir = $env.AUTOMATION_DIR || '/home/node/automation';\n    const v = require(dir + '/security/verify-webhooks.js');\n    ok = !!v.verifyMetaSignature({ rawBody: raw, signatureHeader: sig, appSecret: $env.META_APP_SECRET });\n    reason = ok ? 'ok' : 'bad_signature';\n  } catch (e) {\n    reason = 'verifier_error: ' + String(e.message).slice(0, 80);\n  }\n  out.push({ json: { signature_ok: ok, reason: reason, body: it.json.body } });\n}\nreturn out;"
+      },
+      "id": "w31-n06", "name": "Verify signature", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [220, 0]
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ $json.signature_ok }}", "value2": true } ] } },
+      "id": "w31-n07", "name": "Signature ok?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_INTERNAL_URL + '/webhook/w22-alert' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ severity: 'red', kind: 'webhook_signature_invalid', to: ['Jonathan', 'KG'], text: 'W31 rejected a Meta messages webhook: ' + $json.reason, source: 'W31' }) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "w31-n08", "name": "Alert bad signature", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [660, 120],
+      "credentials": { "httpHeaderAuth": { "name": "W22 Internal Webhook" } }
+    },
+    {
+      "parameters": { "operation": "read", "fileSelector": "={{ $env.REPO_DIR + '/community/*' }}", "options": {} },
+      "id": "w31-n09", "name": "Read community files", "type": "n8n-nodes-base.readWriteFile", "typeVersion": 1, "position": [660, -120]
+    },
+    {
+      "parameters": { "operation": "read", "fileSelector": "={{ $env.REPO_DIR + '/knowledge/faq.md' }}", "options": {} },
+      "id": "w31-n10", "name": "Read faq", "type": "n8n-nodes-base.readWriteFile", "typeVersion": 1, "position": [660, 0], "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": { "operation": "read", "fileSelector": "={{ $env.REPO_DIR + '/conversation/prompts/guardrail.md' }}", "options": {} },
+      "id": "w31-n11", "name": "Read guardrail", "type": "n8n-nodes-base.readWriteFile", "typeVersion": 1, "position": [660, 120], "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": { "numberInputs": 3 },
+      "id": "w31-n12", "name": "Merge config", "type": "n8n-nodes-base.merge", "typeVersion": 3, "position": [880, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const NL = String.fromCharCode(10);\nconst items = $input.all();\nconst raw = { rules: null, corpus: '', prompt: '', faq: '', guardrail: '' };\nfor (let i = 0; i < items.length; i++) {\n  const b = items[i].binary && items[i].binary.data;\n  if (!b) continue;\n  const name = b.fileName || '';\n  const txt = (await this.helpers.getBinaryDataBuffer(i, 'data')).toString('utf8');\n  if (name === 'rules.json') raw.rules = JSON.parse(txt);\n  else if (name === 'reply-corpus.md') raw.corpus = txt;\n  else if (name === 'classifier-prompt.md') raw.prompt = txt;\n  else if (name === 'faq.md') raw.faq = txt;\n  else if (name === 'guardrail.md') raw.guardrail = txt;\n}\nif (!raw.rules || !raw.corpus || !raw.prompt) throw new Error('community config files missing: rules, corpus or classifier prompt');\nconst a = raw.prompt.indexOf('---SYSTEM PROMPT START---');\nconst z = raw.prompt.indexOf('---SYSTEM PROMPT END---');\nconst system_prompt = raw.prompt.slice(a + 25, z).trim();\nconst corpus = {};\nlet facts = '';\nlet cur = null;\nlet inFacts = false;\nfor (const line of raw.corpus.split(NL)) {\n  if (line.indexOf('#### ') === 0) {\n    const p = line.slice(5).split('|');\n    cur = { id: p[0].trim(), lang: (p[1] || 'en').trim() };\n    corpus[cur.id] = corpus[cur.id] || {};\n    corpus[cur.id][cur.lang] = corpus[cur.id][cur.lang] || [];\n    inFacts = false;\n    continue;\n  }\n  if (line.indexOf('## ') === 0) { cur = null; inFacts = line.indexOf('FAQ topics') >= 0; continue; }\n  if (cur && line.indexOf('- ') === 0) corpus[cur.id][cur.lang].push(line.slice(2).trim());\n  if (inFacts && line.charAt(0) === '|' && line.indexOf('---') < 0 && line.indexOf('| topic') !== 0) {\n    const c = line.split('|').map((s) => s.trim()).filter(Boolean);\n    if (c.length >= 2) facts += c[0] + ': ' + c[1] + NL;\n  }\n}\nconst cfg = { rules: raw.rules, system_prompt: system_prompt, corpus: corpus, facts: facts, faq: raw.faq, guardrail: raw.guardrail };\nreturn [{ json: { cfg: cfg, payload: $('Verify signature').first().json.body } }];"
+      },
+      "id": "w31-n13", "name": "Load config", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1100, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const src = $input.first().json;\nconst p = src.payload || {};\nconst out = [];\nconst channel = p.object === 'instagram' ? 'instagram' : 'messenger';\nfor (const entry of (p.entry || [])) {\n  for (const m of (entry.messaging || [])) {\n    if (!m.sender || !m.sender.id) continue;\n    if (String(m.sender.id) === String(entry.id)) continue;\n    const msg = m.message || null;\n    const pb = m.postback || null;\n    if (msg && msg.is_echo) continue;\n    if (!msg && !pb) continue;\n    const qr = msg && msg.quick_reply && msg.quick_reply.payload;\n    const text = (msg && msg.text) || (pb && (pb.title || pb.payload)) || '';\n    if (!text && !qr) continue;\n    out.push({ json: { channel: channel, owner_id: String(entry.id), sender_id: String(m.sender.id), text: text, payload: qr || (pb && pb.payload) || '', mid: (msg && msg.mid) || '', ts: m.timestamp } });\n  }\n}\nreturn out;"
+      },
+      "id": "w31-n14", "name": "Normalise DM events", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1320, 0]
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://graph.facebook.com/' + $env.META_GRAPH_VERSION + '/' + $json.sender_id }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": { "parameters": [ { "name": "fields", "value": "={{ $json.channel === 'messenger' ? 'first_name,name' : 'name' }}" } ] },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "w31-n15", "name": "Get profile", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1540, 0],
+      "retryOnFail": true, "maxTries": 2, "waitBetweenTries": 1500, "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Meta Page Token" } }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into conversations (channel, external_id, state, last_user_message_at) values ($1, $2, '{}'::jsonb, now()) on conflict (channel, external_id) do update set last_user_message_at = now() returning state, paused, opted_out, (xmax = 0) as is_new",
+        "options": { "queryReplacement": "={{ [ $('Normalise DM events').item.json.channel, $('Normalise DM events').item.json.sender_id ] }}" }
+      },
+      "id": "w31-n16", "name": "Upsert conversation", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [1760, 0],
+      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const ev = $('Normalise DM events').item.json;\nconst convo = $json;\nconst cfg = $('Load config').first().json.cfg;\nconst D = cfg.rules.dm_rules;\nconst AP = String.fromCharCode(39);\nconst toks = (ev.text || '').toLowerCase().split('').map((c) => ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c === AP ? c : ' ')).join('').split(' ').filter(Boolean);\nconst norm = ' ' + toks.join(' ') + ' ';\nconst has = (p) => norm.indexOf(' ' + String(p).toLowerCase() + ' ') >= 0;\nconst state = convo.state || {};\nlet route = 'classify';\nif (ev.mid && state.last_mid === ev.mid) route = 'dup';\nelse if (convo.opted_out === true) route = 'paused';\nelse if (has('stop') || has('unsubscribe') || has('opt out') || has('optout')) route = 'stop';\nelse if (convo.paused === true) route = 'paused';\nelse if (D.handoff_phrases_en.concat(D.handoff_phrases_af).some((p) => has(p)) || ev.payload === 'HANDOFF') route = 'handoff';\nelse if (state.step === 'asked_age' && (ev.text || '').indexOf('?') < 0) route = 'age_answer';\nconst afw = ['ek', 'jy', 'nie', 'dit', 'die', 'wat', 'kos', 'asseblief', 'dankie', 'hoe', 'lank', 'baie', 'vertrou', 'skelm', 'gesprek', 'bel', 'maand', 'wie', 'eintlik', 'vra', 'nog', 'het', 'sal', 'vir', 'maar', 'net', 'vraag', 'mens', 'persoon', AP + 'n'];\nconst lang = toks.filter((t) => afw.indexOf(t) >= 0).length >= 2 ? 'af' : 'en';\nconst red = (ev.text || '').replace(new RegExp('[0-9]{4,}', 'g'), '[digits]').slice(0, 600);\nconst userTurn = { surface: ev.channel === 'instagram' ? 'ig_dm' : 'messenger', text: red, parent_is_ad: false, is_nested_reply: false, prior_exchanges_with_person_on_post: 0 };\nconst classify_body = { model: 'claude-haiku-4-5-20251001', max_tokens: 60, temperature: 0, system: cfg.system_prompt, messages: [ { role: 'user', content: JSON.stringify(userTurn) } ] };\nreturn { json: { route: route, lang: lang, text_redacted: red, classify_body: classify_body } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "w31-n17", "name": "Route", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1980, 0]
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ $json.route === 'classify' || $json.route === 'age_answer' || $json.route === 'handoff' }}", "value2": true } ] } },
+      "id": "w31-n18", "name": "Auto-reply route?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [2200, 0]
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ $json.route === 'stop' }}", "value2": true } ] } },
+      "id": "w31-n19", "name": "Is STOP?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [2420, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update conversations set opted_out = true, state = coalesce(state, '{}'::jsonb) || jsonb_build_object('stopped', true) where channel = $1 and external_id = $2",
+        "options": { "queryReplacement": "={{ [ $('Normalise DM events').item.json.channel, $('Normalise DM events').item.json.sender_id ] }}" }
+      },
+      "id": "w31-n20", "name": "Mark opt-out", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [2640, 120],
+      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ $json.route === 'classify' }}", "value2": true } ] } },
+      "id": "w31-n21", "name": "Needs classify?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [2420, -100]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "anthropic-version", "value": "2023-06-01" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.classify_body) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "w31-n22", "name": "Classify (Haiku)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2640, -200],
+      "retryOnFail": true, "maxTries": 3, "waitBetweenTries": 1500, "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Anthropic API" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const route = $('Route').item.json;\nconst r = $json || {};\nlet cls = null;\ntry {\n  let t = ((r.content && r.content[0] && r.content[0].text) || '').trim();\n  t = t.replace(/```json|```/g, '').trim();\n  const o = JSON.parse(t);\n  const ok = ['question', 'interest', 'objection', 'complaint', 'praise', 'spam', 'abuse', 'competitor', 'off_topic', 'sensitive', 'own_data_posted'];\n  if (ok.indexOf(o.intent) >= 0 && typeof o.needs_human === 'boolean' && typeof o.fais_risk === 'boolean' && Object.keys(o).length === 3) cls = { intent: o.intent, needs_human: o.needs_human, fais_risk: o.fais_risk };\n} catch (e) { cls = null; }\nreturn { json: Object.assign({}, route, { classification: cls }) };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "w31-n23", "name": "Parse classification", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2860, -200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $json;\nconst ev = $('Normalise DM events').item.json;\nconst convo = $('Upsert conversation').item.json;\nconst prof = $('Get profile').item.json || {};\nconst cfg = $('Load config').first().json.cfg;\nconst D = cfg.rules.dm_rules;\nconst AP = String.fromCharCode(39);\nconst lang = r.lang || 'en';\nconst first = prof.first_name ? String(prof.first_name) : (prof.name ? String(prof.name).split(' ')[0] : '');\nconst state = Object.assign({ step: 'new', faq_count: 0, cta_count: 0, disclosed: false }, convo.state || {});\nconst route = r.route;\nconst cls = r.classification || null;\nconst key0 = cls ? cls.intent : 'off_topic';\nconst nh = cls ? cls.needs_human === true : false;\nconst fais = cls ? cls.fais_risk === true : false;\nconst failClosed = route === 'classify' && !cls;\nconst pick = (id) => { const v = (cfg.corpus[id] && (cfg.corpus[id][lang] || cfg.corpus[id].en)) || []; if (!v.length) return ''; let s = 0; for (const ch of String(ev.sender_id)) s += ch.charCodeAt(0); return v[(s + state.faq_count + state.cta_count) % v.length]; };\nconst fill = (s) => { if (first) return s.split('{first_name}').join(first); const o = s.split(', {first_name}').join('').split(' {first_name}').join('').split('{first_name}, ').join('').split('{first_name}').join(''); return o.charAt(0).toUpperCase() + o.slice(1); };\nconst ref = state.origin_ref || ('dm_' + ev.channel);\nconst base = $env.CTWA_BASE_URL;\nconst link = base ? (base + '/' + ref) : ('https://sortmycover.co.za/?utm_source=meta&utm_medium=dm&utm_campaign=' + ref);\nconst withLink = (s) => fill(s.split('{ctwa_link}').join(link).split('{page_link}').join(link));\nconst prefix = state.disclosed ? '' : fill(pick('disclosure_line')) + ' ';\nconst sast = new Date(Date.now() + 7200000);\nconst mins = sast.getUTCHours() * 60 + sast.getUTCMinutes();\nconst inHours = mins >= 420 && mins < 1320;\nconst due = new Date(Date.UTC(sast.getUTCFullYear(), sast.getUTCMonth(), sast.getUTCDate() + (mins >= 1320 ? 1 : 0), 7, 15) - 7200000).toISOString();\nlet text = '';\nlet after = '';\nlet needDraft = false;\nlet ask = false;\nlet esc = null;\nlet pause = false;\nconst patch = {};\nconst human = (kind) => { pause = true; esc = { kind: kind, to: ['Jonathan', 'KG'], human_within_seconds: 1800 }; };\nif (route === 'handoff' || failClosed || (nh && key0 !== 'own_data_posted')) {\n  if (key0 === 'sensitive') { human('sensitive'); }\n  else { text = prefix + fill(pick('dm_handoff')); human(route === 'handoff' ? 'dm_handoff' : (failClosed ? 'classifier_invalid' : (key0 === 'complaint' ? 'complaint' : 'needs_human'))); }\n} else if (route === 'age_answer') {\n  let band = 'unknown';\n  const pl = ev.payload || '';\n  if (pl === 'AGE_LT35') band = 'lt35'; else if (pl === 'AGE_35_44') band = '35_44'; else if (pl === 'AGE_45_50') band = '45_50'; else if (pl === 'AGE_51P') band = '51p';\n  else {\n    let num = '';\n    for (const c of (ev.text || '')) { if (c >= '0' && c <= '9') num += c; else if (num) break; }\n    const n = num ? parseInt(num, 10) : -1;\n    if (n >= 18 && n < 35) band = 'lt35'; else if (n >= 35 && n <= 44) band = '35_44'; else if (n >= 45 && n <= 50) band = '45_50'; else if (n >= 51 && n < 120) band = '51p';\n  }\n  patch.age_band = band; patch.step = 'done'; patch.cta_count = state.cta_count + 1;\n  text = prefix + withLink(pick('dm_cta'));\n} else if (['spam', 'abuse', 'competitor'].indexOf(key0) >= 0) {\n  text = '';\n} else if (state.step === 'done') {\n  if (['question', 'interest', 'objection'].indexOf(key0) >= 0 && !fais && state.cta_count < 2) { text = withLink(pick('dm_cta')); patch.cta_count = state.cta_count + 1; }\n  else if (['question', 'interest', 'objection'].indexOf(key0) >= 0) { text = fill(pick('dm_handoff')); human('dm_after_link'); }\n} else if (fais) {\n  text = prefix + withLink(pick('dm_advice_deferral')); patch.step = 'done'; patch.cta_count = state.cta_count + 1;\n} else if (key0 === 'question' || key0 === 'objection') {\n  if (state.faq_count >= D.max_faq_answers_before_cta) { text = prefix + withLink(pick('dm_cta')); patch.step = 'done'; patch.cta_count = state.cta_count + 1; }\n  else { needDraft = true; after = fill(pick('dm_qualifying_age')); ask = true; patch.step = 'asked_age'; patch.faq_count = state.faq_count + 1; }\n} else if (key0 === 'interest' || key0 === 'own_data_posted') {\n  text = prefix + fill(pick('dm_qualifying_age')); ask = true; patch.step = 'asked_age';\n} else if (!state.disclosed) {\n  text = fill(pick('dm_opener'));\n}\nif (text || needDraft) patch.disclosed = true;\nconst fallback = prefix + withLink(pick('dm_advice_deferral'));\nconst plan = { channel: ev.channel, owner_id: ev.owner_id, sender_id: ev.sender_id, route: route, key: key0, lang: lang, reply_text: text, prefix: prefix, after: after, fallback: fallback, ask: ask, esc: esc, pause: pause, patch: patch, state: state, in_hours: inHours, due_at: due, guardrail_trip: false };\nreturn { json: { plan: plan, need_draft: needDraft, key: key0, cls: cls, text_redacted: r.text_redacted || '' } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "w31-n24", "name": "Decide DM", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [3080, 0]
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ $json.need_draft }}", "value2": true } ] } },
+      "id": "w31-n25", "name": "Needs DM draft?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [3300, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $json;\nconst cfg = $('Load config').first().json.cfg;\nconst NL = String.fromCharCode(10);\nconst facts = cfg.faq ? cfg.faq : cfg.facts;\nconst lang = d.plan.lang === 'af' ? 'Afrikaans' : 'plain South African English';\nconst sys = 'You write ONE short private chat answer for SortMyCover on Messenger or Instagram. SortMyCover connects people with a licensed financial adviser for a 30-minute call. Rules: at most 2 sentences. Reading grade 5 to 7. Language: ' + lang + '. No exclamation marks. No emoji. No links. No numbers except 30. Never mention price, premium, rand amounts, insurers, products, cover amounts, comparisons or recommendations. Speak about the adviser and SortMyCover in the third person. Do not argue. Use only the FACTS below. If the facts do not answer the question, output exactly NO_ANSWER. Output only the answer text.' + NL + NL + 'FACTS:' + NL + String(facts).slice(0, 6000);\nconst body = { model: 'claude-haiku-4-5-20251001', max_tokens: 120, temperature: 0.2, system: sys, messages: [ { role: 'user', content: 'Type: ' + d.key + NL + 'Message: ' + d.text_redacted } ] };\nreturn { json: Object.assign({}, d, { draft_body: body }) };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "w31-n26", "name": "Build DM draft request", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [3520, -120]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "anthropic-version", "value": "2023-06-01" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.draft_body) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "w31-n27", "name": "Draft (Haiku)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [3740, -120],
+      "retryOnFail": true, "maxTries": 3, "waitBetweenTries": 1500, "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Anthropic API" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = $('Load config').first().json.cfg;\nconst NL = String.fromCharCode(10);\nconst r = $json || {};\nconst draft = ((r.content && r.content[0] && r.content[0].text) || '').trim();\nconst reasons = [];\nif (!draft || draft.indexOf('NO_ANSWER') >= 0) reasons.push('no_answer');\nif (draft.indexOf('!') >= 0) reasons.push('exclamation');\nconst low = draft.toLowerCase();\nif (low.indexOf('http') >= 0 || low.indexOf('www.') >= 0 || low.indexOf('.co.za') >= 0 || low.indexOf('.com') >= 0) reasons.push('link');\nconst digits = draft.replace(new RegExp('[^0-9]', 'g'), '');\nif (digits.length > 0 && digits !== '30') reasons.push('digits');\nconst banned = ['premium', 'price', 'rand', 'insurer', 'policy', 'policies', 'cover amount', 'how much cover', 'compare', 'comparison', 'cheapest', 'best cover', 'you should', 'guarantee', 'financial advice', 'appointment', 'discovery', 'sanlam', 'old mutual', 'liberty', 'momentum', 'outsurance', 'hollard', '1life', 'assupol', 'brightrock', 'tax', 'recommend', 'suits you', 'suitable'];\nfor (const b of banned) { if (low.indexOf(b) >= 0) reasons.push('banned:' + b); }\nconst sentences = draft.split('.').join('|').split('?').join('|').split('|').filter((s) => s.trim().length > 1).length;\nif (sentences > 2) reasons.push('too_long');\nconst stub = 'You are the FAIS guardrail gate for chat replies by SortMyCover, a South African lead-generation service that is not a financial services provider. A reply FAILS if it mentions or implies any premium, price, rand amount, cover amount, product, insurer, comparison, suitability, tax treatment, recommendation, or uses the phrase you should. A reply PASSES only if it answers about the call or the company in the third person, or defers to the licensed adviser.';\nconst sys = (cfg.guardrail ? cfg.guardrail : stub) + NL + NL + 'Community gate mode: judge the DRAFT reply below. Output exactly PASS or FAIL and nothing else.';\nconst gate_body = { model: 'claude-haiku-4-5-20251001', max_tokens: 10, temperature: 0, system: sys, messages: [ { role: 'user', content: 'DRAFT: ' + draft } ] };\nreturn { json: { draft: draft, lint_ok: reasons.length === 0, reasons: reasons, gate_body: gate_body } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "w31-n28", "name": "Lint draft", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [3960, -120]
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ $json.lint_ok }}", "value2": true } ] } },
+      "id": "w31-n29", "name": "Lint ok?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [4180, -120]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "anthropic-version", "value": "2023-06-01" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.gate_body) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "w31-n30", "name": "Guardrail gate (Haiku)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [4400, -220],
+      "retryOnFail": true, "maxTries": 2, "waitBetweenTries": 1500, "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Anthropic API" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $('Decide DM').item.json;\nconst L = $('Lint draft').item.json;\nconst r = $json || {};\nconst gate = String((r.content && r.content[0] && r.content[0].text) || '').trim().toUpperCase();\nconst pass = L.lint_ok === true && gate.indexOf('PASS') === 0;\nconst plan = JSON.parse(JSON.stringify(d.plan));\nif (pass) {\n  plan.reply_text = plan.prefix + L.draft + ' ' + plan.after;\n} else {\n  plan.guardrail_trip = L.reasons.indexOf('no_answer') < 0;\n  plan.reply_text = plan.fallback;\n  plan.ask = false;\n  plan.patch.step = 'done';\n  plan.patch.cta_count = (plan.state.cta_count || 0) + 1;\n}\nreturn { json: Object.assign({}, d, { plan: plan }) };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "w31-n31", "name": "Apply gate", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [4620, -120]
+    },
+    {
+      "parameters": {
+        "jsCode": "const plan = $json.plan;\nconst ev = $('Normalise DM events').item.json;\nconst af = plan.lang === 'af';\nconst t = af ? ['Onder 35', '35 tot 44', '45 tot 50', '51 en ouer'] : ['Under 35', '35 to 44', '45 to 50', '51 and over'];\nconst pl = ['AGE_LT35', 'AGE_35_44', 'AGE_45_50', 'AGE_51P'];\nconst qr = plan.ask ? t.map((x, i) => ({ content_type: 'text', title: x, payload: pl[i] })) : [];\nconst newState = Object.assign({}, plan.state, plan.patch, { last_mid: ev.mid || plan.state.last_mid || '' });\nconst out = { channel: plan.channel, owner_id: plan.owner_id, sender_id: plan.sender_id, reply_text: plan.reply_text || '', quick_replies: qr, esc: plan.esc, paused: plan.pause === true, new_state: newState, queue: !plan.in_hours && !!plan.reply_text, due_at: plan.due_at, window_expires_at: new Date(Date.now() + 86400000).toISOString(), key: plan.key, guardrail_trip: plan.guardrail_trip === true };\nreturn { json: out };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "w31-n32", "name": "Finalise DM", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [4840, 0]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update conversations set state = $3::jsonb, paused = $4::boolean where channel = $1 and external_id = $2",
+        "options": { "queryReplacement": "={{ [ $json.channel, $json.sender_id, JSON.stringify($json.new_state), $json.paused ] }}" }
+      },
+      "id": "w31-n33", "name": "Update conversation", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [5060, 0],
+      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ !!$('Finalise DM').item.json.esc }}", "value2": true } ] } },
+      "id": "w31-n34", "name": "Escalate?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [5280, 0]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into escalations (kind, ref_table, ref_id, raised_at, assigned_to, note) values ($1, 'conversations', $2, now(), $3, $4) returning id",
+        "options": { "queryReplacement": "={{ [ $('Finalise DM').item.json.esc.kind, $('Finalise DM').item.json.channel + ':' + $('Finalise DM').item.json.sender_id, $('Finalise DM').item.json.esc.to.join(','), 'bot paused; first human touch within ' + $('Finalise DM').item.json.esc.human_within_seconds + 's' ] }}" }
+      },
+      "id": "w31-n35", "name": "Insert escalation", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [5500, -100],
+      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_INTERNAL_URL + '/webhook/w22-alert' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ severity: 'amber', kind: $('Finalise DM').item.json.esc.kind, to: $('Finalise DM').item.json.esc.to, text: 'Community DM on ' + $('Finalise DM').item.json.channel + ': ' + $('Finalise DM').item.json.esc.kind + '. The bot is paused. First human touch due within 30 minutes.', deep_link: $env.CONSOLE_URL + '/community/escalations/' + $json.id, source: 'W31' }) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "w31-n36", "name": "Alert W22 (escalation)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [5720, -100],
+      "retryOnFail": true, "maxTries": 3, "waitBetweenTries": 2000, "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "W22 Internal Webhook" } }
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ !!$('Finalise DM').item.json.reply_text }}", "value2": true } ] } },
+      "id": "w31-n37", "name": "Reply needed?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [5940, 0]
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ !!$('Finalise DM').item.json.queue }}", "value2": true } ] } },
+      "id": "w31-n38", "name": "Queue?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [6160, 0]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into dm_queue (channel, external_id, owner_id, reply_text, quick_replies, window_expires_at, due_at, status) values ($1, $2, $3, $4, $5::jsonb, $6::timestamptz, $7::timestamptz, 'queued')",
+        "options": { "queryReplacement": "={{ [ $('Finalise DM').item.json.channel, $('Finalise DM').item.json.sender_id, $('Finalise DM').item.json.owner_id, $('Finalise DM').item.json.reply_text, JSON.stringify($('Finalise DM').item.json.quick_replies), $('Finalise DM').item.json.window_expires_at, $('Finalise DM').item.json.due_at ] }}" }
+      },
+      "id": "w31-n39", "name": "Queue DM", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [6380, -100],
+      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+    },
+    {
+      "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "*/5 7-21 * * *" } ] } },
+      "id": "w31-n40", "name": "Drain schedule", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [6160, 400]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select id, channel, external_id as sender_id, owner_id, reply_text, quick_replies, window_expires_at from dm_queue where status = 'queued' and due_at <= now() order by created_at asc limit 40",
+        "options": {}
+      },
+      "id": "w31-n41", "name": "Select queued DMs", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [6380, 400],
+      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map((it) => { const r = it.json; const qr = typeof r.quick_replies === 'string' ? JSON.parse(r.quick_replies) : (r.quick_replies || []); return { json: { queue_id: r.id, channel: r.channel, owner_id: r.owner_id, sender_id: r.sender_id, reply_text: r.reply_text, quick_replies: qr, window_expires_at: new Date(r.window_expires_at).toISOString() } }; });"
+      },
+      "id": "w31-n42", "name": "Rehydrate DMs", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [6600, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "if ($json.reply_text) return { json: $json };\nconst f = $('Finalise DM').item.json;\nreturn { json: { queue_id: null, channel: f.channel, owner_id: f.owner_id, sender_id: f.sender_id, reply_text: f.reply_text, quick_replies: f.quick_replies, window_expires_at: f.window_expires_at } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "w31-n43", "name": "Send ctx", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [6820, 200]
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ Date.now() <= new Date($json.window_expires_at).getTime() }}", "value2": true } ] } },
+      "id": "w31-n44", "name": "Window open?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [7040, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update dm_queue set status = 'expired' where id = $1::bigint",
+        "options": { "queryReplacement": "={{ [ $json.queue_id ] }}" }
+      },
+      "id": "w31-n45", "name": "Mark expired", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [7260, 320],
+      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://graph.facebook.com/' + $env.META_GRAPH_VERSION + '/' + $json.owner_id + '/messages' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ recipient: { id: $json.sender_id }, messaging_type: 'RESPONSE', message: Object.assign({ text: $json.reply_text }, ($json.quick_replies && $json.quick_replies.length) ? { quick_replies: $json.quick_replies } : {}) }) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "w31-n46", "name": "Send DM", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [7260, 120],
+      "retryOnFail": true, "maxTries": 3, "waitBetweenTries": 2000, "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Meta Page Token" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const p = $('Send ctx').item.json;\nconst r = $json || {};\nconst ok = !!(r && !r.error && (r.message_id || r.recipient_id));\nreturn { json: { ok: ok, queue_id: p.queue_id || null, channel: p.channel, sender_id: p.sender_id, owner_id: p.owner_id, reply_text: p.reply_text, quick_replies: p.quick_replies || [], window_expires_at: p.window_expires_at } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "w31-n47", "name": "Collect send", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [7480, 120]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "with upd as (update dm_queue set status = case when $6::boolean then 'sent' when attempts >= 2 then 'failed' else 'queued' end, attempts = attempts + 1, due_at = case when $6::boolean then due_at else now() + interval '10 minutes' end where id = $1::bigint returning id) insert into dm_queue (channel, external_id, owner_id, reply_text, quick_replies, window_expires_at, due_at, status) select $2, $3, $4, $5, $7::jsonb, $8::timestamptz, now() + interval '10 minutes', 'queued' where $1::bigint is null and not $6::boolean",
+        "options": { "queryReplacement": "={{ [ $json.queue_id, $json.channel, $json.sender_id, $json.owner_id, $json.reply_text, $json.ok, JSON.stringify($json.quick_replies), $json.window_expires_at ] }}" }
+      },
+      "id": "w31-n48", "name": "Record send", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [7700, 120],
+      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+    }
+  ],
+  "connections": {
+    "Meta Verify (GET)": { "main": [ [ { "node": "Token ok?", "type": "main", "index": 0 } ] ] },
+    "Token ok?": { "main": [ [ { "node": "Respond challenge", "type": "main", "index": 0 } ], [ { "node": "Respond 403", "type": "main", "index": 0 } ] ] },
+    "Meta Events (POST)": { "main": [ [ { "node": "Verify signature", "type": "main", "index": 0 } ] ] },
+    "Verify signature": { "main": [ [ { "node": "Signature ok?", "type": "main", "index": 0 } ] ] },
+    "Signature ok?": { "main": [ [ { "node": "Read community files", "type": "main", "index": 0 }, { "node": "Read faq", "type": "main", "index": 0 }, { "node": "Read guardrail", "type": "main", "index": 0 } ], [ { "node": "Alert bad signature", "type": "main", "index": 0 } ] ] },
+    "Read community files": { "main": [ [ { "node": "Merge config", "type": "main", "index": 0 } ] ] },
+    "Read faq": { "main": [ [ { "node": "Merge config", "type": "main", "index": 1 } ] ] },
+    "Read guardrail": { "main": [ [ { "node": "Merge config", "type": "main", "index": 2 } ] ] },
+    "Merge config": { "main": [ [ { "node": "Load config", "type": "main", "index": 0 } ] ] },
+    "Load config": { "main": [ [ { "node": "Normalise DM events", "type": "main", "index": 0 } ] ] },
+    "Normalise DM events": { "main": [ [ { "node": "Get profile", "type": "main", "index": 0 } ] ] },
+    "Get profile": { "main": [ [ { "node": "Upsert conversation", "type": "main", "index": 0 } ] ] },
+    "Upsert conversation": { "main": [ [ { "node": "Route", "type": "main", "index": 0 } ] ] },
+    "Route": { "main": [ [ { "node": "Auto-reply route?", "type": "main", "index": 0 } ] ] },
+    "Auto-reply route?": { "main": [ [ { "node": "Needs classify?", "type": "main", "index": 0 } ], [ { "node": "Is STOP?", "type": "main", "index": 0 } ] ] },
+    "Is STOP?": { "main": [ [ { "node": "Mark opt-out", "type": "main", "index": 0 } ], [] ] },
+    "Needs classify?": { "main": [ [ { "node": "Classify (Haiku)", "type": "main", "index": 0 } ], [ { "node": "Decide DM", "type": "main", "index": 0 } ] ] },
+    "Classify (Haiku)": { "main": [ [ { "node": "Parse classification", "type": "main", "index": 0 } ] ] },
+    "Parse classification": { "main": [ [ { "node": "Decide DM", "type": "main", "index": 0 } ] ] },
+    "Decide DM": { "main": [ [ { "node": "Needs DM draft?", "type": "main", "index": 0 } ] ] },
+    "Needs DM draft?": { "main": [ [ { "node": "Build DM draft request", "type": "main", "index": 0 } ], [ { "node": "Finalise DM", "type": "main", "index": 0 } ] ] },
+    "Build DM draft request": { "main": [ [ { "node": "Draft (Haiku)", "type": "main", "index": 0 } ] ] },
+    "Draft (Haiku)": { "main": [ [ { "node": "Lint draft", "type": "main", "index": 0 } ] ] },
+    "Lint draft": { "main": [ [ { "node": "Lint ok?", "type": "main", "index": 0 } ] ] },
+    "Lint ok?": { "main": [ [ { "node": "Guardrail gate (Haiku)", "type": "main", "index": 0 } ], [ { "node": "Apply gate", "type": "main", "index": 0 } ] ] },
+    "Guardrail gate (Haiku)": { "main": [ [ { "node": "Apply gate", "type": "main", "index": 0 } ] ] },
+    "Apply gate": { "main": [ [ { "node": "Finalise DM", "type": "main", "index": 0 } ] ] },
+    "Finalise DM": { "main": [ [ { "node": "Update conversation", "type": "main", "index": 0 } ] ] },
+    "Update conversation": { "main": [ [ { "node": "Escalate?", "type": "main", "index": 0 } ] ] },
+    "Escalate?": { "main": [ [ { "node": "Insert escalation", "type": "main", "index": 0 } ], [ { "node": "Reply needed?", "type": "main", "index": 0 } ] ] },
+    "Insert escalation": { "main": [ [ { "node": "Alert W22 (escalation)", "type": "main", "index": 0 } ] ] },
+    "Alert W22 (escalation)": { "main": [ [ { "node": "Reply needed?", "type": "main", "index": 0 } ] ] },
+    "Reply needed?": { "main": [ [ { "node": "Queue?", "type": "main", "index": 0 } ], [] ] },
+    "Queue?": { "main": [ [ { "node": "Queue DM", "type": "main", "index": 0 } ], [ { "node": "Send ctx", "type": "main", "index": 0 } ] ] },
+    "Drain schedule": { "main": [ [ { "node": "Select queued DMs", "type": "main", "index": 0 } ] ] },
+    "Select queued DMs": { "main": [ [ { "node": "Rehydrate DMs", "type": "main", "index": 0 } ] ] },
+    "Rehydrate DMs": { "main": [ [ { "node": "Send ctx", "type": "main", "index": 0 } ] ] },
+    "Send ctx": { "main": [ [ { "node": "Window open?", "type": "main", "index": 0 } ] ] },
+    "Window open?": { "main": [ [ { "node": "Send DM", "type": "main", "index": 0 } ], [ { "node": "Mark expired", "type": "main", "index": 0 } ] ] },
+    "Send DM": { "main": [ [ { "node": "Collect send", "type": "main", "index": 0 } ] ] },
+    "Collect send": { "main": [ [ { "node": "Record send", "type": "main", "index": 0 } ] ] }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": false
+  },
+  "active": false,
+  "tags": [ { "name": "community-response-lead" }, { "name": "W31" } ],
+  "meta": { "owner": "community-response-lead", "spec": "docs/MASTER-PROMPT.md 4.6 W31, 4.14", "version": "1.0.0" }
+}

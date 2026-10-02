@@ -1,0 +1,590 @@
+{
+  "name": "W30 Comment handler (FB + IG, organic + ad posts)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## W30 Comment handler (community-response-lead, 4.14)\n\nTriggers: Page `feed` and Instagram `comments` webhooks (ad comments live on the ad's effective_object_story_id). Plus three schedules: queue drain (07:15 SAST then every 5 min until 22:00), daily sentiment 21:30, hostile-thread check every 15 min.\n\nFlow: signature check (automation/security/verify-webhooks.js) -> load rules/corpus/hide-words/prompt from disk -> dedupe insert -> context (ad, prior exchanges) -> fetch comment + parent -> regex/keyword pre-check -> Haiku classify (Sonnet retry on invalid JSON, then fail closed) -> rules -> optional Haiku draft + FAIS lint + shared guardrail (Sonnet redraft for objections only) -> hide / block / escalate / public reply / like / private reply -> log.\n\nCredentials by name (create in n8n): `SortMyCover Postgres` (postgres), `Meta Page Token` (httpHeaderAuth, Authorization: Bearer <system-user page token>), `Anthropic API` (httpHeaderAuth, header x-api-key), `W22 Internal Webhook` (httpHeaderAuth).\n\nEnv (never in this file): REPO_DIR, AUTOMATION_DIR, META_APP_SECRET, META_VERIFY_TOKEN, META_GRAPH_VERSION, COMMENT_HASH_SALT, CTWA_BASE_URL, CONSOLE_URL, N8N_INTERNAL_URL. n8n must allow env access in nodes (N8N_BLOCK_ENV_ACCESS_IN_NODE=false) and builtin crypto.\n\nDependencies: community/rules.json, reply-corpus.md, hide-words.txt, classifier-prompt.md; knowledge/faq.md and conversation/prompts/guardrail.md (optional at build time, both fail closed to fixed templates); community/comments-schema-additions.sql; W22 webhook /webhook/w22-alert.\n\nExecution data: success runs are not saved (comment text is personal data). Hides run 24/7; replies only 07:00-22:00 SAST.",
+        "height": 520,
+        "width": 620
+      },
+      "id": "w30-note",
+      "name": "Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-400, -600]
+    },
+    {
+      "parameters": { "httpMethod": "GET", "path": "meta-comments", "responseMode": "responseNode", "options": {} },
+      "id": "w30-n01", "name": "Meta Verify (GET)", "type": "n8n-nodes-base.webhook", "typeVersion": 2, "position": [0, -300], "webhookId": "w30-meta-comments-verify"
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ $json.query['hub.mode'] === 'subscribe' && $json.query['hub.verify_token'] === $env.META_VERIFY_TOKEN }}", "value2": true } ] } },
+      "id": "w30-n02", "name": "Token ok?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [220, -300]
+    },
+    {
+      "parameters": { "respondWith": "text", "responseBody": "={{ $json.query['hub.challenge'] }}", "options": {} },
+      "id": "w30-n03", "name": "Respond challenge", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [440, -380]
+    },
+    {
+      "parameters": { "respondWith": "text", "responseBody": "forbidden", "options": { "responseCode": 403 } },
+      "id": "w30-n04", "name": "Respond 403", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [440, -220]
+    },
+    {
+      "parameters": { "httpMethod": "POST", "path": "meta-comments", "responseMode": "onReceived", "options": { "rawBody": true } },
+      "id": "w30-n05", "name": "Meta Events (POST)", "type": "n8n-nodes-base.webhook", "typeVersion": 2, "position": [0, 0], "webhookId": "w30-meta-comments"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst out = [];\nfor (let i = 0; i < items.length; i++) {\n  const it = items[i];\n  let ok = false;\n  let reason = 'unverified';\n  try {\n    const raw = await this.helpers.getBinaryDataBuffer(i, 'data');\n    const sig = (it.json.headers || {})['x-hub-signature-256'] || '';\n    const dir = $env.AUTOMATION_DIR || '/home/node/automation';\n    const v = require(dir + '/security/verify-webhooks.js');\n    ok = !!v.verifyMetaSignature({ rawBody: raw, signatureHeader: sig, appSecret: $env.META_APP_SECRET });\n    reason = ok ? 'ok' : 'bad_signature';\n  } catch (e) {\n    reason = 'verifier_error: ' + String(e.message).slice(0, 80);\n  }\n  out.push({ json: { signature_ok: ok, reason: reason, body: it.json.body } });\n}\nreturn out;"
+      },
+      "id": "w30-n06", "name": "Verify signature", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [220, 0]
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ $json.signature_ok }}", "value2": true } ] } },
+      "id": "w30-n07", "name": "Signature ok?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_INTERNAL_URL + '/webhook/w22-alert' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ severity: 'red', kind: 'webhook_signature_invalid', to: ['Jonathan', 'KG'], text: 'W30 rejected a Meta comment webhook: ' + $json.reason, source: 'W30' }) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "w30-n08", "name": "Alert bad signature", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [660, 120],
+      "credentials": { "httpHeaderAuth": { "name": "W22 Internal Webhook" } }
+    },
+    {
+      "parameters": { "operation": "read", "fileSelector": "={{ $env.REPO_DIR + '/community/*' }}", "options": {} },
+      "id": "w30-n09", "name": "Read community files", "type": "n8n-nodes-base.readWriteFile", "typeVersion": 1, "position": [660, -120]
+    },
+    {
+      "parameters": { "operation": "read", "fileSelector": "={{ $env.REPO_DIR + '/knowledge/faq.md' }}", "options": {} },
+      "id": "w30-n10", "name": "Read faq", "type": "n8n-nodes-base.readWriteFile", "typeVersion": 1, "position": [660, 0], "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": { "operation": "read", "fileSelector": "={{ $env.REPO_DIR + '/conversation/prompts/guardrail.md' }}", "options": {} },
+      "id": "w30-n11", "name": "Read guardrail", "type": "n8n-nodes-base.readWriteFile", "typeVersion": 1, "position": [660, 120], "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": { "numberInputs": 3 },
+      "id": "w30-n12", "name": "Merge config", "type": "n8n-nodes-base.merge", "typeVersion": 3, "position": [880, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const NL = String.fromCharCode(10);\nconst TAB = String.fromCharCode(9);\nconst items = $input.all();\nconst raw = { rules: null, corpus: '', hide: '', prompt: '', faq: '', guardrail: '' };\nfor (let i = 0; i < items.length; i++) {\n  const b = items[i].binary && items[i].binary.data;\n  if (!b) continue;\n  const name = b.fileName || '';\n  const txt = (await this.helpers.getBinaryDataBuffer(i, 'data')).toString('utf8');\n  if (name === 'rules.json') raw.rules = JSON.parse(txt);\n  else if (name === 'reply-corpus.md') raw.corpus = txt;\n  else if (name === 'hide-words.txt') raw.hide = txt;\n  else if (name === 'classifier-prompt.md') raw.prompt = txt;\n  else if (name === 'faq.md') raw.faq = txt;\n  else if (name === 'guardrail.md') raw.guardrail = txt;\n}\nif (!raw.rules || !raw.corpus || !raw.prompt) throw new Error('community config files missing: rules, corpus or classifier prompt');\nconst a = raw.prompt.indexOf('---SYSTEM PROMPT START---');\nconst z = raw.prompt.indexOf('---SYSTEM PROMPT END---');\nconst system_prompt = raw.prompt.slice(a + 25, z).trim();\nconst corpus = {};\nlet facts = '';\nlet cur = null;\nlet inFacts = false;\nfor (const line of raw.corpus.split(NL)) {\n  if (line.indexOf('#### ') === 0) {\n    const p = line.slice(5).split('|');\n    cur = { id: p[0].trim(), lang: (p[1] || 'en').trim() };\n    corpus[cur.id] = corpus[cur.id] || {};\n    corpus[cur.id][cur.lang] = corpus[cur.id][cur.lang] || [];\n    inFacts = false;\n    continue;\n  }\n  if (line.indexOf('## ') === 0) { cur = null; inFacts = line.indexOf('FAQ topics') >= 0; continue; }\n  if (cur && line.indexOf('- ') === 0) corpus[cur.id][cur.lang].push(line.slice(2).trim());\n  if (inFacts && line.charAt(0) === '|' && line.indexOf('---') < 0 && line.indexOf('| topic') !== 0) {\n    const c = line.split('|').map((s) => s.trim()).filter(Boolean);\n    if (c.length >= 2) facts += c[0] + ': ' + c[1] + NL;\n  }\n}\nconst sec = {};\nlet s = null;\nfor (const line of raw.hide.split(NL)) {\n  const l = line.replace(String.fromCharCode(13), '');\n  const t = l.trim();\n  if (!t || t.charAt(0) === '#') continue;\n  if (t.charAt(0) === '[' && t.charAt(t.length - 1) === ']') { s = t.slice(1, -1); sec[s] = []; continue; }\n  if (s) sec[s].push(l);\n}\nconst regex = (sec['REGEX'] || []).map((l) => { const p = l.split(TAB); return { name: p[0], flags: p[1], source: p.slice(2).join(TAB) }; });\nconst hide = { kw_spam: (sec['KEYWORDS-SCAM'] || []).map((x) => x.trim()), kw_comp: (sec['KEYWORDS-COMPETITOR-PLACEHOLDERS'] || []).map((x) => x.trim()), regex: regex, allow: (sec['ALLOW'] || []).map((x) => x.trim().toLowerCase()) };\nconst cfg = { rules: raw.rules, system_prompt: system_prompt, corpus: corpus, facts: facts, faq: raw.faq, guardrail: raw.guardrail, hide: hide };\nreturn [{ json: { cfg: cfg, payload: $('Verify signature').first().json.body } }];"
+      },
+      "id": "w30-n13", "name": "Load config", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1100, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const src = $input.first().json;\nconst p = src.payload || {};\nconst crypto = require('crypto');\nconst salt = $env.COMMENT_HASH_SALT || '';\nconst hash = (x) => crypto.createHash('sha256').update(String(x) + salt).digest('hex').slice(0, 32);\nconst out = [];\nfor (const entry of (p.entry || [])) {\n  for (const ch of (entry.changes || [])) {\n    const v = ch.value || {};\n    let ev = null;\n    if (p.object === 'page' && ch.field === 'feed' && v.item === 'comment' && v.verb === 'add') {\n      ev = { platform: 'fb', owner_id: String(entry.id), comment_id: v.comment_id, post_id: v.post_id, parent_id: v.parent_id || v.post_id, text: v.message || '', author_id: v.from && v.from.id, author_name: (v.from && v.from.name) || '', ts: v.created_time };\n      ev.is_nested = ev.parent_id !== ev.post_id;\n    } else if (p.object === 'instagram' && ch.field === 'comments') {\n      ev = { platform: 'ig', owner_id: String(entry.id), comment_id: v.id, post_id: v.media && v.media.id, parent_id: v.parent_id || (v.media && v.media.id), text: v.text || '', author_id: v.from && v.from.id, author_name: '', ts: entry.time };\n      ev.is_nested = !!v.parent_id;\n    }\n    if (!ev || !ev.comment_id || !ev.author_id) continue;\n    if (String(ev.author_id) === ev.owner_id) continue;\n    const t = Number(ev.ts);\n    ev.created_iso = (t ? new Date(t > 1e12 ? t : t * 1000) : new Date()).toISOString();\n    ev.author_hash = hash(ev.author_id);\n    ev.first_name = ev.author_name ? String(ev.author_name).split(' ')[0] : '';\n    out.push({ json: ev });\n  }\n}\nreturn out;"
+      },
+      "id": "w30-n14", "name": "Normalise events", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1320, 0]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into comments (platform, comment_id, parent_post_id, author_hash, status, created_at) values ($1, $2, $3, $4, 'received', $5::timestamptz) on conflict (comment_id) do update set comment_id = excluded.comment_id returning (xmax = 0) as inserted, comment_id",
+        "options": { "queryReplacement": "={{ [ $json.platform, $json.comment_id, $json.post_id, $json.author_hash, $json.created_iso ] }}" }
+      },
+      "id": "w30-n15", "name": "Insert comment", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [1540, 0],
+      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ $json.inserted === true }}", "value2": true } ] } },
+      "id": "w30-n16", "name": "New comment?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [1760, 0]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select (select ad_id from ads where effective_object_story_id = $1 or ig_media_id = $1 limit 1) as ad_id, (select launched_at from ads where effective_object_story_id = $1 or ig_media_id = $1 limit 1) as launched_at, (select count(*)::int from comments where parent_post_id = $1 and author_hash = $2 and comment_id <> $3 and public_reply_id is not null) as prior_exchanges, (select count(*)::int from comments where author_hash = $2 and hidden = true and class in ('spam', 'competitor', 'abuse')) as prior_hidden, (select count(*)::int from comments where parent_post_id = $1 and author_hash = $2 and class = 'praise' and public_reply_id is not null) as praise_replied",
+        "options": { "queryReplacement": "={{ [ $('Normalise events').item.json.post_id, $('Normalise events').item.json.author_hash, $('Normalise events').item.json.comment_id ] }}" }
+      },
+      "id": "w30-n17", "name": "Context lookup", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [1980, 0],
+      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://graph.facebook.com/' + $env.META_GRAPH_VERSION + '/' + $('Normalise events').item.json.comment_id }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": { "parameters": [ { "name": "fields", "value": "={{ $('Normalise events').item.json.platform === 'fb' ? 'id,message,from.fields(id,name),created_time,is_hidden,parent.fields(id,message,from),permalink_url' : 'id,text,username,timestamp,hidden,parent_id,media.fields(id,permalink)' }}" } ] },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "w30-n18", "name": "Fetch comment + parent", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2200, 0],
+      "retryOnFail": true, "maxTries": 3, "waitBetweenTries": 2000, "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Meta Page Token" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const ev = $('Normalise events').item.json;\nconst ctx = $('Context lookup').item.json;\nconst cfg = $('Load config').first().json.cfg;\nconst f = $json || {};\nlet skip = false;\nlet reason = '';\nif (f.error) { skip = true; reason = 'comment_gone_or_unreadable'; }\nelse if (f.is_hidden === true || f.hidden === true) { skip = true; reason = 'already_hidden'; }\nconst raw = ev.text || '';\nlet low = raw.toLowerCase();\nfor (const a of cfg.hide.allow) { if (a) low = low.split(a).join(' '); }\nconst rx = (name) => cfg.hide.regex.filter((r) => r.name.indexOf(name) === 0).map((r) => { try { return new RegExp(r.source, r.flags === '-' ? '' : r.flags); } catch (e) { return null; } }).filter(Boolean);\nconst emailRx = rx('own_data.email');\nlet noEmail = low;\nfor (const e of emailRx) noEmail = noEmail.replace(new RegExp(e.source, 'gi'), ' ');\nconst own = rx('own_data.').some((r) => r.test(low));\nconst spamRx = rx('spam.').some((r) => r.test(noEmail) || (r.flags.indexOf('i') < 0 && r.test(raw)));\nconst kw = (list) => list.some((k) => k && k.charAt(0) !== '<' && low.indexOf(k.trim().toLowerCase()) >= 0);\nconst spamKw = kw(cfg.hide.kw_spam);\nconst compHit = kw(cfg.hide.kw_comp) || rx('competitor.').some((r) => r.test(noEmail));\nlet pre = '';\nif (spamKw || spamRx) pre = 'spam';\nelse if (compHit) pre = 'competitor';\nelse if (own) pre = 'own_data_posted';\nlet red = raw.replace(new RegExp('[0-9]{4,}', 'g'), '[digits]');\nfor (const e of emailRx) red = red.replace(new RegExp(e.source, 'gi'), '[email]');\nred = red.slice(0, 600);\nconst userTurn = { surface: ev.platform + '_comment', text: red, parent_is_ad: !!ctx.ad_id, is_nested_reply: !!ev.is_nested, prior_exchanges_with_person_on_post: ctx.prior_exchanges || 0 };\nconst classify_body = { model: 'claude-haiku-4-5-20251001', max_tokens: 60, temperature: 0, system: cfg.system_prompt, messages: [ { role: 'user', content: JSON.stringify(userTurn) } ] };\nreturn { json: { skip: skip, skip_reason: reason, precheck_class: pre, own_data_hit: own, text_redacted: red, classify_body: classify_body, ad_id: ctx.ad_id || null, launched_at: ctx.launched_at || null, prior_exchanges: ctx.prior_exchanges || 0, prior_hidden: ctx.prior_hidden || 0, praise_replied: ctx.praise_replied || 0 } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "w30-n19", "name": "Pre-checks", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2420, 0]
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ $json.skip }}", "value2": true } ] } },
+      "id": "w30-n20", "name": "Skip?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [2640, 0]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update comments set status = 'skipped' where comment_id = $1 and $2::text is not null",
+        "options": { "queryReplacement": "={{ [ $('Normalise events').item.json.comment_id, $json.skip_reason ] }}" }
+      },
+      "id": "w30-n21", "name": "Mark skipped", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [2860, -120],
+      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ !!$json.precheck_class }}", "value2": true } ] } },
+      "id": "w30-n22", "name": "Pre-classified?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [2860, 60]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "anthropic-version", "value": "2023-06-01" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.classify_body) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "w30-n23", "name": "Classify (Haiku)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [3080, 160],
+      "retryOnFail": true, "maxTries": 3, "waitBetweenTries": 1500, "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Anthropic API" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const pre = $('Pre-checks').item.json;\nconst r = $json || {};\nlet cls = null;\ntry {\n  let t = ((r.content && r.content[0] && r.content[0].text) || '').trim();\n  t = t.replace(/```json|```/g, '').trim();\n  const o = JSON.parse(t);\n  const ok = ['question', 'interest', 'objection', 'complaint', 'praise', 'spam', 'abuse', 'competitor', 'off_topic', 'sensitive', 'own_data_posted'];\n  if (ok.indexOf(o.intent) >= 0 && typeof o.needs_human === 'boolean' && typeof o.fais_risk === 'boolean' && Object.keys(o).length === 3) cls = { intent: o.intent, needs_human: o.needs_human, fais_risk: o.fais_risk };\n} catch (e) { cls = null; }\nlet sonnet = String(r.model || '').indexOf('sonnet') >= 0;\ntry { if ($('Classify (Sonnet)').isExecuted) sonnet = true; } catch (e) {}\nreturn { json: Object.assign({}, pre, { classification: cls, invalid: !cls, sonnet_tried: sonnet }) };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "w30-n24", "name": "Parse classification", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [3300, 160]
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ $json.invalid && !$json.sonnet_tried }}", "value2": true } ] } },
+      "id": "w30-n25", "name": "Needs Sonnet retry?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [3520, 160]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "anthropic-version", "value": "2023-06-01" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify(Object.assign({}, $('Pre-checks').item.json.classify_body, { model: 'claude-sonnet-5-5' })) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "w30-n26", "name": "Classify (Sonnet)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [3740, 300],
+      "retryOnFail": true, "maxTries": 2, "waitBetweenTries": 1500, "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Anthropic API" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const j = $json;\nconst cfg = $('Load config').first().json.cfg;\nconst ev = $('Normalise events').item.json;\nconst rules = cfg.rules;\nconst G = rules.global;\nconst AP = String.fromCharCode(39);\nconst failClosed = !j.classification && !j.precheck_class;\nconst cls = j.classification || (j.precheck_class ? { intent: j.precheck_class, needs_human: false, fais_risk: false } : { intent: 'off_topic', needs_human: true, fais_risk: true });\nlet key = cls.intent;\nif (cls.fais_risk && ['question', 'objection', 'interest'].indexOf(key) >= 0) key = 'advice_question';\nconst rule = rules.cases[key] || rules.cases.off_topic;\nconst nh = cls.needs_human === true;\nconst humanKeys = ['complaint', 'sensitive'];\nconst toks = (ev.text || '').toLowerCase().split('').map((c) => ((c >= 'a' && c <= 'z') || c === AP ? c : ' ')).join('').split(' ').filter(Boolean);\nconst afw = ['ek', 'jy', 'nie', 'dit', 'die', 'wat', 'kos', 'asseblief', 'dankie', 'hoe', 'lank', 'baie', 'vertrou', 'skelm', 'gesprek', 'bel', 'maand', 'wie', 'eintlik', 'vra', 'nog', 'het', 'sal', 'vir', 'maar', 'net', 'vraag', AP + 'n'];\nconst lang = toks.filter((t) => afw.indexOf(t) >= 0).length >= 2 ? 'af' : 'en';\nconst pick = (id, lg) => { const v = (cfg.corpus[id] && (cfg.corpus[id][lg] || cfg.corpus[id].en)) || []; if (!v.length) return ''; let s = 0; for (const ch of String(ev.comment_id)) s += ch.charCodeAt(0); return v[s % v.length]; };\nconst nameFill = (s) => { const n = ev.first_name; if (n) return s.split('{first_name}').join(n); const o = s.split(', {first_name}').join('').split(' {first_name}').join('').split('{first_name}, ').join('').split('{first_name}').join(''); return o.charAt(0).toUpperCase() + o.slice(1); };\nconst ref = 'cmt_' + (j.ad_id || ('org_' + ev.post_id));\nconst base = $env.CTWA_BASE_URL;\nconst link = base ? (base + '/' + ref) : ('https://sortmycover.co.za/?utm_source=meta&utm_medium=comment&utm_campaign=' + ref);\nconst sast = new Date(Date.now() + 7200000);\nconst mins = sast.getUTCHours() * 60 + sast.getUTCMinutes();\nconst inHours = mins >= 420 && mins < 1320;\nconst due = new Date(Date.UTC(sast.getUTCFullYear(), sast.getUTCMonth(), sast.getUTCDate() + (mins >= 1320 ? 1 : 0), 7, 15) - 7200000).toISOString();\nconst newAd = !!(j.launched_at && (Date.now() - new Date(j.launched_at).getTime()) < G.new_ad_watch.duration_seconds * 1000);\nconst sla = newAd ? G.new_ad_watch.public_sla_seconds : (rule.public_sla_seconds || null);\nlet pubText = '';\nlet needDraft = false;\nconst exch = j.prior_exchanges || 0;\nconst canPublic = !!rule.public_reply && !ev.is_nested && !(nh && humanKeys.indexOf(key) < 0) && !failClosed;\nif (canPublic) {\n  if (exch >= G.max_public_exchanges_per_person_per_post) {\n    if (exch === G.max_public_exchanges_per_person_per_post && ['question', 'interest', 'objection', 'advice_question'].indexOf(key) >= 0) pubText = nameFill(pick('continue_privately', lang));\n  } else if (key === 'praise' && ((j.praise_replied || 0) > 0 || exch > 0)) {\n    pubText = '';\n  } else {\n    pubText = nameFill(pick(rule.public_template, lang));\n    if (rule.public_draft_from_faq) needDraft = true;\n  }\n}\nlet privText = '';\nconst privOk = rule.private_reply === true && !(nh && humanKeys.indexOf(key) < 0 && key !== 'own_data_posted') && !failClosed;\nif (privOk) {\n  const disc = nameFill(pick('disclosure_line', lang));\n  privText = pick(rule.private_template, lang).split('{disclosure}').join(disc).split('{ctwa_link}').join(link).split('{page_link}').join(link);\n  privText = nameFill(privText);\n}\nconst hide = rule.hide === true;\nconst block = hide && ['spam', 'competitor', 'abuse'].indexOf(key) >= 0 && (j.prior_hidden || 0) >= 2 && ev.platform === 'fb';\nconst like = rule.like === true && ev.platform === 'fb' && !ev.is_nested && !(nh && humanKeys.indexOf(key) < 0);\nlet esc = null;\nif (failClosed) esc = { kind: 'classifier_invalid', to: ['Jonathan', 'KG'], human_within_seconds: 1800 };\nelse if (rule.escalation && rule.escalation.to && rule.escalation.kind !== 'hostile_thread') esc = { kind: rule.escalation.kind, to: rule.escalation.to, human_within_seconds: rule.escalation.human_within_seconds };\nelse if (nh) esc = { kind: 'needs_human', to: ['Jonathan', 'KG'], human_within_seconds: 1800 };\nconst plan = { platform: ev.platform, owner_id: ev.owner_id, comment_id: ev.comment_id, post_id: ev.post_id, author_id: ev.author_id, ad_id: j.ad_id, created_iso: ev.created_iso, first_name: ev.first_name, key: key, intent: cls.intent, needs_human: nh, fais_risk: cls.fais_risk === true, lang: lang, hide: hide, block: block, like: like, public_text: pubText, private_text: privText, esc: esc, in_hours: inHours, due_at: due, queue: false, sla_target: sla, new_ad: newAd, text_redacted: j.text_redacted, guardrail_trip: false, public_done: false, private_done: false, hide_done: false, esc_done: false, like_done: false };\nreturn { json: { plan: plan, need_draft: needDraft, key: key, cls: cls, text_redacted: j.text_redacted } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "w30-n27", "name": "Decide", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [3960, 60]
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ $json.need_draft }}", "value2": true } ] } },
+      "id": "w30-n28", "name": "Needs draft?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [4180, 60]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $json;\nconst cfg = $('Load config').first().json.cfg;\nconst NL = String.fromCharCode(10);\nconst facts = cfg.faq ? cfg.faq : cfg.facts;\nconst lang = d.plan.lang === 'af' ? 'Afrikaans' : 'plain South African English';\nconst sys = 'You write ONE public reply under a Facebook or Instagram post for SortMyCover. SortMyCover connects people with a licensed financial adviser for a 30-minute call. Rules: at most 2 sentences. Reading grade 5 to 7. Language: ' + lang + '. No exclamation marks. No emoji. No links. No numbers except 30. Never mention price, premium, rand amounts, insurers, products, cover amounts, comparisons or recommendations. Speak about the adviser and SortMyCover in the third person. Do not argue. Use only the FACTS below. For a question, answer from the facts and end by offering to send the details privately. For an objection, state the calm facts only. If the facts do not answer it, output exactly NO_ANSWER. Output only the reply text.' + NL + NL + 'FACTS:' + NL + String(facts).slice(0, 6000);\nconst hint = d.plan.first_name ? 'Start with the first name: ' + d.plan.first_name + '.' : 'No first name available.';\nconst body = { model: 'claude-haiku-4-5-20251001', max_tokens: 120, temperature: 0.2, system: sys, messages: [ { role: 'user', content: hint + NL + 'Type: ' + d.plan.intent + NL + 'Comment: ' + d.text_redacted } ] };\nreturn { json: Object.assign({}, d, { draft_body: body }) };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "w30-n29", "name": "Build draft request", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [4400, -60]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "anthropic-version", "value": "2023-06-01" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.draft_body) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "w30-n30", "name": "Draft (Haiku)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [4620, -60],
+      "retryOnFail": true, "maxTries": 3, "waitBetweenTries": 1500, "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Anthropic API" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $('Decide').item.json;\nconst cfg = $('Load config').first().json.cfg;\nconst NL = String.fromCharCode(10);\nconst r = $json || {};\nlet retried = false;\ntry { retried = $('Apply gate').item.json.retried === true; } catch (e) { retried = false; }\nconst draft = ((r.content && r.content[0] && r.content[0].text) || '').trim();\nconst reasons = [];\nif (!draft || draft.indexOf('NO_ANSWER') >= 0) reasons.push('no_answer');\nif (draft.indexOf('!') >= 0) reasons.push('exclamation');\nconst low = draft.toLowerCase();\nif (low.indexOf('http') >= 0 || low.indexOf('www.') >= 0 || low.indexOf('.co.za') >= 0 || low.indexOf('.com') >= 0) reasons.push('link');\nconst digits = draft.replace(new RegExp('[^0-9]', 'g'), '');\nif (digits.length > 0 && digits !== '30') reasons.push('digits');\nconst banned = ['premium', 'price', 'rand', 'insurer', 'policy', 'policies', 'cover amount', 'how much cover', 'compare', 'comparison', 'cheapest', 'best cover', 'you should', 'guarantee', 'financial advice', 'appointment', 'discovery', 'sanlam', 'old mutual', 'liberty', 'momentum', 'outsurance', 'hollard', '1life', 'assupol', 'brightrock', 'tax', 'recommend', 'suits you', 'suitable'];\nfor (const b of banned) { if (low.indexOf(b) >= 0) reasons.push('banned:' + b); }\nconst sentences = draft.split('.').join('|').split('?').join('|').split('|').filter((s) => s.trim().length > 1).length;\nif (sentences > 2) reasons.push('too_long');\nconst stub = 'You are the FAIS guardrail gate for public replies by SortMyCover, a South African lead-generation service that is not a financial services provider. A reply FAILS if it mentions or implies any premium, price, rand amount, cover amount, product, insurer, comparison, suitability, tax treatment, recommendation, or uses the phrase you should. A reply PASSES only if it answers about the call or the company in the third person, or defers to the licensed adviser.';\nconst sys = (cfg.guardrail ? cfg.guardrail : stub) + NL + NL + 'Community gate mode: judge the DRAFT reply below. Output exactly PASS or FAIL and nothing else.';\nconst gate_body = { model: 'claude-haiku-4-5-20251001', max_tokens: 10, temperature: 0, system: sys, messages: [ { role: 'user', content: 'DRAFT: ' + draft } ] };\nreturn { json: { draft: draft, lint_ok: reasons.length === 0, reasons: reasons, retried: retried, gate_body: gate_body } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "w30-n31", "name": "Lint draft", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [4840, -60]
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ $json.lint_ok }}", "value2": true } ] } },
+      "id": "w30-n32", "name": "Lint ok?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [5060, -60]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "anthropic-version", "value": "2023-06-01" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.gate_body) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "w30-n33", "name": "Guardrail gate (Haiku)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [5280, -160],
+      "retryOnFail": true, "maxTries": 2, "waitBetweenTries": 1500, "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Anthropic API" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $('Decide').item.json;\nconst L = $('Lint draft').item.json;\nconst r = $json || {};\nconst gate = String((r.content && r.content[0] && r.content[0].text) || '').trim().toUpperCase();\nconst pass = L.lint_ok === true && gate.indexOf('PASS') === 0;\nconst plan = JSON.parse(JSON.stringify(d.plan));\nlet retry = false;\nif (pass) {\n  plan.public_text = L.draft;\n} else {\n  plan.guardrail_trip = L.reasons.indexOf('no_answer') < 0;\n  if (d.key === 'objection' && !L.retried && !d.cls.needs_human) retry = true;\n}\nreturn { json: Object.assign({}, d, { plan: plan, retry_sonnet: retry, retried: retry }) };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "w30-n34", "name": "Apply gate", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [5500, -60]
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ $json.retry_sonnet }}", "value2": true } ] } },
+      "id": "w30-n35", "name": "Sonnet redraft?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [5720, -60]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "anthropic-version", "value": "2023-06-01" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify(Object.assign({}, $('Build draft request').item.json.draft_body, { model: 'claude-sonnet-5-5' })) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "w30-n36", "name": "Draft (Sonnet)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [5940, -200],
+      "retryOnFail": true, "maxTries": 2, "waitBetweenTries": 1500, "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Anthropic API" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const plan = $json.plan;\nconst ageDays = (Date.now() - new Date(plan.created_iso).getTime()) / 86400000;\nif (ageDays > 7) plan.private_text = '';\nconst needsSend = !!(plan.public_text || plan.private_text || plan.esc || plan.like);\nplan.queue = !plan.in_hours && needsSend;\nreturn { json: plan };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "w30-n37", "name": "Finalise", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [6160, 60]
+    },
+    {
+      "parameters": { "jsCode": "return { json: $json };", "mode": "runOnceForEachItem" },
+      "id": "w30-n38", "name": "Action ctx", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [6380, 60]
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ $json.hide && !$json.hide_done }}", "value2": true } ] } },
+      "id": "w30-n39", "name": "Hide?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [6600, 60]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://graph.facebook.com/' + $env.META_GRAPH_VERSION + '/' + $('Action ctx').item.json.comment_id }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": { "parameters": [ { "name": "={{ $('Action ctx').item.json.platform === 'fb' ? 'is_hidden' : 'hide' }}", "value": "true" } ] },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "w30-n40", "name": "Hide call", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [6820, -60],
+      "retryOnFail": true, "maxTries": 3, "waitBetweenTries": 2000, "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Meta Page Token" } }
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ !!$('Action ctx').item.json.block }}", "value2": true } ] } },
+      "id": "w30-n41", "name": "Block?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [7040, 60]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://graph.facebook.com/' + $env.META_GRAPH_VERSION + '/' + $('Action ctx').item.json.owner_id + '/blocked' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": { "parameters": [ { "name": "user", "value": "={{ $('Action ctx').item.json.author_id }}" } ] },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "w30-n42", "name": "Block call", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [7260, -60],
+      "retryOnFail": true, "maxTries": 2, "waitBetweenTries": 2000, "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Meta Page Token" } }
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ !!$('Action ctx').item.json.queue }}", "value2": true } ] } },
+      "id": "w30-n43", "name": "Queue?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [7480, 60]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update comments set status = 'queued', due_at = $2::timestamptz, decision = $3::jsonb, class = $4, hidden = ($5::boolean or coalesce(hidden, false)), text_redacted = $6, ad_id = $7 where comment_id = $1",
+        "options": { "queryReplacement": "={{ [ $('Action ctx').item.json.comment_id, $('Action ctx').item.json.due_at, JSON.stringify(Object.assign({}, $('Action ctx').item.json, { hide_done: !!$('Action ctx').item.json.hide, queue: false })), $('Action ctx').item.json.intent, !!$('Action ctx').item.json.hide, $('Action ctx').item.json.text_redacted, $('Action ctx').item.json.ad_id ] }}" }
+      },
+      "id": "w30-n44", "name": "Queue for 07:15", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [7700, -60],
+      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ !!$('Action ctx').item.json.esc && !$('Action ctx').item.json.esc_done }}", "value2": true } ] } },
+      "id": "w30-n45", "name": "Escalate?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [7700, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into escalations (kind, ref_table, ref_id, raised_at, assigned_to, note) values ($1, 'comments', $2, now(), $3, $4) returning id",
+        "options": { "queryReplacement": "={{ [ $('Action ctx').item.json.esc.kind, $('Action ctx').item.json.comment_id, $('Action ctx').item.json.esc.to.join(','), 'class=' + $('Action ctx').item.json.intent + '; first human touch within ' + $('Action ctx').item.json.esc.human_within_seconds + 's' ] }}" }
+      },
+      "id": "w30-n46", "name": "Insert escalation", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [7920, 100],
+      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_INTERNAL_URL + '/webhook/w22-alert' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ severity: 'amber', kind: $('Action ctx').item.json.esc.kind, to: $('Action ctx').item.json.esc.to, text: 'Community: ' + $('Action ctx').item.json.esc.kind + ' on a ' + $('Action ctx').item.json.platform + ' comment. First human touch due within 30 minutes.', deep_link: $env.CONSOLE_URL + '/community/escalations/' + $json.id, source: 'W30' }) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "w30-n47", "name": "Alert W22 (escalation)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [8140, 100],
+      "retryOnFail": true, "maxTries": 3, "waitBetweenTries": 2000, "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "W22 Internal Webhook" } }
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ !!$('Action ctx').item.json.public_text && !$('Action ctx').item.json.public_done }}", "value2": true } ] } },
+      "id": "w30-n48", "name": "Public reply?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [8360, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://graph.facebook.com/' + $env.META_GRAPH_VERSION + '/' + $('Action ctx').item.json.comment_id + ($('Action ctx').item.json.platform === 'fb' ? '/comments' : '/replies') }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ message: $('Action ctx').item.json.public_text }) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "w30-n49", "name": "Public reply", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [8580, 100],
+      "retryOnFail": true, "maxTries": 3, "waitBetweenTries": 2000, "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Meta Page Token" } }
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ !!$('Action ctx').item.json.like && !$('Action ctx').item.json.like_done }}", "value2": true } ] } },
+      "id": "w30-n50", "name": "Like?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [8800, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://graph.facebook.com/' + $env.META_GRAPH_VERSION + '/' + $('Action ctx').item.json.comment_id + '/likes' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "w30-n51", "name": "Like call", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [9020, 100],
+      "retryOnFail": true, "maxTries": 2, "waitBetweenTries": 2000, "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Meta Page Token" } }
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ !!$('Action ctx').item.json.private_text && !$('Action ctx').item.json.private_done }}", "value2": true } ] } },
+      "id": "w30-n52", "name": "Private reply?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [9240, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://graph.facebook.com/' + $env.META_GRAPH_VERSION + '/' + ($('Action ctx').item.json.platform === 'fb' ? $('Action ctx').item.json.comment_id + '/private_replies' : $('Action ctx').item.json.owner_id + '/messages') }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Action ctx').item.json.platform === 'fb' ? { message: $('Action ctx').item.json.private_text } : { recipient: { comment_id: $('Action ctx').item.json.comment_id }, message: { text: $('Action ctx').item.json.private_text } }) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "w30-n53", "name": "Private reply", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [9460, 100],
+      "retryOnFail": true, "maxTries": 3, "waitBetweenTries": 2000, "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Meta Page Token" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const p = $('Action ctx').item.json;\nconst get = (n) => { try { return $(n).isExecuted ? $(n).item.json : null; } catch (e) { return null; } };\nconst pub = get('Public reply');\nconst prv = get('Private reply');\nconst hid = get('Hide call');\nconst esc = get('Insert escalation');\nconst ok = (x) => !!(x && !x.error && (x.id || x.success || x.message_id || x.recipient_id));\nconst errs = [];\nif (p.public_text && !p.public_done && !ok(pub)) errs.push('public');\nif (p.private_text && !p.private_done && !ok(prv)) errs.push('private');\nif (p.hide && !p.hide_done && !ok(hid)) errs.push('hide');\nconst np = Object.assign({}, p, { public_done: !!(p.public_done || ok(pub)), private_done: !!(p.private_done || ok(prv)), hide_done: !!(p.hide_done || (p.hide && ok(hid))), esc_done: !!(p.esc_done || esc), like_done: true, queue: false });\nconst sla = Math.round((Date.now() - new Date(p.created_iso).getTime()) / 1000);\nreturn { json: { comment_id: p.comment_id, intent: p.intent, ad_id: p.ad_id || null, public_id: ok(pub) ? (pub.id || null) : null, private_sent: np.private_done, hidden: np.hide_done, sla_seconds: sla, text_redacted: p.text_redacted, status: errs.length ? 'retry' : 'done', errs: errs.join(','), plan: np } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "w30-n54", "name": "Collect results", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [9680, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update comments set class = $2, public_reply_id = coalesce($3, public_reply_id), private_reply_sent_at = case when $4::boolean and private_reply_sent_at is null then now() else private_reply_sent_at end, hidden = ($5::boolean or coalesce(hidden, false)), sla_seconds = coalesce(sla_seconds, $6::int), text_redacted = $7, ad_id = $8, attempts = coalesce(attempts, 0) + 1, status = case when $9 = 'retry' and coalesce(attempts, 0) >= 2 then 'failed' else $9 end, due_at = case when $9 = 'retry' then now() + interval '10 minutes' else null end, decision = case when $9 = 'retry' then $10::jsonb else null end where comment_id = $1",
+        "options": { "queryReplacement": "={{ [ $json.comment_id, $json.intent, $json.public_id, $json.private_sent, $json.hidden, $json.sla_seconds, $json.text_redacted, $json.ad_id, $json.status, JSON.stringify($json.plan) ] }}" }
+      },
+      "id": "w30-n55", "name": "Log comment", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [9900, 200],
+      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+    },
+    {
+      "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "*/5 7-21 * * *" } ] } },
+      "id": "w30-n56", "name": "Drain schedule", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [5720, 500]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select comment_id, decision, public_reply_id, private_reply_sent_at, hidden from comments where status in ('queued', 'retry') and due_at <= now() and decision is not null order by created_at asc limit 40",
+        "options": {}
+      },
+      "id": "w30-n57", "name": "Select queued", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [5940, 500],
+      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const out = [];\nfor (const it of $input.all()) {\n  const r = it.json;\n  const plan = typeof r.decision === 'string' ? JSON.parse(r.decision) : (r.decision || {});\n  if (!plan.comment_id) continue;\n  plan.queue = false;\n  plan.public_done = !!r.public_reply_id;\n  plan.private_done = !!r.private_reply_sent_at;\n  plan.hide_done = r.hidden === true;\n  const ageDays = (Date.now() - new Date(plan.created_iso).getTime()) / 86400000;\n  if (ageDays > 7) plan.private_text = '';\n  out.push({ json: plan });\n}\nreturn out;"
+      },
+      "id": "w30-n58", "name": "Rehydrate", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [6160, 500]
+    },
+    {
+      "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "30 21 * * *" } ] } },
+      "id": "w30-n59", "name": "Daily sentiment schedule", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [0, 700]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select c.ad_id, json_build_object('counts', (select json_object_agg(s.class, s.n) from (select class, count(*)::int as n from comments c2 where c2.ad_id = c.ad_id and c2.created_at > now() - interval '24 hours' group by class) s), 'objections', (select coalesce(json_agg(o.text_redacted), '[]'::json) from (select text_redacted from comments c3 where c3.ad_id = c.ad_id and c3.class = 'objection' and c3.created_at > now() - interval '24 hours' limit 20) o)) as stats from comments c where c.created_at > now() - interval '24 hours' and c.ad_id is not null group by c.ad_id",
+        "options": {}
+      },
+      "id": "w30-n60", "name": "Sentiment stats", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [220, 700],
+      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((i) => i.json);\nif (!rows.length) return [];\nconst sys = 'You summarise public comment sentiment per ad for SortMyCover, a South African service that books calls with licensed advisers. The input is a JSON array of rows with ad_id, class counts and redacted objection comments. Return ONLY a JSON object with the key ads, an array of objects with the keys ad_id, sentiment (positive, neutral or negative), themes (an array of objects with the keys theme and count, objection themes only, short plain phrases) and flag_media_buyer (boolean, true when negative, abuse and complaint comments are 30 percent or more of the total). No prose.';\nconst body = { model: 'claude-haiku-4-5-20251001', max_tokens: 1200, temperature: 0, system: sys, messages: [ { role: 'user', content: JSON.stringify(rows) } ] };\nreturn [{ json: { body: body } }];"
+      },
+      "id": "w30-n61", "name": "Build sentiment prompt", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [440, 700]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "anthropic-version", "value": "2023-06-01" } ] },
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "w30-n62", "name": "Summarise (Haiku)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [660, 700],
+      "retryOnFail": true, "maxTries": 3, "waitBetweenTries": 2000, "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "name": "Anthropic API" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "let o = null;\ntry {\n  const r = $json;\n  let t = ((r.content && r.content[0] && r.content[0].text) || '').trim();\n  t = t.replace(/```json|```/g, '').trim();\n  o = JSON.parse(t);\n} catch (e) { o = null; }\nif (!o || !Array.isArray(o.ads)) return [];\nreturn o.ads.map((a) => {\n  const themes = Array.isArray(a.themes) ? a.themes : [];\n  const themeAlert = themes.some((t) => Number(t.count) >= 3);\n  return { json: { ad_id: String(a.ad_id), sentiment: a.sentiment || 'neutral', themes: themes, flag_media_buyer: a.flag_media_buyer === true, theme_alert: themeAlert } };\n});"
+      },
+      "id": "w30-n63", "name": "Parse sentiment", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [880, 700]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into comment_ad_sentiment (day, ad_id, sentiment, themes, flag_media_buyer) values (current_date, $1, $2, $3::jsonb, $4::boolean) on conflict (day, ad_id) do update set sentiment = excluded.sentiment, themes = excluded.themes, flag_media_buyer = excluded.flag_media_buyer",
+        "options": { "queryReplacement": "={{ [ $json.ad_id, $json.sentiment, JSON.stringify($json.themes), $json.flag_media_buyer ] }}" }
+      },
+      "id": "w30-n64", "name": "Save sentiment", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [1100, 700],
+      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+    },
+    {
+      "parameters": { "conditions": { "boolean": [ { "value1": "={{ $('Parse sentiment').item.json.flag_media_buyer || $('Parse sentiment').item.json.theme_alert }}", "value2": true } ] } },
+      "id": "w30-n65", "name": "Alert needed?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [1320, 700]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_INTERNAL_URL + '/webhook/w22-alert' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ severity: 'info', kind: 'comment_sentiment', to: ['media-buyer', 'creative-strategist'], text: 'Ad ' + $('Parse sentiment').item.json.ad_id + ' comments: ' + $('Parse sentiment').item.json.sentiment + (($('Parse sentiment').item.json.flag_media_buyer) ? '. Negative-feedback-prone thread, media-buyer to review.' : '.') + (($('Parse sentiment').item.json.theme_alert) ? ' An objection theme was seen 3 or more times, creative-strategist to consider an ad or FAQ line.' : ''), deep_link: $env.CONSOLE_URL + '/community/ads/' + $('Parse sentiment').item.json.ad_id, source: 'W30' }) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "w30-n66", "name": "Alert W22 (sentiment)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1540, 640],
+      "credentials": { "httpHeaderAuth": { "name": "W22 Internal Webhook" } }
+    },
+    {
+      "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "*/15 * * * *" } ] } },
+      "id": "w30-n67", "name": "Hostile check schedule", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [0, 960]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into escalations (kind, ref_table, ref_id, raised_at, assigned_to, note) select 'hostile_thread', 'ads', h.ad_id::text, now(), 'media-buyer', '3 or more abuse comments in 60 minutes, review the ad for pause' from (select ad_id, count(*) as n from comments where class = 'abuse' and created_at > now() - interval '60 minutes' and ad_id is not null group by ad_id having count(*) >= 3) h where not exists (select 1 from escalations e where e.kind = 'hostile_thread' and e.ref_id = h.ad_id::text and e.raised_at > now() - interval '6 hours') returning id, ref_id",
+        "options": {}
+      },
+      "id": "w30-n68", "name": "Raise hostile escalation", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [220, 960],
+      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_INTERNAL_URL + '/webhook/w22-alert' }}",
+        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+        "sendBody": true, "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ severity: 'amber', kind: 'hostile_thread', to: ['media-buyer', 'Jonathan'], text: 'Ad ' + $json.ref_id + ' has a hostile comment thread (3 or more abuse comments in 60 minutes). Review the ad for pause.', deep_link: $env.CONSOLE_URL + '/community/escalations/' + $json.id, source: 'W30' }) }}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "w30-n69", "name": "Alert W22 (hostile)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [440, 960],
+      "credentials": { "httpHeaderAuth": { "name": "W22 Internal Webhook" } }
+    }
+  ],
+  "connections": {
+    "Meta Verify (GET)": { "main": [ [ { "node": "Token ok?", "type": "main", "index": 0 } ] ] },
+    "Token ok?": { "main": [ [ { "node": "Respond challenge", "type": "main", "index": 0 } ], [ { "node": "Respond 403", "type": "main", "index": 0 } ] ] },
+    "Meta Events (POST)": { "main": [ [ { "node": "Verify signature", "type": "main", "index": 0 } ] ] },
+    "Verify signature": { "main": [ [ { "node": "Signature ok?", "type": "main", "index": 0 } ] ] },
+    "Signature ok?": { "main": [ [ { "node": "Read community files", "type": "main", "index": 0 }, { "node": "Read faq", "type": "main", "index": 0 }, { "node": "Read guardrail", "type": "main", "index": 0 } ], [ { "node": "Alert bad signature", "type": "main", "index": 0 } ] ] },
+    "Read community files": { "main": [ [ { "node": "Merge config", "type": "main", "index": 0 } ] ] },
+    "Read faq": { "main": [ [ { "node": "Merge config", "type": "main", "index": 1 } ] ] },
+    "Read guardrail": { "main": [ [ { "node": "Merge config", "type": "main", "index": 2 } ] ] },
+    "Merge config": { "main": [ [ { "node": "Load config", "type": "main", "index": 0 } ] ] },
+    "Load config": { "main": [ [ { "node": "Normalise events", "type": "main", "index": 0 } ] ] },
+    "Normalise events": { "main": [ [ { "node": "Insert comment", "type": "main", "index": 0 } ] ] },
+    "Insert comment": { "main": [ [ { "node": "New comment?", "type": "main", "index": 0 } ] ] },
+    "New comment?": { "main": [ [ { "node": "Context lookup", "type": "main", "index": 0 } ], [] ] },
+    "Context lookup": { "main": [ [ { "node": "Fetch comment + parent", "type": "main", "index": 0 } ] ] },
+    "Fetch comment + parent": { "main": [ [ { "node": "Pre-checks", "type": "main", "index": 0 } ] ] },
+    "Pre-checks": { "main": [ [ { "node": "Skip?", "type": "main", "index": 0 } ] ] },
+    "Skip?": { "main": [ [ { "node": "Mark skipped", "type": "main", "index": 0 } ], [ { "node": "Pre-classified?", "type": "main", "index": 0 } ] ] },
+    "Pre-classified?": { "main": [ [ { "node": "Decide", "type": "main", "index": 0 } ], [ { "node": "Classify (Haiku)", "type": "main", "index": 0 } ] ] },
+    "Classify (Haiku)": { "main": [ [ { "node": "Parse classification", "type": "main", "index": 0 } ] ] },
+    "Parse classification": { "main": [ [ { "node": "Needs Sonnet retry?", "type": "main", "index": 0 } ] ] },
+    "Needs Sonnet retry?": { "main": [ [ { "node": "Classify (Sonnet)", "type": "main", "index": 0 } ], [ { "node": "Decide", "type": "main", "index": 0 } ] ] },
+    "Classify (Sonnet)": { "main": [ [ { "node": "Parse classification", "type": "main", "index": 0 } ] ] },
+    "Decide": { "main": [ [ { "node": "Needs draft?", "type": "main", "index": 0 } ] ] },
+    "Needs draft?": { "main": [ [ { "node": "Build draft request", "type": "main", "index": 0 } ], [ { "node": "Finalise", "type": "main", "index": 0 } ] ] },
+    "Build draft request": { "main": [ [ { "node": "Draft (Haiku)", "type": "main", "index": 0 } ] ] },
+    "Draft (Haiku)": { "main": [ [ { "node": "Lint draft", "type": "main", "index": 0 } ] ] },
+    "Lint draft": { "main": [ [ { "node": "Lint ok?", "type": "main", "index": 0 } ] ] },
+    "Lint ok?": { "main": [ [ { "node": "Guardrail gate (Haiku)", "type": "main", "index": 0 } ], [ { "node": "Apply gate", "type": "main", "index": 0 } ] ] },
+    "Guardrail gate (Haiku)": { "main": [ [ { "node": "Apply gate", "type": "main", "index": 0 } ] ] },
+    "Apply gate": { "main": [ [ { "node": "Sonnet redraft?", "type": "main", "index": 0 } ] ] },
+    "Sonnet redraft?": { "main": [ [ { "node": "Draft (Sonnet)", "type": "main", "index": 0 } ], [ { "node": "Finalise", "type": "main", "index": 0 } ] ] },
+    "Draft (Sonnet)": { "main": [ [ { "node": "Lint draft", "type": "main", "index": 0 } ] ] },
+    "Finalise": { "main": [ [ { "node": "Action ctx", "type": "main", "index": 0 } ] ] },
+    "Action ctx": { "main": [ [ { "node": "Hide?", "type": "main", "index": 0 } ] ] },
+    "Hide?": { "main": [ [ { "node": "Hide call", "type": "main", "index": 0 } ], [ { "node": "Block?", "type": "main", "index": 0 } ] ] },
+    "Hide call": { "main": [ [ { "node": "Block?", "type": "main", "index": 0 } ] ] },
+    "Block?": { "main": [ [ { "node": "Block call", "type": "main", "index": 0 } ], [ { "node": "Queue?", "type": "main", "index": 0 } ] ] },
+    "Block call": { "main": [ [ { "node": "Queue?", "type": "main", "index": 0 } ] ] },
+    "Queue?": { "main": [ [ { "node": "Queue for 07:15", "type": "main", "index": 0 } ], [ { "node": "Escalate?", "type": "main", "index": 0 } ] ] },
+    "Escalate?": { "main": [ [ { "node": "Insert escalation", "type": "main", "index": 0 } ], [ { "node": "Public reply?", "type": "main", "index": 0 } ] ] },
+    "Insert escalation": { "main": [ [ { "node": "Alert W22 (escalation)", "type": "main", "index": 0 } ] ] },
+    "Alert W22 (escalation)": { "main": [ [ { "node": "Public reply?", "type": "main", "index": 0 } ] ] },
+    "Public reply?": { "main": [ [ { "node": "Public reply", "type": "main", "index": 0 } ], [ { "node": "Like?", "type": "main", "index": 0 } ] ] },
+    "Public reply": { "main": [ [ { "node": "Like?", "type": "main", "index": 0 } ] ] },
+    "Like?": { "main": [ [ { "node": "Like call", "type": "main", "index": 0 } ], [ { "node": "Private reply?", "type": "main", "index": 0 } ] ] },
+    "Like call": { "main": [ [ { "node": "Private reply?", "type": "main", "index": 0 } ] ] },
+    "Private reply?": { "main": [ [ { "node": "Private reply", "type": "main", "index": 0 } ], [ { "node": "Collect results", "type": "main", "index": 0 } ] ] },
+    "Private reply": { "main": [ [ { "node": "Collect results", "type": "main", "index": 0 } ] ] },
+    "Collect results": { "main": [ [ { "node": "Log comment", "type": "main", "index": 0 } ] ] },
+    "Drain schedule": { "main": [ [ { "node": "Select queued", "type": "main", "index": 0 } ] ] },
+    "Select queued": { "main": [ [ { "node": "Rehydrate", "type": "main", "index": 0 } ] ] },
+    "Rehydrate": { "main": [ [ { "node": "Action ctx", "type": "main", "index": 0 } ] ] },
+    "Daily sentiment schedule": { "main": [ [ { "node": "Sentiment stats", "type": "main", "index": 0 } ] ] },
+    "Sentiment stats": { "main": [ [ { "node": "Build sentiment prompt", "type": "main", "index": 0 } ] ] },
+    "Build sentiment prompt": { "main": [ [ { "node": "Summarise (Haiku)", "type": "main", "index": 0 } ] ] },
+    "Summarise (Haiku)": { "main": [ [ { "node": "Parse sentiment", "type": "main", "index": 0 } ] ] },
+    "Parse sentiment": { "main": [ [ { "node": "Save sentiment", "type": "main", "index": 0 } ] ] },
+    "Save sentiment": { "main": [ [ { "node": "Alert needed?", "type": "main", "index": 0 } ] ] },
+    "Alert needed?": { "main": [ [ { "node": "Alert W22 (sentiment)", "type": "main", "index": 0 } ], [] ] },
+    "Hostile check schedule": { "main": [ [ { "node": "Raise hostile escalation", "type": "main", "index": 0 } ] ] },
+    "Raise hostile escalation": { "main": [ [ { "node": "Alert W22 (hostile)", "type": "main", "index": 0 } ] ] }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": false
+  },
+  "active": false,
+  "tags": [ { "name": "community-response-lead" }, { "name": "W30" } ],
+  "meta": { "owner": "community-response-lead", "spec": "docs/MASTER-PROMPT.md 4.6 W30, 4.14", "version": "1.0.0" }
+}
