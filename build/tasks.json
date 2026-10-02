@@ -767,7 +767,7 @@
       ],
       "acceptance_test": "node automation/tests/W32.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
+      "status": "green",
       "section": "4.6 inventory"
     },
     {
@@ -780,7 +780,7 @@
       ],
       "acceptance_test": "node automation/tests/W33.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
+      "status": "green",
       "section": "4.6 inventory"
     },
     {
@@ -1907,7 +1907,7 @@
     },
     {
       "id": "NH-15",
-      "title": "Pre-existing security/POPIA defects in the live CRM (public PII read/write, USING(true) RLS, public bucket, unauthenticated service-role functions, browser-exposed Gemini key, passwords in tracked scripts). Approve migration 1 = security fixes + rotate + untrack scripts. Changes live product behaviour.",
+      "title": "Pre-existing security/POPIA defects in the live CRM (public PII read/write, USING(true) RLS, public bucket, unauthenticated service-role functions, browser-exposed Gemini key, passwords in tracked scripts). Approve migration 1 = security fixes + rotate + untrack scripts. Changes live product behaviour. NEW S10 (found while drafting migration 01): two live policies let ANY signed-in broker read every lead and every message - broker #2 is unsafe until migration 01 is applied.",
       "owner": "jonathan",
       "phase": "0",
       "depends_on": [],
@@ -2055,7 +2055,7 @@
       ],
       "acceptance_test": "ls supabase/migrations/2026100*_smc_*.sql | wc -l | xargs test 3 -le && test -s deliverables/platform-architect/schema.md",
       "human_gate": false,
-      "status": "in_progress",
+      "status": "green",
       "section": "6.4 / crm-gap §D"
     },
     {
@@ -2190,6 +2190,17 @@
       "human_gate": true,
       "status": "needs_human",
       "section": "knowledge/metrics.md"
+    },
+    {
+      "id": "NH-26",
+      "title": "Bank reference format (money): 3.6 says LV-{broker_id}-{tier}-{YYYYMM}, 6.5 says LV-{broker_id}-{YYYYMM}; a UUID broker id is too long for an FNB reference. Drafted as LV-{ref_code}-{tier}-{YYYYMM} with a short brokers.ref_code (e.g. LV-MS01-BRZ-202610). Confirm.",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "deliverables/platform-architect/schema.md; contracts needs-human NH-CD-07"
     }
   ]
 }

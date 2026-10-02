@@ -75,3 +75,8 @@ credentials*
 compliance/
 *.whl
 !data/**/*.json
+!optimisation/**/*.json
+!analytics/**/*.json
+!portal/**/*.json
+!community/**/*.json
+!conversation/**/*.json

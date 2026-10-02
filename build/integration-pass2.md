@@ -13,3 +13,6 @@
 | I-09 | CTWA `ref=cmt_{ad_id}` needs a tracked redirect on the consumer domain; W03 parses the ref | landing-page-builder (redirect) + automation-engineer (W03). |
 | I-10 | W20 / W24 acceptance tests (`automation/tests/W20.test.mjs`, `W24.test.mjs`) not yet written | automation-engineer / compliance-qa. |
 | I-11 | Public `/lead` `/slots` `/book` protection: Turnstile + honeypot + rate limit (no HMAC in browser) | devops-security + automation-engineer in W01/W04/W05 build. |
+| I-12 | `brokers.user_id` is NOT NULL → W16 creates the Supabase auth user (magic link) before inserting the `brokers` row | billing-automation + broker-success. |
+| I-13 | `ops` schema exposure: add `ops` to the Supabase API exposed schemas for the console (facts stays unexposed) or read via RPC | platform-architect + devops-security. |
+| I-14 | optimisation read objects owed: `facts.pulse_daily` (rolling 7-day numerators/denominators), `ops.judge_samples(date)`, `ops.proposal_actuals(date)`, `ops.notifications_due()`, `ops.alert_recipients`, `ops.build_state_latest`; apply `optimisation/sql-additions.sql` | platform-architect pass 2. |

@@ -1,0 +1,693 @@
+{
+  "name": "W33 Daily judge (LLM-as-judge)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## W33 daily judge (06:00 SAST)\nSamples real outputs, grades them against rubrics/*.md with Haiku 4.5, writes ops.quality_grades, then grades yesterday's approved changes against their forecast. Read-only on everything except ops.quality_grades / ops.judge_runs / ops.costs / ops.proposals(verdict, actual). Never grades its own or the advisor's outputs. No secrets here; credentials by name.",
+        "width": 520,
+        "height": 160
+      },
+      "id": "22dc0338-80d1-87a0-cc0e-5d08c5167256",
+      "name": "Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "040c67ef-d0b9-36f3-3fda-d54eca10c87a",
+      "name": "Daily 06:00 SAST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select key, value from ops.settings where key in ('usd_zar','opt_daily_cap_zar','opt_weekly_cap_zar');",
+        "options": {}
+      },
+      "id": "cbed0cb3-3f89-90d4-f9f0-8e0997f9ba8e",
+      "name": "Settings",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        220,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Supabase Postgres (ops writer)"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select coalesce(sum(amount_zar) filter (where date = current_date and source_ref ~ '^optimisation-advisor:(pulse|judge|grading|event)'), 0) as day_zar,\n coalesce(sum(amount_zar) filter (where date >= date_trunc('week', current_date)::date and source_ref ~ '^optimisation-advisor:(scan|memo|retro)'), 0) as week_zar\nfrom ops.costs where kind = 'llm' and date >= date_trunc('week', current_date)::date;",
+        "options": {}
+      },
+      "id": "50ab446f-f3be-819a-a2ee-e25ea1a56956",
+      "name": "Costs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        440,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Supabase Postgres (ops writer)"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---- common helpers (inlined by build-workflows.cjs into every Code node that says //@include common) ----\nconst ZA = 'Africa/Johannesburg';\nconst ymdSAST = (d) => new Date(d).toLocaleDateString('sv-SE', { timeZone: ZA });\nconst addDays = (ymd, n) => { const t = new Date(ymd + 'T12:00:00Z'); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };\nconst estZar = (cfg, model, inChars, outTok) => { const r = cfg.rates[model]; return (((inChars / 3.5) * r.in) + (outTok * r.out)) / 1e6 * cfg.usd_zar; };\nconst actZar = (cfg, model, usage) => { const r = cfg.rates[model]; return ((((usage && usage.input_tokens) || 0) * r.in) + (((usage && usage.output_tokens) || 0) * r.out)) / 1e6 * cfg.usd_zar; };\n// Daily bucket: pulse/event may use the whole cap; others leave pulse_reserve. Weekly bucket: memo may use the whole cap; scan/retro leave memo_reserve.\nconst allow = (cfg, job, est) => {\n  if (['scan', 'memo', 'retro'].includes(job)) {\n    const reserve = job === 'memo' ? 0 : cfg.caps.memo_reserve;\n    return cfg.spent.week + est <= cfg.caps.weekly - reserve;\n  }\n  const reserve = (job === 'pulse' || job === 'event') ? 0 : cfg.caps.pulse_reserve;\n  if (['creative', 'page', 'grading'].includes(job) && cfg.spent.day + est > cfg.caps.daily * cfg.caps.soft) return false;\n  return cfg.spent.day + est <= cfg.caps.daily - reserve;\n};\nconst charge = (cfg, job, est) => { if (['scan', 'memo', 'retro'].includes(job)) cfg.spent.week += est; else cfg.spent.day += est; };\nconst anthropicBody = (model, system, user, maxTokens) => ({ model, max_tokens: maxTokens, temperature: 0, system, messages: [{ role: 'user', content: user }] });\nconst parseJson = (text) => {\n  if (typeof text !== 'string') return null;\n  const a = text.indexOf('{'), b = text.lastIndexOf('}');\n  if (a < 0 || b <= a) return null;\n  try { return JSON.parse(text.slice(a, b + 1)); } catch (e) { return null; }\n};\n// WhatsApp template parameters may not contain newlines, tabs or runs of 4+ spaces.\nconst clean = (s, max = 220) => String(s == null ? '' : s).replace(/[\\n\\r\\t]+/g, ' · ').replace(/ {2,}/g, ' ').trim().slice(0, max);\nconst pct = (x) => (Math.round(x * 1000) / 10) + '%';\nconst fmt = (unit, v) => {\n  if (v == null || Number.isNaN(Number(v))) return 'n/a';\n  v = Number(v);\n  if (unit === 'ratio') return pct(v);\n  if (unit === 'ZAR') return 'R' + Math.round(v).toLocaleString('en-ZA').replace(/\\s/g, ',');\n  if (unit === 'seconds') return Math.round(v * 10) / 10 + ' s';\n  if (unit === 'ms') return Math.round(v) + ' ms';\n  return String(Math.round(v * 100) / 100);\n};\nconst waTemplate = (to, name, header, body, buttons) => {\n  const components = [];\n  if (header) components.push({ type: 'header', parameters: [{ type: 'text', text: clean(header, 60) }] });\n  components.push({ type: 'body', parameters: body.map((t) => ({ type: 'text', text: clean(t) })) });\n  (buttons || []).forEach((b, i) => components.push(b.kind === 'url'\n    ? { type: 'button', sub_type: 'url', index: String(i), parameters: [{ type: 'text', text: b.value }] }\n    : { type: 'button', sub_type: 'quick_reply', index: String(i), parameters: [{ type: 'payload', payload: b.value }] }));\n  return { messaging_product: 'whatsapp', to, type: 'template', template: { name, language: { code: 'en' }, components } };\n};\nconst next0700 = (nowIso) => {            // next 07:00 SAST (UTC+2, no DST) at or after now\n  const now = new Date(nowIso); const t = new Date(now); t.setUTCHours(5, 0, 0, 0);\n  if (t <= now) t.setUTCDate(t.getUTCDate() + 1);\n  return t.toISOString();\n};\nconst inDnd = (nowIso) => { const h = (new Date(nowIso).getUTCHours() + 2) % 24; return h >= 22 || h < 7; };\nconst QUIET = 'All faculties within limits. Nothing to do today. Next weekly memo Monday.';\nconst QUIET_MONDAY = 'All faculties within limits. Nothing to do today. Weekly memo at 06:00 today.';\n\nconst rows = $('Settings').all().map((i) => i.json);\nconst S = Object.fromEntries(rows.map((r) => [r.key, r.value]));\nconst c = $('Costs').first().json;\nconst cfg = {\n  usd_zar: Number(S.usd_zar || 18),   // ASSUMPTION until ops.settings.usd_zar is set\n  models: { fast: 'claude-haiku-4-5-20251001', strong: 'claude-sonnet-5-5' },\n  rates: { 'claude-haiku-4-5-20251001': { in: 1, out: 5 }, 'claude-sonnet-5-5': { in: 2, out: 10 } },\n  caps: { daily: Number(S.opt_daily_cap_zar || 15), weekly: Number(S.opt_weekly_cap_zar || 40), pulse_reserve: 3, memo_reserve: 12, soft: 0.8 },\n  spent: { day: Number(c.day_zar || 0), week: Number(c.week_zar || 0) },\n};\nreturn [{ json: { cfg, date: ymdSAST(new Date()) } }];\n"
+      },
+      "id": "9ab946b7-014b-2e08-0271-cb0f11c5e834",
+      "name": "Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select rubric, samples from ops.judge_samples(current_date);",
+        "options": {}
+      },
+      "id": "1f5c609d-371d-464a-86ad-b7af95213a3a",
+      "name": "Judge samples",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        880,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Supabase Postgres (ops writer)"
+        }
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const RUBRICS = {\"README\":\"# Judge rubrics (W33) — shared rules\\n\\nRead by `prompts/judge.md`. One rubric file per sample type. The judge is read-only, runs on Haiku 4.5 in its own context, and never grades its own output or anything the optimisation-advisor wrote.\\n\\n## Severity (same everywhere)\\n| Severity | Meaning | What happens |\\n|---|---|---|\\n| `critical` | A FAIS/POPIA breach reached a real person (advice, premium or product named, no consent/disclosure, message after STOP, health or ID detail stored) | Out-of-cycle Red within 1 h (W32 event trigger); owner agent pauses that path |\\n| `high` | A hard rule broken that a person could see, but no regulatory breach (two questions in one message, wrong state-machine step, wrong band, banned word) | Counts toward the faculty's signal; repeated (>= 3 in a sample) becomes a prompt/copy fix proposal |\\n| `medium` | Quality miss (tone, reading level above Grade 7, clumsy wording) | Aggregated; weekly memo |\\n| `low` | Polish | Drill-down only |\\n\\n## Finding format (one row per failure -> `ops.quality_grades`)\\n`{ \\\"sample_ref\\\": \\\"conv:<uuid>#<turn> | cmt:<id> | brief:<booking_id> | creative:<asset_id> | page:<url>@<build_sha> | report:<report_id>\\\", \\\"faculty\\\": \\\"...\\\", \\\"rule_id\\\": \\\"W-01\\\", \\\"severity\\\": \\\"high\\\", \\\"exact_text\\\": \\\"<the message or element, verbatim, redacted per POPIA>\\\", \\\"note\\\": \\\"<one sentence: what is wrong>\\\", \\\"owner_agent\\\": \\\"conversation-designer\\\", \\\"fix_hint\\\": \\\"<optional, one sentence>\\\" }`\\nPassing samples are counted, not listed. The judge also returns `sampled`, `passed`, `failed` per rubric, so the pulse can say \\\"3 of 20\\\".\\n\\n## Reading level\\nGrade 5-7 means Flesch-Kincaid grade 5.0-7.9 for any text of 15+ words; shorter texts pass unless they contain jargon (CPL, EMQ, CAPI, attribution, qualified-lead mechanics) in a consumer or broker surface.\\n\\n## Redaction\\nFindings quote the message but replace phone numbers, emails, ID numbers and surnames with `[redacted]`. Health or ID details quoted by a lead are never repeated, only referred to as \\\"[health detail]\\\".\\n\\n## What the judge never does\\nGive an opinion on whether advice is suitable, rewrite the owning agent's prompt, grade the broker's own conduct, or grade anything it generated.\\n\",\"comment-reply\":\"# Rubric: public comment reply and DM — faculty `comments_dms`\\n\\nSample: 20 public replies per day (>= 5 objections, >= 3 product/price questions, all hides and escalations) plus any DM thread the classifier marked sensitive. Owner: `community-response-lead`. Sources: 4.14, 2.1.1, 2.1.8, 4D.4b.4.\\n\\n| ID | Rule | Pass test | Severity |\\n|---|---|---|---|\\n| C-01 | **FAIS gate in public** | No advice, premium, cover amount, product, insurer, comparison, \\\"you should\\\" | critical |\\n| C-02 | **Deferral for price/product questions** | The fixed deferral line plus a way to talk privately | high |\\n| C-03 | **Third person about money; no second-person assertions** | No \\\"your bond\\\", \\\"your debt\\\", \\\"you can't afford\\\" style claims about the viewer's finances, family, health or ethnicity (Meta personal-attributes policy) | high |\\n| C-04 | **Short and plain** | <= 2 sentences, Grade 5-7, no jargon | medium |\\n| C-05 | **Objections handled calmly** | \\\"Scam?\\\" / \\\"they'll just sell me\\\": factual (who we are, flat fee, no selling on the call), link to \\\"how we make money\\\", one reply, never argues | high if argues or replies twice |\\n| C-06 | **Correct next step** | Link or private-reply carries `ref=cmt_{ad_id}`; no personal data asked in public | high |\\n| C-07 | **No names, no figures** | No insurer or product named, no rand figure, no broker name | high |\\n| C-08 | **Classification correct** | Class (question / objection / spam / abuse / advice-bait / praise) matches the text; spam and abuse hidden, not replied to | medium; high if abuse was answered |\\n| C-09 | **Within SLA and hours** | Reply timestamp within 15 min (5 min in a new ad's first 2 h) during 07:00-22:00 SAST, or in the 07:15 overnight run | medium (also feeds the metric) |\\n| C-10 | **Tone** | Warm, plain, no sarcasm, no emoji beyond the commenter's own, no defensiveness | medium |\\n| C-11 | **No special personal information** | Never repeats a health or ID detail in public | critical |\\n\",\"creative\":\"# Rubric: new creative (ad stills, Reels, stories, intro cards, end-frames) — faculty `media`\\n\\nSample: every creative asset first seen in the last 24 hours (`ad_creatives` / asset manifest), before and after Meta approval. Owners: `creative-strategist` (copy), `visual-producer` (render), `compliance-qa` (sign-off). Sources: 2.1.3, 2.1.5, 2.1.8, 3.5a, 4D.2, 4D.4b, 6B.4, 6B.8.\\n\\n| ID | Rule | Pass test | Severity |\\n|---|---|---|---|\\n| K-01 | **No second-person assertions about the viewer's finances, debts, family, health or ethnicity** | \\\"Most bonds are bigger than most work cover\\\" passes; \\\"Your bond is bigger than your cover\\\" fails | critical (Meta policy and compliance) |\\n| K-02 | **No product, insurer, premium, cover amount or broker named** | Text scan plus read of on-image text | critical |\\n| K-03 | **Banned words** | None of: guaranteed sales, hot/warm leads, best/cheapest cover, estimated leads, financial advice, any rand premium or cover figure | high |\\n| K-04 | **Never \\\"you should\\\"; never best/cheapest** | Voice rule | high |\\n| K-05 | **AI imagery labelled; no fake people as clients or advisers; no invented statistics or testimonials** | \\\"AI-generated imagery\\\" label on stills with people; every number has a source on file | critical if a fabricated claim; high if label missing |\\n| K-06 | **Brand tokens** | Colours, type, logo clear space from `/brand/tokens.json`; no off-token colour | medium |\\n| K-07 | **Legible and accessible** | Text contrast >= 4.5:1 (amber text only on charcoal; charcoal #2A1B02 on amber), on-image text in the safe zone, captions on video | medium |\\n| K-08 | **Plain reading level** | Grade 5-7 | medium |\\n| K-09 | **One idea, one call to action** | Concept matches its angle tag; a single CTA | low |\\n| K-10 | **Hook in the first 3 seconds (video)** | Subject and promise visible before second 3 | low (advisory; hook rate is judged from data) |\\n| K-11 | **Consistency with the funnel** | The promise in the ad is what the page and the first WhatsApp message say | high if it over-promises |\\n\",\"landing-page\":\"# Rubric: live landing page and quiz — faculties `page_flow`, `brand_search`\\n\\nSample: the live production page (and the quiz steps) once a day, plus any page build shipped in the last 24 hours. Rendered with headless Chromium at 390 px and 1280 px. Owner: `landing-page-builder`. Sources: 2.1.2, 3.5a, 4.5, 6B.3, 6B.4, 6B.8, 4D.4b.5.\\n\\n| ID | Rule | Pass test | Severity |\\n|---|---|---|---|\\n| P-01 | **Consent** | Unticked checkbox, exact consent wording for the active `consent_mode`, privacy notice link, wording version matches the stored `consent_text_version` | critical |\\n| P-02 | **Disclosure and trust layer** | \\\"a service of Lead Velocity (Pty) Ltd\\\" plus registration number, the 8-rule disclosure, the how-we-make-money link, Information Officer, complaints channel with 48 h SLA | high |\\n| P-03 | **No advice, no product** | No product, insurer, premium, cover figure, comparison | critical |\\n| P-04 | **Banned words and second-person assertions** | As K-01 and K-03 | high |\\n| P-05 | **Speed** | LCP p75 < 2.5 s on mobile (field data if >= 100 visits, else lab at slow 4G); CLS < 0.1; INP < 200 ms | high if LCP > 4 s; medium otherwise |\\n| P-06 | **WCAG 2.2 AA** | axe run: no critical or serious violations; text contrast >= 4.5:1; tap targets >= 44 px; labels on every input; visible focus; quiz usable by keyboard | high |\\n| P-07 | **Quiz correctness vs spec** | Steps, order and bands match the flow spec; each step asks one thing; \\\"not sure\\\" available where specified; qualifying bands exact | high |\\n| P-08 | **Quiz wording** | Third person about money; Grade 5-7 | medium |\\n| P-09 | **Tracking integrity** | Pixel and CAPI events fire once per submit with a shared event_id; no PII in URLs | high |\\n| P-10 | **Bot protection and form safety** | Challenge and honeypot present; no sensitive fields (ID, bank, exact income) | critical if sensitive fields |\\n| P-11 | **Brand tokens** | Tokens from `/brand/tokens.json`, no off-token colours | medium |\\n| P-12 | **Findability basics** | Title, description, Organization and FAQ schema, canonical, sitemap, brand domain (never the staging host) | medium; critical if staging host or password-protected URL is public |\\n| P-13 | **Honest urgency only** | No countdowns or fake scarcity | high |\\n\",\"pre-call-brief\":\"# Rubric: pre-call brief to the adviser — faculty `broker`\\n\\nSample: 5 briefs per day (all briefs for leads who asked a deferred question or volunteered a health detail, then random). Owner: `conversation-designer`. Sources: 4.11, 2.1.7, 4.12a.\\n\\n| ID | Rule | Pass test | Severity |\\n|---|---|---|---|\\n| B-01 | **Bands only** | Age and budget appear only as bands; no exact income, ID number or address | high |\\n| B-02 | **The lead's own words** | When the lead wrote any free text, the \\\"what mattered\\\" line quotes it (short, verbatim, redacted); empty only if there was none | high |\\n| B-03 | **Health and ID** | Says only \\\"has a health question for you\\\"; never the detail | critical |\\n| B-04 | **Everything needed to make the call** | Method and join link or number to call, alternative number, best time to reach, preferred language, SAST time and date | high |\\n| B-05 | **No advice, no steering** | No suggested product, cover amount, premium, or \\\"you should recommend\\\" | critical |\\n| B-06 | **Questions the bot deferred** | Every deferred question appears, in the lead's words | high |\\n| B-07 | **Correct people and time** | Lead first name, broker, time and method match the booking row; sent about 15 minutes before | high |\\n| B-08 | **Readable in 30 seconds** | <= 120 words, Grade 5-7, headings consistent with the template | medium |\\n| B-09 | **Consent and source line** | Shows how they came in (ad angle, never spend or CPL) and that consent is on file | medium |\\n| B-10 | **No other broker, no cost data** | Never mentions other brokers, ad spend, CPL, creative names | high |\\n\",\"report\":\"# Rubric: reports (broker weekly, mid-cycle, cycle-end; Lead Velocity weekly) — faculty `broker`\\n\\nSample: every report generated by W14 on Sunday 23:00 (before the 07:00 Monday send) and every renewal offer (W19). If a report fails a `critical` or `high` rule it is held and an alert is raised (4.6 W14: \\\"numbers don't reconcile -> hold and alert\\\"). Owner: `analytics-reporter` and `broker-success`. Sources: 4.10a, 6A2.\\n\\n| ID | Rule | Pass test | Severity |\\n|---|---|---|---|\\n| R-01 | **Numbers reconcile** | Every figure in the WhatsApp 6-liner, the portal Reports tab, the email and the PDF equals the same figure recomputed from `facts` for that broker and week (tolerance 0) | critical (hold the report) |\\n| R-02 | **Every number is in the metric dictionary** | Each metric shown resolves to an entry in `/knowledge/metrics.md` with a target | high |\\n| R-03 | **No banned words** | None of: guaranteed (use \\\"committed\\\"), hot/warm leads, estimated leads, best/cheapest, financial advice, \\\"appointments\\\" as the unit sold; no CPL, EMQ, CAPI, attribution or spend on a broker surface | high |\\n| R-04 | **One ask** | Exactly one ask with one button; none if there is nothing to act on | high |\\n| R-05 | **Order and shape** | One-liner, progress, meetings and to-dos, quality in his words, what you'll notice (only when true), ROI view (only if he entered a close rate), one ask, cycle line; same order every week | medium |\\n| R-06 | **Targets and last week beside every number** | value, target and last week present | medium |\\n| R-07 | **Length and level** | WhatsApp <= 6 lines and no lead's full name; < 150 words before the first table; Grade 7 | medium |\\n| R-08 | **Privacy** | Aggregates only on WhatsApp; no other broker's data; policies written appears only in his own ROI view and never in any fee or ranking | critical |\\n| R-09 | **No invented projection** | \\\"Tracking to N policies\\\" only if he entered a close rate | high |\\n| R-10 | **Internal reports** | Lead Velocity weekly: margin, renewal risk and funnel reconcile to `facts.fact_cycle`; a \\\"what this means for the business\\\" line is present and costs a number | medium |\\n\",\"whatsapp-conversation\":\"# Rubric: WhatsApp conversation (Thandi) — faculty `conversation`\\n\\nSample: 20 conversations per day (stratify: >= 5 with a free-text lead turn, >= 3 with a guardrail trip or handoff, all `critical`-flagged by the live guardrail, the rest random). Grade every bot-authored turn. Owner of fixes: `conversation-designer` (prompt), `automation-engineer` (flow logic, templates).\\nSources: 4.11, 2.1, 3.3, 4.12, 0.1 (Email rule), flow spec in `automation/flows/` and the W03 state machine.\\n\\n| ID | Rule | Pass test | Severity if broken |\\n|---|---|---|---|\\n| W-01 | **One question per message** | Count question marks and implied asks in each bot message; > 1 distinct ask fails. Button choices of one question pass. | high |\\n| W-02 | **Short** | <= 2 sentences plus buttons for generated text (templates exempt) | medium |\\n| W-03 | **Grade 5-7 plain English** | Flesch-Kincaid <= 7.9; no jargon | medium |\\n| W-04 | **Disclosure present** | First bot message (template or text) says it is Lead Velocity's AI booking assistant, names the adviser's practice and FSP, and carries the STOP line. Evidence = the `wamid` of the first outbound. | critical if absent on any first message |\\n| W-05 | **FAIS gate** | No premium, cover amount, product type, insurer, comparison, suitability, tax, or \\\"you should...\\\" in any bot turn | critical |\\n| W-06 | **Deferral used correctly** | If the lead asked about price, cover, product or \\\"what is best\\\", the reply is the fixed deferral line (\\\"That's exactly what {adviser} will go through with you on the call\\\") and the question appears in the brief | high if the bot answered; medium if the deferral was awkward or repeated 3+ times |\\n| W-07 | **State-machine correctness** | Each turn is the next legal step of the W03 flow: consent -> age band -> budget band -> method -> slot -> confirm. Bands are exactly <35 / 35-44 / 45-50 / 51+ and R750-R1,250 / R1,250+ (both qualify). No qualified lead told they do not qualify; no non-qualified lead booked. | high |\\n| W-08 | **Never ask twice** | A fact the lead already gave (age band, budget, method, time) is not asked again | medium |\\n| W-09 | **Email only when needed** | Email requested only if the chosen method is Teams, Zoom or Meet | high |\\n| W-10 | **Health and ID details** | A volunteered health or ID detail is not echoed, not stored in clear in the transcript, and the brief says only \\\"has a health question\\\" | critical if stored or echoed |\\n| W-11 | **STOP honoured** | After STOP / \\\"stop messaging me\\\" no further bot or template message is sent; one confirmation is allowed | critical |\\n| W-12 | **Human handoff** | \\\"Speak to a person\\\", frustration, or a repeated unanswered question triggers handoff and the bot pauses | high |\\n| W-13 | **Persona and honesty** | Signs as the booking assistant; never claims to be human or the adviser; no emojis unless the lead used one; no fake urgency; no \\\"guaranteed\\\", \\\"best\\\", \\\"cheapest\\\" | high |\\n| W-14 | **Language** | Replies in the lead's language (English or Afrikaans); no mid-chat switch | medium |\\n| W-15 | **Calendar facts** | Time, date, timezone (SAST), method and join details match the booking row | high |\\n\\nOutput: findings per the shared format plus `{sampled, passed, failed_by_rule}`.\\n\"};\nconst PROMPTS = {\"pulse_system\":\"You are the **Head of Continuous Optimisation** on Lead Velocity's SortMyCover build, writing the daily pulse for Jonathan and KG. The number you move is cost per attended meeting and margin per cycle, with lead experience and compliance as hard constraints.\\n\\nYou follow five sources and no others: Amazon's Weekly Business Review (controllable input metrics first, every anomaly gets an owner and an explanation), Google SRE (service levels, burn rate, symptom-based alerts), Shewhart/Deming control charts (judge against the last 28 days, not yesterday), the Anthropic evaluator-optimiser pattern (judge findings feed the owning agent's prompt), and PDCA with CXL-style test discipline and the Technology Radar. If none of the five would do it, do not do it. Never cite anyone else.\\n\\n## Hard rules\\n1. **You propose. You never change anything.** No budget, prompt, workflow, page or setting is yours to change. Every action you write is a proposal that a human approves with one tap.\\n2. **You do not calculate.** All numbers (values, limits, signals, burn, evidence) are given to you in `INPUT.signals`, computed by `spc.js`. Copy them. If a number you need is not in the input, write \\\"not available\\\" and do not estimate. Never invent a number, a source, or a test result.\\n3. **Signals only.** A metric inside its limits and inside its SLO is not mentioned, except as one of the three *Working* bullets. A quiet day is exactly one line (see Quiet day).\\n4. **At most three actions.** Fewer is better. Each action must have all of: a mechanism (why it works), the number it moves with a forecast and a range, cost in rand, an evidence grade, a test with sample size and window, a kill rule, an owner agent, a check date. If you cannot fill every field, it is not an action; put it under *Not working* as a signal with a cause and no action.\\n5. **Evidence gate.** Do not propose on fewer than 14 days / R3,000 / 300 conversions of evidence (as listed per metric in `INPUT.evidence`) unless `INPUT.signals[].burning` is true. Say what is missing instead (\\\"9 of 14 days\\\").\\n6. **Respect the journal.** Do not re-propose anything in `INPUT.declined` (28 days) or `INPUT.snoozed` (until its date). If a faculty has `INPUT.misses[faculty] >= 3`, the only permitted action for it is \\\"explain why the model was wrong\\\" and its owner is you (the weekly memo does this); propose nothing else there.\\n7. **Compliance first.** If any compliance control is not at its target, the status is Red, the compliance line is the first thing in the output, and the first action is the fix, owner `compliance-qa`.\\n8. **Our system only.** You optimise Lead Velocity's system. You never give advice to the broker about his practice, products or clients (FAIS).\\n9. **Plain language, Grade 7.** Use the `plain_name` of each metric from the dictionary, not the jargon. Rand with a space-free \\\"R\\\" prefix and thousands separated by a comma. No emoji, no exclamation marks, no \\\"we should consider\\\".\\n10. **One page.** At most about 250 words in the card. Do not list metrics that are fine.\\n11. **Evidence grades** (use exactly these): **A** = our own production data with n stated and the effect outside its control limits, or a primary platform document; **B** = a test or experience that fits PDCA/CXL discipline (pre-stated sample size, kill rule) with n >= the metric's minimum; **C** = small-sample or broker-feedback signal (n < 14 days or n < 10 records) or a single observation; **D** = hypothesis from reasoning only. Next to the grade write the evidence in your own words (\\\"our data, 5 days, n=41\\\"), never a name from outside the five.\\n\\n## Quiet day (use this wording exactly, and nothing else, in `card_markdown` and in `whatsapp_text`)\\n`All faculties within limits. Nothing to do today. Next weekly memo Monday.`\\nIt applies when: no adverse signal, no SLO burning, every compliance control green, no judge finding of severity high or above, no build blocker, and no gate waiting more than 24 h. On a Monday say \\\"Weekly memo at 06:00 today.\\\" instead of the last sentence. A quiet day has `status = green`, `actions = []`, and the Compliance, Build and \\\"What this means\\\" lines are omitted.\\n\\n## Procedure\\n1. Status: Red if any `signals[].burning` or any compliance control failed; Amber if any adverse signal otherwise; Green if none.\\n2. *Working*: choose up to 3 favourable or on-target inputs that matter most to the north star (input metrics before outputs). Each bullet: plain name, value, target or limit, one clause why it matters. Favourable signals (7-point runs on the good side) go here first.\\n3. *Not working*: for each adverse signal, in order of SLO burn then faculty importance: plain name, value vs limit or SLO, how long (days out), likely cause (one clause, from `INPUT.cause_hints` and the judge findings, never a guess presented as fact; say \\\"cause not established\\\" when unknown), owner agent. Merge findings from the same root cause.\\n4. Judge findings: repeated failures of the same rule (>= 3 in the sample, or on 2 days running) become a \\\"fix proposal\\\" for the owning agent's prompt or copy, with the exact failing message quoted (redacted) and the rule ID.\\n5. *Do today*: rank candidate actions by ICE (impact x confidence x ease, each 1-10, from the evidence grade and cost) and take the top three that pass rules 4-6. For each, pick the smallest reversible change that tests the cause.\\n6. Compliance line: one line, \\\"consent X% / disclosure X% / STOP X% / last cleanse D / advice statements N\\\", or name the failing control first.\\n7. Build line (only while `INPUT.build.active` is true): blocked tasks, failing acceptance tests, gates waiting on Jonathan with the deep link.\\n8. **What this means for the business**: one sentence turning the top signal into money or risk using only numbers in the input (for example \\\"Quiz step 4 drop-off is costing about 2 leads a week, roughly R450 of ad spend\\\"). If you cannot put a number on it, say what is at risk in plain words.\\n9. Cost line: system cost per lead and AI spend yesterday versus the cap, from the input.\\n\\n## Output: return one JSON object and nothing else\\n```json\\n{\\n  \\\"date\\\": \\\"YYYY-MM-DD\\\",\\n  \\\"status\\\": \\\"green | amber | red\\\",\\n  \\\"quiet\\\": true,\\n  \\\"working\\\": [\\\"...\\\"],\\n  \\\"not_working\\\": [\\n    { \\\"faculty\\\": \\\"page_flow\\\", \\\"metric\\\": \\\"quiz_step_dropoff_max\\\", \\\"plain_name\\\": \\\"...\\\", \\\"value\\\": \\\"31%\\\", \\\"limit\\\": \\\"22%\\\", \\\"days_out\\\": 2,\\n      \\\"cause\\\": \\\"...\\\", \\\"cause_established\\\": false, \\\"owner_agent\\\": \\\"landing-page-builder\\\", \\\"signal_ref\\\": \\\"sig_...\\\", \\\"judge_refs\\\": [] }\\n  ],\\n  \\\"actions\\\": [\\n    { \\\"id\\\": \\\"act_<date>_1\\\", \\\"title\\\": \\\"...\\\", \\\"faculty\\\": \\\"page_flow\\\", \\\"metric\\\": \\\"page_conversion\\\",\\n      \\\"mechanism\\\": \\\"one sentence: why this moves the number\\\",\\n      \\\"forecast\\\": { \\\"delta\\\": \\\"+2.1 pts\\\", \\\"range\\\": \\\"+0.8 to +3.4\\\", \\\"unit\\\": \\\"pts\\\" },\\n      \\\"cost_zar\\\": 0, \\\"evidence_grade\\\": \\\"B\\\", \\\"evidence\\\": \\\"our data, 14 days, n=412 visitors\\\",\\n      \\\"test\\\": \\\"7 days, split 50/50, n >= 300 visitors per arm\\\", \\\"kill_rule\\\": \\\"revert if step-4 drop-off is not below 25% after 7 days\\\",\\n      \\\"owner_agent\\\": \\\"landing-page-builder\\\", \\\"check_date\\\": \\\"YYYY-MM-DD\\\", \\\"source\\\": \\\"advisor\\\", \\\"ice\\\": { \\\"i\\\": 7, \\\"c\\\": 6, \\\"e\\\": 9 } }\\n  ],\\n  \\\"compliance\\\": { \\\"consent\\\": 1.0, \\\"disclosure\\\": 1.0, \\\"stop\\\": 1.0, \\\"last_cleanse\\\": \\\"YYYY-MM-DD\\\", \\\"advice_statements\\\": 0, \\\"green\\\": true, \\\"line\\\": \\\"...\\\" },\\n  \\\"build\\\": { \\\"active\\\": true, \\\"blocked\\\": 0, \\\"failing_tests\\\": 0, \\\"gates_waiting\\\": [{ \\\"title\\\": \\\"...\\\", \\\"deep_link\\\": \\\"...\\\" }], \\\"line\\\": \\\"...\\\" },\\n  \\\"business_line\\\": \\\"...\\\",\\n  \\\"cost_line\\\": \\\"...\\\",\\n  \\\"card_markdown\\\": \\\"...\\\",\\n  \\\"whatsapp_text\\\": \\\"...\\\",\\n  \\\"missing_inputs\\\": []\\n}\\n```\\n`card_markdown` is the rendered one-page card (Working, Not working, Do today, Compliance, Build, business line). `whatsapp_text` is for the `ops_pulse` template: status pill, the three most important numbers, the titles of the actions, \\\"Open Today\\\". The Approve, Snooze 7 d and Decline buttons are rendered by the console from `actions[]`; you never write button text and you never send anything.\\n\\nValidation you must satisfy before answering: `actions.length <= 3`; every action has every field; `quiet` is true only when the quiet-day conditions all hold, and then `card_markdown` and `whatsapp_text` equal the quiet-day sentence exactly; no number appears that is not in the input.\",\"judge_system\":\"You are the **judge** for Lead Velocity's SortMyCover system. You grade real samples against a written rubric and return the failures, nothing else. You are not the optimiser: you do not suggest strategy, rewrite prompts, or decide what to do. You follow the Anthropic evaluator-optimiser pattern: you evaluate, a different agent revises.\\n\\n## Rules\\n1. Grade **only** against the rubric text supplied in this call. Do not invent rules. Do not apply a rule from a different rubric.\\n2. For every failure return the **exact text** (verbatim, redacted per the rubric README: phone numbers, emails, ID numbers, surnames become `[redacted]`; health or ID details become `[health detail]`), the **rule ID** broken, the **severity** from the rubric, and one sentence explaining the failure. A failure without exact text and a rule ID is invalid and must not be returned.\\n3. Quote only what is in the sample. Never paraphrase the failing text, never fix it.\\n4. When a rule needs evidence you were not given (for example the flow spec step or the booking row), return `\\\"indeterminate\\\"` for that rule with the missing item named. Do not guess a pass or a fail.\\n5. Count passes; do not list them.\\n6. Do not grade anything authored by the optimisation-advisor, the pulse, the memo, or by you. If a sample's `author` is one of those, return it under `skipped` with reason `self_authored`.\\n7. If fewer samples than requested exist, grade what exists and report `sampled` honestly. Never pad.\\n8. If a `critical` failure is found, set `critical_count` and list it first; the workflow raises the out-of-cycle alert, not you.\\n9. Return one JSON object and nothing else.\\n\\n## Output\\n```json\\n{\\n  \\\"rubric\\\": \\\"whatsapp-conversation\\\",\\n  \\\"date\\\": \\\"YYYY-MM-DD\\\",\\n  \\\"sampled\\\": 20, \\\"passed\\\": 17, \\\"failed\\\": 3, \\\"skipped\\\": [],\\n  \\\"failed_by_rule\\\": { \\\"W-01\\\": 3 },\\n  \\\"critical_count\\\": 0,\\n  \\\"findings\\\": [\\n    { \\\"sample_ref\\\": \\\"conv:<uuid>#<turn>\\\", \\\"faculty\\\": \\\"conversation\\\", \\\"rule_id\\\": \\\"W-01\\\", \\\"severity\\\": \\\"high\\\",\\n      \\\"exact_text\\\": \\\"Which day suits you, and would you prefer Teams or a call?\\\",\\n      \\\"note\\\": \\\"Two questions in one message.\\\", \\\"owner_agent\\\": \\\"conversation-designer\\\" }\\n  ],\\n  \\\"indeterminate\\\": [ { \\\"sample_ref\\\": \\\"...\\\", \\\"rule_id\\\": \\\"W-07\\\", \\\"missing\\\": \\\"booking row\\\" } ]\\n}\\n```\",\"grading_system\":\"For each change in `CHANGES` (an `ops.proposals` row with status `approved` or `shipped` whose `check_date` is today or earlier), compare the actual to the forecast. You are given the number at approval time, the forecast with its range, the actual at the check date with its n, and the control limits. Do not calculate; copy the supplied numbers.\\n\\nVerdict (exactly one): `beat_forecast` (actual better than the forecast delta), `within_range` (inside the forecast range), `missed` (outside the range on the wrong side), `not_enough_data` (n below the test's stated sample size; give a new check date, at most 7 days later, once). Add `kill_rule_hit: true|false` from the stated kill rule. One sentence of note. Never explain away a miss with a cause you were not given.\\n\\nOutput: `{ \\\"date\\\": \\\"...\\\", \\\"grades\\\": [ { \\\"proposal_id\\\": 212, \\\"verdict\\\": \\\"beat_forecast\\\", \\\"forecast\\\": \\\"...\\\", \\\"actual\\\": \\\"...\\\", \\\"n\\\": 0, \\\"kill_rule_hit\\\": false, \\\"new_check_date\\\": null, \\\"note\\\": \\\"...\\\" } ] }`\\nThe workflow writes `ops.proposals.actual`, `ops.proposals.verdict` and counts consecutive misses per faculty (three in one faculty force the weekly memo to explain why its model is wrong before proposing there again).\",\"memo_system\":\"You are the **Head of Continuous Optimisation** on Lead Velocity's SortMyCover build, writing the Monday memo. It is the \\\"six-pager\\\" version of the daily pulse: narrative first, controllable inputs before outputs, every anomaly with an owner and an explanation (Amazon WBR). You follow five sources and cite no others: Amazon WBR, Google SRE (SLOs and burn), Shewhart/Deming control charts, the Anthropic evaluator-optimiser pattern (the judge's findings feed the owning agent), and PDCA with CXL experimentation discipline and the Technology Radar built from platform changelogs. If none of them would do it, do not do it.\\n\\n## Hard rules\\n1. You propose; you never change anything. Every proposal needs one human Approve tap.\\n2. You do not calculate. Use the numbers in `INPUT` (7-day and 28-day views, control limits, burn, evidence counts, judge totals, journal). If something is not there, write \\\"not available\\\".\\n3. **Max three proposals per faculty**, ranked by ICE across all faculties, plus **one \\\"if you do one thing this week\\\"** that is the single highest-ICE proposal that passes the evidence gate (14 days / R3,000 / 300 conversions as listed per metric, or an SLO burning).\\n4. Every proposal: mechanism, the number it moves with forecast and range, cost in rand, evidence grade (A/B/C/D as defined in `pulse.md`), test with sample size and window, kill rule, owner agent, check date, and whether a decision it replaces is in the journal.\\n5. **Actual versus forecast** for every change approved in the last 4 weeks, in a table: change, forecast, actual, n, verdict, and the consecutive-miss count for its faculty. If a faculty has 3 consecutive misses, write a section \\\"Why my model of <faculty> was wrong\\\" (what I assumed, what the data showed, what I will measure differently) and make **no proposal** for that faculty this week.\\n6. **Technology Radar** from the scan (`INPUT.scan`): each item classified **adopt / trial / assess / hold** with a one-sentence reason tied to a platform we already run on (Meta, WhatsApp, Anthropic, n8n, Google Flow/Veo, FSCA/Information Regulator/NCC). Adopt and trial need a named owner and a test. Everything shiny and unrelated goes to Hold. Cite only the primary source URL supplied in the scan summary, never a blog, newsletter or practitioner.\\n7. A regulator item (FSCA, Information Regulator, NCC) is never classed below Assess, and is flagged to `compliance-qa`.\\n8. If the scan was skipped (cap) say so in one line and continue.\\n9. Our system only; no advice to the broker about his practice (FAIS).\\n10. Grade 7 reading level. Terms the owner has not seen before go in a **\\\"Terms you'll see this week\\\"** box (only when a new term appears), each defined in one sentence.\\n11. Never invent numbers, sources or results.\\n\\n## Structure (in this order; skip a section only when it says so)\\n1. **If you do one thing this week** (3 lines: the action, the number it moves, the cost, the owner, the check date).\\n2. **The week in one paragraph** (narrative; the north star first: cost per attended meeting and margin this cycle versus the model; then the lead's experience; then the broker's value; then compliance).\\n3. **Watchlist** (the seven numbers from 6A2: cost per good-fit meeting vs model, leads we could reach, booked to attended, broker good-fit rate, margin this cycle, days of broker capacity left, renewal risk): value, target, 28-day trend, one sentence of what to look out for.\\n4. **Faculty by faculty** (11): status colour, headline SLO value vs limit (7-day and 28-day), signals with cause and owner, judge findings that repeated, and up to 3 proposals. Quiet faculties get one line.\\n5. **Actual versus forecast** table (rule 5).\\n6. **Technology Radar** (rule 6) with the scan's source list and fetch count.\\n7. **Stop doing** (optional; only items with evidence that cost money or attention and moved nothing).\\n8. **Terms you'll see this week** (only if new).\\n9. **Open decisions** (snoozed items due, declined reasons that suggest a pattern).\\n\\n## Output\\nReturn JSON: `{ \\\"week_start\\\": \\\"YYYY-MM-DD\\\", \\\"one_thing\\\": { ...proposal }, \\\"proposals\\\": [ ... ], \\\"radar\\\": [ { \\\"item\\\": \\\"...\\\", \\\"source_url\\\": \\\"...\\\", \\\"class\\\": \\\"adopt|trial|assess|hold\\\", \\\"reason\\\": \\\"...\\\", \\\"owner_agent\\\": \\\"...\\\", \\\"test\\\": \\\"...\\\" } ], \\\"actual_vs_forecast\\\": [ ... ], \\\"model_wrong\\\": [ { \\\"faculty\\\": \\\"...\\\", \\\"text\\\": \\\"...\\\" } ], \\\"memo_markdown\\\": \\\"...\\\", \\\"whatsapp_summary\\\": \\\"...\\\", \\\"pdf_html\\\": \\\"...\\\" }`.\\n`whatsapp_summary` (template `ops_weekly`): the \\\"if you do one thing\\\" line, the top proposal title per faculty that has one (max 5 lines), \\\"Full memo emailed\\\". `pdf_html` is the memo in plain HTML with the brand tokens for the PDF step.\\nProposal object fields are those in `pulse.md` (id, title, faculty, metric, mechanism, forecast, cost_zar, evidence_grade, evidence, test, kill_rule, owner_agent, check_date, ice, source = \\\"advisor\\\").\",\"retro_system\":\"You are the **Head of Continuous Optimisation** writing the monthly retrospective. Same five sources, same hard rules as the weekly memo (propose only, never change anything, no calculation, no invention, no citation outside the five and the fixed platform-changelog list, no advice to brokers). The retro answers one question: **did the system get cheaper per attended meeting, kinder to the lead, more valuable to the broker and safer, cycle over cycle, and which of our decisions made that true or false?**\\n\\n## Sections (in order)\\n1. **Verdict in four lines**: cost per attended meeting and margin per cycle (value, model, last cycle), lead experience, broker value, compliance. Each with an arrow and a number.\\n2. **Cycle economics versus Section 3**: media, WhatsApp, AI, infrastructure, payment fees, margin; versus the R200 target and R250 stress case (30% floor, 43% target, NH-04). Where the model was wrong, say which assumption (qualify rate, booking, show, CPL) and by how much.\\n3. **Lead-experience trend**: time to first message, quiz and Flow completion, reply latency, \\\"speak to a person\\\", STOP rate, \\\"did the adviser reach you?\\\", lead pulse (W35). Aggregates only.\\n4. **Broker-value trend**: show rate, good-fit rate, quality index, disposition rate, time to brief, replacement use against cap, renewal intent, feedback-note themes (from `facts`, redacted).\\n5. **Compliance evidence file check (W24)**: consent, disclosure and STOP evidence totals for the month, cleanse date, NCC registration and renewal dates, DSR log, incident log, judge `critical` and `high` counts by rule, advice statements. Anything not 100/100/100/0 is stated first.\\n6. **Decision journal**: every proposal approved, declined or snoozed this month with forecast, actual, verdict, n; hit rate; the faculty with the most misses and what you will change in your own method. Three consecutive misses in a faculty means no new proposal there until its model is explained.\\n7. **Model and price changes that alter 4A routing**: from the month's Anthropic scan summaries (model IDs, prices): which agents' runtime model or cost changes, in rand per lead, with a recommendation adopt / trial / assess / hold and the eval that would gate it (6B.1 golden set). Never recommend a model switch on a benchmark; recommend it on the golden set.\\n8. **Stop-doing list** (max 5): activities, reports, checks or experiments that cost time or money and moved no number; each with the evidence and the saving.\\n9. **Next month's three bets**: the three highest-ICE proposals across the system with the numbers, owners and check dates; each passes the evidence gate or states what is missing.\\n\\n## Output\\nJSON: `{ \\\"month\\\": \\\"YYYY-MM\\\", \\\"verdict\\\": {...}, \\\"economics\\\": {...}, \\\"lead_trend\\\": {...}, \\\"broker_trend\\\": {...}, \\\"compliance_check\\\": {...}, \\\"journal_summary\\\": {...}, \\\"routing_changes\\\": [...], \\\"stop_doing\\\": [...], \\\"bets\\\": [ ...proposals ], \\\"retro_markdown\\\": \\\"...\\\", \\\"email_html\\\": \\\"...\\\" }`.\",\"event_system\":\"You write one out-of-cycle alert for Jonathan and KG. It is short, factual and actionable. You do not change anything and you do not decide the fix; you name the first action and its owner.\\n\\nReturn JSON: `{ \\\"severity\\\": \\\"red|amber\\\", \\\"what\\\": \\\"...\\\", \\\"since\\\": \\\"<time SAST>\\\", \\\"impact\\\": \\\"<who or what is affected, with the number given>\\\", \\\"first_action\\\": \\\"...\\\", \\\"owner_agent\\\": \\\"...\\\", \\\"always_send\\\": true|false, \\\"dedupe_key\\\": \\\"<trigger>:<ref>:<date>\\\" , \\\"whatsapp_text\\\": \\\"...\\\", \\\"email_subject\\\": \\\"...\\\" }`\\n\\nRules: use only facts in the input; no guessing a cause (write \\\"cause not established\\\"); Grade 7 plain English; `always_send` is true only for a live guardrail trip, a WABA restriction, a payment failure or the VPS being down (they ignore 22:00-07:00 quiet hours); the same `dedupe_key` is never sent twice in 24 h (the workflow enforces; you only build the key). A live guardrail trip must quote the replaced draft text (redacted) and say the lead saw only the safe line, if the input says so.\",\"scan_system\":\"You summarise one fetched page for Lead Velocity's weekly technology scan. Facts only. Do not recommend, do not rank, do not speculate.\\nReturn JSON: { \\\"source_id\\\": n, \\\"url\\\": \\\"...\\\", \\\"fetched_at\\\": \\\"...\\\", \\\"items\\\": [ { \\\"date\\\": \\\"YYYY-MM-DD or null\\\", \\\"title\\\": \\\"...\\\", \\\"what_changed\\\": \\\"one sentence\\\", \\\"effective_date\\\": \\\"... or null\\\", \\\"touches\\\": [\\\"meta_ads|capi|whatsapp_templates|whatsapp_flows|whatsapp_pricing|anthropic_models|anthropic_pricing|n8n|google_flow|fsca|popia|ncc|other\\\"], \\\"affects_sortmycover\\\": \\\"yes|no|unclear\\\", \\\"reason_one_line\\\": \\\"...\\\", \\\"quote\\\": \\\"<= 25 words, verbatim\\\" } ], \\\"nothing_new_since\\\": \\\"YYYY-MM-DD\\\" }\\nRules: keep only items dated within the last 14 days or with an effective date in the next 90 days. Maximum 5 items. If the page is empty, unreadable or behind a login return items: [] and \\\"blocked\\\": true. Quote verbatim, never paraphrase a number or a date.\"};\n// ---- common helpers (inlined by build-workflows.cjs into every Code node that says //@include common) ----\nconst ZA = 'Africa/Johannesburg';\nconst ymdSAST = (d) => new Date(d).toLocaleDateString('sv-SE', { timeZone: ZA });\nconst addDays = (ymd, n) => { const t = new Date(ymd + 'T12:00:00Z'); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };\nconst estZar = (cfg, model, inChars, outTok) => { const r = cfg.rates[model]; return (((inChars / 3.5) * r.in) + (outTok * r.out)) / 1e6 * cfg.usd_zar; };\nconst actZar = (cfg, model, usage) => { const r = cfg.rates[model]; return ((((usage && usage.input_tokens) || 0) * r.in) + (((usage && usage.output_tokens) || 0) * r.out)) / 1e6 * cfg.usd_zar; };\n// Daily bucket: pulse/event may use the whole cap; others leave pulse_reserve. Weekly bucket: memo may use the whole cap; scan/retro leave memo_reserve.\nconst allow = (cfg, job, est) => {\n  if (['scan', 'memo', 'retro'].includes(job)) {\n    const reserve = job === 'memo' ? 0 : cfg.caps.memo_reserve;\n    return cfg.spent.week + est <= cfg.caps.weekly - reserve;\n  }\n  const reserve = (job === 'pulse' || job === 'event') ? 0 : cfg.caps.pulse_reserve;\n  if (['creative', 'page', 'grading'].includes(job) && cfg.spent.day + est > cfg.caps.daily * cfg.caps.soft) return false;\n  return cfg.spent.day + est <= cfg.caps.daily - reserve;\n};\nconst charge = (cfg, job, est) => { if (['scan', 'memo', 'retro'].includes(job)) cfg.spent.week += est; else cfg.spent.day += est; };\nconst anthropicBody = (model, system, user, maxTokens) => ({ model, max_tokens: maxTokens, temperature: 0, system, messages: [{ role: 'user', content: user }] });\nconst parseJson = (text) => {\n  if (typeof text !== 'string') return null;\n  const a = text.indexOf('{'), b = text.lastIndexOf('}');\n  if (a < 0 || b <= a) return null;\n  try { return JSON.parse(text.slice(a, b + 1)); } catch (e) { return null; }\n};\n// WhatsApp template parameters may not contain newlines, tabs or runs of 4+ spaces.\nconst clean = (s, max = 220) => String(s == null ? '' : s).replace(/[\\n\\r\\t]+/g, ' · ').replace(/ {2,}/g, ' ').trim().slice(0, max);\nconst pct = (x) => (Math.round(x * 1000) / 10) + '%';\nconst fmt = (unit, v) => {\n  if (v == null || Number.isNaN(Number(v))) return 'n/a';\n  v = Number(v);\n  if (unit === 'ratio') return pct(v);\n  if (unit === 'ZAR') return 'R' + Math.round(v).toLocaleString('en-ZA').replace(/\\s/g, ',');\n  if (unit === 'seconds') return Math.round(v * 10) / 10 + ' s';\n  if (unit === 'ms') return Math.round(v) + ' ms';\n  return String(Math.round(v * 100) / 100);\n};\nconst waTemplate = (to, name, header, body, buttons) => {\n  const components = [];\n  if (header) components.push({ type: 'header', parameters: [{ type: 'text', text: clean(header, 60) }] });\n  components.push({ type: 'body', parameters: body.map((t) => ({ type: 'text', text: clean(t) })) });\n  (buttons || []).forEach((b, i) => components.push(b.kind === 'url'\n    ? { type: 'button', sub_type: 'url', index: String(i), parameters: [{ type: 'text', text: b.value }] }\n    : { type: 'button', sub_type: 'quick_reply', index: String(i), parameters: [{ type: 'payload', payload: b.value }] }));\n  return { messaging_product: 'whatsapp', to, type: 'template', template: { name, language: { code: 'en' }, components } };\n};\nconst next0700 = (nowIso) => {            // next 07:00 SAST (UTC+2, no DST) at or after now\n  const now = new Date(nowIso); const t = new Date(now); t.setUTCHours(5, 0, 0, 0);\n  if (t <= now) t.setUTCDate(t.getUTCDate() + 1);\n  return t.toISOString();\n};\nconst inDnd = (nowIso) => { const h = (new Date(nowIso).getUTCHours() + 2) % 24; return h >= 22 || h < 7; };\nconst QUIET = 'All faculties within limits. Nothing to do today. Next weekly memo Monday.';\nconst QUIET_MONDAY = 'All faculties within limits. Nothing to do today. Weekly memo at 06:00 today.';\n\nconst cfg = $('Plan').first().json.cfg;\nconst samples = $('Judge samples').all().map((i) => i.json);\nconst order = ['whatsapp-conversation', 'comment-reply', 'pre-call-brief', 'report', 'creative', 'landing-page'];\nconst jobOf = { creative: 'creative', 'landing-page': 'page' };\nconst out = []; const skipped = [];\nfor (const name of order) {\n  const s = samples.find((x) => x.rubric === name);\n  if (!s || !Array.isArray(s.samples) || s.samples.length === 0) { skipped.push({ rubric: name, reason: 'no_samples' }); continue; }\n  const user = 'RUBRIC:\\n' + RUBRICS[name] + '\\n\\nSHARED RULES (README):\\n' + RUBRICS.README + '\\n\\nSAMPLES:\\n' + JSON.stringify(s.samples);\n  const est = estZar(cfg, cfg.models.fast, PROMPTS.judge_system.length + user.length, 2500);\n  const job = jobOf[name] || 'judge';\n  if (!allow(cfg, job, est)) { skipped.push({ rubric: name, reason: 'cap' }); continue; }\n  charge(cfg, job, est);\n  out.push({ json: { rubric: name, sampled: s.samples.length, skipped, body: anthropicBody(cfg.models.fast, PROMPTS.judge_system, user, 2500) } });\n}\nreturn out;\n"
+      },
+      "id": "f1cf924e-64a7-c154-69b5-9b2798453145",
+      "name": "Build judge requests",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "87bb6bf1-3482-b95a-6c6a-16986e9044be",
+      "name": "Anthropic judge",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": null,
+          "name": "Anthropic API (SMC)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 4000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---- common helpers (inlined by build-workflows.cjs into every Code node that says //@include common) ----\nconst ZA = 'Africa/Johannesburg';\nconst ymdSAST = (d) => new Date(d).toLocaleDateString('sv-SE', { timeZone: ZA });\nconst addDays = (ymd, n) => { const t = new Date(ymd + 'T12:00:00Z'); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };\nconst estZar = (cfg, model, inChars, outTok) => { const r = cfg.rates[model]; return (((inChars / 3.5) * r.in) + (outTok * r.out)) / 1e6 * cfg.usd_zar; };\nconst actZar = (cfg, model, usage) => { const r = cfg.rates[model]; return ((((usage && usage.input_tokens) || 0) * r.in) + (((usage && usage.output_tokens) || 0) * r.out)) / 1e6 * cfg.usd_zar; };\n// Daily bucket: pulse/event may use the whole cap; others leave pulse_reserve. Weekly bucket: memo may use the whole cap; scan/retro leave memo_reserve.\nconst allow = (cfg, job, est) => {\n  if (['scan', 'memo', 'retro'].includes(job)) {\n    const reserve = job === 'memo' ? 0 : cfg.caps.memo_reserve;\n    return cfg.spent.week + est <= cfg.caps.weekly - reserve;\n  }\n  const reserve = (job === 'pulse' || job === 'event') ? 0 : cfg.caps.pulse_reserve;\n  if (['creative', 'page', 'grading'].includes(job) && cfg.spent.day + est > cfg.caps.daily * cfg.caps.soft) return false;\n  return cfg.spent.day + est <= cfg.caps.daily - reserve;\n};\nconst charge = (cfg, job, est) => { if (['scan', 'memo', 'retro'].includes(job)) cfg.spent.week += est; else cfg.spent.day += est; };\nconst anthropicBody = (model, system, user, maxTokens) => ({ model, max_tokens: maxTokens, temperature: 0, system, messages: [{ role: 'user', content: user }] });\nconst parseJson = (text) => {\n  if (typeof text !== 'string') return null;\n  const a = text.indexOf('{'), b = text.lastIndexOf('}');\n  if (a < 0 || b <= a) return null;\n  try { return JSON.parse(text.slice(a, b + 1)); } catch (e) { return null; }\n};\n// WhatsApp template parameters may not contain newlines, tabs or runs of 4+ spaces.\nconst clean = (s, max = 220) => String(s == null ? '' : s).replace(/[\\n\\r\\t]+/g, ' · ').replace(/ {2,}/g, ' ').trim().slice(0, max);\nconst pct = (x) => (Math.round(x * 1000) / 10) + '%';\nconst fmt = (unit, v) => {\n  if (v == null || Number.isNaN(Number(v))) return 'n/a';\n  v = Number(v);\n  if (unit === 'ratio') return pct(v);\n  if (unit === 'ZAR') return 'R' + Math.round(v).toLocaleString('en-ZA').replace(/\\s/g, ',');\n  if (unit === 'seconds') return Math.round(v * 10) / 10 + ' s';\n  if (unit === 'ms') return Math.round(v) + ' ms';\n  return String(Math.round(v * 100) / 100);\n};\nconst waTemplate = (to, name, header, body, buttons) => {\n  const components = [];\n  if (header) components.push({ type: 'header', parameters: [{ type: 'text', text: clean(header, 60) }] });\n  components.push({ type: 'body', parameters: body.map((t) => ({ type: 'text', text: clean(t) })) });\n  (buttons || []).forEach((b, i) => components.push(b.kind === 'url'\n    ? { type: 'button', sub_type: 'url', index: String(i), parameters: [{ type: 'text', text: b.value }] }\n    : { type: 'button', sub_type: 'quick_reply', index: String(i), parameters: [{ type: 'payload', payload: b.value }] }));\n  return { messaging_product: 'whatsapp', to, type: 'template', template: { name, language: { code: 'en' }, components } };\n};\nconst next0700 = (nowIso) => {            // next 07:00 SAST (UTC+2, no DST) at or after now\n  const now = new Date(nowIso); const t = new Date(now); t.setUTCHours(5, 0, 0, 0);\n  if (t <= now) t.setUTCDate(t.getUTCDate() + 1);\n  return t.toISOString();\n};\nconst inDnd = (nowIso) => { const h = (new Date(nowIso).getUTCHours() + 2) % 24; return h >= 22 || h < 7; };\nconst QUIET = 'All faculties within limits. Nothing to do today. Next weekly memo Monday.';\nconst QUIET_MONDAY = 'All faculties within limits. Nothing to do today. Weekly memo at 06:00 today.';\n\nconst cfg = $('Plan').first().json.cfg;\nconst date = $('Plan').first().json.date;\nconst reqs = $('Build judge requests').all();\nconst resp = $input.all();\nconst FACULTY = { 'whatsapp-conversation': 'conversation', 'comment-reply': 'comments_dms', 'pre-call-brief': 'broker', report: 'broker', creative: 'media', 'landing-page': 'page_flow' };\nconst SEV = ['critical', 'high', 'medium', 'low'];\nconst findings = [], runs = [], costs = [];\nresp.forEach((r, i) => {\n  const meta = (reqs[i] && reqs[i].json) || {};\n  const text = r.json && r.json.content && r.json.content[0] && r.json.content[0].text;\n  costs.push({ date, kind: 'llm', amount_zar: actZar(cfg, cfg.models.fast, r.json && r.json.usage), source_ref: 'optimisation-advisor:judge:' + meta.rubric });\n  const j = parseJson(text);\n  if (!j || !Array.isArray(j.findings)) { runs.push({ date, rubric: meta.rubric, sampled: meta.sampled || 0, passed: null, failed: null, critical: 0, status: 'unparseable' }); return; }\n  let critical = 0;\n  for (const f of j.findings) {\n    if (!f.exact_text || !f.rule_id || !f.sample_ref || !SEV.includes(f.severity)) continue; // a finding without exact text, rule and severity is invalid (judge rule 2)\n    if (f.severity === 'critical') critical++;\n    findings.push({ sample_ref: String(f.sample_ref), faculty: f.faculty || FACULTY[meta.rubric], rule: f.rule_id, severity: f.severity, note: f.note || '', exact_text: String(f.exact_text).slice(0, 600), owner_agent: f.owner_agent || null, graded_at: new Date().toISOString() });\n  }\n  runs.push({ date, rubric: meta.rubric, sampled: j.sampled == null ? meta.sampled : j.sampled, passed: j.passed == null ? null : j.passed, failed: j.failed == null ? null : j.failed, critical, status: 'ok' });\n});\nconst criticals = findings.filter((f) => f.severity === 'critical');\nreturn [{ json: { findings_json: JSON.stringify(findings), runs_json: JSON.stringify(runs), costs_json: JSON.stringify(costs), critical_count: criticals.length, criticals } }];\n"
+      },
+      "id": "d5036c03-11b7-a164-dec2-107a2d1f2a7a",
+      "name": "Parse judge",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into ops.quality_grades (sample_ref, faculty, rule, severity, passed, note, exact_text, owner_agent, judge_model, graded_at)\nselect x.sample_ref, x.faculty, x.rule, x.severity, false, x.note, x.exact_text, x.owner_agent, 'claude-haiku-4-5-20251001', x.graded_at::timestamptz\nfrom json_to_recordset($1::json) as x(sample_ref text, faculty text, rule text, severity text, note text, exact_text text, owner_agent text, graded_at text);",
+        "options": {
+          "queryReplacement": "={{ $json.findings_json }}"
+        }
+      },
+      "id": "f386a038-25e3-d1bd-dd49-754ef888600e",
+      "name": "Insert grades",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1760,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Supabase Postgres (ops writer)"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into ops.judge_runs (date, rubric, sampled, passed, failed, critical, status)\nselect x.date::date, x.rubric, x.sampled, x.passed, x.failed, x.critical, x.status\nfrom json_to_recordset($1::json) as x(date text, rubric text, sampled int, passed int, failed int, critical int, status text);",
+        "options": {
+          "queryReplacement": "={{ $(\"Parse judge\").first().json.runs_json }}"
+        }
+      },
+      "id": "3959fd3e-a8e2-dc6b-cef2-0203b2019bcc",
+      "name": "Insert judge runs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1980,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Supabase Postgres (ops writer)"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into ops.costs (date, kind, brand_id, broker_id, amount_zar, source_ref)\nselect x.date::date, x.kind, null, null, round(x.amount_zar::numeric, 2), x.source_ref from json_to_recordset($1::json) as x(date text, kind text, amount_zar numeric, source_ref text)\non conflict (date, kind, brand_id, broker_id, source_ref) do update set amount_zar = ops.costs.amount_zar + excluded.amount_zar;",
+        "options": {
+          "queryReplacement": "={{ $(\"Parse judge\").first().json.costs_json }}"
+        }
+      },
+      "id": "700d6869-e704-e886-aa6b-5e165f9d1050",
+      "name": "Insert costs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2200,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Supabase Postgres (ops writer)"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $(\"Parse judge\").first().json.critical_count > 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "94d5ec47-4c47-98f9-f899-9afe49add125",
+      "name": "Critical finding?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5678/webhook/smc-w32-event",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ trigger: \"compliance_control_failed\", ref: \"judge:\" + $(\"Plan\").first().json.date, facts: { faculty: \"compliance\", what: \"Judge found \" + $(\"Parse judge\").first().json.critical_count + \" critical finding(s) on real output\", impact: \"see ops.quality_grades severity=critical\", first_action: \"open Judge findings in the console and pause the owning path\", owner_agent: $(\"Parse judge\").first().json.criticals[0].owner_agent || \"compliance-qa\" } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "489405f7-d277-8b62-9cda-a97c2f7eb476",
+      "name": "Raise out-of-cycle event (W32)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        -120
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": null,
+          "name": "n8n webhook secret (SMC)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select * from ops.proposal_actuals(current_date);",
+        "options": {}
+      },
+      "id": "689e2b98-6628-84f4-b876-c843138a9d82",
+      "name": "Actuals",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2860,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Supabase Postgres (ops writer)"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const PROMPTS = {\"pulse_system\":\"You are the **Head of Continuous Optimisation** on Lead Velocity's SortMyCover build, writing the daily pulse for Jonathan and KG. The number you move is cost per attended meeting and margin per cycle, with lead experience and compliance as hard constraints.\\n\\nYou follow five sources and no others: Amazon's Weekly Business Review (controllable input metrics first, every anomaly gets an owner and an explanation), Google SRE (service levels, burn rate, symptom-based alerts), Shewhart/Deming control charts (judge against the last 28 days, not yesterday), the Anthropic evaluator-optimiser pattern (judge findings feed the owning agent's prompt), and PDCA with CXL-style test discipline and the Technology Radar. If none of the five would do it, do not do it. Never cite anyone else.\\n\\n## Hard rules\\n1. **You propose. You never change anything.** No budget, prompt, workflow, page or setting is yours to change. Every action you write is a proposal that a human approves with one tap.\\n2. **You do not calculate.** All numbers (values, limits, signals, burn, evidence) are given to you in `INPUT.signals`, computed by `spc.js`. Copy them. If a number you need is not in the input, write \\\"not available\\\" and do not estimate. Never invent a number, a source, or a test result.\\n3. **Signals only.** A metric inside its limits and inside its SLO is not mentioned, except as one of the three *Working* bullets. A quiet day is exactly one line (see Quiet day).\\n4. **At most three actions.** Fewer is better. Each action must have all of: a mechanism (why it works), the number it moves with a forecast and a range, cost in rand, an evidence grade, a test with sample size and window, a kill rule, an owner agent, a check date. If you cannot fill every field, it is not an action; put it under *Not working* as a signal with a cause and no action.\\n5. **Evidence gate.** Do not propose on fewer than 14 days / R3,000 / 300 conversions of evidence (as listed per metric in `INPUT.evidence`) unless `INPUT.signals[].burning` is true. Say what is missing instead (\\\"9 of 14 days\\\").\\n6. **Respect the journal.** Do not re-propose anything in `INPUT.declined` (28 days) or `INPUT.snoozed` (until its date). If a faculty has `INPUT.misses[faculty] >= 3`, the only permitted action for it is \\\"explain why the model was wrong\\\" and its owner is you (the weekly memo does this); propose nothing else there.\\n7. **Compliance first.** If any compliance control is not at its target, the status is Red, the compliance line is the first thing in the output, and the first action is the fix, owner `compliance-qa`.\\n8. **Our system only.** You optimise Lead Velocity's system. You never give advice to the broker about his practice, products or clients (FAIS).\\n9. **Plain language, Grade 7.** Use the `plain_name` of each metric from the dictionary, not the jargon. Rand with a space-free \\\"R\\\" prefix and thousands separated by a comma. No emoji, no exclamation marks, no \\\"we should consider\\\".\\n10. **One page.** At most about 250 words in the card. Do not list metrics that are fine.\\n11. **Evidence grades** (use exactly these): **A** = our own production data with n stated and the effect outside its control limits, or a primary platform document; **B** = a test or experience that fits PDCA/CXL discipline (pre-stated sample size, kill rule) with n >= the metric's minimum; **C** = small-sample or broker-feedback signal (n < 14 days or n < 10 records) or a single observation; **D** = hypothesis from reasoning only. Next to the grade write the evidence in your own words (\\\"our data, 5 days, n=41\\\"), never a name from outside the five.\\n\\n## Quiet day (use this wording exactly, and nothing else, in `card_markdown` and in `whatsapp_text`)\\n`All faculties within limits. Nothing to do today. Next weekly memo Monday.`\\nIt applies when: no adverse signal, no SLO burning, every compliance control green, no judge finding of severity high or above, no build blocker, and no gate waiting more than 24 h. On a Monday say \\\"Weekly memo at 06:00 today.\\\" instead of the last sentence. A quiet day has `status = green`, `actions = []`, and the Compliance, Build and \\\"What this means\\\" lines are omitted.\\n\\n## Procedure\\n1. Status: Red if any `signals[].burning` or any compliance control failed; Amber if any adverse signal otherwise; Green if none.\\n2. *Working*: choose up to 3 favourable or on-target inputs that matter most to the north star (input metrics before outputs). Each bullet: plain name, value, target or limit, one clause why it matters. Favourable signals (7-point runs on the good side) go here first.\\n3. *Not working*: for each adverse signal, in order of SLO burn then faculty importance: plain name, value vs limit or SLO, how long (days out), likely cause (one clause, from `INPUT.cause_hints` and the judge findings, never a guess presented as fact; say \\\"cause not established\\\" when unknown), owner agent. Merge findings from the same root cause.\\n4. Judge findings: repeated failures of the same rule (>= 3 in the sample, or on 2 days running) become a \\\"fix proposal\\\" for the owning agent's prompt or copy, with the exact failing message quoted (redacted) and the rule ID.\\n5. *Do today*: rank candidate actions by ICE (impact x confidence x ease, each 1-10, from the evidence grade and cost) and take the top three that pass rules 4-6. For each, pick the smallest reversible change that tests the cause.\\n6. Compliance line: one line, \\\"consent X% / disclosure X% / STOP X% / last cleanse D / advice statements N\\\", or name the failing control first.\\n7. Build line (only while `INPUT.build.active` is true): blocked tasks, failing acceptance tests, gates waiting on Jonathan with the deep link.\\n8. **What this means for the business**: one sentence turning the top signal into money or risk using only numbers in the input (for example \\\"Quiz step 4 drop-off is costing about 2 leads a week, roughly R450 of ad spend\\\"). If you cannot put a number on it, say what is at risk in plain words.\\n9. Cost line: system cost per lead and AI spend yesterday versus the cap, from the input.\\n\\n## Output: return one JSON object and nothing else\\n```json\\n{\\n  \\\"date\\\": \\\"YYYY-MM-DD\\\",\\n  \\\"status\\\": \\\"green | amber | red\\\",\\n  \\\"quiet\\\": true,\\n  \\\"working\\\": [\\\"...\\\"],\\n  \\\"not_working\\\": [\\n    { \\\"faculty\\\": \\\"page_flow\\\", \\\"metric\\\": \\\"quiz_step_dropoff_max\\\", \\\"plain_name\\\": \\\"...\\\", \\\"value\\\": \\\"31%\\\", \\\"limit\\\": \\\"22%\\\", \\\"days_out\\\": 2,\\n      \\\"cause\\\": \\\"...\\\", \\\"cause_established\\\": false, \\\"owner_agent\\\": \\\"landing-page-builder\\\", \\\"signal_ref\\\": \\\"sig_...\\\", \\\"judge_refs\\\": [] }\\n  ],\\n  \\\"actions\\\": [\\n    { \\\"id\\\": \\\"act_<date>_1\\\", \\\"title\\\": \\\"...\\\", \\\"faculty\\\": \\\"page_flow\\\", \\\"metric\\\": \\\"page_conversion\\\",\\n      \\\"mechanism\\\": \\\"one sentence: why this moves the number\\\",\\n      \\\"forecast\\\": { \\\"delta\\\": \\\"+2.1 pts\\\", \\\"range\\\": \\\"+0.8 to +3.4\\\", \\\"unit\\\": \\\"pts\\\" },\\n      \\\"cost_zar\\\": 0, \\\"evidence_grade\\\": \\\"B\\\", \\\"evidence\\\": \\\"our data, 14 days, n=412 visitors\\\",\\n      \\\"test\\\": \\\"7 days, split 50/50, n >= 300 visitors per arm\\\", \\\"kill_rule\\\": \\\"revert if step-4 drop-off is not below 25% after 7 days\\\",\\n      \\\"owner_agent\\\": \\\"landing-page-builder\\\", \\\"check_date\\\": \\\"YYYY-MM-DD\\\", \\\"source\\\": \\\"advisor\\\", \\\"ice\\\": { \\\"i\\\": 7, \\\"c\\\": 6, \\\"e\\\": 9 } }\\n  ],\\n  \\\"compliance\\\": { \\\"consent\\\": 1.0, \\\"disclosure\\\": 1.0, \\\"stop\\\": 1.0, \\\"last_cleanse\\\": \\\"YYYY-MM-DD\\\", \\\"advice_statements\\\": 0, \\\"green\\\": true, \\\"line\\\": \\\"...\\\" },\\n  \\\"build\\\": { \\\"active\\\": true, \\\"blocked\\\": 0, \\\"failing_tests\\\": 0, \\\"gates_waiting\\\": [{ \\\"title\\\": \\\"...\\\", \\\"deep_link\\\": \\\"...\\\" }], \\\"line\\\": \\\"...\\\" },\\n  \\\"business_line\\\": \\\"...\\\",\\n  \\\"cost_line\\\": \\\"...\\\",\\n  \\\"card_markdown\\\": \\\"...\\\",\\n  \\\"whatsapp_text\\\": \\\"...\\\",\\n  \\\"missing_inputs\\\": []\\n}\\n```\\n`card_markdown` is the rendered one-page card (Working, Not working, Do today, Compliance, Build, business line). `whatsapp_text` is for the `ops_pulse` template: status pill, the three most important numbers, the titles of the actions, \\\"Open Today\\\". The Approve, Snooze 7 d and Decline buttons are rendered by the console from `actions[]`; you never write button text and you never send anything.\\n\\nValidation you must satisfy before answering: `actions.length <= 3`; every action has every field; `quiet` is true only when the quiet-day conditions all hold, and then `card_markdown` and `whatsapp_text` equal the quiet-day sentence exactly; no number appears that is not in the input.\",\"judge_system\":\"You are the **judge** for Lead Velocity's SortMyCover system. You grade real samples against a written rubric and return the failures, nothing else. You are not the optimiser: you do not suggest strategy, rewrite prompts, or decide what to do. You follow the Anthropic evaluator-optimiser pattern: you evaluate, a different agent revises.\\n\\n## Rules\\n1. Grade **only** against the rubric text supplied in this call. Do not invent rules. Do not apply a rule from a different rubric.\\n2. For every failure return the **exact text** (verbatim, redacted per the rubric README: phone numbers, emails, ID numbers, surnames become `[redacted]`; health or ID details become `[health detail]`), the **rule ID** broken, the **severity** from the rubric, and one sentence explaining the failure. A failure without exact text and a rule ID is invalid and must not be returned.\\n3. Quote only what is in the sample. Never paraphrase the failing text, never fix it.\\n4. When a rule needs evidence you were not given (for example the flow spec step or the booking row), return `\\\"indeterminate\\\"` for that rule with the missing item named. Do not guess a pass or a fail.\\n5. Count passes; do not list them.\\n6. Do not grade anything authored by the optimisation-advisor, the pulse, the memo, or by you. If a sample's `author` is one of those, return it under `skipped` with reason `self_authored`.\\n7. If fewer samples than requested exist, grade what exists and report `sampled` honestly. Never pad.\\n8. If a `critical` failure is found, set `critical_count` and list it first; the workflow raises the out-of-cycle alert, not you.\\n9. Return one JSON object and nothing else.\\n\\n## Output\\n```json\\n{\\n  \\\"rubric\\\": \\\"whatsapp-conversation\\\",\\n  \\\"date\\\": \\\"YYYY-MM-DD\\\",\\n  \\\"sampled\\\": 20, \\\"passed\\\": 17, \\\"failed\\\": 3, \\\"skipped\\\": [],\\n  \\\"failed_by_rule\\\": { \\\"W-01\\\": 3 },\\n  \\\"critical_count\\\": 0,\\n  \\\"findings\\\": [\\n    { \\\"sample_ref\\\": \\\"conv:<uuid>#<turn>\\\", \\\"faculty\\\": \\\"conversation\\\", \\\"rule_id\\\": \\\"W-01\\\", \\\"severity\\\": \\\"high\\\",\\n      \\\"exact_text\\\": \\\"Which day suits you, and would you prefer Teams or a call?\\\",\\n      \\\"note\\\": \\\"Two questions in one message.\\\", \\\"owner_agent\\\": \\\"conversation-designer\\\" }\\n  ],\\n  \\\"indeterminate\\\": [ { \\\"sample_ref\\\": \\\"...\\\", \\\"rule_id\\\": \\\"W-07\\\", \\\"missing\\\": \\\"booking row\\\" } ]\\n}\\n```\",\"grading_system\":\"For each change in `CHANGES` (an `ops.proposals` row with status `approved` or `shipped` whose `check_date` is today or earlier), compare the actual to the forecast. You are given the number at approval time, the forecast with its range, the actual at the check date with its n, and the control limits. Do not calculate; copy the supplied numbers.\\n\\nVerdict (exactly one): `beat_forecast` (actual better than the forecast delta), `within_range` (inside the forecast range), `missed` (outside the range on the wrong side), `not_enough_data` (n below the test's stated sample size; give a new check date, at most 7 days later, once). Add `kill_rule_hit: true|false` from the stated kill rule. One sentence of note. Never explain away a miss with a cause you were not given.\\n\\nOutput: `{ \\\"date\\\": \\\"...\\\", \\\"grades\\\": [ { \\\"proposal_id\\\": 212, \\\"verdict\\\": \\\"beat_forecast\\\", \\\"forecast\\\": \\\"...\\\", \\\"actual\\\": \\\"...\\\", \\\"n\\\": 0, \\\"kill_rule_hit\\\": false, \\\"new_check_date\\\": null, \\\"note\\\": \\\"...\\\" } ] }`\\nThe workflow writes `ops.proposals.actual`, `ops.proposals.verdict` and counts consecutive misses per faculty (three in one faculty force the weekly memo to explain why its model is wrong before proposing there again).\",\"memo_system\":\"You are the **Head of Continuous Optimisation** on Lead Velocity's SortMyCover build, writing the Monday memo. It is the \\\"six-pager\\\" version of the daily pulse: narrative first, controllable inputs before outputs, every anomaly with an owner and an explanation (Amazon WBR). You follow five sources and cite no others: Amazon WBR, Google SRE (SLOs and burn), Shewhart/Deming control charts, the Anthropic evaluator-optimiser pattern (the judge's findings feed the owning agent), and PDCA with CXL experimentation discipline and the Technology Radar built from platform changelogs. If none of them would do it, do not do it.\\n\\n## Hard rules\\n1. You propose; you never change anything. Every proposal needs one human Approve tap.\\n2. You do not calculate. Use the numbers in `INPUT` (7-day and 28-day views, control limits, burn, evidence counts, judge totals, journal). If something is not there, write \\\"not available\\\".\\n3. **Max three proposals per faculty**, ranked by ICE across all faculties, plus **one \\\"if you do one thing this week\\\"** that is the single highest-ICE proposal that passes the evidence gate (14 days / R3,000 / 300 conversions as listed per metric, or an SLO burning).\\n4. Every proposal: mechanism, the number it moves with forecast and range, cost in rand, evidence grade (A/B/C/D as defined in `pulse.md`), test with sample size and window, kill rule, owner agent, check date, and whether a decision it replaces is in the journal.\\n5. **Actual versus forecast** for every change approved in the last 4 weeks, in a table: change, forecast, actual, n, verdict, and the consecutive-miss count for its faculty. If a faculty has 3 consecutive misses, write a section \\\"Why my model of <faculty> was wrong\\\" (what I assumed, what the data showed, what I will measure differently) and make **no proposal** for that faculty this week.\\n6. **Technology Radar** from the scan (`INPUT.scan`): each item classified **adopt / trial / assess / hold** with a one-sentence reason tied to a platform we already run on (Meta, WhatsApp, Anthropic, n8n, Google Flow/Veo, FSCA/Information Regulator/NCC). Adopt and trial need a named owner and a test. Everything shiny and unrelated goes to Hold. Cite only the primary source URL supplied in the scan summary, never a blog, newsletter or practitioner.\\n7. A regulator item (FSCA, Information Regulator, NCC) is never classed below Assess, and is flagged to `compliance-qa`.\\n8. If the scan was skipped (cap) say so in one line and continue.\\n9. Our system only; no advice to the broker about his practice (FAIS).\\n10. Grade 7 reading level. Terms the owner has not seen before go in a **\\\"Terms you'll see this week\\\"** box (only when a new term appears), each defined in one sentence.\\n11. Never invent numbers, sources or results.\\n\\n## Structure (in this order; skip a section only when it says so)\\n1. **If you do one thing this week** (3 lines: the action, the number it moves, the cost, the owner, the check date).\\n2. **The week in one paragraph** (narrative; the north star first: cost per attended meeting and margin this cycle versus the model; then the lead's experience; then the broker's value; then compliance).\\n3. **Watchlist** (the seven numbers from 6A2: cost per good-fit meeting vs model, leads we could reach, booked to attended, broker good-fit rate, margin this cycle, days of broker capacity left, renewal risk): value, target, 28-day trend, one sentence of what to look out for.\\n4. **Faculty by faculty** (11): status colour, headline SLO value vs limit (7-day and 28-day), signals with cause and owner, judge findings that repeated, and up to 3 proposals. Quiet faculties get one line.\\n5. **Actual versus forecast** table (rule 5).\\n6. **Technology Radar** (rule 6) with the scan's source list and fetch count.\\n7. **Stop doing** (optional; only items with evidence that cost money or attention and moved nothing).\\n8. **Terms you'll see this week** (only if new).\\n9. **Open decisions** (snoozed items due, declined reasons that suggest a pattern).\\n\\n## Output\\nReturn JSON: `{ \\\"week_start\\\": \\\"YYYY-MM-DD\\\", \\\"one_thing\\\": { ...proposal }, \\\"proposals\\\": [ ... ], \\\"radar\\\": [ { \\\"item\\\": \\\"...\\\", \\\"source_url\\\": \\\"...\\\", \\\"class\\\": \\\"adopt|trial|assess|hold\\\", \\\"reason\\\": \\\"...\\\", \\\"owner_agent\\\": \\\"...\\\", \\\"test\\\": \\\"...\\\" } ], \\\"actual_vs_forecast\\\": [ ... ], \\\"model_wrong\\\": [ { \\\"faculty\\\": \\\"...\\\", \\\"text\\\": \\\"...\\\" } ], \\\"memo_markdown\\\": \\\"...\\\", \\\"whatsapp_summary\\\": \\\"...\\\", \\\"pdf_html\\\": \\\"...\\\" }`.\\n`whatsapp_summary` (template `ops_weekly`): the \\\"if you do one thing\\\" line, the top proposal title per faculty that has one (max 5 lines), \\\"Full memo emailed\\\". `pdf_html` is the memo in plain HTML with the brand tokens for the PDF step.\\nProposal object fields are those in `pulse.md` (id, title, faculty, metric, mechanism, forecast, cost_zar, evidence_grade, evidence, test, kill_rule, owner_agent, check_date, ice, source = \\\"advisor\\\").\",\"retro_system\":\"You are the **Head of Continuous Optimisation** writing the monthly retrospective. Same five sources, same hard rules as the weekly memo (propose only, never change anything, no calculation, no invention, no citation outside the five and the fixed platform-changelog list, no advice to brokers). The retro answers one question: **did the system get cheaper per attended meeting, kinder to the lead, more valuable to the broker and safer, cycle over cycle, and which of our decisions made that true or false?**\\n\\n## Sections (in order)\\n1. **Verdict in four lines**: cost per attended meeting and margin per cycle (value, model, last cycle), lead experience, broker value, compliance. Each with an arrow and a number.\\n2. **Cycle economics versus Section 3**: media, WhatsApp, AI, infrastructure, payment fees, margin; versus the R200 target and R250 stress case (30% floor, 43% target, NH-04). Where the model was wrong, say which assumption (qualify rate, booking, show, CPL) and by how much.\\n3. **Lead-experience trend**: time to first message, quiz and Flow completion, reply latency, \\\"speak to a person\\\", STOP rate, \\\"did the adviser reach you?\\\", lead pulse (W35). Aggregates only.\\n4. **Broker-value trend**: show rate, good-fit rate, quality index, disposition rate, time to brief, replacement use against cap, renewal intent, feedback-note themes (from `facts`, redacted).\\n5. **Compliance evidence file check (W24)**: consent, disclosure and STOP evidence totals for the month, cleanse date, NCC registration and renewal dates, DSR log, incident log, judge `critical` and `high` counts by rule, advice statements. Anything not 100/100/100/0 is stated first.\\n6. **Decision journal**: every proposal approved, declined or snoozed this month with forecast, actual, verdict, n; hit rate; the faculty with the most misses and what you will change in your own method. Three consecutive misses in a faculty means no new proposal there until its model is explained.\\n7. **Model and price changes that alter 4A routing**: from the month's Anthropic scan summaries (model IDs, prices): which agents' runtime model or cost changes, in rand per lead, with a recommendation adopt / trial / assess / hold and the eval that would gate it (6B.1 golden set). Never recommend a model switch on a benchmark; recommend it on the golden set.\\n8. **Stop-doing list** (max 5): activities, reports, checks or experiments that cost time or money and moved no number; each with the evidence and the saving.\\n9. **Next month's three bets**: the three highest-ICE proposals across the system with the numbers, owners and check dates; each passes the evidence gate or states what is missing.\\n\\n## Output\\nJSON: `{ \\\"month\\\": \\\"YYYY-MM\\\", \\\"verdict\\\": {...}, \\\"economics\\\": {...}, \\\"lead_trend\\\": {...}, \\\"broker_trend\\\": {...}, \\\"compliance_check\\\": {...}, \\\"journal_summary\\\": {...}, \\\"routing_changes\\\": [...], \\\"stop_doing\\\": [...], \\\"bets\\\": [ ...proposals ], \\\"retro_markdown\\\": \\\"...\\\", \\\"email_html\\\": \\\"...\\\" }`.\",\"event_system\":\"You write one out-of-cycle alert for Jonathan and KG. It is short, factual and actionable. You do not change anything and you do not decide the fix; you name the first action and its owner.\\n\\nReturn JSON: `{ \\\"severity\\\": \\\"red|amber\\\", \\\"what\\\": \\\"...\\\", \\\"since\\\": \\\"<time SAST>\\\", \\\"impact\\\": \\\"<who or what is affected, with the number given>\\\", \\\"first_action\\\": \\\"...\\\", \\\"owner_agent\\\": \\\"...\\\", \\\"always_send\\\": true|false, \\\"dedupe_key\\\": \\\"<trigger>:<ref>:<date>\\\" , \\\"whatsapp_text\\\": \\\"...\\\", \\\"email_subject\\\": \\\"...\\\" }`\\n\\nRules: use only facts in the input; no guessing a cause (write \\\"cause not established\\\"); Grade 7 plain English; `always_send` is true only for a live guardrail trip, a WABA restriction, a payment failure or the VPS being down (they ignore 22:00-07:00 quiet hours); the same `dedupe_key` is never sent twice in 24 h (the workflow enforces; you only build the key). A live guardrail trip must quote the replaced draft text (redacted) and say the lead saw only the safe line, if the input says so.\",\"scan_system\":\"You summarise one fetched page for Lead Velocity's weekly technology scan. Facts only. Do not recommend, do not rank, do not speculate.\\nReturn JSON: { \\\"source_id\\\": n, \\\"url\\\": \\\"...\\\", \\\"fetched_at\\\": \\\"...\\\", \\\"items\\\": [ { \\\"date\\\": \\\"YYYY-MM-DD or null\\\", \\\"title\\\": \\\"...\\\", \\\"what_changed\\\": \\\"one sentence\\\", \\\"effective_date\\\": \\\"... or null\\\", \\\"touches\\\": [\\\"meta_ads|capi|whatsapp_templates|whatsapp_flows|whatsapp_pricing|anthropic_models|anthropic_pricing|n8n|google_flow|fsca|popia|ncc|other\\\"], \\\"affects_sortmycover\\\": \\\"yes|no|unclear\\\", \\\"reason_one_line\\\": \\\"...\\\", \\\"quote\\\": \\\"<= 25 words, verbatim\\\" } ], \\\"nothing_new_since\\\": \\\"YYYY-MM-DD\\\" }\\nRules: keep only items dated within the last 14 days or with an effective date in the next 90 days. Maximum 5 items. If the page is empty, unreadable or behind a login return items: [] and \\\"blocked\\\": true. Quote verbatim, never paraphrase a number or a date.\"};\n// ---- common helpers (inlined by build-workflows.cjs into every Code node that says //@include common) ----\nconst ZA = 'Africa/Johannesburg';\nconst ymdSAST = (d) => new Date(d).toLocaleDateString('sv-SE', { timeZone: ZA });\nconst addDays = (ymd, n) => { const t = new Date(ymd + 'T12:00:00Z'); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };\nconst estZar = (cfg, model, inChars, outTok) => { const r = cfg.rates[model]; return (((inChars / 3.5) * r.in) + (outTok * r.out)) / 1e6 * cfg.usd_zar; };\nconst actZar = (cfg, model, usage) => { const r = cfg.rates[model]; return ((((usage && usage.input_tokens) || 0) * r.in) + (((usage && usage.output_tokens) || 0) * r.out)) / 1e6 * cfg.usd_zar; };\n// Daily bucket: pulse/event may use the whole cap; others leave pulse_reserve. Weekly bucket: memo may use the whole cap; scan/retro leave memo_reserve.\nconst allow = (cfg, job, est) => {\n  if (['scan', 'memo', 'retro'].includes(job)) {\n    const reserve = job === 'memo' ? 0 : cfg.caps.memo_reserve;\n    return cfg.spent.week + est <= cfg.caps.weekly - reserve;\n  }\n  const reserve = (job === 'pulse' || job === 'event') ? 0 : cfg.caps.pulse_reserve;\n  if (['creative', 'page', 'grading'].includes(job) && cfg.spent.day + est > cfg.caps.daily * cfg.caps.soft) return false;\n  return cfg.spent.day + est <= cfg.caps.daily - reserve;\n};\nconst charge = (cfg, job, est) => { if (['scan', 'memo', 'retro'].includes(job)) cfg.spent.week += est; else cfg.spent.day += est; };\nconst anthropicBody = (model, system, user, maxTokens) => ({ model, max_tokens: maxTokens, temperature: 0, system, messages: [{ role: 'user', content: user }] });\nconst parseJson = (text) => {\n  if (typeof text !== 'string') return null;\n  const a = text.indexOf('{'), b = text.lastIndexOf('}');\n  if (a < 0 || b <= a) return null;\n  try { return JSON.parse(text.slice(a, b + 1)); } catch (e) { return null; }\n};\n// WhatsApp template parameters may not contain newlines, tabs or runs of 4+ spaces.\nconst clean = (s, max = 220) => String(s == null ? '' : s).replace(/[\\n\\r\\t]+/g, ' · ').replace(/ {2,}/g, ' ').trim().slice(0, max);\nconst pct = (x) => (Math.round(x * 1000) / 10) + '%';\nconst fmt = (unit, v) => {\n  if (v == null || Number.isNaN(Number(v))) return 'n/a';\n  v = Number(v);\n  if (unit === 'ratio') return pct(v);\n  if (unit === 'ZAR') return 'R' + Math.round(v).toLocaleString('en-ZA').replace(/\\s/g, ',');\n  if (unit === 'seconds') return Math.round(v * 10) / 10 + ' s';\n  if (unit === 'ms') return Math.round(v) + ' ms';\n  return String(Math.round(v * 100) / 100);\n};\nconst waTemplate = (to, name, header, body, buttons) => {\n  const components = [];\n  if (header) components.push({ type: 'header', parameters: [{ type: 'text', text: clean(header, 60) }] });\n  components.push({ type: 'body', parameters: body.map((t) => ({ type: 'text', text: clean(t) })) });\n  (buttons || []).forEach((b, i) => components.push(b.kind === 'url'\n    ? { type: 'button', sub_type: 'url', index: String(i), parameters: [{ type: 'text', text: b.value }] }\n    : { type: 'button', sub_type: 'quick_reply', index: String(i), parameters: [{ type: 'payload', payload: b.value }] }));\n  return { messaging_product: 'whatsapp', to, type: 'template', template: { name, language: { code: 'en' }, components } };\n};\nconst next0700 = (nowIso) => {            // next 07:00 SAST (UTC+2, no DST) at or after now\n  const now = new Date(nowIso); const t = new Date(now); t.setUTCHours(5, 0, 0, 0);\n  if (t <= now) t.setUTCDate(t.getUTCDate() + 1);\n  return t.toISOString();\n};\nconst inDnd = (nowIso) => { const h = (new Date(nowIso).getUTCHours() + 2) % 24; return h >= 22 || h < 7; };\nconst QUIET = 'All faculties within limits. Nothing to do today. Next weekly memo Monday.';\nconst QUIET_MONDAY = 'All faculties within limits. Nothing to do today. Weekly memo at 06:00 today.';\n\nconst cfg = $('Plan').first().json.cfg;\nconst rows = $('Actuals').all().map((i) => i.json).filter((r) => r.proposal_id);\nif (!rows.length) return [];\nconst user = 'CHANGES:\\n' + JSON.stringify(rows.map((r) => ({ proposal_id: r.proposal_id, faculty: r.faculty, title: r.title, metric: r.metric, forecast: r.forecast, baseline: r.baseline, actual: r.actual, n: r.n, limits: r.limits, test: r.test, kill_rule: r.kill_rule, check_date: r.check_date })));\nconst est = estZar(cfg, cfg.models.fast, PROMPTS.grading_system.length + user.length, 1500);\nif (!allow(cfg, 'grading', est)) return [];\ncharge(cfg, 'grading', est);\nreturn [{ json: { rows, body: anthropicBody(cfg.models.fast, PROMPTS.grading_system, user, 1500) } }];\n"
+      },
+      "id": "7e514b31-5b25-8f1b-65e6-b6bea2c92526",
+      "name": "Build grading request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "0d7b0c01-8be9-bf7b-e9d7-b936177b7d5d",
+      "name": "Anthropic grading",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3300,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": null,
+          "name": "Anthropic API (SMC)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 4000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---- common helpers (inlined by build-workflows.cjs into every Code node that says //@include common) ----\nconst ZA = 'Africa/Johannesburg';\nconst ymdSAST = (d) => new Date(d).toLocaleDateString('sv-SE', { timeZone: ZA });\nconst addDays = (ymd, n) => { const t = new Date(ymd + 'T12:00:00Z'); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };\nconst estZar = (cfg, model, inChars, outTok) => { const r = cfg.rates[model]; return (((inChars / 3.5) * r.in) + (outTok * r.out)) / 1e6 * cfg.usd_zar; };\nconst actZar = (cfg, model, usage) => { const r = cfg.rates[model]; return ((((usage && usage.input_tokens) || 0) * r.in) + (((usage && usage.output_tokens) || 0) * r.out)) / 1e6 * cfg.usd_zar; };\n// Daily bucket: pulse/event may use the whole cap; others leave pulse_reserve. Weekly bucket: memo may use the whole cap; scan/retro leave memo_reserve.\nconst allow = (cfg, job, est) => {\n  if (['scan', 'memo', 'retro'].includes(job)) {\n    const reserve = job === 'memo' ? 0 : cfg.caps.memo_reserve;\n    return cfg.spent.week + est <= cfg.caps.weekly - reserve;\n  }\n  const reserve = (job === 'pulse' || job === 'event') ? 0 : cfg.caps.pulse_reserve;\n  if (['creative', 'page', 'grading'].includes(job) && cfg.spent.day + est > cfg.caps.daily * cfg.caps.soft) return false;\n  return cfg.spent.day + est <= cfg.caps.daily - reserve;\n};\nconst charge = (cfg, job, est) => { if (['scan', 'memo', 'retro'].includes(job)) cfg.spent.week += est; else cfg.spent.day += est; };\nconst anthropicBody = (model, system, user, maxTokens) => ({ model, max_tokens: maxTokens, temperature: 0, system, messages: [{ role: 'user', content: user }] });\nconst parseJson = (text) => {\n  if (typeof text !== 'string') return null;\n  const a = text.indexOf('{'), b = text.lastIndexOf('}');\n  if (a < 0 || b <= a) return null;\n  try { return JSON.parse(text.slice(a, b + 1)); } catch (e) { return null; }\n};\n// WhatsApp template parameters may not contain newlines, tabs or runs of 4+ spaces.\nconst clean = (s, max = 220) => String(s == null ? '' : s).replace(/[\\n\\r\\t]+/g, ' · ').replace(/ {2,}/g, ' ').trim().slice(0, max);\nconst pct = (x) => (Math.round(x * 1000) / 10) + '%';\nconst fmt = (unit, v) => {\n  if (v == null || Number.isNaN(Number(v))) return 'n/a';\n  v = Number(v);\n  if (unit === 'ratio') return pct(v);\n  if (unit === 'ZAR') return 'R' + Math.round(v).toLocaleString('en-ZA').replace(/\\s/g, ',');\n  if (unit === 'seconds') return Math.round(v * 10) / 10 + ' s';\n  if (unit === 'ms') return Math.round(v) + ' ms';\n  return String(Math.round(v * 100) / 100);\n};\nconst waTemplate = (to, name, header, body, buttons) => {\n  const components = [];\n  if (header) components.push({ type: 'header', parameters: [{ type: 'text', text: clean(header, 60) }] });\n  components.push({ type: 'body', parameters: body.map((t) => ({ type: 'text', text: clean(t) })) });\n  (buttons || []).forEach((b, i) => components.push(b.kind === 'url'\n    ? { type: 'button', sub_type: 'url', index: String(i), parameters: [{ type: 'text', text: b.value }] }\n    : { type: 'button', sub_type: 'quick_reply', index: String(i), parameters: [{ type: 'payload', payload: b.value }] }));\n  return { messaging_product: 'whatsapp', to, type: 'template', template: { name, language: { code: 'en' }, components } };\n};\nconst next0700 = (nowIso) => {            // next 07:00 SAST (UTC+2, no DST) at or after now\n  const now = new Date(nowIso); const t = new Date(now); t.setUTCHours(5, 0, 0, 0);\n  if (t <= now) t.setUTCDate(t.getUTCDate() + 1);\n  return t.toISOString();\n};\nconst inDnd = (nowIso) => { const h = (new Date(nowIso).getUTCHours() + 2) % 24; return h >= 22 || h < 7; };\nconst QUIET = 'All faculties within limits. Nothing to do today. Next weekly memo Monday.';\nconst QUIET_MONDAY = 'All faculties within limits. Nothing to do today. Weekly memo at 06:00 today.';\n\nconst cfg = $('Plan').first().json.cfg;\nconst date = $('Plan').first().json.date;\nconst req = $('Build grading request').first().json;\nconst r = $input.first().json;\nconst j = parseJson(r.content && r.content[0] && r.content[0].text);\nconst OK = ['beat_forecast', 'within_range', 'missed', 'not_enough_data'];\nconst grades = [];\nfor (const g of ((j && j.grades) || [])) {\n  const row = req.rows.find((x) => String(x.proposal_id) === String(g.proposal_id));\n  if (!row || !OK.includes(g.verdict)) continue;\n  grades.push({ proposal_id: row.proposal_id, verdict: g.verdict, kill_rule_hit: !!g.kill_rule_hit, note: String(g.note || '').slice(0, 300), new_check_date: g.verdict === 'not_enough_data' ? (g.new_check_date || null) : null, actual: row.actual });\n}\nconst costs = [{ date, kind: 'llm', amount_zar: actZar(cfg, cfg.models.fast, r.usage), source_ref: 'optimisation-advisor:grading' }];\nreturn [{ json: { grades_json: JSON.stringify(grades), costs_json: JSON.stringify(costs), n: grades.length } }];\n"
+      },
+      "id": "2221035c-83b3-bccd-3fc0-8a0ab687236e",
+      "name": "Parse grading",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update ops.proposals p set verdict = case when g.verdict = 'not_enough_data' then null else g.verdict end,\n kill_rule_hit = g.kill_rule_hit, grade_note = g.note, graded_at = case when g.verdict = 'not_enough_data' then null else now() end,\n check_date = coalesce(g.new_check_date::date, p.check_date), actual = coalesce(g.actual::text, p.actual),\n status = case when g.verdict = 'not_enough_data' then p.status else 'checked' end\nfrom json_to_recordset($1::json) as g(proposal_id uuid, verdict text, kill_rule_hit boolean, note text, new_check_date text, actual json)\nwhere p.id = g.proposal_id;",
+        "options": {
+          "queryReplacement": "={{ $json.grades_json }}"
+        }
+      },
+      "id": "697509b8-dc79-bf86-3ad7-5b36402bb17a",
+      "name": "Update proposals",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        3740,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Supabase Postgres (ops writer)"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into ops.costs (date, kind, brand_id, broker_id, amount_zar, source_ref)\nselect x.date::date, x.kind, null, null, round(x.amount_zar::numeric, 2), x.source_ref from json_to_recordset($1::json) as x(date text, kind text, amount_zar numeric, source_ref text)\non conflict (date, kind, brand_id, broker_id, source_ref) do update set amount_zar = ops.costs.amount_zar + excluded.amount_zar;",
+        "options": {
+          "queryReplacement": "={{ $(\"Parse grading\").first().json.costs_json }}"
+        }
+      },
+      "id": "5a15808a-7c4f-e57f-a132-8b7591ed4a74",
+      "name": "Insert grading costs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        3960,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Supabase Postgres (ops writer)"
+        }
+      },
+      "executeOnce": true
+    }
+  ],
+  "connections": {
+    "Daily 06:00 SAST": {
+      "main": [
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Settings": {
+      "main": [
+        [
+          {
+            "node": "Costs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Costs": {
+      "main": [
+        [
+          {
+            "node": "Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan": {
+      "main": [
+        [
+          {
+            "node": "Judge samples",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Judge samples": {
+      "main": [
+        [
+          {
+            "node": "Build judge requests",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build judge requests": {
+      "main": [
+        [
+          {
+            "node": "Anthropic judge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic judge": {
+      "main": [
+        [
+          {
+            "node": "Parse judge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse judge": {
+      "main": [
+        [
+          {
+            "node": "Insert grades",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert grades": {
+      "main": [
+        [
+          {
+            "node": "Insert judge runs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert judge runs": {
+      "main": [
+        [
+          {
+            "node": "Insert costs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert costs": {
+      "main": [
+        [
+          {
+            "node": "Critical finding?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Critical finding?": {
+      "main": [
+        [
+          {
+            "node": "Raise out-of-cycle event (W32)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Actuals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Raise out-of-cycle event (W32)": {
+      "main": [
+        [
+          {
+            "node": "Actuals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Actuals": {
+      "main": [
+        [
+          {
+            "node": "Build grading request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build grading request": {
+      "main": [
+        [
+          {
+            "node": "Anthropic grading",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic grading": {
+      "main": [
+        [
+          {
+            "node": "Parse grading",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse grading": {
+      "main": [
+        [
+          {
+            "node": "Update proposals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update proposals": {
+      "main": [
+        [
+          {
+            "node": "Insert grading costs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "saveManualExecutions": true,
+    "executionTimeout": 900
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "smc"
+    },
+    {
+      "name": "optimisation-advisor"
+    }
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "note": "Generated by optimisation/build-workflows.cjs. Credentials are referenced by name only; map them on import. Never contains secrets."
+  }
+}
