@@ -33,3 +33,19 @@
 
 ### I-29 · `lead_token` contract for `/slots` and `/book` — OPEN (owner: automation-engineer)
 The landing page calls `/slots` and `/book` but has no defined way to prove which lead it is acting for. Define: header or body field name, how the token is minted (W01 on lead insert, HMAC over lead id + exp), TTL, and that `/slots` derives the broker from the token server-side — the browser must never send a broker id. Landing wires it as soon as the name is fixed (`landing/template/page.js`, search `lead_token`).
+
+### I-30 · Console/portal → backend contracts (from platform-architect console build, 2026-10-02)
+| # | Item | Owner | Note |
+|---|---|---|---|
+| I-30a | `/slots` needs a broker-authenticated path (portal "next free slot" sends the broker JWT) or W20 keeps `brokers.next_free_slot_at` fresh | automation-engineer | ties to I-29 |
+| I-30b | `smc_sign_document` must capture signer IP server-side (`p_signer_ip` from the client is null) | platform-architect (migration 08) | e-signature evidence |
+| I-30c | Agreement acceptances (clause 11.2, Annex 1, no-Page) need a column; spec 06 names `admin_documents.metadata` which does not exist | platform-architect + contracts-drafter | currently only in `step.completed(agreement)` timeline payload |
+| I-30d | "Policies written" needs an RPC or `smc_portal_event` type; brokers cannot write `cycles` | platform-architect | portal shows read-only |
+| I-30e | `billing-autorenew` webhook assumed; `brokers` guard blocks direct `card_autorenew` change | billing-automation | define in W19 |
+| I-30f | W14 example `s8_cycle.line` says "No contract." — change to "no lock-in" at source | broker-success / analytics-reporter | portal swaps on display |
+| I-30g | Private `broker-media` bucket (env `VITE_SMC_MEDIA_BUCKET`) assumed for headshots | devops-security | storage policy |
+| I-30h | Explainer video, step clips, `portal/intro-media/`, `billing/checkout/` need a host (env URLs) | devops-security | NH-29 |
+| I-30i | Faculty values/sparklines need an admin RPC over `facts.pulse_daily` like `smc_watchlist_tiles` | platform-architect (migration 08) | |
+| I-30j | W32 consumes `ops.notifications` kind `approval` (console never calls a W32 webhook) | automation-engineer / optimisation-advisor | |
+| I-30k | `close_rate` stored as fraction (0.30) — confirm | analytics-reporter | |
+| I-30l | Magic-link login (spec 6.1) not built; password only today | platform-architect | backlog unless Jonathan wants it for cycle 1 |
