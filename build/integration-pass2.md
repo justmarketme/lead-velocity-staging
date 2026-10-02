@@ -123,3 +123,6 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-37d | W23 inbound: replace its WhatsApp Trigger with a sub-workflow call from W07/W12 (one inbound subscription) | intro-media-producer + automation-engineer |
 | I-37e | W07 router: never forward a W03-originated message back to W03; add a route for W32 Approve/Later taps | automation-engineer + optimisation-advisor |
 | I-37f | `automation/security/n8n-webhook-pattern.md` l.32 "W03 ingress" → W07 | devops-security |
+| I-37g | `ops.notifications.attempts integer NOT NULL DEFAULT 0` (W22 then drops `payload.requeue_attempts`) | platform-architect (migration 11) |
+| I-37h | Credential rename to `LV Supabase - n8n_app (least privilege)` across W14/W20/W23/W24/W30–W33 and the three generators (billing, w03-w28, optimisation); W14/W23 must not use a service-role credential | each workflow owner, next pass |
+| I-37i | `PUBLIC_ALLOWED_ORIGINS` on production drops the staging subdomain; add `www.sortmycover.co.za` | devops-security at W26 |

@@ -11,7 +11,7 @@
         -520
       ],
       "parameters": {
-        "content": "## W22 Alerts (devops-security)\nThreshold table, sources and the ops.notifications contract: `automation/W22.md`.\n\nTriggers: 5-min threshold sweep, 5-min escalation/DND release, hourly Flow ping + uptime + WABA health, daily DKIM/DMARC, signals from other workflows (Execute Workflow), uptime-monitor callback, n8n Error Trigger.\n\nRules: dedupe same signal <= 1 per 24 h (SQL on dedupe_key); DND 22:00-07:00 SAST except guardrail trip, WABA restriction, payment failure, VPS/api down; unacked red at 2 h -> other partner; 4 h -> Twilio voice to both (the only voice use).\n\nNo secrets in this file. Credentials are referenced by name. Config from env (N8N_BLOCK_ENV_ACCESS_IN_NODE=false, see SECURITY.md).",
+        "content": "## W22 Alerts (devops-security)\nThreshold table, sources and the ops.notifications contract: `automation/W22.md`.\n\nTriggers: 5-min threshold sweep (+ re-queue of console approvals stuck in 'sending' > 10 min, max 3, I-36b), 5-min escalation/DND release, hourly Flow ping + uptime + WABA health, daily DKIM/DMARC, signals from other workflows (Execute Workflow), uptime-monitor callback, n8n Error Trigger.\n\nRules: dedupe same signal <= 1 per 24 h (SQL on dedupe_key); DND 22:00-07:00 SAST except guardrail trip, WABA restriction, payment failure, VPS/api down; unacked red at 2 h -> other partner; 4 h -> Twilio voice to both (the only voice use).\n\nNo secrets in this file. Credentials are referenced by name. Config from env (N8N_BLOCK_ENV_ACCESS_IN_NODE=false, see SECURITY.md).",
         "width": 560,
         "height": 340
       }
@@ -878,6 +878,42 @@
           "name": "LV Supabase - n8n_app (least privilege)"
         }
       }
+    },
+    {
+      "id": "5e0c1b8a-36b1-4c2f-9d0e-7a1f2b3c4d5e",
+      "name": "Re-queue stuck approvals",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -960,
+        -300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- I-36b: W32 console approvals claimed ('sending') but never acked/failed within 10 min (crashed run, n8n restart).\n-- Re-queue each stuck row once per sweep (status 'queued', attempts + 1) so W32's 1-min poll claims it again; after 3 re-queues -> send_failed.\n-- attempts live in payload.requeue_attempts until ops.notifications has an attempts column (needs_human, platform-architect).\nWITH stuck AS (\n  SELECT id, COALESCE((payload->>'requeue_attempts')::int, 0) AS attempts\n    FROM ops.notifications\n   WHERE kind = 'approval' AND status = 'sending' AND updated_at < now() - interval '10 minutes'\n   ORDER BY updated_at\n   FOR UPDATE SKIP LOCKED\n   LIMIT 50\n), moved AS (\n  UPDATE ops.notifications n\n     SET status = CASE WHEN s.attempts < 3 THEN 'queued' ELSE 'send_failed' END,\n         payload = COALESCE(n.payload, '{}'::jsonb)\n                   || jsonb_build_object('requeue_attempts', LEAST(s.attempts + 1, 3),\n                                         'requeue_note', CASE WHEN s.attempts < 3 THEN 'W22: stuck in sending > 10 min, re-queued'\n                                                              ELSE 'W22: stuck in sending after 3 re-queues, gave up' END),\n         updated_at = now()\n    FROM stuck s\n   WHERE n.id = s.id\n  RETURNING n.id::text AS id, n.status, LEAST(s.attempts + 1, 3) AS attempts\n)\nSELECT id, status, attempts FROM moved ORDER BY id;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "lv-pg-n8n-app",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "id": "6f1d2c9b-47c2-4d3a-8e1f-8b2a3c4d5e6f",
+      "name": "Judge stuck approvals",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -720,
+        -300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-36b: one signal per sweep for stuck console approvals (rows come only when something was stuck).\n// Re-queued -> amber (goes to the pulse; W32 retries within a minute). Gave up after 3 -> red (a tapped decision is not being executed).\nconst rows = $input.all().map((i) => i.json || {}).filter((r) => r.id);\nif (!rows.length) return [];\nconst failed = rows.filter((r) => r.status === 'send_failed');\nconst requeued = rows.filter((r) => r.status === 'queued');\nconst red = failed.length > 0;\nreturn [{ json: { kind: 'signal', signal_key: 'approval_stuck', scope: 'ops.notifications:approval', severity: red ? 'red' : 'amber',\n  always_send: false, source: 'W22.sweep',\n  what: `${rows.length} console approval(s) stuck in 'sending' > 10 min: ${requeued.length} re-queued, ${failed.length} gave up after 3`,\n  impact: red ? 'An approved/declined proposal was not executed by W32' : 'W32 approval follow-up delayed; retried automatically',\n  first_action: red ? 'Open the W32 executions for these ids; re-run the decision from the console' : 'None unless it repeats; check W32 is active',\n  since: new Date().toISOString(), ids: rows.map((r) => r.id).slice(0, 20) } }];\n"
+      }
     }
   ],
   "connections": {
@@ -886,6 +922,11 @@
         [
           {
             "node": "Read metric snapshot",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Re-queue stuck approvals",
             "type": "main",
             "index": 0
           }
@@ -1291,6 +1332,28 @@
         [
           {
             "node": "Log delivery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-queue stuck approvals": {
+      "main": [
+        [
+          {
+            "node": "Judge stuck approvals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Judge stuck approvals": {
+      "main": [
+        [
+          {
+            "node": "Collect signals",
             "type": "main",
             "index": 0
           }

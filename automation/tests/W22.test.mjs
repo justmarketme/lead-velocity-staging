@@ -352,3 +352,54 @@ test('SQL: DDL, dedupe 24 h, delivery log, escalation query, Flow revert (real P
   assert.deepEqual(metrics.map((m) => m[0]), ['backup_hours_since_success', 'restore_test_days_since', 'secret_days_to_expiry']);
   assert.equal(metrics[0][2], '9999', 'never backed up = alert');
 });
+
+// ---------------------------------------------------------------- I-36b: console approvals stuck in 'sending'
+test('Stuck approvals: wired on the 5-min sweep, signal is amber when re-queued and red when given up', () => {
+  const sweep = WF.connections['Every 5 min - threshold sweep'].main[0].map((l) => l.node);
+  assert.ok(sweep.includes('Re-queue stuck approvals'), 'runs on the 5-min sweep');
+  assert.equal(WF.connections['Re-queue stuck approvals'].main[0][0].node, 'Judge stuck approvals');
+  assert.equal(WF.connections['Judge stuck approvals'].main[0][0].node, 'Collect signals');
+  const q = node('Re-queue stuck approvals').parameters.query;
+  assert.match(q, /kind = 'approval' AND status = 'sending' AND updated_at < now\(\) - interval '10 minutes'/);
+  assert.match(q, /FOR UPDATE SKIP LOCKED/, 'never fights W32\'s claim');
+  assert.deepEqual(runCode('Judge stuck approvals', { input: [] }), [], 'nothing stuck = no signal');
+  const amber = runCode('Judge stuck approvals', { input: [{ id: 'a', status: 'queued', attempts: 1 }] });
+  assert.equal(amber.length, 1);
+  assert.deepEqual([amber[0].signal_key, amber[0].severity, amber[0].scope], ['approval_stuck', 'amber', 'ops.notifications:approval']);
+  const red = runCode('Judge stuck approvals', { input: [{ id: 'a', status: 'queued', attempts: 2 }, { id: 'b', status: 'send_failed', attempts: 3 }] });
+  assert.equal(red.length, 1, 'one signal per sweep, not per row');
+  assert.equal(red[0].severity, 'red');
+  assert.match(red[0].what, /2 console approval\(s\).*1 re-queued, 1 gave up/);
+});
+
+test('SQL: stuck approvals re-queue once per sweep, attempts + 1, max 3 then send_failed (real Postgres)', { skip: !PGBIN && 'no Postgres binaries on this machine' }, (t) => {
+  const isRoot = process.getuid && process.getuid() === 0;
+  const as = (cmd, args) => execFileSync(isRoot ? 'runuser' : cmd, isRoot ? ['-u', 'postgres', '--', cmd, ...args] : args, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+  const dir = mkdtempSync(join(tmpdir(), 'w22pg-')); chmodSync(dir, 0o777);
+  const port = String(55000 + Math.floor(Math.random() * 900)); const data = join(dir, 'data');
+  as(join(PGBIN, 'initdb'), ['-D', data, '-A', 'trust', '-U', 'postgres', '--no-locale', '-E', 'UTF8']);
+  as(join(PGBIN, 'pg_ctl'), ['-D', data, '-o', `-k ${dir} -c listen_addresses='' -p ${port}`, '-w', '-l', join(dir, 'log'), 'start']);
+  t.after(() => { try { as(join(PGBIN, 'pg_ctl'), ['-D', data, '-m', 'immediate', 'stop']); } catch {} rmSync(dir, { recursive: true, force: true }); });
+  const psql = (sql) => {
+    const f = join(dir, `q${crypto.randomBytes(4).toString('hex')}.sql`); writeFileSync(f, sql); chmodSync(f, 0o644);
+    return as('psql', ['-h', dir, '-p', port, '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-At', '-F', '|', '-f', f]).trim().split('\n').filter(Boolean);
+  };
+  psql(MD.match(/```sql\n([\s\S]*?)```/)[1]);
+  const ins = (status, ago, kind = 'approval') => psql(`INSERT INTO ops.notifications (kind, "to", dedupe_key, signal_key, severity, status, updated_at)
+    VALUES ('${kind}', 'console', 'k', 's', 'amber', '${status}', now() - interval '${ago}') RETURNING id`)[0];
+  const stuck = ins('sending', '11 minutes');
+  const fresh = ins('sending', '5 minutes');
+  const alert = ins('sending', '1 hour', 'alert');
+  const q = node('Re-queue stuck approvals').parameters.query;
+  assert.deepEqual(psql(q), [`${stuck}|queued|1`], 'only the approval row older than 10 min');
+  assert.deepEqual(psql(q), [], 're-queued once: the row is queued now, not sending');
+  const st = (id) => psql(`SELECT status, payload->>'requeue_attempts' FROM ops.notifications WHERE id = ${id}`)[0];
+  assert.equal(st(fresh), 'sending|'); assert.equal(st(alert), 'sending|', 'W22 alerts are not touched');
+  for (const n of [2, 3]) { // W32 claims it again and it sticks again
+    psql(`UPDATE ops.notifications SET status = 'sending', updated_at = now() - interval '11 minutes' WHERE id = ${stuck}`);
+    assert.deepEqual(psql(q), [`${stuck}|queued|${n}`]);
+  }
+  psql(`UPDATE ops.notifications SET status = 'sending', updated_at = now() - interval '11 minutes' WHERE id = ${stuck}`);
+  assert.deepEqual(psql(q), [`${stuck}|send_failed|3`], 'after 3 re-queues: send_failed, attempts stay at 3');
+  assert.deepEqual(psql(q), []);
+});

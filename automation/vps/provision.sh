@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# provision.sh: W26 steps 2..13, from a bought Hostinger KVM 2 ("Ubuntu 24.04 with n8n" template) to `ready_for_go_live`.
+# provision.sh: W26 steps 2..14, from a bought Hostinger KVM 2 ("Ubuntu 24.04 with n8n" template) to `ready_for_go_live`.
 # Runs on the OPERATOR machine (Jonathan's laptop, bash/WSL/Git Bash), driving the VPS over SSH. Nothing is bought here:
 # the purchase is the one human gate (W26.md). Default is a DRY RUN that prints the plan; pass --apply to execute.
 #   VPS_HOST=<ip> automation/vps/provision.sh                 # dry run: print every step
@@ -7,15 +7,16 @@
 #   ... --apply --from 8                                      # resume after a halt (e.g. waiting on DNS)
 #   ... --apply --only 11                                     # re-run one step (e.g. re-point webhooks)
 #   ... --apply --force-n8n-restore                           # allow step 7 to overwrite n8n on a VPS that already has it
+#   ... --apply --analytics-dry-run                           # step 12 runs the analytics SQL then ROLLBACK (nothing kept)
 # Reads the repo-root .env (git-ignored). Never prints secret values. Halts on the first failing step and says which.
 set -Eeuo pipefail
 umask 077
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ENVF="${PROVISION_ENV_FILE:-$REPO/.env}"
-APPLY=""; FROM=1; ONLY=""; FORCE7=""
+APPLY=""; FROM=1; ONLY=""; FORCE7=""; ANALYTICS_MODE=--apply
 while [[ $# -gt 0 ]]; do case "$1" in
-  --apply) APPLY=1 ;; --from) FROM="$2"; shift ;; --only) ONLY="$2"; shift ;; --force-n8n-restore) FORCE7=1 ;;
-  -h|--help) sed -n '2,12p' "$0"; exit 0 ;; *) echo "unknown arg: $1"; exit 2 ;; esac; shift; done
+  --apply) APPLY=1 ;; --from) FROM="$2"; shift ;; --only) ONLY="$2"; shift ;; --force-n8n-restore) FORCE7=1 ;; --analytics-dry-run) ANALYTICS_MODE=--dry-run ;;
+  -h|--help) sed -n '2,13p' "$0"; exit 0 ;; *) echo "unknown arg: $1"; exit 2 ;; esac; shift; done
 [[ -f "$ENVF" ]] || { echo "missing $ENVF"; exit 2; }
 set -a; . "$ENVF"; set +a
 : "${VPS_HOST:?set VPS_HOST (the new VPS IP)}"
@@ -74,14 +75,19 @@ s3() { # docker compose down every compose project except lv (volumes kept), fre
     for c in $(docker ps --format "{{.ID}} {{.Ports}}" | grep -E ":(80|443)->" | grep -v -- "-lv-\|lv-traefik" | cut -d" " -f1); do docker stop "$c"; done'
 }
 # 4. Ship code (no git credentials on the VPS: tar of committed HEAD over SSH)
-s4() { # git archive HEAD automation/ | ssh tar -x into /opt/lead-velocity
+# Runtime dirs only: n8n mounts $REMOTE_DIR read-only at /repo (REPO_DIR) and Code nodes import()/read from these
+# (I-35b): conversation/ (guardrail, lines, logic, prompts), knowledge/ (FAQ), community/, billing/ (checkout page),
+# analytics/ (step 14 SQL). supabase/ is shipped for the migration files only; the VPS never holds a service-role key.
+SHIP_DIRS=(automation conversation knowledge community billing analytics supabase/migrations)
+s4() { # git archive HEAD of the runtime dirs | ssh tar -x into /opt/lead-velocity (mounted read-only into n8n at /repo)
   remote "mkdir -p $REMOTE_DIR"
-  git -C "$REPO" archive --format=tar HEAD automation | remote "tar -x -C $REMOTE_DIR"
+  local present=(); for p in "${SHIP_DIRS[@]}"; do git -C "$REPO" cat-file -e "HEAD:$p" 2>/dev/null && present+=("$p"); done
+  git -C "$REPO" archive --format=tar HEAD "${present[@]}" | remote "tar -x -C $REMOTE_DIR"
 }
 # 5. Ship .env (0600) with production overrides; service-role key stays on the laptop
 s5() { # write /opt/lead-velocity/.env and /etc/lv/backup.env over SSH, mode 0600
   local tmp; tmp="$(mktemp)"; trap 'rm -f "$tmp"' RETURN
-  grep -vE '^(SUPABASE_SERVICE_ROLE_KEY|BACKUP_S3_READ_|AGE_KEY_FILE|N8N_PUBLIC_URL|WEBHOOK_URL|N8N_HOST|N8N_PROTOCOL|NODE_ENV|API_HOST|N8N_UI_HOST|DRY_RUN_SENDS)=' "$ENVF" > "$tmp"
+  grep -vE '^(SUPABASE_SERVICE_ROLE_KEY|ANALYTICS_DB_URL|BACKUP_S3_READ_|AGE_KEY_FILE|N8N_PUBLIC_URL|WEBHOOK_URL|N8N_HOST|N8N_PROTOCOL|NODE_ENV|API_HOST|N8N_UI_HOST|DRY_RUN_SENDS)=' "$ENVF" > "$tmp"
   printf 'NODE_ENV=production\nN8N_PUBLIC_URL=https://%s\nWEBHOOK_URL=https://%s/\nN8N_HOST=%s\nN8N_PROTOCOL=https\nAPI_HOST=%s\nN8N_UI_HOST=%s\nDRY_RUN_SENDS=false\n' \
     "$API_HOST" "$API_HOST" "$N8N_UI_HOST" "$API_HOST" "$N8N_UI_HOST" >> "$tmp"
   remote "umask 077; cat > $REMOTE_DIR/.env" < "$tmp"
@@ -149,11 +155,15 @@ s11() { # Meta app subscriptions (WABA, page, instagram), Flow endpoint_uri; pri
   say "ACTION (Chrome agent): Paystack dashboard > Settings > API Keys & Webhooks > Live webhook URL = https://$API_HOST/webhook/paystack"
   say "ACTION: uptime monitor (automation/vps/UPTIME.md) > monitors on https://$API_HOST/healthz, callback https://$API_HOST/webhook/w22/uptime"
 }
-# 12. Synthetic suite against production URLs (Phase 5 rule: only end-to-end counts)
+# 12. Analytics layer (I-35k): after the Supabase migrations, before the synthetic suite reads facts.* views
+s12a() { # apply analytics/params, watchlist, kill-scale, W14-broker, W14-lv in order, one transaction (apply-analytics.sh; --analytics-dry-run = ROLLBACK)
+  PROVISION_ENV_FILE="$ENVF" "$REPO/automation/vps/apply-analytics.sh" "$ANALYTICS_MODE"
+}
+# 13. Synthetic suite against production URLs (Phase 5 rule: only end-to-end counts)
 s12() { # node --test 'automation/tests/*.test.mjs' with N8N_PUBLIC_URL=https://API_HOST and TEST_TARGET=production
   ( cd "$REPO" && N8N_PUBLIC_URL="https://$API_HOST" TEST_TARGET=production node --test 'automation/tests/*.test.mjs' )
 }
-# 13. Ready: tell W26 on the VPS; W26 sets brokers.status = ready_for_go_live and WhatsApps Jonathan
+# 14. Ready: tell W26 on the VPS; W26 sets brokers.status = ready_for_go_live and WhatsApps Jonathan
 s13() { # signed POST https://API_HOST/webhook/w26/status {ok:true}; nothing is unpaused (Go live stays a human tap)
   notify true "https://$API_HOST"
   say "PROVISIONED in $(( ($(date +%s) - T0) / 60 )) min. Go live remains Jonathan's tap in the console."
@@ -162,5 +172,5 @@ s13() { # signed POST https://API_HOST/webhook/w26/status {ok:true}; nothing is 
 [[ -z "$APPLY" ]] && echo "DRY RUN (no changes). Plan for VPS $VPS_HOST, api=$API_HOST, editor=$N8N_UI_HOST:"
 step 1 "preflight" s1;  step 2 "harden" s2;  step 3 "retire-template" s3;  step 4 "ship-code" s4
 step 5 "ship-env" s5;   step 6 "compose-up" s6; step 7 "restore-n8n" s7;  step 8 "dns" s8
-step 9 "tls" s9;        step 10 "backups" s10;  step 11 "webhooks" s11;   step 12 "synthetic-suite" s12
-step 13 "ready" s13
+step 9 "tls" s9;        step 10 "backups" s10;  step 11 "webhooks" s11;   step 12 "analytics" s12a
+step 13 "synthetic-suite" s12; step 14 "ready" s13

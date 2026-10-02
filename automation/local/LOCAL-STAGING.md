@@ -10,10 +10,40 @@
 2. `.env` at the repo root, with the names from `automation/.env.example`. The minimum for local n8n:
    - `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, and the same values in `DB_POSTGRESDB_*`.
    - `N8N_ENCRYPTION_KEY`: generate once (32+ random bytes) and **store it in the password manager now**. W26 needs the same key to decrypt the credentials on the VPS.
-   - `GENERIC_TIMEZONE=Africa/Johannesburg`, `NODE_FUNCTION_ALLOW_BUILTIN=crypto`, `N8N_BLOCK_ENV_ACCESS_IN_NODE=false`, `EXECUTIONS_DATA_SAVE_ON_SUCCESS=none`, `EXECUTIONS_DATA_PRUNE=true`, `EXECUTIONS_DATA_MAX_AGE=168`, `N8N_LOG_LEVEL=info`, `N8N_DIAGNOSTICS_ENABLED=false`, `DRY_RUN_SENDS=true`.
+   - `GENERIC_TIMEZONE=Africa/Johannesburg`, `N8N_BLOCK_ENV_ACCESS_IN_NODE=false`, `EXECUTIONS_DATA_SAVE_ON_SUCCESS=none`, `EXECUTIONS_DATA_PRUNE=true`, `EXECUTIONS_DATA_MAX_AGE=168`, `N8N_LOG_LEVEL=info`, `N8N_DIAGNOSTICS_ENABLED=false`, `DRY_RUN_SENDS=true`.
 3. First start: `docker compose -f automation/docker-compose.yml up -d`, open `http://localhost:5678`, create the **owner account** (strong password + **MFA on**: the tunnel makes the login page public). `N8N_BASIC_AUTH_*` does nothing on n8n 2.x (SECURITY.md §2).
 4. Register the keeper: Task Scheduler → *LeadVelocity-n8n-Keeper* → `powershell -NoProfile -ExecutionPolicy Bypass -File <repo>\automation\local-tick.ps1`, triggers *At log on* + *every 10 minutes*.
 5. Git hooks: `git config core.hooksPath .githooks` (secret guard).
+
+## 1a. Code-node runtime: repo mount and allowed modules (I-31a, I-35b, I-36e)
+Set in `automation/docker-compose.yml` (and repeated in the VPS overlay `vps/traefik/docker-compose.traefik.yml`), **not** in `.env`. Compose `environment:` wins over `env_file`, so a stale `.env` line cannot narrow them:
+
+| Setting | Value | Why |
+|---|---|---|
+| volume | `..:/repo:ro` (repo root, read-only) | Code nodes `import()` `conversation/guardrail.mjs`, `automation/lib/*.mjs`, read `knowledge/faq.md`, `community/*`, `billing/checkout/` |
+| `REPO_DIR` | `/repo` | the path every workflow joins onto (`$env.REPO_DIR + '/automation/lib/w07.mjs'`) |
+| `AUTOMATION_DIR` | `/repo/automation` | same mount; older workflows read this name |
+| `NODE_FUNCTION_ALLOW_BUILTIN` | `crypto,dns,url,fs,path` | `url` for `pathToFileURL` in `import()`, `fs`/`path` for corpus reads, `crypto` for HMAC/Flow, `dns` for MX checks |
+| `NODE_FUNCTION_ALLOW_EXTERNAL` | empty | no npm modules in Code nodes (supported n8n path, no custom image) |
+
+The mount adds no secret exposure: the same `.env` is already the container's environment (`env_file`) and Code nodes can read env (`N8N_BLOCK_ENV_ACCESS_IN_NODE=false`). It is read-only, so a Code node cannot rewrite the code it runs. On the VPS the mounted dir is `/opt/lead-velocity`, filled by `provision.sh` step 4 from git HEAD. Check after `up -d`: in a Code node, `return [{json:{ok: (await import(require('url').pathToFileURL($env.REPO_DIR + '/conversation/guardrail.mjs').href)) ? 1 : 0}}]`. *ASSUMPTION: n8n 2.41 task runners allow dynamic `import()` of a file URL; if the runner blocks it, I-31a's fallback applies (CJS shim or inline `classifierInput`, automation-engineer).*
+
+## 1b. One Postgres credential for every SMC workflow (I-35h)
+- **Name:** `LV Supabase - n8n_app (least privilege)`. Every SMC workflow (W02-W33, including the billing set W16-W19/W25) references this one name. Create it once in the n8n UI (Host/DB/Port from `SUPABASE_DB_URL`, user = the login below, SSL on).
+- **Billing maps to the same login.** The billing workflows' `smc_vault_*` wrappers are `EXECUTE`-granted to `n8n_app` only (migration 08), so the billing credential must be this same credential/login, not a separate "billing role".
+- **The login role:** `n8n_app` is created `NOLOGIN NOINHERIT` (migration 05). Use a separate login role that is a member of `n8n_app` **with INHERIT** (privileges apply without `SET ROLE`), or give `n8n_app` itself `LOGIN`. Runbook lines (Jonathan / platform-architect run them in the Supabase SQL editor at GATE time; **not applied by this repo**; password from the password manager, never in chat):
+  ```sql
+  -- option A (preferred): a login role that inherits n8n_app
+  CREATE ROLE n8n_app_login LOGIN INHERIT PASSWORD :'n8n_app_login_password';
+  GRANT n8n_app TO n8n_app_login;              -- PG16: add WITH INHERIT TRUE if the server default is changed
+  -- option B: n8n_app logs in directly
+  -- ALTER ROLE n8n_app LOGIN PASSWORD :'n8n_app_password';
+  ```
+  `NOINHERIT` on `n8n_app` itself only affects roles *it* belongs to; the member's own `INHERIT` is what makes `n8n_app`'s grants apply. Check: `SELECT has_function_privilege('n8n_app_login', 'public.smc_vault_paystack_auth_code(uuid)', 'EXECUTE');` must be `t`.
+- **Status:** the workflow JSON exports still carry older credential names (W02/W03/W07/W08/W10/W11/W21/W27/W28/W29: `LV Supabase Postgres`; W16-W19/W25: `Supabase CRM (Postgres, billing role)`; W20/W24: `... W20 role` / `... W24 role`; W14/W23: `Supabase Postgres (service role)`; W30/W31: `SortMyCover Postgres`; W32/W33: `Supabase Postgres (ops writer)`). Only W22 uses the canonical name. Until the exports are renamed (owners + generators: `build-w03-w28.mjs`, `billing/build-workflows.mjs`, `optimisation/build-workflows.cjs`), point every one of those names at the **same** login when creating credentials on import. No `service role` credential is ever created in n8n.
+
+## 1c. CORS on the API host (I-34c)
+Browser calls to `API_HOST` (`/webhook/lead`, `/webhook/slots`, `/webhook/book`, `/webhook/billing-autorenew`) are answered by the Traefik `api-cors` headers middleware on the `n8n-cors` router (VPS overlay): origins `PUBLIC_ALLOWED_ORIGINS` or `https://sortmycover.co.za, https://sortmycover.leadvelocity.co.za, https://app.leadvelocity.co.za`; methods `GET, POST, OPTIONS`; headers `Content-Type, X-Lead-Token, Authorization`; no credentials; preflight cached 600 s. Traefik answers the preflight itself and overwrites any `Access-Control-Allow-Origin` that an n8n webhook node sets. **Locally there is no Traefik:** the tunnel reaches n8n directly, so on the laptop CORS comes from the webhook node's *Allowed Origins (CORS)* option (W19 sets it). For local browser tests of `/slots` and `/book`, set that option on those webhook nodes to the same origin list. *ASSUMPTION: n8n's own preflight reply echoes the requested headers; verify once with `curl -X OPTIONS -H 'Origin: …' -H 'Access-Control-Request-Headers: x-lead-token'`.*
 
 ## 2. The tunnel and the `N8N_PUBLIC_URL` it writes
 - **Today: a cloudflared quick tunnel.** Free, no account, no domain needed. Its URL **changes whenever the tunnel restarts** (6.6 "limits of free"). The keeper writes the new URL into `.env` (`N8N_PUBLIC_URL=https://<random>.trycloudflare.com`, `WEBHOOK_URL=<same>/`) and recreates n8n, so n8n always knows its own public URL.

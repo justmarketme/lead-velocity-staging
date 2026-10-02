@@ -32,10 +32,22 @@ services:
       N8N_PORT: 5678
       N8N_PROXY_HOPS: 1
       N8N_RUNNERS_ENABLED: "true"
+      # Code nodes import() conversation/guardrail.mjs and automation/lib/*.mjs from the read-only repo mount
+      # (integration pass 2, I-31a / I-35b / I-36e). Set here, not in .env, so local and VPS cannot drift;
+      # the VPS overlay repeats the same three values. No external npm modules in Code nodes.
+      REPO_DIR: /repo
+      AUTOMATION_DIR: /repo/automation
+      NODE_FUNCTION_ALLOW_BUILTIN: crypto,dns,url,fs,path
+      NODE_FUNCTION_ALLOW_EXTERNAL: ""
     ports:
       - "127.0.0.1:5678:5678"
     volumes:
       - n8n_data:/home/node/.n8n
+      # The repo root (this file's parent dir), read-only. Laptop: the working copy. VPS: /opt/lead-velocity
+      # (provision.sh step 4 ships the runtime dirs from git HEAD, see W26.md). The mount adds no secret exposure:
+      # the same .env is already this container's env (env_file), and Code nodes can read env anyway
+      # (N8N_BLOCK_ENV_ACCESS_IN_NODE=false, SECURITY.md). Read-only, so a Code node cannot change the code it runs.
+      - ..:/repo:ro
     depends_on:
       postgres:
         condition: service_healthy

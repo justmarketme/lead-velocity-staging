@@ -47,7 +47,11 @@ services:
       EXECUTIONS_DATA_PRUNE: "true"
       EXECUTIONS_DATA_MAX_AGE: 168
       EXECUTIONS_DATA_PRUNE_MAX_COUNT: 5000
-      NODE_FUNCTION_ALLOW_BUILTIN: crypto
+      # Same three values as automation/docker-compose.yml (I-35b / I-36e); repeated so an overlay edit cannot narrow them.
+      REPO_DIR: /repo
+      AUTOMATION_DIR: /repo/automation
+      NODE_FUNCTION_ALLOW_BUILTIN: crypto,dns,url,fs,path
+      NODE_FUNCTION_ALLOW_EXTERNAL: ""
       N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
       GENERIC_TIMEZONE: Africa/Johannesburg
       TZ: Africa/Johannesburg
@@ -67,6 +71,21 @@ services:
       - traefik.http.routers.n8n-api.middlewares=api-ratelimit,sec-headers
       - traefik.http.middlewares.api-ratelimit.ratelimit.average=50
       - traefik.http.middlewares.api-ratelimit.ratelimit.burst=100
+      # Browser-called endpoints on API_HOST (I-34c): CORS for /lead, /slots, /book, /billing-autorenew only.
+      # Same host as n8n-api, longer rule + explicit priority so these paths take this router. Traefik answers the
+      # OPTIONS preflight itself and sets Access-Control-Allow-Origin (overwriting any n8n webhook allowedOrigins value).
+      # Origins: PUBLIC_ALLOWED_ORIGINS (comma list) or the default below; never "*", no credentials (cookies) allowed.
+      - traefik.http.routers.n8n-cors.rule=Host(`${API_HOST}`) && (Path(`/webhook/lead`) || Path(`/webhook/slots`) || Path(`/webhook/book`) || Path(`/webhook/billing-autorenew`))
+      - traefik.http.routers.n8n-cors.priority=1000
+      - traefik.http.routers.n8n-cors.entrypoints=websecure
+      - traefik.http.routers.n8n-cors.tls.certresolver=le
+      - traefik.http.routers.n8n-cors.middlewares=api-cors,api-ratelimit,sec-headers
+      - traefik.http.middlewares.api-cors.headers.accessControlAllowOriginList=${PUBLIC_ALLOWED_ORIGINS:-https://sortmycover.co.za,https://sortmycover.leadvelocity.co.za,https://app.leadvelocity.co.za}
+      - traefik.http.middlewares.api-cors.headers.accessControlAllowMethods=GET,POST,OPTIONS
+      - traefik.http.middlewares.api-cors.headers.accessControlAllowHeaders=Content-Type,X-Lead-Token,Authorization
+      - traefik.http.middlewares.api-cors.headers.accessControlAllowCredentials=false
+      - traefik.http.middlewares.api-cors.headers.accessControlMaxAge=600
+      - traefik.http.middlewares.api-cors.headers.addVaryHeader=true
       # Consumer links on the SortMyCover domain: /c/{ref} (.ics) and /j/{ref} (join redirect) -> n8n webhooks.
       - traefik.http.routers.n8n-link.rule=Host(`${LINK_HOST:-link.invalid}`) && (PathPrefix(`/c/`) || PathPrefix(`/j/`))
       - traefik.http.routers.n8n-link.entrypoints=websecure
