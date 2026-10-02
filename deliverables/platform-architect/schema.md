@@ -256,3 +256,24 @@ This migration contains only the two items below. Stub run: chain 01→11 twice 
 |---|---|
 | I-37g | `ops.notifications.attempts integer NOT NULL DEFAULT 0`, plus a CHECK that it is ≥ 0. |
 | I-35i | `smc_vault_paystack_sub_token(broker_id)`: a SECURITY DEFINER function that only `n8n_app` can run. It returns the decrypted Paystack subscription email token named in `brokers.paystack_subscription_token_ref`, whether or not `card_autorenew` is on, so W19 can disable the Plan when the broker switches auto-renew off. Stub result: token stored by `smc_vault_store_paystack_sub` → read back. `authenticated` gets permission denied. |
+
+## Pass 6 (2026-10-02) — `20261002_smc_12_pass6.sql` (drafted, NOT applied) — I-38a
+Stub run, chain 01→12:
+- Applied twice, plus the seed twice and the analytics SQL: 0 errors, and 0 legacy errors.
+- Workflow parse-check: 251 statements. The only real error is W34 "Clear residual identifiers" (`lr.name` does not exist). The rest are untyped-parameter artefacts.
+- `node --test automation/tests/W34.test.mjs`: 18/18 pass, 0 todo.
+
+| Item | What 12 does |
+|---|---|
+| Kinds | `notifications_kind_check` adds `dsar` (W34 "Record DSR", "Queue DSR clock tickets") and `approval_confirmed` (W32 "Confirm to approvers"). Before 12, these were the only two kinds that workflows insert directly and the check rejected. Also added defensively: `approval_stuck`, `card_autorenew_off`, `dsar_received`, `dsar_due`, `dsar_overdue`, `dsar_erased`, `broker_dsr_erase`, `w34_retention_failure`, `w34_monthly_report`. These are W22 alert kinds, which W22 stores as `alert` + `signal_key`. |
+| Erase | `smc_erase_lead` (same signature) also clears these, each only when the column exists on the database (NH-11): `leads.name`, `leads.company`, `leads.role`, and `appointments.meeting_link`, `notes`, `reason_notes`. `lead_conversations` messages become `[erased]` on pseudonymise and are deleted on delete. |
+| Hash | `smc_hash_contact` uses one rule: a phone is hashed as SHA-256 hex of its E.164 digits only, with no "+", spaces or dashes. W24 and W15 already hash this way in code. An email is hashed as lower(trim). A local `0…` number is not rewritten. The old rule is kept as `smc_hash_contact_v1`, used only to find old hashes. A one-off re-hash recomputes `leads.dedupe_hash`, plus `suppression.mobile_hash`, `dsr_requests.mobile_hash` and `dsr_requests.subject_hash` where they match the old rule and the lead's phone is still present. Pre-launch this touches synthetic rows only. `wa_threads` hashes expire within 72 h. |
+| Register | `obligations` P7 (DSR in 30 days) and P8 (retention purge) are seeded from compliance-register.md with status `open`. A re-run never overwrites them. |
+
+Stub tests:
+- `'+27 82 000-0000'` hashes to sha256(`27820000000`); `' A@B.co '` hashes to sha256(`a@b.co`).
+- All 10 SMC leads were re-hashed.
+- `dsar` and `approval_confirmed` inserts are accepted.
+- Pseudonymise as `n8n_app` clears company and role, sets the conversation to `[erased]`, and clears `reason_notes`.
+
+**For the W34 owner (I-38b):** the "Clear residual identifiers" node (job 3b) is now redundant and also references `leads.name`, which this repo does not have. Drop the node, since `smc_erase_lead` now covers those columns.

@@ -359,6 +359,6 @@ const kindConstraint = () => {
   const all = [...mig.matchAll(/ADD CONSTRAINT notifications_kind_check CHECK \(kind IN([\s\S]*?)\)\);/g)];
   return all.length ? all[all.length - 1][1] : '';
 };
-test("schema: ops.notifications kind check allows 'dsar' (I-item for platform-architect)", { todo: kindConstraint().includes("'dsar'") ? false : "notifications_kind_check has no 'dsar' yet: W34 intake/clock inserts will fail until the migration adds it" }, () => {
+test("schema: ops.notifications kind check allows 'dsar' (migration 12, I-38a)", () => {
   assert.match(kindConstraint(), /'dsar'/);
 });
