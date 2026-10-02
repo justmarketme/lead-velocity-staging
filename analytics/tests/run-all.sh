@@ -12,6 +12,8 @@ SEED=../supabase/seed/smc_synthetic.sql
 for db in "$REAL_DB" "$FIX_DB"; do psql -q -d postgres -c "drop database if exists $db" -c "create database $db template $BASE" 2>&1 | grep -v NOTICE || true; done
 VIEWS="params.sql watchlist.sql kill-scale.sql W14-lv.sql W14-broker.sql W14-broker-payload.sql"
 load() { local db=$1; psql -q -v ON_ERROR_STOP=1 -d "$db" -f tests/facts-contract.test.sql >/dev/null; for f in $VIEWS; do psql -q -v ON_ERROR_STOP=1 -d "$db" -f "$f" 2>&1 | grep -v NOTICE || true; done; }
+# Synthetic rows are hidden from facts unless this is on (smc_04 facts.include_synthetic); safe here, the harness only ever holds synthetic data.
+for db in "$REAL_DB" "$FIX_DB"; do psql -q -d postgres -c "alter database $db set smc.include_synthetic = 'on'"; done
 # 1. real platform seed
 (echo "SET smc.allow_synthetic = 'on';"; cat "$SEED") | psql -q -v ON_ERROR_STOP=1 -d "$REAL_DB" >/dev/null
 load "$REAL_DB"
@@ -28,3 +30,7 @@ echo "=== FIXTURE: the seven tiles ==="
 psql -d "$FIX_DB" -f tests/print-tiles.sql
 echo "=== FIXTURE: branch scenarios ==="
 psql -d "$FIX_DB" -f tests/scenarios.test.sql
+echo "=== FIXTURE: every SQL block in knowledge/metrics.md ==="
+FIX_DB="$FIX_DB" bash tests/metrics-sql.test.sh
+echo "=== FIXTURE: the 20 scripted Ask-the-data questions ==="
+FIX_DB="$FIX_DB" python3 tests/ask-questions.test.py

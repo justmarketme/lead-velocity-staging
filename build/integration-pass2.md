@@ -75,3 +75,6 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-33d | `smc_brokers_guard`: test `current_user` before `auth.uid()` so `n8n_app` works even if the hosted grant is refused (option b) | platform-architect (dispatched) |
 | I-33e | Verify on staging that the first `x-forwarded-for` entry is the client IP (one test signature vs gateway log) | devops-security, after NH-15 |
 | I-33f | W03 draft references `ops.ctwa_clicks` and `public.wa_threads`, which do not exist in 01–09: use existing tables (`lead_activities` / `dm_threads`-style) or request migration 10 | automation-engineer (W03) |
+| I-33g | `brokers.close_rate` CHECK 0–100 allows a percent where a fraction is expected; tighten to 0–1 in migration 10 or validate in the portal write | platform-architect |
+| I-33h | `scripts/build-broker-report-email.mjs` (PDF, initials only) missing; W14 queues an `ops.notifications` email row only | automation-engineer |
+| I-33i | `facts.w14_broker_report(uuid)` and `facts.w14_lv_payload()` live in `analytics/W14-broker-payload.sql` / `W14-lv.sql`, not in a migration — fold into migration 10 so the stub chain covers W14 | platform-architect + analytics-reporter |

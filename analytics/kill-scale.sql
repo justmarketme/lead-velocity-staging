@@ -13,7 +13,7 @@ w as (select p.as_of - p.verify_lag_days as w_end, p.as_of - p.verify_lag_days -
 nm as (select ad_id, max(ad_name) as ad_name from public.ad_metrics group by ad_id),
 ad as (
   select a.campaign_id, a.ad_id, coalesce(max(nm.ad_name), a.ad_id) as ad_name, max(a.angle) as angle,
-         case when max(a.date) filter (where a.spend_zar > 0) >= (select as_of from p) - 1 then 'active' else 'paused' end as status,
+         (select case when max(x.date) filter (where x.spend_zar > 0) >= (select as_of from p) - 1 then 'active' else 'paused' end from facts.fact_ad_day x where x.ad_id = a.ad_id) as status,   -- all days, not just the verdict window (pass 3 fix: the window ends verify_lag_days ago so every ad read 'paused')
          sum(a.spend_zar) as spend, sum(a.leads_meta) as raw_leads
   from facts.fact_ad_day a join w on a.date between w.w_start and w.w_end
   left join nm on nm.ad_id = a.ad_id

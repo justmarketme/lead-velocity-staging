@@ -1,0 +1,846 @@
+{
+ "_meta": {
+  "source": "facts.w14_broker_report() on the analytics synthetic cycle (analytics/tests/synthetic-seed.sql), one adviser, synthetic names only",
+  "regenerate": "see build notes in analytics/tests/run-all.sh; values are for shape and rule tests, not for reconciliation"
+ },
+ "weekly_close_rate": {
+  "wa": {
+   "v1": "Week 2 of your October cycle. On track.",
+   "v2": "16 of 20 (target 9 by now, last week 8)",
+   "v3": "12 (last week 8)",
+   "v4": "60% (target 65%, last week 71%)",
+   "v5": "1 outcome to mark and 1 follow-up due",
+   "v6": "Mark the 1 open outcome"
+  },
+  "week": "2026-W40",
+  "cycle": {
+   "id": "00000000-0000-4000-8000-0000000c0002",
+   "day": 14,
+   "ends": "2026-10-18",
+   "tier": "Bronze",
+   "label": "October",
+   "starts": "2026-09-19",
+   "extension": {
+    "until": null,
+    "active": false
+   },
+   "days_total": 30,
+   "renewal_offer_on": "2026-10-11"
+  },
+  "broker": {
+   "id": "00000000-0000-4000-8000-0000000b0002",
+   "fsp": "TEST-00002",
+   "practice": "Synthetic Analytics Advisory (TEST ONLY)",
+   "first_name": "Mark"
+  },
+  "s6_roi": {
+   "basis": {
+    "attended": 6,
+    "committed": 20,
+    "delivered": 16,
+    "show_rate": 0.6,
+    "booked_upcoming": 2
+   },
+   "shown": true,
+   "close_rate": 0.3,
+   "tracking_to": 2,
+   "policies_reported": null,
+   "meetings_to_policies": {
+    "v": null,
+    "last": null
+   }
+  },
+  "s7_ask": {
+   "code": "mark_outcomes",
+   "text": "Mark your 1 open outcome. It keeps your replacements accurate and your pre-call briefs sharp.",
+   "button": "Mark outcomes (1)",
+   "deep_link": "ask/rp_2026w40"
+  },
+  "schema": "broker_report/1",
+  "edition": "weekly",
+  "s8_cycle": {
+   "line": "Cycle 1 (Bronze) ends Sun 18 Oct. Your renewal offer arrives Sun 11 Oct. No lock-in."
+  },
+  "s5_notice": [],
+  "s4_quality": {
+   "mix": {
+    "unreachable": 1,
+    "fit_followup": 1,
+    "nofit_budget": 1,
+    "nofit_covered": 1,
+    "fit_proceeding": 2,
+    "nofit_criteria": 0
+   },
+   "themes": [
+    {
+     "of": 16,
+     "text": "Does this cover my bond?",
+     "count": 5
+    },
+    {
+     "of": 16,
+     "text": "What happens to my children if I die?",
+     "count": 3
+    },
+    {
+     "of": 16,
+     "text": "Is my work cover enough?",
+     "count": 2
+    }
+   ],
+   "avg_rating": {
+    "v": 3.4,
+    "last": 3.4,
+    "target": 4.0
+   },
+   "ratings_given": {
+    "v": 0.83,
+    "last": 1.0,
+    "target": 0.9
+   }
+  },
+  "s1_one_line": "16 of 20 leads delivered, 12 booked, 6 showed up, 3 you rated a good fit. On track for the cycle.",
+  "s2_progress": {
+   "booked": {
+    "v": 12,
+    "last": 8,
+    "rate": 0.75,
+    "target": 0.6
+   },
+   "attended": {
+    "v": 6,
+    "last": 5,
+    "target": null
+   },
+   "verified": {
+    "v": 16,
+    "last": 8,
+    "target": null
+   },
+   "days_left": 16,
+   "delivered": {
+    "v": 16,
+    "last": 8,
+    "target": 9,
+    "committed": 20
+   },
+   "show_rate": {
+    "v": 0.6,
+    "last": 0.71,
+    "light": "amber",
+    "target": 0.65
+   },
+   "replacements": {
+    "cap": 4,
+    "used": 1,
+    "light": "green",
+    "last_used": 1
+   }
+  },
+  "s3_meetings": {
+   "todos": {
+    "unmarked": [
+     {
+      "initial": "L",
+      "booking_id": "00000000-0000-4000-8000-0000000d0008",
+      "first_name": "Synthetic"
+     }
+    ],
+    "not_reached": [
+     {
+      "initial": "L",
+      "first_name": "Synthetic"
+     },
+     {
+      "initial": "L",
+      "first_name": "Synthetic"
+     }
+    ],
+    "followups_due": [
+     {
+      "due": "2026-10-02",
+      "initial": "L",
+      "first_name": "Synthetic"
+     }
+    ]
+   },
+   "last_week": [
+    {
+     "when": "2026-09-26T10:00+02:00",
+     "method": "phone",
+     "initial": "L",
+     "outcome": "attended",
+     "quality": null,
+     "lead_ref": "00000000-0000-4000-8000-0000000a0013",
+     "full_name": "Synthetic Lead-13",
+     "first_name": "Synthetic",
+     "disposition": null,
+     "unconfirmed": true
+    },
+    {
+     "when": "2026-09-27T11:00+02:00",
+     "method": "whatsapp_call",
+     "initial": "L",
+     "outcome": "no_show",
+     "quality": null,
+     "lead_ref": "00000000-0000-4000-8000-0000000a0016",
+     "full_name": "Synthetic Lead-16",
+     "first_name": "Synthetic",
+     "disposition": null,
+     "unconfirmed": false
+    },
+    {
+     "when": "2026-09-28T12:00+02:00",
+     "method": "teams",
+     "initial": "L",
+     "outcome": "no_show",
+     "quality": null,
+     "lead_ref": "00000000-0000-4000-8000-0000000a0019",
+     "full_name": "Synthetic Lead-19",
+     "first_name": "Synthetic",
+     "disposition": null,
+     "unconfirmed": false
+    }
+   ],
+   "next_week": [
+    {
+     "when": "2026-10-04T10:00+02:00",
+     "method": "phone",
+     "initial": "L",
+     "first_name": "Synthetic"
+    },
+    {
+     "when": "2026-10-05T10:00+02:00",
+     "method": "whatsapp_call",
+     "initial": "L",
+     "first_name": "Synthetic"
+    }
+   ]
+  },
+  "week_of_cycle": 2,
+  "weeks_in_cycle": 4
+ },
+ "weekly_no_close_rate": {
+  "wa": {
+   "v1": "Week 2 of your October cycle. On track.",
+   "v2": "16 of 20 (target 9 by now, last week 8)",
+   "v3": "12 (last week 8)",
+   "v4": "60% (target 65%, last week 71%)",
+   "v5": "1 outcome to mark and 1 follow-up due",
+   "v6": "Mark the 1 open outcome"
+  },
+  "week": "2026-W40",
+  "cycle": {
+   "id": "00000000-0000-4000-8000-0000000c0002",
+   "day": 14,
+   "ends": "2026-10-18",
+   "tier": "Bronze",
+   "label": "October",
+   "starts": "2026-09-19",
+   "extension": {
+    "until": null,
+    "active": false
+   },
+   "days_total": 30,
+   "renewal_offer_on": "2026-10-11"
+  },
+  "broker": {
+   "id": "00000000-0000-4000-8000-0000000b0002",
+   "fsp": "TEST-00002",
+   "practice": "Synthetic Analytics Advisory (TEST ONLY)",
+   "first_name": "Mark"
+  },
+  "s6_roi": {
+   "shown": false
+  },
+  "s7_ask": {
+   "code": "mark_outcomes",
+   "text": "Mark your 1 open outcome. It keeps your replacements accurate and your pre-call briefs sharp.",
+   "button": "Mark outcomes (1)",
+   "deep_link": "ask/rp_2026w40"
+  },
+  "schema": "broker_report/1",
+  "edition": "weekly",
+  "s8_cycle": {
+   "line": "Cycle 1 (Bronze) ends Sun 18 Oct. Your renewal offer arrives Sun 11 Oct. No lock-in."
+  },
+  "s5_notice": [],
+  "s4_quality": {
+   "mix": {
+    "unreachable": 1,
+    "fit_followup": 1,
+    "nofit_budget": 1,
+    "nofit_covered": 1,
+    "fit_proceeding": 2,
+    "nofit_criteria": 0
+   },
+   "themes": [
+    {
+     "of": 16,
+     "text": "Does this cover my bond?",
+     "count": 5
+    },
+    {
+     "of": 16,
+     "text": "What happens to my children if I die?",
+     "count": 3
+    },
+    {
+     "of": 16,
+     "text": "Is my work cover enough?",
+     "count": 2
+    }
+   ],
+   "avg_rating": {
+    "v": 3.4,
+    "last": 3.4,
+    "target": 4.0
+   },
+   "ratings_given": {
+    "v": 0.83,
+    "last": 1.0,
+    "target": 0.9
+   }
+  },
+  "s1_one_line": "16 of 20 leads delivered, 12 booked, 6 showed up, 3 you rated a good fit. On track for the cycle.",
+  "s2_progress": {
+   "booked": {
+    "v": 12,
+    "last": 8,
+    "rate": 0.75,
+    "target": 0.6
+   },
+   "attended": {
+    "v": 6,
+    "last": 5,
+    "target": null
+   },
+   "verified": {
+    "v": 16,
+    "last": 8,
+    "target": null
+   },
+   "days_left": 16,
+   "delivered": {
+    "v": 16,
+    "last": 8,
+    "target": 9,
+    "committed": 20
+   },
+   "show_rate": {
+    "v": 0.6,
+    "last": 0.71,
+    "light": "amber",
+    "target": 0.65
+   },
+   "replacements": {
+    "cap": 4,
+    "used": 1,
+    "light": "green",
+    "last_used": 1
+   }
+  },
+  "s3_meetings": {
+   "todos": {
+    "unmarked": [
+     {
+      "initial": "L",
+      "booking_id": "00000000-0000-4000-8000-0000000d0008",
+      "first_name": "Synthetic"
+     }
+    ],
+    "not_reached": [
+     {
+      "initial": "L",
+      "first_name": "Synthetic"
+     },
+     {
+      "initial": "L",
+      "first_name": "Synthetic"
+     }
+    ],
+    "followups_due": [
+     {
+      "due": "2026-10-02",
+      "initial": "L",
+      "first_name": "Synthetic"
+     }
+    ]
+   },
+   "last_week": [
+    {
+     "when": "2026-09-26T10:00+02:00",
+     "method": "phone",
+     "initial": "L",
+     "outcome": "attended",
+     "quality": null,
+     "lead_ref": "00000000-0000-4000-8000-0000000a0013",
+     "full_name": "Synthetic Lead-13",
+     "first_name": "Synthetic",
+     "disposition": null,
+     "unconfirmed": true
+    },
+    {
+     "when": "2026-09-27T11:00+02:00",
+     "method": "whatsapp_call",
+     "initial": "L",
+     "outcome": "no_show",
+     "quality": null,
+     "lead_ref": "00000000-0000-4000-8000-0000000a0016",
+     "full_name": "Synthetic Lead-16",
+     "first_name": "Synthetic",
+     "disposition": null,
+     "unconfirmed": false
+    },
+    {
+     "when": "2026-09-28T12:00+02:00",
+     "method": "teams",
+     "initial": "L",
+     "outcome": "no_show",
+     "quality": null,
+     "lead_ref": "00000000-0000-4000-8000-0000000a0019",
+     "full_name": "Synthetic Lead-19",
+     "first_name": "Synthetic",
+     "disposition": null,
+     "unconfirmed": false
+    }
+   ],
+   "next_week": [
+    {
+     "when": "2026-10-04T10:00+02:00",
+     "method": "phone",
+     "initial": "L",
+     "first_name": "Synthetic"
+    },
+    {
+     "when": "2026-10-05T10:00+02:00",
+     "method": "whatsapp_call",
+     "initial": "L",
+     "first_name": "Synthetic"
+    }
+   ]
+  },
+  "week_of_cycle": 2,
+  "weeks_in_cycle": 4
+ },
+ "midcycle": {
+  "wa": {
+   "v1": "October",
+   "v2": "16",
+   "v3": "20",
+   "v4": "12",
+   "v5": "6",
+   "v6": "3.4",
+   "v7": "On track to deliver all 20.",
+   "v8": "Sun 18 Oct"
+  },
+  "week": "2026-W40",
+  "cycle": {
+   "id": "00000000-0000-4000-8000-0000000c0002",
+   "day": 14,
+   "ends": "2026-10-18",
+   "tier": "Bronze",
+   "label": "October",
+   "starts": "2026-09-19",
+   "extension": {
+    "until": null,
+    "active": false
+   },
+   "days_total": 30,
+   "renewal_offer_on": "2026-10-11"
+  },
+  "broker": {
+   "id": "00000000-0000-4000-8000-0000000b0002",
+   "fsp": "TEST-00002",
+   "practice": "Synthetic Analytics Advisory (TEST ONLY)",
+   "first_name": "Mark"
+  },
+  "s6_roi": {
+   "shown": false
+  },
+  "s7_ask": {
+   "code": "mark_outcomes",
+   "text": "Mark your 1 open outcome. It keeps your replacements accurate and your pre-call briefs sharp.",
+   "button": "Mark outcomes (1)",
+   "deep_link": "ask/rp_2026w40"
+  },
+  "schema": "broker_report/1",
+  "edition": "midcycle",
+  "s8_cycle": {
+   "line": "Cycle 1 (Bronze) ends Sun 18 Oct. Your renewal offer arrives Sun 11 Oct. No lock-in."
+  },
+  "s5_notice": [],
+  "s4_quality": {
+   "mix": {
+    "unreachable": 1,
+    "fit_followup": 1,
+    "nofit_budget": 1,
+    "nofit_covered": 1,
+    "fit_proceeding": 2,
+    "nofit_criteria": 0
+   },
+   "themes": [
+    {
+     "of": 16,
+     "text": "Does this cover my bond?",
+     "count": 5
+    },
+    {
+     "of": 16,
+     "text": "What happens to my children if I die?",
+     "count": 3
+    },
+    {
+     "of": 16,
+     "text": "Is my work cover enough?",
+     "count": 2
+    }
+   ],
+   "avg_rating": {
+    "v": 3.4,
+    "last": 3.4,
+    "target": 4.0
+   },
+   "ratings_given": {
+    "v": 0.83,
+    "last": 1.0,
+    "target": 0.9
+   }
+  },
+  "s1_one_line": "16 of 20 leads delivered, 12 booked, 6 showed up, 3 you rated a good fit. On track for the cycle.",
+  "s2_progress": {
+   "booked": {
+    "v": 12,
+    "last": 8,
+    "rate": 0.75,
+    "target": 0.6
+   },
+   "attended": {
+    "v": 6,
+    "last": 5,
+    "target": null
+   },
+   "verified": {
+    "v": 16,
+    "last": 8,
+    "target": null
+   },
+   "days_left": 16,
+   "delivered": {
+    "v": 16,
+    "last": 8,
+    "target": 9,
+    "committed": 20
+   },
+   "show_rate": {
+    "v": 0.6,
+    "last": 0.71,
+    "light": "amber",
+    "target": 0.65
+   },
+   "replacements": {
+    "cap": 4,
+    "used": 1,
+    "light": "green",
+    "last_used": 1
+   }
+  },
+  "s3_meetings": {
+   "todos": {
+    "unmarked": [
+     {
+      "initial": "L",
+      "booking_id": "00000000-0000-4000-8000-0000000d0008",
+      "first_name": "Synthetic"
+     }
+    ],
+    "not_reached": [
+     {
+      "initial": "L",
+      "first_name": "Synthetic"
+     },
+     {
+      "initial": "L",
+      "first_name": "Synthetic"
+     }
+    ],
+    "followups_due": [
+     {
+      "due": "2026-10-02",
+      "initial": "L",
+      "first_name": "Synthetic"
+     }
+    ]
+   },
+   "last_week": [
+    {
+     "when": "2026-09-26T10:00+02:00",
+     "method": "phone",
+     "initial": "L",
+     "outcome": "attended",
+     "quality": null,
+     "lead_ref": "00000000-0000-4000-8000-0000000a0013",
+     "full_name": "Synthetic Lead-13",
+     "first_name": "Synthetic",
+     "disposition": null,
+     "unconfirmed": true
+    },
+    {
+     "when": "2026-09-27T11:00+02:00",
+     "method": "whatsapp_call",
+     "initial": "L",
+     "outcome": "no_show",
+     "quality": null,
+     "lead_ref": "00000000-0000-4000-8000-0000000a0016",
+     "full_name": "Synthetic Lead-16",
+     "first_name": "Synthetic",
+     "disposition": null,
+     "unconfirmed": false
+    },
+    {
+     "when": "2026-09-28T12:00+02:00",
+     "method": "teams",
+     "initial": "L",
+     "outcome": "no_show",
+     "quality": null,
+     "lead_ref": "00000000-0000-4000-8000-0000000a0019",
+     "full_name": "Synthetic Lead-19",
+     "first_name": "Synthetic",
+     "disposition": null,
+     "unconfirmed": false
+    }
+   ],
+   "next_week": [
+    {
+     "when": "2026-10-04T10:00+02:00",
+     "method": "phone",
+     "initial": "L",
+     "first_name": "Synthetic"
+    },
+    {
+     "when": "2026-10-05T10:00+02:00",
+     "method": "whatsapp_call",
+     "initial": "L",
+     "first_name": "Synthetic"
+    }
+   ]
+  },
+  "week_of_cycle": 2,
+  "weeks_in_cycle": 4
+ },
+ "cycle_end": {
+  "wa": {
+   "v1": "October",
+   "v2": "Sun 18 Oct",
+   "v3": "16",
+   "v4": "20",
+   "v5": "3",
+   "v6": "3.4",
+   "v7": "Replacements used: 1 of 4."
+  },
+  "week": "2026-W40",
+  "cycle": {
+   "id": "00000000-0000-4000-8000-0000000c0002",
+   "day": 14,
+   "ends": "2026-10-18",
+   "tier": "Bronze",
+   "label": "October",
+   "starts": "2026-09-19",
+   "extension": {
+    "until": null,
+    "active": false
+   },
+   "days_total": 30,
+   "renewal_offer_on": "2026-10-11"
+  },
+  "broker": {
+   "id": "00000000-0000-4000-8000-0000000b0002",
+   "fsp": "TEST-00002",
+   "practice": "Synthetic Analytics Advisory (TEST ONLY)",
+   "first_name": "Mark"
+  },
+  "s6_roi": {
+   "shown": false
+  },
+  "s7_ask": {
+   "code": "mark_outcomes",
+   "text": "Mark your 1 open outcome. It keeps your replacements accurate and your pre-call briefs sharp.",
+   "button": "Mark outcomes (1)",
+   "deep_link": "ask/rp_2026w40"
+  },
+  "schema": "broker_report/1",
+  "edition": "cycle_end",
+  "s8_cycle": {
+   "line": "Cycle 1 (Bronze) ends Sun 18 Oct. Your renewal offer arrives Sun 11 Oct. No lock-in."
+  },
+  "s5_notice": [],
+  "s4_quality": {
+   "mix": {
+    "unreachable": 1,
+    "fit_followup": 1,
+    "nofit_budget": 1,
+    "nofit_covered": 1,
+    "fit_proceeding": 2,
+    "nofit_criteria": 0
+   },
+   "themes": [
+    {
+     "of": 16,
+     "text": "Does this cover my bond?",
+     "count": 5
+    },
+    {
+     "of": 16,
+     "text": "What happens to my children if I die?",
+     "count": 3
+    },
+    {
+     "of": 16,
+     "text": "Is my work cover enough?",
+     "count": 2
+    }
+   ],
+   "avg_rating": {
+    "v": 3.4,
+    "last": 3.4,
+    "target": 4.0
+   },
+   "ratings_given": {
+    "v": 0.83,
+    "last": 1.0,
+    "target": 0.9
+   }
+  },
+  "s1_one_line": "16 of 20 leads delivered, 12 booked, 6 showed up, 3 you rated a good fit. On track for the cycle.",
+  "s2_progress": {
+   "booked": {
+    "v": 12,
+    "last": 8,
+    "rate": 0.75,
+    "target": 0.6
+   },
+   "attended": {
+    "v": 6,
+    "last": 5,
+    "target": null
+   },
+   "verified": {
+    "v": 16,
+    "last": 8,
+    "target": null
+   },
+   "days_left": 16,
+   "delivered": {
+    "v": 16,
+    "last": 8,
+    "target": 9,
+    "committed": 20
+   },
+   "show_rate": {
+    "v": 0.6,
+    "last": 0.71,
+    "light": "amber",
+    "target": 0.65
+   },
+   "replacements": {
+    "cap": 4,
+    "used": 1,
+    "light": "green",
+    "last_used": 1
+   }
+  },
+  "s3_meetings": {
+   "todos": {
+    "unmarked": [
+     {
+      "initial": "L",
+      "booking_id": "00000000-0000-4000-8000-0000000d0008",
+      "first_name": "Synthetic"
+     }
+    ],
+    "not_reached": [
+     {
+      "initial": "L",
+      "first_name": "Synthetic"
+     },
+     {
+      "initial": "L",
+      "first_name": "Synthetic"
+     }
+    ],
+    "followups_due": [
+     {
+      "due": "2026-10-02",
+      "initial": "L",
+      "first_name": "Synthetic"
+     }
+    ]
+   },
+   "last_week": [
+    {
+     "when": "2026-09-26T10:00+02:00",
+     "method": "phone",
+     "initial": "L",
+     "outcome": "attended",
+     "quality": null,
+     "lead_ref": "00000000-0000-4000-8000-0000000a0013",
+     "full_name": "Synthetic Lead-13",
+     "first_name": "Synthetic",
+     "disposition": null,
+     "unconfirmed": true
+    },
+    {
+     "when": "2026-09-27T11:00+02:00",
+     "method": "whatsapp_call",
+     "initial": "L",
+     "outcome": "no_show",
+     "quality": null,
+     "lead_ref": "00000000-0000-4000-8000-0000000a0016",
+     "full_name": "Synthetic Lead-16",
+     "first_name": "Synthetic",
+     "disposition": null,
+     "unconfirmed": false
+    },
+    {
+     "when": "2026-09-28T12:00+02:00",
+     "method": "teams",
+     "initial": "L",
+     "outcome": "no_show",
+     "quality": null,
+     "lead_ref": "00000000-0000-4000-8000-0000000a0019",
+     "full_name": "Synthetic Lead-19",
+     "first_name": "Synthetic",
+     "disposition": null,
+     "unconfirmed": false
+    }
+   ],
+   "next_week": [
+    {
+     "when": "2026-10-04T10:00+02:00",
+     "method": "phone",
+     "initial": "L",
+     "first_name": "Synthetic"
+    },
+    {
+     "when": "2026-10-05T10:00+02:00",
+     "method": "whatsapp_call",
+     "initial": "L",
+     "first_name": "Synthetic"
+    }
+   ]
+  },
+  "week_of_cycle": 2,
+  "weeks_in_cycle": 4
+ },
+ "lv_payload_keys": [
+  "funnel",
+  "margin",
+  "creatives",
+  "watchlist",
+  "candidates",
+  "week_ending",
+  "renewal_risk",
+  "insight_seeds",
+  "recommendation_seed"
+ ]
+}

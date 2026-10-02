@@ -2,7 +2,7 @@
 
 Every number any surface shows (console, pulse, broker report, Ask the data, LV weekly) must resolve to an entry here; the W33 judge flags a number with no entry.
 Each entry: plain name (goes on the tile) / what it means / SQL / target and why / what to do if it moves / jargon (goes in the tooltip only).
-SQL is Postgres against the `facts` schema (column contract: `analytics/tests/facts-contract.test.sql`; platform-architect had not published `facts` DDL when this was written, so names follow `build/crm-gap.md` A5. **ALIGN WHEN SCHEMA LANDS**). `facts.as_of()`, `facts.disp_class()` and thresholds live in `analytics/params.sql`. Every SQL block marked `sql` was executed against the synthetic cycle.
+SQL is Postgres against the real schema (pass 3, aligned to `supabase/migrations/20261002_smc_04_facts.sql` and `..._smc_06_pass2.sql`): `facts.fact_*` views for the funnel, ads, costs, cycles and outcomes; `public.*` operational tables where `facts` holds no personal field or no row (`public.v_cycle_progress`, `public.invoices_smc`, `public.brokers`). Physical column names only: `facts.fact_ad_day.date` (also `day`) and `leads_meta` (also `leads_raw`), `facts.fact_outcome.slot_date`, booleans `fact_lead.qualified / verified / booked / attended / good_fit`, `fact_cost.date` (also `day`), `fact_comment.date`. Dual naming (schema.md, integration I-23): `brokers.broker_id / adviser_name / practice_name / adviser_whatsapp`, `brands.brand_id / status` and `cycles.cycle_id` are read-only generated aliases; read them freely, write only the physical names (`brokers.id`, `brokers.contact_person`, `brokers.firm_name`, `cycles.id`). Money: `public.invoices_smc.total_zar` is trigger-enforced (= `amount_excl_vat` + `vat_zar`), no longer a generated column. `close_rate` is a FRACTION everywhere (0.30 = 30%): stored in `public.brokers.close_rate`, carried in the W14 payload as `s6_roi.close_rate`, shown as a percent only at display time (I-30k). The column is `numeric(5,2)` with a 0-100 check, so a value like 30 would be accepted by mistake: needs_human, tighten the check to 0-1 (see build/needs-human-log.md). The example adviser uuid in the SQL below is the synthetic fixture adviser (`analytics/tests/synthetic-seed.sql`); swap in the real `brokers.id`. Every SQL block here is run against the fixture by `analytics/tests/metrics-sql.test.sh`. `facts.as_of()`, `facts.disp_class()` and thresholds live in `analytics/params.sql`.
 Tiles show value, target and last period. The tile name is the plain name; never put the jargon on the tile. Percent figures are stored as ratios (0.65 = 65%). Ad spend is ex VAT; margin includes 15% VAT on media until VAT-registered (3.1). Day buckets are Africa/Johannesburg.
 
 Sample-size rule: a rate or average on fewer than 5 events shows grey ("not enough data yet") on tiles; Ask the data refuses below 20 (6A2 item 4); kill/scale rules use their own minimums (3.4).
@@ -76,7 +76,7 @@ from facts.fact_outcome where (marked_at at time zone 'Africa/Johannesburg')::da
 - **SQL:**
 
 ```sql
-select cycle_id, margin_to_date, margin_projected, margin_at_stress from facts.cycle_margin((select cycle_id from facts.fact_cycle where broker_id = 'B-MARK' and status in ('active','extended') limit 1), facts.as_of());
+select cycle_id, margin_to_date, margin_projected, margin_at_stress from facts.cycle_margin((select cycle_id from facts.fact_cycle where broker_id = '00000000-0000-4000-8000-0000000b0002' and status in ('active','extended') limit 1), facts.as_of());
 ```
 - **Note:** Needs fact_cost rows allocated to the adviser's cycle (platform-architect).
 
@@ -89,8 +89,8 @@ select cycle_id, margin_to_date, margin_projected, margin_at_stress from facts.c
 - **SQL:**
 
 ```sql
-select round(least(99, (select slots_open_14d from facts.fact_broker_day where broker_id = 'B-MARK' and day = facts.as_of())
-        / greatest((select count(*) from facts.fact_booking where broker_id = 'B-MARK' and (booked_at at time zone 'Africa/Johannesburg')::date > facts.as_of() - 7) / 7.0, 0.1)), 1) as days_left;
+select round(least(99, (select slots_open_14d from facts.fact_broker_day where broker_id = '00000000-0000-4000-8000-0000000b0002' and day = facts.as_of())
+        / greatest((select count(*) from facts.fact_booking where broker_id = '00000000-0000-4000-8000-0000000b0002' and (booked_at at time zone 'Africa/Johannesburg')::date > facts.as_of() - 7) / 7.0, 0.1)), 1) as days_left;
 ```
 
 ## M07 Renewal risk
@@ -192,7 +192,7 @@ from facts.fact_outcome where (marked_at at time zone 'Africa/Johannesburg')::da
 - **SQL:**
 
 ```sql
-select replacements_used, cap from facts.v_cycle_progress where broker_id = 'B-MARK';
+select replacements_used, replacement_cap from public.v_cycle_progress where broker_id = '00000000-0000-4000-8000-0000000b0002';
 ```
 
 ## M15 Lead quality score per ad angle
@@ -302,7 +302,7 @@ select max(webhook_p95_ms) as worst_p95_ms, round(avg(webhook_p95_ms), 0) as avg
 - **SQL:**
 
 ```sql
-select delivered, committed, committed - delivered as still_to_deliver, days_left from facts.v_cycle_progress where broker_id = 'B-MARK';
+select verified as delivered, committed, committed - verified as still_to_deliver, days_left from public.v_cycle_progress where broker_id = '00000000-0000-4000-8000-0000000b0002';
 ```
 
 ## M24 Days the cycle is extended
@@ -314,7 +314,7 @@ select delivered, committed, committed - delivered as still_to_deliver, days_lef
 - **SQL:**
 
 ```sql
-select cycle_id, case when extended_until is null then 0 else extended_until - ends_at end as extension_days from facts.fact_cycle where status in ('active','extended');
+select cycle_id, case when extended_until is null then 0 else facts.sa_date(extended_until) - facts.sa_date(ends_at) end as extension_days from facts.fact_cycle where status in ('active','extended');
 ```
 
 ## M25 Cost per attended meeting
@@ -338,7 +338,7 @@ select ad_name, round(spend / nullif(attended, 0), 0) as cost_per_attended_zar, 
 - **SQL:**
 
 ```sql
-select cycle_id, margin_at_stress from facts.cycle_margin((select cycle_id from facts.fact_cycle where broker_id = 'B-MARK' and status in ('active','extended') limit 1), facts.as_of());
+select cycle_id, margin_at_stress from facts.cycle_margin((select cycle_id from facts.fact_cycle where broker_id = '00000000-0000-4000-8000-0000000b0002' and status in ('active','extended') limit 1), facts.as_of());
 ```
 
 ## M27 Ad spend today against the daily limit
@@ -383,8 +383,12 @@ select round(avg(frequency), 2) as frequency from facts.fact_ad_day where day > 
 - **If it moves:** Below 18%: check page speed (under 2.5 seconds), the quiz step where people drop off, and the page-to-ad message match.
 - **Tooltip (jargon):** Conversion rate; LCP (page speed); quiz step drop-off; Flow completion.
 - **Shown on:** Pulse (page & Flow)
-- **SQL:** not in `facts` yet.
-- **Note:** Page analytics are not in `facts` yet; needs `facts.fact_page_day(day, ad_id, visits, submits, lcp_ms, step_dropoff jsonb)` from platform-architect / landing-page-builder. ALIGN WHEN SCHEMA LANDS.
+- **SQL:**
+
+```sql
+select round(sum(leads_raw)::numeric / nullif(sum(page_visits), 0), 3) as signup_rate, sum(page_visits) as visits from facts.fact_page_day where day > facts.as_of() - 14;
+```
+- **Note:** `facts.fact_page_day` (smc_06) is fed by `ops.page_day`, written by devops-security / landing-page-builder (I-22); until that feeder runs the value is empty and the tile shows grey. Page speed is `lcp_p75_s` in the same view; quiz step drop-off is not in `facts` yet.
 
 ## M31 Leads who said the call was worth their time
 - **Means:** Share of attended leads who tapped thumbs-up on 'Was the call worth your time?'
@@ -419,7 +423,7 @@ select count(*) as trips from facts.fact_message where guardrail_trip and (creat
 - **SQL:**
 
 ```sql
-select round(slots_booked_7d::numeric / nullif(slots_total_7d, 0), 3) as fill_7d from facts.fact_broker_day where broker_id = 'B-MARK' and day = facts.as_of();
+select round(slots_booked_7d::numeric / nullif(slots_total_7d, 0), 3) as fill_7d from facts.fact_broker_day where broker_id = '00000000-0000-4000-8000-0000000b0002' and day = facts.as_of();
 ```
 
 ## M34 Public reply time on comments
@@ -431,7 +435,7 @@ select round(slots_booked_7d::numeric / nullif(slots_total_7d, 0), 3) as fill_7d
 - **SQL:**
 
 ```sql
-select round(percentile_cont(0.5) within group (order by sla_seconds)) as median_seconds from facts.fact_comment where (created_at at time zone 'Africa/Johannesburg')::date > facts.as_of() - 14;
+select round(percentile_cont(0.5) within group (order by sla_seconds)) as median_seconds from facts.fact_comment where date > facts.as_of() - 14;
 ```
 
 ## M35 Cycles renewed
@@ -440,8 +444,12 @@ select round(percentile_cont(0.5) within group (order by sla_seconds)) as median
 - **If it moves:** Below target: read the renewal-risk reasons (M07) and the end-of-cycle report he received.
 - **Tooltip (jargon):** Renewal rate; churn.
 - **Shown on:** Pulse (billing); LV weekly
-- **SQL:** not in `facts` yet.
-- **Note:** Source is `cycles` / `invoices` (billing-automation); expose as `facts.fact_cycle.renewed boolean` (ALIGN WHEN SCHEMA LANDS).
+- **SQL:**
+
+```sql
+select round(count(*) filter (where renewed)::numeric / nullif(count(*), 0), 3) as renewal_rate, count(*) as cycles_closed from facts.fact_cycle where cycle_no = 1 and (extended_until is null and ends_at <= now() or status = 'closed');
+```
+- **Note:** `facts.fact_cycle.renewed` is live (smc_06). Needs at least 5 closed first cycles before it is a verdict.
 
 ## M36 Days to pay
 - **Means:** Days between the renewal offer and the payment.
@@ -449,8 +457,12 @@ select round(percentile_cont(0.5) within group (order by sla_seconds)) as median
 - **If it moves:** Rising: send the reminder earlier; offer instant EFT.
 - **Tooltip (jargon):** Days sales outstanding.
 - **Shown on:** Pulse (billing)
-- **SQL:** not in `facts` yet.
-- **Note:** Source is `invoices` (billing-automation); not yet in `facts`.
+- **SQL:**
+
+```sql
+select round(avg(extract(epoch from (paid_at - issued_at)) / 86400)::numeric, 1) as days_to_pay, count(*) as n, sum(total_zar) as paid_zar from public.invoices_smc where kind = 'cycle' and paid_at is not null and issued_at > now() - interval '90 days';
+```
+- **Note:** `public.invoices_smc` (billing-automation), money from `total_zar` (= amount + VAT, trigger-enforced). Not in `facts`: invoices carry no lead data and the view would only copy them.
 
 ## M37 Compliance line
 - **Means:** Five numbers: consent stored, disclosure delivered, STOP honoured, days since last database cleanse, advice statements found.
@@ -482,7 +494,7 @@ select round(sum(amount_zar) filter (where kind in ('whatsapp','llm','infra')) /
 - **SQL:**
 
 ```sql
-select r.close_rate, r.policies_written_reported from facts.fact_broker_roi r where r.broker_id = 'B-MARK';
+select r.close_rate, r.policies_written_reported from facts.fact_broker_roi r  -- close_rate is a fraction: 0.30 = 30%;  where r.broker_id = '00000000-0000-4000-8000-0000000b0002';
 ```
 
 ## M40 Search and build lines

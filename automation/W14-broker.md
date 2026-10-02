@@ -29,7 +29,7 @@ Weekly: generated Sun 23:00, sent Mon 07:00 SAST (before the 07:30 digest). Day-
   "s5_notice": ["A new ad about bond cover went live Friday. Expect more leads mentioning a bond."],
   "s6_roi": {"shown": true, "close_rate": 0.30, "policies_reported": 1, "tracking_to": 3, "basis": {"attended": 4, "committed": 20, "delivered": 7}, "meetings_to_policies": {"v": 0.25, "last": 0}},
   "s7_ask": {"code": "mark_outcomes", "text": "Mark Thursday's two outcomes. It keeps your replacements accurate and your pre-call briefs sharp.", "button": "Mark outcomes (2)", "deep_link": "ask/rp_2026w41"},
-  "s8_cycle": {"line": "Cycle 1 (Bronze) ends Wed 28 Oct. Your renewal offer arrives Wed 21 Oct. No contract."},
+  "s8_cycle": {"line": "Cycle 1 (Bronze) ends Wed 28 Oct. Your renewal offer arrives Wed 21 Oct. No lock-in."},
   "wa": {"v1": "...", "v2": "...", "v3": "...", "v4": "...", "v5": "...", "v6": "..."}
 }
 ```

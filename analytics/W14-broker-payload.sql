@@ -162,7 +162,7 @@ begin
   todo_words := case when n_unmarked = 0 and n_follow = 0 then 'Nothing to mark'
                      else concat_ws(' and ', case when n_unmarked > 0 then format('%s outcome%s to mark', n_unmarked, case when n_unmarked = 1 then '' else 's' end) end,
                                              case when n_follow > 0 then format('%s follow-up%s due', n_follow, case when n_follow = 1 then '' else 's' end) end) end;
-  cycle_line := format('Cycle %s (%s) ends %s. Your renewal offer arrives %s. No contract.', c.cycle_no, tier, to_char(end_d, 'FMDy FMDD FMMon'), to_char(offer_on, 'FMDy FMDD FMMon'));
+  cycle_line := format('Cycle %s (%s) ends %s. Your renewal offer arrives %s. No lock-in.', c.cycle_no, tier, to_char(end_d, 'FMDy FMDD FMMon'), to_char(offer_on, 'FMDy FMDD FMMon'));
   status_line := case when on_track then format('On track to deliver all %s.', c.committed_leads)
                       else 'A little behind: we are adding leads and your cycle can extend up to 14 days.' end;
   end_note := case when coalesce(c.shortfall_credit_zar, 0) > 0 then format(' A credit of R%s goes to your next cycle.', trim(to_char(c.shortfall_credit_zar, 'FM999G999G990'))) 

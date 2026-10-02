@@ -1,0 +1,558 @@
+{
+  "name": "W14 Weekly reports (broker + Lead Velocity)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## W14 Weekly reports (analytics-reporter; words and shape by broker-success)\nGenerate 23:00 daily: one `broker_report/1` payload per live adviser from `facts.w14_broker_report()` (analytics/W14-broker-payload.sql). A weekly is only kept when the send day is a Monday; day-15 and cycle-end editions are kept on their own day. `facts.w14_hold()` (reconcile + banned-word check) decides: any failure = HELD, nothing is sent, ops alert. Passed payloads are stored in `report_history.report_data` (the portal's `reports.payload_json`, per console-portal.md).\nSend 07:00: WhatsApp template (`broker_weekly`, `broker_weekly_noask`, `broker_midcycle`, `broker_cycle_end`) built from `payload.wa`, aggregates only, no lead names (POPIA). Email (howzit@, HTML + PDF) is queued as an `ops.notifications` row for the email builder (scripts/build-broker-report-email.mjs, not written yet).\nSunday 23:00: Lead Velocity weekly (`facts.w14_lv_payload()`), stored as `lv_weekly`; the Monday 06:00 memo (W32) delivers it.\nCredentials by name; no secrets; exported inactive.",
+        "width": 660,
+        "height": 300
+      },
+      "id": "f8c015cb-e3c7-2f16-5f0c-60e6d49620ec",
+      "name": "Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -340
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 23 * * *"
+            }
+          ]
+        }
+      },
+      "id": "ee64ec07-eb8e-cd37-0cde-fc65675cc9ac",
+      "name": "Daily 23:00 generate",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "with live as (\n  select b.id as broker_id from public.brokers b\n   where b.brand_id is not null and b.status = 'active'\n     and exists (select 1 from public.cycles c where c.broker_id = b.id and c.status in ('active','extended'))\n), p as (\n  select l.broker_id, facts.w14_broker_report(l.broker_id) as payload from live l\n)\nselect p.broker_id::text as broker_id, p.payload,\n       p.payload ->> 'edition' as edition,\n       (p.payload ->> 'error') is not null as errored,\n       case when (p.payload ->> 'error') is null then facts.w14_hold(p.broker_id, p.payload) else true end as hold,\n       case when (p.payload ->> 'error') is null then\n         (select coalesce(jsonb_agg(r.check_name), '[]'::jsonb) from facts.w14_reconcile(p.broker_id, p.payload) r where not r.ok)\n       else jsonb_build_array(p.payload ->> 'error') end as failed_checks,\n       ((now() at time zone 'Africa/Johannesburg')::date + 1) as send_date,\n       to_char((now() at time zone 'Africa/Johannesburg')::date + 1, 'ID')::int = 1 as send_is_monday\nfrom p;",
+        "options": {}
+      },
+      "id": "675029fa-eb46-25d6-b3bb-228ecb320775",
+      "name": "Build payloads",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        220,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Supabase Postgres (service role)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// A weekly is kept only when the send day is a Monday. Day-15 and cycle-end editions are kept on their own day (they replace the weekly that morning).\nreturn $input.all().filter((i) => i.json.edition !== 'weekly' || i.json.send_is_monday);"
+      },
+      "id": "0a030068-b72a-3b02-5491-d83ed76502bb",
+      "name": "Keep or skip edition",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "hold",
+              "leftValue": "={{ $json.hold }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "9e1489ef-1847-cbbd-36d9-de94139cf96f",
+      "name": "Held?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into public.report_history (status, brand_id, broker_id, cycle_id, week, report_kind, report_data, ask, judge_passed, edition)\nselect 'generated', (select id from public.brands where code = 'SMC'), $1::uuid, ($2::jsonb #>> '{cycle,id}')::uuid, $3::date,\n       case $4 when 'weekly' then 'broker_weekly' else $4 end, $2::jsonb, $2::jsonb #>> '{s7_ask,code}', true, $4\non conflict (broker_id, week, report_kind) where brand_id is not null\ndo update set report_data = excluded.report_data, ask = excluded.ask, judge_passed = true, status = 'generated', updated_at = now()\n where public.report_history.sent_wa_at is null\nreturning id::text as report_id, broker_id::text, report_kind, edition, ask;",
+        "options": {
+          "queryReplacement": "={{ [ $json.broker_id, JSON.stringify($json.payload), $json.send_date, $json.edition ] }}"
+        }
+      },
+      "id": "67f47e90-4afd-430e-d34d-dd088e675263",
+      "name": "Store report",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        900,
+        -80
+      ],
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Supabase Postgres (service role)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "with h as (\n  insert into public.report_history (status, brand_id, broker_id, cycle_id, week, report_kind, report_data, judge_passed, edition)\n  select 'held', (select id from public.brands where code = 'SMC'), $1::uuid, ($2::jsonb #>> '{cycle,id}')::uuid, $3::date,\n         case $4 when 'weekly' then 'broker_weekly' else $4 end,\n         coalesce($2::jsonb, '{}'::jsonb) || jsonb_build_object('judge', jsonb_build_object('pass', false, 'failed', $5::jsonb)), false, $4\n  on conflict (broker_id, week, report_kind) where brand_id is not null\n  do update set status = 'held', judge_passed = false, report_data = excluded.report_data, updated_at = now() where public.report_history.sent_wa_at is null\n  returning id\n)\ninsert into ops.notifications (kind, recipient, channel, dedupe_key, payload, severity, what, first_action)\nselect 'action', 'jonathan', 'console', 'w14-held-' || $1 || '-' || $3, jsonb_build_object('failed_checks', $5::jsonb, 'broker_id', $1), 'amber',\n       'A broker report was held and not sent', 'Open the report in the console, fix the failing check, then re-run W14 for this adviser'\nwhere not exists (select 1 from ops.notifications where dedupe_key = 'w14-held-' || $1 || '-' || $3)\nreturning id;",
+        "options": {
+          "queryReplacement": "={{ [ $json.broker_id, JSON.stringify($json.errored ? {} : $json.payload), $json.send_date, $json.errored ? 'weekly' : $json.edition, JSON.stringify($json.failed_checks) ] }}"
+        }
+      },
+      "id": "e111bf48-58f4-a41c-24a5-0c5a348b0c2c",
+      "name": "Store held report and alert",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        900,
+        100
+      ],
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Supabase Postgres (service role)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      },
+      "id": "875c19e8-6f43-e1ac-eeca-f728e329d582",
+      "name": "Daily 07:00 send",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select rh.id::text as report_id, rh.broker_id::text as broker_id, rh.cycle_id::text as cycle_id, rh.edition, rh.report_data as payload,\n       regexp_replace(coalesce(br.whatsapp_number, ''), '\\D', '', 'g') as wa_to\n  from public.report_history rh join public.brokers br on br.id = rh.broker_id\n where rh.brand_id is not null and rh.status = 'generated' and rh.judge_passed and rh.sent_wa_at is null\n   and rh.report_kind in ('broker_weekly','midcycle','cycle_end') and rh.created_at > now() - interval '36 hours'\n   and br.status = 'active' and br.whatsapp_number is not null;",
+        "options": {}
+      },
+      "id": "39d2d872-b3ac-539d-6100-0cfaacf2ef1c",
+      "name": "Due reports",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        220,
+        420
+      ],
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Supabase Postgres (service role)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Builds the Graph API template message from payload.wa (the same values the portal and email show). No lead names, no newlines in parameters.\nconst CLEAN = (s) => String(s == null ? '' : s).replace(/\\s+/g, ' ').trim().slice(0, 1000);\nconst out = [];\nfor (const it of $input.all()) {\n  const j = it.json; const p = j.payload || {}; const wa = p.wa || {};\n  const wk = String(p.week || '').toLowerCase().replace('-', '');            // \"2026-W41\" -> \"2026w41\"\n  const rp = 'rp_' + wk;\n  let name, keys, buttons;\n  if (p.edition === 'midcycle') { name = 'broker_midcycle'; keys = ['v1','v2','v3','v4','v5','v6','v7','v8']; buttons = ['r/' + rp]; }\n  else if (p.edition === 'cycle_end') { name = 'broker_cycle_end'; keys = ['v1','v2','v3','v4','v5','v6','v7']; buttons = ['renew/' + j.cycle_id, 'r/' + rp]; }\n  else if (p.s7_ask) { name = 'broker_weekly'; keys = ['v1','v2','v3','v4','v5','v6']; buttons = [String(p.s7_ask.deep_link || ('ask/' + rp)), 'r/' + rp]; }\n  else { name = 'broker_weekly_noask'; keys = ['v1','v2','v3','v4','v5']; buttons = ['r/' + rp]; }\n  const params = keys.map((k) => { if (wa[k] == null) throw new Error('payload.wa.' + k + ' missing for ' + name); return { type: 'text', text: CLEAN(wa[k]) }; });\n  const components = [{ type: 'body', parameters: params }].concat(buttons.map((b, i) => ({ type: 'button', sub_type: 'url', index: String(i), parameters: [{ type: 'text', text: b }] })));\n  out.push({ json: { report_id: j.report_id, template: name, to: j.wa_to,\n    payload: { messaging_product: 'whatsapp', to: j.wa_to, type: 'template', template: { name, language: { code: 'en' }, components } } } });\n}\nreturn out;"
+      },
+      "id": "1ba40648-6fec-a00d-4092-43cf9f09d573",
+      "name": "Build WhatsApp template",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION || 'v23.0' }}/{{ $env.NODE_ENV === 'production' ? $env.PHONE_NUMBER_ID : ($env.WHATSAPP_TEST_PHONE_NUMBER_ID || $env.PHONE_NUMBER_ID) }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "62849097-27da-5327-444d-748117c3bfd8",
+      "name": "WhatsApp send",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        420
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": null,
+          "name": "WhatsApp Cloud API (SortMyCover)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pair each Graph response with its report (same order as the Build WhatsApp template items).\nconst built = $('Build WhatsApp template').all();\nreturn $input.all().map((it, i) => ({ json: { report_id: built[i].json.report_id, ok: it.json.statusCode >= 200 && it.json.statusCode < 300,\n  wa_message_id: (it.json.body && it.json.body.messages && it.json.body.messages[0] && it.json.body.messages[0].id) || null,\n  error: it.json.statusCode >= 300 ? JSON.stringify(it.json.body || {}).slice(0, 300) : null } }));"
+      },
+      "id": "efd6f0d0-ee68-83a1-a12a-dc0618b99959",
+      "name": "Sent or failed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "ok",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0141dcee-6828-d03c-c156-52e119b03d34",
+      "name": "Sent?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "with u as (\n  update public.report_history set status = 'sent', sent_wa_at = now(), updated_at = now() where id = $1::uuid and sent_wa_at is null\n  returning id, broker_id\n)\ninsert into ops.notifications (kind, recipient, channel, dedupe_key, payload, source)\nselect 'action', u.broker_id::text, 'email', 'broker-report-email-' || u.id, jsonb_build_object('report_id', u.id, 'template', 'broker_report_email', 'from', 'howzit@leadvelocity.co.za', 'pdf', 'initials_only'), 'W14'\nfrom u where not exists (select 1 from ops.notifications where dedupe_key = 'broker-report-email-' || u.id)\nreturning id;",
+        "options": {
+          "queryReplacement": "={{ [ $json.report_id ] }}"
+        }
+      },
+      "id": "4efc70f2-3c02-34a6-6b3f-8b0b9509e02d",
+      "name": "Mark sent and queue email",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        1320,
+        340
+      ],
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Supabase Postgres (service role)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "with u as (\n  update public.report_history set status = 'failed', updated_at = now() where id = $1::uuid and sent_wa_at is null returning id\n)\ninsert into ops.notifications (kind, recipient, channel, dedupe_key, payload, severity, what, first_action)\nselect 'action', 'jonathan', 'console', 'w14-send-failed-' || u.id, jsonb_build_object('report_id', u.id, 'error', $2), 'amber',\n       'A broker report did not send on WhatsApp', 'Check the WhatsApp number health tile, then re-send the report from the console'\nfrom u where not exists (select 1 from ops.notifications where dedupe_key = 'w14-send-failed-' || u.id)\nreturning id;",
+        "options": {
+          "queryReplacement": "={{ [ $json.report_id, $json.error || 'unknown' ] }}"
+        }
+      },
+      "id": "b3395444-694e-1c55-bce6-ed167f6edd60",
+      "name": "Mark failed and alert",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        1320,
+        500
+      ],
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Supabase Postgres (service role)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 23 * * 0"
+            }
+          ]
+        }
+      },
+      "id": "492ea527-b2fd-b245-dda4-8a2c4975c140",
+      "name": "Sunday 23:00 Lead Velocity weekly",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        760
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select facts.w14_lv_payload() as payload;",
+        "options": {}
+      },
+      "id": "fa762554-644e-1926-11cc-7ac0bc2fdf6f",
+      "name": "Build Lead Velocity payload",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        220,
+        760
+      ],
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Supabase Postgres (service role)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into public.report_history (status, brand_id, week, report_kind, report_data)\nselect 'generated', (select id from public.brands where code = 'SMC'), date_trunc('week', (now() at time zone 'Africa/Johannesburg')::date + 1)::date, 'lv_weekly', $1::jsonb\nwhere not exists (select 1 from public.report_history where report_kind = 'lv_weekly' and week = date_trunc('week', (now() at time zone 'Africa/Johannesburg')::date + 1)::date)\nreturning id::text as report_id;",
+        "options": {
+          "queryReplacement": "={{ [ JSON.stringify($json.payload) ] }}"
+        }
+      },
+      "id": "f49ab7d4-9d3e-afbe-f187-8bcea8c65f68",
+      "name": "Store Lead Velocity weekly",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        440,
+        760
+      ],
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Supabase Postgres (service role)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily 23:00 generate": {
+      "main": [
+        [
+          {
+            "node": "Build payloads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build payloads": {
+      "main": [
+        [
+          {
+            "node": "Keep or skip edition",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keep or skip edition": {
+      "main": [
+        [
+          {
+            "node": "Held?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Held?": {
+      "main": [
+        [
+          {
+            "node": "Store held report and alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Store report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily 07:00 send": {
+      "main": [
+        [
+          {
+            "node": "Due reports",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Due reports": {
+      "main": [
+        [
+          {
+            "node": "Build WhatsApp template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build WhatsApp template": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp send": {
+      "main": [
+        [
+          {
+            "node": "Sent or failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sent or failed": {
+      "main": [
+        [
+          {
+            "node": "Sent?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sent?": {
+      "main": [
+        [
+          {
+            "node": "Mark sent and queue email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark failed and alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sunday 23:00 Lead Velocity weekly": {
+      "main": [
+        [
+          {
+            "node": "Build Lead Velocity payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Lead Velocity payload": {
+      "main": [
+        [
+          {
+            "node": "Store Lead Velocity weekly",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "saveManualExecutions": true,
+    "executionTimeout": 900
+  },
+  "pinData": {},
+  "tags": [],
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "note": "Hand-drafted by analytics-reporter following automation/W32.json conventions. Credentials are referenced by name only; map them on import. Never contains secrets."
+  }
+}
