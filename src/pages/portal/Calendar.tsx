@@ -1,13 +1,17 @@
 /**
  * 05 Calendar and availability (portal/spec/05-calendar-and-availability.md; prototype calendar.html). Extends BrokerCalendar.tsx (INV-P06).
- * Part A: one-tap Microsoft sign-in (VITE_MS_OAUTH_URL → n8n/edge OAuth callback stores the token in the vault, never in the row),
+ * Part A: one-tap Microsoft sign-in. I-41a: the button fetches W20 GET {base}/ms/connect with the broker JWT (a plain link cannot
+ *         carry it, so W20 answered 401) and navigates to the returned authorize_url; /ms/callback stores the token in the vault,
+ *         never in the row. "Disconnect" POSTs {base}/ms/disconnect with the same bearer header. Admin-consent link prefers
+ *         brokers.calendar_status_detail.admin_consent_url (W20 writes it) and falls back to VITE_MS_ADMIN_CONSENT_URL.
  *         then the "next free slot" proof from W04 GET {base}/slots?limit=1 (broker JWT; see needs_human), cached brokers.next_free_slot_at.
  * Part B: hours, methods, capacity → own brokers columns; events availability.saved + step.completed(availability).
  */
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import PortalShell, { StepClip, usePortal } from "./PortalShell";
-import { CLIPS_BASE, MS_ADMIN_CONSENT_URL, MS_OAUTH_URL, SUPPORT_EMAIL, errText, fmtDayTime, methodLabel, portalEvent, postWebhook, smcDb } from "@/lib/smc";
+import { supabase } from "@/integrations/supabase/client";
+import { CLIPS_BASE, MS_ADMIN_CONSENT_URL, N8N_BASE, SUPPORT_EMAIL, errText, fmtDayTime, methodLabel, portalEvent, postWebhook, smcDb } from "@/lib/smc";
 import type { SmcMeetingHours, SmcMethod } from "@/integrations/supabase/smc-types";
 
 const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
@@ -17,6 +21,32 @@ const METHODS: SmcMethod[] = ["teams", "phone", "whatsapp_call", "zoom", "meet"]
 const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
 
 interface SlotResp { slots?: { start: string }[]; more_this_week?: number; count_week?: number }
+interface MsResp { ok?: boolean; authorize_url?: string; calendar_status?: string; error?: string }
+
+/** Only Microsoft sign-in hosts are followed (authorize_url from W20, admin_consent_url from the row). */
+const msUrl = (u: unknown): string => (typeof u === "string" && /^https:\/\/login\.microsoftonline\.com\//.test(u) ? u : "");
+
+/** W20 /ms/connect and /ms/disconnect with the broker's Supabase JWT (automation/lib/w20-ms.mjs brokerCaller / planConnect). */
+async function msCall(path: "ms/connect" | "ms/disconnect", method: "GET" | "POST"): Promise<{ ok: boolean; status: number; data: MsResp | null }> {
+  if (!N8N_BASE) return { ok: false, status: 0, data: { error: "Not connected yet (VITE_N8N_WEBHOOK_BASE is not set)." } };
+  const { data: s } = await supabase.auth.getSession();
+  const session = s.session;
+  if (!session?.access_token) return { ok: false, status: 401, data: { error: "Please sign in again." } };
+  try {
+    const res = await fetch(`${N8N_BASE}/${path}`, {
+      method,
+      headers: { Authorization: `Bearer ${session.access_token}`, Accept: "application/json", ...(method === "POST" ? { "Content-Type": "application/json" } : {}) },
+      body: method === "POST" ? "{}" : undefined,
+      credentials: "omit",
+    });
+    const text = await res.text();
+    let data: MsResp | null = null;
+    try { data = text ? (JSON.parse(text) as MsResp) : null; } catch { data = null; }
+    return { ok: res.ok, status: res.status, data };
+  } catch (e) {
+    return { ok: false, status: 0, data: { error: errText(e) } };
+  }
+}
 
 /** ?day=YYYY-MM-DD (WhatsApp template button, I-37c) → that date's weekday key, or null if absent/invalid. */
 function dayParam(v: string | null): { key: (typeof DAYS)[number]; label: string } | null {
@@ -55,7 +85,31 @@ function Body() {
   const connected = broker.calendar_status === "ok" || broker.calendar_mode === "shared_fallback";
   const blockedAdmin = broker.calendar_status === "blocked_admin_consent" || new URLSearchParams(window.location.search).get("error") === "admin_consent";
   const inApp = /FBAN|FBAV|Instagram|WhatsApp/i.test(navigator.userAgent);
-  const consentUrl = MS_ADMIN_CONSENT_URL ? `${MS_ADMIN_CONSENT_URL}${broker.ms_tenant_id ? `${MS_ADMIN_CONSENT_URL.includes("?") ? "&" : "?"}tenant=${encodeURIComponent(broker.ms_tenant_id)}` : ""}` : "";
+  const detailConsent = msUrl(broker.calendar_status_detail?.admin_consent_url);
+  const consentUrl = detailConsent
+    || (MS_ADMIN_CONSENT_URL ? `${MS_ADMIN_CONSENT_URL}${broker.ms_tenant_id ? `${MS_ADMIN_CONSENT_URL.includes("?") ? "&" : "?"}tenant=${encodeURIComponent(broker.ms_tenant_id)}` : ""}` : "");
+  const [msBusy, setMsBusy] = useState<"" | "connect" | "disconnect">("");
+  const [msErr, setMsErr] = useState<string | null>(null);
+
+  async function connectOutlook() {
+    setMsErr(null); setMsBusy("connect");
+    const r = await msCall("ms/connect", "GET");
+    const go = msUrl(r.data?.authorize_url);
+    if (r.ok && go) { window.location.assign(go); return; }
+    setMsBusy("");
+    setMsErr(r.status === 401 ? "Your sign-in has expired. Sign in to the portal again, then tap Sign in with Microsoft."
+      : r.status === 503 || r.status === 0 ? "Microsoft sign-in isn't switched on yet. We'll let you know on WhatsApp."
+      : `We couldn't start Microsoft sign-in (${r.data?.error || `HTTP ${r.status}`}). Try again.`);
+  }
+
+  async function disconnectOutlook() {
+    if (!window.confirm("Disconnect your Outlook calendar? Leads can't book new times with you until you reconnect.")) return;
+    setMsErr(null); setMsBusy("disconnect");
+    const r = await msCall("ms/disconnect", "POST");
+    setMsBusy("");
+    if (!r.ok) { setMsErr(`We couldn't disconnect (${r.data?.error || `HTTP ${r.status}`}). Try again.`); return; }
+    void reload();
+  }
 
   const checkSlot = useCallback(async () => {
     setNext({ state: "checking" });
@@ -109,15 +163,22 @@ function Body() {
         {connected && next.state === "none" && <div className="alert">We're connected, but we can't see any free time in the next {broker.horizon_days} days. Check your hours below, or your Outlook working hours.</div>}
         {connected && next.state === "error" && <p className="small">Connected{broker.calendar_mode === "shared_fallback" ? " (shared calendar)" : ""}. We'll confirm your next free slot on WhatsApp.</p>}
         {broker.calendar_mode === "shared_fallback" && <p className="small">You're using the shared calendar "SortMyCover - {broker.contact_person}". Subscribe to it in Outlook from the invite we emailed.</p>}
+        {broker.calendar_status === "ok" && broker.calendar_mode !== "shared_fallback" && (
+          <>
+            <button className="btn ghost" type="button" onClick={disconnectOutlook} disabled={msBusy !== ""} aria-busy={msBusy === "disconnect"}>{msBusy === "disconnect" ? "Disconnecting…" : "Disconnect Outlook"}</button>
+            {msErr && <p className="err" role="alert">{msErr}</p>}
+          </>
+        )}
         {(!connected || broker.calendar_status === "needs_reconnect") && (
           <>
             <p className="muted">One tap. We only look at when you are free, and we add your meetings. We never read your emails.</p>
             {inApp && <p className="alert">Open this page in Safari or Chrome to sign in.</p>}
-            {MS_OAUTH_URL ? (
-              <a className="btn ms" href={`${MS_OAUTH_URL}${MS_OAUTH_URL.includes("?") ? "&" : "?"}return_to=${encodeURIComponent(window.location.origin + "/broker/calendar")}`}>
-                <span className="ms-logo" aria-hidden="true"><i /><i /><i /><i /></span>Sign in with Microsoft
-              </a>
+            {N8N_BASE ? (
+              <button className="btn ms" type="button" onClick={connectOutlook} disabled={msBusy !== ""} aria-busy={msBusy === "connect"}>
+                <span className="ms-logo" aria-hidden="true"><i /><i /><i /><i /></span>{msBusy === "connect" ? "Opening Microsoft…" : "Sign in with Microsoft"}
+              </button>
             ) : <button className="btn ms" disabled>Sign in with Microsoft (not connected yet)</button>}
+            {msErr && <p className="err" role="alert">{msErr}</p>}
             <details open={blockedAdmin} style={{ marginTop: 12 }}>
               <summary>Microsoft says "Need admin approval"?</summary>
               <p className="muted">Your IT admin has switched off new apps. Two easy ways forward.</p>

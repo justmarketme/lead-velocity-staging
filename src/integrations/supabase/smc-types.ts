@@ -65,6 +65,9 @@ export interface SmcBroker {
   calendar_mode: "oauth" | "shared_fallback" | null;
   calendar_status: "ok" | "needs_reconnect" | "blocked_admin_consent" | null;
   calendar_connected_at: Ts | null; next_free_slot_at: Ts | null; billing_ref: number | null; next_tier_code: string | null;
+  // smc_13 pass 7 (W20 writes; admin_consent_url when Microsoft answered "admin approval needed")
+  calendar_status_detail?: { admin_consent_url?: string; reported?: string; [k: string]: unknown } | null;
+  calendar_status_at?: Ts | null; calendar_scopes?: string | null;
   // read-only 4.6 aliases (GENERATED)
   broker_id?: Uuid; adviser_name?: string | null; practice_name?: string | null; adviser_whatsapp?: string | null;
 }

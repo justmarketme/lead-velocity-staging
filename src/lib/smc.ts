@@ -13,6 +13,7 @@ const env = import.meta.env;
 export const SMC_ENABLED: boolean = env.VITE_SMC_ENABLED === "true";
 /** n8n webhook base, e.g. https://n8n.example/webhook (no trailing slash). Empty = actions show "not connected yet". */
 export const N8N_BASE: string = String(env.VITE_N8N_WEBHOOK_BASE || "").replace(/\/+$/, "");
+/** Deprecated (I-41a): the portal now calls W20 {N8N_BASE}/ms/connect with the broker JWT; kept only so old .env files still parse. */
 export const MS_OAUTH_URL: string = String(env.VITE_MS_OAUTH_URL || "");
 export const MS_ADMIN_CONSENT_URL: string = String(env.VITE_MS_ADMIN_CONSENT_URL || "");
 /** billing/checkout/ page (billing-automation). Same hosting serves it; override per environment. */

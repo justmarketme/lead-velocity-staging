@@ -117,3 +117,72 @@ REVOKE ALL ON FUNCTION public.smc_vault_store_ms_refresh(uuid, text, text, text)
 GRANT EXECUTE ON FUNCTION public.smc_vault_store_ms_refresh(uuid, text, text, text),
                           public.smc_vault_ms_refresh(uuid),
                           public.smc_set_calendar_status(uuid, text, jsonb) TO n8n_app;
+
+-- =============================================================================
+-- 3. I-41d / R5-02 — the lead pulse never reaches the broker by name (W35, FAQ-25, knowledge/faq.md).
+--    Option chosen: exclude pulse rows from the broker read policies (W35 keeps writing broker_id).
+--    Why: the broker's aggregate pulse (W14-broker.sql pulse_up / pulse_n, facts.fact_lead.lead_pulse*) is read by
+--    n8n_app / admin from public.lead_pulse by cycle_id, never through the broker's RLS, so it is unaffected; keeping
+--    broker_id on the activity rows keeps admin per-broker facts and the POPIA erase cascade unchanged, while a
+--    NULL broker_id would still leave lead_id on a row joined to the broker's own lead.
+--    (a) timeline: "smc broker read own timeline" (05 §4) re-created without lead_pulse / lead_pulse_line / any W35 row.
+--    (b) communications: the legacy "Brokers can view their communications" (20260114101603) also exposed the
+--        pulse tap / one-line answer (W07 stores it with metadata.route = 'W35') and W35's reply (whose words
+--        differ for up / down). A RESTRICTIVE SELECT policy hides W35 rows from every non-admin API caller.
+-- =============================================================================
+DROP POLICY IF EXISTS "smc broker read own timeline" ON public.lead_activities;
+CREATE POLICY "smc broker read own timeline" ON public.lead_activities FOR SELECT TO authenticated
+  USING (brand_id IS NOT NULL AND broker_id = public.smc_current_broker_id()
+         AND coalesce(activity_type, '') NOT IN ('lead_pulse', 'lead_pulse_line')
+         AND coalesce(workflow, '') <> 'W35');
+COMMENT ON POLICY "smc broker read own timeline" ON public.lead_activities IS
+  'SMC (05, re-created 13 I-41d): broker reads own SMC timeline rows EXCEPT lead pulse rows (lead_pulse, lead_pulse_line, workflow W35): aggregate only, never by name.';
+
+DROP POLICY IF EXISTS "smc hide lead pulse from brokers" ON public.communications;
+CREATE POLICY "smc hide lead pulse from brokers" ON public.communications AS RESTRICTIVE FOR SELECT TO authenticated
+  USING (brand_id IS NULL OR public.smc_is_admin()
+         OR (coalesce(workflow, '') <> 'W35' AND coalesce(metadata->>'route', '') <> 'W35'
+             AND coalesce(template_name, '') <> 'lead_pulse'));
+COMMENT ON POLICY "smc hide lead pulse from brokers" ON public.communications IS
+  'SMC 13 I-41d: lead pulse ask, answer (W07 route W35) and W35 replies are never readable by a broker; admins and n8n_app unaffected.';
+
+-- =============================================================================
+-- 4. I-41k — brokers.verified_credentials (W23 reads it via to_jsonb(b)->'verified_credentials').
+-- =============================================================================
+ALTER TABLE public.brokers ADD COLUMN IF NOT EXISTS verified_credentials jsonb;
+COMMENT ON COLUMN public.brokers.verified_credentials IS
+  'SMC I-41k: JSON array of strings: designations / credentials Lead Velocity has verified (FSP register result, etc.); the only identity claims an intro script may use word for word (conversation/guardrail.mjs I-2, automation/media/intro-script.mjs). Admin-set; NULL = none.';
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'brokers_smc_verified_credentials_array'
+                  AND conrelid = 'public.brokers'::regclass) THEN
+    ALTER TABLE public.brokers ADD CONSTRAINT brokers_smc_verified_credentials_array
+      CHECK (verified_credentials IS NULL OR jsonb_typeof(verified_credentials) = 'array');
+  END IF;
+END $$;
+
+-- 5. Field-level guard for the columns added in 13 (smc_brokers_guard in 08 §12 predates them).
+--    A broker may not self-declare credentials, nor plant an admin-consent link / calendar state on his own row.
+CREATE OR REPLACE FUNCTION public.smc_brokers_guard_pass7()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF current_user NOT IN ('authenticated','anon') OR OLD.brand_id IS NULL THEN
+    RETURN NEW;   -- n8n/service connections, SECURITY DEFINER RPCs, legacy rows (same order as 08 §12)
+  END IF;
+  IF auth.uid() IS NULL OR public.smc_is_admin() THEN
+    RETURN NEW;
+  END IF;
+  IF NEW.verified_credentials   IS DISTINCT FROM OLD.verified_credentials
+  OR NEW.calendar_status_detail IS DISTINCT FROM OLD.calendar_status_detail
+  OR NEW.calendar_status_at     IS DISTINCT FROM OLD.calendar_status_at
+  OR NEW.calendar_scopes        IS DISTINCT FROM OLD.calendar_scopes THEN
+    RAISE EXCEPTION 'smc: brokers cannot change verified credentials or calendar connection state'
+      USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS smc_brokers_guard_pass7 ON public.brokers;
+CREATE TRIGGER smc_brokers_guard_pass7 BEFORE UPDATE ON public.brokers
+  FOR EACH ROW EXECUTE FUNCTION public.smc_brokers_guard_pass7();
