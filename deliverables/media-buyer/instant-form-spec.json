@@ -1,0 +1,166 @@
+{
+  "_meta": {
+    "purpose": "Create body for POST /{page_id}/leadgen_forms (Graph API, version pinned by ads-api-engineer; event-spec assumes v23.0). Keys starting with underscore are NOT API fields: strip them before sending.",
+    "owner": "media-buyer (settings) -> ads-api-engineer (API call) -> meta-operator (UI-only parts, human gate at publish)",
+    "form_variant": "A1 Higher Intent (primary). A2 Rich Creative is a second form with the same questions and the content in _rich_creative_a2; build it paused.",
+    "consent_text_version": "CONSENT-NAMED-v1 + CONSENT-ADS-v1 (deliverables/contracts-drafter/consent-and-privacy.md sections 1.2, 1.4, 1.5, 1.7; status DRAFT for practitioner review). Wording must stay word for word the same as that file; if it changes, regenerate this file.",
+    "placeholders": "{practice_name} and {fsp_number} come from the brokers row (consent_mode = named). Fail closed: if either is empty, do not create or publish the form. {PRIVACY_URL} = https://sortmycover.co.za/privacy once live.",
+    "verify_on_test_before_publish": [
+      "Which field/value makes the form Higher Intent (assumed form_type or is_optimized_for_quality; confirm in the API reference or set in the UI)",
+      "Whether conditional logic / disqualifying endings are expressible in the API (assumed NOT; see _ui_only)",
+      "Maximum length of custom checkbox text; if the combined consent text is too long, put CONSENT-ADS-v1 in custom_disclaimer.body and ask compliance-qa to confirm that the single tick still covers it (needs_human)",
+      "Whether a routed-out submission creates a lead in Leads Center and a Lead event (assumption A4 in first-principles.md)"
+    ]
+  },
+
+  "name": "SMC_A1_HI_v1_named_20261015",
+  "locale": "EN_US",
+  "follow_up_action_url": "https://sortmycover.co.za/",
+  "block_display_for_non_targeted_viewer": false,
+  "_higher_intent": {
+    "api_field_assumed": "form_type = HIGH_INTENT (or is_optimized_for_quality = true); UNVERIFIED, confirm on a test form",
+    "ui_fallback": "In Ads Manager form builder choose Form type = Higher intent (adds the review screen)"
+  },
+
+  "privacy_policy": {
+    "url": "{PRIVACY_URL}",
+    "link_text": "SortMyCover privacy notice"
+  },
+
+  "context_card": {
+    "style": "PARAGRAPH_STYLE",
+    "title": "A free 30-minute call with a licensed adviser",
+    "content": [
+      "Sort your cover. 30 minutes. A real adviser.",
+      "A few quick taps, then a licensed adviser's details and call times arrive on WhatsApp. No obligation.",
+      "SortMyCover is a service of Lead Velocity (Pty) Ltd. We connect you with authorised financial services providers. We do not give financial advice, compare products or quote premiums."
+    ],
+    "button_text": "Continue"
+  },
+
+  "question_page_custom_headline": "A few quick taps",
+
+  "questions": [
+    {
+      "type": "CUSTOM",
+      "key": "age_band",
+      "label": "Which age band are you in?",
+      "options": [
+        { "key": "lt35", "value": "Under 35" },
+        { "key": "35_44", "value": "35-44" },
+        { "key": "45_50", "value": "45-50" },
+        { "key": "51plus", "value": "51 or older" }
+      ],
+      "_qualifies": ["35_44", "45_50"],
+      "_routes_out": ["lt35", "51plus"]
+    },
+    {
+      "type": "CUSTOM",
+      "key": "budget_band",
+      "label": "Roughly what monthly amount could you set aside for life cover?",
+      "options": [
+        { "key": "lt500", "value": "Under R500" },
+        { "key": "500_750", "value": "R500-R750" },
+        { "key": "750_1250", "value": "R750-R1,250" },
+        { "key": "1250plus", "value": "R1,250 or more" }
+      ],
+      "_qualifies": ["750_1250", "1250plus"],
+      "_routes_out": ["lt500", "500_750"]
+    },
+    {
+      "type": "CUSTOM",
+      "key": "call_ok",
+      "label": "Is a video, WhatsApp or phone call fine for your 30-minute chat?",
+      "options": [
+        { "key": "yes", "value": "Yes" },
+        { "key": "no", "value": "No" }
+      ],
+      "_qualifies": ["yes"],
+      "_routes_out": ["no"]
+    },
+    {
+      "type": "CUSTOM",
+      "key": "bond_children",
+      "label": "Does your household have a bond or children at home?",
+      "options": [
+        { "key": "bond", "value": "A bond" },
+        { "key": "children", "value": "Children" },
+        { "key": "both", "value": "Both" },
+        { "key": "neither", "value": "Neither" }
+      ],
+      "_qualifies": ["bond", "children", "both", "neither"],
+      "_routes_out": [],
+      "_note": "Pre-call brief only (1.1 ICP). Never disqualifies. If a separate bond and children split is wanted, add a second question; one tap is the default (fewer fields, Baymard)."
+    },
+    { "type": "FULL_NAME" },
+    { "type": "PHONE", "_label_note": "Meta prefills from the profile. Label shown to the user: Mobile number (WhatsApp). W02 runs the Twilio Lookup line-type check; landline/VoIP leads are not contacted." }
+  ],
+  "_question_order_note": "Qualifying questions come first and name/phone/consent last, so anyone routed out leaves before giving contact details or ticking consent (data minimisation). Do not add email, ID number, income, health or bank questions (2.1.3, 4.6).",
+
+  "custom_disclaimer": {
+    "title": "How we use your details",
+    "body": {
+      "text": "SortMyCover is a service of Lead Velocity (Pty) Ltd. We connect you with authorised financial services providers. We do not give financial advice, compare products or quote premiums. Privacy notice: sortmycover.co.za/privacy"
+    },
+    "checkboxes": [
+      {
+        "key": "consent_named_v1_ads_v1",
+        "is_required": true,
+        "text": "I agree that Lead Velocity may share my details with {practice_name} (FSP {fsp_number}), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message."
+      }
+    ],
+    "_notes": [
+      "Checkbox must be unticked by default (2.1.2). is_required true means the user cannot submit without ticking, which is what we want: no tick, no lead.",
+      "The markdown link in CONSENT-ADS-v1 is dropped here because checkbox text is plain; the privacy URL is in privacy_policy and in the disclaimer body.",
+      "W02 stores: the exact text above (as rendered, practice_name and fsp_number substituted), consent_text_version, consent_mode, form_id, leadgen_id, timestamp; sets consent_ads_at when the box is ticked."
+    ]
+  },
+
+  "thank_you_page": {
+    "title": "Thanks. Check WhatsApp.",
+    "body": "Check WhatsApp. Your adviser's details and times are on their way.",
+    "button_type": "VIEW_WEBSITE",
+    "button_text": "What happens next",
+    "website_url": "https://sortmycover.co.za/what-happens-next",
+    "_note": "URL is a placeholder: landing-page-builder to confirm the page exists; otherwise use https://sortmycover.co.za/. Never 'get a quote'."
+  },
+
+  "_ui_only": {
+    "conditional_logic_and_disqualifying_ending": {
+      "status": "Assumed UI-only. Configure in the form builder (conditional logic / custom ending). If Meta shows it as API-expressible, ads-api-engineer may move it into the create body.",
+      "routing_rules": [
+        { "if": "age_band in [lt35, 51plus]", "then": "show ending DISQUALIFIED" },
+        { "if": "budget_band in [lt500, 500_750]", "then": "show ending DISQUALIFIED" },
+        { "if": "call_ok = no", "then": "show ending DISQUALIFIED" },
+        { "otherwise": "continue to name, phone, consent, then thank_you_page" }
+      ],
+      "evaluation_order": "age_band, budget_band, call_ok (any one out-of-band routes out; no combination logic)",
+      "disqualified_ending": {
+        "title": "Thanks for your time",
+        "body": "Based on your answers, a call with an adviser is not the right fit at the moment, so we have not shared your details with anyone. You can read more at sortmycover.co.za.",
+        "button_type": "VIEW_WEBSITE",
+        "button_text": "Visit SortMyCover",
+        "website_url": "https://sortmycover.co.za/"
+      },
+      "server_side_backstop": "W02 re-checks every answer regardless of Meta routing. Any lead whose answers are out of band (or whose consent checkbox is missing) never enters the automation, gets no WhatsApp message, and its record is deleted within 24 h (2.1.7). Meta routing is for experience and Lead-event quality; W02 is the source of truth."
+    },
+    "form_type_higher_intent_toggle": "Confirm in the builder that the review screen is on.",
+    "rich_creative_a2": "Rich Creative form type is built in the UI (see _rich_creative_a2)."
+  },
+
+  "_rich_creative_a2": {
+    "form_name": "SMC_A2_RC_v1_named_20261015",
+    "same": "Identical questions, consent, privacy, thank-you and disqualified ending as A1.",
+    "sections_in_order": [
+      { "section": "How it works", "text": "1. A few taps here. 2. Your adviser's details and times arrive on WhatsApp. 3. A 30-minute call, video or phone. No obligation." },
+      { "section": "Cover-gap carousel (3 cards)", "cards": [
+        "Most work life cover stops at 2-4x salary.",
+        "Most bonds don't.",
+        "A licensed adviser can look at the gap on a 30-minute call."
+      ]},
+      { "section": "Trust points", "text": "A licensed adviser. Free for you. No obligation. We never give advice, compare products or quote premiums." },
+      { "section": "What happens on the call", "text": "The adviser introduces themselves, asks about your household, and explains what cover can look like. You decide what happens next." }
+    ],
+    "_status": "Paused. Evidence for Rich Creative is vendor-only: tested, not assumed. Copy is a draft from the 4D.4a hook library and must pass compliance-qa (no second-person finance claims, 2.1.8) before submission."
+  }
+}

@@ -2003,7 +2003,7 @@
       ],
       "acceptance_test": "test -s deliverables/market-research-analyst/research.md && test -s deliverables/market-research-analyst/assumptions-register.md",
       "human_gate": false,
-      "status": "in_progress",
+      "status": "green",
       "section": "5 Phase 1"
     },
     {
@@ -2042,7 +2042,7 @@
       ],
       "acceptance_test": "ls landing/holding/learn/*.html | wc -l | xargs test 5 -le && test -s deliverables/search-findability-lead/serp-plan.md",
       "human_gate": false,
-      "status": "in_progress",
+      "status": "green",
       "section": "4D.6"
     },
     {
@@ -2094,7 +2094,7 @@
       ],
       "acceptance_test": "test -s deliverables/media-buyer/campaign-spec.md",
       "human_gate": false,
-      "status": "in_progress",
+      "status": "green",
       "section": "4.4"
     },
     {
@@ -2146,6 +2146,17 @@
       "human_gate": true,
       "status": "green",
       "section": "4.5 Reference implementation"
+    },
+    {
+      "id": "NH-22",
+      "title": "Media budget money decisions (media-buyer): (a) is media_share_zar VAT-inclusive? Meta bills ex-VAT, so dividing by 30 may overspend 15%; (b) cycle-1 R350/day = R10,500/month vs Bronze media share R8,492 — who funds the gap, or start at R283/day; (c) at R350/day the ad set likely stays learning-limited — accept, or raise; (d) 4D.4a test matrix needs ~60 leads/factor → cycle 2, or cut cycle 1 to colour-on-H1 only; (e) named consent means one instant form per broker — accept until the practitioner opines on generic.",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "deliverables/media-buyer/SUMMARY.md"
     }
   ]
 }

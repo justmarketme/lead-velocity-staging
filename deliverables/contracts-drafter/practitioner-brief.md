@@ -61,3 +61,9 @@
 **Q20 — Legacy template.** `src/components/dashboard/ContractGenerator.tsx` defaults include `commissionText`, "Top-Up tokens require one week's notice", "commission … obligations survive for 24 months" and a no-refund rule. We have flagged these for removal; we ask you to confirm.
 
 **Please return:** a short written opinion answering Q1–Q20, marked-up documents where wording must change, and anything else you think we missed.
+
+
+### Q21 — E-signature validity (added by the orchestrator from the first-principles memo)
+**Question:** Is in-portal acceptance (typed name + timestamp + IP + document hash, copy emailed from howzit@) a valid signature for the Broker Services Agreement and the authorisation letter under the ECT Act, or is an advanced electronic signature needed for any part of it?
+**Our default:** in-portal e-sign as described (Section 8 Q7 default).
+**Alternative:** a DocuSign-class tool for the agreement; wet/advanced signature for the authorisation letter only.
