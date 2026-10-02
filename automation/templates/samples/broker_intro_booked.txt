@@ -1,0 +1,8 @@
+broker_intro_booked (UTILITY, en)
+
+[header] IMAGE
+Hi Lerato, thanks for your life cover enquiry. Your details have been passed to *Mark Smith Financial Services (FSP 00000)*, an authorised financial services provider. *Mark Smith* will be your adviser for your Microsoft Teams call on *Tue 7 Oct at 10:00*. Our WhatsApp assistant uses AI. Reply STOP to opt out.
+[footer] SortMyCover
+[button] Add to calendar -> https://sortmycover.co.za/c/bk_8f3a2c
+[button] Reschedule
+[button] Cancel

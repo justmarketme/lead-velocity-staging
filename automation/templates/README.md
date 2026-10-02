@@ -4,7 +4,7 @@ Each `*.json` file is the exact body for `POST /{WABA_ID}/message_templates`: `n
 
 **Rules the copy follows:** 2.1.8 (money only in the third person, for example "some people like to have a recent payslip nearby"). Grade 5–7 English. No product, insurer, premium, cover amount or advice. Every lead-facing template ends with **"Reply STOP to opt out."** Templates to brokers and ops show a lead only as first name + initial ("Lerato M."), never the full name (POPIA, 4.10a). No emoji (4.11).
 
-**Placeholders resolved by `submit.sh`:** `__UPLOAD_HANDLE__:<file>` uploads review samples from `samples/` (`intro_card_sample.png` 1080×1080 from visual-producer, `intro_video_sample.mp4` 9:16 under 16 MB). `__BOOKING_FLOW_ID__` / `__RESCHEDULE_FLOW_ID__` are filled from `.env` after the Flow is published (W28). The `samples/` folder does not exist yet. Submitting the IMAGE/VIDEO templates is blocked until visual-producer puts the two files there.
+**Placeholders resolved by `submit.sh`:** `__UPLOAD_HANDLE__:<file>` uploads review samples from `samples/` (`intro_card_sample.png` 1080×1080 from visual-producer, `intro_video_sample.mp4` 9:16 under 16 MB). `__BOOKING_FLOW_ID__` / `__RESCHEDULE_FLOW_ID__` are filled from `.env` after the Flow is published (W28). `samples/intro_card_sample.png` is in place (SAMPLE adviser, FSP 00000). `samples/intro_video_sample.mp4` is still pending the final file from visual-producer; the VIDEO templates (`intro_media`, `unbooked_nudge_24h`) are not submitted until it is replaced.
 
 **Send-time notes for the workflows:**
 - Quick-reply button text is fixed at review. The payload (slot ISO time, disposition code, booking id) is set when the message is sent, as `{"type":"button","sub_type":"quick_reply","index":N,"parameters":[{"type":"payload","payload":"..."}]}`.
@@ -79,7 +79,8 @@ Each `*.json` file is the exact body for `POST /{WABA_ID}/message_templates`: `n
 **Checks:** `node automation/templates/check.mjs` re-runs the generator checks over every file (limits, positional parameters + examples, variable position, STOP line on lead-facing templates, banned words and jargon, emoji, lead full names in broker/ops examples, URL hosts) and confirms every file is in `submit.sh` and in this index. `session/` holds session-message bodies; they are never submitted.
 
 **Wording notes:**
-- `broker_intro_booked` uses the exact 4.6 text.
+- **NH-19a default applied (gates-batch NH-38, "AI sentence yes"):** the three `broker_intro_*` bodies carry one added sentence, "Our WhatsApp assistant uses AI." (approved wording `DISC-WA-DESC-v1`, deliverables/brand-naming-lead/disclosure-wording.md), placed just before "Reply STOP to opt out.". Everything else is 4.6 word for word. Jonathan can revert (delete the sentence) any time before GATE-TEMPLATES.
+- `broker_intro_booked` uses the exact 4.6 text, plus the NH-19a sentence.
 - `broker_intro_slots` uses the exact 4.6 sentences in order. Three slot lines are added after "Pick a time below.", because quick-reply button text cannot carry variables.
 - `_v2` uses the exact 4.6 text with no slot lines.
 - `broker_disposition` buttons are the NH-19 single label set (all ≤ 25 characters): portal, CRM, Schedule C and the in-window list use the same words.
