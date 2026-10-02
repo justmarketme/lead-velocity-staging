@@ -75,3 +75,14 @@ Space (px): 1=4, 2=8, 3=12, 4=16, 5=24, 6=32, 7=48, 8=64, 9=96. Radius (px): sm=
 ## Logo
 
 Clear space: height of the tick circle on all sides. Minimum width: wordmark 96 px, tick 16 px. Paths are listed under `logo.paths` in tokens.json.
+
+## Test-arm palette (teal variant) contrast: PCD to choose
+
+Test-arm only (experiment.tealOnCream); amber stays the default. Not a token change: `tokens.css` is unchanged. Both rows are for the teal accent on a light ground; ink on teal is the same pair reversed.
+
+| Option | Foreground on background | Ratio | AA body (4.5) | AA large (3.0) | Rule |
+|---|---|---|---|---|---|
+| A (in tokens now) | Teal #0F766E on off-white #FBF8F2 | 5.16:1 | pass | pass | OK for all text; off-white ink on teal also 5.16:1 |
+| B (PCD proposal) | Teal #0F6E6A on cream #F6EFE0 | 5.30:1 | pass | pass | OK for all text; cream ink on teal also 5.30:1 |
+
+Both pass AA at every size. B is 0.14 higher; the two differ by under 3% in contrast, so the choice is a brand-warmth call, not an accessibility one. Switching to B means changing `--sm-test-teal-accent` and the ground token, then re-rendering the teal variant.

@@ -27,8 +27,8 @@ const jobs = [
   { t: 'email-header.html', w: 600, h: 120, out: 'email/email-header-600x120.png' },
   { t: 'email-header.html', w: 600, h: 120, scale: 2, expect: [1200, 240], out: 'email/email-header-600x120@2x.png' },
   // feed
-  { t: 'feed.html', w: 1080, h: 1080, out: 'feed/feed-1x1-1080x1080_H1-sample.png' },
-  { t: 'feed.html', w: 1080, h: 1350, data: { layout: 'r4x5' }, out: 'feed/feed-4x5-1080x1350_H1-sample.png' },
+  { t: 'feed.html', w: 1080, h: 1080, data: { prop1: '2–4× salary', prop2: 'R _ _ _ _ _ _ _' }, out: 'feed/feed-1x1-1080x1080_H1-sample.png' },
+  { t: 'feed.html', w: 1080, h: 1350, data: { layout: 'r4x5', prop1: '2–4× salary', prop2: 'R _ _ _ _ _ _ _' }, out: 'feed/feed-4x5-1080x1350_H1-sample.png' },
   // reels / stories
   { t: 'reels-endcard.html', w: 1080, h: 1920, out: 'reels/reels-endcard-1080x1920.png' },
   // WhatsApp headers: 1:1 and 16:9
