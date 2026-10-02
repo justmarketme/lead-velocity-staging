@@ -102,3 +102,6 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-35e | reply.md actions send_slots/reschedule/cancel_confirm/change_method are executed by W04/W10 with reply.md fallback wording (one message, never two) | conversation-designer |
 | I-35f | Env names `TRANSCRIBE_URL`, howzit@ Graph credential shared with W17 — add to `.env.example` (names only) | orchestrator (done) |
 | I-35g | After migration 08 is applied: flip `ESC_DB_KIND.sensitive` in `automation/lib/w07.mjs` and `ESC_REAL_KINDS=true` for W30/W31 | automation-engineer, post NH-15 |
+| I-35h | Billing Postgres credential must be (or inherit) `n8n_app` so the `smc_vault_*` wrappers are executable; align the two credential names in LOCAL-STAGING.md | devops-security |
+| I-35i | `smc_vault_paystack_sub_token(broker_id)` (n8n_app only) so W19 can disable a Paystack Plan when auto-renew is switched off; until then W22 notice to Jonathan | platform-architect (migration 10/11) |
+| I-35j | Draft `broker_autorenew_off` utility template (+ `broker_booking_changed`, I-35a) | automation-engineer (templates) |

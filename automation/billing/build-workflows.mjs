@@ -15,7 +15,7 @@ const OUT = join(here, '..');
 const FILES = {
   money: 'money.js', pricing: 'pricing.js', reference: 'reference.js', events: 'events.js', paystack: 'paystack.js',
   incontact: 'incontact.js', reconcile: 'reconcile.js', statement: 'statement.js', invoice: 'invoice.js', render: 'render.js',
-  'verify-webhooks': '../security/verify-webhooks.js',
+  'verify-webhooks': '../security/verify-webhooks.js', autorenew: 'autorenew.js', 'lead-token': '../security/lead-token.js',
 };
 const src = (k) => readFileSync(join(here, FILES[k]), 'utf8');
 const deps = (k) => [...src(k).matchAll(/require\('(?:\.\.\/security\/|\.\/)([a-z-]+)'\)/g)].map((m) => m[1]);
@@ -231,15 +231,9 @@ return $input.all().map((i) => { const ev = i.json.ev || i.json;
 where id = nullif($1, '')::uuid and match_status = 'unmatched';`, '={{ [$("Normalise payment.received").first().json.bank_credit_id || ""] }}'), { v: 2.5, row: 2, col: 15, credentials: PG });
   const notFlipped = w.add('n8n-nodes-base.executeWorkflow', 'W22: paid event did not match an open invoice', execWf('REPLACE_WITH_W22_WORKFLOW_ID', 'kind=billing_unmatched (already paid / amount outside R1 / unknown reference). Never silently dropped.'), { v: 1.2, row: 2, col: 16 });
   const saveAuth = w.add('n8n-nodes-base.postgres', 'Card auto-renew token to Vault (opt-in only)', sql(`${AUDIT()}-- Only the Paystack authorization_code (a token), only when the broker opted in. Never card numbers or expiry.
--- brokers.paystack_authorization_ref holds the Vault secret NAME (W19 reads vault.decrypted_secrets by name).
-with s as (
-  select 'paystack_auth_' || $1 || '_' || extract(epoch from clock_timestamp())::bigint as name
-  where $2 is not null and $2 <> ''
-), v as (
-  select s.name, vault.create_secret($2, s.name) as secret_id from s
-)
-update ${T.BR} b set card_autorenew = true, paystack_customer_code = coalesce(nullif($3, ''), b.paystack_customer_code), paystack_authorization_ref = v.name
-from v where b.id = $1::uuid;`, '={{ [$json.broker_id, $("Normalise payment.received").first().json.authorization_code || "", $("Normalise payment.received").first().json.customer_code || ""] }}'), { v: 2.5, row: 0, col: 15, credentials: PG });
+-- I-33a: the SECURITY DEFINER wrapper (migration 08) writes the secret and sets brokers.card_autorenew +
+-- paystack_authorization_ref (the secret NAME). It returns NULL and stores nothing when the code is empty.
+select public.smc_vault_store_paystack_auth($1::uuid, nullif($2, ''), nullif($3, '')) as authorization_ref;`, '={{ [$json.broker_id, $("Normalise payment.received").first().json.authorization_code || "", $("Normalise payment.received").first().json.customer_code || ""] }}'), { v: 2.5, row: 0, col: 15, credentials: PG });
   const route = w.add('n8n-nodes-base.switch', 'First payment, resume or renewal?', switchOn('={{ ["invited","prospect","onboarding"].includes($("Mark invoice paid + create cycle").first().json.broker_status) ? "first" : (["not_renewed","ended","paused"].includes($("Mark invoice paid + create cycle").first().json.broker_status) ? "resume" : "renewal") }}', ['first', 'resume', 'renewal']), { v: 3, row: 1, col: 16 });
   const onboard = w.add('n8n-nodes-base.postgres', 'Broker -> onboarding', sql(`${AUDIT()}-- Update only: the brokers row + auth user were created at invoice issue (NH-27 c, status invited/prospect).
 update ${T.BR} set status = 'onboarding', status_changed_at = case when status = 'onboarding' then status_changed_at else now() end where id = $1::uuid and status in ('invited','prospect','onboarding') returning id, email;`, '={{ [$("Mark invoice paid + create cycle").first().json.broker_id] }}'), { v: 2.5, row: 0, col: 17, credentials: PG });
@@ -256,16 +250,9 @@ where id = $1::uuid and exists (select 1 from c) returning id, (select media_sha
   const notify = w.add('n8n-nodes-base.executeWorkflow', 'W22: payment received (Jonathan/KG + broker receipt)', execWf('REPLACE_WITH_W22_WORKFLOW_ID', 'kind=payment_received; broker gets a receipt with the reference; renewal: "next cycle scheduled, no gap in leads".'), { v: 1.2, row: 2, col: 17 });
 
   // --- D. Card auto-renew lifecycle + failed charges
-  const autoOn = w.add('n8n-nodes-base.postgres', 'Card auto-renew on (Paystack plan mode)', sql(`${AUDIT()}-- paystack_subscription_token_ref holds the Vault secret NAME, never the token.
-with s as (
-  select 'paystack_sub_' || $2 as name where $2 <> '' and $3 <> ''
-    and not exists (select 1 from vault.secrets x where x.name = 'paystack_sub_' || $2)
-), v as (
-  select s.name, vault.create_secret($3, s.name) as secret_id from s
-)
-update ${T.BR} b set card_autorenew = true, paystack_subscription_code = $2,
-  paystack_subscription_token_ref = coalesce((select name from v), b.paystack_subscription_token_ref)
-where b.paystack_customer_code = $1 and $1 <> '' and $2 <> '';`, '={{ [$json.customer_code || "", $json.subscription_code || "", $json.email_token || ""] }}'), { v: 2.5, row: 2, col: 8, credentials: PG });
+  const autoOn = w.add('n8n-nodes-base.postgres', 'Card auto-renew on (Paystack plan mode)', sql(`${AUDIT()}-- I-33a: paystack_subscription_token_ref holds the secret NAME, never the token. The SECURITY DEFINER wrapper
+-- (migration 08) stores the email token once and sets card_autorenew + paystack_subscription_code; NULL on empty codes.
+select public.smc_vault_store_paystack_sub(nullif($1, ''), nullif($2, ''), nullif($3, '')) as subscription_token_ref;`, '={{ [$json.customer_code || "", $json.subscription_code || "", $json.email_token || ""] }}'), { v: 2.5, row: 2, col: 8, credentials: PG });
   const autoOff = w.add('n8n-nodes-base.postgres', 'Card auto-renew off', sql(`${AUDIT()}update ${T.BR} set card_autorenew = false where (paystack_subscription_code = $1 and $1 <> '') or (paystack_customer_code = $2 and $2 <> '');`, '={{ [$json.subscription_code || "", $json.customer_code || ""] }}'), { v: 2.5, row: 3, col: 8, credentials: PG });
   const failed = w.add('n8n-nodes-base.postgres', 'Record failed card charge (W19 retries day 1 and 3)', sql(`${AUDIT()}update ${T.INV} i set charge_attempts = i.charge_attempts + 1, last_charge_failed_at = now(), last_charge_error = left($2, 500)
 from ${T.BR} b where b.paystack_customer_code = $1 and i.broker_id = b.id and i.status = 'issued';`, '={{ [$json.customer_code || "", $json.reason || ""] }}'), { v: 2.5, row: 1, col: 8, credentials: PG });
@@ -520,7 +507,7 @@ return $input.all().map((i) => { const r = i.json; const days = r.action === 're
 from (select $1::uuid as broker_id, $2::uuid as cycle_id, $3::text as action) x
 left join lateral (
   select i.id, i.reference, round(i.total_zar*100)::bigint as total_cents, i.tier_code, i.charge_attempts as attempts, b.email, b.billing_ref,
-    case when b.card_autorenew then (select s.decrypted_secret from vault.decrypted_secrets s where s.name = b.paystack_authorization_ref) end as authorization_code
+    public.smc_vault_paystack_auth_code(b.id) as authorization_code   -- I-33a wrapper: NULL unless card_autorenew is on
   from ${T.INV} i join ${T.BR} b on b.id = i.broker_id
   where i.broker_id = x.broker_id and i.status = 'issued' order by i.issued_at desc limit 1
 ) i on true;`, '={{ [$json.broker_id, $json.cycle_id, $json.action] }}'), { v: 2.5, row: 3, col: 5, credentials: PG });
@@ -545,7 +532,44 @@ return [{ json: { spec } }];
   // retry day 1 and 3 (routing already off: no grace)
   const retryCtx = w.add('n8n-nodes-base.noOp', 'Retry day 1 / day 3 uses the same charge path', {}, { row: 5, col: 5 });
   const comeBack = w.add('n8n-nodes-base.executeWorkflow', "WhatsApp + email: 'come back any time' (once, day 7)", execWf('REPLACE_WITH_WHATSAPP_SEND_WORKFLOW_ID', 'No offer pressure; one message; data retention per POPIA schedule.'), { v: 1.2, row: 6, col: 5 });
-  const note = w.add('n8n-nodes-base.stickyNote', 'Note', { content: '## W19 Cycle renewal offer\nT-7: results + renewal invoice (same tier pre-selected, up/downgrade links, shortfall credit applied).\nT-3, T-1: reminder with the reference in bold, only if unpaid.\nCycle end (effective end incl. 14-day extension): unpaid -> routing off + budget lowered. **No grace.** Card auto-renew (opt-in) charges here; failed -> retry day 1 and day 3 (Stripe pattern), then pay link.\nDay 7 after a lapse: one "come back any time".\nIdempotency: ops.billing_actions_log (cycle, action, day).', height: 300, width: 480 }, { row: 6, col: 8 });
+
+  // --- I-30e: portal "Switch off" card auto-renew (Bearer Supabase JWT; off only; opt-in happens at checkout)
+  const arHook = w.add('n8n-nodes-base.webhook', 'Portal: POST /billing-autorenew', { httpMethod: 'POST', path: 'billing-autorenew', responseMode: 'responseNode', options: { allowedOrigins: 'https://app.leadvelocity.co.za' } }, { v: 2, row: 8, col: 0, webhookId: 'smc-billing-autorenew' });
+  const arAuth = w.add('n8n-nodes-base.code', 'Autorenew: verify broker JWT + body', code(`
+const r = BILLING.autorenew.parseAutorenewRequest({ headers: $json.headers || {}, body: $json.body || {} }, { jwtSecret: $env.SUPABASE_JWT_SECRET });
+return [{ json: r }];
+`, ['autorenew']), { v: 2, row: 8, col: 1 });
+  const arOk = w.add('n8n-nodes-base.if', 'Autorenew: caller ok?', ifTrue('={{ $json.ok === true }}'), { v: 2, row: 8, col: 2 });
+  const arBad = w.add('n8n-nodes-base.respondToWebhook', 'Autorenew: respond error (reason only)', { respondWith: 'json', responseBody: '={{ JSON.stringify({ ok: false, message: $json.reason }) }}', options: { responseCode: '={{ $json.status }}' } }, { v: 1.1, row: 9, col: 3 });
+  const arOff = w.add('n8n-nodes-base.postgres', 'Autorenew off as n8n_app + timeline row', sql(`${AUDIT("'W19 card auto-renew off (portal, broker request)'")}-- The broker comes from the JWT sub only (brokers.user_id); no broker id is read from the body.
+-- The update is guarded on card_autorenew = true, so a double tap changes nothing and writes one timeline row.
+-- smc_vault_paystack_auth_code() returns NULL from now on, so W19 cycle end never charges the saved card.
+with b as (
+  select id, brand_id, current_cycle_id, paystack_subscription_code, whatsapp_number, contact_person
+  from ${T.BR} where user_id = $1::uuid and brand_id is not null limit 1
+), u as (
+  update ${T.BR} x set card_autorenew = false from b where x.id = b.id and x.card_autorenew returning x.id
+), t as (
+  insert into public.lead_activities (brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
+  select b.brand_id, b.id, b.current_cycle_id, 'W19', 'broker', 'card_autorenew.disabled',
+    jsonb_build_object('type', 'card_autorenew.disabled', 'source', 'portal', 'had_plan', b.paystack_subscription_code is not null),
+    now(), 'W19:autorenew_off:' || b.id || ':' || txid_current()
+  from b join u on u.id = b.id
+  returning id
+)
+select b.id as broker_id, exists (select 1 from u) as changed, (select count(*) from t)::int as timeline_rows,
+  b.paystack_subscription_code as subscription_code, b.whatsapp_number, b.contact_person
+from (select 1) one left join b on true;`, '={{ [$json.user_id] }}'), { v: 2.5, row: 8, col: 3, credentials: PG });
+  const arResp = w.add('n8n-nodes-base.respondToWebhook', 'Autorenew: respond', { respondWith: 'json', responseBody: '={{ JSON.stringify($json.broker_id ? { ok: true, card_autorenew: false, changed: !!$json.changed } : { ok: false, message: "no_broker" }) }}', options: { responseCode: '={{ $json.broker_id ? 200 : 403 }}' } }, { v: 1.1, row: 8, col: 4 });
+  const arChanged = w.add('n8n-nodes-base.if', 'Autorenew: switched off just now?', ifTrue('={{ !!$("Autorenew off as n8n_app + timeline row").first().json.changed }}'), { v: 2, row: 8, col: 5 });
+  const arMsg = w.add('n8n-nodes-base.code', 'Autorenew: WhatsApp confirmation (template)', code(`
+const row = $('Autorenew off as n8n_app + timeline row').first().json;
+const msg = BILLING.autorenew.confirmMessage(row);
+return msg ? [{ json: msg }] : [];
+`, ['autorenew']), { v: 2, row: 8, col: 6 });
+  const arSend = w.add('n8n-nodes-base.executeWorkflow', 'WhatsApp: broker_onb_next (auto-renew off)', execWf('REPLACE_WITH_WHATSAPP_SEND_WORKFLOW_ID', 'automation-engineer sender sub-workflow: { broker_id, to, template { name, body, buttons } }. Template broker_onb_next until a dedicated one exists (needs_human).'), { v: 1.2, row: 8, col: 7 });
+  const arOps = w.add('n8n-nodes-base.executeWorkflow', 'W22: card auto-renew off (disable Paystack plan if any)', execWf('REPLACE_WITH_W22_WORKFLOW_ID', 'kind=card_autorenew_off; broker_id, subscription_code. If subscription_code is set, Jonathan disables the Paystack plan in the dashboard (no Vault read of the email token here; needs_human for a wrapper). subscription.disable then arrives in W16.'), { v: 1.2, row: 9, col: 6 });
+  const note = w.add('n8n-nodes-base.stickyNote', 'Note', { content: '## W19 Cycle renewal offer\nT-7: results + renewal invoice (same tier pre-selected, up/downgrade links, shortfall credit applied).\nT-3, T-1: reminder with the reference in bold, only if unpaid.\nCycle end (effective end incl. 14-day extension): unpaid -> routing off + budget lowered. **No grace.** Card auto-renew (opt-in) charges here; failed -> retry day 1 and day 3 (Stripe pattern), then pay link.\nDay 7 after a lapse: one "come back any time".\nIdempotency: ops.billing_actions_log (cycle, action, day).\nPortal POST /billing-autorenew (I-30e): broker JWT -> card_autorenew off as n8n_app, timeline row, WhatsApp confirm. Off only.\nCard token read only via smc_vault_paystack_auth_code() (I-33a).', height: 340, width: 480 }, { row: 6, col: 8 });
   w.chain(sched, due); w.link(man, due); w.chain(due, log, back, sw);
   w.link(sw, ctx, 0); w.chain(ctx, offer, insInv, send); w.link(insInv, mail);
   w.link(sw, rem, 1); w.link(sw, rem, 2); w.link(rem, remSend);
@@ -553,6 +577,7 @@ return [{ json: { spec } }];
   w.chain(chargeSpec, charge, chargeOk); w.link(chargeOk, chargeNote, 0); w.link(chargeOk, chargeFail, 1); w.link(chargeFail, lastTry); w.link(lastTry, payLink, 0);
   w.link(sw, retryCtx, 4); w.link(retryCtx, endCtx);
   w.link(sw, comeBack, 5);
+  w.chain(arHook, arAuth, arOk); w.link(arOk, arOff, 0); w.link(arOk, arBad, 1); w.chain(arOff, arResp, arChanged); w.link(arChanged, arMsg, 0); w.link(arChanged, arOps, 0); w.link(arMsg, arSend);
   void note;
 });
 
