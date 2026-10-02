@@ -11,10 +11,14 @@
     "render": "node exports/render.mjs",
     "video": "node scripts/render-intro-video.mjs",
     "sync": "node scripts/sync-landing-holding.mjs",
-    "all": "npm run tokens && npm run logos && npm run favicon && npm run render && npm run video && npm run sync"
+    "all": "npm run tokens && npm run logos && npm run favicon && npm run render && npm run video && npm run sync",
+    "bible": "node scripts/build-bible-pdf.mjs",
+    "highlights": "node scripts/build-highlights.mjs",
+    "teal": "node scripts/build-teal-logos.mjs"
   },
   "devDependencies": {
     "@fontsource/dm-sans": "^5.2.8",
+    "marked": "^18.0.14",
     "opentype.js": "^1.3.4"
   }
 }

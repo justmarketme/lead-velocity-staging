@@ -13,7 +13,9 @@ The single source every surface imports. Spec: master prompt 4D.4a/4D.4b. Approv
 | `templates/` | HTML templates (import `tokens.css` and `../logo/*.svg`): intro card, what-to-expect, reminder, feed (1:1, 4:5), Reels end-card, lower-third, 16:9 end-card, A4 document, email header, profile, cover, OG, intro video. Data arrives as `?d=<json>`; each file carries fictional defaults |
 | `exports/render.mjs` | Renders every placement at exact size; writes `exports/manifest.json` |
 | `exports/<surface>/` | The rendered PNGs (profile, cover, og, email, feed, reels, whatsapp, video-frames, gbp, documents, logo @1x/2x/3x) |
-| `scripts/` | build-tokens, build-logos, build-favicon, render-intro-video, sync-landing-holding, check-no-hex |
+| `scripts/` | build-tokens, build-logos, build-favicon, render-intro-video, sync-landing-holding, check-no-hex, **build-bible-pdf** (brand-bible.md + tokens -> `brand-bible.pdf`, A4), **build-highlights** (`exports/instagram-highlights/`: 4 covers, 1080x1920 + 1:1 crop), **build-teal-logos** (test-arm tick + wordmark for the C01 colour test) |
+| `brand-bible.pdf` | Rendered by `npm run bible`; every `{{tokens.color.*}}` placeholder is filled from `tokens.json` at render time |
+| `../deliverables/visual-producer/` | Cycle-1 creative generator: `node render-concepts.mjs` (stills, 9:16 motion, manifest, review sheet) |
 | `../automation/templates/samples/` | `intro_card_sample.png`, `intro_video_sample.mp4` (Meta review samples, fictional adviser) |
 
 ## Re-render

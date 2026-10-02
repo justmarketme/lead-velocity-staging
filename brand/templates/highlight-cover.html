@@ -1,0 +1,20 @@
+<!doctype html><html lang="en-ZA"><meta charset="utf8"><title>Instagram highlight cover 1080x1920 (1:1 centre crop)</title>
+<link rel="stylesheet" href="_base.css">
+<!-- Icon only (Instagram shows the centre 1:1 inside a circle; its name is typed in the app). Data: ?d={"k":"how|expect|faq|advisers"}. One amber, line icons, charcoal ground. -->
+<style>
+body{width:1080px;height:1920px;background:var(--sm-charcoal)}
+.ring{position:absolute;left:190px;top:700px;width:700px;height:700px;border-radius:50%;border:10px solid var(--sm-charcoal-2)}
+svg{position:absolute;left:290px;top:800px;width:500px;height:500px;overflow:visible}
+svg *{fill:none;stroke:var(--sm-amber);stroke-width:5;stroke-linecap:round;stroke-linejoin:round}
+svg .f{fill:var(--sm-amber);stroke:none}
+</style>
+<body class="dark"><div class="ring"></div><svg id="i" viewBox="0 0 100 100"></svg>
+<script>
+const ICONS={
+ how:'<circle cx="22" cy="24" r="9"/><circle cx="50" cy="50" r="9"/><circle cx="78" cy="76" r="9"/><path d="M29 30L43 44M57 56L71 70"/>',
+ expect:'<circle cx="50" cy="50" r="38"/><path d="M50 26V50L68 60"/>',
+ faq:'<circle cx="50" cy="50" r="38"/><path d="M38 40C38 31 46 27 52 28C60 29 64 36 60 43C57 48 50 49 50 57"/><circle class="f" cx="50" cy="71" r="3.4"/>',
+ advisers:'<circle cx="50" cy="32" r="14"/><path d="M20 84C20 62 33 54 50 54C67 54 80 62 80 84Z"/><path d="M62 70L69 77L83 62"/>'};
+const k=(new URLSearchParams(location.search).get('d')&&JSON.parse(new URLSearchParams(location.search).get('d')).k)||'how';
+document.getElementById('i').innerHTML=ICONS[k];
+</script>

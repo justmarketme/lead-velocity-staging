@@ -23,6 +23,7 @@ css += `@font-face{font-family:"DM Sans";font-style:normal;font-weight:500;font-
 css += `@font-face{font-family:"DM Sans";font-style:normal;font-weight:800;font-display:swap;src:url("fonts/dm-sans-latin-800-normal.woff2") format("woff2"),url("fonts/dm-sans-latin-800-normal.woff") format("woff")}\n`;
 css += `:root{\n  /* palette */\n`;
 for (const [k, c] of Object.entries(T.color)) css += `  --sm-${kebab(k)}: ${c.hex};\n`;
+for (const [k, c] of Object.entries(T.experiment?.tealOnCream || {})) css += `  --sm-test-${kebab(k.replace(/^teal$/,'teal-accent'))}: ${c.hex};\n`;
 css += `  --sm-scrim: ${T.scrim.value};\n  /* semantic roles */\n`;
 for (const [k, v] of Object.entries(T.semantic)) css += `  --sm-${kebab(k)}: var(--sm-${kebab(v)});\n`;
 css += `  /* type */\n  --sm-font: ${T.type.family};\n  --sm-weight-headline: ${T.type.weights.headline};\n  --sm-weight-body: ${T.type.weights.body};\n`;
