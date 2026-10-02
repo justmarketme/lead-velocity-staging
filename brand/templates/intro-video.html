@@ -13,7 +13,7 @@ body{width:1080px;height:1920px}
 .end .wm{position:absolute;left:0;right:0;top:1000px;display:grid;justify-items:center;opacity:0}.end .wm img{height:96px}
 .end .who{position:absolute;left:72px;right:72px;top:1180px;text-align:center;font-size:44px;font-weight:800;opacity:0}
 .end .cta{position:absolute;left:0;right:0;top:1290px;display:grid;justify-items:center;opacity:0}.end .cta .pill{font-size:54px;padding:30px 64px}
-.tag{position:absolute;left:0;right:0;top:262px;text-align:center;font-size:33px;font-weight:800;color:var(--sm-amber);opacity:0}
+.tag{position:absolute;left:0;right:0;top:262px;text-align:center;font-size:33px;font-weight:800;color:var(--sm-amber);opacity:1}
 </style>
 <body class="dark">
 <div class="l hd" id="l1" style="top:370px">Sort your cover.</div>
@@ -39,7 +39,7 @@ window.__setT=function(t){
   ['l1','l2','l3','sil','lt'].forEach(i=>{ if(ending) $(i).style.opacity=Math.min(+$(i).style.opacity,1-e); });
   $('tk').setAttribute('stroke-dashoffset',1-c((t-6.8)/.4));   // the single 400 ms draw
   pop($('wm'),t,7.3,.4,24); pop($('who'),t,7.6,.4,24); pop($('cta'),t,7.9,.4,24);
-  $('tag').style.opacity=t>=0.2?1:0;
+  $("tag").style.opacity=1;
 };
 window.__setT(0);
 </script>

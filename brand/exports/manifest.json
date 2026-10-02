@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-02T10:14:26.061Z",
+  "generated": "2026-10-02T17:41:42.943Z",
   "brandVersion": "1.0.0",
   "files": [
     {
@@ -76,14 +76,14 @@
       "file": "exports/feed/feed-1x1-1080x1080_H1-sample.png",
       "width": 1080,
       "height": 1080,
-      "bytes": 58544,
+      "bytes": 55424,
       "ok": true
     },
     {
       "file": "exports/feed/feed-4x5-1080x1350_H1-sample.png",
       "width": 1080,
       "height": 1350,
-      "bytes": 63308,
+      "bytes": 59944,
       "ok": true
     },
     {
@@ -97,21 +97,21 @@
       "file": "exports/whatsapp/intro-card-1080x1080_sample.png",
       "width": 1080,
       "height": 1080,
-      "bytes": 46483,
+      "bytes": 49182,
       "ok": true
     },
     {
       "file": "exports/whatsapp/intro-card-1200x628_sample.png",
       "width": 1200,
       "height": 628,
-      "bytes": 84716,
+      "bytes": 88950,
       "ok": true
     },
     {
       "file": "exports/whatsapp/what-to-expect-1080x1080.png",
       "width": 1080,
       "height": 1080,
-      "bytes": 114646,
+      "bytes": 46937,
       "ok": true
     },
     {
@@ -125,21 +125,21 @@
       "file": "exports/whatsapp/reminder-1080x1080_sample.png",
       "width": 1080,
       "height": 1080,
-      "bytes": 89225,
+      "bytes": 98888,
       "ok": true
     },
     {
       "file": "exports/whatsapp/reminder-1200x628_sample.png",
       "width": 1200,
       "height": 628,
-      "bytes": 70366,
+      "bytes": 78340,
       "ok": true
     },
     {
       "file": "exports/video-frames/lower-third-1920x1080_sample.png",
       "width": 1920,
       "height": 1080,
-      "bytes": 50468,
+      "bytes": 61544,
       "ok": true
     },
     {
