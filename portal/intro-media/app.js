@@ -128,7 +128,7 @@
   var BANNED_I = [
     ['health_promise', /\b(even if you smoke|no medicals?|no medical (exam|test)s?|no health (questions|checks?)|anyone can (get|qualify)|everyone (qualifies|is accepted)|guaranteed acceptance|regardless of (your )?health|pre-?existing)\b/i, 'promises acceptance or talks about health'],
     ['credentials', /\b(\d+\+?\s*(years?|yrs)|(years?|decades?) of experience|award[- ]winning|awards?|top performer|cfp|chartered|certified|accredited|qualified as|mdrt|fellow of|designation)\b/i, 'is a credential, years or award claim (only verified ones can be said)'],
-    ['client_story', /\b(my clients?|one (of my )?clients?|a client of mine|testimonials?|thousands of|hundreds of|\d[\d,. ]*\s*(clients|families|people|policyholders)|(helped|helping) (over |more than )?\d+|mr\.?\s+[A-Z]\w+|mrs\.?\s+[A-Z]\w+|ms\.?\s+[A-Z]\w+)\b/i, 'tells a client story or gives client numbers'],
+    ['client_story', /\b(my clients?|one (of my )?clients?|a client of mine|testimonials?|thousands of|hundreds of|\d[\d,. ]*\s*(clients|families|people|policyholders)|(helped|helping) (over |more than )?\d+|i (helped|worked with|met|sat with) (a|an|one) (family|couple|client|man|woman|lady|gentleman|young)|mr\.?\s+[A-Z]\w+|mrs\.?\s+[A-Z]\w+|ms\.?\s+[A-Z]\w+)\b/i, 'tells a client story or gives client numbers'],
     ['endorsement', /\b(sortmycover|sort my cover|lead velocity|selected me|chose me|chosen me|matched (me )?(you|with)|(recommended|endorsed|vetted|approved|hand-?picked) (by|me)|they (picked|chose|matched))\b/i, 'says SortMyCover or Lead Velocity chose, matched or endorses you'],
     ['tax', /\b(tax[- ]free|tax[- ]efficient|tax deduct\w*|tax benefits?|tax saving\w*|tax break|save on tax|sars)\b/i, 'makes a tax claim']
   ];
