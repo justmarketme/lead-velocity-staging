@@ -2,6 +2,17 @@
 
 All documents are **DRAFT — for practitioner review**. Markdown only; PDF rendering is a later step.
 
+## Consumer Terms TU-v1.0 — 2026-10-02 (S7-15)
+
+### Added
+- `consumer-terms.md`: SortMyCover consumer Terms of Use **TU-v1.0 (DRAFT)**, 12 sections, source text with (practitioner) markers, reading-level check and its own change log. Supersedes **WT-v1** (`consent-and-privacy.md` Part 3).
+- `landing/holding/terms.html`: published form, same head/header/footer/tokens and `{{…}}` placeholders as `privacy.html`; no practitioner markers on the page.
+- `practitioner-brief.md`: Q25–Q29 (CPA application to a free service, §10 limit under s48–s51/s49, ECTA s43, how the terms bind, adviser "not our employee or agent").
+
+### Changed
+- `landing/holding/privacy.html`: Terms link added to the footer nav (no header nav exists).
+- `consent-and-privacy.md` Part 3: pointer to TU-v1.0 (WT-v1 text kept for the evidence trail).
+
 ## Review-4 fixes — 2026-10-02 (compliance-qa phase4-review-4 #27–#29, NH-42)
 
 ### Changed

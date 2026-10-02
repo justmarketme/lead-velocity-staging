@@ -176,6 +176,8 @@ If we change this notice, we update the date at the top. Big changes are also sh
 
 ## Part 3 — Website Terms (sortmycover.co.za/terms)
 
+*Superseded by **TU-v1.0** in `consumer-terms.md` (published at `landing/holding/terms.html`). WT-v1 is kept below for the evidence trail only; do not publish it.*
+
 **Website Terms — SortMyCover** · Version WT-v1 · {{date}}
 
 1. **Who we are.** SortMyCover is a service of Lead Velocity (Pty) Ltd. We connect people with authorised financial services providers. We do not give financial advice, compare products or quote premiums.

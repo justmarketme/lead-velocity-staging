@@ -3,7 +3,7 @@
 # Brief for the external FAIS / POPIA practitioner — Lead Velocity (Pty) Ltd / SortMyCover
 
 **What we ask for:** one written opinion on the questions below. For each, we give our current default (what the system does today) and the alternative we can switch to. Please answer "default OK", "use the alternative", or give your own wording.
-**Documents enclosed:** broker-services-agreement.md · term-sheet-mark.md · consent-and-privacy.md · paia-manual.md · ncc-direct-marketer-pack.md · compliance-register.md.
+**Documents enclosed:** broker-services-agreement.md · term-sheet-mark.md · consent-and-privacy.md · consumer-terms.md · paia-manual.md · ncc-direct-marketer-pack.md · compliance-register.md.
 **Context in one paragraph:** Lead Velocity runs a consumer brand, SortMyCover, that advertises on Facebook and Instagram with educational content only. Consumers opt in, answer tap-only questions (age band, budget band, call method) and are passed to one authorised FSP (a life-cover broker). Within 60 seconds they get a WhatsApp naming the adviser, practice and FSP number. We book a call in the broker's calendar and send reminders. The broker pays a flat price per 30-day cycle in advance (e.g. R16,500 excl. VAT for 20 verified qualified leads), never linked to policies. We have no compliance officer; we are not an FSP.
 **Build and launch do not wait for this opinion. Where your opinion differs from a default, your opinion wins.**
 
@@ -35,6 +35,11 @@
 | Q22 | Adviser feedback about the lead (outcome, 1–5 rating, short note, voice note transcribed by {{TRANSCRIPTION_PROVIDER}}; audio not kept, transcript redacted): is the PN-v1.1 notice enough under s18 (information from another source), and may we use it to tune ads and settle replacements? | Disclosed in PN-v1.1 "What we collect"; provider in the processor table; voice notes stay off until the provider is named | Collect tap outcome and rating only; no free-text note or voice note |
 | Q23 | Schedule C1A: when a verified lead cancels and does not rebook, is replacing it (a) as "uncontactable" after one rebooking offer and the follow-up sequence, and (b) as "would not take a call" on an explicit refusal, consistent with *Raspberry Academy* (no policy linkage) and fair to both sides? Does the one rebooking offer plus follow-up after a cancellation respect the lead's objection rights? | (a) + (b) both replaceable, within the per-cycle cap; messaging stops at once on an explicit refusal | (a) only, or (b) only (texts in Schedule C1A drafting note) |
 | Q24 | Retention clock: what restarts a lead's {{retention_lead_months}}-month clock (`last_contact_at`)? (1) any contact about the lead, including the broker-facing digest or pre-call brief (W11); (2) only messages we send to the lead and messages, taps or bookings from the lead; (3) only the lead's own replies and bookings. | **(2)** — only outbound to the lead and inbound from the lead; W11 stops updating `last_contact_at`. We recommend (2): "contact with you" in PN-v1.1 means contact with the person, and internal messages about them should not extend how long we keep their data (POPIA s14) | (1) any contact incl. W11 (longest retention; not recommended) · (3) lead-initiated only (shortest; reminders we send would not count) |
+| Q25 | Consumer Terms TU-v1.0 (`consumer-terms.md`): does the CPA apply to a service that is free to the consumer, and should the terms name it? | Name the CPA in a saving line only; write to the s22 plain-language standard anyway | General saving line ("any rights the law gives you") |
+| Q26 | TU-v1.0 §10: is "not responsible for advice an adviser gives you, or for a product you choose" acceptable under CPA s48–s51; does s49 need it shown more prominently? | One plain line, no cap, no exclusion of our own negligence, plus the CPA/POPIA saving line | Remove it, or keep it in a prominent box (s49) |
+| Q27 | Does ECTA s43 apply to sortmycover.co.za (the consumer buys nothing online)? If yes, what must TU-v1.0 §1 add? | Core identity facts only (name, legal status, reg no, address, email, IO phone) | Full s43(1) "Company information" block |
+| Q28 | Are the terms binding through the footer link and "By using this site or our WhatsApp, you agree", or must the consent area link to them too? | Footer link + opening line; consent text unchanged (`CONSENT-NAMED-v1`) | Add "and Terms" next to the tick → `CONSENT-NAMED-v2` |
+| Q29 | TU-v1.0 §5 says the adviser "runs their own business … not our employee or agent". Accurate and helpful under FAIS, and consistent with BSA 6.4? | Keep it | Drop "or agent"; keep only "responsible for any advice they give you" |
 | Q20 | The existing CRM contract generator contains commission wording, a one-week notice term, a strict no-refund clause and a 24-month commission survival clause. Confirm these must be removed. | Retire that template; use this agreement only | — |
 
 ---
@@ -67,7 +72,7 @@
 
 **Q20 — Legacy template.** `src/components/dashboard/ContractGenerator.tsx` defaults include `commissionText`, "Top-Up tokens require one week's notice", "commission … obligations survive for 24 months" and a no-refund rule. We have flagged these for removal; we ask you to confirm.
 
-**Please return:** a short written opinion answering Q1–Q23, marked-up documents where wording must change, and anything else you think we missed.
+**Please return:** a short written opinion answering Q1–Q29, marked-up documents where wording must change, and anything else you think we missed.
 
 
 ### Q21 — E-signature validity (added by the orchestrator from the first-principles memo)
