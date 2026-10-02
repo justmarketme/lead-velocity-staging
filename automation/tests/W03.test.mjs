@@ -51,7 +51,11 @@ test('L04 consent yes: named consent first, lead row at the tap (verified), Meta
   assert.equal(row.ad_id, 'ad_test_ctwa_01');
   assert.equal(row.origin, 'ctwa');
   assert.equal(row.consent_mode, 'named');
-  assert.equal(row.consent_text_version, 'ctwa-named-v1');
+  assert.equal(row.consent_text_version, 'ctwa-named-v2');
+  assert.match(row.consent_text, /Lead Velocity \(Pty\) Ltd/);
+  assert.match(row.consent_text, /Reply STOP to opt out/);
+  assert.match(row.consent_text, /sortmycover\.co\.za\/privacy/);
+  assert.ok(row.consent_text.length < 1024, 'consent body under the WhatsApp interactive limit');
   assert.equal(row.consent_text, consentMsg.body, 'stored consent = the exact words shown');
   assert.equal(row.phone, '+27600000004');
   const capi = actions.filter((a) => a.kind === 'capi');

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { renderEmail, renderPrint, subjectFor, pdfName, visibleText, loadTokens, initials, BANNED } from './build-broker-report-email.mjs';
+import { renderEmail, renderPrint, subjectFor, pdfName, visibleText, loadTokens, initials, BANNED, ROI_TEXT, assertClean } from './build-broker-report-email.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const FX = JSON.parse(readFileSync(join(here, '..', 'automation', 'tests', 'fixtures', 'w14-payloads.json'), 'utf8'));
@@ -51,13 +51,14 @@ for (const k of KEYS) {
     assert.doesNotMatch(subjectFor(FX[k]), BANNED);
   });
 
-  test(`${k}: email has sections 1, 2, 3, 4, ask, cycle (no ROI); print adds notice and ROI only when shown`, () => {
+  test(`${k}: email has sections 1, 2, 3, 4, ask, cycle (no ROI); print adds notice, never ROI`, () => {
     const p = FX[k]; const e = visibleText(renderEmail(p, opts)); const pr = visibleText(renderPrint(p, opts));
     const order = ['This week', 'Progress', 'Your meetings', 'Quality, in your words', 'One thing to do', 'Your cycle'];
     let at = -1; for (const s of order) { const i = e.indexOf(s.toUpperCase() === s ? s : s); assert.ok(i > at, `email section "${s}" in order`); at = i; }
     assert.ok(!e.includes('Your view (your numbers only)'), 'ROI is portal/PDF only');
     assert.ok(pr.includes("What you'll notice this week"));
-    assert.equal(pr.includes('Your view (your numbers only)'), !!(p.s6_roi && p.s6_roi.shown));
+    assert.ok(!pr.includes('Your view (your numbers only)'), 'ROI is portal only, never in the emailed PDF');
+    assert.doesNotMatch(pr, ROI_TEXT); assert.doesNotMatch(e, ROI_TEXT);
     assert.ok(e.includes(p.s1_one_line)); assert.ok(e.includes(p.s8_cycle.line));
     // same numbers as the payload (R02)
     const d = p.s2_progress.delivered; assert.ok(e.includes(`${d.v} of ${d.committed}`)); assert.ok(pr.includes(`${d.v} of ${d.committed}`));
@@ -97,4 +98,9 @@ test('W14 email outbox row names this script', () => {
   assert.match(n.parameters.query, /'builder', 'scripts\/build-broker-report-email\.mjs'/);
   assert.match(n.parameters.query, /'pdf', 'initials_only'/);
   assert.doesNotMatch(W14.nodes.find((x) => x.name === 'Note').parameters.content, /not written yet/);
+});
+
+test('fix wave 4: a close-rate / policies line fails the build of the emailed report', () => {
+  assert.throws(() => assertClean('<p>No lock-in.</p><p>Your close rate: 30%. Policies you report are for your view only.</p>'), /portal only/);
+  assert.doesNotThrow(() => assertClean('<p>No lock-in.</p><p>16 of 20 delivered.</p>'));
 });

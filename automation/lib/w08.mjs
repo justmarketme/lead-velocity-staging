@@ -4,7 +4,10 @@
 // Rules (all from the prompt, ASSUMPTIONs marked):
 //  - Web / lead-ad leads that are routed and disclosed but have no live booking: +2 h, +24 h, +72 h after
 //    first_message_at, then close as unbooked (stage unbooked_closed).
-//  - CTWA leads that stalled mid-qualification: +1 h, +20 h, +68 h (inside the 72-h free entry window), then close.
+//  - CTWA stall nudges have ONE owner: W03 (automation/ctwa/w03.js STALL_HOURS, consent question only before consent).
+//    A CTWA lead has no broker_id until W01 core routes it after qualification, so W08 stops on every lead without
+//    broker_id (reason ctwa_pre_routing_w03 / not_disclosed). The ctwa_stall offsets below only apply to a routed
+//    CTWA lead whose conv_state is still a qualifying state (defensive; never overlaps W03).
 //  - +24 h carries the intro video (unbooked_nudge_24h); no approved video -> unbooked_nudge_24h_text (bio_short).
 //  - Template-only outside the 24-h customer-service window. Inside it the same words go as a session
 //    interactive message (no template fee), with the same two buttons.
@@ -63,6 +66,7 @@ export function stopReason(lead, ctx = {}) {
   if (lead.stage && CLOSED.has(lead.stage)) return `stage_${lead.stage}`;
   if (lead.conv_state?.state === 'handoff') return 'handoff';
   if (lead.conv_state?.declined_nurture) return 'no_thanks';
+  if (!lead.broker_id && lead.origin === 'ctwa') return 'ctwa_pre_routing_w03'; // W03 owns pre-routing stall nudges
   if (!lead.first_message_at || !lead.broker_id) return 'not_disclosed';
   if ((ctx.outbound_count || 0) >= MAX_LEAD_MESSAGES) return 'message_cap';
   return null;
@@ -104,7 +108,9 @@ export function message(lead, ctx, touch, now_ms) {
 /** Tap handlers (routed here by W07). */
 export function onTap(lead, payload) {
   const key = String(payload || '').split(':')[0];
-  if (key === 'no_thanks') return { stage: 'unbooked_closed', conv_state: { ...(lead.conv_state || {}), declined_nurture: true, state: 'closed_unbooked' }, reply_line: 'CLOSE_UNBOOKED' };
+  // "No thanks" to further messages = a POPIA s11(3)/s69 objection: close AND suppress the number hash in the same
+  // statement (W08.json "Save tap result"), exactly like W03's consent-stage No thanks (review 4 §1 #28).
+  if (key === 'no_thanks') return { stage: 'unbooked_closed', conv_state: { ...(lead.conv_state || {}), declined_nurture: true, state: 'closed_unbooked' }, reply_line: 'CLOSE_UNBOOKED', suppress: { source: 'objection', note: 'no_thanks_nurture' } };
   if (key === 'not_now') return { stage: lead.stage, conv_state: lead.conv_state || {}, reply_line: null }; // keep the plan; no reply (no nagging)
   return null;
 }

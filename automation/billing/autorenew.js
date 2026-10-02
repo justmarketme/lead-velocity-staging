@@ -5,6 +5,7 @@
  * The broker cannot flip brokers.card_autorenew himself (smc_brokers_guard); W19 does it as n8n_app.
  * JWT rules are the /slots broker path (automation/CONTRACTS.md, I-30a): HS256 with SUPABASE_JWT_SECRET. */
 const { verifySupabaseJwt } = require('../security/lead-token');
+const { formatZar } = require('./money');
 
 const TEMPLATE = 'broker_autorenew_off'; // automation/templates/broker_autorenew_off.json (I-35j): 1 first name; URL button 1 = 'billing' (-> app.leadvelocity.co.za/s/billing)
 const MAX_BODY_KEYS = 4;
@@ -55,4 +56,20 @@ function responseBody(row) {
   return { status: 200, body: { ok: true, card_autorenew: false, changed: !!row.changed } };
 }
 
-module.exports = { TEMPLATE, parseAutorenewRequest, confirmMessage, responseBody };
+/**
+ * W19 T-3 / T-1 renewal reminder (compliance-qa review 4 §2g): a recurring card-charge notice states the amount and
+ * how to stop it. Amount = the open renewal invoice (issued at T-7 from `pricing`, shortfall credit applied); with no
+ * open invoice, the pricing row for the next tier. Excl. VAT everywhere (0.1); the VAT line only when registered.
+ * r = { action, open_ref, card_autorenew, open_amount_excl_vat, open_vat_zar, price_zar }
+ */
+function renewalReminderText(r) {
+  const days = r.action === 'remind_t3' ? 3 : 1;
+  const exclZar = r.open_amount_excl_vat != null ? Number(r.open_amount_excl_vat) : (r.price_zar != null ? Number(r.price_zar) : null);
+  const amount = Number.isFinite(exclZar) ? formatZar(Math.round(exclZar * 100)) + ' excl. VAT' + (r.open_vat_zar != null && Number(r.open_vat_zar) > 0 ? ' plus VAT of ' + formatZar(Math.round(Number(r.open_vat_zar) * 100), { decimals: true }) : '') : null;
+  const card = r.card_autorenew
+    ? 'on: we will charge ' + (amount || 'the amount on your invoice') + ' to your card at cycle end. You can switch it off any time in the portal: /s/billing.'
+    : 'off.';
+  return 'Your cycle ends in ' + days + ' day' + (days > 1 ? 's' : '') + '. Pay for the next one to keep leads coming with no gap. Reference: *' + (r.open_ref || 'on your invoice') + '*. Card auto-renew: ' + card;
+}
+
+module.exports = { TEMPLATE, parseAutorenewRequest, confirmMessage, responseBody, renewalReminderText };

@@ -426,6 +426,9 @@ with c as (
   select c.cycle_id, c.broker_id, c.tier_code, c.ends_at, coalesce(c.extended_until, c.ends_at) as effective_end, c.status, c.renewal_offer_sent_at,
          b.billing_ref, b.email, b.whatsapp_number, b.card_autorenew, b.next_tier_code, b.status as broker_status,
          (select i.reference from ${T.INV} i where i.broker_id = c.broker_id and i.status = 'issued' order by i.issued_at desc limit 1) as open_ref,
+         (select i.amount_excl_vat from ${T.INV} i where i.broker_id = c.broker_id and i.status = 'issued' order by i.issued_at desc limit 1) as open_amount_excl_vat,
+         (select i.vat_zar from ${T.INV} i where i.broker_id = c.broker_id and i.status = 'issued' order by i.issued_at desc limit 1) as open_vat_zar,
+         (select p.price_zar from ${T.PR} p where p.tier_code = coalesce(b.next_tier_code, c.tier_code)) as price_zar,
          exists (select 1 from ${T.CY} n where n.broker_id = c.broker_id and n.status = 'scheduled' and n.invoice_id is not null and n.cycle_id <> c.cycle_id) as next_paid
   from ${T.CY} c join ${T.BR} b on b.id = c.broker_id
   where c.status in ('active', 'extended', 'not_renewed') and c.ends_at is not null
@@ -496,8 +499,8 @@ update ${T.CY} set renewal_offer_sent_at = now() where id = $9::uuid;`, '={{ [$j
   const rem = w.add('n8n-nodes-base.code', 'Reminder text (reference in bold)', code(`
 return $input.all().map((i) => { const r = i.json; const days = r.action === 'remind_t3' ? 3 : 1;
   return { json: { ...r, reminder: { days, reference: r.open_ref, link: 'https://app.leadvelocity.co.za/billing/checkout/?ref=' + (r.open_ref || ''),
-    text: 'Your cycle ends in ' + days + ' day' + (days > 1 ? 's' : '') + '. Pay for the next one to keep leads coming with no gap. Reference: *' + (r.open_ref || 'on your invoice') + '*. Card auto-renew: ' + (r.card_autorenew ? 'on, we charge your card at cycle end.' : 'off.') } } }; });
-`), { v: 2, row: 2, col: 5 });
+    text: BILLING.autorenew.renewalReminderText(r) } } }; });
+`, ['autorenew']), { v: 2, row: 2, col: 5 });
   const remSend = w.add('n8n-nodes-base.executeWorkflow', 'WhatsApp + email: renewal reminder', execWf('REPLACE_WITH_WHATSAPP_SEND_WORKFLOW_ID', 'Template broker_renewal_reminder is NOT yet in automation/templates (needs_human NH-BA-08). Until approved: email only, or inside the 24-h window.'), { v: 1.2, row: 2, col: 6 });
 
   // cycle end

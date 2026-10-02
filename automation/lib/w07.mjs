@@ -37,7 +37,7 @@ export function normaliseInbound(body = {}) {
         if (i.type === 'button_reply') { msg.payload = i.button_reply?.id ?? null; msg.text = i.button_reply?.title || ''; }
         else if (i.type === 'list_reply') { msg.list_id = i.list_reply?.id ?? null; msg.text = i.list_reply?.title || ''; }
         else if (i.type === 'nfm_reply') { msg.payload = 'flow_complete'; msg.flow_response = i.nfm_reply?.response_json || null; }
-      } else if (['image', 'document', 'video', 'sticker'].includes(m.type)) { msg.media = m.type; msg.text = m[m.type]?.caption || ''; }
+      } else if (['image', 'document', 'video', 'sticker'].includes(m.type)) { msg.media = m.type; msg.media_id = m[m.type]?.id || null; msg.text = m[m.type]?.caption || ''; }
       else if (m.type === 'audio') { msg.media = 'audio'; msg.media_id = m.audio?.id || null; }
       out.push(msg);
     }
@@ -57,13 +57,33 @@ const LEAD_TAPS = {
 const STOP_WORDS = /^\s*(stop|unsubscribe|opt[ -]?out|stopp?|stop all)\s*[.!]*\s*$/iu;
 export const BEST_TIME = { best_mornings: 'mornings', best_lunchtime: 'lunchtime', best_afternoons: 'afternoons', best_evenings: 'evenings', best_any: 'any' };
 
+// W32 Approve / Later quick replies (optimisation/n8n-code/w32-pulse-messages.js + w32-escalate.js: "approve:<uuid>" | "later:<uuid>").
+export const W32_TAP = /^(approve|later):[0-9a-f-]{36}$/i;
+// Brokers still being set up record their intro voice note on WhatsApp (W23); live brokers' voice notes are W29 feedback.
+export const PRE_LIVE_BROKER = new Set(['invited', 'prospect', 'onboarding', 'onboarded', 'ready_for_go_live']);
+
 /**
  * routeInbound(msg, ctx) -> { route, reason }
- * ctx = { lead (row or null), broker_numbers: Set of E.164 adviser numbers, suppressed: bool }
+ * ctx = { lead (row or null), broker_numbers: Set of E.164 adviser numbers, ops_numbers: Set of E.164 (Jonathan, KG),
+ *         broker_status, suppressed: bool }
+ * I-37e loop guard: a message W03 handed back (msg.origin === 'w03') is never routed to W03 again.
  */
 export function routeInbound(msg, ctx = {}) {
+  const r = routeCore(msg, ctx);
+  if (msg.origin === 'w03' && r.route === 'W03') {
+    return ctx.lead ? { route: 'nlu', reason: 'loop guard: W03-originated message for a known lead -> conversation agent' }
+      : { route: 'ignore_loop', reason: 'loop guard: W03-originated message is never sent back to W03 (logged only)' };
+  }
+  return r;
+}
+
+function routeCore(msg, ctx) {
   const tapKey = (msg.payload || '').split(':')[0];
+  // I-37e: W32 Approve / Later taps, only from the ops numbers that receive them; anyone else's tap falls through.
+  if (ctx.ops_numbers && ctx.ops_numbers.has(msg.from) && W32_TAP.test(msg.payload || '')) return { route: 'W32_decision', reason: `W32 ${tapKey} tap` };
   if (ctx.broker_numbers && ctx.broker_numbers.has(msg.from)) {
+    // I-37d: one inbound subscription; broker intro media is a W07 -> W23 sub-call.
+    if (msg.media === 'video' || (msg.media === 'audio' && PRE_LIVE_BROKER.has(ctx.broker_status))) return { route: 'W23', reason: 'broker intro media (W23)' };
     if (['attended', 'no_show', 'rescheduled'].includes(tapKey)) return { route: 'W12', reason: 'broker outcome tap' };
     return { route: 'W29', reason: 'broker feedback (disposition list, quality, voice note, follow-up tap)' };
   }
@@ -321,4 +341,17 @@ export function contactStep(lead, msg, lookup = null) {
     return out;
   }
   return out;
+}
+
+/** I-37e: the item W07 passes to W32's "Console decision (sub-call)" trigger (its Validate node parses body.payload). */
+export function w32DecisionItem(msg) {
+  return { source: 'W07', payload: String(msg.payload || ''), from: msg.from, decided_by: msg.from, wamid: msg.wamid };
+}
+
+/** I-37d: the item W07 passes to W23 "Called by W07 (broker media)": Cloud API message shape, so W23's expressions
+ *  ($json.messages[0].type, .from, [type].id) are unchanged. */
+export function w23MediaItem(msg) {
+  const type = msg.media;
+  return { source: 'W07', metadata: { phone_number_id: msg.phone_number_id || null },
+    messages: [{ id: msg.wamid, from: String(msg.from || '').replace(/^\+/, ''), timestamp: String(Math.floor((msg.at_ms || 0) / 1000)), type, [type]: { id: msg.media_id, caption: msg.text || undefined } }] };
 }

@@ -120,3 +120,23 @@ test('W08.json: physical columns only; claim before send; DRY_RUN guard; templat
   assert.ok(JSON.stringify(WF).includes('DRY_RUN_SENDS'));
   assert.ok(JSON.stringify(WF).includes('ON CONFLICT (idempotency_key) DO NOTHING'));
 });
+
+// fix wave 4 (compliance-qa review 4 §1 #28, §2c): No thanks suppresses; W03 owns pre-routing CTWA stall nudges.
+test('No thanks carries an objection suppression, written in the same statement as the close', async () => {
+  const r = N.onTap({ id: 'lead_x', stage: 'disclosed', conv_state: {} }, 'no_thanks:lead_x');
+  assert.equal(r.stage, 'unbooked_closed');
+  assert.deepEqual(r.suppress, { source: 'objection', note: 'no_thanks_nurture' });
+  assert.equal(N.onTap({ id: 'lead_x' }, 'not_now:lead_x').suppress, undefined);
+  const { readFile } = await import('node:fs/promises');
+  const wf = JSON.parse(await readFile(new URL('../W08.json', import.meta.url), 'utf8'));
+  const q = wf.nodes.find((n) => n.name === 'Save tap result').parameters.query;
+  assert.match(q, /UPDATE public\.leads[\s\S]*INSERT INTO public\.suppression[\s\S]*smc_hash_contact/);
+  const cand = wf.nodes.find((n) => /^Candidates/.test(n.name)).parameters.query;
+  assert.match(cand, /smc_hash_contact\(l\.phone\)/, 'suppression lookup uses the same hash as every writer');
+});
+
+test('pre-routing CTWA lead (no broker_id) is never nudged by W08 (W03 owns stall nudges)', () => {
+  const lead = { id: 'lead_c', origin: 'ctwa', stage: 'verified', conv_state: { state: 'q_age' }, first_message_at: '2026-10-05T08:00:00Z', broker_id: null };
+  assert.equal(N.stopReason(lead, {}), 'ctwa_pre_routing_w03');
+  assert.equal(N.due(lead, { sent: new Set() }, Date.parse('2026-10-05T10:00:00Z')).action, 'stop');
+});

@@ -246,3 +246,37 @@ test('W07.json: every SQL column is a physical column (schema.md), webhook + gat
   const names2 = new Set(names);
   for (const [a, c] of Object.entries(WF.connections)) { assert.ok(names2.has(a)); for (const o of c.main) for (const x of o) assert.ok(names2.has(x.node), x.node); }
 });
+
+// fix wave 4, I-37e: loop guard + W32 Approve/Later taps; I-37d: broker intro media -> W23 sub-call.
+test('I-37e loop guard: a W03-originated message is never routed back to W03', () => {
+  const unknown = { from: '+27600000099', text: 'Hi, I would like to check my life cover', referral: { source_id: 'ad_x' } };
+  assert.equal(W.routeInbound(unknown, { lead: null }).route, 'W03', 'first pass still goes to W03');
+  assert.equal(W.routeInbound({ ...unknown, origin: 'w03' }, { lead: null }).route, 'ignore_loop');
+  const mid = { id: 'lead_mid', phone: '+27600000098', conv_state: { state: 'q_age' } };
+  assert.equal(W.routeInbound({ from: mid.phone, list_id: 'age_45_50', origin: 'w03' }, { lead: mid }).route, 'nlu');
+  const wf = JSON.parse(readFileSync(new URL('../W07.json', import.meta.url), 'utf8'));
+  const sw = wf.nodes.find((n) => n.name === 'Sub-call from? (W03 forward / W05)');
+  assert.ok(sw, 'sub-call entry splits W03 hand-backs from W05 contact confirms');
+  assert.equal(wf.connections['W03 forward: loop guard (origin w03)'].main[0][0].node, 'Load context (lead, broker, live booking, window)');
+  const w03 = JSON.parse(readFileSync(new URL('../W03.json', import.meta.url), 'utf8'));
+  assert.equal(w03.connections['Mark origin w03 (loop guard)'].main[0][0].node, 'W07 Conversation agent (forward)');
+});
+
+test('I-37e W32 Approve/Later taps from ops numbers -> W32 decision sub-call; I-37d broker media -> W23', () => {
+  const id = '3f1c2a9e-0000-4000-8000-000000000001';
+  const ops = new Set(['+27600000001']);
+  assert.equal(W.routeInbound({ from: '+27600000001', payload: `approve:${id}` }, { lead: null, ops_numbers: ops }).route, 'W32_decision');
+  assert.equal(W.routeInbound({ from: '+27600000001', payload: `later:${id}` }, { lead: null, ops_numbers: ops }).route, 'W32_decision');
+  assert.notEqual(W.routeInbound({ from: '+27600000077', payload: `approve:${id}` }, { lead: null, ops_numbers: ops }).route, 'W32_decision', 'only ops numbers decide');
+  assert.deepEqual(W.w32DecisionItem({ from: '+27600000001', payload: `later:${id}`, wamid: 'wamid.T' }), { source: 'W07', payload: `later:${id}`, from: '+27600000001', decided_by: '+27600000001', wamid: 'wamid.T' });
+  const brokers = new Set(['+27600000050']);
+  const vid = { from: '+27600000050', media: 'video', media_id: 'm1', wamid: 'wamid.V', at_ms: 1_790_000_000_000, text: '' };
+  assert.equal(W.routeInbound(vid, { broker_numbers: brokers, broker_status: 'active' }).route, 'W23');
+  assert.equal(W.routeInbound({ ...vid, media: 'audio' }, { broker_numbers: brokers, broker_status: 'onboarding' }).route, 'W23');
+  assert.equal(W.routeInbound({ ...vid, media: 'audio' }, { broker_numbers: brokers, broker_status: 'active' }).route, 'W29', 'live broker voice note = feedback');
+  const item = W.w23MediaItem(vid);
+  assert.equal(item.messages[0].type, 'video'); assert.equal(item.messages[0].video.id, 'm1'); assert.equal(item.messages[0].from, '27600000050');
+  const w23 = JSON.parse(readFileSync(new URL('../W23.json', import.meta.url), 'utf8'));
+  assert.equal(w23.nodes.filter((n) => n.type === 'n8n-nodes-base.whatsAppTrigger').length, 0, 'one inbound subscription (W07)');
+  assert.ok(w23.nodes.some((n) => n.type === 'n8n-nodes-base.executeWorkflowTrigger' && n.name === 'Called by W07 (broker media)'));
+});

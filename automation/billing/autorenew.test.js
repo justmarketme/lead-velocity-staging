@@ -132,3 +132,19 @@ test('response: 200 off (changed or already off), 403 when the JWT user has no S
   assert.deepEqual(autorenew.responseBody({ broker_id: 'b1', changed: false }).body.changed, false);
   assert.equal(autorenew.responseBody({ broker_id: null }).status, 403);
 });
+
+// fix wave 4 (compliance-qa review 4 §2g): the T-3/T-1 reminder states the card amount and how to switch it off.
+test('renewal reminder: card on states the amount (invoice, else pricing) and the portal off-switch', () => {
+  const on = autorenew.renewalReminderText({ action: 'remind_t3', open_ref: 'SMC-TEST1', card_autorenew: true, open_amount_excl_vat: 7500, open_vat_zar: null, price_zar: 9999 });
+  assert.match(on, /ends in 3 days/);
+  assert.match(on, /we will charge R7,500 excl\. VAT to your card at cycle end/);
+  assert.match(on, /switch it off any time in the portal: \/s\/billing/);
+  const fromPricing = autorenew.renewalReminderText({ action: 'remind_t1', open_ref: null, card_autorenew: true, price_zar: 12000 });
+  assert.match(fromPricing, /R12,000 excl\. VAT/);
+  const off = autorenew.renewalReminderText({ action: 'remind_t1', open_ref: 'SMC-TEST2', card_autorenew: false, open_amount_excl_vat: 7500 });
+  assert.match(off, /Card auto-renew: off\.$/);
+  assert.doesNotMatch(off, /charge/);
+  const w19 = fs.readFileSync(path.join(ROOT, 'automation', 'W19.json'), 'utf8');
+  assert.match(w19, /renewalReminderText/);
+  assert.match(w19, /open_amount_excl_vat/);
+});

@@ -45,7 +45,7 @@ function buildW03() {
     'W03 Click-to-WhatsApp intake (automation-engineer). Sub-workflow since I-35d: W07 owns POST /whatsapp (signature, 200, wamid claim, statuses, STOP, brokers, nfm_reply) and calls W03 for unknown numbers / CTWA entries / qualifying taps (automation/CONTRACTS.md "Inbound ownership"). ' +
     'The adapter rebuilds the Cloud API message from W07\'s normalised msg -> W03 step. GET /whatsapp verify handshake stays here until W07 has one (one GET handler only). ' +
     'W03 step = automation/ctwa/w03.js inlined (tested by automation/tests/W03.test.mjs): consent FIRST (named mode, 0.1) -> tap-only age/budget/bond/method -> W01 Lead core routes and W06 sends the intro card < 60 s. ' +
-    'No consent = only smc_hash_contact(mobile) in suppression. Pre-consent state lives in public.wa_threads (needs_human: schema pass 3). lead_token minted on insert (CONTRACTS.md). ' +
+    'No consent = only smc_hash_contact(mobile) in suppression. Forwards to W07 carry origin w03 and W07 never routes them back here (I-37e). W03 is the SINGLE owner of unfinished-CTWA stall nudges (+1/+20/+68 h, inside the 72-h window; before consent they only re-ask the consent question); W08 skips every lead without broker_id. Consent text version ctwa-named-v2 (responsible party + STOP + privacy link). Pre-consent state lives in public.wa_threads (needs_human: schema pass 3). lead_token minted on insert (CONTRACTS.md). ' +
     'Second entry: GET /wa/:ref tracked redirect (I-09) -> 302 wa.me only. Env: META_APP_SECRET, META_WEBHOOK_VERIFY_TOKEN, META_GRAPH_VERSION, LEAD_TOKEN_SECRET, WA_DISPLAY_NUMBER_DIGITS. Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto.' }));
 
   // I-35d: W07 owns POST /whatsapp (signature, 200, wamid claim, statuses, STOP, brokers, nfm_reply). W03 is a sub-workflow:
@@ -173,7 +173,9 @@ RETURNING id;`,
     '={{ [ $json._mobile, $json._brand_id ] }}'));
   n.push(sub('CAPI business-messaging Lead', [2240, 560], 'CAPI Send'));
   n.push(sub('W01 Lead core (route + W06 first touch < 60 s)', [2240, 700], 'W01 Lead core'));
-  n.push(sub('W07 Conversation agent (forward)', [2240, 840], 'W07 Conversation agent'));
+  // I-37e loop guard: everything W03 hands back to W07 carries origin 'w03'; W07 routeInbound never sends it to W03 again.
+  n.push(code('Mark origin w03 (loop guard)', [2240, 840], "const m = $('Called by W07 (CTWA lead)').first().json.msg || {}; return $input.all().map((it) => ({ json: { origin: 'w03', source: 'W03', lead_id: it.json.lead_id, reason: it.json.reason, brand_id: it.json._brand_id || null, msg: { ...m, origin: 'w03' } } }));"));
+  n.push(sub('W07 Conversation agent (forward)', [2460, 840], 'W07 Conversation agent'));
   n.push(sub('W22 Alerts: W03', [2240, 980], 'W22 Alerts'));
 
   // tracked redirect (I-09)
@@ -201,7 +203,8 @@ RETURNING id;`,
   link(c, 'W03 step', 'Fan out actions');
   link(c, 'Fan out actions', 'Action?');
   ['Build Cloud API body', 'Insert lead (consent at the tap)', 'Update lead (answers / out-of-band)', 'Suppress (hash only)', 'CAPI business-messaging Lead',
-    'W01 Lead core (route + W06 first touch < 60 s)', 'W07 Conversation agent (forward)', 'W22 Alerts: W03'].forEach((t, i) => link(c, 'Action?', t, i));
+    'W01 Lead core (route + W06 first touch < 60 s)', 'Mark origin w03 (loop guard)', 'W22 Alerts: W03'].forEach((t, i) => link(c, 'Action?', t, i));
+  link(c, 'Mark origin w03 (loop guard)', 'W07 Conversation agent (forward)');
   link(c, 'Build Cloud API body', 'WhatsApp send (session)');
   link(c, 'Insert lead (consent at the tap)', 'Mint lead_token');
   link(c, 'CTWA redirect (GET /wa/:ref)', 'Build redirect');

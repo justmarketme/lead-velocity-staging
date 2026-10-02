@@ -147,9 +147,8 @@ function sections(p, t, o) {
 
   S.s5 = ul((p.s5_notice || []).map((x) => li(esc(x))), 'Nothing new this week.');
 
-  const r = p.s6_roi || {};
-  S.s6 = r.shown ? `<p class="smc-text" style="margin:0 0 6px;font-size:15px;color:${t.text}">Your close rate: <b>${esc(pct(r.close_rate))}</b>. On your numbers you are tracking to about <b>${esc(r.tracking_to == null ? 'n/a' : r.tracking_to)}</b> ${r.tracking_to === 1 ? 'policy' : 'policies'} this cycle.</p>`
-    + `<p class="smc-muted" style="margin:0;font-size:13px;color:${t['text-muted']}">Basis: ${esc((r.basis || {}).attended)} attended${(r.basis || {}).booked_upcoming != null ? `, ${esc(r.basis.booked_upcoming)} still booked` : ''}${(r.basis || {}).show_rate != null ? `, ${esc(pct(r.basis.show_rate))} show rate` : ''}. Policies you report are for your view only.</p>` : '';
+  // s6 (close rate / policies) is never rendered here (compliance-qa review 4 §2h): the email and its PDF are copied to
+  // howzit@, so a policies-per-lead figure would become a Lead Velocity record (FAIS boundary). Portal-only, logged in.
 
   const a = p.s7_ask;
   const href = a ? `${o.portalUrl.replace(/\/$/, '')}/${String(a.deep_link || `ask/${o.reportId}`).replace(/^\//, '')}` : null;
@@ -203,11 +202,14 @@ export function renderPrint(p, opts) {
   const o = { ...defaults(opts), print: true }; const t = o.tokens; const S = sections(p, t, o);
   let n = 0; const B = (title, inner, cls) => block(t, ++n, title, inner, cls);
   const body = B('This week', S.s1) + B('Progress', S.s2) + B('Your meetings', S.s3) + B('Quality, in your words', S.s4)
-    + B("What you'll notice this week", S.s5) + (S.s6 ? B('Your view (your numbers only)', S.s6) : '') + B('One thing to do', S.s7) + B('Your cycle', S.s8);
+    + B("What you'll notice this week", S.s5) + B('One thing to do', S.s7) + B('Your cycle', S.s8);
   return assertClean(shell(p, t, o, body, { print: true }));
 }
 
 export const visibleText = (html) => html.replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&[#\w]+;/g, ' ').replace(/\s+/g, ' ').trim();
+
+/** Close-rate / policy figures never leave the portal (review 4 §2h). */
+export const ROI_TEXT = /close rate|tracking to about|polic(?:y|ies) (?:this cycle|you report)|Your view \(your numbers only\)/i;
 
 /** Fails the build (and so the send) on a banned word or a missing "No lock-in." line. */
 export function assertClean(html) {
@@ -215,6 +217,8 @@ export function assertClean(html) {
   const m = text.match(BANNED);
   if (m) throw new Error(`banned word in broker report: "${m[0]}"`);
   if (!/No lock-in\./.test(text)) throw new Error('broker report must say "No lock-in."');
+  const roi = text.match(ROI_TEXT);
+  if (roi) throw new Error(`close-rate / policies section in emailed broker report: "${roi[0]}" (portal only)`);
   return html;
 }
 

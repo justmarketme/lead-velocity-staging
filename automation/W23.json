@@ -23,25 +23,17 @@
     },
     {
       "parameters": {
-        "updates": [
-          "messages"
-        ],
-        "options": {}
+        "inputSource": "passthrough"
       },
       "id": "w23-02",
-      "name": "WhatsApp inbound (known broker capture)",
-      "type": "n8n-nodes-base.whatsAppTrigger",
-      "typeVersion": 1,
+      "name": "Called by W07 (broker media)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
       "position": [
         0,
         260
       ],
-      "credentials": {
-        "whatsAppTriggerApi": {
-          "name": "WhatsApp Trigger (SortMyCover)"
-        }
-      },
-      "webhookId": "w23-wa-inbound"
+      "notes": "I-37d: one inbound WhatsApp subscription (W07). W07 routes broker video / pre-live broker audio here with a Cloud API message item ({messages:[...]}, automation/lib/w07.mjs w23MediaItem)."
     },
     {
       "parameters": {
@@ -236,7 +228,7 @@
         "operation": "executeQuery",
         "query": "select b.id::text as broker_id, b.contact_person as adviser_name, b.firm_name as practice_name, b.fsp_number, b.whatsapp_number as to_number, coalesce((select m.script_text from broker_media m where m.broker_id = b.id and m.script_text is not null order by m.version desc limit 1),'') as script_text from brokers b where regexp_replace(coalesce(b.whatsapp_number,''),'\\D','','g') = regexp_replace($1,'\\D','','g') and b.status <> 'ended' limit 1",
         "options": {
-          "queryReplacement": "={{ $('WhatsApp inbound (known broker capture)').item.json.messages[0].from }}"
+          "queryReplacement": "={{ $('Called by W07 (broker media)').item.json.messages[0].from }}"
         }
       },
       "id": "w23-09",
@@ -255,7 +247,7 @@
     },
     {
       "parameters": {
-        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION || 'v21.0' }}/{{ $('WhatsApp inbound (known broker capture)').item.json.messages[0][$('WhatsApp inbound (known broker capture)').item.json.messages[0].type].id }}",
+        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION || 'v21.0' }}/{{ $('Called by W07 (broker media)').item.json.messages[0][$('Called by W07 (broker media)').item.json.messages[0].type].id }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {}
@@ -352,13 +344,13 @@
             {
               "id": "a7",
               "name": "take_id",
-              "value": "={{ 'wa-' + $('WhatsApp inbound (known broker capture)').item.json.messages[0].id.replace(/[^A-Za-z0-9]/g,'').slice(-12) }}",
+              "value": "={{ 'wa-' + $('Called by W07 (broker media)').item.json.messages[0].id.replace(/[^A-Za-z0-9]/g,'').slice(-12) }}",
               "type": "string"
             },
             {
               "id": "a8",
               "name": "kind",
-              "value": "={{ $('WhatsApp inbound (known broker capture)').item.json.messages[0].type === 'audio' ? 'audio' : 'video' }}",
+              "value": "={{ $('Called by W07 (broker media)').item.json.messages[0].type === 'audio' ? 'audio' : 'video' }}",
               "type": "string"
             },
             {
@@ -370,7 +362,7 @@
             {
               "id": "a10",
               "name": "ext",
-              "value": "={{ $('WhatsApp inbound (known broker capture)').item.json.messages[0].type === 'audio' ? 'ogg' : 'mp4' }}",
+              "value": "={{ $('Called by W07 (broker media)').item.json.messages[0].type === 'audio' ? 'ogg' : 'mp4' }}",
               "type": "string"
             }
           ]
@@ -1507,7 +1499,7 @@
         ]
       ]
     },
-    "WhatsApp inbound (known broker capture)": {
+    "Called by W07 (broker media)": {
       "main": [
         [
           {

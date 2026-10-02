@@ -47,13 +47,18 @@ function readOrigin(msg) {
 
 // ---------------------------------------------------------------- consent (0.1: named while one broker)
 const CONSENT_GENERIC_V1 = "Before we start: if it's a fit, we'll share your details with an authorised financial services provider who'll contact you about life cover. OK to continue?";
+const CONSENT_NAMED_VERSION = 'ctwa-named-v2';
+const CONSENT_NAMED_FOOTER = 'Lead Velocity (Pty) Ltd runs SortMyCover and is responsible for your details. Reply STOP to opt out. Privacy: sortmycover.co.za/privacy';
+const WA_BUTTON_BODY_MAX = 1024; // Cloud API interactive body limit
 function consentFor(mode, broker) {
   if (mode === 'generic') return { version: 'ctwa-v1', mode: 'generic', text: CONSENT_GENERIC_V1 };
   if (!broker || !broker.practice_name || !broker.fsp_number) return null; // named mode needs a named broker
   return {
-    version: 'ctwa-named-v1',
+    version: CONSENT_NAMED_VERSION,
     mode: 'named',
-    text: `Before we start: if it's a fit, we'll share your details with ${broker.practice_name} (FSP ${broker.fsp_number}), an authorised financial services provider who'll contact you about life cover. OK to continue?`,
+    // v2 (compliance-qa review 4 §2a): one added line = responsible party + opt-out route + privacy link, so the
+    // WhatsApp consent record is equivalent evidence to the landing named consent. Body stays < 1,024 chars (button body limit).
+    text: `Before we start: if it's a fit, we'll share your details with ${broker.practice_name} (FSP ${broker.fsp_number}), an authorised financial services provider who'll contact you about life cover. OK to continue?\n\n${CONSENT_NAMED_FOOTER}`,
   };
 }
 
@@ -218,4 +223,4 @@ function toCloudApi(to, m) {
   return { ...base, type: 'interactive', interactive: { type: 'list', body: { text: m.body }, action: { button: m.button.slice(0, 20), sections: [{ title: 'Options', rows: m.rows.map((r) => ({ id: r.id, title: r.title.slice(0, 24) })) }] } } };
 }
 
-module.exports = { redirectFor, readOrigin, consentFor, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_V1, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };
+module.exports = { redirectFor, readOrigin, consentFor, CONSENT_NAMED_VERSION, CONSENT_NAMED_FOOTER, WA_BUTTON_BODY_MAX, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_V1, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };
