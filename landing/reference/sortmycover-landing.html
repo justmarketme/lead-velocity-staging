@@ -1,0 +1,400 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>SortMyCover</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;0,9..40,800&display=swap">
+<style>
+/* Layout: one column, one goal. Hero + quiz in the first two screens; proof beside the ask; detail below. Amber/charcoal/off-white from the brand kit. */
+:root{
+  --amber:#F5A623; --amber-ink:#2A1B02; --char:#1F2933; --char-2:#2B3845; --off:#FBF8F2; --off-2:#F1ECE2;
+  --bg:var(--off); --fg:var(--char); --muted:#5C6672; --rule:#DCD6CB; --card:#FFFFFF;
+  --ok:#2E7D4F;
+  --font:"DM Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --radius:12px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#15181C;--fg:#F1EDE5;--muted:#A9AFB7;--rule:#2B3138;--card:#1C2027;--off-2:#1C2027;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#15181C;--fg:#F1EDE5;--muted:#A9AFB7;--rule:#2B3138;--card:#1C2027;--off-2:#1C2027;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);line-height:1.5;font-size:16px}
+.wrap{max-width:560px;margin:0 auto;padding-inline:16px}
+a{color:inherit}
+h1,h2,h3{text-wrap:balance;margin:0}
+.tick{display:inline-grid;place-items:center;width:.95em;height:.95em;border-radius:50%;background:var(--amber);position:relative;top:.12em;margin:0 1px}
+.tick svg{width:68%;height:68%}
+.logo{font-weight:800;font-size:20px;letter-spacing:-.01em;display:inline-flex;align-items:baseline}
+
+/* top bar */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--char);color:var(--off);padding:10px 0}
+.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.top small{font-size:12px;color:#C9C3B8;font-weight:500}
+
+/* hero */
+.hero{background:var(--char);color:var(--off);padding-block:28px 32px;position:relative;overflow:hidden}
+.hero:before{content:"";position:absolute;inset:0;background:radial-gradient(90% 60% at 20% 0%,#2E3C4B 0%,transparent 60%)}
+.hero .wrap{position:relative}
+.hero h1{font-size:clamp(30px,8vw,40px);font-weight:800;line-height:1.02;letter-spacing:-.02em}
+.hero h1 em{font-style:normal;color:var(--amber)}
+.hero p{font-size:17px;color:#D7D2C8;margin:14px 0 18px;max-width:40ch}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;background:var(--amber);color:var(--amber-ink);font-weight:800;font-size:17px;padding:14px 22px;border-radius:999px;border:0;cursor:pointer;text-decoration:none;min-height:52px}
+.btn:focus-visible{outline:3px solid var(--off);outline-offset:3px}
+.btn.secondary{background:transparent;color:var(--fg);border:2px solid var(--rule);font-weight:700}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.chip{font-size:13px;font-weight:600;color:var(--off);background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);padding:6px 10px;border-radius:999px}
+.chip b{color:var(--amber)}
+
+/* gap picture */
+.gap{padding-block:28px}
+.gap h2{font-size:22px;font-weight:800;letter-spacing:-.01em;margin-bottom:6px}
+.gap p{color:var(--muted);margin:0 0 16px}
+.bars{display:grid;gap:12px}
+.bar{display:grid;grid-template-columns:1fr;gap:6px}
+.bar label{font-size:14px;font-weight:600;display:flex;justify-content:space-between}
+.bar .track{height:18px;border-radius:999px;background:var(--off-2);overflow:hidden;border:1px solid var(--rule)}
+.bar .fill{height:100%;border-radius:999px}
+.bar.work .fill{width:28%;background:#8A94A0}
+.bar.need .fill{width:100%;background:var(--amber)}
+.bar .note{font-size:12px;color:var(--muted)}
+
+/* quiz */
+.quiz{padding-block:8px 32px}
+.card{background:var(--card);border:1px solid var(--rule);border-radius:16px;padding:20px;box-shadow:0 10px 30px rgba(31,41,51,.06)}
+.progress{display:flex;gap:6px;margin-bottom:14px}
+.progress i{flex:1;height:4px;border-radius:999px;background:var(--rule)}
+.progress i.on{background:var(--amber)}
+.q{display:none}
+.q.on{display:block}
+.q h3{font-size:20px;font-weight:800;letter-spacing:-.01em;margin-bottom:4px}
+.q .hint{color:var(--muted);font-size:14px;margin:0 0 14px}
+.opts{display:grid;gap:10px}
+.opt{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-radius:var(--radius);border:2px solid var(--rule);background:var(--card);font:inherit;font-weight:600;color:var(--fg);text-align:left;cursor:pointer;min-height:52px}
+.opt:hover{border-color:var(--amber)}
+.opt:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+.opt.sel{border-color:var(--amber);background:rgba(245,166,35,.08)}
+.opt .dot{width:22px;height:22px;border-radius:50%;border:2px solid var(--rule);display:grid;place-items:center;flex:none}
+.opt.sel .dot{border-color:var(--amber);background:var(--amber)}
+.opt.sel .dot svg{display:block}
+.opt .dot svg{display:none;width:14px;height:14px}
+.nav{display:flex;justify-content:space-between;align-items:center;margin-top:16px;gap:10px}
+.link{background:none;border:0;color:var(--muted);font:inherit;font-weight:600;cursor:pointer;padding:8px 0;text-decoration:underline}
+.field{display:grid;gap:6px;margin-bottom:12px}
+.field label{font-size:14px;font-weight:700}
+.field input{font:inherit;font-size:17px;padding:12px 14px;border-radius:var(--radius);border:2px solid var(--rule);background:var(--card);color:var(--fg);min-height:52px}
+.field input:focus{outline:none;border-color:var(--amber)}
+.field .err{display:none;color:#A32D2D;font-size:13px}
+.field.bad .err{display:block}
+.field.bad input{border-color:#A32D2D}
+.consent{display:flex;gap:12px;align-items:flex-start;font-size:14px;line-height:1.45;margin:14px 0 4px}
+.consent input{width:22px;height:22px;margin-top:2px;flex:none;accent-color:var(--amber)}
+.consent .err{display:none;color:#A32D2D;font-size:13px;margin-left:34px}
+.consent.bad .err{display:block}
+.beside{margin-top:14px;padding:12px 14px;border-radius:var(--radius);background:var(--off-2);font-size:14px;display:grid;gap:6px}
+.beside b{font-weight:700}
+.slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin:10px 0 14px}
+.slot{padding:10px 8px;border-radius:10px;border:2px solid var(--rule);background:var(--card);font:inherit;font-weight:700;font-size:14px;cursor:pointer;color:var(--fg);font-variant-numeric:tabular-nums}
+.slot small{display:block;font-weight:500;color:var(--muted);font-size:12px}
+.slot.sel{border-color:var(--amber);background:rgba(245,166,35,.08)}
+.methods{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.method{padding:9px 14px;border-radius:999px;border:2px solid var(--rule);background:var(--card);font:inherit;font-weight:700;font-size:14px;cursor:pointer;color:var(--fg)}
+.method.sel{border-color:var(--amber);background:rgba(245,166,35,.08)}
+.done{text-align:center;padding:10px 0 4px}
+.done .big{font-size:56px;line-height:1;color:var(--amber)}
+.done h3{font-size:22px;font-weight:800;margin:10px 0 6px}
+.done p{color:var(--muted);margin:0 0 10px}
+.done .summary{display:inline-grid;gap:4px;text-align:left;background:var(--off-2);padding:12px 16px;border-radius:var(--radius);font-size:14px;margin-top:8px}
+
+/* how it works */
+.how{padding-block:28px;border-top:1px solid var(--rule)}
+.how h2{font-size:22px;font-weight:800;margin-bottom:14px}
+.steps{display:grid;gap:14px}
+.step{display:grid;grid-template-columns:40px 1fr;gap:12px;align-items:start}
+.step .n{width:40px;height:40px;border-radius:50%;background:var(--amber);color:var(--amber-ink);display:grid;place-items:center;font-weight:800}
+.step b{display:block;font-weight:700}
+.step span{color:var(--muted);font-size:15px}
+
+/* faq */
+.faq{padding-block:8px 28px}
+.faq h2{font-size:22px;font-weight:800;margin-bottom:10px}
+details{border-top:1px solid var(--rule)}
+details:last-of-type{border-bottom:1px solid var(--rule)}
+summary{cursor:pointer;padding:14px 0;font-weight:700;list-style:none;display:flex;justify-content:space-between;gap:12px}
+summary::-webkit-details-marker{display:none}
+summary:after{content:"+";color:var(--amber);font-weight:800;font-size:20px;line-height:1}
+details[open] summary:after{content:"–"}
+details p{margin:0 0 14px;color:var(--muted);font-size:15px}
+
+/* footer */
+footer{background:var(--char);color:#C9C3B8;padding-block:24px 32px;font-size:13px}
+footer .wrap{display:grid;gap:10px}
+footer .logo{color:var(--off)}
+footer a{color:#E6E1D8}
+.sticky{position:sticky;bottom:0;z-index:4;background:var(--bg);border-top:1px solid var(--rule);padding:10px 0 calc(10px + env(safe-area-inset-bottom,0px))}
+.sticky .wrap{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.sticky small{color:var(--muted);font-size:13px}
+@media (prefers-reduced-motion: no-preference){.q.on{animation:in .25s ease}@keyframes in{from{opacity:.4;transform:translateY(6px)}to{opacity:1;transform:none}}}
+.sr{position:absolute;left:-9999px}
+</style>
+
+<div class="top"><div class="wrap">
+  <span class="logo">SortMyC<span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>ver</span>
+  <small>Free 30-min call · licensed adviser</small>
+</div></div>
+
+<section class="hero"><div class="wrap">
+  <h1>Most work life cover stops at <em>2–4× salary.</em><br>Most bonds don’t.</h1>
+  <p>Check if yours lines up. 30 minutes with a licensed adviser, on WhatsApp or video. Nothing to buy on the call.</p>
+  <a class="btn" href="#quiz" id="heroCta">Check my cover <span aria-hidden="true">→</span></a>
+  <div class="chips">
+    <span class="chip"><b>60 s</b> to check</span>
+    <span class="chip"><b>Licensed</b> adviser</span>
+    <span class="chip"><b>No</b> obligation</span>
+    <span class="chip">Video · WhatsApp · phone</span>
+  </div>
+</div></section>
+
+<section class="gap"><div class="wrap">
+  <h2>Why the gap is so common</h2>
+  <p>Most people have some life cover through work. It’s usually a few times your salary. A bond, school fees and the years your family would need your income add up to more.</p>
+  <div class="bars">
+    <div class="bar work"><label><span>Typical work cover</span><span>2–4× salary</span></label><div class="track"><div class="fill"></div></div><span class="note">What most employers provide</span></div>
+    <div class="bar need"><label><span>Bond + income + schooling</span><span>Often much more</span></label><div class="track"><div class="fill"></div></div><span class="note">What a family usually needs, over the years it needs it</span></div>
+  </div>
+</div></section>
+
+<section class="quiz" id="quiz"><div class="wrap">
+  <div class="card" id="card">
+    <div class="progress" id="prog"><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+
+    <div class="q on" data-step="1">
+      <h3>How old are you?</h3>
+      <p class="hint">Tap one. Takes about a minute in total.</p>
+      <div class="opts" data-key="age">
+        <button class="opt" data-v="<35">Under 35 <span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span></button>
+        <button class="opt" data-v="35-44">35 to 44 <span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span></button>
+        <button class="opt" data-v="45-50">45 to 50 <span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span></button>
+        <button class="opt" data-v="51+">51 or older <span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span></button>
+      </div>
+    </div>
+
+    <div class="q" data-step="2">
+      <h3>Do you have a home loan?</h3>
+      <p class="hint">A bond is usually the biggest thing cover needs to carry.</p>
+      <div class="opts" data-key="bond">
+        <button class="opt" data-v="yes">Yes <span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span></button>
+        <button class="opt" data-v="soon">Not yet, applying soon <span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span></button>
+        <button class="opt" data-v="no">No <span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span></button>
+      </div>
+    </div>
+
+    <div class="q" data-step="3">
+      <h3>Who depends on your income?</h3>
+      <p class="hint">Partner, children, parents. Tap the closest fit.</p>
+      <div class="opts" data-key="deps">
+        <button class="opt" data-v="kids">Partner and children <span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span></button>
+        <button class="opt" data-v="extended">My household and family beyond it <span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span></button>
+        <button class="opt" data-v="partner">Partner only <span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span></button>
+        <button class="opt" data-v="none">Just me <span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span></button>
+      </div>
+    </div>
+
+    <div class="q" data-step="4">
+      <h3>Do you have life cover through work?</h3>
+      <p class="hint">Check your payslip or benefits statement if you’re not sure. “Not sure” is fine.</p>
+      <div class="opts" data-key="work">
+        <button class="opt" data-v="yes">Yes <span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span></button>
+        <button class="opt" data-v="unsure">Not sure <span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span></button>
+        <button class="opt" data-v="no">No, I’m self-employed or it isn’t offered <span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span></button>
+      </div>
+    </div>
+
+    <div class="q" data-step="5">
+      <h3>If the numbers made sense, what could you comfortably set aside each month?</h3>
+      <p class="hint">This isn’t a quote. It helps the adviser prepare for your call.</p>
+      <div class="opts" data-key="budget">
+        <button class="opt" data-v="<500">Under R500 <span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span></button>
+        <button class="opt" data-v="500-750">R500 to R750 <span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span></button>
+        <button class="opt" data-v="750-1250">R750 to R1 250 <span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span></button>
+        <button class="opt" data-v="1250+">R1 250 or more <span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span></button>
+      </div>
+    </div>
+
+    <!-- result: qualified -->
+    <div class="q" data-step="6">
+      <h3 id="resultH">A licensed adviser can look at your actual numbers.</h3>
+      <p class="hint">One 30-minute call. You decide after. Where should we send your adviser’s details and some times?</p>
+      <form id="lead" novalidate>
+        <div class="field" id="fName"><label for="name">First name</label><input id="name" name="name" autocomplete="given-name" inputmode="text" placeholder="e.g. Thabo"><span class="err">Please add your first name.</span></div>
+        <div class="field" id="fPhone"><label for="phone">Mobile number (WhatsApp)</label><input id="phone" name="phone" autocomplete="tel" inputmode="tel" placeholder="e.g. 082 123 4567"><span class="err">Please enter a valid South African mobile number.</span></div>
+        <label class="consent" id="fConsent"><input type="checkbox" id="consent"><span>I agree that SortMyCover (a service of Lead Velocity (Pty) Ltd) may share my details with <b>Mark Williams Financial Planning (FSP 00000)</b>, an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. <a href="#privacy">Privacy notice</a></span></label>
+        <span class="err consent-err" style="display:none;color:#A32D2D;font-size:13px">Please tick the box so we can share your details with the adviser.</span>
+        <div class="nav"><button type="button" class="link" data-back>Back</button><button type="submit" class="btn">Send my details <span aria-hidden="true">→</span></button></div>
+      </form>
+      <div class="beside">
+        <b>What happens next</b>
+        <span>Within a minute you’ll get a WhatsApp with your adviser’s name, practice and FSP number.</span>
+        <span>You pick a time that suits you. Reminders before the call.</span>
+        <span>No products, prices or paperwork on the call. Just your numbers, explained.</span>
+      </div>
+    </div>
+
+    <!-- booking -->
+    <div class="q" data-step="7">
+      <h3>Pick a time for your call</h3>
+      <p class="hint">Live availability. You can change it on WhatsApp later.</p>
+      <div class="slots" id="slots"></div>
+      <p class="hint" style="margin-top:0">How should the adviser reach you?</p>
+      <div class="methods" id="methods">
+        <button class="method sel" data-m="Teams">Video (Teams)</button>
+        <button class="method" data-m="WhatsApp call">WhatsApp call</button>
+        <button class="method" data-m="Phone">Phone</button>
+      </div>
+      <div class="nav"><button type="button" class="link" id="skipBook">I’ll pick a time on WhatsApp</button><button type="button" class="btn" id="book">Book my call</button></div>
+    </div>
+
+    <!-- done -->
+    <div class="q" data-step="8">
+      <div class="done">
+        <div class="big">✓</div>
+        <h3 id="doneH">Booked. Check your WhatsApp.</h3>
+        <p id="doneP">Your adviser’s details and a calendar invite are on their way.</p>
+        <div class="summary" id="summary"></div>
+      </div>
+    </div>
+
+    <!-- not a fit -->
+    <div class="q" data-step="9">
+      <div class="done">
+        <h3>Thanks for checking.</h3>
+        <p>From your answers, a call isn’t the right fit right now. We haven’t saved your details.</p>
+        <p style="font-size:14px">If things change, come back any time.</p>
+      </div>
+    </div>
+  </div>
+</div></section>
+
+<section class="how"><div class="wrap">
+  <h2>How it works</h2>
+  <div class="steps">
+    <div class="step"><div class="n">1</div><div><b>Answer five quick questions</b><span>About a minute. No typing until the end.</span></div></div>
+    <div class="step"><div class="n">2</div><div><b>Meet your adviser on WhatsApp</b><span>You get their name, practice and FSP number straight away, and a short intro from them.</span></div></div>
+    <div class="step"><div class="n">3</div><div><b>Have the call</b><span>30 minutes, video or phone. They look at your actual numbers. You decide after.</span></div></div>
+  </div>
+</div></section>
+
+<section class="faq"><div class="wrap">
+  <h2>Questions people ask</h2>
+  <details><summary>How long does it take?</summary><p>The check takes about a minute. The call is 30 minutes, at a time you pick.</p></details>
+  <details><summary>What does it cost?</summary><p>Nothing. The call is free and there’s no obligation. Advisers pay us a flat fee to be introduced. We never earn commission on anything you buy, and nothing is added to your premium.</p></details>
+  <details><summary>Who is the adviser?</summary><p>A licensed financial adviser (an authorised financial services provider). You’ll see their name, practice and FSP number on WhatsApp before you speak to them, and you can check it on the FSCA register.</p></details>
+  <details><summary>What happens to my information?</summary><p>We share it with the adviser you’re introduced to, and no one else. You can ask us to delete it at any time. Reply STOP to any message and we stop. Our privacy notice has the detail.</p></details>
+  <details><summary>Do I have to buy anything?</summary><p>No. The call is to understand your numbers. Any decision is yours, with the adviser, afterwards.</p></details>
+  <details><summary>Is SortMyCover an insurer?</summary><p>No. We don’t sell cover, give advice, compare products or quote premiums. We connect you with a licensed adviser who can.</p></details>
+</div></section>
+
+<footer id="privacy"><div class="wrap">
+  <span class="logo">SortMyC<span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>ver</span>
+  <span>SortMyCover is a service of Lead Velocity (Pty) Ltd. We connect you with authorised financial services providers. We do not give financial advice, compare products or quote premiums.</span>
+  <span><a href="#">Privacy notice</a> · <a href="#">How we make money</a> · <a href="#">Complaints</a> · hello@sortmycover.co.za</span>
+  <span>Imagery on this page may be AI-generated. Advisers shown on WhatsApp are real, licensed people.</span>
+</div></footer>
+
+<div class="sticky" id="sticky"><div class="wrap"><small>Free · 30 minutes · licensed adviser</small><a class="btn" href="#quiz" style="min-height:44px;padding:10px 18px;font-size:15px">Check my cover</a></div></div>
+
+<script>
+(function(){
+  var answers={};
+  var step=1, total=7;
+  var card=document.getElementById('card');
+  var prog=document.getElementById('prog');
+  function show(n){
+    step=n;
+    card.querySelectorAll('.q').forEach(function(q){q.classList.toggle('on', +q.dataset.step===n)});
+    var fill=Math.min(n,total);
+    prog.querySelectorAll('i').forEach(function(i,idx){i.classList.toggle('on', idx<fill)});
+    prog.style.display = (n>=8)?'none':'flex';
+    document.getElementById('sticky').style.display = (n>=6)?'none':'';
+    if(n>=2){ card.scrollIntoView({behavior:'smooth',block:'start'}); }
+  }
+  card.querySelectorAll('.opts').forEach(function(group){
+    group.addEventListener('click',function(e){
+      var b=e.target.closest('.opt'); if(!b) return;
+      group.querySelectorAll('.opt').forEach(function(o){o.classList.remove('sel')});
+      b.classList.add('sel');
+      answers[group.dataset.key]=b.dataset.v;
+      setTimeout(function(){ next(); },220);
+    });
+  });
+  function qualifies(){
+    var ageOk = answers.age==='35-44' || answers.age==='45-50';
+    var budgetOk = answers.budget==='750-1250' || answers.budget==='1250+';
+    return ageOk && budgetOk;
+  }
+  function next(){
+    if(step<5){ show(step+1); return; }
+    if(step===5){
+      if(qualifies()){
+        var h=document.getElementById('resultH');
+        if(answers.work==='yes') h.textContent='Your work cover is a start. A licensed adviser can check if it carries your bond and your family.';
+        else if(answers.work==='no') h.textContent='Without work cover, this is worth 30 minutes. A licensed adviser can look at your actual numbers.';
+        else h.textContent='A licensed adviser can find out what you have and check it against what your family would need.';
+        show(6);
+      } else { show(9); }
+    }
+  }
+  card.querySelectorAll('[data-back]').forEach(function(b){b.addEventListener('click',function(){show(5)})});
+
+  // form
+  var form=document.getElementById('lead');
+  function validPhone(v){ var d=v.replace(/\D/g,''); if(d.startsWith('27')) d='0'+d.slice(2); return /^0[6-8][0-9]{8}$/.test(d); }
+  form.addEventListener('submit',function(e){
+    e.preventDefault();
+    var ok=true;
+    var n=document.getElementById('name'), p=document.getElementById('phone'), c=document.getElementById('consent');
+    document.getElementById('fName').classList.toggle('bad', !(ok = n.value.trim().length>=2 && ok) && true);
+    var nameOk=n.value.trim().length>=2, phoneOk=validPhone(p.value), consentOk=c.checked;
+    document.getElementById('fName').classList.toggle('bad',!nameOk);
+    document.getElementById('fPhone').classList.toggle('bad',!phoneOk);
+    document.querySelector('.consent-err').style.display = consentOk?'none':'block';
+    if(!(nameOk&&phoneOk&&consentOk)) return;
+    answers.name=n.value.trim(); answers.phone=p.value.trim(); answers.consent_at=new Date().toISOString();
+    renderSlots(); show(7);
+  });
+
+  // slots (illustrative — production reads GET /slots for the routed broker's Outlook)
+  var sel=null;
+  function renderSlots(){
+    var el=document.getElementById('slots'); el.innerHTML='';
+    var days=['Tomorrow','Thu','Fri','Mon','Tue'], times=['09:30','11:00','13:30','16:00'];
+    var count=0;
+    for(var d=0; d<days.length && count<8; d++){
+      for(var t=0;t<times.length && count<8;t++){
+        if((d+t)%3===1) continue;
+        var b=document.createElement('button'); b.className='slot'; b.type='button';
+        b.innerHTML=times[t]+'<small>'+days[d]+'</small>'; b.dataset.v=days[d]+' '+times[t];
+        b.addEventListener('click',function(){ el.querySelectorAll('.slot').forEach(function(s){s.classList.remove('sel')}); this.classList.add('sel'); sel=this.dataset.v; });
+        el.appendChild(b); count++;
+      }
+    }
+  }
+  var method='Teams';
+  document.getElementById('methods').addEventListener('click',function(e){var b=e.target.closest('.method'); if(!b) return; this.querySelectorAll('.method').forEach(function(m){m.classList.remove('sel')}); b.classList.add('sel'); method=b.dataset.m;});
+  document.getElementById('book').addEventListener('click',function(){
+    if(!sel){ document.getElementById('slots').style.outline='3px solid #A32D2D'; setTimeout(function(){document.getElementById('slots').style.outline='';},1200); return; }
+    finish(true);
+  });
+  document.getElementById('skipBook').addEventListener('click',function(){ finish(false); });
+  function finish(booked){
+    var s=document.getElementById('summary');
+    if(booked){
+      document.getElementById('doneH').textContent='Booked. Check your WhatsApp, '+answers.name+'.';
+      document.getElementById('doneP').textContent='Your adviser’s details and a calendar invite are on their way.';
+      s.innerHTML='<span><b>When:</b> '+sel+'</span><span><b>How:</b> '+method+'</span><span><b>Adviser:</b> named in your WhatsApp within a minute</span>';
+    } else {
+      document.getElementById('doneH').textContent='Thanks, '+answers.name+'. Check your WhatsApp.';
+      document.getElementById('doneP').textContent='We’ve sent your adviser’s details and a few times to pick from.';
+      s.innerHTML='<span><b>Next:</b> tap a time in WhatsApp</span>';
+    }
+    show(8);
+  }
+  show(1);
+})();
+</script>
+
+</body></html>
