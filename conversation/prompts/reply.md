@@ -2,7 +2,8 @@
 
 | | |
 |---|---|
-| Version | `reply-v1.0.1` (2026-10-02: examples follow faq-v1.0.1; assembly order adds the new fixed lines; FIRST_NAME is the sanitised value) |
+| Version | `reply-v1.0.2` (2026-10-02: I-35e - fallbacks are now keys in `conversation/lines.mjs` (en + af); slot/reschedule/cancel/method actions are executed by W04/W10 as ONE interactive message whose body is the fallback line, never a second generated message; `greet` and `booking_status` never reach the model. Prompt block unchanged.) |
+| Previous | `reply-v1.0.1` (examples follow faq-v1.0.1; assembly order adds the new fixed lines; FIRST_NAME is the sanitised value) |
 | Model | `claude-haiku-4-5-20251001`, temperature 0.4, max_tokens 220 |
 | Escalate to | `claude-sonnet-5-5` once, when the draft fails the output gate or the guardrail classifier and the turn had a non-advice part worth keeping (multi-intent). A second failure sends fixed lines only. |
 | Input | the **decision** from `logic.mjs` (actions + the facts code looked up), the lead's message (redacted), language, register hints. |
@@ -56,15 +57,21 @@ THEIR MESSAGE: """{redacted message}"""
 
 ## Fallbacks when the draft is dropped (no LLM text reaches the lead)
 
-| Action | Fallback text (code) |
-|---|---|
-| `answer:FAQ-xx` | the FAQ `en`/`af` answer, verbatim |
-| `send_slots` / `offer_slots` | "Here are the next open times with {adviser_first}." + list |
-| `reschedule` / `reschedule_slots` | "No problem, here are some other times." + list (+ `SAME_METHOD` buttons if a method is stored) |
-| `cancel_confirm` | "Do you want me to cancel your call on {date} at {time}?" + `Yes, cancel` · `Keep it` |
-| `change_method` | "I'll change it to {new_method_label}." |
-| `capture_contact` | "Thanks, I've saved that." |
-| `set_language` | AF: "Reg so, ons kan in Afrikaans gesels." / EN: "Sure, we can chat in English." |
+All fallback wording is a fixed line in `conversation/lines.mjs` (en + af), tested by the eval on every change. Code fills the placeholders; nothing here is paraphrased.
+
+| Action | Who sends it | Fallback (lines.mjs key) |
+|---|---|---|
+| `answer:FAQ-xx` | W07 | the FAQ `en`/`af` answer from `knowledge/faq.md`, verbatim (code must pass the FAQ map to the fallback) |
+| `send_slots` / `offer_slots` | **W04**, one interactive list | `SLOTS_INTRO` as the list body |
+| `reschedule` / `reschedule_slots` | **W10**, one interactive list | `RESCHED_INTRO` as the list body (+ `SAME_METHOD` buttons if a method is stored) |
+| `cancel_confirm` | **W10**, one button message | `CANCEL_CONFIRM_Q` + `Yes, cancel` · `Keep it`; after Yes: `CANCEL_DONE` + `See open times` |
+| `change_method` | **W10** | `METHOD_CHANGED` ({method} = the new method label) |
+| `capture_contact` | W07 | `SAVED` |
+| `set_language` | W07 | `LANG_SWITCH` in the new language |
+| `booking_status` | W07, no LLM call | `BOOKING_STATUS` |
+| `greet` | W07, no LLM call | booked: `BOOKING_STATUS`; not booked: delegate `send_slots` to W04 (`SLOTS_INTRO` + list) |
+
+**One message, never two (I-35e).** When a turn delegates to W04/W10, the delegate sends the only message of that turn. Any fixed lines the turn also needs (`DISCLOSE` on first free text, `DEFER` + `DEFER_NOTED`, `ID_WARNING`, `BANK_WARNING`, `MEDIA_NOT_OPENED`) go *into the same interactive body*, in the assembly order above, before the fallback line (body limit 1,024 characters; the fixed lines total under 400). For these actions the reply model is optional: if it is used, its draft replaces the fallback line inside the same body only after `outputGate` + classifier + `toneCheck` pass.
 
 ## Examples (few-shot, kept out of the prompt until the golden set shows they are needed)
 

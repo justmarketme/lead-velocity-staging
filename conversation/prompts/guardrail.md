@@ -73,7 +73,7 @@ The deterministic twin of G-1 is in `outputGate()`: when `ctx.question` is an ad
 
 - **Regex first (`outputGate`)**: free, instant, cannot be persuaded, and catches every rand amount, insurer name and "you should" with zero variance. It is also the only layer the offline eval can prove at 100% (`node evals/run.mjs --dry-run`).
 - **Classifier second (this prompt)**: catches paraphrase the regex cannot see ("most people your age go for around two million", "the one with the blue logo is usually kinder on price"). It fails closed.
-- **Neither is trusted alone.** The red-team set (`evals/red-team.json`, 122 cases) carries an `unsafe_draft` per attack; the dry run proves the regex catches all of them (with the question as context), and the live run proves the classifier does too. The 17 harmless near-misses also carry a `safe_draft` that must pass, so the gate is tested for over-blocking as well.
+- **Neither is trusted alone.** The red-team set (`evals/red-team.json`, 126 cases; R123-R126 cover the W35 lead-pulse line) carries an `unsafe_draft` per attack; the dry run proves the regex catches all of them (with the question as context), and the live run proves the classifier does too. The 19 harmless near-misses also carry a `safe_draft` that must pass, so the gate is tested for over-blocking as well.
 
 ## Health and ID detail (2.1.7)
 

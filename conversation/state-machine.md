@@ -39,7 +39,7 @@
 | `rescheduling` | `SAME_METHOD` buttons if a method is stored, then `reschedule_offer` (3 slots) or `reschedule_offer_v2` (Flow pre-filled). Event moved, not duplicated (W10). Second reschedule → console flag. | L1 | new slot | `booked_await_commit` (commitment asked again, short form) |
 | `meeting_due` | T-10 min link / "calling you now" | L1 | slot time | `outcome_pending` |
 | `outcome_pending` | Broker: `broker_outcome_check` at T+15 → `broker_disposition` → `broker_quality` → optional voice note (4.12a). Lead: `reach_check` at T+30. | L1 | both sides | `attended` / `no_show` / `broker_no_show` |
-| `attended` | `attended_thanks`; W35 `lead_pulse` after the reach-check. Then **nothing else from us** (FAIS). | L1 | | `closed_attended` |
+| `attended` | `attended_thanks`; W35 `lead_pulse` after the reach-check (attended + 30 min, never before the reach-check is settled; reach-check `no` = no pulse; session `PULSE_ASK` inside the 24-h window, template `lead_pulse` outside). Tap → `PULSE_LINE_ASK_UP`/`_DOWN` once; the next free text within 24 h is the optional line (`conversation/pulse.mjs` `isPulseLine`; advice questions, person, STOP, complaints go the normal W07 way) → `PULSE_LINE_THANKS`. Then **nothing else from us** (FAIS). | L1 | | `closed_attended` |
 | `no_show` | `missed_you` (3 new times, zero guilt, one offer) | L1 | slot tapped / 48 h silence | `booking` / W13 `replacement_due` |
 | `broker_no_show` | Lead said the adviser didn't call: apology + 3 new times; Schedule D path, KG alerted (W12/W13) | L1 | | `booking` |
 | `handoff` | One fixed handoff line; bot paused (see `handoff.md`) | human | console "Hand back" | previous state |

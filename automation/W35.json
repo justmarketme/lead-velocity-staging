@@ -1,0 +1,747 @@
+{
+  "name": "W35 Lead pulse",
+  "nodes": [
+    {
+      "id": "n01",
+      "name": "Sticky: read me",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -200
+      ],
+      "parameters": {
+        "width": 780,
+        "height": 380,
+        "content": "W35 Lead pulse (6B.2, 4.6 W35 row, FAQ-25). INACTIVE draft by conversation-designer for automation-engineer.\nOne question after an ATTENDED call: \"was your call with {adviser} worth your time?\" Yes, worth it / Not really (+ optional one line). Never about the advice; never shared with the broker by name; aggregate only (>= 5 answers). No reply -> nothing further.\nTiming: attended mark + 30 min, never before the reach-check is settled (answered yes, or 2 h unanswered); reach-check 'no' -> no pulse; quiet hours 20:00-08:00 -> 08:00; stale after 48 h -> skipped.\nChannel: inside the 24-h window (usually the reach-check tap) -> session buttons with LINES.PULSE_ASK (same words as the template minus STOP), lead's language; outside -> utility template lead_pulse (en).\nTaps pulse_yes / pulse_no and the optional line arrive from W07 (Execute Workflow). Feeds: public.lead_pulse -> facts.fact_lead.lead_pulse / lead_pulse_thumbs; lead_activities 'lead_pulse' rows; W33 judge samples every 'down' (P.judgeHints); W14 broker report uses P.brokerLine.\nIdempotency: the lead_pulse row (UNIQUE lead_id, booking_id) is claimed with ON CONFLICT DO NOTHING RETURNING before any send.\nLogic: conversation/pulse.mjs. Tests: automation/tests/W35.test.mjs. Words: conversation/lines.mjs PULSE_*."
+      }
+    },
+    {
+      "id": "n02",
+      "name": "Every 5 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/5 * * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n03",
+      "name": "Candidates (attended, no pulse yet)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT o.booking_id, o.outcome, o.marked_at, o.lead_reach_check, o.cycle_id,\n       l.id AS lead_id, l.first_name, l.language, l.opted_out_at, l.conv_state, l.phone, l.broker_id, l.brand_id,\n       b.contact_person,\n       EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = encode(extensions.digest(regexp_replace(l.phone, '\\D', '', 'g'), 'sha256'), 'hex')) AS suppressed,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'inbound') AS last_inbound_at,\n       (SELECT count(*) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'outbound') AS outbound_count,\n       (SELECT min(c.created_at) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'outbound' AND c.template_name = 'reach_check' AND c.created_at >= o.marked_at - interval '6 hours') AS reach_sent_at,\n       (SELECT min(c.created_at) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'inbound' AND c.created_at >= o.marked_at - interval '6 hours' AND c.content ILIKE 'Yes, we spoke%') AS reach_answered_at\n  FROM public.outcomes o\n  JOIN public.leads l ON l.id = o.lead_id\n  JOIN public.brokers b ON b.id = l.broker_id\n WHERE o.brand_id IS NOT NULL\n   AND o.outcome = 'attended'\n   AND o.marked_at > now() - interval '48 hours'\n   AND l.opted_out_at IS NULL\n   AND NOT EXISTS (SELECT 1 FROM public.lead_pulse p WHERE p.lead_id = o.lead_id AND p.booking_id = o.booking_id)\n ORDER BY o.marked_at\n LIMIT 200;",
+        "options": {
+          "queryReplacement": "={{ [] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase Postgres"
+        }
+      }
+    },
+    {
+      "id": "n04",
+      "name": "Decide (pulse.pulseDue)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst P = await import(url.pathToFileURL(REPO + '/conversation/pulse.mjs').href);\nconst r = $json; if (!r.lead_id) return { json: { action: 'none' } };\nconst c = { lead: { id: r.lead_id, first_name: r.first_name, language: r.language, opted_out_at: r.opted_out_at, conv_state: r.conv_state || {} }, outcome: { outcome: r.outcome, marked_at: r.marked_at, lead_reach_check: r.lead_reach_check }, booking: { id: r.booking_id }, reach: { sent_at: r.reach_sent_at, answered_at: r.reach_answered_at }, broker: { contact_person: r.contact_person }, suppressed: r.suppressed, already_sent: false, last_inbound_at: r.last_inbound_at, outbound_count: Number(r.outbound_count || 0) };\nconst d = P.pulseDue(c, Date.now());\nreturn { json: { ...d, lead_id: r.lead_id, booking_id: r.booking_id, cycle_id: r.cycle_id, brand_id: r.brand_id, broker_id: r.broker_id, phone: r.phone, version: P.VERSION } };"
+      }
+    },
+    {
+      "id": "n05",
+      "name": "Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "send",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s0",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "send",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      }
+    },
+    {
+      "id": "n06",
+      "name": "Claim pulse row (idempotency)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_pulse (lead_id, booking_id, broker_id, cycle_id, brand_id, sent_at)\nVALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid, now())\nON CONFLICT (lead_id, booking_id) DO NOTHING\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$json.lead_id, $json.booking_id, $json.broker_id, $json.cycle_id, $json.brand_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase Postgres"
+        }
+      }
+    },
+    {
+      "id": "n07",
+      "name": "Claimed? (first scheduler run only)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$json.id) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n08",
+      "name": "Build message (template or session)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const d = $('Decide (pulse.pulseDue)').item.json;\nlet wa; let content;\nif (d.channel === 'template') {\n  const comps = [{ type: 'body', parameters: d.vars.map((t) => ({ type: 'text', text: String(t) })) }];\n  d.buttons.forEach(([p], i) => comps.push({ type: 'button', sub_type: 'quick_reply', index: String(i), parameters: [{ type: 'payload', payload: p }] }));\n  wa = { messaging_product: 'whatsapp', to: d.phone, type: 'template', template: { name: d.template, language: { code: 'en' }, components: comps } };\n  content = 'template lead_pulse';\n} else {\n  // inside the 24-h window: the same approved words as a session interactive message (no template fee)\n  wa = { messaging_product: 'whatsapp', to: d.phone, type: 'interactive', interactive: { type: 'button', body: { text: d.body }, action: { buttons: d.buttons.map(([id, title]) => ({ type: 'reply', reply: { id, title } })) } } };\n  content = d.body;\n}\nreturn { json: { ...d, wa, content, step: 'ask', idem: d.idempotency_key } };"
+      }
+    },
+    {
+      "id": "n09",
+      "name": "Live send?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($env.DRY_RUN_SENDS !== 'true') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n10",
+      "name": "Send WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION }}/{{ $env.PHONE_NUMBER_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.META_SYSTEM_USER_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.wa) }}",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "n11",
+      "name": "Store outbound",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1980,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, broker_id, author, workflow, template_name, template_category, metadata)\nVALUES ($1::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, $3, 'sent', $4, $5::uuid, $6::uuid, 'system', 'W35', $7, $8, $9::jsonb)\nON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING;",
+        "options": {
+          "queryReplacement": "={{ (() => { const d = $('Build message (template or session)').item.json; return [d.brand_id, d.phone, d.content, ($json.messages && $json.messages[0] && $json.messages[0].id) || ('dry:' + d.idem), d.lead_id, d.broker_id, d.channel === 'template' ? 'lead_pulse' : null, d.channel === 'template' ? 'utility' : 'service', JSON.stringify({ step: d.step, channel: d.channel, version: d.version })]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase Postgres"
+        }
+      }
+    },
+    {
+      "id": "n12",
+      "name": "Execute Workflow Trigger (W07: pulse tap / pulse line)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        400
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "n13",
+      "name": "Tap or line (pulse.onPulseTap / onPulseLine)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst P = await import(url.pathToFileURL(REPO + '/conversation/pulse.mjs').href);\nconst j = $json; const lead = j.lead || {}; const msg = j.msg || {}; const now = Date.now();\nconst c = { lead, booking: { id: (lead.conv_state && lead.conv_state.pulse_booking_id) || null } };\nconst key = String(msg.payload || '').split(':')[0];\nlet r; let kind;\nif (key === 'pulse_yes' || key === 'pulse_no') { r = P.onPulseTap(msg.payload, c, now); kind = 'tap'; }\nelse if (P.isPulseLine(msg.text, lead.conv_state || {}, now)) { r = P.onPulseLine(msg.text, c); r.booking_id = c.booking.id; kind = 'line'; }\nelse return { json: { skip: true, reason: 'not a pulse answer (W07 handles it)' } };\nif (r.error || !r.booking_id) return { json: { skip: true, reason: r.error || 'no booking for this pulse' } };\nconst lang = lead.language === 'af' ? 'af' : 'en';\nreturn { json: { skip: false, kind, r, lang, lead_id: lead.id, brand_id: lead.brand_id, broker_id: lead.broker_id, cycle_id: lead.cycle_id || null, phone: msg.from, wamid: msg.wamid, version: P.VERSION } };"
+      }
+    },
+    {
+      "id": "n14",
+      "name": "Pulse answer?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.skip === false) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n15",
+      "name": "Save answer (lead_pulse + conv_state)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH p AS (\n  UPDATE public.lead_pulse\n     SET thumbs = COALESCE($3, thumbs), answered_at = COALESCE($4::timestamptz, answered_at), line = COALESCE($5, line), updated_at = now()\n   WHERE lead_id = $1::uuid AND booking_id = $2::uuid\n  RETURNING lead_id\n)\nUPDATE public.leads SET conv_state = $6::jsonb, updated_at = now()\n WHERE id = $1::uuid AND opted_out_at IS NULL AND EXISTS (SELECT 1 FROM p);",
+        "options": {
+          "queryReplacement": "={{ [$json.lead_id, $json.r.booking_id, ($json.r.update.thumbs || null), ($json.r.update.answered_at || null), ($json.r.update.line || null), JSON.stringify($json.r.conv_state)] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase Postgres"
+        }
+      }
+    },
+    {
+      "id": "n16",
+      "name": "lead_activities: lead_pulse row (facts)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        880,
+        400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W35', 'lead', $5, $6::jsonb, now(), $7)\nON CONFLICT (idempotency_key) DO NOTHING;",
+        "options": {
+          "queryReplacement": "={{ (() => { const j = $('Tap or line (pulse.onPulseTap / onPulseLine)').item.json; return [j.lead_id, j.brand_id, j.broker_id, j.cycle_id, j.r.fact.activity_type, JSON.stringify(j.r.fact.payload), 'w35:' + j.kind + ':' + j.wamid]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase Postgres"
+        }
+      }
+    },
+    {
+      "id": "n17",
+      "name": "Reply?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$('Tap or line (pulse.onPulseTap / onPulseLine)').item.json.r.reply) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n18",
+      "name": "Build reply (session; the tap opened the window)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const j = $('Tap or line (pulse.onPulseTap / onPulseLine)').item.json;\n// fixed line from conversation/lines.mjs (PULSE_LINE_ASK_UP / _DOWN / PULSE_LINE_THANKS): no LLM, no placeholders\nreturn { json: { ...j, wa: { messaging_product: 'whatsapp', to: j.phone, type: 'text', text: { body: j.r.reply } }, content: j.r.reply, channel: 'session', step: j.kind, idem: 'w35:reply:' + j.wamid } };"
+      }
+    },
+    {
+      "id": "n19",
+      "name": "Live send? (reply)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($env.DRY_RUN_SENDS !== 'true') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n20",
+      "name": "Send reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        400
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION }}/{{ $env.PHONE_NUMBER_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.META_SYSTEM_USER_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.wa) }}",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "n21",
+      "name": "Store outbound (reply)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1980,
+        400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, broker_id, author, workflow, template_name, template_category, metadata)\nVALUES ($1::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, $3, 'sent', $4, $5::uuid, $6::uuid, 'system', 'W35', $7, $8, $9::jsonb)\nON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING;",
+        "options": {
+          "queryReplacement": "={{ (() => { const d = $('Build reply (session; the tap opened the window)').item.json; return [d.brand_id, d.phone, d.content, ($json.messages && $json.messages[0] && $json.messages[0].id) || ('dry:' + d.idem), d.lead_id, d.broker_id, d.channel === 'template' ? 'lead_pulse' : null, d.channel === 'template' ? 'utility' : 'service', JSON.stringify({ step: d.step, channel: d.channel, version: d.version })]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase Postgres"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every 5 minutes": {
+      "main": [
+        [
+          {
+            "node": "Candidates (attended, no pulse yet)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Candidates (attended, no pulse yet)": {
+      "main": [
+        [
+          {
+            "node": "Decide (pulse.pulseDue)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide (pulse.pulseDue)": {
+      "main": [
+        [
+          {
+            "node": "Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Action": {
+      "main": [
+        [
+          {
+            "node": "Claim pulse row (idempotency)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim pulse row (idempotency)": {
+      "main": [
+        [
+          {
+            "node": "Claimed? (first scheduler run only)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claimed? (first scheduler run only)": {
+      "main": [
+        [
+          {
+            "node": "Build message (template or session)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build message (template or session)": {
+      "main": [
+        [
+          {
+            "node": "Live send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Live send?": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Store outbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Store outbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Workflow Trigger (W07: pulse tap / pulse line)": {
+      "main": [
+        [
+          {
+            "node": "Tap or line (pulse.onPulseTap / onPulseLine)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tap or line (pulse.onPulseTap / onPulseLine)": {
+      "main": [
+        [
+          {
+            "node": "Pulse answer?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pulse answer?": {
+      "main": [
+        [
+          {
+            "node": "Save answer (lead_pulse + conv_state)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save answer (lead_pulse + conv_state)": {
+      "main": [
+        [
+          {
+            "node": "lead_activities: lead_pulse row (facts)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "lead_activities: lead_pulse row (facts)": {
+      "main": [
+        [
+          {
+            "node": "Reply?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply?": {
+      "main": [
+        [
+          {
+            "node": "Build reply (session; the tap opened the window)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build reply (session; the tap opened the window)": {
+      "main": [
+        [
+          {
+            "node": "Live send? (reply)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Live send? (reply)": {
+      "main": [
+        [
+          {
+            "node": "Send reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Store outbound (reply)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send reply": {
+      "main": [
+        [
+          {
+            "node": "Store outbound (reply)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "saveManualExecutions": true,
+    "errorWorkflow": "W22 Alerts"
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "lead_pulse"
+    },
+    {
+      "name": "whatsapp"
+    }
+  ],
+  "meta": {
+    "notes": "conversation-designer draft for automation-engineer. W35 lead pulse; logic conversation/pulse.mjs; tests automation/tests/W35.test.mjs. Inactive until W07 routes pulse lines (w07-alignment.md)."
+  }
+}

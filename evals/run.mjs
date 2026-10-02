@@ -234,6 +234,39 @@ for (const lang of ['en', 'af']) for (const [key, line] of Object.entries(LINES[
   const t = toneCheck(text, { lang, max_sentences: 3 });
   count('tone.fixed_lines', t.pass, `${lang}.${key}: ${t.issues.join('; ')}`);
 }
+// Template and W29 copy that W08 / W29 / W35 send (2026-10-02, W07 alignment pass): rendered from the real template
+// files so the eval sees exactly what Meta approves. Gate + tone (STOP sentence allowed, so up to 4 sentences).
+// FAQ-consistency drift (faq-v1.0.1 K-6: "no obligation to buy", never "nothing to buy") is printed as a warning,
+// not counted, until meta-operator resubmits the template (w07-alignment.md).
+const copyWarnings = [];
+{
+  const tpl = (n) => JSON.parse(rd(`automation/templates/${n}.json`));
+  const body = (n, v) => ((tpl(n).components || []).find((c) => c.type === 'BODY')?.text || '').replace(/\{\{(\d+)\}\}/g, (m, i) => v[Number(i) - 1] ?? m);
+  const { thanksLine } = await import('../automation/lib/w29.mjs');
+  const copy = [
+    ['unbooked_nudge_2h', body('unbooked_nudge_2h', ['Lerato', 'Mark'])],
+    ['unbooked_nudge_24h', body('unbooked_nudge_24h', ['Lerato', 'Mark'])],
+    ['unbooked_nudge_24h_text', body('unbooked_nudge_24h_text', ['Lerato', 'Mark has helped families in Cape Town for 15 years.'])],
+    ['unbooked_nudge_72h', body('unbooked_nudge_72h', ['Lerato', 'Mark'])],
+    ['attended_thanks', body('attended_thanks', ['Lerato', 'Mark'])],
+    ['reach_check', body('reach_check', ['Lerato', 'Mark'])],
+    ['lead_pulse', body('lead_pulse', ['Lerato', 'Mark'])],
+    ['broker_feedback_thanks:n6', body('broker_feedback_thanks', [thanksLine({ quality_index: 4.2, quality_n: 6 })])],
+    ['broker_feedback_thanks:n3', body('broker_feedback_thanks', [thanksLine({ quality_index: null, quality_n: 3 })])],
+    ['broker_fit_followup', body('broker_fit_followup', ['Mark', 'Thu 8 Oct', 'Lerato M'])],
+    ['w29_voice_too_long', 'Thanks. Please keep voice notes under a minute.']
+  ];
+  for (const [id, text] of copy) {
+    const g = outputGate(text, {});
+    count('fais.template_copy', g.pass, `${id} trips the gate ${JSON.stringify(g.hits)}`);
+    const t = toneCheck(text, { lang: 'en', max_sentences: 4 });
+    count('tone.template_copy', t.pass, `${id}: ${t.issues.join('; ')}`);
+    if (/nothing to buy/iu.test(text)) copyWarnings.push(`${id}: "nothing to buy" (faq-v1.0.1 K-6 wording is "no obligation to buy")`);
+  }
+  // W35 session twin must say exactly what the template says (PULSE_ASK + STOP_HINT)
+  const lp = body('lead_pulse', ['Lerato', 'Mark']);
+  count('state_machine.template_twins', lp === fill(LINES.en.PULSE_ASK, { first_name: 'Lerato', adviser_first: 'Mark' }) + ' ' + LINES.en.STOP_HINT, 'LINES.en.PULSE_ASK + STOP_HINT drifted from template lead_pulse');
+}
 for (const f of faq) for (const lang of ['en', 'af']) {
   const text = fill(f[lang], vars);
   if (f.type === 'defer') { count('fais.faq_defer', f[lang] === LINES[lang].DEFER, `${f.id}.${lang} is not the verbatim deferral line`); continue; }
@@ -362,4 +395,5 @@ if (fails.length) {
   if (VERBOSE) for (const f of fails) console.log('   - ' + f);
 }
 if (blockers.length) { console.log('\nFAIL'); for (const b of blockers) console.log('  x ' + b); process.exit(1); }
+for (const w of copyWarnings) console.log(`  warning: ${w}`);
 console.log('\nPASS');
