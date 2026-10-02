@@ -31,8 +31,8 @@ const hookLib = fs.existsSync(path.join(REPO, 'deliverables/performance-creative
 
 // ---- build the work list (one entry per concept variant) ----
 const variants = [];
-for (const id of Object.keys(ART).sort()) { if (ONLY && !ONLY.includes(id)) continue; const tabs = briefTables(id); if (!tabs) { console.warn(`! ${id}: no brief yet; skipped (concepts.md script fallback not implemented for this concept)`); continue; }
-  for (const v of ART[id]) { const tab = tabs[v.tabs]; const body = tab.filter(r => !r.end), endRow = tab.find(r => r.end); if (body.length !== v.rows.length) { console.error(`! ${v.vid}: brief has ${body.length} content rows, art.mjs has ${v.rows.length}; fix art.mjs`); process.exitCode = 1; continue; }
+for (const id of Object.keys(ART).sort()) { if (ONLY && !ONLY.includes(id)) continue; const tabs = briefTables(id) || (ART[id].every(a => a.tl) ? [] : null); if (!tabs) { console.warn(`! ${id}: no brief yet; skipped (concepts.md script fallback not implemented for this concept)`); continue; }
+  for (const v of ART[id]) { const tab = v.tl ? v.tl.t.map((t0, k) => ({ t0, t1: v.tl.t[k + 1] ?? v.tl.E, cap: v.tl.cap[k] || '', end: false })).concat([{ t0: v.tl.E, t1: v.tl.dur, cap: '', end: true }]) : tabs[v.tabs]; const body = tab.filter(r => !r.end), endRow = tab.find(r => r.end); if (body.length !== v.rows.length) { console.error(`! ${v.vid}: brief has ${body.length} content rows, art.mjs has ${v.rows.length}; fix art.mjs`); process.exitCode = 1; continue; }
     const rows = body.map((b, k) => ({ ...v.rows[k], t0: b.t0, t1: b.t1, cap: b.cap })); const b0 = base[id];
     variants.push({ ...v, id, rows, E: endRow.t0, dur: endRow.t1, angle: b0.angle, headline: v.headline ?? b0.headline, cta: b0.cta, multi: ART[id].length > 1, firstSubmit: FIRST.includes(id), teal: !!v.teal && !args['no-teal'], flags: flags(id), selfCheck: selfCheck[id] || '' }); } }
 // ---- text QA (4D rules: no "!", "you/your" only in the allowed phrases) ----
