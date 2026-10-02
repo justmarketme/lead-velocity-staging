@@ -7,8 +7,20 @@ create or replace function facts.as_of() returns date language sql stable as $$
   select coalesce(nullif(current_setting('facts.as_of', true), ''), (now() at time zone 'Africa/Johannesburg')::date::text)::date
 $$;
 
-drop view if exists facts.v_params cascade;
-create view facts.v_params as
+-- Idempotent: CREATE OR REPLACE keeps every dependant (smc_10 W14 functions, watchlist/kill-scale/W14 views) valid; no DROP ... CASCADE.
+-- Column names, order and types must therefore never change; add new columns only at the END.
+-- Watchlist targets/floors: ops.watchlist_targets (smc_08, edited by Jonathan in the console) is the one place; the literals are COALESCE fallbacks only (empty or NULL row).
+create or replace view facts.v_params as
+with wt as (
+  select
+    max(target)         filter (where metric_no = 1) as t1, max(stretch_target) filter (where metric_no = 1) as s1,
+    max(target)         filter (where metric_no = 2) as t2,
+    max(target)         filter (where metric_no = 3) as t3, max(floor)          filter (where metric_no = 3) as f3,
+    max(target)         filter (where metric_no = 4) as t4,
+    max(floor)          filter (where metric_no = 5) as f5,
+    max(target)         filter (where metric_no = 6) as t6
+  from ops.watchlist_targets
+)
 select
   facts.as_of()      as as_of,
   14                 as verdict_days,          -- 3.4 / Binet & Field: 14-day window before any verdict
@@ -18,8 +30,8 @@ select
   0.60               as qualify_min,           -- 3.4
   400                as qualified_cpl_max_zar, -- 3.4
   0.60               as booking_target,        -- 3.4 booking >= 60% of verified
-  0.65               as show_target,           -- 3.4 / 3.7
-  0.50               as show_floor,            -- 3.4
+  coalesce(wt.t3, 0.65)::numeric as show_target,           -- 3.4 / 3.7
+  coalesce(wt.f3, 0.50)::numeric as show_floor,            -- 3.4
   2.5                as quality_floor,         -- 3.4 / 4.12a
   0.40               as nofit_max,             -- 3.4 / 4.12a
   5                  as min_dispositions,      -- 3.4 "n >= 5"
@@ -28,21 +40,21 @@ select
   0.80               as capacity_trim_at,      -- line 758: next 7 days >= 80% booked
   0.60               as capacity_restore_at,   -- line 758
   0.30               as trim_share,            -- line 758
-  5                  as capacity_floor_days,   -- line 758: full for 5 working days -> alert; ASSUMPTION reused as the days-left floor
-  0.30               as margin_floor,          -- 3.5 guardrail
+  coalesce(wt.t6, 5)::integer as capacity_floor_days,   -- line 758: full for 5 working days -> alert; ASSUMPTION reused as the days-left floor
+  coalesce(wt.f5, 0.30)::numeric as margin_floor,          -- 3.5 guardrail
   250                as stress_cpl_zar,        -- 3.5
   0.15               as vat_media,             -- 3.1 (set to 0 once VAT-registered)
-  1300               as cost_per_good_fit_max_zar, -- target (default pending NH-25): R1,300; the model implies R1,100-R1,600 at full-cycle volume
-  900                as cost_per_good_fit_stretch_zar, -- stretch (6A2 item 2 example), shown as the second line on the tile
-  0.60               as good_fit_target,       -- target (default pending NH-25): 60% = the mirror of the 40% not-a-fit pause line (3.4)
-  0.85               as reach_target,          -- 6A2 item 2 example
+  coalesce(round(wt.t1), 1300)::integer as cost_per_good_fit_max_zar, -- target (default pending NH-25): R1,300; the model implies R1,100-R1,600 at full-cycle volume
+  coalesce(round(wt.s1), 900)::integer as cost_per_good_fit_stretch_zar, -- stretch (6A2 item 2 example), shown as the second line on the tile
+  coalesce(wt.t4, 0.60)::numeric as good_fit_target,       -- target (default pending NH-25): 60% = the mirror of the 40% not-a-fit pause line (3.4)
+  coalesce(wt.t2, 0.85)::numeric as reach_target,          -- 6A2 item 2 example
   0.90               as disposition_target,    -- 6.8 broker faculty: disposition >= 90%
   60                 as first_message_sla_s,   -- 6.3
   4                  as stress_overhead_per_raw_zar, -- 3.5: R4 per raw lead WhatsApp + LLM in the stress model; actuals come from fact_cost
   20                 as min_n_ask,             -- 6A2 item 4
   8                  as min_booked_for_show_rule, -- ASSUMPTION: fewer than 8 matured bookings is noise (Binet)
   300                as min_ad_spend_zar       -- ASSUMPTION: an ad needs R300 spend before it can be ranked
-;
+from (select 1) one left join wt on true;
 
 -- Disposition spelling: 4.12a names win (integration-pass2 I-01; smc_02 enum = fit_proceeding ... unreachable). The legacy good_fit_* / not_fit_* spellings are still accepted.
 create or replace function facts.disp_class(code text) returns text language sql immutable as $$
