@@ -2144,7 +2144,7 @@
       "depends_on": [],
       "acceptance_test": "test -s landing/reference/sortmycover-landing.html",
       "human_gate": true,
-      "status": "needs_human",
+      "status": "green",
       "section": "4.5 Reference implementation"
     }
   ]
