@@ -121,3 +121,10 @@ Budget amounts appear only in these fixed, tap-only lists (they are our qualifyi
 | `BEST_AFTERNOONS` | Afternoons | Middae | Button title / list row (W08 nurture, W07 contact step). |
 | `BEST_EVENINGS` | Evenings | Aande | Button title / list row (W08 nurture, W07 contact step). |
 | `BEST_ANY` | Any time | Enige tyd | Button title / list row (W08 nurture, W07 contact step). |
+
+## Booking edge lines (I-39k, 2026-10-02)
+
+| Key | English | Afrikaans | When |
+|---|---|---|---|
+| `SLOT_TAKEN` | Sorry, that time was just taken. Here are the next open times with {adviser_first}. | Jammer, daardie tyd is pas gevat. Hier is die volgende oop tye met {adviser_first}. | W05/W10: the slot re-check failed; body of the one interactive list with the next open times. |
+| `METHOD_NOT_OFFERED` | {adviser_first} doesn't offer that way of meeting. You can keep {method} or pick another option. | {adviser_first} bied nie daardie manier van vergader aan nie. Jy kan by {method} bly of 'n ander opsie kies. | W10 change_method to a method the adviser does not offer; {method} = the booked method label. Buttons: `Keep {method}` · `Choose another`. |

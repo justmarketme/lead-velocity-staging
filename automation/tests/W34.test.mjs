@@ -152,8 +152,8 @@ test('retention: a bad setting is refused (job skipped, red), never clamped into
   const ctx = ctxAt('2026-10-02T02:30:00+02:00', { W34_LEAD_RETENTION_MONTHS: '0' });
   const s = runCode('Summarise night', { now: '2026-10-02T02:31:00+02:00', refs: {
     'Set retention context': [ctx], 'Purge expired wa_threads': [{ job: 'wa_threads', due: 3, done: 3 }], 'Delete non-fit entries': [{ due: 1, done: 1 }],
-    'Pseudonymise after lead retention': [{ due: 0, done: 0, media_urls: [] }], 'Clear residual identifiers': [{}],
-    'Delete consent records after consent retention': [{ due: 0, done: 0 }], 'Minimise closed DSR records': [{ done: 0 }], 'Collect media to erase': [{ urls: [] }] } })[0];
+    'Pseudonymise after lead retention': [{ due: 0, done: 0, media_urls: [] }],
+    'Delete consent records after consent retention': [{ due: 0, done: 0 }], 'Minimise closed DSR records': [{ done: 0 }], 'Collect media to erase': [{ prefixes: [], unmapped: [] }] } })[0];
   assert.equal(s.red, true);
   assert.equal(s.alert.severity, 'red');
   assert.match(s.alert.message, /W34_LEAD_RETENTION_MONTHS=0/);
@@ -163,11 +163,11 @@ test('retention: a failing job is reported and the others still count (continueR
   const ctx = ctxAt('2026-10-02T02:30:00+02:00');
   const s = runCode('Summarise night', { now: '2026-10-02T02:31:00+02:00', refs: {
     'Set retention context': [ctx], 'Purge expired wa_threads': [{ job: 'wa_threads', due: 2, done: 2 }], 'Delete non-fit entries': [{ error: { message: 'deadlock detected' } }],
-    'Pseudonymise after lead retention': [{ due: 4, done: 4, media_urls: ['m1'] }], 'Clear residual identifiers': [{ id: 'a' }, { id: 'b' }],
-    'Delete consent records after consent retention': [{ due: 1, done: 1 }], 'Minimise closed DSR records': [{ done: 0 }], 'Collect media to erase': [{ urls: ['m1'] }] } })[0];
+    'Pseudonymise after lead retention': [{ due: 4, done: 4, media_urls: ['m1'] }],
+    'Delete consent records after consent retention': [{ due: 1, done: 1 }], 'Minimise closed DSR records': [{ done: 0 }], 'Collect media to erase': [{ prefixes: ['b1/m1.ogg'], unmapped: [] }] } })[0];
   assert.equal(s.red, true);
   assert.deepEqual(s.jobs['Purge expired wa_threads'], { due: 2, done: 2 });
-  assert.deepEqual(s.jobs['Clear residual identifiers'], { done: 2 });
+  assert.ok(!WF.nodes.some((n) => n.name === 'Clear residual identifiers'), 'job 3b dropped: smc_erase_lead covers the residual columns (migration 12)');
   assert.ok(!('Delete non-fit entries' in s.jobs));
   assert.match(s.errors[0], /Delete non-fit entries: deadlock/);
   assert.equal(s.media.requested, 1);
@@ -178,7 +178,7 @@ test('wa_threads purge (I-35l): deletes only past expires_at (or stale with no e
   const q = strip(node('Purge expired wa_threads').parameters.query);
   assert.match(q, /delete from public\.wa_threads/);
   assert.match(q, /wx\.expires_at < nullif\(\$1, ''\)::timestamptz/);
-  assert.match(q, /wx\.expires_at is null and wx\.updated_at < nullif\(\$2, ''\)::timestamptz/);
+  assert.match(q, /coalesce\(wx\.last_inbound_at, wx\.updated_at\) < nullif\(\$2, ''\)::timestamptz/, 'unfinished chats: PN-v1.1 {{retention_unfinished_hours}}');
   assert.match(q, /insert into public\.retention_log \(table_name, row_id, action, policy\)/);
   assert.match(q, /left\(del\.mobile_hash, 12\)/, 'only a hash prefix is logged');
   assert.match(q, /not \$3::boolean/, 'dry run deletes nothing');
@@ -330,10 +330,8 @@ test('DSR action guard: typed-twice id, export|erase only, erase defaults to pse
   assert.equal(runCode('Check DSR action', { now: RECEIVED, env: { W34_DSR_ERASE_ACTION: 'purge_all' }, input: [{ body: { dsr_id: id, confirm_dsr_id: id, action: 'erase' } }] })[0].erase_action, 'pseudonymise');
   assert.throws(() => runCode('Check DSR action', { now: RECEIVED, input: [{ body: { dsr_id: id, confirm_dsr_id: id.replace('a1', 'a2'), action: 'erase' } }] }), /not confirmed/);
   assert.throws(() => runCode('Check DSR action', { now: RECEIVED, input: [{ body: { dsr_id: id, confirm_dsr_id: id, action: 'truncate' } }] }), /export or erase/);
-  const s = { dsr_id: id, leads_found: 1, suppressed: 1, broker_notices: [{ broker_id: 'b1', lead_id: 'l1', first_name: 'Thandi' }] };
-  const n = runCode('Build erase notices', { now: RECEIVED, input: [{ id, in_time: true }], refs: { 'Suppress subject (erase step 1)': [s] } });
-  assert.equal(n.length, 2); assert.equal(n[1].kind, 'broker_dsr_erase'); assert.equal(n[1].first_name, 'Thandi');
-  assert.doesNotMatch(JSON.stringify(n), /\+27|@/, 'no number or email in notices');
+  const io = runCode('Build IO erase confirmation', { now: RECEIVED, input: [{ id, in_time: true }], refs: { 'Suppress subject (erase step 1)': [{ dsr_id: id, leads_found: 1, suppressed: 1, broker_notices: [] }], 'Map subject media to paths': [{ prefixes: [], unmapped: ['https://lookaside.fbsbx.com/x'] }] } })[0];
+  assert.equal(io.severity, 'red', 'media outside the bucket is surfaced, not silently skipped'); assert.equal(io.unmapped_media, 1);
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -361,4 +359,77 @@ const kindConstraint = () => {
 };
 test("schema: ops.notifications kind check allows 'dsar' (migration 12, I-38a)", () => {
   assert.match(kindConstraint(), /'dsar'/);
+});
+
+// ---------------------------------------------------------------------------------------------
+// 7. Follow-up (migration 12): one hash rule, Supabase Storage delete, broker notice via the shared sender
+// ---------------------------------------------------------------------------------------------
+test('hash rule: the three subject lookups use smc_hash_contact (digits-only, migration 12), no inline hashing', () => {
+  for (const n of ['Record DSR + dsar ticket', 'Export subject data', 'Suppress subject (erase step 1)']) {
+    const q = node(n).parameters.query;
+    assert.match(q, /public\.smc_hash_contact\(l[ms]\.phone\)/, `${n}: phone hashed by smc_hash_contact`);
+    assert.doesNotMatch(q, /extensions\.digest|regexp_replace/, `${n}: no second hash rule`);
+  }
+});
+
+const MEDIA_ENV = { W34_MEDIA_ERASE_URL: 'https://synthetic.supabase.co/storage/v1/object/broker-media' };
+test('storage: both media nodes call Supabase Storage DELETE {prefixes} with the named Header Auth credential', () => {
+  for (const n of ['Erase media files (storage)', 'Erase subject media (storage)']) {
+    const p = node(n).parameters;
+    assert.equal(p.method, 'DELETE');
+    assert.equal(p.url, '={{ $env.W34_MEDIA_ERASE_URL }}');
+    assert.equal(p.genericAuthType, 'httpHeaderAuth');
+    assert.equal(p.jsonBody, '={{ JSON.stringify({ prefixes: $json.prefixes }) }}');
+    assert.deepEqual(node(n).credentials, { httpHeaderAuth: { name: 'W34 media erase (storage service)' } });
+  }
+  // DSR path: a storage failure must stop before "Complete erase request" (no continue-on-error)
+  assert.equal(node('Erase subject media (storage)').onError, undefined);
+  assert.equal(WF.connections['Any subject media?'].main[1][0].node, 'Complete erase request', 'no media -> straight to completion');
+  const out = runCode('Map subject media to paths', { now: RECEIVED, env: MEDIA_ENV, input: [{ dsr_id: 'd1', media_urls: [
+    'https://synthetic.supabase.co/storage/v1/object/sign/broker-media/b1/voice%20note.ogg?token=t',
+    'https://synthetic.supabase.co/storage/v1/object/public/broker-media/b1/a.mp4',
+    'https://synthetic.supabase.co/storage/v1/object/broker-media/b1/a.mp4',
+    'broker-media/b2/c.ogg', 'b3/d.ogg',
+    'https://lookaside.fbsbx.com/whatsapp_business/attachments/x', '1234567890', 'https://synthetic.supabase.co/storage/v1/object/other/z.ogg', '../etc/passwd'] }] });
+  assert.equal(out.length, 1);
+  assert.deepEqual(out[0].prefixes, ['b1/voice note.ogg', 'b1/a.mp4', 'b2/c.ogg', 'b3/d.ogg'], 'bucket-relative paths, decoded, deduplicated');
+  assert.equal(out[0].unmapped.length, 4, 'Meta media, numeric ids, other buckets and traversal are never sent to Storage');
+  assert.equal(out[0].any, true);
+  assert.equal(runCode('Map subject media to paths', { now: RECEIVED, env: MEDIA_ENV, input: [{ dsr_id: 'd1', media_urls: [] }] })[0].any, false);
+  const many = Array.from({ length: 2345 }, (_, i) => `b1/v${i}.ogg`);
+  assert.deepEqual(runCode('Map subject media to paths', { now: RECEIVED, env: MEDIA_ENV, input: [{ dsr_id: 'd1', media_urls: many }] }).map((c) => c.prefixes.length), [1000, 1000, 345], 'max 1,000 per call');
+  // nightly: dry run sends nothing; an unmapped reference turns the night red
+  const ctx = ctxAt('2026-10-02T02:30:00+02:00');
+  const refs = { 'Set retention context': [ctx], 'Pseudonymise after lead retention': [{ media_urls: ['b1/x.ogg', 'https://lookaside.fbsbx.com/y'] }] };
+  const col = runCode('Collect media to erase', { now: '2026-10-02T02:31:00+02:00', env: MEDIA_ENV, refs });
+  assert.deepEqual(col[0].prefixes, ['b1/x.ogg']);
+  assert.equal(runCode('Collect media to erase', { now: '2026-10-02T02:31:00+02:00', env: MEDIA_ENV, refs: { ...refs, 'Set retention context': [{ ...ctx, dry_run: true }] } })[0].any, false);
+  const night = runCode('Summarise night', { now: '2026-10-02T02:32:00+02:00', refs: { ...refs, 'Collect media to erase': col,
+    'Purge expired wa_threads': [{ due: 0, done: 0 }], 'Delete non-fit entries': [{ due: 0, done: 0 }], 'Delete consent records after consent retention': [{ due: 0, done: 0 }],
+    'Minimise closed DSR records': [{ done: 0 }], 'Erase media files (storage)': [{ error: { message: '400 Bad Request' } }] } })[0];
+  assert.equal(night.red, true);
+  assert.ok(night.errors.some((e) => /not in the storage bucket/.test(e)) && night.errors.some((e) => /400 Bad Request/.test(e)));
+});
+
+test('broker notice: broker_dsr_erase goes through the shared WhatsApp sender, broker + lead first names only', () => {
+  const tpl = JSON.parse(readFileSync(join(HERE, '..', 'templates', 'broker_dsr_erase.json'), 'utf8'));
+  const body = tpl.components.find((c) => c.type === 'BODY').text;
+  assert.equal(tpl.category, 'UTILITY');
+  assert.equal((body.match(/\{\{\d\}\}/g) || []).length, 2, 'template takes exactly two params');
+  const send = node('WhatsApp: broker_dsr_erase');
+  assert.equal(send.type, 'n8n-nodes-base.executeWorkflow');
+  assert.equal(send.parameters.workflowId.value, 'REPLACE_WITH_WHATSAPP_SEND_WORKFLOW_ID');
+  assert.equal(WF.connections['Build broker erase messages'].main[0][0].node, 'WhatsApp: broker_dsr_erase');
+  assert.ok(!JSON.stringify(WF.connections).includes('"Notify IO + broker (W22)"'), 'broker notice no longer routed via W22');
+  const sup = { dsr_id: 'd1', leads_found: 2, suppressed: 1, broker_notices: [
+    { broker_id: 'b1', lead_id: 'l1', first_name: 'Lerato', broker_first_name: 'Mark', broker_to: '+27600000199' },
+    { broker_id: 'b1', lead_id: 'l1', first_name: 'Lerato', broker_first_name: 'Mark', broker_to: '+27600000199' },
+    { broker_id: 'b1', lead_id: 'l2', first_name: null, broker_first_name: '', broker_to: '+27600000199' },
+    { broker_id: 'b2', lead_id: 'l3', first_name: 'Sipho', broker_first_name: 'Kg', broker_to: null } ] };
+  const msgs = runCode('Build broker erase messages', { now: RECEIVED, refs: { 'Suppress subject (erase step 1)': [sup] } });
+  assert.equal(msgs.length, 2, 'one per broker+lead; no number -> nothing sent');
+  assert.deepEqual(msgs[0], { broker_id: 'b1', to: '+27600000199', idempotency_key: 'w34-dsr-erase:d1:b1:l1', template: { name: 'broker_dsr_erase', body: ['Mark', 'Lerato'], buttons: [] } });
+  assert.deepEqual(msgs[1].template.body, ['there', 'not recorded']);
+  const q = node('Suppress subject (erase step 1)').parameters.query;
+  assert.match(q, /'broker_first_name', split_part\(/); assert.doesNotMatch(q, /last_name|'email'/, 'no surname or email leaves the database for the notice');
 });

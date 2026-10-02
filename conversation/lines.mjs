@@ -53,6 +53,10 @@ export const LINES = {
     RESCHED_INTRO: "No problem, here are some other times.",
     CANCEL_CONFIRM_Q: "Do you want me to cancel your call on {date} at {time}?",
     CANCEL_DONE: "Done, your call is cancelled. If you'd like another time later, just say.",
+    // I-39k: W05/W10 slot re-check failed (getSchedule) -> list of the next open times follows in the same message.
+    SLOT_TAKEN: "Sorry, that time was just taken. Here are the next open times with {adviser_first}.",
+    // I-39k: lead asked for a method the adviser does not offer. Buttons: Keep {method} / Choose another.
+    METHOD_NOT_OFFERED: "{adviser_first} doesn't offer that way of meeting. You can keep {method} or pick another option.",
     METHOD_CHANGED: "I'll change it to {method}.",
     SAVED: "Thanks, I've saved that.",
     LANG_SWITCH: "Sure, we can chat in English.",
@@ -118,6 +122,8 @@ export const LINES = {
     RESCHED_INTRO: "Geen probleem nie, hier is 'n paar ander tye.",
     CANCEL_CONFIRM_Q: "Wil jy hê ek moet jou oproep op {date} om {time} kanselleer?",
     CANCEL_DONE: "Klaar, jou oproep is gekanselleer. As jy later 'n ander tyd wil hê, sê net.",
+    SLOT_TAKEN: "Jammer, daardie tyd is pas gevat. Hier is die volgende oop tye met {adviser_first}.",
+    METHOD_NOT_OFFERED: "{adviser_first} bied nie daardie manier van vergader aan nie. Jy kan by {method} bly of 'n ander opsie kies.",
     METHOD_CHANGED: "Ek sal dit na {method} verander.",
     SAVED: "Dankie, ek het dit gestoor.",
     LANG_SWITCH: "Reg so, ons kan in Afrikaans gesels.",
