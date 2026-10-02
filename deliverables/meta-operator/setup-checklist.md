@@ -334,7 +334,7 @@ Follow `template-submission-runbook.md`. Day 0, straight after G4. Never blocks 
 
 1. **Instant form A1** (and A2 paused): exactly CS §3 and `deliverables/media-buyer/instant-form-spec.json`. Lead Ads terms for the Page: ★ Jonathan accepts on the first form. Consent checkbox text from the current `consent-and-privacy.md` (CS 3.5: the file wins). Run the two staging submissions for ASSUMPTION A4 (CS 3.4) and RECORD.
 2. **Campaign A** `SMC_A_LEADS-IF_ZA_c1`: CS §4.1 to §4.3 field by field. Budget: Meta requires a positive daily budget, so enter the **minimum Meta accepts** with the campaign **Off** (CONSOLE-ADS-API: "paused at the minimum budget"); the budget entry is ★ Jonathan. Exclusions per G7. Placements per CS 4.2; RECORD the final list `G11-02-placements.png`.
-3. **Pre-approval trio only:** `C01_H1_sta-amb`, `C01_H1_vid-amb`, `C02_H3_vid-amb` (CS 4.4). Upload only files named in the creative manifest.
+3. **Pre-approval trio only:** `C01_H1_vid-amb`, `C03_H3_vid-amb`, `C14_H10_vid-amb` (per deliverables/media-buyer/first-batch.csv rows 1–3) (CS 4.4). Upload only files named in the creative manifest.
 4. ★ **Jonathan clicks Publish** with the campaign Off. RECORD each ad's review status (`G11-03-trio-review.png`). If Meta does not review ads while the campaign is off, **do not switch it on to force a review** (that spends): RECORD and raise NH-MO-11.
 5. All three approved: GATE-ADS-APPROVE-3 is cleared; add the rest of the matrix (CS 4.5) and A2 (paused). Any disapproval: `appeal-playbook.md` §2 (one fix, one resubmit; two disapprovals on one ad for one reason = stop).
 6. **Campaign B** `SMC_B_LEADS-WEB_ZA_c1` and **Test C** `SMC_C_LEADS-CTWA_ZA_c1`: CS §5, §6, built paused, published ★ for review only.

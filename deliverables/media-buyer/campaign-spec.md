@@ -54,6 +54,33 @@ Ads: `C{concept}_{angle}_{format}_{date}` (6.2). `{concept}` two digits; `{angle
 | Form | `SMC_A1_HI_v{n}_{named|generic}_{date}` / `SMC_A2_RC_...` | `SMC_A1_HI_v1_named_20261015` |
 | Audience | `SMC_{EXC|ENG|LAL}_{description}_{window}` | `SMC_EXC_leads_90d_pix` / `SMC_EXC_leads_90d_list` |
 
+**Concept numbers are the manifest's (`deliverables/visual-producer/assets/manifest.csv`, from concepts.csv), never the older test-matrix numbering.** H3 = **C03** (not "C02_H3"); H10 = **C14** (not "C03_H10"). Stale copies of the old names outside this folder (not mine to edit): `automation/ads/CONSOLE-ADS-API.md:82` and `deliverables/meta-operator/setup-checklist.md:337` still list `C01_H1_sta-amb`, `C01_H1_vid-amb`, `C02_H3_vid-amb` as the trio; `meta-ads.test.js` fixtures use `C02_H3` only as a format example (harmless).
+
+Exact `ad_name` per manifest row. The manifest's `ad_name` column ends `_pending`; the first batch replaces `pending` with the upload date (YYYYMMDD, same for every ad uploaded that day; `meta-ads.js` `parseAdName` rejects anything else). Stem = `C{concept}_{hook}_{fmt}-{col}`. Every file of a concept's video ad (9:16, 4:5, 1:1 mp4 plus the `.srt`) hangs on **one** ad with the `vid` stem; stills and 6-s motion are placement fallbacks inside that ad, not separate ads (their manifest stems `sta` / `m6` / `srt` are used as ad names only in the cycle-2 static test).
+
+| Concept / hook | Manifest rows (fmt) | Ad name stem in cycle 1 | Notes |
+|---|---|---|---|
+| C01 / H1 amber | vid 9x16, 4x5, 1x1; sta x3; m6 4x5; srt | `C01_H1_vid-amb` | trio; cycle 1 attaches 9:16 only (4.7) |
+| C01 / H1 teal | vid 9x16; sta x3; srt | `C01_H1_vid-teal` | colour twin |
+| C02 / H12 | vid 9x16; sta x3; m6 4x5 | `C02_H12_vid-amb` | pool |
+| C02 / H2 | all rows `hold` | none | NH-PCD-02 decided not approved: never uploaded |
+| C03 / H3 | vid x3; sta x3 | `C03_H3_vid-amb` | trio |
+| C04 / H4 | vid 9x16; sta x3 + 4 cards | `C04_H4_vid-amb` | cards = pool carousel `C04_H4_car-amb` |
+| C05 / H5 | vid 9x16; sta x3 | `C05_H5_vid-amb` | |
+| C06 / H9 | vid 9x16; sta x3 | `C06_H9_vid-amb` | |
+| C07 / H13 | vid 9x16; sta x3 | `C07_H13_vid-amb` | pool |
+| C08 / H6 | vid 9x16; sta x3; m6 4x5 | `C08_H6_vid-amb` | |
+| C09 / H14 | vid 9x16; sta x3 | `C09_H14_vid-amb` | pool |
+| C10 / H7 | vid 9x16; sta x3 | `C10_H7_vid-amb` | |
+| C11 / H15 | vid 9x16; sta x3 | `C11_H15_vid-amb` | pool |
+| C12 / H18 | vid 9x16; sta x3; m6 4x5 | `C12_H18_vid-amb` | pool; serves `/myth-bust/` |
+| C12 / H8 | all rows `hold` | none | NH-PCD-04 held (no source): never uploaded |
+| C13 / H16 | vid 9x16; sta x3 | `C13_H16_vid-amb` | serves `/c13-check-not-buy/` |
+| C14 / H10 | vid x3; sta x3 | `C14_H10_vid-amb` | trio |
+| C15 / H17 | vid 9x16; sta x3 | `C15_H17_vid-amb` | pool |
+
+The ad-by-ad file list (assets per placement, landing URL, status, CTA) is `first-batch.csv`.
+
 URL parameters (Campaign B ads; the instant form needs none because W02 reads campaign/adset/ad IDs from the lead object):
 `utm_source=meta&utm_medium=paid_social&utm_campaign={{campaign.name}}&utm_content={{ad.name}}&utm_term={{placement}}&cid={{campaign.id}}&asid={{adset.id}}&adid={{ad.id}}`
 
@@ -174,7 +201,7 @@ Basis: NH-22 (d) default. Cycle 1 tests colour on H1 video only; the full 2x2 on
 | 3. Diversity | `C10_H7_vid-amb_{date}` | H7 "No boss. No payslip. No group cover." | amber |
 | 3. Diversity | `C13_H16_vid-amb_{date}` | H16 "Checking cover is not the same as buying." | amber |
 
-That is 10 ads (the cap), one per angle plus the colour pair, so all 7 angles are live. Each video carries its 9:16 (Reels/Stories) and 4:5 (Feed) through placement asset customisation. Not live (pool, replacements and the week 2-3 refresh): C02 (H12 Variant B; H2 on hold, NH-PCD-02), C07, C09, C11, C12 (H18; H8 on hold, NH-PCD-04), C15, all stills, 6-s motion stills, the C04 carousel. Statics are not live in cycle 1; static vs video is a cycle-2 test (`C01_H1_sta-{col}` vs `C01_H1_vid-{col}`), and the H3 teal twin (`C03_H3_vid-teal`) enters in cycle 2 if Jonathan keeps that arm. Replacement mapping after the 2,000-impression rule is in test-matrix.md (e.g. C06 -> C07, C08 -> C09, C10 -> C11, C13 -> C12, C14 -> C15; C01 arms are never swapped mid-test). Same copy within the C01 pair so colour is the only variable (single-variable discipline); upload both on the same day and never edit either.
+That is 10 ads (the cap), one per angle plus the colour pair, so all 7 angles are live. Placement assets follow the 4.7 motion rule (9:16 video everywhere; 4:5 native video only where it exists and parity allows). Not live (pool, replacements and the week 2-3 refresh): C02 (H12; H2 not approved, NH-PCD-02 decided), C07, C09, C11, C12 (H18; H8 held, NH-PCD-04, no source), C15, all stills, 6-s motion stills, the C04 carousel. Statics are not live in cycle 1; static vs video is a cycle-2 test (`C01_H1_sta-{col}` vs `C01_H1_vid-{col}`), and the H3 teal twin (`C03_H3_vid-teal`) enters in cycle 2 if Jonathan keeps that arm. Replacement mapping after the 2,000-impression rule is in test-matrix.md (e.g. C06 -> C07, C08 -> C09, C10 -> C11, C13 -> C12, C14 -> C15; C01 arms are never swapped mid-test). Same copy within the C01 pair so colour is the only variable (single-variable discipline); upload both on the same day and never edit either.
 
 **Delivery-split note (NH-PCD-06):** Meta does not split delivery evenly between the two colour ads inside one ad set. **Default: accept this for cycle 1.** If either arm gets < 25% of the pair's impressions over 7 days, record that week as inconclusive. Alternative, decided at cycle-1 close: run the C01 pair as a Meta A/B test (two ad sets, even split) in cycle 2, once Campaign A has >= 30 leads.
 
@@ -183,6 +210,16 @@ That is 10 ads (the cap), one per angle plus the colour pair, so all 7 angles ar
 - Verdict only at **>= 30 leads per arm**. Teal wins only if its cost per qualified lead is >= 20% lower and hook rate points the same way; any smaller difference or a split signal means amber stays. At ~R350/day the pair draws roughly 10-15 leads in cycle 1, so the verdict lands in cycle 2 or 3 (needs_human 4 is answered by the NH-22 (d) default). Never kill an arm on lead count.
 - Creative hygiene (4D.4a): any ad under hook < 30% (Reels) / < 25% (Feed) or hold < 35% after 2,000 impressions is replaced in the *next batch*, not mid-flight.
 - The 3.4 R3,000 rule still applies as written (pause bottom 50% on raw CPL or qualify rate). If it removes a matrix arm, record that arm as "inconclusive" and the matrix is re-run in the next batch. 3.4 wins over matrix completeness.
+
+### 4.7 Motion rule: which placements get what (cycle 1)
+Inventory (manifest, 104 rows): native **1:1 and 4:5 video exist only for C01 amber, C03, C14** (the trio). The other 12 concepts have 9:16 video plus 1:1 / 4:5 stills; C02, C08, C12 also have a 6-s 4:5 motion still.
+**Decision: no new 1:1 or 4:5 motion for the other 12 concepts in cycle 1.**
+1. **Reels / Stories / Feed-vertical: the 9:16 video.** Always.
+2. **Feed (4:5) and 1:1: the same 9:16 video with Meta's auto-crop, not a still.** Why: (a) one ad = one creative format, so hook rate, hold rate and the video-vs-static test in 4.5 stay clean (a still in Feed has no hook or hold, which pollutes the leading indicators we judge on); (b) 24 more motion renders cost build time for an unproven gain, and Advantage+ placements give 1:1 little volume; (c) the trio already carries native 4:5 motion where the first approval and the highest spend are.
+3. **Condition (unverified, so checked once):** the 9:16 renders were not designed for a 4:5 centre crop (285 px lost top and bottom). At upload, meta-operator checks every ad's Feed preview in Ads Manager (the same check visual-producer's SUMMARY lists as open). If hook text or the end-card CTA is clipped, attach that concept's fallback for Feed only: the 6-s 4:5 motion still where one exists (C02, C08, C12), otherwise the 4:5 still. Record which ads fell back; fallback ads are read on Reels/Stories hook rate only.
+4. **C01 pair parity overrides rule 3's "native where it exists":** C01 amber has 4:5/1:1 video, teal does not. Both arms ship 9:16-only (auto-crop) so palette stays the only variable; the amber 4:5/1:1 videos stay unattached. If visual-producer renders teal 4:5 and 1:1 video before the upload day, attach all three ratios to **both** arms. Never attach to one arm.
+5. **C03 and C14:** attach 9:16 + 4:5 + 1:1 video (native motion, no crop risk).
+6. **Revisit:** add 4:5 motion for a concept only if it becomes a top-3 ad by cost per qualified lead *and* its Feed share of spend is > 40%, or if Feed hook rate trails Reels by > 10 points. Both are visible per placement from week 2.
 
 ### 4.6 A2 (Rich Creative) test, built paused
 Duplicate the single best ad by cost per qualified lead (or `C01_H1_vid-amb` if none yet) with form A2, in the same ad set. Activate only when A1 has >= 30 leads on that creative, then run both forms at equal exposure for 14 days. Decide on cost per qualified lead and reply rate, not raw CPL. Not before.
@@ -199,7 +236,7 @@ Duplicate the single best ad by cost per qualified lead (or `C01_H1_vid-amb` if 
 | Conversion location | **Website** |
 | Performance goal | Maximise number of conversions; **conversion event `Lead`**; pixel `{pixel_id}`; dataset `{dataset_id}` |
 | Ad set | one: `SMC_B_BROAD_ZA_35-50`; same location, age, Advantage+ audience, placements and **exclusions** as A |
-| Destination URL | `https://sortmycover.co.za/q/{angle}` (placeholder: landing-page-builder owns one page per angle with message match; confirm paths). URL parameters from section 2 |
+| Destination URL | `https://sortmycover.co.za/{slug}/` per angle page (landing/angles/): employer-gap (C01, C02), new-bond (C03), new-baby (C04), turned-40 (C05), virtual (C08, C09), self-employed (C10, C11), **myth-bust (C12 only)**, **c13-check-not-buy (C13; never myth-bust)**. **No page exists yet for extended-family (C06, C07) or what-the-call (C14, C15)**: `needs_human`; Campaign B does not run those concepts until a page exists, and Campaign A (instant form) is unaffected. URL parameters from section 2 |
 | Ads | 5 concepts (4.4): reuse H1, H3, H5, H10, H12 hooks with message match to the page |
 | Conversion event health | `Lead` (browser + W01 CAPI, deduped by `event_id`), `Schedule`, `Contact` priority per section 1 item 8; EMQ >= 6 |
 | Switch-on | section 11 triggers (monthly media >= R20,000 or A qualify rate < 50%). Budget at switch-on: 30% of total media |
@@ -308,6 +345,25 @@ Action: do not switch pages on my own. The fallback (same creative from the **br
 | Console / pulse SLO burn (first message > 60 s, CAPI errors, token expiry, policy flag) | W22/W27 | Act immediately (this is the only exception to "no changes before 14 days") | optimisation-advisor | Jonathan |
 
 Targets: cost per qualified lead <= R250 at 14 days, trending to <= R200; raw CPL model R200 (break-even R397 at 60% qualify / R468 at 70%, 3.2).
+
+**11.1b Good-fit targets and replacement caps (added 2 Oct 2026; supersedes nothing above, adds a lagging layer).**
+Source of truth for targets: `ops.watchlist_targets` (smc_08 pass 3, edited by Jonathan in the console). Never type these numbers into a rule; read them. Seeded values at time of writing: **#1 cost per good-fit meeting target R1,300, stretch R900** (NH-25 default); **#4 broker good-fit share >= 60%** (the mirror of the 40% "not a fit" pause line); #3 booked-to-attended >= 65% (floor 50%). Replacement caps are **per cycle**: Bronze 4, Silver 6, Gold 9 (20% of committed); read from `pricing`, no weekly cap.
+
+How the layers relate: cost per qualified lead (<= R250) is the **leading** number I steer by from day 1; cost per good-fit meeting (<= R1,300; R1,300 / R250 implies roughly one good-fit meeting per 5 qualified leads) is the **lagging** truth. It is not readable until about 5 broker-rated meetings exist (R6,500 or more of media at target), so it never triggers anything before then.
+
+| Trigger | Action | Proposes | Confirms |
+|---|---|---|---|
+| Cost per good-fit meeting is not yet computable (< 5 broker-rated meetings) | Judge on cost per qualified lead, reply rate, booking rate only. No good-fit rule fires | n/a | n/a |
+| >= 5 rated meetings and cost per good-fit meeting > target (R1,300) while cost per qualified lead <= R250 | Quality problem, not a price problem: do **not** cut budget. Tighten qualifying questions or the budget band, review the ads with the lowest quality index, queue a replacement batch | media-buyer | Jonathan |
+| >= 5 rated meetings and cost per good-fit meeting > 1.5x target (R1,950) for 14 days | Same as the "R400 per qualified lead" stop: pause spend and escalate (ASSUMPTION: 1.5x threshold, tune at cycle-1 close, NH-21) | optimisation-advisor | Jonathan |
+| Cost per good-fit meeting <= target **and** cost per qualified <= R250 **and** broker good-fit share >= watchlist #4 | Eligible for the +20% single-step scale (once per 48 h) | optimisation-advisor | Jonathan |
+| Cost per good-fit meeting <= stretch (R900) | Same +20% step, plus propose that angle's hook family as the seed for the next batch and, later, for LAL-Q. No faster steps: the +20% / 48 h limit stands | media-buyer | Jonathan |
+| Broker good-fit share < watchlist #4 for 14 days (n >= 5 dispositions) | Pause the bottom ad by quality index regardless of CPL (as 11.1 row 7) | analytics-reporter | Jonathan |
+| Replacements used > 50% of the tier cap before day 14 of the cycle (Bronze 2 of 4, Silver 3 of 6, Gold 5 of 9; ASSUMPTION: 50% line, tune at cycle-1 close) | Early warning: find which ad / angle / placement produced the replaced leads (`leads.ad_id`); propose pausing it and tightening the form routing. Replacements are a cost to us, so a creative that generates them is expensive at any CPL | analytics-reporter | Jonathan |
+| Replacement cap reached | No more free replacements this cycle. Stop adding spend to the top replacement-source ad; tell broker-success so the broker hears it from us; the shortfall clause (extension up to 14 days, then pro-rata credit) still applies | optimisation-advisor | Jonathan |
+| Replacement was caused by a disputed reason (unreachable, wrong number, out-of-band that slipped the form) | Fix upstream (form validation, W02 backstop) and log; do not blame the creative | media-buyer | n/a |
+
+Replacements, shortfall credits and good-fit ratings change the real cost per qualified lead; the console computes cost per qualified lead **net of replacements issued** so a cheap lead that is later replaced does not look cheap.
 
 ### 11.2 Switching on B and C; Phase 2/3 triggers (4.4, 4.4a, 4.4b)
 | Trigger | What happens | Budget |
