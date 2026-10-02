@@ -182,8 +182,24 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// Supabase Storage \"delete objects\" wants paths inside the bucket (automation/local/LOCAL-STAGING.md §1d):\n// DELETE {W34_MEDIA_ERASE_URL = <SUPABASE_URL>/storage/v1/object/<bucket>} body {\"prefixes\": [<path>, ...]}, max 1,000 per call.\n// Accepts .../storage/v1/object/[sign/|public/|authenticated/]<bucket>/<path>[?token] URLs or bare \"<bucket>/<path>\" / \"<path>\".\n// Anything else (another bucket, a Meta media id, another host) is NOT deleted here and is reported (red).\nconst bucketRaw = String($env.W34_MEDIA_ERASE_URL || '').replace(/\\/+$/, '').split('/').pop();\nconst bucket = /^[a-z0-9._-]+$/.test(bucketRaw || '') ? bucketRaw : 'broker-media';\nfunction toPath(u) {\n  const s = String(u || '').trim(); if (!s) return null;\n  const esc = bucket.split('.').join('[.]'); // bucket names are [a-z0-9._-] only (checked above)\n  const m = s.match(new RegExp('/storage/v1/object/(?:sign/|public/|authenticated/)?' + esc + '/([^?#]+)'));\n  if (m) return decodeURIComponent(m[1]);\n  if (/^[a-z]+:\\/\\//i.test(s) || /^\\d+$/.test(s)) return null;\n  const p = s.replace(/^\\/+/, '').replace(new RegExp('^' + esc + '/'), '');\n  return p && !p.includes('..') ? p : null;\n}\nfunction chunks(urls, ref) {\n  const prefixes = [...new Set(urls.map(toPath).filter(Boolean))];\n  const unmapped = urls.filter((u) => u && !toPath(u));\n  const out = [];\n  for (let i = 0; i < prefixes.length; i += 1000) out.push({ reference: ref, prefixes: prefixes.slice(i, i + 1000), unmapped, any: true });\n  if (!out.length) out.push({ reference: ref, prefixes: [], unmapped, any: false });\n  return out;\n}\n// Media files referenced by erased rows (voice notes, call recordings) -> bucket paths for the Storage delete.\nconst ctx = $('Set retention context').first().json;\nconst urls = [];\nfor (const n of ['Pseudonymise after lead retention']) {\n  try { for (const u of ($(n).first().json.media_urls || [])) if (u) urls.push(u); } catch (e) { /* node failed: reported in the summary */ }\n}\nreturn chunks(ctx.dry_run ? [] : [...new Set(urls)], ctx.run_id).map((c) => ({ json: { run_id: ctx.run_id, urls: urls.length, ...c } }));"
+        "jsCode": "// I-41b: media erase goes through the w34-media-erase edge function (automation/local/LOCAL-STAGING.md §1d;\n// supabase/functions/w34-media-erase/index.ts). The function accepts only \"broker-media/<broker uuid>/<file>\" paths\n// (no \"..\", \"//\", \"*\" or trailing \"/\"; file chars [A-Za-z0-9._/-]), 1-50 per call. The same rule is applied here, so the\n// function never has to reject: anything else (another bucket, a Meta media id, another host, a non-uuid folder) is\n// NOT sent and is reported (red, delete by hand).\n// Accepts .../storage/v1/object/[sign/|public/|authenticated/]broker-media/<key>[?token], \"broker-media/<key>\" or \"<key>\".\nconst BUCKET = 'broker-media'; const MAX_PATHS = 50;\nconst PATH_RE = /^broker-media\\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\/[A-Za-z0-9._\\/-]{1,200}$/;\nfunction toPath(u) {\n  const s = String(u || '').trim(); if (!s) return null;\n  let key;\n  const m = s.match(/\\/storage\\/v1\\/object\\/(?:sign\\/|public\\/|authenticated\\/)?broker-media\\/([^?#]+)/);\n  if (m) { try { key = decodeURIComponent(m[1]); } catch (e) { return null; } }\n  else if (/^[a-z]+:\\/\\//i.test(s) || /^\\d+$/.test(s)) return null;\n  else key = s.replace(/^\\/+/, '').replace(/^broker-media\\//, '');\n  const p = BUCKET + '/' + key;\n  if (p.includes('..') || p.includes('//') || p.includes('*') || p.endsWith('/') || !PATH_RE.test(p)) return null;\n  return p;\n}\n// One item per call: { paths (<= 50), policy, dsr_id, request_id, unmapped, any }. request_id gets \":<n>\" when split.\nfunction batches(urls, policy, dsrId, requestId) {\n  const paths = [...new Set(urls.map(toPath).filter(Boolean))];\n  const unmapped = urls.filter((u) => u && !toPath(u));\n  const out = [];\n  for (let i = 0; i < paths.length; i += MAX_PATHS) {\n    out.push({ policy, dsr_id: dsrId, request_id: requestId + (paths.length > MAX_PATHS ? ':' + (i / MAX_PATHS + 1) : ''), paths: paths.slice(i, i + MAX_PATHS), unmapped, any: true });\n  }\n  if (!out.length) out.push({ policy, dsr_id: dsrId, request_id: requestId, paths: [], unmapped, any: false });\n  return out;\n}\n// Media files referenced by rows erased tonight (voice notes, call recordings) -> policy \"retention\", no dsr_id.\nconst ctx = $('Set retention context').first().json;\nconst urls = [];\nfor (const n of ['Pseudonymise after lead retention']) {\n  try { for (const u of ($(n).first().json.media_urls || [])) if (u) urls.push(u); } catch (e) { /* node failed: reported in the summary */ }\n}\nreturn batches(ctx.dry_run ? [] : [...new Set(urls)], 'retention', null, ctx.run_id).map((c) => ({ json: { run_id: ctx.run_id, urls: urls.length, ...c } }));"
       }
+    },
+    {
+      "id": "w34-11a",
+      "name": "Sign media erase (nightly)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2040,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-41b: sign each batch for the w34-media-erase edge function. Scheme = the function's check\n// (supabase/functions/w34-media-erase/index.ts step 1) = /webhook/w26/status (automation/vps/provision.sh notify):\n//   X-LV-Timestamp: <unix seconds>\n//   X-LV-Signature: sha256=<hex HMAC-SHA256(W34_MEDIA_ERASE_SECRET, timestamp + \".\" + rawBody)>\n// The body is serialised ONCE here and the HTTP node sends this exact string (contentType raw), so the signed bytes are\n// the sent bytes. Window +-300 s: the HTTP node sends the batches straight after this node.\n// No credential: n8n never holds a Storage key, only this secret, which can delete broker-media objects and nothing else.\n// Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false (same as W20/W22).\nconst crypto = require('crypto');\nconst items = $input.all().map((i) => i.json || {});\nconst todo = items.filter((j) => j.any === true && Array.isArray(j.paths) && j.paths.length > 0);\nif (!todo.length) return items.map((j) => ({ json: { ...j, any: false } }));\nconst url = String($env.W34_MEDIA_ERASE_URL || '').trim();\nconst secret = String($env.W34_MEDIA_ERASE_SECRET || '');\nif (!/^https?:\\/\\/[^\\s/]+(\\/[^\\s]*)?\\/functions\\/v1\\/w34-media-erase\\/?$/.test(url)) throw new Error('W34_MEDIA_ERASE_URL is not <SUPABASE_URL>/functions/v1/w34-media-erase: media not erased');\nif (secret.length < 32) throw new Error('W34_MEDIA_ERASE_SECRET missing or shorter than 32 characters: media not erased');\nconst ts = String(Math.floor(Date.now() / 1000));\nreturn todo.map((j) => {\n  if (j.paths.length > 50) throw new Error('W34 media erase batch over 50 paths');\n  const body = JSON.stringify({ paths: j.paths, policy: j.policy, dsr_id: j.dsr_id ?? null, request_id: j.request_id });\n  const sig = crypto.createHmac('sha256', secret).update(ts + '.' + body, 'utf8').digest('hex');\n  return { json: { any: true, request_id: j.request_id, paths: j.paths.length, body, timestamp: ts, signature: 'sha256=' + sig } };\n});"
+      },
+      "onError": "continueRegularOutput",
+      "notes": "A signing failure (URL/secret not set) becomes an {error} item: \"Any media?\" is false and Summarise night raises w34_retention_failure."
     },
     {
       "id": "w34-10",
@@ -228,27 +244,35 @@
         -20
       ],
       "parameters": {
-        "method": "DELETE",
+        "method": "POST",
         "url": "={{ $env.W34_MEDIA_ERASE_URL }}",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-LV-Timestamp",
+              "value": "={{ $json.timestamp }}"
+            },
+            {
+              "name": "X-LV-Signature",
+              "value": "={{ $json.signature }}"
+            }
+          ]
+        },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ prefixes: $json.prefixes }) }}",
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.body }}",
         "options": {
           "timeout": 30000
-        }
-      },
-      "credentials": {
-        "httpHeaderAuth": {
-          "name": "W34 media erase (storage service)"
         }
       },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 5000,
       "onError": "continueRegularOutput",
-      "notes": "Supabase Storage delete objects (LOCAL-STAGING.md 1d): DELETE <SUPABASE_URL>/storage/v1/object/broker-media, body {prefixes}, <=1,000 per item. Header Auth credential (secret key) used by the two W34 storage nodes only."
+      "notes": "w34-media-erase edge function (LOCAL-STAGING.md 1d): POST, HMAC-signed raw body {paths<=50, policy:\"retention\", dsr_id:null, request_id}, one call per item, no credential. Non-2xx -> {error} item -> Summarise night -> w34_retention_failure. Response {ok, deleted, not_found, rejected[], request_id} is checked in Summarise night."
     },
     {
       "id": "w34-12",
@@ -261,7 +285,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// W34 nightly evidence: counts only, no PII. Feeds the monthly report and obligation P8.\nconst ctx = $('Set retention context').first().json;\nconst JOBS = ['Purge expired wa_threads', 'Delete non-fit entries', 'Pseudonymise after lead retention', 'Delete consent records after consent retention', 'Minimise closed DSR records'];\nconst jobs = {}; const errors = [];\nfor (const n of JOBS) {\n  let items = [];\n  try { items = $(n).all().map((i) => i.json); } catch (e) { errors.push(n + ': did not run'); continue; }\n  const err = items.find((j) => j && j.error);\n  if (err) { errors.push(n + ': ' + String(err.error.message || err.error).slice(0, 200)); continue; }\n  const j = items[0] || {};\n  jobs[n] = { due: j.due ?? null, done: j.done ?? 0 };\n}\nlet media = { requested: 0, failed: false };\ntry { const ms = $('Collect media to erase').all().map((i) => i.json); media.requested = ms.reduce((a, m) => a + (m.prefixes || []).length, 0); const un = (ms[0] && ms[0].unmapped) || []; if (un.length) { media.failed = true; errors.push('media erase: ' + un.length + ' reference(s) not in the storage bucket, not deleted'); } } catch (e) {}\ntry { for (const i of $('Erase media files (storage)').all()) { const r = i.json; if (r && r.error) { media.failed = true; errors.push('media erase: ' + String(r.error.message || r.error).slice(0, 200)); break; } } } catch (e) {}\nconst red = errors.length > 0 || ctx.refused.length > 0;\nreturn [{ json: {\n  run_id: ctx.run_id, run_day: ctx.run_day, run_month: ctx.run_month, evidence_dir: ctx.evidence_dir,\n  test_mode: ctx.test_mode, dry_run: ctx.dry_run, periods: ctx.periods, cutoffs: ctx.cutoffs, refused: ctx.refused,\n  jobs, media, errors, red,\n  alert: red ? { kind: 'w34_retention_failure', workflow: 'W34', to: ['jonathan'], severity: 'red',\n    message: 'W34 retention ' + ctx.run_day + ': ' + (ctx.refused.length ? 'refused settings ' + ctx.refused.join(', ') + '. ' : '') + (errors.length ? errors.join(' | ') : '') } : null,\n} }];"
+        "jsCode": "// W34 nightly evidence: counts only, no PII. Feeds the monthly report and obligation P8.\nconst ctx = $('Set retention context').first().json;\nconst JOBS = ['Purge expired wa_threads', 'Delete non-fit entries', 'Pseudonymise after lead retention', 'Delete consent records after consent retention', 'Minimise closed DSR records'];\nconst jobs = {}; const errors = [];\nfor (const n of JOBS) {\n  let items = [];\n  try { items = $(n).all().map((i) => i.json); } catch (e) { errors.push(n + ': did not run'); continue; }\n  const err = items.find((j) => j && j.error);\n  if (err) { errors.push(n + ': ' + String(err.error.message || err.error).slice(0, 200)); continue; }\n  const j = items[0] || {};\n  jobs[n] = { due: j.due ?? null, done: j.done ?? 0 };\n}\n// Media (I-41b): w34-media-erase answers { ok, deleted, not_found, rejected: [{path, reason}], request_id } per batch.\n// Red (w34_retention_failure) on: a reference outside broker-media/<uuid>/, a signing failure, a non-2xx ({error} item),\n// or a 2xx with ok:false (rejected path; 207 deleted_but_not_logged). not_found alone is not a failure.\nlet media = { requested: 0, deleted: 0, not_found: 0, rejected: 0, failed: false };\ntry { const ms = $('Collect media to erase').all().map((i) => i.json); media.requested = ms.reduce((a, m) => a + (m.paths || []).length, 0); const un = (ms[0] && ms[0].unmapped) || []; if (un.length) { media.failed = true; errors.push('media erase: ' + un.length + ' reference(s) not in the storage bucket, not deleted'); } } catch (e) {}\ntry { for (const i of $('Sign media erase (nightly)').all()) { const r = i.json; if (r && r.error) { media.failed = true; errors.push('media erase not sent: ' + String(r.error.message || r.error).slice(0, 200)); break; } } } catch (e) {}\ntry {\n  for (const i of $('Erase media files (storage)').all()) {\n    const r = i.json || {};\n    if (r.ok === undefined && r.error) { media.failed = true; errors.push('media erase: ' + String(r.error.message || r.error).slice(0, 200)); continue; }\n    media.deleted += Number(r.deleted) || 0; media.not_found += Number(r.not_found) || 0; media.rejected += (r.rejected || []).length;\n    if (r.ok !== true) { media.failed = true; errors.push('media erase ' + String(r.request_id || '') + ': ' + (r.error ? String(r.error).slice(0, 100) : (r.rejected || []).length + ' path(s) rejected')); }\n  }\n} catch (e) {}\nconst red = errors.length > 0 || ctx.refused.length > 0;\nreturn [{ json: {\n  run_id: ctx.run_id, run_day: ctx.run_day, run_month: ctx.run_month, evidence_dir: ctx.evidence_dir,\n  test_mode: ctx.test_mode, dry_run: ctx.dry_run, periods: ctx.periods, cutoffs: ctx.cutoffs, refused: ctx.refused,\n  jobs, media, errors, red,\n  alert: red ? { kind: 'w34_retention_failure', workflow: 'W34', to: ['jonathan'], severity: 'red',\n    message: 'W34 retention ' + ctx.run_day + ': ' + (ctx.refused.length ? 'refused settings ' + ctx.refused.join(', ') + '. ' : '') + (errors.length ? errors.join(' | ') : '') } : null,\n} }];"
       }
     },
     {
@@ -932,8 +956,23 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// Supabase Storage \"delete objects\" wants paths inside the bucket (automation/local/LOCAL-STAGING.md §1d):\n// DELETE {W34_MEDIA_ERASE_URL = <SUPABASE_URL>/storage/v1/object/<bucket>} body {\"prefixes\": [<path>, ...]}, max 1,000 per call.\n// Accepts .../storage/v1/object/[sign/|public/|authenticated/]<bucket>/<path>[?token] URLs or bare \"<bucket>/<path>\" / \"<path>\".\n// Anything else (another bucket, a Meta media id, another host) is NOT deleted here and is reported (red).\nconst bucketRaw = String($env.W34_MEDIA_ERASE_URL || '').replace(/\\/+$/, '').split('/').pop();\nconst bucket = /^[a-z0-9._-]+$/.test(bucketRaw || '') ? bucketRaw : 'broker-media';\nfunction toPath(u) {\n  const s = String(u || '').trim(); if (!s) return null;\n  const esc = bucket.split('.').join('[.]'); // bucket names are [a-z0-9._-] only (checked above)\n  const m = s.match(new RegExp('/storage/v1/object/(?:sign/|public/|authenticated/)?' + esc + '/([^?#]+)'));\n  if (m) return decodeURIComponent(m[1]);\n  if (/^[a-z]+:\\/\\//i.test(s) || /^\\d+$/.test(s)) return null;\n  const p = s.replace(/^\\/+/, '').replace(new RegExp('^' + esc + '/'), '');\n  return p && !p.includes('..') ? p : null;\n}\nfunction chunks(urls, ref) {\n  const prefixes = [...new Set(urls.map(toPath).filter(Boolean))];\n  const unmapped = urls.filter((u) => u && !toPath(u));\n  const out = [];\n  for (let i = 0; i < prefixes.length; i += 1000) out.push({ reference: ref, prefixes: prefixes.slice(i, i + 1000), unmapped, any: true });\n  if (!out.length) out.push({ reference: ref, prefixes: [], unmapped, any: false });\n  return out;\n}\nconst e = $input.first().json || {};\nreturn chunks(e.media_urls || [], 'dsr-' + e.dsr_id).map((c) => ({ json: c }));"
+        "jsCode": "// I-41b: media erase goes through the w34-media-erase edge function (automation/local/LOCAL-STAGING.md §1d;\n// supabase/functions/w34-media-erase/index.ts). The function accepts only \"broker-media/<broker uuid>/<file>\" paths\n// (no \"..\", \"//\", \"*\" or trailing \"/\"; file chars [A-Za-z0-9._/-]), 1-50 per call. The same rule is applied here, so the\n// function never has to reject: anything else (another bucket, a Meta media id, another host, a non-uuid folder) is\n// NOT sent and is reported (red, delete by hand).\n// Accepts .../storage/v1/object/[sign/|public/|authenticated/]broker-media/<key>[?token], \"broker-media/<key>\" or \"<key>\".\nconst BUCKET = 'broker-media'; const MAX_PATHS = 50;\nconst PATH_RE = /^broker-media\\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\/[A-Za-z0-9._\\/-]{1,200}$/;\nfunction toPath(u) {\n  const s = String(u || '').trim(); if (!s) return null;\n  let key;\n  const m = s.match(/\\/storage\\/v1\\/object\\/(?:sign\\/|public\\/|authenticated\\/)?broker-media\\/([^?#]+)/);\n  if (m) { try { key = decodeURIComponent(m[1]); } catch (e) { return null; } }\n  else if (/^[a-z]+:\\/\\//i.test(s) || /^\\d+$/.test(s)) return null;\n  else key = s.replace(/^\\/+/, '').replace(/^broker-media\\//, '');\n  const p = BUCKET + '/' + key;\n  if (p.includes('..') || p.includes('//') || p.includes('*') || p.endsWith('/') || !PATH_RE.test(p)) return null;\n  return p;\n}\n// One item per call: { paths (<= 50), policy, dsr_id, request_id, unmapped, any }. request_id gets \":<n>\" when split.\nfunction batches(urls, policy, dsrId, requestId) {\n  const paths = [...new Set(urls.map(toPath).filter(Boolean))];\n  const unmapped = urls.filter((u) => u && !toPath(u));\n  const out = [];\n  for (let i = 0; i < paths.length; i += MAX_PATHS) {\n    out.push({ policy, dsr_id: dsrId, request_id: requestId + (paths.length > MAX_PATHS ? ':' + (i / MAX_PATHS + 1) : ''), paths: paths.slice(i, i + MAX_PATHS), unmapped, any: true });\n  }\n  if (!out.length) out.push({ policy, dsr_id: dsrId, request_id: requestId, paths: [], unmapped, any: false });\n  return out;\n}\n// DSR erase step 3: the subject's media -> policy \"dsr\", dsr_id on every retention_log row the function writes.\nconst e = $input.first().json || {};\nreturn batches(e.media_urls || [], 'dsr', e.dsr_id || null, 'dsr-' + e.dsr_id).map((c) => ({ json: c }));"
       }
+    },
+    {
+      "id": "w34-43a",
+      "name": "Sign subject media erase (DSR)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1140,
+        1920
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-41b: sign each batch for the w34-media-erase edge function. Scheme = the function's check\n// (supabase/functions/w34-media-erase/index.ts step 1) = /webhook/w26/status (automation/vps/provision.sh notify):\n//   X-LV-Timestamp: <unix seconds>\n//   X-LV-Signature: sha256=<hex HMAC-SHA256(W34_MEDIA_ERASE_SECRET, timestamp + \".\" + rawBody)>\n// The body is serialised ONCE here and the HTTP node sends this exact string (contentType raw), so the signed bytes are\n// the sent bytes. Window +-300 s: the HTTP node sends the batches straight after this node.\n// No credential: n8n never holds a Storage key, only this secret, which can delete broker-media objects and nothing else.\n// Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false (same as W20/W22).\nconst crypto = require('crypto');\nconst items = $input.all().map((i) => i.json || {});\nconst todo = items.filter((j) => j.any === true && Array.isArray(j.paths) && j.paths.length > 0);\nif (!todo.length) return items.map((j) => ({ json: { ...j, any: false } }));\nconst url = String($env.W34_MEDIA_ERASE_URL || '').trim();\nconst secret = String($env.W34_MEDIA_ERASE_SECRET || '');\nif (!/^https?:\\/\\/[^\\s/]+(\\/[^\\s]*)?\\/functions\\/v1\\/w34-media-erase\\/?$/.test(url)) throw new Error('W34_MEDIA_ERASE_URL is not <SUPABASE_URL>/functions/v1/w34-media-erase: media not erased');\nif (secret.length < 32) throw new Error('W34_MEDIA_ERASE_SECRET missing or shorter than 32 characters: media not erased');\nconst ts = String(Math.floor(Date.now() / 1000));\nreturn todo.map((j) => {\n  if (j.paths.length > 50) throw new Error('W34 media erase batch over 50 paths');\n  const body = JSON.stringify({ paths: j.paths, policy: j.policy, dsr_id: j.dsr_id ?? null, request_id: j.request_id });\n  const sig = crypto.createHmac('sha256', secret).update(ts + '.' + body, 'utf8').digest('hex');\n  return { json: { any: true, request_id: j.request_id, paths: j.paths.length, body, timestamp: ts, signature: 'sha256=' + sig } };\n});"
+      },
+      "notes": "No continue-on-error: a signing failure stops the DSR before \"Complete erase request\" (W22 errorWorkflow)."
     },
     {
       "id": "w34-42",
@@ -978,26 +1017,48 @@
         1720
       ],
       "parameters": {
-        "method": "DELETE",
+        "method": "POST",
         "url": "={{ $env.W34_MEDIA_ERASE_URL }}",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-LV-Timestamp",
+              "value": "={{ $json.timestamp }}"
+            },
+            {
+              "name": "X-LV-Signature",
+              "value": "={{ $json.signature }}"
+            }
+          ]
+        },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ prefixes: $json.prefixes }) }}",
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.body }}",
         "options": {
           "timeout": 30000
-        }
-      },
-      "credentials": {
-        "httpHeaderAuth": {
-          "name": "W34 media erase (storage service)"
         }
       },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 5000,
-      "notes": "Same Storage delete as the nightly node. A failure stops the run before Complete erase request (W22 errorWorkflow), so a request is never marked completed with media left."
+      "notes": "Same edge function as the nightly node, policy \"dsr\" + dsr_id. Non-2xx stops the run (no continue-on-error); a 2xx with ok:false (rejected path, 207 not logged) is stopped by \"Check subject media erase\". Either way the request is never marked completed with media left."
+    },
+    {
+      "id": "w34-43b",
+      "name": "Check subject media erase",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1380,
+        1620
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-41b: w34-media-erase answers { ok, deleted, not_found, rejected: [{path, reason}], request_id } per batch (counts and\n// broker-scoped object keys only). 207 = deleted but retention_log not written ({ ok: false, error: 'deleted_but_not_logged' }).\n// A non-2xx already stopped the run at the HTTP node. The DSR is completed only when every batch came back ok: a rejected\n// path or a missing log row stops here (W22 errorWorkflow) before \"Complete erase request\". not_found is fine (already gone).\nconst res = $input.all().map((i) => i.json || {});\nlet deleted = 0, not_found = 0, rejected = 0; const problems = [];\nfor (const r of res) {\n  deleted += Number(r.deleted) || 0; not_found += Number(r.not_found) || 0; rejected += (r.rejected || []).length;\n  if (r.ok !== true) problems.push(String(r.request_id || '?') + ': ' + (r.error ? String(r.error.message || r.error) : (r.rejected || []).length + ' path(s) rejected (' + (r.rejected || []).map((x) => x.reason).join(', ') + ')'));\n}\nif (!res.length) problems.push('no response');\nif (problems.length) throw new Error('W34 DSR media erase incomplete, request NOT completed: ' + problems.join(' | ').slice(0, 500));\nreturn [{ json: { batches: res.length, deleted, not_found, rejected } }];"
+      }
     },
     {
       "id": "w34-44",
@@ -1034,7 +1095,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// IO confirmation via W22 (no name, no number). Red if completed after the 30-day due date.\nconst s = $('Suppress subject (erase step 1)').first().json;\nconst c = $input.first().json || {};\nlet unmapped = 0; try { unmapped = ($('Map subject media to paths').first().json.unmapped || []).length; } catch (e) { /* no media step */ }\nreturn [{ json: { kind: 'dsar_erased', workflow: 'W34', to: [$env.W34_IO_RECIPIENT || 'jonathan'], severity: c.in_time === false || unmapped > 0 ? 'red' : 'info', dsr_id: s.dsr_id, unmapped_media: unmapped,\n  message: 'DSR ' + String(s.dsr_id).slice(0, 8) + ': ' + s.leads_found + ' lead(s) erased, ' + s.suppressed + ' number(s) suppressed, ' + (s.broker_notices || []).length + ' broker notice(s). ' + (c.in_time === false ? 'Completed AFTER the 30-day due date.' : 'Inside 30 days.') + (unmapped ? ' ' + unmapped + ' media reference(s) outside the storage bucket: delete by hand.' : '') } }];"
+        "jsCode": "// IO confirmation via W22 (no name, no number). Red if completed after the 30-day due date.\nconst s = $('Suppress subject (erase step 1)').first().json;\nconst c = $input.first().json || {};\nlet unmapped = 0; try { unmapped = ($('Map subject media to paths').first().json.unmapped || []).length; } catch (e) { /* no media step */ }\nlet mediaDeleted = 0; try { mediaDeleted = $('Check subject media erase').first().json.deleted || 0; } catch (e) { /* no media to erase */ }\nreturn [{ json: { kind: 'dsar_erased', workflow: 'W34', to: [$env.W34_IO_RECIPIENT || 'jonathan'], severity: c.in_time === false || unmapped > 0 ? 'red' : 'info', dsr_id: s.dsr_id, unmapped_media: unmapped, media_deleted: mediaDeleted,\n  message: 'DSR ' + String(s.dsr_id).slice(0, 8) + ': ' + s.leads_found + ' lead(s) erased, ' + s.suppressed + ' number(s) suppressed, ' + (s.broker_notices || []).length + ' broker notice(s). ' + (c.in_time === false ? 'Completed AFTER the 30-day due date.' : 'Inside 30 days.') + (unmapped ? ' ' + unmapped + ' media reference(s) outside the storage bucket: delete by hand.' : '') } }];"
       }
     },
     {
@@ -1407,6 +1468,17 @@
       "main": [
         [
           {
+            "node": "Sign media erase (nightly)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sign media erase (nightly)": {
+      "main": [
+        [
+          {
             "node": "Any media?",
             "type": "main",
             "index": 0
@@ -1729,6 +1801,17 @@
       "main": [
         [
           {
+            "node": "Sign subject media erase (DSR)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sign subject media erase (DSR)": {
+      "main": [
+        [
+          {
             "node": "Any subject media?",
             "type": "main",
             "index": 0
@@ -1755,6 +1838,17 @@
       ]
     },
     "Erase subject media (storage)": {
+      "main": [
+        [
+          {
+            "node": "Check subject media erase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check subject media erase": {
       "main": [
         [
           {

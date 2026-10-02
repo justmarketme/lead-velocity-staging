@@ -13,7 +13,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { createHash } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import vm from 'node:vm';
 import { checkSql, workflowSql } from './_sqlcheck.mjs';
 
@@ -153,7 +153,7 @@ test('retention: a bad setting is refused (job skipped, red), never clamped into
   const s = runCode('Summarise night', { now: '2026-10-02T02:31:00+02:00', refs: {
     'Set retention context': [ctx], 'Purge expired wa_threads': [{ job: 'wa_threads', due: 3, done: 3 }], 'Delete non-fit entries': [{ due: 1, done: 1 }],
     'Pseudonymise after lead retention': [{ due: 0, done: 0, media_urls: [] }],
-    'Delete consent records after consent retention': [{ due: 0, done: 0 }], 'Minimise closed DSR records': [{ done: 0 }], 'Collect media to erase': [{ prefixes: [], unmapped: [] }] } })[0];
+    'Delete consent records after consent retention': [{ due: 0, done: 0 }], 'Minimise closed DSR records': [{ done: 0 }], 'Collect media to erase': [{ paths: [], unmapped: [] }] } })[0];
   assert.equal(s.red, true);
   assert.equal(s.alert.severity, 'red');
   assert.match(s.alert.message, /W34_LEAD_RETENTION_MONTHS=0/);
@@ -164,7 +164,7 @@ test('retention: a failing job is reported and the others still count (continueR
   const s = runCode('Summarise night', { now: '2026-10-02T02:31:00+02:00', refs: {
     'Set retention context': [ctx], 'Purge expired wa_threads': [{ job: 'wa_threads', due: 2, done: 2 }], 'Delete non-fit entries': [{ error: { message: 'deadlock detected' } }],
     'Pseudonymise after lead retention': [{ due: 4, done: 4, media_urls: ['m1'] }],
-    'Delete consent records after consent retention': [{ due: 1, done: 1 }], 'Minimise closed DSR records': [{ done: 0 }], 'Collect media to erase': [{ prefixes: ['b1/m1.ogg'], unmapped: [] }] } })[0];
+    'Delete consent records after consent retention': [{ due: 1, done: 1 }], 'Minimise closed DSR records': [{ done: 0 }], 'Collect media to erase': [{ paths: ['broker-media/11111111-1111-4111-8111-111111111111/m1.ogg'], unmapped: [] }] } })[0];
   assert.equal(s.red, true);
   assert.deepEqual(s.jobs['Purge expired wa_threads'], { due: 2, done: 2 });
   assert.ok(!WF.nodes.some((n) => n.name === 'Clear residual identifiers'), 'job 3b dropped: smc_erase_lead covers the residual columns (migration 12)');
@@ -330,7 +330,7 @@ test('DSR action guard: typed-twice id, export|erase only, erase defaults to pse
   assert.equal(runCode('Check DSR action', { now: RECEIVED, env: { W34_DSR_ERASE_ACTION: 'purge_all' }, input: [{ body: { dsr_id: id, confirm_dsr_id: id, action: 'erase' } }] })[0].erase_action, 'pseudonymise');
   assert.throws(() => runCode('Check DSR action', { now: RECEIVED, input: [{ body: { dsr_id: id, confirm_dsr_id: id.replace('a1', 'a2'), action: 'erase' } }] }), /not confirmed/);
   assert.throws(() => runCode('Check DSR action', { now: RECEIVED, input: [{ body: { dsr_id: id, confirm_dsr_id: id, action: 'truncate' } }] }), /export or erase/);
-  const io = runCode('Build IO erase confirmation', { now: RECEIVED, input: [{ id, in_time: true }], refs: { 'Suppress subject (erase step 1)': [{ dsr_id: id, leads_found: 1, suppressed: 1, broker_notices: [] }], 'Map subject media to paths': [{ prefixes: [], unmapped: ['https://lookaside.fbsbx.com/x'] }] } })[0];
+  const io = runCode('Build IO erase confirmation', { now: RECEIVED, input: [{ id, in_time: true }], refs: { 'Suppress subject (erase step 1)': [{ dsr_id: id, leads_found: 1, suppressed: 1, broker_notices: [] }], 'Map subject media to paths': [{ paths: [], unmapped: ['https://lookaside.fbsbx.com/x'] }] } })[0];
   assert.equal(io.severity, 'red', 'media outside the bucket is surfaced, not silently skipped'); assert.equal(io.unmapped_media, 1);
 });
 
@@ -362,7 +362,7 @@ test("schema: ops.notifications kind check allows 'dsar' (migration 12, I-38a)",
 });
 
 // ---------------------------------------------------------------------------------------------
-// 7. Follow-up (migration 12): one hash rule, Supabase Storage delete, broker notice via the shared sender
+// 7. Follow-up (migration 12): one hash rule, signed w34-media-erase call (I-41b), broker notice via the shared sender
 // ---------------------------------------------------------------------------------------------
 test('hash rule: the three subject lookups use smc_hash_contact (digits-only, migration 12), no inline hashing', () => {
   for (const n of ['Record DSR + dsar ticket', 'Export subject data', 'Suppress subject (erase step 1)']) {
@@ -372,43 +372,155 @@ test('hash rule: the three subject lookups use smc_hash_contact (digits-only, mi
   }
 });
 
-const MEDIA_ENV = { W34_MEDIA_ERASE_URL: 'https://synthetic.supabase.co/storage/v1/object/broker-media' };
-test('storage: both media nodes call Supabase Storage DELETE {prefixes} with the named Header Auth credential', () => {
-  for (const n of ['Erase media files (storage)', 'Erase subject media (storage)']) {
-    const p = node(n).parameters;
-    assert.equal(p.method, 'DELETE');
-    assert.equal(p.url, '={{ $env.W34_MEDIA_ERASE_URL }}');
-    assert.equal(p.genericAuthType, 'httpHeaderAuth');
-    assert.equal(p.jsonBody, '={{ JSON.stringify({ prefixes: $json.prefixes }) }}');
-    assert.deepEqual(node(n).credentials, { httpHeaderAuth: { name: 'W34 media erase (storage service)' } });
-  }
-  // DSR path: a storage failure must stop before "Complete erase request" (no continue-on-error)
-  assert.equal(node('Erase subject media (storage)').onError, undefined);
+// I-41b: both media paths call the w34-media-erase edge function, HMAC-signed in a Code node; no credential.
+const FN_SRC = readFileSync(join(REPO, 'supabase', 'functions', 'w34-media-erase', 'index.ts'), 'utf8');
+const FN_PATH_RE = new RegExp(FN_SRC.match(/const PATH_RE = \/(.+)\/;\n/)[1]);
+const FN_MAX = Number(FN_SRC.match(/const MAX_PATHS = (\d+);/)[1]);
+const B1 = '11111111-1111-4111-8111-111111111111', B2 = '22222222-2222-4222-8222-222222222222';
+const MEDIA_SECRET = 'synthetic-w34-media-erase-secret-0123456789abcdef';
+const MEDIA_ENV = { W34_MEDIA_ERASE_URL: 'https://synthetic.supabase.co/functions/v1/w34-media-erase', W34_MEDIA_ERASE_SECRET: MEDIA_SECRET };
+// The function's own verification (index.ts step 1), re-run with WebCrypto exactly as Deno does it.
+async function fnVerify(secret, headers, raw, nowS) {
+  const ts = headers['X-LV-Timestamp'] || '';
+  const sig = (headers['X-LV-Signature'] || '').replace(/^sha256=/, '');
+  if (!/^\d{9,11}$/.test(ts) || Math.abs(nowS - Number(ts)) > 300) return 'stale_or_missing_timestamp';
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const mac = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${ts}.${raw}`));
+  const expected = Array.from(new Uint8Array(mac)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  return sig === expected ? 'ok' : 'bad_signature';
+}
+const headersOf = (httpNode, item) => Object.fromEntries(httpNode.parameters.headerParameters.parameters.map((h) => [h.name, item[h.value.match(/\$json\.(\w+)/)[1]]]));
+const rawOf = (httpNode, item) => item[httpNode.parameters.body.match(/\$json\.(\w+)/)[1]];
+
+test('media erase (I-41b): the function signs ts + "." + rawBody, and the source still says so', () => {
+  assert.match(FN_SRC, /hmacHex\(secret, `\$\{ts\}\.\$\{raw\}`\)/, 'edge function signs `${ts}.${raw}`');
+  assert.match(FN_SRC, /x-lv-timestamp/); assert.match(FN_SRC, /replace\(\/\^sha256=\//);
+  assert.equal(FN_MAX, 50);
+  assert.match(readFileSync(join(REPO, 'automation', 'vps', 'provision.sh'), 'utf8'), /printf '%s\.%s' "\$ts" "\$body" \| openssl dgst -sha256 -hmac/, 'same scheme as /webhook/w26/status');
+});
+
+test('media erase (I-41b): both paths route Map -> Sign (Code, HMAC-SHA256) -> IF -> HTTP (no credential) -> follow-up', () => {
+  const raw = JSON.stringify(WF);
+  assert.doesNotMatch(raw, /W34 media erase \(storage service\)/, 'retired Header Auth credential is gone');
+  assert.doesNotMatch(raw, /storage\/v1\/object\/<bucket>|"prefixes"/, 'no direct Storage API call left');
+  const lanes = [
+    ['Collect media to erase', 'Sign media erase (nightly)', 'Any media?', 'Erase media files (storage)', 'Summarise night'],
+    ['Map subject media to paths', 'Sign subject media erase (DSR)', 'Any subject media?', 'Erase subject media (storage)', 'Check subject media erase', 'Complete erase request'],
+  ];
+  for (const lane of lanes) for (let i = 0; i < lane.length - 1; i++) assert.equal(WF.connections[lane[i]].main[0][0].node, lane[i + 1], `${lane[i]} -> ${lane[i + 1]}`);
+  assert.equal(WF.connections['Any media?'].main[1][0].node, 'Summarise night');
   assert.equal(WF.connections['Any subject media?'].main[1][0].node, 'Complete erase request', 'no media -> straight to completion');
-  const out = runCode('Map subject media to paths', { now: RECEIVED, env: MEDIA_ENV, input: [{ dsr_id: 'd1', media_urls: [
-    'https://synthetic.supabase.co/storage/v1/object/sign/broker-media/b1/voice%20note.ogg?token=t',
-    'https://synthetic.supabase.co/storage/v1/object/public/broker-media/b1/a.mp4',
-    'https://synthetic.supabase.co/storage/v1/object/broker-media/b1/a.mp4',
-    'broker-media/b2/c.ogg', 'b3/d.ogg',
-    'https://lookaside.fbsbx.com/whatsapp_business/attachments/x', '1234567890', 'https://synthetic.supabase.co/storage/v1/object/other/z.ogg', '../etc/passwd'] }] });
-  assert.equal(out.length, 1);
-  assert.deepEqual(out[0].prefixes, ['b1/voice note.ogg', 'b1/a.mp4', 'b2/c.ogg', 'b3/d.ogg'], 'bucket-relative paths, decoded, deduplicated');
-  assert.equal(out[0].unmapped.length, 4, 'Meta media, numeric ids, other buckets and traversal are never sent to Storage');
-  assert.equal(out[0].any, true);
-  assert.equal(runCode('Map subject media to paths', { now: RECEIVED, env: MEDIA_ENV, input: [{ dsr_id: 'd1', media_urls: [] }] })[0].any, false);
-  const many = Array.from({ length: 2345 }, (_, i) => `b1/v${i}.ogg`);
-  assert.deepEqual(runCode('Map subject media to paths', { now: RECEIVED, env: MEDIA_ENV, input: [{ dsr_id: 'd1', media_urls: many }] }).map((c) => c.prefixes.length), [1000, 1000, 345], 'max 1,000 per call');
-  // nightly: dry run sends nothing; an unmapped reference turns the night red
+  assert.equal(node('Sign media erase (nightly)').parameters.jsCode, node('Sign subject media erase (DSR)').parameters.jsCode, 'one signer');
+  for (const s of ['Sign media erase (nightly)', 'Sign subject media erase (DSR)']) {
+    const c = node(s).parameters.jsCode;
+    assert.equal(node(s).type, 'n8n-nodes-base.code');
+    assert.match(c, /createHmac\('sha256', secret\)\.update\(ts \+ '\.' \+ body, 'utf8'\)\.digest\('hex'\)/, `${s}: HMAC-SHA256 over ts + "." + body`);
+    assert.match(c, /\$env\.W34_MEDIA_ERASE_SECRET/);
+  }
+  for (const n of ['Erase media files (storage)', 'Erase subject media (storage)']) {
+    const h = node(n); const p = h.parameters;
+    assert.equal(h.type, 'n8n-nodes-base.httpRequest');
+    assert.equal(p.method, 'POST'); assert.equal(p.url, '={{ $env.W34_MEDIA_ERASE_URL }}');
+    assert.equal(p.authentication, 'none'); assert.equal(p.genericAuthType, undefined); assert.equal(h.credentials, undefined, `${n}: no credential`);
+    assert.equal(p.contentType, 'raw'); assert.equal(p.rawContentType, 'application/json'); assert.equal(p.body, '={{ $json.body }}', 'sends the signed string as is');
+    assert.deepEqual(p.headerParameters.parameters.map((x) => x.name), ['X-LV-Timestamp', 'X-LV-Signature']);
+  }
+  assert.equal(node('Erase media files (storage)').onError, 'continueRegularOutput', 'nightly: failure reported by Summarise night');
+  assert.equal(node('Erase subject media (storage)').onError, undefined, 'DSR: a non-2xx stops before "Complete erase request"');
+  assert.equal(node('Sign subject media erase (DSR)').onError, undefined);
+  assert.equal(node('Sign media erase (nightly)').onError, 'continueRegularOutput');
+});
+
+test('media erase (I-41b): paths are what the function accepts, batched <= 50, signatures verify as the function does', async () => {
+  const map = runCode('Map subject media to paths', { now: RECEIVED, input: [{ dsr_id: 'd0000000-0000-4000-8000-000000000001', media_urls: [
+    `https://synthetic.supabase.co/storage/v1/object/sign/broker-media/${B1}/voice-note.ogg?token=t`,
+    `https://synthetic.supabase.co/storage/v1/object/public/broker-media/${B1}/a.mp4`,
+    `https://synthetic.supabase.co/storage/v1/object/broker-media/${B1}/a.mp4`,
+    `broker-media/${B2}/c.ogg`, `${B2}/d.ogg`,
+    'https://lookaside.fbsbx.com/whatsapp_business/attachments/x', '1234567890', 'https://synthetic.supabase.co/storage/v1/object/other/z.ogg',
+    '../etc/passwd', 'b1/not-a-uuid.ogg', `${B1}/voice%20note.ogg`, `${B1}/../${B2}/x.ogg`, `${B1}/*`] }] });
+  assert.equal(map.length, 1);
+  assert.deepEqual(map[0].paths, [`broker-media/${B1}/voice-note.ogg`, `broker-media/${B1}/a.mp4`, `broker-media/${B2}/c.ogg`, `broker-media/${B2}/d.ogg`]);
+  for (const p of map[0].paths) assert.match(p, FN_PATH_RE, 'passes the function PATH_RE');
+  assert.equal(map[0].unmapped.length, 8, 'Meta media, ids, other buckets, non-uuid folders, unsafe names and traversal are never sent');
+  assert.deepEqual([map[0].policy, map[0].dsr_id, map[0].request_id], ['dsr', 'd0000000-0000-4000-8000-000000000001', 'dsr-d0000000-0000-4000-8000-000000000001']);
+  assert.equal(runCode('Map subject media to paths', { now: RECEIVED, input: [{ dsr_id: 'd1', media_urls: [] }] })[0].any, false);
+
+  const many = Array.from({ length: 123 }, (_, i) => `${B1}/v${i}.ogg`);
+  const big = runCode('Map subject media to paths', { now: RECEIVED, input: [{ dsr_id: 'd1', media_urls: many }] });
+  assert.deepEqual(big.map((c) => c.paths.length), [50, 50, 23], 'at most 50 paths per call');
+  assert.deepEqual(big.map((c) => c.request_id), ['dsr-d1:1', 'dsr-d1:2', 'dsr-d1:3']);
+
+  const nowS = Math.floor(Date.parse(RECEIVED) / 1000);
+  const signed = runCode('Sign subject media erase (DSR)', { now: RECEIVED, env: MEDIA_ENV, input: big });
+  assert.equal(signed.length, 3);
+  const http = node('Erase subject media (storage)');
+  for (const [i, s] of signed.entries()) {
+    const raw = rawOf(http, s); const hdr = headersOf(http, s);
+    const b = JSON.parse(raw);
+    assert.deepEqual(Object.keys(b), ['paths', 'policy', 'dsr_id', 'request_id'], 'body is exactly the contract');
+    assert.ok(b.paths.length <= FN_MAX && b.paths.length >= 1);
+    assert.equal(b.policy, 'dsr'); assert.equal(b.request_id, big[i].request_id);
+    assert.equal(hdr['X-LV-Timestamp'], String(nowS));
+    assert.equal(hdr['X-LV-Signature'], 'sha256=' + createHmac('sha256', MEDIA_SECRET).update(`${nowS}.${raw}`).digest('hex'));
+    assert.equal(await fnVerify(MEDIA_SECRET, hdr, raw, nowS + 299), 'ok', 'the function accepts it');
+    assert.equal(await fnVerify(MEDIA_SECRET, hdr, raw.replace('"dsr"', '"retention"'), nowS), 'bad_signature', 'a changed body is refused');
+    assert.equal(await fnVerify('another-secret-0123456789abcdef0123', hdr, raw, nowS), 'bad_signature');
+    assert.equal(await fnVerify(MEDIA_SECRET, hdr, raw, nowS + 301), 'stale_or_missing_timestamp');
+  }
+  // nothing to erase: pass-through, no secret needed, IF goes false
+  assert.deepEqual(runCode('Sign subject media erase (DSR)', { now: RECEIVED, input: [{ paths: [], any: false, unmapped: [] }] }).map((j) => j.any), [false]);
+  // misconfigured: refuse rather than send unsigned / to the old Storage URL
+  assert.throws(() => runCode('Sign subject media erase (DSR)', { now: RECEIVED, env: { ...MEDIA_ENV, W34_MEDIA_ERASE_SECRET: 'short' }, input: big }), /W34_MEDIA_ERASE_SECRET/);
+  assert.throws(() => runCode('Sign subject media erase (DSR)', { now: RECEIVED, env: { ...MEDIA_ENV, W34_MEDIA_ERASE_URL: 'https://synthetic.supabase.co/storage/v1/object/broker-media' }, input: big }), /W34_MEDIA_ERASE_URL/);
+  assert.throws(() => runCode('Sign subject media erase (DSR)', { now: RECEIVED, env: MEDIA_ENV, input: [{ any: true, paths: Array(51).fill(`broker-media/${B1}/x.ogg`) }] }), /over 50/);
+});
+
+test('media erase (I-41b): DSR follow-up completes only when every batch is ok', () => {
+  const ok = runCode('Check subject media erase', { now: RECEIVED, input: [
+    { ok: true, deleted: 50, not_found: 0, rejected: [], request_id: 'dsr-d1:1' }, { ok: true, deleted: 20, not_found: 3, rejected: [], request_id: 'dsr-d1:2' }] })[0];
+  assert.deepEqual(ok, { batches: 2, deleted: 70, not_found: 3, rejected: 0 }, 'not_found (already gone) is fine');
+  assert.throws(() => runCode('Check subject media erase', { now: RECEIVED, input: [
+    { ok: false, deleted: 0, not_found: 0, rejected: [{ path: 'x', reason: 'unsafe path' }], request_id: 'dsr-d1' }] }), /NOT completed.*1 path\(s\) rejected \(unsafe path\)/);
+  assert.throws(() => runCode('Check subject media erase', { now: RECEIVED, input: [
+    { ok: false, error: 'deleted_but_not_logged', deleted: 2, request_id: 'dsr-d1' }] }), /deleted_but_not_logged/, '207: deleted but no retention_log row -> not completed');
+  const io = runCode('Build IO erase confirmation', { now: RECEIVED, input: [{ in_time: true }], refs: {
+    'Suppress subject (erase step 1)': [{ dsr_id: 'd1', leads_found: 1, suppressed: 1, broker_notices: [] }],
+    'Map subject media to paths': [{ paths: [`broker-media/${B1}/a.ogg`], unmapped: [] }], 'Check subject media erase': [ok] } })[0];
+  assert.equal(io.media_deleted, 70); assert.equal(io.severity, 'info');
+});
+
+test('media erase (I-41b): nightly retention signs with policy "retention", reads the response, any failure -> w34_retention_failure', () => {
   const ctx = ctxAt('2026-10-02T02:30:00+02:00');
-  const refs = { 'Set retention context': [ctx], 'Pseudonymise after lead retention': [{ media_urls: ['b1/x.ogg', 'https://lookaside.fbsbx.com/y'] }] };
-  const col = runCode('Collect media to erase', { now: '2026-10-02T02:31:00+02:00', env: MEDIA_ENV, refs });
-  assert.deepEqual(col[0].prefixes, ['b1/x.ogg']);
-  assert.equal(runCode('Collect media to erase', { now: '2026-10-02T02:31:00+02:00', env: MEDIA_ENV, refs: { ...refs, 'Set retention context': [{ ...ctx, dry_run: true }] } })[0].any, false);
-  const night = runCode('Summarise night', { now: '2026-10-02T02:32:00+02:00', refs: { ...refs, 'Collect media to erase': col,
+  const refs = { 'Set retention context': [ctx], 'Pseudonymise after lead retention': [{ media_urls: [`${B1}/x.ogg`, 'https://lookaside.fbsbx.com/y'] }] };
+  const col = runCode('Collect media to erase', { now: '2026-10-02T02:31:00+02:00', refs });
+  assert.deepEqual(col[0].paths, [`broker-media/${B1}/x.ogg`]);
+  assert.deepEqual([col[0].policy, col[0].dsr_id, col[0].request_id], ['retention', null, ctx.run_id]);
+  assert.match(col[0].policy, /^[a-z_]{1,40}$/, 'policy passes the function check (no fallback to "dsr")');
+  assert.equal(runCode('Collect media to erase', { now: '2026-10-02T02:31:00+02:00', refs: { ...refs, 'Set retention context': [{ ...ctx, dry_run: true }] } })[0].any, false, 'dry run sends nothing');
+  const sig = runCode('Sign media erase (nightly)', { now: '2026-10-02T02:31:00+02:00', env: MEDIA_ENV, input: col });
+  assert.equal(JSON.parse(sig[0].body).policy, 'retention'); assert.equal(JSON.parse(sig[0].body).dsr_id, null);
+  const base = { ...refs, 'Collect media to erase': col, 'Sign media erase (nightly)': sig,
     'Purge expired wa_threads': [{ due: 0, done: 0 }], 'Delete non-fit entries': [{ due: 0, done: 0 }], 'Delete consent records after consent retention': [{ due: 0, done: 0 }],
-    'Minimise closed DSR records': [{ done: 0 }], 'Erase media files (storage)': [{ error: { message: '400 Bad Request' } }] } })[0];
-  assert.equal(night.red, true);
-  assert.ok(night.errors.some((e) => /not in the storage bucket/.test(e)) && night.errors.some((e) => /400 Bad Request/.test(e)));
+    'Minimise closed DSR records': [{ done: 0 }] };
+  const night = (extra) => runCode('Summarise night', { now: '2026-10-02T02:32:00+02:00', refs: { ...base, ...extra } })[0];
+  // HTTP non-2xx ({error} item via continueRegularOutput) + an unmapped reference
+  const n1 = night({ 'Erase media files (storage)': [{ error: { message: '401 - {"ok":false,"error":"bad_signature"}' } }] });
+  assert.equal(n1.red, true); assert.equal(n1.alert.kind, 'w34_retention_failure');
+  assert.ok(n1.errors.some((e) => /not in the storage bucket/.test(e)) && n1.errors.some((e) => /bad_signature/.test(e)));
+  // 2xx with rejected paths / 207 not logged
+  const n2 = night({ 'Pseudonymise after lead retention': [{ media_urls: [`${B1}/x.ogg`] }], 'Collect media to erase': [{ ...col[0], unmapped: [] }],
+    'Erase media files (storage)': [{ ok: false, deleted: 0, not_found: 0, rejected: [{ path: 'p', reason: 'unsafe path' }], request_id: ctx.run_id }] });
+  assert.equal(n2.alert.kind, 'w34_retention_failure'); assert.equal(n2.media.rejected, 1);
+  const n3 = night({ 'Collect media to erase': [{ ...col[0], unmapped: [] }], 'Erase media files (storage)': [{ ok: false, error: 'deleted_but_not_logged', deleted: 1, request_id: ctx.run_id }] });
+  assert.equal(n3.red, true); assert.match(n3.errors.join(), /deleted_but_not_logged/);
+  // signing failure (secret not set) is red too
+  const n4 = night({ 'Collect media to erase': [{ ...col[0], unmapped: [] }], 'Sign media erase (nightly)': [{ error: { message: 'W34_MEDIA_ERASE_SECRET missing or shorter than 32 characters: media not erased' } }] });
+  assert.equal(n4.alert.kind, 'w34_retention_failure'); assert.match(n4.errors.join(), /not sent: W34_MEDIA_ERASE_SECRET/);
+  // all good: counts only, green
+  const n5 = night({ 'Collect media to erase': [{ ...col[0], unmapped: [] }], 'Erase media files (storage)': [{ ok: true, deleted: 1, not_found: 0, rejected: [], request_id: ctx.run_id }] });
+  assert.equal(n5.red, false); assert.deepEqual(n5.media, { requested: 1, deleted: 1, not_found: 0, rejected: 0, failed: false });
+  assert.doesNotMatch(JSON.stringify(n5), /@|\+27/);
 });
 
 test('broker notice: broker_dsr_erase goes through the shared WhatsApp sender, broker + lead first names only', () => {
