@@ -53,3 +53,10 @@ register-discord.js
 # Cursor / IDE config that may contain tokens (e.g. MCP, GitHub PAT)
 .cursor/
 supabase/.temp/
+
+# SortMyCover build — secrets and keys never committed (pre-commit guard in .githooks/)
+*.pem
+*.key
+credentials*
+# task graph is tracked despite the *.json rule above
+!build/tasks.json

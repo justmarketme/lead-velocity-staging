@@ -1,0 +1,1851 @@
+{
+  "version": 1,
+  "generated_from": "docs/MASTER-PROMPT.md",
+  "status_values": [
+    "pending",
+    "in_progress",
+    "green",
+    "red",
+    "needs_human"
+  ],
+  "nodes": [
+    {
+      "id": "P0-SEED",
+      "title": "Seed repo: MASTER-PROMPT, CLAUDE.md, 23 agent files, tasks.json, secret guard",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "test -f docs/MASTER-PROMPT.md && test -f CLAUDE.md && [ $(ls .claude/agents/*.md | wc -l) -eq 23 ] && node build/validate-tasks.mjs",
+      "human_gate": false,
+      "status": "green",
+      "section": "0.0 step 4"
+    },
+    {
+      "id": "P0-INVENTORY",
+      "title": "0.2 inventory + CRM gap map (/build/inventory.md, /build/crm-gap.md)",
+      "owner": "platform-architect",
+      "phase": "0",
+      "depends_on": [
+        "P0-SEED"
+      ],
+      "acceptance_test": "test -s build/inventory.md && test -s build/crm-gap.md && grep -q \"reuse as-is\" build/crm-gap.md",
+      "human_gate": false,
+      "status": "pending",
+      "section": "0.2"
+    },
+    {
+      "id": "P0-VERIFIED-FACTS",
+      "title": "4.0a time-sensitive checks → /deliverables/verified-facts.md",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [
+        "P0-SEED"
+      ],
+      "acceptance_test": "test -s deliverables/verified-facts.md",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.0a"
+    },
+    {
+      "id": "P0-FIRST-PRINCIPLES",
+      "title": "4B first-principles memos (6 agents)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [
+        "P0-SEED"
+      ],
+      "acceptance_test": "for a in market-research-analyst creative-strategist media-buyer conversation-designer contracts-drafter compliance-qa; do test -s deliverables/$a/first-principles.md || exit 1; done",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4B"
+    },
+    {
+      "id": "P0-BATCHED-GATES",
+      "title": "Send Jonathan one batched list of Phase 0 gates",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "test -s build/gates-batch.md",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4C.6"
+    },
+    {
+      "id": "AGENT-ads-api-engineer",
+      "title": "Agent file .claude/agents/ads-api-engineer.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/ads-api-engineer.md && grep -q \"Identity (fixed\" .claude/agents/ads-api-engineer.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-analytics-reporter",
+      "title": "Agent file .claude/agents/analytics-reporter.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/analytics-reporter.md && grep -q \"Identity (fixed\" .claude/agents/analytics-reporter.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-attribution-analyst",
+      "title": "Agent file .claude/agents/attribution-analyst.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/attribution-analyst.md && grep -q \"Identity (fixed\" .claude/agents/attribution-analyst.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-automation-engineer",
+      "title": "Agent file .claude/agents/automation-engineer.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/automation-engineer.md && grep -q \"Identity (fixed\" .claude/agents/automation-engineer.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-billing-automation",
+      "title": "Agent file .claude/agents/billing-automation.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/billing-automation.md && grep -q \"Identity (fixed\" .claude/agents/billing-automation.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-brand-naming-lead",
+      "title": "Agent file .claude/agents/brand-naming-lead.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/brand-naming-lead.md && grep -q \"Identity (fixed\" .claude/agents/brand-naming-lead.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-broker-success",
+      "title": "Agent file .claude/agents/broker-success.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/broker-success.md && grep -q \"Identity (fixed\" .claude/agents/broker-success.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-community-response-lead",
+      "title": "Agent file .claude/agents/community-response-lead.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/community-response-lead.md && grep -q \"Identity (fixed\" .claude/agents/community-response-lead.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-compliance-qa",
+      "title": "Agent file .claude/agents/compliance-qa.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/compliance-qa.md && grep -q \"Identity (fixed\" .claude/agents/compliance-qa.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-contracts-drafter",
+      "title": "Agent file .claude/agents/contracts-drafter.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/contracts-drafter.md && grep -q \"Identity (fixed\" .claude/agents/contracts-drafter.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-conversation-designer",
+      "title": "Agent file .claude/agents/conversation-designer.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/conversation-designer.md && grep -q \"Identity (fixed\" .claude/agents/conversation-designer.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-creative-strategist",
+      "title": "Agent file .claude/agents/creative-strategist.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/creative-strategist.md && grep -q \"Identity (fixed\" .claude/agents/creative-strategist.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-devops-security",
+      "title": "Agent file .claude/agents/devops-security.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/devops-security.md && grep -q \"Identity (fixed\" .claude/agents/devops-security.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-intro-media-producer",
+      "title": "Agent file .claude/agents/intro-media-producer.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/intro-media-producer.md && grep -q \"Identity (fixed\" .claude/agents/intro-media-producer.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-landing-page-builder",
+      "title": "Agent file .claude/agents/landing-page-builder.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/landing-page-builder.md && grep -q \"Identity (fixed\" .claude/agents/landing-page-builder.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-market-research-analyst",
+      "title": "Agent file .claude/agents/market-research-analyst.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/market-research-analyst.md && grep -q \"Identity (fixed\" .claude/agents/market-research-analyst.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-media-buyer",
+      "title": "Agent file .claude/agents/media-buyer.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/media-buyer.md && grep -q \"Identity (fixed\" .claude/agents/media-buyer.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-meta-operator",
+      "title": "Agent file .claude/agents/meta-operator.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/meta-operator.md && grep -q \"Identity (fixed\" .claude/agents/meta-operator.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-optimisation-advisor",
+      "title": "Agent file .claude/agents/optimisation-advisor.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/optimisation-advisor.md && grep -q \"Identity (fixed\" .claude/agents/optimisation-advisor.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-performance-creative-director",
+      "title": "Agent file .claude/agents/performance-creative-director.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/performance-creative-director.md && grep -q \"Identity (fixed\" .claude/agents/performance-creative-director.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-platform-architect",
+      "title": "Agent file .claude/agents/platform-architect.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/platform-architect.md && grep -q \"Identity (fixed\" .claude/agents/platform-architect.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-search-findability-lead",
+      "title": "Agent file .claude/agents/search-findability-lead.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/search-findability-lead.md && grep -q \"Identity (fixed\" .claude/agents/search-findability-lead.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-visual-producer",
+      "title": "Agent file .claude/agents/visual-producer.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/visual-producer.md && grep -q \"Identity (fixed\" .claude/agents/visual-producer.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "W01",
+      "title": "Lead intake (web)",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "GATE-TEST-W01"
+      ],
+      "acceptance_test": "node automation/tests/W01.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W02",
+      "title": "Lead intake (Meta form)",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W01"
+      ],
+      "acceptance_test": "node automation/tests/W02.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W03",
+      "title": "Lead intake (Click-to-WhatsApp)",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W01"
+      ],
+      "acceptance_test": "node automation/tests/W03.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W04",
+      "title": "Slots API",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "GATE-TEST-W04"
+      ],
+      "acceptance_test": "node automation/tests/W04.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W05",
+      "title": "Book",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W04",
+        "GATE-TEST-W05"
+      ],
+      "acceptance_test": "node automation/tests/W05.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W06",
+      "title": "First touch (< 60 s)",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W01",
+        "GATE-TEST-W06"
+      ],
+      "acceptance_test": "node automation/tests/W06.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W07",
+      "title": "Conversation agent",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W06"
+      ],
+      "acceptance_test": "node automation/tests/W07.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W08",
+      "title": "Unbooked nurture",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W06"
+      ],
+      "acceptance_test": "node automation/tests/W08.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W09",
+      "title": "Reminder sequence",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W05",
+        "GATE-TEST-W09"
+      ],
+      "acceptance_test": "node automation/tests/W09.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W10",
+      "title": "Reschedule / cancel",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W05"
+      ],
+      "acceptance_test": "node automation/tests/W10.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W11",
+      "title": "Broker reminders",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W05"
+      ],
+      "acceptance_test": "node automation/tests/W11.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W12",
+      "title": "Outcome, disposition & feedback (two-sided)",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W05",
+        "GATE-TEST-W12"
+      ],
+      "acceptance_test": "node automation/tests/W12.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W13",
+      "title": "No-show & replacement",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W12",
+        "GATE-TEST-W13"
+      ],
+      "acceptance_test": "node automation/tests/W13.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W14",
+      "title": "Reports (broker weekly + Lead Velocity weekly)",
+      "owner": "analytics-reporter",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W12"
+      ],
+      "acceptance_test": "node automation/tests/W14.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W15",
+      "title": "Opt-out",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W01",
+        "GATE-TEST-W15"
+      ],
+      "acceptance_test": "node automation/tests/W15.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W16",
+      "title": "Payment received",
+      "owner": "billing-automation",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W17"
+      ],
+      "acceptance_test": "node automation/tests/W16.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W17",
+      "title": "inContact parser",
+      "owner": "billing-automation",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "node automation/tests/W17.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W18",
+      "title": "Statement import",
+      "owner": "billing-automation",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "node automation/tests/W18.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W19",
+      "title": "Cycle renewal offer",
+      "owner": "billing-automation",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W16"
+      ],
+      "acceptance_test": "node automation/tests/W19.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W20",
+      "title": "Onboarding wizard",
+      "owner": "broker-success",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W16"
+      ],
+      "acceptance_test": "node automation/tests/W20.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W21",
+      "title": "Ads sync",
+      "owner": "ads-api-engineer",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "node automation/tests/W21.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W22",
+      "title": "Alerts",
+      "owner": "devops-security",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "node automation/tests/W22.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W23",
+      "title": "Media processing",
+      "owner": "intro-media-producer",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "node automation/tests/W23.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W27",
+      "title": "Meta asset health",
+      "owner": "ads-api-engineer",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "node automation/tests/W27.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W26",
+      "title": "Go-live runner",
+      "owner": "devops-security",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W16"
+      ],
+      "acceptance_test": "node automation/tests/W26.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W25",
+      "title": "Pricing & website sync",
+      "owner": "billing-automation",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "node automation/tests/W25.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W24",
+      "title": "Compliance cleanse & calendar",
+      "owner": "compliance-qa",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "node automation/tests/W24.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W28",
+      "title": "Booking Flow (WhatsApp-native calendar)",
+      "owner": "automation-engineer",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W04",
+        "W05"
+      ],
+      "acceptance_test": "node automation/tests/W28.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W29",
+      "title": "Feedback loop",
+      "owner": "automation-engineer",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W12"
+      ],
+      "acceptance_test": "node automation/tests/W29.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W30",
+      "title": "Comment handler (FB + IG, organic + ad posts)",
+      "owner": "community-response-lead",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "node automation/tests/W30.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W31",
+      "title": "DM handler (Messenger + Instagram)",
+      "owner": "community-response-lead",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "node automation/tests/W31.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W32",
+      "title": "Optimisation pulse / memo / retro",
+      "owner": "optimisation-advisor",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W33"
+      ],
+      "acceptance_test": "node automation/tests/W32.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W33",
+      "title": "Daily judge (LLM-as-judge)",
+      "owner": "optimisation-advisor",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "node automation/tests/W33.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W34",
+      "title": "POPIA operations",
+      "owner": "compliance-qa",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W01"
+      ],
+      "acceptance_test": "node automation/tests/W34.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W35",
+      "title": "Lead pulse",
+      "owner": "conversation-designer",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W12"
+      ],
+      "acceptance_test": "node automation/tests/W35.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "LP01",
+      "title": "Landing page: Sticky top bar",
+      "owner": "landing-page-builder",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.5 page spec"
+    },
+    {
+      "id": "LP02",
+      "title": "Landing page: Hero",
+      "owner": "landing-page-builder",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.5 page spec"
+    },
+    {
+      "id": "LP03",
+      "title": "Landing page: 3 trust chips",
+      "owner": "landing-page-builder",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.5 page spec"
+    },
+    {
+      "id": "LP04",
+      "title": "Landing page: The gap, in one picture",
+      "owner": "landing-page-builder",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.5 page spec"
+    },
+    {
+      "id": "LP05",
+      "title": "Landing page: **Quiz (step 1 of 3)**",
+      "owner": "landing-page-builder",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.5 page spec"
+    },
+    {
+      "id": "LP06",
+      "title": "Landing page: **Budget (step 2 of 3)**",
+      "owner": "landing-page-builder",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.5 page spec"
+    },
+    {
+      "id": "LP07",
+      "title": "Landing page: Result screen",
+      "owner": "landing-page-builder",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.5 page spec"
+    },
+    {
+      "id": "LP08",
+      "title": "Landing page: **Details (step 3 of 3)**",
+      "owner": "landing-page-builder",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.5 page spec"
+    },
+    {
+      "id": "LP09",
+      "title": "Landing page: **Booking widget**",
+      "owner": "landing-page-builder",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.5 page spec"
+    },
+    {
+      "id": "LP10",
+      "title": "Landing page: Thank-you state",
+      "owner": "landing-page-builder",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.5 page spec"
+    },
+    {
+      "id": "LP11",
+      "title": "Landing page: Social proof block",
+      "owner": "landing-page-builder",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.5 page spec"
+    },
+    {
+      "id": "LP12",
+      "title": "Landing page: FAQ (5)",
+      "owner": "landing-page-builder",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.5 page spec"
+    },
+    {
+      "id": "LP13",
+      "title": "Landing page: Footer",
+      "owner": "landing-page-builder",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
+      "human_gate": false,
+      "status": "pending",
+      "section": "4.5 page spec"
+    },
+    {
+      "id": "GATE-REPO",
+      "title": "Confirm LV repo + branch",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "green",
+      "section": "0.0 step 3"
+    },
+    {
+      "id": "GATE-CLOUD-ENV",
+      "title": "Cloud environment: Trusted network + env vars (names only)",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "0.0 step 6"
+    },
+    {
+      "id": "GATE-DOMAINS",
+      "title": "Register sortmycover.co.za/.com + coverklaar.co.za/.com (~R250, the only pre-payment spend)",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "0.1 / 4D.4"
+    },
+    {
+      "id": "GATE-TERM-SHEET",
+      "title": "Mark signs term sheet (20 verified qualified leads @ R16,500 excl. VAT/cycle)",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "5 Phase 0"
+    },
+    {
+      "id": "GATE-META-PORTFOLIO",
+      "title": "Meta Business Portfolio + Business Verification + 2 admins with 2FA",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4.7 ★1"
+    },
+    {
+      "id": "GATE-META-PAGE-IG",
+      "title": "SortMyCover Facebook Page + Instagram",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [
+        "GATE-META-PORTFOLIO"
+      ],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4.7 ★2-3"
+    },
+    {
+      "id": "GATE-WABA",
+      "title": "WhatsApp Business Account, number, display name, standby number",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [
+        "GATE-META-PORTFOLIO"
+      ],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4.7 ★4"
+    },
+    {
+      "id": "GATE-AD-ACCOUNT",
+      "title": "Ad account + standby; payment method added by Jonathan",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [
+        "GATE-META-PORTFOLIO"
+      ],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4.7 ★5"
+    },
+    {
+      "id": "GATE-PIXEL",
+      "title": "Pixel/Dataset, domain verification, CAPI system-user token",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [
+        "GATE-META-PORTFOLIO",
+        "GATE-DOMAINS"
+      ],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4.7 ★6"
+    },
+    {
+      "id": "GATE-TEMPLATES",
+      "title": "Submit WhatsApp utility templates (6 core first)",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [
+        "GATE-WABA"
+      ],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4.6 / 0.3 #1"
+    },
+    {
+      "id": "GATE-PAYSTACK-KYC",
+      "title": "Paystack business account + documents uploaded by Jonathan",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "6.5 ★1"
+    },
+    {
+      "id": "GATE-PAY-WITH-BANK",
+      "title": "Paystack Pay-with-Bank activation",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [
+        "GATE-PAYSTACK-KYC"
+      ],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "6.5 ★2"
+    },
+    {
+      "id": "GATE-R1-LIVE",
+      "title": "R1 live Paystack transaction + refund; R1 EFT to test inContact parsing",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [
+        "GATE-PAY-WITH-BANK",
+        "GATE-INCONTACT"
+      ],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "6.5 ★6 / 7"
+    },
+    {
+      "id": "GATE-INCONTACT",
+      "title": "FNB inContact credit alerts → howzit@",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "8 Q6"
+    },
+    {
+      "id": "GATE-INFO-OFFICER",
+      "title": "Register Information Officer (+ deputy KG)",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "2.3"
+    },
+    {
+      "id": "GATE-NCC",
+      "title": "NCC direct-marketer registration (Annexure P)",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "2.3"
+    },
+    {
+      "id": "GATE-OPINION",
+      "title": "Commission external FAIS/POPIA opinion (not blocking)",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "2.3"
+    },
+    {
+      "id": "GATE-DNS",
+      "title": "GoDaddy DNS records for go./app./api./staging",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "6.7"
+    },
+    {
+      "id": "GATE-ENTRA",
+      "title": "Entra ID app registration (Graph: Calendars, OnlineMeetings, Mail)",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4.6"
+    },
+    {
+      "id": "GATE-HIDE-WORDS",
+      "title": "Approve hide-word list + first 50 live comment replies",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4.14"
+    },
+    {
+      "id": "GATE-FLOW-PUBLISH",
+      "title": "Publish WhatsApp booking Flow (one tap)",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [
+        "W28"
+      ],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "W28 step 6"
+    },
+    {
+      "id": "GATE-ADS-APPROVE-3",
+      "title": "First 3 ads approved by Meta before full batch",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "2.1.8"
+    },
+    {
+      "id": "GATE-CAMPAIGN-PUBLISH",
+      "title": "Campaigns created, approved, paused at R0",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [
+        "GATE-ADS-APPROVE-3",
+        "GATE-AD-ACCOUNT"
+      ],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4.7 ★5 / 6.6"
+    },
+    {
+      "id": "GATE-AGREEMENT",
+      "title": "Broker agreement + authorisation letter signed",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4.10 / 4.13"
+    },
+    {
+      "id": "GATE-USABILITY",
+      "title": "Five ICP people for usability test (names by Day 5)",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "6B.3 / 8 Q9"
+    },
+    {
+      "id": "GATE-VPS",
+      "title": "Buy Hostinger KVM 2 VPS (after first payment only)",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [
+        "W16"
+      ],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "W26 / 6.6"
+    },
+    {
+      "id": "GATE-GO-LIVE",
+      "title": "Press Go live (Section 7 all green)",
+      "owner": "jonathan",
+      "phase": "5b",
+      "depends_on": [
+        "S7-01",
+        "S7-02",
+        "S7-03",
+        "S7-04",
+        "S7-05",
+        "S7-06",
+        "S7-07",
+        "S7-08",
+        "S7-09",
+        "S7-10",
+        "S7-11",
+        "S7-12",
+        "S7-13",
+        "S7-14",
+        "S7-15",
+        "S7-16",
+        "S7-17",
+        "S7-18",
+        "S7-19",
+        "S7-20",
+        "S7-21",
+        "S7-22",
+        "S7-23",
+        "S7-24",
+        "S7-25",
+        "S7-26",
+        "S7-27",
+        "S7-28"
+      ],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "7"
+    },
+    {
+      "id": "GATE-TEST-W01",
+      "title": "Jonathan writes/approves the acceptance test for W01",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "test -f automation/tests/W01.test.mjs && grep -q \"approved-by: jonathan\" automation/tests/W01.test.mjs",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4C.2"
+    },
+    {
+      "id": "GATE-TEST-W04",
+      "title": "Jonathan writes/approves the acceptance test for W04",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "test -f automation/tests/W04.test.mjs && grep -q \"approved-by: jonathan\" automation/tests/W04.test.mjs",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4C.2"
+    },
+    {
+      "id": "GATE-TEST-W05",
+      "title": "Jonathan writes/approves the acceptance test for W05",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "test -f automation/tests/W05.test.mjs && grep -q \"approved-by: jonathan\" automation/tests/W05.test.mjs",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4C.2"
+    },
+    {
+      "id": "GATE-TEST-W06",
+      "title": "Jonathan writes/approves the acceptance test for W06",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "test -f automation/tests/W06.test.mjs && grep -q \"approved-by: jonathan\" automation/tests/W06.test.mjs",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4C.2"
+    },
+    {
+      "id": "GATE-TEST-W09",
+      "title": "Jonathan writes/approves the acceptance test for W09",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "test -f automation/tests/W09.test.mjs && grep -q \"approved-by: jonathan\" automation/tests/W09.test.mjs",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4C.2"
+    },
+    {
+      "id": "GATE-TEST-W12",
+      "title": "Jonathan writes/approves the acceptance test for W12",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "test -f automation/tests/W12.test.mjs && grep -q \"approved-by: jonathan\" automation/tests/W12.test.mjs",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4C.2"
+    },
+    {
+      "id": "GATE-TEST-W13",
+      "title": "Jonathan writes/approves the acceptance test for W13",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "test -f automation/tests/W13.test.mjs && grep -q \"approved-by: jonathan\" automation/tests/W13.test.mjs",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4C.2"
+    },
+    {
+      "id": "GATE-TEST-W15",
+      "title": "Jonathan writes/approves the acceptance test for W15",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "test -f automation/tests/W15.test.mjs && grep -q \"approved-by: jonathan\" automation/tests/W15.test.mjs",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4C.2"
+    },
+    {
+      "id": "S7-01",
+      "title": "15 broker-neutral concepts approved; assets in all 3 ratios; all ads approved by Meta and paused at R0.",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition"
+    },
+    {
+      "id": "S7-02",
+      "title": "Brand bible v1 published (`/brand/`): SVG logo system, favicon set verified light/dark, every 4D.4b.3 placement exported, tokens.css the only colour source, trust layer live on the site (About, How we",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition",
+      "note": "Brand bible v1 published (`/brand/`): SVG logo system, favicon set verified light/dark, every 4D.4b.3 placement exported, tokens.css the only colour source, trust layer live on the site (About, How we make money, Privacy, complaints)."
+    },
+    {
+      "id": "S7-03",
+      "title": "Contact-data quality: Lookup line-type check live on W01; email typo/MX check inside the Flow and on the page; bounce → WhatsApp correction path tested with a deliberately wrong address; call-number c",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition",
+      "note": "Contact-data quality: Lookup line-type check live on W01; email typo/MX check inside the Flow and on the page; bounce → WhatsApp correction path tested with a deliberately wrong address; call-number confirm / alt number / best time taps live and landing in the pre-call brief."
+    },
+    {
+      "id": "S7-04",
+      "title": "Decision data (6A2): `facts` schema populated from the synthetic cycle; metric dictionary complete; seven watchlist tiles live; \"Ask the data\" passes the 20 owner questions; pulse carries the \"what th",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition",
+      "note": "Decision data (6A2): `facts` schema populated from the synthetic cycle; metric dictionary complete; seven watchlist tiles live; \"Ask the data\" passes the 20 owner questions; pulse carries the \"what this means for the business\" line."
+    },
+    {
+      "id": "S7-05",
+      "title": "World-class bar (6B): eval gate in CI with golden set; W35 lead pulse; usability test done; WCAG AA pass; bot protection on `/lead`/`/book`; DKIM + DMARC live; W34 DSR + breach runbook; `/brand/tokens",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition",
+      "note": "World-class bar (6B): eval gate in CI with golden set; W35 lead pulse; usability test done; WCAG AA pass; bot protection on `/lead`/`/book`; DKIM + DMARC live; W34 DSR + breach runbook; `/brand/tokens.json` consumed by every surface; single FAQ corpus; rehearsal done; drills scheduled; CPL-vs-model tile pinned for 14 days."
+    },
+    {
+      "id": "S7-06",
+      "title": "Intro video module (4.10b): step explainer clip + example video live; interview → 3 scripts → FAIS gate → record (iOS/Android tested) → AI check → W23 pipeline (captions, lower-third, ≤ 16 MB, OGG) → ",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition",
+      "note": "Intro video module (4.10b): step explainer clip + example video live; interview → 3 scripts → FAIS gate → record (iOS/Android tested) → AI check → W23 pipeline (captions, lower-third, ≤ 16 MB, OGG) → approve → stored; WhatsApp-capture path tested; 24/72-h nudges wired."
+    },
+    {
+      "id": "S7-07",
+      "title": "Broker weekly report (4.10a): W14 generates from synthetic cycle data; WhatsApp 6-liner, portal Reports tab and email/PDF all show the same numbers; one-ask button works; judge rubric passes.",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition"
+    },
+    {
+      "id": "S7-08",
+      "title": "Pulse screen + notifications (6.8b): Today screen live, 11 faculty tiles with control limits, Approve creates a task, `ops_*` templates approved, DND + dedupe + escalation tested with synthetic alerts",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition",
+      "note": "Pulse screen + notifications (6.8b): Today screen live, 11 faculty tiles with control limits, Approve creates a task, `ops_*` templates approved, DND + dedupe + escalation tested with synthetic alerts."
+    },
+    {
+      "id": "S7-09",
+      "title": "Optimisation loop: W32 daily pulse + W33 judge scheduled; SLOs and control limits seeded from synthetic data; first pulse and first weekly memo generated; Approve button creates a task; daily + weekly",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition",
+      "note": "Optimisation loop: W32 daily pulse + W33 judge scheduled; SLOs and control limits seeded from synthetic data; first pulse and first weekly memo generated; Approve button creates a task; daily + weekly caps set."
+    },
+    {
+      "id": "S7-10",
+      "title": "Comments & DMs: W30/W31 live on the Page and IG; hide-word list approved; first 50 replies reviewed; public-reply SLA dashboard green on synthetic comments.",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition"
+    },
+    {
+      "id": "S7-11",
+      "title": "Pixel/CAPI: domain verified, event priority set, EMQ ≥ 6 on test events, exclusions + engagement audiences created (4.4a Phase 1).",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition"
+    },
+    {
+      "id": "S7-12",
+      "title": "SortMyCover Facebook Page + Instagram live, linked, disclosure in About, 7-day warm-up done; Business Portfolio verified (or verification submitted); all Meta IDs stored in the `brands` row and visibl",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition",
+      "note": "SortMyCover Facebook Page + Instagram live, linked, disclosure in About, 7-day warm-up done; Business Portfolio verified (or verification submitted); all Meta IDs stored in the `brands` row and visible in the CRM (W27 health green)."
+    },
+    {
+      "id": "S7-13",
+      "title": "Campaigns A (instant form, Higher Intent + Rich Creative variant), B (landing page), C (CTWA) created exactly per `campaign-spec.md`; Special Ad Category decision recorded.",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition"
+    },
+    {
+      "id": "S7-14",
+      "title": "Pixel + CAPI verified in Events Manager (test events received, `event_id` dedupe working); Lead Ads webhook subscribed and tested.",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition"
+    },
+    {
+      "id": "S7-15",
+      "title": "Landing pages live on Hostinger (`go.leadvelocity.co.za`), Lighthouse ≥ 90 mobile, LCP < 2.5 s, consent checkbox unticked by default, privacy + terms pages live.",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition"
+    },
+    {
+      "id": "S7-16",
+      "title": "WhatsApp Business number live on Cloud API; Business Verification complete; the 6 core templates approved (any category — category cost logged): intro booked/slots, booking confirmed, 24 h, 2 h, misse",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Conversation & booking",
+      "note": "WhatsApp Business number live on Cloud API; Business Verification complete; the 6 core templates approved (any category — category cost logged): intro booked/slots, booking confirmed, 24 h, 2 h, missed-you; the rest submitted and tracked; standby number registered on the same WABA; quality-rating alert in W22; display name approved."
+    },
+    {
+      "id": "S7-17",
+      "title": "LLM agent passed the 50-prompt adversarial red-team with zero advice leaks; guardrail gate on; human-handoff tested to Jonathan's and KG's numbers.",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Conversation & booking"
+    },
+    {
+      "id": "S7-18",
+      "title": "`GET /slots` returns Mark's real Outlook availability via Graph `getSchedule`; `POST /book` creates the Outlook event (Teams link when method = Teams) and stores the Graph `event.id` on the booking; `",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Conversation & booking",
+      "note": "`GET /slots` returns Mark's real Outlook availability via Graph `getSchedule`; `POST /book` creates the Outlook event (Teams link when method = Teams) and stores the Graph `event.id` on the booking; `.ics` works on iOS and Android."
+    },
+    {
+      "id": "S7-19",
+      "title": "Full synthetic run (10 leads) passed on production URLs: intake → intro card → booking → reminders (time-shifted) → outcome → no-show → replacement counter → STOP.",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Conversation & booking"
+    },
+    {
+      "id": "S7-20",
+      "title": "Mark's row complete: FSP verified on FSCA register, calendar connected, methods/hours/capacity set, intro card approved, voice/video approved, consent_mode set.",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Broker"
+    },
+    {
+      "id": "S7-21",
+      "title": "Agreement e-signed; authorisation letter signed; tier selected; Paystack plan or EFT reference issued.",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Broker"
+    },
+    {
+      "id": "S7-22",
+      "title": "Explainer video watched (portal tracks completion) or Jonathan has walked him through.",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Broker"
+    },
+    {
+      "id": "S7-23",
+      "title": "Paystack live keys, plans per tier, webhooks verified with a R1 live transaction (refunded).",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Platform & money"
+    },
+    {
+      "id": "S7-24",
+      "title": "FNB inContact alerts arriving at howzit@ and parsed (test with a R1 EFT); statement import scheduled.",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Platform & money"
+    },
+    {
+      "id": "S7-25",
+      "title": "`pricing` table is the only price source — repo diff clean (W25).",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Platform & money"
+    },
+    {
+      "id": "S7-26",
+      "title": "VPS provisioned (bought after first payment — W26 step 1), nightly `pg_dump` copied off-server (consent records are legal evidence), backups on, secrets in `.env`, uptime monitor pinging `api.`; webho",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Platform & money",
+      "note": "VPS provisioned (bought after first payment — W26 step 1), nightly `pg_dump` copied off-server (consent records are legal evidence), backups on, secrets in `.env`, uptime monitor pinging `api.`; webhook signature verification on for Meta, WhatsApp, Paystack. *Pre-payment, this line shows amber \"ready to provision\" — it goes green inside W26 and is the last line before the button.*"
+    },
+    {
+      "id": "S7-27",
+      "title": "Console dashboard shows live spend/leads/qualified/booked/show; alerts route to both phones.",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Platform & money"
+    },
+    {
+      "id": "S7-28",
+      "title": "Information Officer registered; PAIA manual + privacy notice published; NCC direct-marketer registration submitted; W24 cleanse scheduled; obligations register populated; external opinion commissioned",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Compliance",
+      "note": "Information Officer registered; PAIA manual + privacy notice published; NCC direct-marketer registration submitted; W24 cleanse scheduled; obligations register populated; external opinion commissioned (not blocking)."
+    },
+    {
+      "id": "NH-01",
+      "title": "Branch: 0.0 step 4 says `sortmycover-build`; this cloud session pushes to `claude/relaxed-edison-0hcidb`. Seeded on the session branch.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "0.1 conflict rule"
+    },
+    {
+      "id": "NH-02",
+      "title": "Replacement cap: 0.1 says per cycle (Bronze 4); 4.6 workflow list item 11 (No-show) says \"cap 3/week per broker\"; 3.5 says \"up to X/week\". 0.1 wins — confirm and fix the text.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "0.1 conflict rule"
+    },
+    {
+      "id": "NH-03",
+      "title": "Grace: 0.1 says no grace; 4.13 agreement text says \"pause for non-payment (7-day grace)\". 0.1 wins — contracts-drafter to drop it.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "0.1 conflict rule"
+    },
+    {
+      "id": "NH-04",
+      "title": "Phase 6 exit says margin ≥ 50%; 3.5 models ~43% at R200 CPL. Which target?",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "0.1 conflict rule"
+    },
+    {
+      "id": "NH-05",
+      "title": "W33 judge should be a \"separate agent file\" (4.15) but the roster is 23 files. Add a 24th file?",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "0.1 conflict rule"
+    },
+    {
+      "id": "NH-06",
+      "title": "4C.5 says unattended runs are \"not GitHub Actions\" and also \"from a Makefile/GitHub Actions workflow\". Pick one (recommend Makefile on the n8n host).",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "0.1 conflict rule"
+    },
+    {
+      "id": "NH-07",
+      "title": "6.6 says \"All 25 workflows\"; 0.1 says W01–W35 (35).",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "0.1 conflict rule"
+    },
+    {
+      "id": "NH-08",
+      "title": "4.3 production path still uses Google Flow renders; 0.1 says code-rendered first, Flow only as week-3 experiment. 0.1 wins.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "0.1 conflict rule"
+    },
+    {
+      "id": "NH-09",
+      "title": "Data store: master prompt targets self-hosted Postgres on the VPS; the existing CRM already runs on Supabase. platform-architect to resolve in the gap map (0.2 says reuse).",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "0.1 conflict rule"
+    },
+    {
+      "id": "NH-10",
+      "title": "Repo .gitignore ignores *.json and *.txt globally — exception added for build/tasks.json; agents writing JSON/TXT deliverables need explicit exceptions.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "0.1 conflict rule"
+    }
+  ]
+}

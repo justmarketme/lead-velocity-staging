@@ -8,7 +8,9 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "prepare": "git config core.hooksPath .githooks || true",
+    "tasks:validate": "node build/validate-tasks.mjs"
   },
   "dependencies": {
     "@elevenlabs/client": "^1.2.1",
