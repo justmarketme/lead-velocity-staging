@@ -99,3 +99,21 @@ test('silence trim points find speech start and end', () => {
   assert.deepEqual(silenceTrimPoints('', 12), { start: 0, end: 12 });
   assert.deepEqual(silenceTrimPoints('silence_start: 0\n', 12), { start: 0, end: 12 });
 });
+
+test('I-41h llmCostZar / llmCostRow: ASSUMPTION rates, tier by model name, rounding, missing usage', async () => {
+  const { llmCostZar, llmCostRow, costRef, LLM_RATES } = await import('./intro-script.mjs');
+  assert.equal(LLM_RATES.usd_zar, 18);
+  // Sonnet: 1M in = $2, 1M out = $10 -> R36 / R180
+  assert.equal(llmCostZar('claude-sonnet-5-5', { input_tokens: 1e6, output_tokens: 0 }), 36);
+  assert.equal(llmCostZar('claude-sonnet-5-5', { input_tokens: 0, output_tokens: 1e6 }), 180);
+  assert.equal(llmCostZar('claude-haiku-4-5-20251001', { input_tokens: 1e6, output_tokens: 1e6 }), 108);
+  assert.equal(llmCostZar('mystery', { input_tokens: 1e6 }), 36); // unknown -> dearer tier
+  assert.equal(llmCostZar('claude-sonnet-5-5', { input_tokens: 1500, output_tokens: 300 }), 0.11);
+  assert.equal(llmCostZar('x', null), 0);
+  const row = llmCostRow([{ model: 'claude-sonnet-5-5', usage: { input_tokens: 1500, output_tokens: 300 } }, null, { model: 'claude-haiku-4-5-20251001', usage: { input_tokens: 900, output_tokens: 60 } }, { model: 'm' }]);
+  assert.equal(row.amount_zar, 0.11 + 0.02);
+  assert.equal(row.note, 'claude-sonnet-5-5 in=1500 out=300; claude-haiku-4-5-20251001 in=900 out=60');
+  assert.equal(llmCostRow([]).note, 'no usage returned');
+  assert.equal(costRef.generate('b', 'r', 'family', 2), 'w23:script-generate:b:r:family:2');
+  assert.equal(costRef.recheck('b', 'r'), 'w23:script-recheck:b:r');
+});

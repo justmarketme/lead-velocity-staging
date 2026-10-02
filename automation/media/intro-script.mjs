@@ -132,3 +132,27 @@ export async function recheck(text, broker, language, llm) {
   if (g.needs_sonnet) g = finalGate(g, parseGate(await llm('gate_sonnet', gateRequest(text, facts, language, { model: 'claude-sonnet-5-5' }))));
   return recheckResult(text, facts, language, det, g);
 }
+
+// ---- I-41h: one ops.costs row per LLM-using step (spec step 14 of deliverables/conversation-designer/intro-script-generator.md)
+// ASSUMPTION: USD per million tokens (in/out) from docs/MASTER-PROMPT.md section 4A (Anthropic platform docs, 1 Oct 2026) and a fixed
+// USD->ZAR rate of 18.00. Neither is read from the API response; replace USD_ZAR with the finance rate when billing-automation publishes one.
+// W07 has no cost logger to copy, so this is the single constant for W23.
+export const LLM_RATES = { usd_zar: 18.0, usd_per_mtok: { sonnet: { in: 2, out: 10 }, haiku: { in: 1, out: 5 } } };
+export function llmCostZar(model, usage) {
+  const tier = /haiku/i.test(String(model || '')) ? 'haiku' : 'sonnet'; // unknown model -> the dearer (Sonnet) rate
+  const r = LLM_RATES.usd_per_mtok[tier];
+  const inT = Math.max(0, Number(usage && usage.input_tokens) || 0), outT = Math.max(0, Number(usage && usage.output_tokens) || 0);
+  return Math.round(((inT * r.in + outT * r.out) / 1e6) * LLM_RATES.usd_zar * 100) / 100;
+}
+/** calls: [{ model, usage }] (null/undefined entries skipped). Returns the ops.costs values for one source_ref. */
+export function llmCostRow(calls) {
+  const used = (calls || []).filter((c) => c && c.usage);
+  return {
+    amount_zar: Math.round(used.reduce((s, c) => s + llmCostZar(c.model, c.usage), 0) * 100) / 100,
+    note: used.map((c) => `${c.model || 'unknown'} in=${Number(c.usage.input_tokens) || 0} out=${Number(c.usage.output_tokens) || 0}`).join('; ') || 'no usage returned',
+  };
+}
+export const costRef = {
+  generate: (broker, req, angle, attempt) => `w23:script-generate:${broker}:${req}:${angle}:${attempt}`,
+  recheck: (broker, req) => `w23:script-recheck:${broker}:${req}`,
+};

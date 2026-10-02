@@ -207,6 +207,20 @@ function gateChain(sfx, y, from) {
   return { entry: h.name, okOut: conf.name, reOut: pr.name };
 }
 
+
+// I-41h: cost logging. Side branch (never in the response path); a failed insert continues regularly and cannot fail the request.
+const COST_SQL = "insert into ops.costs (date, kind, brand_id, broker_id, amount_zar, source_ref, note) values (current_date, 'llm', $1::uuid, $2::uuid, $3::numeric, $4::text, $5::text) on conflict do nothing";
+const USAGE = (node) => `(() => { try { const j = $('${node}').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })()`;
+const costNodes = (label, llmNodes, resultNode, brokerExpr, refExpr, x0, y) => {
+  const calc = mcode(`Cost row (${label})`, [x0, y + 200], `const calls = [${llmNodes.map(USAGE).join(', ')}];
+const row = M.llmCostRow(calls);
+let broker = ''; try { broker = ${brokerExpr}; } catch (e) {}
+return [{ json: Object.assign({ broker_id: broker, source_ref: ${refExpr} }, row) }];`);
+  const ins = pg(Y(), `Log LLM cost (${label})`, [x0 + 220, y + 200], COST_SQL, "={{ [ $env.BRAND_ID, $json.broker_id, $json.amount_zar, $json.source_ref, $json.note ] }}");
+  ins.onError = 'continueRegularOutput';
+  w.nodes.push(calc, ins); link(resultNode, calc.name); link(calc.name, ins.name);
+};
+
 // ---------------- POST intro/script-generate
 { const g = gate('script-generate', 'POST', 4000);
   const load = pg(Y(), 'Load broker + answers (generate)', [680, 4000], BROKER_SQL, '={{ [ ' + g.sub + ' ] }}');
@@ -228,6 +242,8 @@ return M.ANGLES.map((m) => ({ json: Object.assign({}, m, { facts, lang, attempt:
     const res = mcode(`Variant result (${n})`, [x0 + 2800, 4000], "const j = $json; return [{ json: Object.assign({}, j, { v: M.variant({ id: j.id, label: j.label, angle: j.angle }, j.text, j.det, j.gate || null) }) }];");
     w.nodes.push(gen, chk, dp, res);
     const gc = gateChain(`(${n})`, 4000, `Check variant (${n})`);
+    costNodes(`generate ${n}`, [`Generate variant (Sonnet) (${n})`, `Script gate LLM (Haiku, fails closed) (${n})`, `Script gate re-check (Sonnet) (${n})`], res.name,
+      "$('Load broker + answers (generate)').first().json.broker_id", "`w23:script-generate:${broker}:${$execution.id}:${$json.angle}:" + n + "`", x0 + 2800, 4000);
     link(gen.name, chk.name); link(chk.name, dp.name); link(dp.name, gc.entry, 0); link(dp.name, res.name, 1); link(gc.okOut, res.name, 0); link(gc.reOut, res.name);
     return { entry: gen.name, out: res.name };
   };
@@ -266,6 +282,8 @@ return [{ json: { text, facts, lang, det, choose: b.choose === true, gate: null,
   const store = pg(Y(), 'Store chosen script (recheck)', [4440, 4940], `update brokers set positioning_answers = coalesce(positioning_answers, '{}'::jsonb) || jsonb_build_object('chosen_script', jsonb_build_object('id', 'custom', 'label', 'Your edited script', 'text', $2::text, 'language', $3::text, 'checked_at', now(), 'gate_version', $4::text)) where user_id::text = $1 returning id::text as broker_id`, "={{ [ " + g.sub + ", $('Recheck result').item.json.text, $('Recheck result').item.json.lang, 'intro-script-v1.0.0' ] }}");
   const r200 = respond(Y(), 'Respond 200 (script-recheck)', [4660, 5000], 200, "={{ $('Recheck result').item.json.result }}");
   w.nodes.push(load, found, r403, chk, dp, res, choose, store, r200);
+  costNodes('recheck', ['Script gate LLM (Haiku, fails closed) (recheck)', 'Script gate re-check (Sonnet) (recheck)'], res.name,
+    "$('Load broker facts (recheck)').first().json.broker_id", "`w23:script-recheck:${broker}:${$execution.id}`", 4000, 5000);
   link(g.ok, load.name, 0); link(load.name, found.name); link(found.name, chk.name, 0); link(found.name, r403.name, 1); link(chk.name, dp.name);
   const gc = gateChain('(recheck)', 5000, 'Check edited text'); link(dp.name, gc.entry, 0); link(dp.name, res.name, 1); link(gc.okOut, res.name, 0); link(gc.reOut, res.name);
   link(res.name, choose.name); link(choose.name, store.name, 0); link(choose.name, r200.name, 1); link(store.name, r200.name); }
