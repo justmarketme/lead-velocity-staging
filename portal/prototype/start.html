@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Start here | SortMyCover broker portal (prototype)</title>
+<link rel="stylesheet" href="portal.css">
+</head><body>
+<div class="app">
+<header class="top"><div class="who">Mark Williams Financial Planning &middot; FSP 00000 (example data)</div><h1>Welcome, Mark</h1><div class="bar"><i style="width:29%"></i></div><div class="bar-l"><span>2 of 7 done</span><span>about 6 minutes to go live</span></div></header>
+<main class="main">
+
+<section class="card" aria-labelledby="vh">
+  <h2 id="vh">Start here: 3 minutes, then you're set</h2>
+  <p class="muted">Watch this once. It shows every step, with captions. You can watch it on mute.</p>
+  <!-- EXPLAINER SLOT: <video> element, poster + WebVTT captions, MP4 H.264 &lt;= 6 MB; src = /media/explainer/en/explainer.mp4 -->
+  <div class="clip" id="explainer" role="button" tabindex="0" aria-label="Play the 3-minute explainer video"><div class="play"></div><span class="cc">Captions on</span><span class="len">2:45</span></div>
+  <ul class="chap" aria-label="Chapters">
+    <li><span>1 &middot; What we do for you, and what happens next</span><b>0:00</b></li>
+    <li><span>2 &middot; Your details and the FSP check</span><b>1:15</b></li>
+    <li><span>3 &middot; Connect your Outlook calendar</span><b>1:25</b></li>
+    <li><span>4 &middot; Your intro card</span><b>1:39</b></li>
+    <li><span>5 &middot; Record your voice note or video</span><b>1:45</b></li>
+    <li><span>6 &middot; Sign the agreement, pay options</span><b>2:07</b></li>
+    <li><span>7 &middot; Where your leads and briefs live</span><b>2:15</b></li>
+    <li><span>8 &middot; Marking outcomes, and replacements</span><b>2:23</b></li>
+    <li><span>9 &middot; What you get on WhatsApp, and when</span><b>2:35</b></li>
+  </ul>
+  <p class="small">Prefer a page to print? <a href="onboarding-checklist.pdf">One-page checklist (PDF)</a>. No manual.</p>
+</section>
+
+<section class="card" aria-labelledby="ck">
+  <h2 id="ck">Your 7 steps</h2>
+  <p class="muted">About 12 minutes to be ready to go live. Your video takes 10 more, any time. One thing at a time. Everything you type is saved, so you never type it twice.</p>
+  <ol class="steps">
+    <a class="step done" href="start.html#video"><span class="dot">&#10003;</span><span><span class="t">1. Watch the 3-minute video</span><br><span class="s">Done. Watch again any time.</span></span></a>
+    <a class="step done" href="profile.html"><span class="dot">&#10003;</span><span><span class="t">2. Your details and FSP number</span><br><span class="s">FSP checked on the FSCA register</span></span></a>
+    <a class="step now" href="calendar.html"><span class="dot">3</span><span><span class="t">3. Connect your Outlook calendar</span><br><span class="s">One tap &middot; 1 minute</span></span><span class="go">Next &rsaquo;</span></a>
+    <a class="step" href="calendar.html#hours"><span class="dot">4</span><span><span class="t">4. Your hours and how you meet</span><br><span class="s">We filled in a sensible start. Check it.</span></span></a>
+    <a class="step" href="agreement.html"><span class="dot">5</span><span><span class="t">5. Sign your agreement</span><br><span class="s">Plain words &middot; 3 minutes</span></span></a>
+    <a class="step" href="profile.html#card"><span class="dot">6</span><span><span class="t">6. Approve your intro card</span><br><span class="s">What leads see before they meet you</span></span></a>
+    <a class="step" href="../intro-media/index.html"><span class="dot">7</span><span><span class="t">7. Record your 25-second intro</span><br><span class="s">Not needed to go live, but it lifts show rate</span></span></a>
+  </ol>
+</section>
+
+<section class="card" aria-labelledby="gl">
+  <h3 id="gl">What we need before you go live</h3>
+  <p style="margin:4px 0 8px">Three things must be done: <b>FSP checked</b>, <b>calendar connected</b>, <b>agreement signed</b>. We also need your intro card approved. Your video can come later.</p>
+  <p class="muted" style="margin:0">After that we run a final check. Then Jonathan taps "Go live" and leads start.</p>
+</section>
+<a class="btn" href="calendar.html">Next: connect your calendar</a>
+<p class="small" style="text-align:center">Stuck? <a href="help.html">Help</a> &middot; or WhatsApp us. No call needed.</p>
+
+</main>
+</div>
+<nav class="tabs" aria-label="Portal"><div><a href="start.html" class=cur>Start</a><a href="leads.html">My leads</a><a href="calendar.html">Calendar</a><a href="reports.html">Reports</a><a href="help.html">Help</a></div></nav>
+<script>
+
+// Prototype only: the real page writes brokers.explainer_watched_at when the video reaches 90%.
+document.getElementById("explainer").addEventListener("click",function(){this.style.outline="3px solid var(--sm-accent)";});
+
+</script>
+</body></html>

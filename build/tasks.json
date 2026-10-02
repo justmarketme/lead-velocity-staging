@@ -606,7 +606,7 @@
       ],
       "acceptance_test": "node automation/tests/W20.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
+      "status": "in_progress",
       "section": "4.6 inventory"
     },
     {
@@ -2179,6 +2179,17 @@
       "human_gate": true,
       "status": "needs_human",
       "section": "deliverables/intro-media/script-prompt.md"
+    },
+    {
+      "id": "NH-25",
+      "title": "Targets to confirm (analytics): cost per good-fit meeting target R900 (6A2 example) looks unreachable - the 3.5/3.7 model implies ~R1,100-R1,600 at full volume; and the qualified-CPL line: 6.8 says <= R250, 3.4 says R400 (a raw R250 at 65% qualify is ~R385). Default: R1,300 per good-fit meeting as the target, R900 as stretch; the 3.4 R400 line as the qualified-CPL escalation.",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "knowledge/metrics.md"
     }
   ]
 }
