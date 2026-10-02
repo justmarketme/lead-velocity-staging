@@ -58,6 +58,10 @@ const SQL = {
   costs: "select coalesce(sum(amount_zar) filter (where date = current_date and source_ref ~ '^optimisation-advisor:(pulse|judge|grading|event)'), 0) as day_zar,\n coalesce(sum(amount_zar) filter (where date >= date_trunc('week', current_date)::date and source_ref ~ '^optimisation-advisor:(scan|memo|retro)'), 0) as week_zar\nfrom ops.costs where kind = 'llm' and date >= date_trunc('week', current_date)::date;",
   insCosts: 'insert into ops.costs (date, kind, brand_id, broker_id, amount_zar, source_ref)\nselect x.date::date, x.kind, null, null, round(x.amount_zar::numeric, 2), x.source_ref from json_to_recordset($1::json) as x(date text, kind text, amount_zar numeric, source_ref text)\non conflict (date, kind, brand_id, broker_id, source_ref) do update set amount_zar = ops.costs.amount_zar + excluded.amount_zar;',
   recipients: 'select wa, email, ops_email, name, pnid from ops.alert_recipients;',
+  // I-34d / CONTRACTS.md "W32 approvals come from ops.notifications": the console writes, W32 polls. One statement, safe for overlapping runs.
+  claimApprovals: "UPDATE ops.notifications n\n   SET status = 'sending', updated_at = now()\n WHERE n.id IN (SELECT id FROM ops.notifications\n                 WHERE kind = 'approval' AND source = 'console' AND status = 'queued'\n                 ORDER BY created_at\n                 FOR UPDATE SKIP LOCKED\n                 LIMIT 20)\nRETURNING n.id, n.proposal_id, n.payload;",
+  ackApproval: "UPDATE ops.notifications SET status = 'acked', acked_at = now(), acked_by = 'w32', updated_at = now() WHERE id = $1::uuid AND status = 'sending' RETURNING id;",
+  failApproval: "UPDATE ops.notifications SET status = 'send_failed', error = $2, updated_at = now() WHERE id = $1::uuid AND status = 'sending' RETURNING id;",
 };
 class WF {
   constructor(name) { this.name = name; this.nodes = []; this.conn = {}; this.x = 0; }
@@ -120,7 +124,7 @@ function buildW33() {
 // ======================================================================
 function buildW32() {
   const w = new WF('W32 Optimisation pulse, memo, retro, events, approvals');
-  w.add('Note', 'n8n-nodes-base.stickyNote', 1, { content: '## W32 (proposes, never changes)\nDaily 06:30 pulse (delivered 07:00) | Monday 06:00 memo | first working day retro | event webhook | Approve/Snooze/Decline webhook | 15-min escalation watcher.\nAll numbers are computed in the "Compute signals" Code node (spc.js inlined); the model only writes words. Caps: R15/day, R40/week (ops.settings), reserve for pulse and memo. Cap hit = pulse from production data only, scan skipped.\nApprove creates an ops.proposals decision AND appends a node to build/tasks.json (validated by build/validate-tasks.mjs). Credentials by name; no secrets.', width: 620, height: 220 }, [0, -300]);
+  w.add('Note', 'n8n-nodes-base.stickyNote', 1, { content: '## W32 (proposes, never changes)\nDaily 06:30 pulse (delivered 07:00) | Monday 06:00 memo | first working day retro | event webhook | Approve/Snooze/Decline webhook (WhatsApp button) | 1-min poll of console approvals in ops.notifications (I-34d) | 15-min escalation watcher.\nAll numbers are computed in the "Compute signals" Code node (spc.js inlined); the model only writes words. Caps: R15/day, R40/week (ops.settings), reserve for pulse and memo. Cap hit = pulse from production data only, scan skipped.\nApprove creates an ops.proposals decision AND appends a node to build/tasks.json (validated by build/validate-tasks.mjs). Credentials by name; no secrets.', width: 620, height: 240 }, [0, -300]);
 
   // ---- triggers and modes ----
   const t1 = w.add('Daily 06:30 pulse', 'n8n-nodes-base.scheduleTrigger', 1.2, cron('30 6 * * *'), [0, 0]);
@@ -245,7 +249,7 @@ function buildW32() {
   const cda = pg(w, 'Costs (decision)', SQL.costs, [880, 1300], { node: once });
   const pda = w.add('Plan (decision)', 'n8n-nodes-base.code', 2, { jsCode: code('w32-plan.js').split("$('Settings')").join("$('Settings (decision)')").split("$('Costs')").join("$('Costs (decision)')") }, [1100, 1300]);
   const rda = pg(w, 'Recipients (decision)', SQL.recipients, [1320, 1300], { node: once0 });
-  const dec = pg(w, 'Decide', "with d as (select $1::text as decision, $2::uuid as id, $3::text as by, $4::text as reason)\nupdate ops.proposals p set\n status = case d.decision when 'approve' then 'approved' when 'snooze' then 'snoozed' when 'decline' then 'declined' else p.status end,\n decided_by_label = case when d.decision = 'later' then p.decided_by_label else d.by end,\n decided_at = case when d.decision = 'later' then p.decided_at else now() end,\n decline_reason = case when d.decision = 'decline' then d.reason else p.decline_reason end,\n snooze_until = case when d.decision = 'snooze' then current_date + 7 else p.snooze_until end\nfrom d where p.id = d.id and p.status in ('proposed', 'snoozed')\nreturning p.id::text as id, p.title, p.metric, p.forecast, p.test, p.kill_rule, p.owner_agent, p.check_date, p.decided_by_label as decided_by, d.decision;", [1540, 1300], { replacement: "={{ [ $('Validate decision').first().json.decision, $('Validate decision').first().json.proposal_id, $('Validate decision').first().json.decided_by, $('Validate decision').first().json.reason ] }}", node: once });
+  const dec = pg(w, 'Decide', "with d as (select $1::text as decision, $2::uuid as id, $3::text as by, $4::text as reason, coalesce($5::text, 'webhook') as via)\nupdate ops.proposals p set\n status = case when d.via = 'console' then p.status when d.decision = 'approve' then 'approved' when d.decision = 'snooze' then 'snoozed' when d.decision = 'decline' then 'declined' else p.status end,\n decided_by_label = case when d.decision = 'later' or d.via = 'console' then p.decided_by_label else d.by end,\n decided_at = case when d.decision = 'later' or d.via = 'console' then p.decided_at else now() end,\n decline_reason = case when d.decision = 'decline' and d.via <> 'console' then d.reason else p.decline_reason end,\n snooze_until = case when d.decision = 'snooze' and d.via <> 'console' then current_date + 7 else p.snooze_until end\nfrom d where p.id = d.id and (\n (d.via <> 'console' and p.status in ('proposed', 'snoozed'))\n -- console path: smc_console_decide_proposal already decided the row; W32 only runs the follow-up once (task_id guard)\n or (d.via = 'console' and p.decided_by_label = 'console' and p.task_id is null\n     and p.status = case d.decision when 'approve' then 'approved' when 'snooze' then 'snoozed' when 'decline' then 'declined' end))\nreturning p.id::text as id, p.title, p.metric, p.forecast, p.test, p.kill_rule, p.owner_agent, p.check_date, p.decided_by_label as decided_by, d.decision;", [1540, 1300], { replacement: "={{ [ $('Validate decision').first().json.decision, $('Validate decision').first().json.proposal_id, $('Validate decision').first().json.decided_by, $('Validate decision').first().json.reason, $('Validate decision').first().json.via ] }}", node: once });
   const ack = pg(w, 'Ack action notifications', "update ops.notifications set acked_at = now() where proposal_id = $1::uuid and acked_at is null and $2 <> 'later';", [1760, 1300], { replacement: '={{ [ $json.id, $json.decision ] }}', node: once });
   const apif = ifNode(w, 'Approved?', "={{ $('Decide').first().json.decision === 'approve' }}", true, [1980, 1300]);
   const rf2 = w.add('Read tasks.json file (approve)', 'n8n-nodes-base.readWriteFile', 1, { operation: 'read', fileSelector: '/home/node/repo/build/tasks.json', options: {} }, [2200, 1260], { executeOnce: true });
@@ -264,6 +268,22 @@ function buildW32() {
   w.chain(ha, vd, vdi); w.link(vdi, ma, 0); w.chain(ma, sda, cda, pda, rda, dec, ack, apif);
   w.link(apif, rf2, 0); w.chain(rf2, ex2, at, okif);
   w.link(okif, nw, 0); w.link(okif, fail, 1); w.link(nw, wr, 0); w.link(nw, link, 1); w.chain(wr, vv); w.link(vv, link, 0); w.link(vv, rest, 1); w.chain(rest, rw, fail); w.chain(link, cf); w.link(cf, direct);
+
+  // ---- CONSOLE APPROVALS (I-30j / I-34d): poll ops.notifications every minute (LISTEN drops events across restarts).
+  // Each claimed row runs the decision branch above as a sub-execution of this same workflow (so the branch's
+  // $('Validate decision').first() semantics stay one-decision-per-run), then the row is set acked or send_failed.
+  const tpc = w.add('Every minute: console approvals', 'n8n-nodes-base.scheduleTrigger', 1.2, cron('* * * * *'), [0, 1500]);
+  const clm = pg(w, 'Claim console approvals', SQL.claimApprovals, [220, 1500]);
+  const lop = w.add('Loop console approvals', 'n8n-nodes-base.splitInBatches', 3, { batchSize: 1, options: {} }, [440, 1500]);
+  const cmap = codeNode(w, 'Console row to decision', 'w32-console-claim-map.js', [660, 1560]);
+  const cvi = ifNode(w, 'Console row valid?', '={{ $json.valid }}', true, [880, 1560]);
+  const runb = w.add('Run decision branch (sub-call)', 'n8n-nodes-base.executeWorkflow', 1.2, { source: 'database', workflowId: { __rl: true, mode: 'id', value: '={{ $workflow.id }}' }, mode: 'once', options: { waitForSubWorkflow: true } }, [1100, 1520], { onError: 'continueErrorOutput', alwaysOutputData: true });
+  const ackc = pg(w, 'Ack console approval', SQL.ackApproval, [1320, 1480], { replacement: "={{ $('Loop console approvals').first().json.id }}", node: once0 });
+  const failc = pg(w, 'Mark console approval send_failed', SQL.failApproval, [1320, 1620], { replacement: "={{ [ $('Loop console approvals').first().json.id, String(($json.error && ($json.error.message || $json.error)) || 'decision branch failed').slice(0, 500) ] }}", node: once0 });
+  const subt = w.add('Console decision (sub-call)', 'n8n-nodes-base.executeWorkflowTrigger', 1.1, { inputSource: 'passthrough' }, [0, 1400]);
+  w.chain(tpc, clm, lop); w.link(lop, cmap, 1); w.link(cmap, cvi); w.link(cvi, runb, 0); w.link(cvi, failc, 1);
+  w.link(runb, ackc, 0); w.link(runb, failc, 1); w.link(ackc, lop); w.link(failc, lop);
+  w.link(subt, vd);
 
   // ---- ESCALATION WATCHER (6.8b dedupe and escalation; reminders at 24 h) ----
   const te = w.add('Every 15 min', 'n8n-nodes-base.scheduleTrigger', 1.2, cron('*/15 * * * *'), [0, 1700]);

@@ -107,3 +107,12 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-35j | Draft `broker_autorenew_off` utility template (+ `broker_booking_changed`, I-35a) | automation-engineer (templates) |
 | I-35k | Analytics layer deploy: W26 runbook applies `analytics/params.sql, watchlist.sql, kill-scale.sql, W14-broker.sql, W14-lv.sql` after migrations (default) — or migration 11 by analytics-reporter once `params.sql` uses CREATE OR REPLACE | devops-security (W26) + analytics-reporter |
 | I-35l | W34 purges `wa_threads` rows past `expires_at` (POPIA ops) | compliance-qa (W34) |
+
+### I-36 · From W32 outbox + email builder (2026-10-02)
+| # | Item | Owner |
+|---|---|---|
+| I-36a | `optimisation/n8n-code/w32-approve-confirm.js` is empty — write the approver confirmation step | optimisation-advisor |
+| I-36b | W22: alert on / re-queue `ops.notifications` approval rows in `sending` > 10 min | devops-security |
+| I-36c | W14 email send step: run `scripts/build-broker-report-email.mjs --pdf`, attach, send via Graph from howzit@ (same credential as W17) | automation-engineer |
+| I-36d | Canonical broker PDF = email builder print view (initials only); portal `/r/<id>/print` stays an on-screen view | analytics-reporter + platform-architect (update W14-broker.md) |
+| I-36e | `NODE_FUNCTION_ALLOW_BUILTIN` must include `url` (and `fs`, `path`) for W30/W31/W07 `import()` — see I-35b | devops-security |

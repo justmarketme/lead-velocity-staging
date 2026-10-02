@@ -3,9 +3,9 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## W32 (proposes, never changes)\nDaily 06:30 pulse (delivered 07:00) | Monday 06:00 memo | first working day retro | event webhook | Approve/Snooze/Decline webhook | 15-min escalation watcher.\nAll numbers are computed in the \"Compute signals\" Code node (spc.js inlined); the model only writes words. Caps: R15/day, R40/week (ops.settings), reserve for pulse and memo. Cap hit = pulse from production data only, scan skipped.\nApprove creates an ops.proposals decision AND appends a node to build/tasks.json (validated by build/validate-tasks.mjs). Credentials by name; no secrets.",
+        "content": "## W32 (proposes, never changes)\nDaily 06:30 pulse (delivered 07:00) | Monday 06:00 memo | first working day retro | event webhook | Approve/Snooze/Decline webhook (WhatsApp button) | 1-min poll of console approvals in ops.notifications (I-34d) | 15-min escalation watcher.\nAll numbers are computed in the \"Compute signals\" Code node (spc.js inlined); the model only writes words. Caps: R15/day, R40/week (ops.settings), reserve for pulse and memo. Cap hit = pulse from production data only, scan skipped.\nApprove creates an ops.proposals decision AND appends a node to build/tasks.json (validated by build/validate-tasks.mjs). Credentials by name; no secrets.",
         "width": 620,
-        "height": 220
+        "height": 240
       },
       "id": "e8ac0d32-00d2-3d23-9b84-bb165350f8e9",
       "name": "Note",
@@ -2029,7 +2029,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Approve / Snooze 7 d / Decline(reason) from the console button or the WhatsApp quick reply (payload \"approve:<id>\" | \"later:<id>\").\nconst b = $input.first().json.body || $input.first().json;\nlet decision = b.decision, id = b.proposal_id, by = b.decided_by || null;\nif (b.payload && typeof b.payload === 'string') { const [d, i] = b.payload.split(':'); decision = d; id = i; by = by || b.from || null; }\nconst ok = ['approve', 'snooze', 'decline', 'later'].includes(decision) && /^[0-9a-f-]{36}$/i.test(String(id));\nif (!ok) return [{ json: { valid: false, error: 'bad decision payload' } }];\nif (decision === 'decline' && !(b.reason && String(b.reason).trim())) return [{ json: { valid: false, error: 'decline needs a reason' } }];\nreturn [{ json: { valid: true, decision, proposal_id: String(id), decided_by: by || 'unknown', reason: b.reason ? String(b.reason).slice(0, 300) : null } }];\n"
+        "jsCode": "// Approve / Snooze 7 d / Decline(reason) from the WhatsApp quick reply (payload \"approve:<id>\" | \"later:<id>\") via the smc-w32-decision webhook,\n// or from a console approval row claimed by the 1-minute poll (I-34d), which arrives through the sub-call trigger with _via_console = true.\n// The webhook item is {headers, params, query, body}, so a webhook caller cannot set the top-level _via_console flag.\nconst via = $input.first().json._via_console === true ? 'console' : 'webhook';\nconst b = $input.first().json.body || $input.first().json;\nlet decision = b.decision, id = b.proposal_id, by = b.decided_by || null;\nif (b.payload && typeof b.payload === 'string') { const [d, i] = b.payload.split(':'); decision = d; id = i; by = by || b.from || null; }\nconst ok = ['approve', 'snooze', 'decline', 'later'].includes(decision) && /^[0-9a-f-]{36}$/i.test(String(id));\nif (!ok) return [{ json: { valid: false, error: 'bad decision payload' } }];\nif (decision === 'decline' && !(b.reason && String(b.reason).trim())) return [{ json: { valid: false, error: 'decline needs a reason' } }];\nreturn [{ json: { valid: true, decision, proposal_id: String(id), decided_by: by || 'unknown', reason: b.reason ? String(b.reason).slice(0, 300) : null, via } }];\n"
       },
       "id": "bf30f80b-fb7b-9be7-6203-72850fbcf826",
       "name": "Validate decision",
@@ -2170,9 +2170,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "with d as (select $1::text as decision, $2::uuid as id, $3::text as by, $4::text as reason)\nupdate ops.proposals p set\n status = case d.decision when 'approve' then 'approved' when 'snooze' then 'snoozed' when 'decline' then 'declined' else p.status end,\n decided_by_label = case when d.decision = 'later' then p.decided_by_label else d.by end,\n decided_at = case when d.decision = 'later' then p.decided_at else now() end,\n decline_reason = case when d.decision = 'decline' then d.reason else p.decline_reason end,\n snooze_until = case when d.decision = 'snooze' then current_date + 7 else p.snooze_until end\nfrom d where p.id = d.id and p.status in ('proposed', 'snoozed')\nreturning p.id::text as id, p.title, p.metric, p.forecast, p.test, p.kill_rule, p.owner_agent, p.check_date, p.decided_by_label as decided_by, d.decision;",
+        "query": "with d as (select $1::text as decision, $2::uuid as id, $3::text as by, $4::text as reason, coalesce($5::text, 'webhook') as via)\nupdate ops.proposals p set\n status = case when d.via = 'console' then p.status when d.decision = 'approve' then 'approved' when d.decision = 'snooze' then 'snoozed' when d.decision = 'decline' then 'declined' else p.status end,\n decided_by_label = case when d.decision = 'later' or d.via = 'console' then p.decided_by_label else d.by end,\n decided_at = case when d.decision = 'later' or d.via = 'console' then p.decided_at else now() end,\n decline_reason = case when d.decision = 'decline' and d.via <> 'console' then d.reason else p.decline_reason end,\n snooze_until = case when d.decision = 'snooze' and d.via <> 'console' then current_date + 7 else p.snooze_until end\nfrom d where p.id = d.id and (\n (d.via <> 'console' and p.status in ('proposed', 'snoozed'))\n -- console path: smc_console_decide_proposal already decided the row; W32 only runs the follow-up once (task_id guard)\n or (d.via = 'console' and p.decided_by_label = 'console' and p.task_id is null\n     and p.status = case d.decision when 'approve' then 'approved' when 'snooze' then 'snoozed' when 'decline' then 'declined' end))\nreturning p.id::text as id, p.title, p.metric, p.forecast, p.test, p.kill_rule, p.owner_agent, p.check_date, p.decided_by_label as decided_by, d.decision;",
         "options": {
-          "queryReplacement": "={{ [ $('Validate decision').first().json.decision, $('Validate decision').first().json.proposal_id, $('Validate decision').first().json.decided_by, $('Validate decision').first().json.reason ] }}"
+          "queryReplacement": "={{ [ $('Validate decision').first().json.decision, $('Validate decision').first().json.proposal_id, $('Validate decision').first().json.decided_by, $('Validate decision').first().json.reason, $('Validate decision').first().json.via ] }}"
         }
       },
       "id": "48cd3e89-f581-1689-8a5c-ff1ffb84735d",
@@ -2478,6 +2478,193 @@
         }
       },
       "executeOnce": true
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "* * * * *"
+            }
+          ]
+        }
+      },
+      "id": "3c6b98dd-7696-570f-c692-6aa48fe384a2",
+      "name": "Every minute: console approvals",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        1500
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE ops.notifications n\n   SET status = 'sending', updated_at = now()\n WHERE n.id IN (SELECT id FROM ops.notifications\n                 WHERE kind = 'approval' AND source = 'console' AND status = 'queued'\n                 ORDER BY created_at\n                 FOR UPDATE SKIP LOCKED\n                 LIMIT 20)\nRETURNING n.id, n.proposal_id, n.payload;",
+        "options": {}
+      },
+      "id": "b99a0090-dd70-94e0-4c60-74528368784d",
+      "name": "Claim console approvals",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        220,
+        1500
+      ],
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Supabase Postgres (ops writer)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "0ee38890-d800-b283-5e40-3b207c3340d8",
+      "name": "Loop console approvals",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        440,
+        1500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// I-34d: one claimed ops.notifications row (kind approval, source console, now 'sending') -> the item shape \"Validate decision\" reads.\n// smc_console_decide_proposal already updated ops.proposals; W32 runs the follow-up (task append on approve). Invalid rows -> send_failed.\nconst out = [];\nfor (const it of $input.all()) {\n  const r = it.json || {};\n  let p = r.payload;\n  if (typeof p === 'string') { try { p = JSON.parse(p); } catch (e) { p = null; } }\n  p = p && typeof p === 'object' ? p : {};\n  const decision = p.decision;\n  const id = String(p.proposal_id || r.proposal_id || '');\n  let error = null;\n  if (!['approve', 'snooze', 'decline'].includes(decision)) error = 'console approval: decision must be approve, snooze or decline';\n  else if (!/^[0-9a-f-]{36}$/i.test(id)) error = 'console approval: proposal_id missing or malformed';\n  else if (r.proposal_id && p.proposal_id && String(r.proposal_id) !== String(p.proposal_id)) error = 'console approval: row proposal_id does not match payload';\n  else if (decision === 'decline' && !(p.reason && String(p.reason).trim())) error = 'console approval: decline needs a reason';\n  out.push({ json: error\n    ? { valid: false, notification_id: r.id || null, error }\n    : { valid: true, notification_id: r.id, _via_console: true,\n        body: { decision, proposal_id: id, decided_by: 'console', reason: p.reason ? String(p.reason) : null, via: 'console' } } });\n}\nreturn out;\n"
+      },
+      "id": "41257bea-1431-b1e7-9e56-4a8a8ade7031",
+      "name": "Console row to decision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        1560
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "af59c607-8511-9f3f-4462-e53cf855c42b",
+      "name": "Console row valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        1560
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $workflow.id }}"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "b473dc0b-06b3-8581-a33e-6ed4885d268b",
+      "name": "Run decision branch (sub-call)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        1520
+      ],
+      "onError": "continueErrorOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE ops.notifications SET status = 'acked', acked_at = now(), acked_by = 'w32', updated_at = now() WHERE id = $1::uuid AND status = 'sending' RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ $('Loop console approvals').first().json.id }}"
+        }
+      },
+      "id": "6c1156db-fab4-613d-f943-14683ed7b47c",
+      "name": "Ack console approval",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1320,
+        1480
+      ],
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Supabase Postgres (ops writer)"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE ops.notifications SET status = 'send_failed', error = $2, updated_at = now() WHERE id = $1::uuid AND status = 'sending' RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [ $('Loop console approvals').first().json.id, String(($json.error && ($json.error.message || $json.error)) || 'decision branch failed').slice(0, 500) ] }}"
+        }
+      },
+      "id": "84481493-e662-4ad7-50ad-fbdf3369d948",
+      "name": "Mark console approval send_failed",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1320,
+        1620
+      ],
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Supabase Postgres (ops writer)"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "25f9f7f9-678a-bae9-22ab-61582f7193fc",
+      "name": "Console decision (sub-call)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        1400
+      ]
     },
     {
       "parameters": {
@@ -3929,6 +4116,120 @@
         [
           {
             "node": "Reserve notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every minute: console approvals": {
+      "main": [
+        [
+          {
+            "node": "Claim console approvals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim console approvals": {
+      "main": [
+        [
+          {
+            "node": "Loop console approvals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop console approvals": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Console row to decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Console row to decision": {
+      "main": [
+        [
+          {
+            "node": "Console row valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Console row valid?": {
+      "main": [
+        [
+          {
+            "node": "Run decision branch (sub-call)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark console approval send_failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run decision branch (sub-call)": {
+      "main": [
+        [
+          {
+            "node": "Ack console approval",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark console approval send_failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ack console approval": {
+      "main": [
+        [
+          {
+            "node": "Loop console approvals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark console approval send_failed": {
+      "main": [
+        [
+          {
+            "node": "Loop console approvals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Console decision (sub-call)": {
+      "main": [
+        [
+          {
+            "node": "Validate decision",
             "type": "main",
             "index": 0
           }
