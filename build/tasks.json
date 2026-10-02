@@ -552,7 +552,7 @@
       ],
       "acceptance_test": "node automation/tests/W16.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
+      "status": "in_progress",
       "section": "4.6 inventory"
     },
     {
@@ -565,7 +565,7 @@
       ],
       "acceptance_test": "node automation/tests/W17.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
+      "status": "green",
       "section": "4.6 inventory"
     },
     {
@@ -578,7 +578,7 @@
       ],
       "acceptance_test": "node automation/tests/W18.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
+      "status": "green",
       "section": "4.6 inventory"
     },
     {
@@ -592,7 +592,7 @@
       ],
       "acceptance_test": "node automation/tests/W19.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
+      "status": "in_progress",
       "section": "4.6 inventory"
     },
     {
@@ -685,7 +685,7 @@
       ],
       "acceptance_test": "node automation/tests/W25.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
+      "status": "green",
       "section": "4.6 inventory"
     },
     {
@@ -2201,6 +2201,17 @@
       "human_gate": true,
       "status": "needs_human",
       "section": "deliverables/platform-architect/schema.md; contracts needs-human NH-CD-07"
+    },
+    {
+      "id": "NH-27",
+      "title": "Billing decisions (money): (a) card auto-renew charges the saved card on OUR 30-day cycle end (retry day 1 and 3), not via Paystack calendar-monthly Plans (plans still created per tier) - confirm; (b) tier changes apply at the cycle boundary only, no mid-cycle pro-rata (3.6 wording says pro-rata invoice) - confirm; (c) the broker row (+ auth user) is created when the invoice is issued, status invited/prospect, and W16 moves it to onboarding on payment - confirm; (d) the checkout page is a Lead Velocity (B2B) surface - use LV branding or SortMyCover tokens?",
+      "owner": "jonathan",
+      "phase": "4b",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "deliverables/billing-automation/SUMMARY.md"
     }
   ]
 }

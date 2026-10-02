@@ -1,0 +1,1 @@
+{ "name": "smc-billing", "private": true, "type": "commonjs", "scripts": { "test": "node --test billing.test.js", "price-diff": "node price-diff.mjs", "build:workflows": "node build-workflows.mjs" } }
