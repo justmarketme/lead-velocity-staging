@@ -18,8 +18,9 @@
   --sm-dark-bg: #15181C;
   --sm-dark-card: #1C2027;
   --sm-dark-text: #F1EDE5;
-  --sm-test-teal-accent: #0F766E;
-  --sm-test-teal-ink: #FBF8F2;
+  --sm-test-teal-accent: #0F6E6A;
+  --sm-test-teal-ink: #F6EFE0;
+  --sm-test-cream: #F6EFE0;
   --sm-scrim: rgb(31 41 51 / 0.72);
   /* semantic roles */
   --sm-bg: var(--sm-off-white);
