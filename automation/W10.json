@@ -313,7 +313,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w10.mjs').href);\nconst j = $('Merge context').item.json;\nconst o = L.offerMessage({ booking: j.bk, lead: j.ld, broker: j.br, brand: j.brand, slots: $json.slots || [], now_ms: Date.now(), last_inbound_ms: j.last_inbound_ms, reason: j.op });\nlet wa = null;\nif (o.kind === 'list_session') wa = { type: 'interactive', interactive: { type: 'list', body: { text: o.body }, action: { button: 'See times', sections: [{ title: 'Open times', rows: o.rows }] } } };\nelse if (o.kind === 'flow_session') wa = { type: 'interactive', interactive: { type: 'flow', body: { text: 'No problem. Pick a new time below.' }, action: { name: 'flow', parameters: { flow_message_version: '3', flow_id: j.brand.booking_flow_id || $env.RESCHEDULE_FLOW_ID, flow_cta: 'Pick a new time', flow_action: 'data_exchange', flow_token: 'resched:' + j.bk.id } } } };\nelse if (o.kind === 'template') { const comps = [{ type: 'body', parameters: o.vars.map((t) => ({ type: 'text', text: String(t) })) }]; (o.buttons || []).forEach((p, i) => comps.push({ type: 'button', sub_type: 'quick_reply', index: String(i), parameters: [{ type: 'payload', payload: p }] })); if (o.template === 'reschedule_offer_v2') comps.push({ type: 'button', sub_type: 'flow', index: '0', parameters: [{ type: 'action', action: { flow_token: 'resched:' + j.bk.id } }] }); wa = { type: 'template', template: { name: o.template, language: { code: 'en' }, components: comps } }; }\nreturn { json: { ...j, offer: o, wa: wa ? { messaging_product: 'whatsapp', to: j.ld.phone, ...wa } : null, text: o.body || o.template || o.kind } };"
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w10.mjs').href);\nconst j = $('Merge context').item.json;\nconst o = L.offerMessage({ booking: j.bk, lead: j.ld, broker: j.br, brand: j.brand, slots: $json.slots || [], now_ms: Date.now(), last_inbound_ms: j.last_inbound_ms, reason: j.op, delegate: j.delegate || null }); // I-39a: delegate.body is the one message body\nlet wa = null;\nif (o.kind === 'list_session') wa = { type: 'interactive', interactive: { type: 'list', body: { text: o.body }, action: { button: 'See times', sections: [{ title: 'Open times', rows: o.rows }] } } };\nelse if (o.kind === 'flow_session') wa = { type: 'interactive', interactive: { type: 'flow', body: { text: o.body }, action: { name: 'flow', parameters: { flow_message_version: '3', flow_id: j.brand.booking_flow_id || $env.RESCHEDULE_FLOW_ID, flow_cta: 'Pick a new time', flow_action: 'data_exchange', flow_token: 'resched:' + j.bk.id } } } };\nelse if (o.kind === 'template') { const comps = [{ type: 'body', parameters: o.vars.map((t) => ({ type: 'text', text: String(t) })) }]; (o.buttons || []).forEach((p, i) => comps.push({ type: 'button', sub_type: 'quick_reply', index: String(i), parameters: [{ type: 'payload', payload: p }] })); if (o.template === 'reschedule_offer_v2') comps.push({ type: 'button', sub_type: 'flow', index: '0', parameters: [{ type: 'action', action: { flow_token: 'resched:' + j.bk.id } }] }); wa = { type: 'template', template: { name: o.template, language: { code: 'en' }, components: comps } }; }\nreturn { json: { ...j, offer: o, wa: wa ? { messaging_product: 'whatsapp', to: j.ld.phone, ...wa } : null, text: o.body || o.template || o.kind } };"
       }
     },
     {
@@ -733,7 +733,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w10.mjs').href);\nconst j = $('Decide move (w10.applyReschedule)').item.json;\nconst slots = (j.d.offer && j.d.offer.length) ? j.d.offer : [];\nconst rows = slots.map((s) => ({ id: 'slot_' + s.start + ':resched:' + j.bk.id, title: L.slotLabel(s.start).slice(0, 24) }));\nreturn { json: { to: 'lead', wa: rows.length ? { messaging_product: 'whatsapp', to: j.ld.phone, type: 'interactive', interactive: { type: 'list', body: { text: 'Sorry, that time was just taken. Here are the next open times.' }, action: { button: 'See times', sections: [{ title: 'Open times', rows }] } } } : null } };"
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w10.mjs').href);\nconst j = $('Decide move (w10.applyReschedule)').item.json;\nconst slots = (j.d.offer && j.d.offer.length) ? j.d.offer : [];\nconst rows = slots.map((s) => ({ id: 'slot_' + s.start + ':resched:' + j.bk.id, title: L.slotLabel(s.start).slice(0, 24) }));\nreturn { json: { to: 'lead', wa: rows.length ? { messaging_product: 'whatsapp', to: j.ld.phone, type: 'interactive', interactive: { type: 'list', body: { text: L.leadBody('slots', { lead: j.ld, booking: j.bk, broker: j.br }) }, action: { button: 'See times', sections: [{ title: 'Open times', rows }] } } } : null } };"
       }
     },
     {
@@ -969,7 +969,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const j = $json; const t = 'Do you want me to cancel your call on ' + j.bk.appointment_date.slice(0, 16).replace('T', ' at ') + '?';\nreturn { json: { to: 'lead', wa: { messaging_product: 'whatsapp', to: j.ld.phone, type: 'interactive', interactive: { type: 'button', body: { text: t }, action: { buttons: [{ type: 'reply', reply: { id: 'cancel_yes:' + j.bk.id, title: 'Yes, cancel' } }, { type: 'reply', reply: { id: 'keep_it:' + j.bk.id, title: 'Keep it' } }] } } } } };"
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w10.mjs').href);\n// I-39a: one message. delegate.body (W07's fixed lines + CANCEL_CONFIRM_Q) when present, else lines.mjs in the lead's language.\nconst j = $json; const m = L.cancelConfirmMessage(j.bk, j.ld, j.br, j.delegate || null);\nreturn { json: { to: 'lead', ld: j.ld, wa: L.toWa(j.ld.phone, m) } };"
       }
     },
     {
@@ -997,7 +997,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w10.mjs').href);\nconst j = $json; const d = L.changeMethod(j.bk, j.ld, j.br, (j.delegate && j.delegate.method) || null); return { json: { ...j, d } };"
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w10.mjs').href);\nconst j = $json;\nconst p = String((j.msg && (j.msg.payload || j.msg.list_id)) || '').split(':');\nconst method = (j.delegate && j.delegate.method) || (p[0] === 'change_method' ? p[1] : null);\nconst d = L.changeMethod(j.bk, j.ld, j.br, method); return { json: { ...j, method, d } };"
       }
     },
     {
@@ -1574,6 +1574,20 @@
           "name": "LV Supabase Postgres"
         }
       }
+    },
+    {
+      "id": "n56",
+      "name": "Method lead message (one message)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        1100
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w10.mjs').href);\n// I-39a: change -> METHOD_CHANGED (or delegate.body); reject -> lead_lines + SAME_METHOD with the adviser's methods.\nconst j = $('Decide method change').item.json;\nconst m = L.methodMessage(j.d, j.bk, j.ld, j.br, j.delegate || null, j.method);\nreturn { json: { to: 'lead', ld: j.ld, wa: L.toWa(j.ld.phone, m) } };"
+      }
     }
   ],
   "connections": {
@@ -2043,11 +2057,23 @@
             "node": "Save method",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Method lead message (one message)",
+            "type": "main",
+            "index": 0
           }
         ],
         [
           {
             "node": "-> W28 / W05 email step",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Method lead message (one message)",
             "type": "main",
             "index": 0
           }
@@ -2193,6 +2219,17 @@
         [
           {
             "node": "Touch leads.last_contact_at (lead outbound)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Method lead message (one message)": {
+      "main": [
+        [
+          {
+            "node": "Has WhatsApp payload + live?",
             "type": "main",
             "index": 0
           }

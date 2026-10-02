@@ -152,3 +152,4 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-39h | Sonnet re-check node for low-confidence classifier passes (today: fail closed) | automation-engineer + conversation-designer, Phase 5 |
 | I-39i | Practitioner: does a broker-facing digest/brief restart the lead's retention clock? (W11 touches it today) | contracts-drafter (brief Q24) |
 | I-39j | Edge function `w34-media-erase` (holds the Storage key server-side, deletes only `broker-media/<uuid>/` paths, ≤ 50 per call, n8n authenticates with revocable HMAC `W34_MEDIA_ERASE_SECRET`); until built, W34 queues media erasure as a manual action | devops-security (platform-architect decision recorded in schema.md pass 6) |
+| I-39k | W05/W28 email step (`ask_email`) must send `delegate.body` / `lead_lines` in its one message; lines.mjs needs `SLOT_TAKEN` and `METHOD_NOT_OFFERED` (EN/AF) | automation-engineer (W28), conversation-designer |

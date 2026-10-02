@@ -203,3 +203,59 @@ test('W10.json C1A wiring + last_contact_at: no_call op, hourly sweep, one decis
   assert.equal(R.leadOutbound({ wa: { to: '+27820000000' }, br: { whatsapp_number: '+27820000000' }, ld: { id: 'L' } }, 'wamid.1'), null);
   assert.equal(R.leadOutbound({ to: 'lead', ld: { id: 'L' } }, ''), null, 'not sent (dry run / rejected)');
 });
+
+// ---- I-39a: one message, never two (W07 delegate.body) ----
+const DLG = (action, extra = {}) => ({ to: 'W10', action, lead_lines: ['Just so you know, I am the SortMyCover assistant.'], intro_line: 'X', body: 'Just so you know, I am the SortMyCover assistant. W07 body for ' + action + '.', lang: 'en', ...extra });
+
+test('I-39a reschedule offer: list body = delegate.body when present; else RESCHED_INTRO + SAME_METHOD from lines.mjs (en / af)', () => {
+  const slots = slotsAt(RESCHED_TAP);
+  const base = { booking: bk(), lead: ld(), broker: BR, brand: { booking_ui: 'list' }, slots, now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP };
+  assert.equal(R.offerMessage({ ...base, delegate: DLG('reschedule') }).body, DLG('reschedule').body);
+  assert.equal(R.offerMessage(base).body, 'No problem, here are some other times. Same as before, by WhatsApp call?');
+  assert.equal(R.offerMessage({ ...base, lead: ld({ language: 'af' }) }).body, "Geen probleem nie, hier is 'n paar ander tye. Dieselfde as voorheen, per WhatsApp-oproep?");
+  assert.equal(R.offerMessage({ ...base, delegate: { to: 'W10', action: 'reschedule', lang: 'af' } }).body.startsWith('Geen probleem'), true, 'delegate without body: own body in delegate.lang');
+  const long = R.offerMessage({ ...base, delegate: DLG('reschedule', { body: 'x'.repeat(1500) }) }).body;
+  assert.equal(long.length, 1024, 'never over the Cloud API body limit');
+});
+
+test('I-39a reschedule Flow: flow body = delegate.body when present; else RESCHED_INTRO', () => {
+  const slots = slotsAt(RESCHED_TAP);
+  const base = { booking: bk(), lead: ld(), broker: BR, brand: { booking_ui: 'flow' }, slots, now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP };
+  assert.equal(R.offerMessage({ ...base, delegate: DLG('reschedule_slots') }).body, DLG('reschedule_slots').body);
+  assert.match(R.offerMessage(base).body, /^No problem, here are some other times\./);
+});
+
+test('I-39a cancel_confirm: ONE button message; body = delegate.body when present; else CANCEL_CONFIRM_Q with the booking date/time', () => {
+  const withD = R.cancelConfirmMessage(bk(), ld(), BR, DLG('cancel_confirm'));
+  assert.equal(withD.body, DLG('cancel_confirm').body);
+  assert.deepEqual(withD.buttons.map((b) => b[0]), ['cancel_yes:bk_L03', 'keep_it:bk_L03']);
+  assert.equal(R.cancelConfirmMessage(bk(), ld(), BR).body, 'Do you want me to cancel your call on Tue 13 Oct at 11:30?');
+  assert.match(R.cancelConfirmMessage(bk(), ld({ language: 'af' }), BR).body, /^Wil jy hê ek moet jou oproep op Tue 13 Oct om 11:30 kanselleer\?$/);
+  const wa = R.toWa('+27600000003', withD);
+  assert.equal(wa.type, 'interactive'); assert.equal(wa.interactive.body.text, withD.body);
+});
+
+test('I-39a change_method: change -> one text (delegate.body or METHOD_CHANGED); reject -> lead_lines + SAME_METHOD + method buttons; ask_email -> W05 sends', () => {
+  const ch = R.changeMethod(bk(), ld(), BR, 'phone');
+  assert.equal(R.methodMessage(ch, bk(), ld(), BR, DLG('change_method'), 'phone').body, DLG('change_method').body);
+  assert.equal(R.methodMessage(ch, bk(), ld(), BR, null, 'phone').body, "I'll change it to phone.");
+  assert.equal(R.methodMessage(ch, bk(), ld({ language: 'af' }), BR, null, 'phone').body, 'Ek sal dit na telefoon verander.');
+  const rej = R.changeMethod(bk(), ld(), BR, 'zoom');
+  const withD = R.methodMessage(rej, bk(), ld(), BR, DLG('change_method', { method: 'zoom' }), 'zoom');
+  assert.equal(withD.body, 'Just so you know, I am the SortMyCover assistant. Same as before, by WhatsApp call?', 'never "I\'ll change it to Zoom" when Zoom is not offered');
+  assert.ok(withD.buttons.every(([id]) => /^(keep_it|change_method:(teams|phone)):bk_L03$|^change_method:(teams|phone):bk_L03$/.test(id)));
+  assert.equal(R.methodMessage(rej, bk(), ld(), BR, null, 'zoom').body, 'Same as before, by WhatsApp call?');
+  assert.equal(R.classifyOp({ msg: { payload: 'change_method:phone:bk_L03' } }), 'change_method');
+  assert.equal(R.methodMessage(R.changeMethod(bk(), ld(), BR, 'teams'), bk(), ld(), BR, DLG('change_method')), null, 'ask_email: the email step sends the one message');
+});
+
+test('I-39a W10.json: builders pass the delegate; no hard-coded English bodies left; change_method sends one lead message', () => {
+  const s = JSON.stringify(WF);
+  for (const t of ['No problem, here are some other times.', 'Here are the next open times.', 'Do you want me to cancel your call on', 'No problem. Pick a new time below.']) assert.ok(!s.includes(t), t);
+  assert.match(WF.nodes.find((n) => n.name === 'Build offer (Flow / list / template)').parameters.jsCode, /delegate: j\.delegate \|\| null/);
+  assert.match(WF.nodes.find((n) => n.name === 'Cancel confirm buttons').parameters.jsCode, /cancelConfirmMessage\(j\.bk, j\.ld, j\.br, j\.delegate \|\| null\)/);
+  const mr = WF.connections['Method result'].main;
+  assert.equal(mr[0].filter((c) => c.node === 'Method lead message (one message)').length, 1);
+  assert.equal(mr[2].filter((c) => c.node === 'Method lead message (one message)').length, 1);
+  assert.equal(mr[1].some((c) => c.node === 'Method lead message (one message)'), false);
+});

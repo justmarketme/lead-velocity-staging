@@ -73,3 +73,7 @@ Sticky top bar, charcoal hero with amber emphasis and gradient, chips, gap bars 
 
 ## G. C13 landing variant (creative-strategist v1.1.1, review 4 #25)
 `angles/c13-check-not-buy.json` is the page for **C13** (H16 "Checking cover is not the same as buying."). C13 traffic goes to `/c13-check-not-buy/`, not `/myth-bust/`, which keeps H18 and serves C12. The sub-line is taken from the C13 primary text (no new claims). Same quiz, config and FAQ as the other angles.
+
+Two more angle pages (media-buyer first-batch.csv MISSING rows):
+- `/extended-family/` (`angles/extended-family.json`) serves **C06 and C07**. H1 is the C06 hook (H9) "Many families carry more than one household."; the sub is taken from the C06 primary text. C07 (H13) shares this page, so its message match is the same idea, not the same words. Split to its own page if C07 is scaled and tested alone.
+- `/what-the-call/` (`angles/what-the-call.json`) serves **C14 and C15**. H1 is C14's H10 "Here's exactly what happens on the call."; the sub is taken from the C14 primary text. C15 (H17) shares it.

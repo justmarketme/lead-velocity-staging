@@ -16,3 +16,6 @@ The quiz now sends the schema band codes (`lt35/35_44/45_50/51plus`, `lt750/750_
 
 ## C13 landing variant (review 4 #25, 2026-10-02)
 `landing/angles/c13-check-not-buy.json` (from the myth-bust angle) builds to `/c13-check-not-buy/`: H1 = H16 "Checking cover is not the same as buying.", sub "A cover check is a free 30-minute talk with a licensed adviser. Then the choice is yours, in your own time." (from the C13 primary text, no new claims), 109 words before the first tap. landing/dist now has 8 pages; 9/9 quiz tests, reading level and contrast pass. RECONCILE.md §G: C13 traffic goes here, not to `/myth-bust/`, which keeps H18 for C12.
+
+## Extended-family and what-the-call pages (2026-10-02)
+`landing/angles/extended-family.json` → `/extended-family/` (C06, C07; H1 "Many families carry more than one household." H9; sub from the C06 primary text; 109 words before first tap) and `landing/angles/what-the-call.json` → `/what-the-call/` (C14, C15; H1 "Here's exactly what happens on the call." H10; sub from the C14 primary text; 107 words). Build is 10 pages; 9/9 quiz tests, reading level and contrast pass. C07 (H13) and C15 (H17) share their concept's page by idea, not exact words — give either its own angle file if scaled alone (RECONCILE.md §G). Orchestrator replaced the four MISSING landing URLs in media-buyer's first-batch.csv.

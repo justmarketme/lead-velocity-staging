@@ -14,6 +14,7 @@
 //    inside 48 h stops W13's replacement clock (W13 reads the lead_activities 'rebooked_after_no_show' row).
 //  - Booking UI: brands.booking_ui = 'flow' -> reschedule Flow (reschedule-flow.json, current booking pre-filled);
 //    otherwise the 10-slot list in-window, or the reschedule_offer template (3 slots) outside the 24-h window.
+import { LINES, fill } from '../../conversation/lines.mjs';
 export const H = 3600_000;
 const SAST = 2 * H;
 const ACTIVE = new Set(['booked', 'confirmed']);
@@ -35,19 +36,19 @@ export function pick3(slots) {
  * offerMessage({ booking, lead, broker, brand, slots, now_ms, last_inbound_ms, reason })
  * reason: 'lead_reschedule' | 'broker_rescheduled' | 'rebook_after_cancel'
  */
-export function offerMessage({ booking, lead, broker, brand = {}, slots = [], now_ms, last_inbound_ms, reason = 'lead_reschedule' }) {
+export function offerMessage({ booking, lead, broker, brand = {}, slots = [], now_ms, last_inbound_ms, reason = 'lead_reschedule', delegate = null }) {
   const window = Number.isFinite(last_inbound_ms) && now_ms - last_inbound_ms < 24 * H;
   const first = (lead.first_name || '').trim() || 'there';
   const adviser = String(broker.contact_person || '').split(' ')[0];
   if (!slots.length) return { kind: 'no_slots', escalate: 'no_slots', text: null };
   if (brand.booking_ui === 'flow') {
     const prefill = { booking_id: booking.id, current_date: slotLabel(booking.appointment_date).split(',')[0], current_time: slotLabel(booking.appointment_date).split(', ')[1], method: booking.method };
-    return window ? { kind: 'flow_session', flow: 'reschedule', flow_id_ref: 'brands.booking_flow_id', prefill }
+    return window ? { kind: 'flow_session', flow: 'reschedule', flow_id_ref: 'brands.booking_flow_id', prefill, body: leadBody('reschedule', { delegate, lead, booking, broker }) }
       : { kind: 'template', template: 'reschedule_offer_v2', vars: [first, adviser, prefill.current_date, prefill.current_time], prefill };
   }
   if (window) {
     const rows = slots.slice(0, 10).map((s) => ({ id: `slot_${s.start}:resched:${booking.id}`, title: slotLabel(s.start).slice(0, 24) }));
-    return { kind: 'list_session', rows, body: 'No problem, here are some other times.' };
+    return { kind: 'list_session', rows, body: leadBody(reason === 'broker_rescheduled' ? 'slots' : 'reschedule', { delegate, lead, booking, broker }) };
   }
   const three = pick3(slots);
   return { kind: 'template', template: 'reschedule_offer', vars: [first, adviser, ...three.map((s) => slotLabel(s.start))], buttons: three.map((s) => `slot_${s.start}:resched:${booking.id}`).concat([`other_times:${booking.id}`]) };
@@ -146,6 +147,7 @@ export function classifyOp(input) {
   if (k === 'cancel') return 'cancel';          // explicit button tap: cancel at once
   if (k === 'cancel_yes') return 'cancel';
   if (k === 'keep_it') return 'keep';
+  if (k === 'change_method') return 'change_method'; // change_method:{method}:{booking_id} (methodMessage reject buttons)
   if (k === 'no_call') return 'no_call';           // C1A (b) button / W07 delegate payload
   return 'offer';
 }
@@ -239,4 +241,59 @@ export function leadOutbound(item = {}, sent_id = '') {
   if (!sent_id || item.to === 'broker') return null;
   if (item.wa && item.br && item.wa.to === item.br.whatsapp_number) return null;
   return item.ld?.id || item.lead_id || null;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// I-39a (w07-alignment.md changes 1-2): ONE message, never two. W07 sends nothing itself on a W10 turn; it hands a
+// delegate { to:'W10', action, method, lead_lines, intro_line, body (<= 1,024, fixed lines + intro line), lang }.
+// When delegate.body is present it IS the text of W10's interactive message. When absent, W10 builds the body from
+// conversation/lines.mjs in the lead's language (RESCHED_INTRO / SLOTS_INTRO + SAME_METHOD, CANCEL_CONFIRM_Q, METHOD_CHANGED).
+// ---------------------------------------------------------------------------------------------------------------
+export const WA_BODY_MAX = 1024;
+export const METHOD_WORDS = { en: { teams: 'Teams', zoom: 'Zoom', meet: 'Google Meet', whatsapp_call: 'WhatsApp call', phone: 'phone' }, af: { teams: 'Teams', zoom: 'Zoom', meet: 'Google Meet', whatsapp_call: 'WhatsApp-oproep', phone: 'telefoon' } };
+export const langOf = (delegate, lead) => (LINES[delegate?.lang] ? delegate.lang : LINES[lead?.language] ? lead.language : 'en');
+const methodWord = (m, lang) => (m ? (METHOD_WORDS[lang] || METHOD_WORDS.en)[m] || m : '');
+const hasBody = (d) => Boolean(d && typeof d.body === 'string' && d.body.trim());
+
+/** leadBody(kind, { delegate, lead, booking, broker, method }) -> the single body text. kind: reschedule | slots | cancel_confirm | change_method */
+export function leadBody(kind, { delegate = null, lead = {}, booking = {}, broker = {}, method = null } = {}) {
+  if (hasBody(delegate)) return delegate.body.trim().slice(0, WA_BODY_MAX);
+  const lang = langOf(delegate, lead); const L = LINES[lang];
+  const label = booking.appointment_date ? slotLabel(booking.appointment_date) : '';
+  const vars = { adviser_first: String(broker.contact_person || '').split(' ')[0], date: label.split(',')[0], time: label.split(', ')[1] || '', method: methodWord(method || booking.method, lang), first_name: lead.first_name || '' };
+  const lines = {
+    reschedule: [L.RESCHED_INTRO, booking.method ? L.SAME_METHOD : null], // reschedule memory (4.11): the stored method is kept unless they say otherwise
+    slots: [L.SLOTS_INTRO],
+    cancel_confirm: [L.CANCEL_CONFIRM_Q],
+    change_method: [L.METHOD_CHANGED]
+  }[kind] || [];
+  return lines.filter(Boolean).map((l) => fill(l, vars)).join(' ').slice(0, WA_BODY_MAX);
+}
+
+/** The cancel-confirm interactive (typed "cancel" asks first). */
+export function cancelConfirmMessage(booking, lead, broker, delegate = null) {
+  return { type: 'buttons', body: leadBody('cancel_confirm', { delegate, lead, booking, broker }), buttons: [[`cancel_yes:${booking.id}`, 'Yes, cancel'], [`keep_it:${booking.id}`, 'Keep it']] };
+}
+
+/**
+ * methodMessage(decision, booking, lead, broker, delegate) -> the lead message for a change_method op, or null when
+ * W05/W28 asks for the email (ask_email: the delegate travels on to that step, which sends the one message).
+ * change -> text "I'll change it to {method}." (or delegate.body); reject -> the lead_lines + SAME_METHOD with the
+ * adviser's methods as buttons (never the delegate body, whose METHOD_CHANGED intro would be untrue).
+ */
+export function methodMessage(d, booking, lead, broker, delegate = null, method = null) {
+  if (d.action === 'ask_email' || d.action === 'noop' && !delegate) return null;
+  if (d.action === 'change' || d.action === 'noop') return { type: 'text', body: leadBody('change_method', { delegate, lead, booking, broker, method: method || booking.method }) };
+  const lang = langOf(delegate, lead);
+  const own = fill(LINES[lang].SAME_METHOD, { method: methodWord(booking.method, lang) });
+  const body = [...(delegate?.lead_lines || []), own].map((x) => String(x || '').trim()).filter(Boolean).join(' ').slice(0, WA_BODY_MAX);
+  const buttons = (broker.methods_supported || []).filter((m) => m !== booking.method).slice(0, 2).map((m) => [`change_method:${m}:${booking.id}`, methodWord(m, lang).slice(0, 20)]);
+  return { type: 'buttons', body, buttons: [[`keep_it:${booking.id}`, (lang === 'af' ? 'Ja, dieselfde' : 'Yes, same')], ...buttons] };
+}
+
+/** WhatsApp interactive/text payload from a {type, body, buttons} message. */
+export function toWa(to, m) {
+  if (!m) return null;
+  if (m.type === 'text') return { messaging_product: 'whatsapp', to, type: 'text', text: { body: m.body } };
+  return { messaging_product: 'whatsapp', to, type: 'interactive', interactive: { type: 'button', body: { text: m.body }, action: { buttons: m.buttons.map(([id, title]) => ({ type: 'reply', reply: { id, title } })) } } };
 }
