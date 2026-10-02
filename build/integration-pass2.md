@@ -91,3 +91,14 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-34g | `flow-crypto.js` bodies → Meta's published `decryptRequest`/`encryptResponse`, then re-run `build-w03-w28.mjs` | automation-engineer, W28 step 2 (4.0a lookup allowed) |
 | I-34h | Consent fixture L04–L06 (`ctwa-v1`, `broker_named:false`) vs 0.1 named default — decide at GATE-TEST-W01 | Jonathan |
 | I-34i | `BROKER_WA_NUMBERS` added to `.env.example` (name only) | orchestrator (done) |
+
+### I-35 · From W07/W08/W10/W11/W29 drafts (2026-10-02)
+| # | Item | Owner |
+|---|---|---|
+| I-35a | New utility template `broker_booking_changed` (move/cancel notice to broker) — draft JSON + sample in automation/templates before GATE-TEMPLATES | automation-engineer (templates) / meta-operator |
+| I-35b | `automation/docker-compose.yml`: mount repo at `REPO_DIR`, set `NODE_FUNCTION_ALLOW_BUILTIN=url,fs,crypto,path` so Code nodes can `import()` `conversation/guardrail.mjs` and `automation/lib/*.mjs` (also I-31a) | devops-security |
+| I-35c | Sub-workflow interface contract: W04 `is_free`/`graph_token`/exclude-booking; W09 `pause`/`rebuild`/`cancel_all`; W05 `previous_booking_id`/`update_method`; W12 `auto_attended` + `reach_check` rows; W13 `claim`/`withdraw` — add to CONTRACTS.md and honour in the core-path builds after GATE-TEST-* | automation-engineer |
+| I-35d | W07 owns `POST /whatsapp`; W03 receives CTWA leads by sub-workflow call — confirm in CONTRACTS.md | automation-engineer |
+| I-35e | reply.md actions send_slots/reschedule/cancel_confirm/change_method are executed by W04/W10 with reply.md fallback wording (one message, never two) | conversation-designer |
+| I-35f | Env names `TRANSCRIBE_URL`, howzit@ Graph credential shared with W17 — add to `.env.example` (names only) | orchestrator (done) |
+| I-35g | After migration 08 is applied: flip `ESC_DB_KIND.sensitive` in `automation/lib/w07.mjs` and `ESC_REAL_KINDS=true` for W30/W31 | automation-engineer, post NH-15 |
