@@ -56,7 +56,7 @@ Done means: `obligations` rows `C2` and `C3` have `last_done_at` this month, `ev
 | `W24_EVIDENCE_DIR` / `W24_INBOX_DIR` | Container paths | `/home/node/compliance/evidence`, `/home/node/compliance/inbox` |
 | n8n: `N8N_BLOCK_ENV_ACCESS_IN_NODE=false` (or an allow-list), `NODE_FUNCTION_ALLOW_BUILTIN=crypto`, a volume `../compliance:/home/node/compliance`, `N8N_RESTRICT_FILE_ACCESS_TO=/home/node/compliance` | | devops-security |
 
-**Credentials (by name):** `Supabase CRM (Postgres, W24 role)`, a least-privilege DB role. It may SELECT `leads` (listed columns), `dsr_requests`, `obligations`. It may INSERT `suppression`. It may UPDATE `obligations`. Nothing else. `NCC registry API` (httpHeaderAuth). Sub-workflow IDs for W15/W22 are placeholders (`REPLACE_WITH_…`) set on import.
+**Credentials (by name):** `LV Supabase - n8n_app (least privilege)` (the one n8n_app login shared by every SMC workflow, LOCAL-STAGING.md §1b; the grants below are what W24 needs from it). It may SELECT `leads` (listed columns), `dsr_requests`, `obligations`. It may INSERT `suppression`. It may UPDATE `obligations`. Nothing else. `NCC registry API` (httpHeaderAuth). Sub-workflow IDs for W15/W22 are placeholders (`REPLACE_WITH_…`) set on import.
 
 ## 7. Security / POPIA controls (ASVS)
 - **Execution data:** `saveDataSuccessExecution = none`, `saveManualExecutions = false`. Error executions are kept so failures can be debugged, so `EXECUTIONS_DATA_MAX_AGE` must be short (≤ 7 days, devops-security). Phone numbers exist in memory only in `api` mode.

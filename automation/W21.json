@@ -13,7 +13,7 @@
       "parameters": {
         "width": 640,
         "height": 260,
-        "content": "W21 Ads sync. Hourly at :07. Insights are NEVER fetched more often than hourly (meta-ads.js refuses with TOO_SOON). Back-off at 80% of X-Business-Use-Case-Usage (0.3 #11): on RATE_LIMIT_BACKOFF this run ends quietly and the next hour retries; 3 consecutive back-offs -> W22 warning. Reads only: no ad changes here. Needs: META_SYSTEM_USER_TOKEN, META_API_VERSION in n8n env; repo automation/ mounted read-only at /opt/lv/automation; NODE_FUNCTION_ALLOW_BUILTIN=crypto; N8N_BLOCK_ENV_ACCESS_IN_NODE=false. Credential: \"LV Supabase Postgres\". Writes: ad_metrics (ON CONFLICT date, ad_id, placement; placement 'all' when the insights row has no breakdown; generated cpl/cost_per_* never written), brands.insights_last_fetched_at, ad_objects (status/budget cache for the console and W30)."
+        "content": "W21 Ads sync. Hourly at :07. Insights are NEVER fetched more often than hourly (meta-ads.js refuses with TOO_SOON). Back-off at 80% of X-Business-Use-Case-Usage (0.3 #11): on RATE_LIMIT_BACKOFF this run ends quietly and the next hour retries; 3 consecutive back-offs -> W22 warning. Reads only: no ad changes here. Needs: META_SYSTEM_USER_TOKEN, META_API_VERSION in n8n env; repo automation/ mounted read-only at /opt/lv/automation; NODE_FUNCTION_ALLOW_BUILTIN=crypto; N8N_BLOCK_ENV_ACCESS_IN_NODE=false. Credential: \"LV Supabase - n8n_app (least privilege)\". Writes: ad_metrics (ON CONFLICT date, ad_id, placement; placement 'all' when the insights row has no breakdown; generated cpl/cost_per_* never written), brands.insights_last_fetched_at, ad_objects (status/budget cache for the console and W30)."
       }
     },
     {
@@ -53,7 +53,7 @@
       "credentials": {
         "postgres": {
           "id": "",
-          "name": "LV Supabase Postgres"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       }
     },
@@ -120,7 +120,7 @@
       "credentials": {
         "postgres": {
           "id": "",
-          "name": "LV Supabase Postgres"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       }
     },
@@ -143,7 +143,7 @@
       "credentials": {
         "postgres": {
           "id": "",
-          "name": "LV Supabase Postgres"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       }
     },

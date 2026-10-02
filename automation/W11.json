@@ -55,7 +55,7 @@
       "credentials": {
         "postgres": {
           "id": "",
-          "name": "LV Supabase Postgres"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "alwaysOutputData": true,
@@ -96,7 +96,7 @@
       "credentials": {
         "postgres": {
           "id": "",
-          "name": "LV Supabase Postgres"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "alwaysOutputData": true,
@@ -228,7 +228,7 @@
       "credentials": {
         "postgres": {
           "id": "",
-          "name": "LV Supabase Postgres"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "alwaysOutputData": true,
@@ -269,7 +269,7 @@
       "credentials": {
         "postgres": {
           "id": "",
-          "name": "LV Supabase Postgres"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "alwaysOutputData": true,
@@ -477,7 +477,7 @@
       "credentials": {
         "postgres": {
           "id": "",
-          "name": "LV Supabase Postgres"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "alwaysOutputData": true,
@@ -581,7 +581,7 @@
       "credentials": {
         "postgres": {
           "id": "",
-          "name": "LV Supabase Postgres"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "alwaysOutputData": true,
@@ -691,7 +691,7 @@
       "credentials": {
         "postgres": {
           "id": "",
-          "name": "LV Supabase Postgres"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "alwaysOutputData": true,
@@ -718,7 +718,7 @@
       "credentials": {
         "postgres": {
           "id": "",
-          "name": "LV Supabase Postgres"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
       "alwaysOutputData": true,
@@ -745,7 +745,7 @@
       "credentials": {
         "postgres": {
           "id": "",
-          "name": "LV Supabase Postgres"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       }
     },
@@ -768,7 +768,7 @@
       "credentials": {
         "postgres": {
           "id": "",
-          "name": "LV Supabase Postgres"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       }
     }

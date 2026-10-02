@@ -155,7 +155,7 @@ test('Normalise: W27 meta_asset_health is a registered red signal, never unknown
 });
 
 // ---------------------------------------------------------------- W34 POPIA kinds (I-38b)
-const W34_KINDS = ['dsar_received', 'dsar_due', 'dsar_overdue', 'dsar_erased', 'broker_dsr_erase', 'w34_retention_failure', 'w34_monthly_report'];
+const W34_KINDS = ['dsar_received', 'dsar_due', 'dsar_overdue', 'dsar_erased', 'w34_retention_failure', 'w34_monthly_report']; // broker_dsr_erase goes via the shared WhatsApp sender, not W22 (I-39f)
 const w34 = (kind, extra = {}) => ({ kind, workflow: 'W34', to: ['jonathan'], severity: 'amber', message: `${kind} msg`, ...extra });
 
 test('W34 kinds: every kind W34.json emits is registered in W22 and documented in W22.md', () => {

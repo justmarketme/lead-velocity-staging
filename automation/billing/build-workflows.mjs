@@ -48,7 +48,7 @@ const BILLING = {}; for (const k of ${JSON.stringify(keys)}) BILLING[k] = __req(
 
 const SETTINGS = (owner) => ({ executionOrder: 'v1', timezone: 'Africa/Johannesburg', saveDataSuccessExecution: 'none', saveDataErrorExecution: 'all',
   saveManualExecutions: false, saveExecutionProgress: false, errorWorkflow: 'REPLACE_WITH_W22_WORKFLOW_ID', callerPolicy: 'workflowsFromSameOwner' });
-const PG = { postgres: { name: 'Supabase CRM (Postgres, billing role)' } };
+const PG = { postgres: { name: 'LV Supabase - n8n_app (least privilege)' } };
 const PAYSTACK = { httpHeaderAuth: { name: 'Paystack secret key (Authorization: Bearer)' } };
 const OUTLOOK = { microsoftOutlookOAuth2Api: { name: 'Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send)' } };
 
@@ -424,7 +424,7 @@ return [{ json: r }];
 const W19_DUE_SQL = `-- W19 actions due today (SAST). One row per (cycle, action); idempotent via billing_actions_log.
 with c as (
   select c.cycle_id, c.broker_id, c.tier_code, c.ends_at, coalesce(c.extended_until, c.ends_at) as effective_end, c.status, c.renewal_offer_sent_at,
-         b.billing_ref, b.email, b.whatsapp_number, b.card_autorenew, b.next_tier_code, b.status as broker_status,
+         b.billing_ref, b.email, b.whatsapp_number, b.contact_person, b.card_autorenew, b.next_tier_code, b.status as broker_status,
          (select i.reference from ${T.INV} i where i.broker_id = c.broker_id and i.status = 'issued' order by i.issued_at desc limit 1) as open_ref,
          (select i.amount_excl_vat from ${T.INV} i where i.broker_id = c.broker_id and i.status = 'issued' order by i.issued_at desc limit 1) as open_amount_excl_vat,
          (select i.vat_zar from ${T.INV} i where i.broker_id = c.broker_id and i.status = 'issued' order by i.issued_at desc limit 1) as open_vat_zar,
@@ -499,9 +499,9 @@ update ${T.CY} set renewal_offer_sent_at = now() where id = $9::uuid;`, '={{ [$j
   const rem = w.add('n8n-nodes-base.code', 'Reminder text (reference in bold)', code(`
 return $input.all().map((i) => { const r = i.json; const days = r.action === 'remind_t3' ? 3 : 1;
   return { json: { ...r, reminder: { days, reference: r.open_ref, link: 'https://app.leadvelocity.co.za/billing/checkout/?ref=' + (r.open_ref || ''),
-    text: BILLING.autorenew.renewalReminderText(r) } } }; });
+    text: BILLING.autorenew.renewalReminderText(r) }, template: BILLING.autorenew.renewalReminderTemplate(r) } }; });
 `, ['autorenew']), { v: 2, row: 2, col: 5 });
-  const remSend = w.add('n8n-nodes-base.executeWorkflow', 'WhatsApp + email: renewal reminder', execWf('REPLACE_WITH_WHATSAPP_SEND_WORKFLOW_ID', 'Template broker_renewal_reminder is NOT yet in automation/templates (needs_human NH-BA-08). Until approved: email only, or inside the 24-h window.'), { v: 1.2, row: 2, col: 6 });
+  const remSend = w.add('n8n-nodes-base.executeWorkflow', 'WhatsApp + email: renewal reminder', execWf('REPLACE_WITH_WHATSAPP_SEND_WORKFLOW_ID', 'Template broker_renewal_reminder (params from renewalReminderTemplate: 6 body vars, Pay now = reference, Manage auto-renew = /s/billing). Not submitted yet (NH-BA-08): until approved, email + session text inside the 24-h window.'), { v: 1.2, row: 2, col: 6 });
 
   // cycle end
   // Always exactly one row (even with no open invoice), so routing still goes off at cycle end.

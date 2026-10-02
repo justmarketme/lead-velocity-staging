@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## W31 DM handler (community-response-lead, 4.14)\n\nTrigger: Messenger and Instagram `messages` webhook (path /webhook/meta-dm). Flow: signature check (automation/security/verify-webhooks.js) -> load rules/corpus/prompt -> fetch first name -> upsert conversation -> route (STOP, human handoff, paused, age answer, classify) -> Haiku classify (strict JSON, fail closed to human) -> disclose + FAQ answer (Haiku draft, FAIS lint, shared guardrail) -> ONE age-band question (quick replies) -> CTWA link -> stop. The person typing person, human or manager hands off to Jonathan/KG and pauses the bot. STOP is honoured silently (suppression, no further message).\n\nWe only ever reply inside the 24-hour window after the person's last message (RESPONSE messaging type). Replies 07:00-22:00 SAST; overnight replies are written to dm_queue and sent from 07:15 if the window is still open (otherwise marked expired and nothing is sent). Nobody is DMed unless they commented (private reply) or messaged first. No reply from the person means nothing further.\n\nCredentials by name: `SortMyCover Postgres`, `Meta Page Token`, `Anthropic API`, `W22 Internal Webhook`. Env: REPO_DIR, AUTOMATION_DIR, META_APP_SECRET, META_VERIFY_TOKEN, META_GRAPH_VERSION, CTWA_BASE_URL, CONSOLE_URL, N8N_INTERNAL_URL. Tables: dm_threads (channel, external_id, state, paused, opted_out, last_user_message_at; `conversations` is a per-message view, never written), dm_queue, escalations (assigned_agent text) (supabase/migrations/20261002_smc_06_pass2.sql). Ingress: Page `messaging` events forwarded from W02's page ingress and IG messages; forward the raw body with the original X-Hub-Signature-256 header.\n\nDM text is never stored: only the conversation state (step, counts, age band) and the last message id are saved. Success runs are not saved.\n\n## Env + runtime dependencies (I-31c)\n`ESC_REAL_KINDS` (name only in automation/.env.example): unset or false = escalation kinds are mapped to the old constraint (`sensitive` -> `human_handoff`; `dm_handoff` and `dm_after_link` -> `dm`) and the real kind is kept in `kind_requested`; set `ESC_REAL_KINDS=true` once migration 08 (escalations_kind_check with sensitive, dm_handoff, dm_after_link) is applied on the target database. No workflow change needed.\n`conversation/guardrail.mjs` is an ES module loaded with dynamic `import()` from `$env.REPO_DIR` (default /home/node/repo) in the guardrail Code nodes. The n8n runtime must allow `import()` of that file from a Code node (repo mounted read-only at REPO_DIR; `NODE_FUNCTION_ALLOW_BUILTIN` includes `url`). If it cannot load, the gate fails closed (`classifier_input_unavailable` -> fixed template), so a broken mount silences replies rather than sending unchecked text.",
+        "content": "## W31 DM handler (community-response-lead, 4.14)\n\nTrigger: Messenger and Instagram `messages` webhook (path /webhook/meta-dm). Flow: signature check (automation/security/verify-webhooks.js) -> load rules/corpus/prompt -> fetch first name -> upsert conversation -> route (STOP, human handoff, paused, age answer, classify) -> Haiku classify (strict JSON, fail closed to human) -> disclose + FAQ answer (Haiku draft, FAIS lint, shared guardrail) -> ONE age-band question (quick replies) -> CTWA link -> stop. The person typing person, human or manager hands off to Jonathan/KG and pauses the bot. STOP is honoured silently (suppression, no further message).\n\nWe only ever reply inside the 24-hour window after the person's last message (RESPONSE messaging type). Replies 07:00-22:00 SAST; overnight replies are written to dm_queue and sent from 07:15 if the window is still open (otherwise marked expired and nothing is sent). Nobody is DMed unless they commented (private reply) or messaged first. No reply from the person means nothing further.\n\nCredentials by name: `LV Supabase - n8n_app (least privilege)`, `Meta Page Token`, `Anthropic API`, `W22 Internal Webhook`. Env: REPO_DIR, AUTOMATION_DIR, META_APP_SECRET, META_VERIFY_TOKEN, META_GRAPH_VERSION, CTWA_BASE_URL, CONSOLE_URL, N8N_INTERNAL_URL. Tables: dm_threads (channel, external_id, state, paused, opted_out, last_user_message_at; `conversations` is a per-message view, never written), dm_queue, escalations (assigned_agent text) (supabase/migrations/20261002_smc_06_pass2.sql). Ingress: Page `messaging` events forwarded from W02's page ingress and IG messages; forward the raw body with the original X-Hub-Signature-256 header.\n\nDM text is never stored: only the conversation state (step, counts, age band) and the last message id are saved. Success runs are not saved.\n\n## Env + runtime dependencies (I-31c)\n`ESC_REAL_KINDS` (name only in automation/.env.example): unset or false = escalation kinds are mapped to the old constraint (`sensitive` -> `human_handoff`; `dm_handoff` and `dm_after_link` -> `dm`) and the real kind is kept in `kind_requested`; set `ESC_REAL_KINDS=true` once migration 08 (escalations_kind_check with sensitive, dm_handoff, dm_after_link) is applied on the target database. No workflow change needed.\n`conversation/guardrail.mjs` is an ES module loaded with dynamic `import()` from `$env.REPO_DIR` (default /home/node/repo) in the guardrail Code nodes. The n8n runtime must allow `import()` of that file from a Code node (repo mounted read-only at REPO_DIR; `NODE_FUNCTION_ALLOW_BUILTIN` includes `url`). If it cannot load, the gate fails closed (`classifier_input_unavailable` -> fixed template), so a broken mount silences replies rather than sending unchecked text.",
         "height": 480,
         "width": 620
       },
@@ -104,7 +104,7 @@
         "options": { "queryReplacement": "={{ [ $('Normalise DM events').item.json.channel, $('Normalise DM events').item.json.sender_id ] }}" }
       },
       "id": "w31-n16", "name": "Upsert conversation", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [1760, 0],
-      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+      "credentials": { "postgres": { "name": "LV Supabase - n8n_app (least privilege)" } }
     },
     {
       "parameters": {
@@ -128,7 +128,7 @@
         "options": { "queryReplacement": "={{ [ $('Normalise DM events').item.json.channel, $('Normalise DM events').item.json.sender_id ] }}" }
       },
       "id": "w31-n20", "name": "Mark opt-out", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [2640, 120],
-      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+      "credentials": { "postgres": { "name": "LV Supabase - n8n_app (least privilege)" } }
     },
     {
       "parameters": { "conditions": { "boolean": [ { "value1": "={{ $json.route === 'classify' }}", "value2": true } ] } },
@@ -230,7 +230,7 @@
         "options": { "queryReplacement": "={{ [ $json.channel, $json.sender_id, JSON.stringify($json.new_state), $json.paused ] }}" }
       },
       "id": "w31-n33", "name": "Update conversation", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [5060, 0],
-      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+      "credentials": { "postgres": { "name": "LV Supabase - n8n_app (least privilege)" } }
     },
     {
       "parameters": { "conditions": { "boolean": [ { "value1": "={{ !!$('Finalise DM').item.json.esc }}", "value2": true } ] } },
@@ -243,7 +243,7 @@
         "options": { "queryReplacement": "={{ [ $('Finalise DM').item.json.esc.kind_requested || $('Finalise DM').item.json.esc.kind, $('Finalise DM').item.json.channel + ':' + $('Finalise DM').item.json.sender_id, $('Finalise DM').item.json.esc.to.join(','), 'bot paused; first human touch within ' + $('Finalise DM').item.json.esc.human_within_seconds + 's', $('Finalise DM').item.json.esc.kind_stored || $('Finalise DM').item.json.esc.kind ] }}" }
       },
       "id": "w31-n35", "name": "Insert escalation", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [5500, -100],
-      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+      "credentials": { "postgres": { "name": "LV Supabase - n8n_app (least privilege)" } }
     },
     {
       "parameters": {
@@ -273,7 +273,7 @@
         "options": { "queryReplacement": "={{ [ $('Finalise DM').item.json.channel, $('Finalise DM').item.json.sender_id, $('Finalise DM').item.json.owner_id, $('Finalise DM').item.json.reply_text, JSON.stringify($('Finalise DM').item.json.quick_replies), $('Finalise DM').item.json.window_expires_at, $('Finalise DM').item.json.due_at ] }}" }
       },
       "id": "w31-n39", "name": "Queue DM", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [6380, -100],
-      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+      "credentials": { "postgres": { "name": "LV Supabase - n8n_app (least privilege)" } }
     },
     {
       "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "*/5 7-21 * * *" } ] } },
@@ -286,7 +286,7 @@
         "options": {}
       },
       "id": "w31-n41", "name": "Select queued DMs", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [6380, 400],
-      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+      "credentials": { "postgres": { "name": "LV Supabase - n8n_app (least privilege)" } }
     },
     {
       "parameters": {
@@ -312,7 +312,7 @@
         "options": { "queryReplacement": "={{ [ $json.queue_id ] }}" }
       },
       "id": "w31-n45", "name": "Mark expired", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [7260, 320],
-      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+      "credentials": { "postgres": { "name": "LV Supabase - n8n_app (least privilege)" } }
     },
     {
       "parameters": {
@@ -341,7 +341,7 @@
         "options": { "queryReplacement": "={{ [ $json.queue_id, $json.channel, $json.sender_id, $json.owner_id, $json.reply_text, $json.ok, JSON.stringify($json.quick_replies), $json.window_expires_at ] }}" }
       },
       "id": "w31-n48", "name": "Record send", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [7700, 120],
-      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+      "credentials": { "postgres": { "name": "LV Supabase - n8n_app (least privilege)" } }
     }
   ],
   "connections": {

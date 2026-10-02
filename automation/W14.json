@@ -53,7 +53,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (service role)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       }
     },
@@ -122,7 +122,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (service role)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       }
     },
@@ -145,7 +145,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (service role)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       }
     },
@@ -186,7 +186,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (service role)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       }
     },
@@ -302,7 +302,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (service role)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       }
     },
@@ -325,7 +325,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (service role)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       }
     },
@@ -366,7 +366,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (service role)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       }
     },
@@ -389,7 +389,7 @@
       "credentials": {
         "postgres": {
           "id": null,
-          "name": "Supabase Postgres (service role)"
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       }
     }

@@ -7,9 +7,12 @@ import { writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inlineModule } from './security/inline-for-n8n.mjs';
+import { LINES } from '../conversation/lines.mjs';
+// I-39k: the lines.mjs keys W28 uses outside the Flow screens, inlined as data (n8n Code nodes cannot import ESM).
+const LINES_W28 = `const LINES = ${JSON.stringify(Object.fromEntries(Object.entries(LINES).map(([lang, L]) => [lang, { SLOTS_INTRO: L.SLOTS_INTRO, METHOD_CHANGED: L.METHOD_CHANGED }])))};\n`;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const PG = { postgres: { id: '', name: 'LV Supabase Postgres' } };
+const PG = { postgres: { id: '', name: 'LV Supabase - n8n_app (least privilege)' } };
 const WA = { httpHeaderAuth: { id: '', name: 'WhatsApp Cloud API (system user)' } };
 const SETTINGS = { executionOrder: 'v1', timezone: 'Africa/Johannesburg', saveManualExecutions: true, errorWorkflow: 'W22 Alerts' };
 
@@ -301,20 +304,21 @@ return [{ json: { response: out.response, effects: out.effects, lead_id: ctx.lea
 
   // ---- single sub-workflow entry: op = send_list | revert
   n.push(node('Called by W06/W07/W10/W22', 'executeWorkflowTrigger', 1.1, [0, 600], { inputSource: 'passthrough' }));
-  n.push(switchOn('Op?', [220, 600], '={{ $json.op }}', ['send_list', 'revert']));
+  n.push(switchOn('Op?', [220, 600], '={{ $json.op }}', ['send_list', 'revert', 'ask_email']));
   n.push(code('Normalise send_list input', [1760, 280], "return $input.all().map((it) => ({ json: { op: 'send_list', lead_id: it.json._lead_id || it.json.lead_id, reason: it.json.reason || null } }));"));
   n.push(pg('Load lead for list', [440, 520],
-    "SELECT l.id AS lead_id, l.phone, l.brand_id, l.opted_out_at, b.id AS broker_id, b.adviser_name, split_part(b.adviser_name, ' ', 1) AS adviser_first_name\n  FROM public.leads l JOIN public.brokers b ON b.id = l.broker_id\n WHERE l.id = $1::uuid AND l.opted_out_at IS NULL;",
+    "SELECT l.id AS lead_id, l.phone, l.brand_id, l.opted_out_at, l.language, l.first_name, b.id AS broker_id, b.adviser_name, split_part(b.adviser_name, ' ', 1) AS adviser_first_name\n  FROM public.leads l JOIN public.brokers b ON b.id = l.broker_id\n WHERE l.id = $1::uuid AND l.opted_out_at IS NULL;",
     '={{ [ $json.lead_id ] }}'));
   n.push(node('W04 Slot engine (list)', 'executeWorkflow', 1.1, [660, 520], { source: 'database', workflowId: { __rl: true, mode: 'list', value: '', cachedResultName: 'W04 Slots API' }, options: { waitForSubWorkflow: true } }));
-  n.push(code('Build 10-slot list', [880, 520], EP_SAFE() +
+  n.push(code('Build 10-slot list', [880, 520], EP_SAFE() + LINES_W28 +
 `// Spread across days, earliest first (W04 rule); same as _slots.mjs offerSlots.
 const spread = (slots, n) => { const by = new Map(); for (const s of slots) { const d = s.start.slice(0, 10); if (!by.has(d)) by.set(d, []); by.get(d).push(s); }
   const days = [...by.keys()].sort(); const out = []; for (let r = 0; out.length < n; r++) { let add = false; for (const d of days) { const s = by.get(d)[r]; if (s && out.length < n) { out.push(s); add = true; } } if (!add) break; } return out; };
 const l = $('Load lead for list').first().json;
 const w04 = $input.first().json || {};
+let delegate = null; try { delegate = $('Called by W06/W07/W10/W22').first().json.delegate || null; } catch (e) { delegate = null; }   // I-39k
 if (w04.fallback || !(w04.slots || []).length) return [{ json: { lead_id: l.lead_id, body: null, last_resort: true } }];   // ladder step 4: W07 asks for a day
-const body = EP.listFallback({ adviser_name: l.adviser_name, adviser_first_name: l.adviser_first_name }, w04.slots, spread, l.phone);
+const body = EP.listFallback({ adviser_name: l.adviser_name, adviser_first_name: l.adviser_first_name }, w04.slots, spread, l.phone, { delegate, lead: { language: l.language, first_name: l.first_name }, lines: LINES });
 return [{ json: { lead_id: l.lead_id, brand_id: l.brand_id, broker_id: l.broker_id, body, last_resort: false } }];`));
   n.push(ifTrue('Have slots?', [1100, 520], '={{ !$json.last_resort }}'));
   n.push(node('WhatsApp send list', 'httpRequest', 4.2, [1320, 460], {
@@ -329,6 +333,24 @@ return [{ json: { lead_id: l.lead_id, brand_id: l.brand_id, broker_id: l.broker_
   n.push(pg('Revert booking_ui to list', [440, 760],
     "-- Fallback ladder step 3: endpoint ping failed (W22 hourly). Idempotent.\nUPDATE public.brands SET booking_ui = 'list', updated_at = now() WHERE booking_ui = 'flow' RETURNING id;"));
   n.push(sub('W22 Alerts: booking_ui reverted', [660, 760], 'W22 Alerts'));
+
+  // ---- I-39k: op = ask_email (W10 change_method -> ask_email). ONE message: delegate lines + the email question.
+  n.push(pg('Load lead for email ask', [440, 900],
+    "SELECT l.id AS lead_id, l.phone, l.brand_id, l.language, l.first_name, b.id AS broker_id, b.adviser_name, split_part(b.adviser_name, ' ', 1) AS adviser_first_name\n  FROM public.leads l JOIN public.brokers b ON b.id = l.broker_id\n WHERE l.id = $1::uuid AND l.opted_out_at IS NULL;",
+    '={{ [ $json.lead_id ] }}'));
+  n.push(code('Build ask_email (one message)', [660, 900], EP_SAFE() + LINES_W28 +
+`const l = $input.first().json;
+const inp = $('Called by W06/W07/W10/W22').first().json;
+const r = EP.askEmailMessage({ to: l.phone, method: inp.method, broker: l, lead: l, delegate: inp.delegate || null, lines: LINES, reason: inp.reason || 'book' });
+return [{ json: { lead_id: l.lead_id, brand_id: l.brand_id, broker_id: l.broker_id, body: r.message } }];`));
+  n.push(node('WhatsApp send ask_email', 'httpRequest', 4.2, [880, 900], {
+    method: 'POST', url: "={{ 'https://graph.facebook.com/' + $env.META_GRAPH_VERSION + '/' + $env.PHONE_NUMBER_ID + '/messages' }}",
+    authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth', sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.body) }}',
+    options: { timeout: 10000 },
+  }, { credentials: WA, retryOnFail: true, maxTries: 3, waitBetweenTries: 2000 }));
+  link(c, 'Op?', 'Load lead for email ask', 2);
+  link(c, 'Load lead for email ask', 'Build ask_email (one message)');
+  link(c, 'Build ask_email (one message)', 'WhatsApp send ask_email');
 
   link(c, 'Flow endpoint (POST)', 'Verify + decrypt');
   link(c, 'Verify + decrypt', 'Status?');

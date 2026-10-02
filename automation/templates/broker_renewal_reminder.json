@@ -10,15 +10,16 @@
     },
     {
       "type": "BODY",
-      "text": "Hi {{1}}, your SortMyCover cycle ends in {{2}}, on {{3}}. To keep leads coming with no gap, pay for the next cycle before then. Payment reference: *{{4}}*. {{5}} No lock-in: if you don't renew, the cycle simply ends and your delivered leads stay yours.",
+      "text": "Hi {{1}}, your SortMyCover cycle ends in {{2}}, on {{3}}. To keep leads coming with no gap, pay {{4}} for the next cycle before then. Payment reference: *{{5}}*. Card auto-renew: {{6}} If it is on, you can switch it off any time in the portal. No lock-in: if you don't renew, the cycle simply ends and your delivered leads stay yours.",
       "example": {
         "body_text": [
           [
             "Mark",
             "3 days",
             "Fri 13 Nov",
+            "R16,500 excl. VAT",
             "LV-1042-B-202611",
-            "Card auto-renew is off."
+            "on: we will charge R16,500 excl. VAT to your card at cycle end."
           ]
         ]
       }
@@ -37,6 +38,11 @@
           "example": [
             "https://app.leadvelocity.co.za/billing/checkout/?ref=LV-1042-B-202611"
           ]
+        },
+        {
+          "type": "URL",
+          "text": "Manage auto-renew",
+          "url": "https://app.leadvelocity.co.za/s/billing"
         }
       ]
     }

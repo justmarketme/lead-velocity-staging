@@ -263,7 +263,7 @@
    },
    "credentials": {
     "postgres": {
-     "name": "Supabase CRM (Postgres, billing role)"
+     "name": "LV Supabase - n8n_app (least privilege)"
     }
    }
   },

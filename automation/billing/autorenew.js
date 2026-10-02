@@ -62,14 +62,30 @@ function responseBody(row) {
  * open invoice, the pricing row for the next tier. Excl. VAT everywhere (0.1); the VAT line only when registered.
  * r = { action, open_ref, card_autorenew, open_amount_excl_vat, open_vat_zar, price_zar }
  */
-function renewalReminderText(r) {
+function reminderParts(r) {
   const days = r.action === 'remind_t3' ? 3 : 1;
   const exclZar = r.open_amount_excl_vat != null ? Number(r.open_amount_excl_vat) : (r.price_zar != null ? Number(r.price_zar) : null);
   const amount = Number.isFinite(exclZar) ? formatZar(Math.round(exclZar * 100)) + ' excl. VAT' + (r.open_vat_zar != null && Number(r.open_vat_zar) > 0 ? ' plus VAT of ' + formatZar(Math.round(Number(r.open_vat_zar) * 100), { decimals: true }) : '') : null;
-  const card = r.card_autorenew
-    ? 'on: we will charge ' + (amount || 'the amount on your invoice') + ' to your card at cycle end. You can switch it off any time in the portal: /s/billing.'
-    : 'off.';
-  return 'Your cycle ends in ' + days + ' day' + (days > 1 ? 's' : '') + '. Pay for the next one to keep leads coming with no gap. Reference: *' + (r.open_ref || 'on your invoice') + '*. Card auto-renew: ' + card;
+  const card = r.card_autorenew ? 'on: we will charge ' + (amount || 'the amount on your invoice') + ' to your card at cycle end.' : 'off.';
+  return { days, amount, card };
 }
 
-module.exports = { TEMPLATE, parseAutorenewRequest, confirmMessage, responseBody, renewalReminderText };
+const REMINDER_TEMPLATE = 'broker_renewal_reminder'; // 1 first name · 2 "3 days"/"1 day" · 3 end date · 4 amount excl. VAT · 5 reference · 6 card line; URL Pay now {{1}} = reference; URL /s/billing static
+/** WhatsApp template params for W19 T-3/T-1 (outside the 24-h window). Same facts as renewalReminderText. */
+function renewalReminderTemplate(r) {
+  const { days, amount, card } = reminderParts(r);
+  const end = r.effective_end || r.ends_at;
+  const endDay = end ? new Date(end).toLocaleDateString('en-ZA', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Africa/Johannesburg' }).replace(/,/g, '') : 'the end date on your invoice';
+  const first = clean(r.contact_person).split(' ')[0] || 'there';
+  const ref = clean(r.open_ref) || 'on your invoice';
+  return { name: REMINDER_TEMPLATE,
+    body: [first, days + ' day' + (days > 1 ? 's' : ''), clean(endDay), amount || 'the amount on your invoice', ref, card].map(clean),
+    buttons: [clean(r.open_ref)] }; // Pay now URL suffix; the /s/billing button is static
+}
+
+function renewalReminderText(r) {
+  const { days, card } = reminderParts(r);
+  return 'Your cycle ends in ' + days + ' day' + (days > 1 ? 's' : '') + '. Pay for the next one to keep leads coming with no gap. Reference: *' + (r.open_ref || 'on your invoice') + '*. Card auto-renew: ' + card + (r.card_autorenew ? ' You can switch it off any time in the portal: /s/billing.' : '');
+}
+
+module.exports = { TEMPLATE, parseAutorenewRequest, confirmMessage, responseBody, renewalReminderText, renewalReminderTemplate, REMINDER_TEMPLATE };

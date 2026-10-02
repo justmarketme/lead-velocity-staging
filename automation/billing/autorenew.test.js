@@ -72,7 +72,7 @@ test('I-30e: W19 has POST /billing-autorenew with a responder on every branch', 
 test('I-30e: the update runs as the billing connection, broker from JWT sub, guarded, with one timeline row', () => {
   const n = node(wf('W19'), 'Autorenew off as n8n_app + timeline row');
   const q = n.parameters.query;
-  assert.equal(n.credentials.postgres.name, 'Supabase CRM (Postgres, billing role)');
+  assert.equal(n.credentials.postgres.name, 'LV Supabase - n8n_app (least privilege)');
   assert.equal(n.parameters.options.queryReplacement, '={{ [$json.user_id] }}'); // nothing from the body
   assert.match(q, /where user_id = \$1::uuid and brand_id is not null/);
   assert.match(q, /set card_autorenew = false from b where x\.id = b\.id and x\.card_autorenew returning/);
@@ -147,4 +147,38 @@ test('renewal reminder: card on states the amount (invoice, else pricing) and th
   const w19 = fs.readFileSync(path.join(ROOT, 'automation', 'W19.json'), 'utf8');
   assert.match(w19, /renewalReminderText/);
   assert.match(w19, /open_amount_excl_vat/);
+});
+
+// The approved-template text and the W19 T-3/T-1 send node must agree (variables, buttons, wording).
+test('renewal reminder template matches renewalReminderTemplate() and the W19 reminder node', () => {
+  const t = JSON.parse(fs.readFileSync(path.join(ROOT, 'automation/templates/broker_renewal_reminder.json'), 'utf8'));
+  const body = t.components.find((c) => c.type === 'BODY');
+  const nVars = new Set(body.text.match(/\{\{\d+\}\}/g)).size;
+  const urlBtns = t.components.find((c) => c.type === 'BUTTONS').buttons.filter((b) => b.type === 'URL');
+  const varBtns = urlBtns.filter((b) => /\{\{1\}\}/.test(b.url));
+  assert.match(body.text, /No lock-in/); assert.doesNotMatch(body.text, /no contract/i);
+  assert.match(body.text, /switch it off any time in the portal/);
+  assert.ok(urlBtns.some((b) => b.url === 'https://app.leadvelocity.co.za/s/billing'));
+  const rows = [{ action: 'remind_t3', open_ref: 'SMC-TEST1', card_autorenew: true, open_amount_excl_vat: 7500, effective_end: '2026-11-13T10:00:00Z', contact_person: 'Test Broker' },
+    { action: 'remind_t1', open_ref: 'SMC-TEST2', card_autorenew: false, price_zar: 12000 }];
+  for (const r of rows) {
+    const m = autorenew.renewalReminderTemplate(r);
+    assert.equal(m.name, t.name);
+    assert.equal(m.body.length, nVars);
+    assert.equal(m.body.length, body.example.body_text[0].length);
+    assert.equal(m.buttons.length, varBtns.length);
+    for (const v of m.body) assert.doesNotMatch(v, /[\n\t]| {4}/);
+  }
+  const on = autorenew.renewalReminderTemplate(rows[0]);
+  assert.deepEqual(on.body.slice(0, 5), ['Test', '3 days', 'Fri 13 Nov', 'R7,500 excl. VAT', 'SMC-TEST1']);
+  assert.match(on.body[5], /^on: we will charge R7,500 excl\. VAT to your card at cycle end\.$/);
+  assert.equal(autorenew.renewalReminderTemplate(rows[1]).body[5], 'off.');
+  assert.deepEqual(on.buttons, ['SMC-TEST1']);
+  const n = node(wf('W19'), 'Reminder text (reference in bold)');
+  assert.match(n.parameters.jsCode, /template: BILLING\.autorenew\.renewalReminderTemplate\(r\)/);
+  const out = new Function('$input', '$env', 'require', n.parameters.jsCode)({ all: () => rows.map((json) => ({ json })) }, {}, require);
+  assert.equal(out[0].json.template.name, t.name);
+  assert.equal(out[0].json.template.body.length, nVars);
+  assert.deepEqual(next(wf('W19'), n.name), ['WhatsApp + email: renewal reminder']);
+  assert.match(fs.readFileSync(path.join(ROOT, 'automation/templates/samples/broker_renewal_reminder.txt'), 'utf8'), /Manage auto-renew -> https:\/\/app\.leadvelocity\.co\.za\/s\/billing/);
 });

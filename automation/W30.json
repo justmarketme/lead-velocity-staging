@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## W30 Comment handler (community-response-lead, 4.14)\n\nTriggers: Page `feed` and Instagram `comments` webhooks (ad comments live on the ad's effective_object_story_id). Plus three schedules: queue drain (07:15 SAST then every 5 min until 22:00), daily sentiment 21:30, hostile-thread check every 15 min.\n\nFlow: signature check (automation/security/verify-webhooks.js) -> load rules/corpus/hide-words/prompt from disk -> dedupe insert -> context (ad, prior exchanges) -> fetch comment + parent -> regex/keyword pre-check -> Haiku classify (Sonnet retry on invalid JSON, then fail closed) -> rules -> optional Haiku draft + FAIS lint + shared guardrail (Sonnet redraft for objections only) -> hide / block / escalate / public reply / like / private reply -> log.\n\nCredentials by name (create in n8n): `SortMyCover Postgres` (postgres), `Meta Page Token` (httpHeaderAuth, Authorization: Bearer <system-user page token>), `Anthropic API` (httpHeaderAuth, header x-api-key), `W22 Internal Webhook` (httpHeaderAuth).\n\nEnv (never in this file): REPO_DIR, AUTOMATION_DIR, META_APP_SECRET, META_VERIFY_TOKEN, META_GRAPH_VERSION, COMMENT_HASH_SALT, CTWA_BASE_URL, CONSOLE_URL, N8N_INTERNAL_URL. n8n must allow env access in nodes (N8N_BLOCK_ENV_ACCESS_IN_NODE=false) and builtin crypto.\n\nDependencies: community/rules.json, reply-corpus.md, hide-words.txt, classifier-prompt.md; knowledge/faq.md and conversation/prompts/guardrail.md (optional at build time, both fail closed to fixed templates); community/comments-schema-additions.sql; W22 webhook /webhook/w22-alert.\n\nExecution data: success runs are not saved (comment text is personal data). Hides run 24/7; replies only 07:00-22:00 SAST.\n\n## Env + runtime dependencies (I-31c)\n`ESC_REAL_KINDS` (name only in automation/.env.example): unset or false = escalation kinds are mapped to the old constraint (`sensitive` -> `human_handoff`) and the real kind is kept in `kind_requested`; set `ESC_REAL_KINDS=true` once migration 08 (escalations_kind_check with sensitive, dm_handoff, dm_after_link) is applied on the target database. No workflow change needed.\n`conversation/guardrail.mjs` is an ES module loaded with dynamic `import()` from `$env.REPO_DIR` (default /home/node/repo) in the guardrail Code nodes. The n8n runtime must allow `import()` of that file from a Code node (repo mounted read-only at REPO_DIR; `NODE_FUNCTION_ALLOW_BUILTIN` includes `url`). If it cannot load, the gate fails closed (`classifier_input_unavailable` -> fixed template), so a broken mount silences replies rather than sending unchecked text.",
+        "content": "## W30 Comment handler (community-response-lead, 4.14)\n\nTriggers: Page `feed` and Instagram `comments` webhooks (ad comments live on the ad's effective_object_story_id). Plus three schedules: queue drain (07:15 SAST then every 5 min until 22:00), daily sentiment 21:30, hostile-thread check every 15 min.\n\nFlow: signature check (automation/security/verify-webhooks.js) -> load rules/corpus/hide-words/prompt from disk -> dedupe insert -> context (ad, prior exchanges) -> fetch comment + parent -> regex/keyword pre-check -> Haiku classify (Sonnet retry on invalid JSON, then fail closed) -> rules -> optional Haiku draft + FAIS lint + shared guardrail (Sonnet redraft for objections only) -> hide / block / escalate / public reply / like / private reply -> log.\n\nCredentials by name (create in n8n): `LV Supabase - n8n_app (least privilege)` (postgres), `Meta Page Token` (httpHeaderAuth, Authorization: Bearer <system-user page token>), `Anthropic API` (httpHeaderAuth, header x-api-key), `W22 Internal Webhook` (httpHeaderAuth).\n\nEnv (never in this file): REPO_DIR, AUTOMATION_DIR, META_APP_SECRET, META_VERIFY_TOKEN, META_GRAPH_VERSION, COMMENT_HASH_SALT, CTWA_BASE_URL, CONSOLE_URL, N8N_INTERNAL_URL. n8n must allow env access in nodes (N8N_BLOCK_ENV_ACCESS_IN_NODE=false) and builtin crypto.\n\nDependencies: community/rules.json, reply-corpus.md, hide-words.txt, classifier-prompt.md; knowledge/faq.md and conversation/prompts/guardrail.md (optional at build time, both fail closed to fixed templates); community/comments-schema-additions.sql; W22 webhook /webhook/w22-alert.\n\nExecution data: success runs are not saved (comment text is personal data). Hides run 24/7; replies only 07:00-22:00 SAST.\n\n## Env + runtime dependencies (I-31c)\n`ESC_REAL_KINDS` (name only in automation/.env.example): unset or false = escalation kinds are mapped to the old constraint (`sensitive` -> `human_handoff`) and the real kind is kept in `kind_requested`; set `ESC_REAL_KINDS=true` once migration 08 (escalations_kind_check with sensitive, dm_handoff, dm_after_link) is applied on the target database. No workflow change needed.\n`conversation/guardrail.mjs` is an ES module loaded with dynamic `import()` from `$env.REPO_DIR` (default /home/node/repo) in the guardrail Code nodes. The n8n runtime must allow `import()` of that file from a Code node (repo mounted read-only at REPO_DIR; `NODE_FUNCTION_ALLOW_BUILTIN` includes `url`). If it cannot load, the gate fails closed (`classifier_input_unavailable` -> fixed template), so a broken mount silences replies rather than sending unchecked text.",
         "height": 520,
         "width": 620
       },
@@ -102,7 +102,7 @@
         "options": { "queryReplacement": "={{ [ $json.platform, $json.comment_id, $json.post_id, $json.author_hash, $json.created_iso, $json.owner_id ] }}" }
       },
       "id": "w30-n15", "name": "Insert comment", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [1540, 0],
-      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+      "credentials": { "postgres": { "name": "LV Supabase - n8n_app (least privilege)" } }
     },
     {
       "parameters": { "conditions": { "boolean": [ { "value1": "={{ $json.inserted === true }}", "value2": true } ] } },
@@ -115,7 +115,7 @@
         "options": { "queryReplacement": "={{ [ $('Normalise events').item.json.post_id, $('Normalise events').item.json.author_hash, $('Normalise events').item.json.comment_id ] }}" }
       },
       "id": "w30-n17", "name": "Context lookup", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [1980, 0],
-      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+      "credentials": { "postgres": { "name": "LV Supabase - n8n_app (least privilege)" } }
     },
     {
       "parameters": {
@@ -147,7 +147,7 @@
         "options": { "queryReplacement": "={{ [ $('Normalise events').item.json.comment_id, $json.skip_reason ] }}" }
       },
       "id": "w30-n21", "name": "Mark skipped", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [2860, -120],
-      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+      "credentials": { "postgres": { "name": "LV Supabase - n8n_app (least privilege)" } }
     },
     {
       "parameters": { "conditions": { "boolean": [ { "value1": "={{ !!$json.precheck_class }}", "value2": true } ] } },
@@ -325,7 +325,7 @@
         "options": { "queryReplacement": "={{ [ $('Action ctx').item.json.comment_id, $('Action ctx').item.json.due_at, JSON.stringify(Object.assign({}, $('Action ctx').item.json, { hide_done: !!$('Action ctx').item.json.hide, queue: false })), $('Action ctx').item.json.intent, !!$('Action ctx').item.json.hide, $('Action ctx').item.json.text_redacted, $('Action ctx').item.json.ad_id ] }}" }
       },
       "id": "w30-n44", "name": "Queue for 07:15", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [7700, -60],
-      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+      "credentials": { "postgres": { "name": "LV Supabase - n8n_app (least privilege)" } }
     },
     {
       "parameters": { "conditions": { "boolean": [ { "value1": "={{ !!$('Action ctx').item.json.esc && !$('Action ctx').item.json.esc_done }}", "value2": true } ] } },
@@ -338,7 +338,7 @@
         "options": { "queryReplacement": "={{ [ $('Action ctx').item.json.esc.kind_requested || $('Action ctx').item.json.esc.kind, $('Action ctx').item.json.comment_id, $('Action ctx').item.json.esc.to.join(','), 'class=' + $('Action ctx').item.json.intent + '; first human touch within ' + $('Action ctx').item.json.esc.human_within_seconds + 's', $('Action ctx').item.json.esc.kind_stored || $('Action ctx').item.json.esc.kind ] }}" }
       },
       "id": "w30-n46", "name": "Insert escalation", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [7920, 100],
-      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+      "credentials": { "postgres": { "name": "LV Supabase - n8n_app (least privilege)" } }
     },
     {
       "parameters": {
@@ -416,7 +416,7 @@
         "options": { "queryReplacement": "={{ [ $json.comment_id, $json.intent, $json.public_id, $json.private_sent, $json.hidden, $json.sla_seconds, $json.text_redacted, $json.ad_id, $json.status, JSON.stringify($json.plan), !!$json.plan.needs_human, !!$json.plan.fais_risk ] }}" }
       },
       "id": "w30-n55", "name": "Log comment", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [9900, 200],
-      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+      "credentials": { "postgres": { "name": "LV Supabase - n8n_app (least privilege)" } }
     },
     {
       "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "*/5 7-21 * * *" } ] } },
@@ -429,7 +429,7 @@
         "options": {}
       },
       "id": "w30-n57", "name": "Select queued", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [5940, 500],
-      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+      "credentials": { "postgres": { "name": "LV Supabase - n8n_app (least privilege)" } }
     },
     {
       "parameters": {
@@ -448,7 +448,7 @@
         "options": {}
       },
       "id": "w30-n60", "name": "Sentiment stats", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [220, 700],
-      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+      "credentials": { "postgres": { "name": "LV Supabase - n8n_app (least privilege)" } }
     },
     {
       "parameters": {
@@ -482,7 +482,7 @@
         "options": { "queryReplacement": "={{ [ $json.ad_id, $json.sentiment, JSON.stringify($json.themes), $json.flag_media_buyer ] }}" }
       },
       "id": "w30-n64", "name": "Save sentiment", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [1100, 700],
-      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+      "credentials": { "postgres": { "name": "LV Supabase - n8n_app (least privilege)" } }
     },
     {
       "parameters": { "conditions": { "boolean": [ { "value1": "={{ $('Parse sentiment').item.json.flag_media_buyer || $('Parse sentiment').item.json.theme_alert }}", "value2": true } ] } },
@@ -511,7 +511,7 @@
         "options": {}
       },
       "id": "w30-n68", "name": "Raise hostile escalation", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [220, 960],
-      "credentials": { "postgres": { "name": "SortMyCover Postgres" } }
+      "credentials": { "postgres": { "name": "LV Supabase - n8n_app (least privilege)" } }
     },
     {
       "parameters": {
