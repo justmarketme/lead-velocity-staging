@@ -39,9 +39,9 @@ Eight questions, not ten: the ten prompts in 4.10 are folded into the eight the 
   approved:{at,take_id}|null, show_rate:{with,without,n}|null,
   whatsapp_capture:{number, link, qr_url} }
 ```
-State comes from `broker_media.ai_check->>'state'` (W23 writes `processing`, then `ready` or `rejected` with the reason). `show_rate` is returned only once the broker has 20 bookings.
+State is `broker_media.state`, a generated column (never written): `approved`/`superseded` from `approved_at` + `is_current`, else `ai_check->>'state'` (W23 writes `processing`, then `ready` or `rejected` with the reason), else `processing` while `url` is null. `url` is null until the take is ready. `show_rate` is returned only once the broker has 20 bookings.
 
-**`POST /intro/approve`** (not in the original four; needed for step 7) `{take_id, language, script_text}` -> `{ok:true}`. The back end calls W23 `POST /webhook/w23-approve`, which makes the take current, updates `brokers.intro_video_url` / `intro_voice_url` (jsonb per language, previous versions stay in `broker_media`), marks the onboarding step done, and alerts compliance-qa for the first-per-broker spot check.
+**`POST /intro/approve`** (not in the original four; needed for step 7) `{take_id, language, script_text}` -> `{ok:true}`. The back end calls W23 `POST /webhook/w23-approve` with `{broker_id, take_id, approved_by}` (`approved_by` = the approving auth user's uuid, or omitted/null; stored in `broker_media.approved_by uuid`), which makes the take current, updates `brokers.intro_video_url` / `intro_voice_url` (jsonb per language, previous versions stay in `broker_media`), marks the onboarding step done, and alerts compliance-qa for the first-per-broker spot check.
 
 ## Checks in the browser (heuristics, coaching only; the server check is authoritative)
 Face found and centred (`FaceDetector` where the browser has it, else a skin-tone mass estimate, which is cruder and says "can't see your face" rather than guessing); brightness on the face and a backlight test (background much brighter than face); voice level, noise floor (10th percentile of the level while recording) and clipping from the Web Audio analyser; duration 15 to 40 s. Each failed check shows one plain-English fix. Thresholds live at the top of the `judge*` functions in `app.js` and mirror `automation/media/check.js` (`LIMITS`).
