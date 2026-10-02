@@ -1,0 +1,40 @@
+# Local n8n staging (MASTER-PROMPT 0.3 #7) ??? n8n + Postgres until the VPS exists (W26).
+# Values come from the repo-root .env (git-ignored); names are listed in automation/.env.example.
+#   docker compose -f automation/docker-compose.yml up -d
+# Webhooks reach this box through a tunnel; N8N_PUBLIC_URL / WEBHOOK_URL hold its public URL.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: ../.env   # POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB (= the DB_POSTGRESDB_* values)
+    volumes:
+      - n8n_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:2.41.6
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: 5432
+      N8N_PORT: 5678
+      N8N_PROXY_HOPS: 1
+      N8N_RUNNERS_ENABLED: "true"
+    ports:
+      - "127.0.0.1:5678:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  n8n_postgres:
+  n8n_data:
