@@ -141,3 +141,58 @@ test('Decide: webhook path unchanged; console path only runs the follow-up once 
   assert.deepEqual(outs('Decide'), ['Ack action notifications']);
   assert.deepEqual(outs('Ack action notifications'), ['Approved?']);
 });
+
+// ---------------------------------------------------------------- I-36a: Decide via=console, Confirm to approvers
+test('Decide: via=console matches only a console-decided proposal with task_id null, in the status the decision implies', () => {
+  const q = sql('Decide');
+  const m = q.match(/or \(d\.via = 'console' and (.*?)\) returning/);
+  assert.ok(m, 'console branch present, last in the OR');
+  const c = m[1];
+  assert.match(c, /p\.decided_by_label = 'console'/);
+  assert.match(c, /p\.task_id is null/);
+  assert.match(c, /p\.status = case d\.decision when 'approve' then 'approved' when 'snooze' then 'snoozed' when 'decline' then 'declined' end/);
+  // model of the WHERE clause, so the intent is executable
+  const where = (via, p, decision) => (via !== 'console' && ['proposed', 'snoozed'].includes(p.status)) ||
+    (via === 'console' && p.label === 'console' && p.task_id == null && p.status === { approve: 'approved', snooze: 'snoozed', decline: 'declined' }[decision]);
+  assert.equal(where('console', { status: 'approved', label: 'console', task_id: null }, 'approve'), true);
+  assert.equal(where('console', { status: 'approved', label: 'console', task_id: 'OPT-1' }, 'approve'), false, 'task already made');
+  assert.equal(where('console', { status: 'approved', label: 'whatsapp', task_id: null }, 'approve'), false, 'not decided by the console');
+  assert.equal(where('console', { status: 'proposed', label: null, task_id: null }, 'approve'), false, 'console cannot decide a proposed row');
+  assert.equal(where('console', { status: 'declined', label: 'console', task_id: null }, 'approve'), false, 'decision must match the stored status');
+  assert.equal(where('webhook', { status: 'proposed', label: null, task_id: null }, 'approve'), true);
+  // the console path must not be reachable by a webhook caller: via comes from Validate decision, which ignores body flags
+  assert.match(node('Decide').parameters.options.queryReplacement, /Validate decision'\)\.first\(\)\.json\.via/);
+});
+
+test('Confirm to approvers: one approval_confirmed WhatsApp item per approver with the task link; never throws', () => {
+  const code = node('Confirm to approvers').parameters.jsCode;
+  assert.ok(code.length > 200 && /const waTemplate/.test(code), "common helpers inlined");
+  const mk = (over) => {
+    const stores = Object.assign({
+      'Decide': [{ id: PID, title: 'Shorter quiz step 2', owner_agent: 'landing-page-builder', check_date: '2026-10-16T00:00:00Z', decided_by: 'console' }],
+      'Plan (decision)': [{ cfg: { ver: 'v21.0' } }],
+      'Recipients (decision)': [{ wa: '27000000001', pnid: 'P1' }, { wa: '27000000002', pnid: 'P1' }],
+      'Append task node': [{ task_id: 'OPT-11111111' }],
+    }, over);
+    const $ = (n) => { if (!stores[n]) throw new Error('no node ' + n); return { all: () => stores[n].map((json) => ({ json })), first: () => ({ json: stores[n][0] }) }; };
+    const logs = [];
+    const ctx = vm.createContext({ $, console: { log: (x) => logs.push(x) } });
+    const out = vm.runInContext(`(function () {\n${code}\n})()`, ctx);
+    return { out: JSON.parse(JSON.stringify(out.map((i) => i.json))), logs };
+  };
+  const { out } = mk({});
+  assert.equal(out.length, 2);
+  for (const o of out) {
+    assert.equal(o.kind, 'approval_confirmed'); assert.equal(o.proposal_id, PID); assert.equal(o.payload.channel, 'whatsapp');
+    assert.match(o.dedupe_key, /^approval_confirmed:/);
+    assert.equal(o.payload.body.template.components[0].parameters[1].text, 'OPT-11111111');
+    assert.equal(o.payload.body.template.components[1].sub_type, 'url');
+  }
+  assert.notEqual(out[0].dedupe_key, out[1].dedupe_key);
+  // failure paths log and return no items instead of throwing
+  assert.deepEqual(mk({ 'Recipients (decision)': [] }).out, []);
+  assert.deepEqual(mk({ 'Append task node': [{ ok: false }] }).out, []);
+  const bad = mk({ 'Plan (decision)': [] });
+  assert.deepEqual(bad.out, []); assert.match(bad.logs.join(' '), /confirm failed \(ignored\)/);
+  assert.deepEqual(outs('Link task'), ['Confirm to approvers']);
+});
