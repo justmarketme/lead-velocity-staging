@@ -18,7 +18,7 @@ Applies to `booking-flow.json` and `reschedule-flow.json` (Flow JSON `version` 7
 
 ## 2. Requests and responses (the decrypted JSON)
 
-Every decrypted request has `version: "3.0"`, `action`, `flow_token`, and also `screen` and `data` for `data_exchange`. When W06 or W10 sends the template, it sets `flow_token` = `ft_{lead_id}_{nonce}`. The `flow_tokens` table maps it to `lead_id`, `broker_id`, `booking_id?` and `kind` (book or reschedule). **The endpoint trusts the token's mapping, not the `broker_id` or `lead_id` in the payload.** If they don't match, it returns `error_message` and logs a security event.
+Every decrypted request has `version: "3.0"`, `action`, `flow_token`, and also `screen` and `data` for `data_exchange`. When W06 or W10 sends the template, it sets `flow_token` = the HMAC-signed `ft1.<lead_id>.<kind>.<booking_id|->.<exp>.<sig>` (see `automation/CONTRACTS.md` "W28 flow_token"; `security/lead-token.js` `mintFlowToken`). It carries `lead_id`, `booking_id?` and `kind` (book or reschedule); `broker_id` comes from the lead row. No `flow_tokens` table is needed. **The endpoint trusts the token's mapping, not the `broker_id` or `lead_id` in the payload.** If they don't match, it returns `error_message` and logs a security event.
 
 ### `ping` (health check)
 Request `{"action":"ping","version":"3.0"}` → response `{"data":{"status":"active"}}`.

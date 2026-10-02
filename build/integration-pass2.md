@@ -78,3 +78,16 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-33g | `brokers.close_rate` CHECK 0–100 allows a percent where a fraction is expected; tighten to 0–1 in migration 10 or validate in the portal write | platform-architect |
 | I-33h | `scripts/build-broker-report-email.mjs` (PDF, initials only) missing; W14 queues an `ops.notifications` email row only | automation-engineer |
 | I-33i | `facts.w14_broker_report(uuid)` and `facts.w14_lv_payload()` live in `analytics/W14-broker-payload.sql` / `W14-lv.sql`, not in a migration — fold into migration 10 so the stub chain covers W14 | platform-architect + analytics-reporter |
+
+### I-34 · From contracts + W03/W28 (automation-engineer, 2026-10-02)
+| # | Item | Owner |
+|---|---|---|
+| I-34a | Migration 10: `public.wa_threads(brand_id, mobile_hash, state jsonb, stage, last_inbound_at, stall_due_at, expires_at, updated_at, PK(brand_id,mobile_hash))` + `ops.ctwa_clicks(ref, clicked_at, ua_class)`; drop asks for `leads.lead_token_hash/_expires_at` and `flow_tokens`; also I-33g/I-33i | platform-architect |
+| I-34b | `landing/template/page.js`: send `X-Lead-Token` on `/slots` and `/book`, stop sending `broker=`; token arrives in the W01 `/lead` response | landing-page-builder |
+| I-34c | CORS on `API_HOST` must allow `X-Lead-Token` | devops-security |
+| I-34d | W32: add 1-minute poll of `ops.notifications` kind `approval` source `console`, claim with `FOR UPDATE SKIP LOCKED`, ack/send_failed | optimisation-advisor / automation-engineer |
+| I-34e | Canonical band codes (`lt35/35_44/45_50/51plus`, `lt750/750_1250/1250plus` per schema) across quiz, fixture, W01, W03 | landing-page-builder + automation-engineer |
+| I-34f | Method code `meet` (schema) vs `google_meet` (Flow docs) — schema wins; W28 maps | automation-engineer |
+| I-34g | `flow-crypto.js` bodies → Meta's published `decryptRequest`/`encryptResponse`, then re-run `build-w03-w28.mjs` | automation-engineer, W28 step 2 (4.0a lookup allowed) |
+| I-34h | Consent fixture L04–L06 (`ctwa-v1`, `broker_named:false`) vs 0.1 named default — decide at GATE-TEST-W01 | Jonathan |
+| I-34i | `BROKER_WA_NUMBERS` added to `.env.example` (name only) | orchestrator (done) |
