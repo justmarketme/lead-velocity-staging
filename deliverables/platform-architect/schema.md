@@ -277,3 +277,14 @@ Stub tests:
 - Pseudonymise as `n8n_app` clears company and role, sets the conversation to `[erased]`, and clears `reason_notes`.
 
 **For the W34 owner (I-38b):** the "Clear residual identifiers" node (job 3b) is now redundant and also references `leads.name`, which this repo does not have. Drop the node, since `smc_erase_lead` now covers those columns.
+
+### Pass 6 addendum — I-39g and the media-erase credential (I-38b)
+12 §5 replaces `facts.w14_broker_report` and `facts.w14_reconcile` with the analytics @ 76f3f7d versions, copied verbatim: `s6_roi` is always `{"shown": false}`, and the check is renamed to `roi_not_in_payload`. Both stay SECURITY DEFINER and only `n8n_app` can execute them, as in 10. `ops.notifications."to"` already exists since 06.
+
+**Media-erase credential: use a small edge function (platform decision).**
+1. Do not put the full `sb_secret_` key in n8n. That key bypasses RLS on every table and bucket, and n8n is the most exposed host we run: public webhooks, many credentials, and a laptop tunnel until the VPS exists.
+2. Instead, write a Supabase edge function `w34-media-erase` (in `supabase/functions/`, the same deploy path as the existing functions). It holds the service key server-side and accepts only `DELETE` of object paths matching `^broker-media/[0-9a-f-]{36}/` — or lead-media paths if a bucket is added for them later — with no `..` and at most 50 paths per call.
+3. n8n authenticates to it with one HMAC secret, `W34_MEDIA_ERASE_SECRET`, which can only erase media and can be rotated on its own. The function writes one `retention_log` row per object and returns the counts.
+4. This is Salesforce's least privilege applied to the one dangerous capability. It also keeps the 0.3 #10 rule (secrets only in `.env`, and a leak means rotate) small: a leaked n8n secret can delete media, not read the CRM.
+5. It costs nothing (Supabase edge functions are already in the stack, INV inventory) and is about 40 lines. `W34_MEDIA_ERASE_URL` points at the function.
+6. Owner: devops-security builds it with automation-engineer (I-38b). Until it exists, W34 queues media erasure as a manual `ops.notifications` action and does not hold the service key.
