@@ -145,3 +145,16 @@ Everything else above is pre-decided by 0.1, 2.1 or PN-v1.1 and goes straight to
 | R5-11 | L (open) | `automation/lib/w10.mjs:225-233` / W10 "Decide no-call" | Order of the cancel-confirm question vs `cancel_all`. Verify. | automation-engineer | no |
 
 **Not reviewed in review 5:** PDF text extraction (no pdftotext; HTML proofs checked instead); W14/W35 test suites (not run); the other creative concepts beyond C01/C03/C05/C12/C14 and the C01 teal arm; the practitioner brief Q22 text.
+
+---
+
+## R5-07 re-check (2026-10-02, I-42e, after visual-producer fix wave 5)
+
+**Method:** I took the last frame of each file with `ffmpeg -sseof -0.5 -i <file> -frames:v 1` (scratchpad PNGs), read both, and compared them with `DISC-S97-v1` (`deliverables/brand-naming-lead/disclosure-wording.md` l.25): "A service of Lead Velocity (Pty) Ltd. No financial advice, product comparisons or premium quotes." I measured where the fine-print text sits against the repo's Reels safe zone (`brand/tokens.json` safeZones: top 250 px, bottom 340 px free of text, so 9:16 text must end above y 1580; MASTER-PROMPT l.1428). l.25 itself requires the small print to sit "outside the Reels safe-zone margins".
+
+| File | Text read (3 lines) | Verbatim? | Legible? | Placement | Verdict |
+|---|---|---|---|---|---|
+| `deliverables/visual-producer/assets/C14_what-the-call-is_9x16_20261002.mp4` (1080×1920, charcoal) | "A service of Lead Velocity (Pty) Ltd." / "No financial advice, product comparisons" / "or premium quotes." | Yes, all 97 characters, nothing cut | Yes. 30 px off-white on charcoal (engine `EC['9x16'].fineS`), crisp, high contrast | Text spans y 1502–1606. The third line, "or premium quotes.", sits 26 px inside the 340 px bottom band that Reels UI covers (limit y 1579) | **FAIL (L)**. The wording is right but the position is not. In Reels/Stories placements the caption overlay can cover the end of the disclosure. **Fix (visual-producer, `engine/engine.js` `EC['9x16']`):** move the CTA and fine print up so the last fine-print pixel is ≤ y 1579, keeping ≥ 16 px clear of the CTA and of `tagY` (for example, ctaY ≈ 1256, fineY ≈ 1448, tagY moved to match). Then re-render the 9:16 set and re-check one frame. This blocks 9:16 at GATE-ADS-APPROVE-3 only. |
+| `deliverables/visual-producer/assets/C01_employer-cover-gap_teal_4x5_20261002.mp4` (1080×1350, teal on cream) | "A service of Lead Velocity (Pty) Ltd." / "No financial advice, product comparisons" / "or premium quotes." | Yes, all 97 characters, nothing cut | Yes. 28 px charcoal on cream, high contrast | Text spans y 1142–1238 of 1350, 112 px above the bottom edge and clear of the CTA. 4:5 Feed has no Reels overlay band | **PASS** |
+
+Brand line, CTA ("Tap to check your cover") and wordmark are unchanged on both. No advice, product, insurer, premium or broker name appears on either frame. Note: visual-producer's SUMMARY says the 9:16 fine print is "inside the safe zone". By the repo's own 340 px token it is not. Its open item "confirm the 4:5 motion zones against Meta's Ads Manager safe-zone preview" still stands. Meta-operator's upload preview (campaign-spec.md:221) is the backstop, not the fix.

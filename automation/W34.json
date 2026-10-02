@@ -191,15 +191,15 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2040,
+        2400,
         200
       ],
       "parameters": {
-        "mode": "runOnceForAllItems",
-        "jsCode": "// I-41b: sign each batch for the w34-media-erase edge function. Scheme = the function's check\n// (supabase/functions/w34-media-erase/index.ts step 1) = /webhook/w26/status (automation/vps/provision.sh notify):\n//   X-LV-Timestamp: <unix seconds>\n//   X-LV-Signature: sha256=<hex HMAC-SHA256(W34_MEDIA_ERASE_SECRET, timestamp + \".\" + rawBody)>\n// The body is serialised ONCE here and the HTTP node sends this exact string (contentType raw), so the signed bytes are\n// the sent bytes. Window +-300 s: the HTTP node sends the batches straight after this node.\n// No credential: n8n never holds a Storage key, only this secret, which can delete broker-media objects and nothing else.\n// Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false (same as W20/W22).\nconst crypto = require('crypto');\nconst items = $input.all().map((i) => i.json || {});\nconst todo = items.filter((j) => j.any === true && Array.isArray(j.paths) && j.paths.length > 0);\nif (!todo.length) return items.map((j) => ({ json: { ...j, any: false } }));\nconst url = String($env.W34_MEDIA_ERASE_URL || '').trim();\nconst secret = String($env.W34_MEDIA_ERASE_SECRET || '');\nif (!/^https?:\\/\\/[^\\s/]+(\\/[^\\s]*)?\\/functions\\/v1\\/w34-media-erase\\/?$/.test(url)) throw new Error('W34_MEDIA_ERASE_URL is not <SUPABASE_URL>/functions/v1/w34-media-erase: media not erased');\nif (secret.length < 32) throw new Error('W34_MEDIA_ERASE_SECRET missing or shorter than 32 characters: media not erased');\nconst ts = String(Math.floor(Date.now() / 1000));\nreturn todo.map((j) => {\n  if (j.paths.length > 50) throw new Error('W34 media erase batch over 50 paths');\n  const body = JSON.stringify({ paths: j.paths, policy: j.policy, dsr_id: j.dsr_id ?? null, request_id: j.request_id });\n  const sig = crypto.createHmac('sha256', secret).update(ts + '.' + body, 'utf8').digest('hex');\n  return { json: { any: true, request_id: j.request_id, paths: j.paths.length, body, timestamp: ts, signature: 'sha256=' + sig } };\n});"
+        "mode": "runOnceForEachItem",
+        "jsCode": "// I-41b / I-42d: sign ONE batch for the w34-media-erase edge function, at send time. Scheme = the function's check\n// (supabase/functions/w34-media-erase/index.ts step 1) = /webhook/w26/status (automation/vps/provision.sh notify):\n//   X-LV-Timestamp: <unix seconds>\n//   X-LV-Signature: sha256=<hex HMAC-SHA256(W34_MEDIA_ERASE_SECRET, timestamp + \".\" + rawBody)>\n// I-42d: this node runs once per item INSIDE a Split in Batches loop (batch size 1): Loop -> Sign -> HTTP -> Loop.\n// Every batch gets its own timestamp, taken immediately before its own POST, so a long backlog (many batches, HTTP\n// retries) never leaves the function's +-300 s window. Worst case per batch: 3 tries x 30 s timeout + 2 x 5 s wait\n// = 100 s, inside the window even though a retry re-sends the same signature.\n// The body is serialised ONCE here and the HTTP node sends this exact string (contentType raw), so the signed bytes are\n// the sent bytes.\n// No credential: n8n never holds a Storage key, only this secret, which can delete broker-media objects and nothing else.\n// Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false (same as W20/W22).\nconst crypto = require('crypto');\nconst j = $input.item.json || {};\nconst url = String($env.W34_MEDIA_ERASE_URL || '').trim();\nconst secret = String($env.W34_MEDIA_ERASE_SECRET || '');\nif (!/^https?:\\/\\/[^\\s/]+(\\/[^\\s]*)?\\/functions\\/v1\\/w34-media-erase\\/?$/.test(url)) throw new Error('W34_MEDIA_ERASE_URL is not <SUPABASE_URL>/functions/v1/w34-media-erase: media not erased');\nif (secret.length < 32) throw new Error('W34_MEDIA_ERASE_SECRET missing or shorter than 32 characters: media not erased');\nif (j.any !== true || !Array.isArray(j.paths) || j.paths.length === 0) throw new Error('W34 media erase batch has no paths: nothing signed');\nif (j.paths.length > 50) throw new Error('W34 media erase batch over 50 paths');\nconst body = JSON.stringify({ paths: j.paths, policy: j.policy, dsr_id: j.dsr_id ?? null, request_id: j.request_id });\nconst ts = String(Math.floor(Date.now() / 1000));\nconst sig = crypto.createHmac('sha256', secret).update(ts + '.' + body, 'utf8').digest('hex');\nreturn { json: { any: true, request_id: j.request_id, paths: j.paths.length, body, timestamp: ts, signature: 'sha256=' + sig } };"
       },
-      "onError": "continueRegularOutput",
-      "notes": "A signing failure (URL/secret not set) becomes an {error} item: \"Any media?\" is false and Summarise night raises w34_retention_failure."
+      "onError": "continueErrorOutput",
+      "notes": "I-42d: runs per batch inside \"Loop media erase (nightly)\". A signing failure (URL/secret not set) leaves on the error output straight back to the loop (nothing is sent) and Summarise night raises w34_retention_failure."
     },
     {
       "id": "w34-10",
@@ -235,13 +235,28 @@
       }
     },
     {
+      "id": "w34-10a",
+      "name": "Loop media erase (nightly)",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2280,
+        90
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "notes": "I-42d: one batch per iteration so each is signed at its own send time. Output 0 (done) = every batch result -> Summarise night; output 1 (loop) -> Sign -> HTTP -> back here."
+    },
+    {
       "id": "w34-11",
       "name": "Erase media files (storage)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2400,
-        -20
+        2520,
+        200
       ],
       "parameters": {
         "method": "POST",
@@ -285,7 +300,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// W34 nightly evidence: counts only, no PII. Feeds the monthly report and obligation P8.\nconst ctx = $('Set retention context').first().json;\nconst JOBS = ['Purge expired wa_threads', 'Delete non-fit entries', 'Pseudonymise after lead retention', 'Delete consent records after consent retention', 'Minimise closed DSR records'];\nconst jobs = {}; const errors = [];\nfor (const n of JOBS) {\n  let items = [];\n  try { items = $(n).all().map((i) => i.json); } catch (e) { errors.push(n + ': did not run'); continue; }\n  const err = items.find((j) => j && j.error);\n  if (err) { errors.push(n + ': ' + String(err.error.message || err.error).slice(0, 200)); continue; }\n  const j = items[0] || {};\n  jobs[n] = { due: j.due ?? null, done: j.done ?? 0 };\n}\n// Media (I-41b): w34-media-erase answers { ok, deleted, not_found, rejected: [{path, reason}], request_id } per batch.\n// Red (w34_retention_failure) on: a reference outside broker-media/<uuid>/, a signing failure, a non-2xx ({error} item),\n// or a 2xx with ok:false (rejected path; 207 deleted_but_not_logged). not_found alone is not a failure.\nlet media = { requested: 0, deleted: 0, not_found: 0, rejected: 0, failed: false };\ntry { const ms = $('Collect media to erase').all().map((i) => i.json); media.requested = ms.reduce((a, m) => a + (m.paths || []).length, 0); const un = (ms[0] && ms[0].unmapped) || []; if (un.length) { media.failed = true; errors.push('media erase: ' + un.length + ' reference(s) not in the storage bucket, not deleted'); } } catch (e) {}\ntry { for (const i of $('Sign media erase (nightly)').all()) { const r = i.json; if (r && r.error) { media.failed = true; errors.push('media erase not sent: ' + String(r.error.message || r.error).slice(0, 200)); break; } } } catch (e) {}\ntry {\n  for (const i of $('Erase media files (storage)').all()) {\n    const r = i.json || {};\n    if (r.ok === undefined && r.error) { media.failed = true; errors.push('media erase: ' + String(r.error.message || r.error).slice(0, 200)); continue; }\n    media.deleted += Number(r.deleted) || 0; media.not_found += Number(r.not_found) || 0; media.rejected += (r.rejected || []).length;\n    if (r.ok !== true) { media.failed = true; errors.push('media erase ' + String(r.request_id || '') + ': ' + (r.error ? String(r.error).slice(0, 100) : (r.rejected || []).length + ' path(s) rejected')); }\n  }\n} catch (e) {}\nconst red = errors.length > 0 || ctx.refused.length > 0;\nreturn [{ json: {\n  run_id: ctx.run_id, run_day: ctx.run_day, run_month: ctx.run_month, evidence_dir: ctx.evidence_dir,\n  test_mode: ctx.test_mode, dry_run: ctx.dry_run, periods: ctx.periods, cutoffs: ctx.cutoffs, refused: ctx.refused,\n  jobs, media, errors, red,\n  alert: red ? { kind: 'w34_retention_failure', workflow: 'W34', to: ['jonathan'], severity: 'red',\n    message: 'W34 retention ' + ctx.run_day + ': ' + (ctx.refused.length ? 'refused settings ' + ctx.refused.join(', ') + '. ' : '') + (errors.length ? errors.join(' | ') : '') } : null,\n} }];"
+        "jsCode": "// W34 nightly evidence: counts only, no PII. Feeds the monthly report and obligation P8.\nconst ctx = $('Set retention context').first().json;\nconst JOBS = ['Purge expired wa_threads', 'Delete non-fit entries', 'Pseudonymise after lead retention', 'Delete consent records after consent retention', 'Minimise closed DSR records'];\nconst jobs = {}; const errors = [];\nfor (const n of JOBS) {\n  let items = [];\n  try { items = $(n).all().map((i) => i.json); } catch (e) { errors.push(n + ': did not run'); continue; }\n  const err = items.find((j) => j && j.error);\n  if (err) { errors.push(n + ': ' + String(err.error.message || err.error).slice(0, 200)); continue; }\n  const j = items[0] || {};\n  jobs[n] = { due: j.due ?? null, done: j.done ?? 0 };\n}\n// Media (I-41b): w34-media-erase answers { ok, deleted, not_found, rejected: [{path, reason}], request_id } per batch.\n// Red (w34_retention_failure) on: a reference outside broker-media/<uuid>/, a signing failure, a non-2xx ({error} item),\n// or a 2xx with ok:false (rejected path; 207 deleted_but_not_logged). not_found alone is not a failure.\nlet media = { requested: 0, deleted: 0, not_found: 0, rejected: 0, failed: false };\ntry { const ms = $('Collect media to erase').all().map((i) => i.json); media.requested = ms.reduce((a, m) => a + (m.paths || []).length, 0); const un = (ms[0] && ms[0].unmapped) || []; if (un.length) { media.failed = true; errors.push('media erase: ' + un.length + ' reference(s) not in the storage bucket, not deleted'); } } catch (e) {}\n// I-42d: one item per batch arrives on the loop's done output (Sign error output or HTTP response); the HTTP node's own\n// $() view would hold only the last loop run. A signer error means that batch was never sent.\nconst SIGNER_RX = /^(W34_MEDIA_ERASE_|W34 media erase batch)/;\ntry {\n  for (const i of $('Loop media erase (nightly)').all(0)) {\n    const r = i.json || {};\n    if (r.ok === undefined && r.error) { const m = String(r.error.message || r.error); media.failed = true; errors.push((SIGNER_RX.test(m) ? 'media erase not sent: ' : 'media erase: ') + m.slice(0, 200)); continue; }\n    media.deleted += Number(r.deleted) || 0; media.not_found += Number(r.not_found) || 0; media.rejected += (r.rejected || []).length;\n    if (r.ok !== true) { media.failed = true; errors.push('media erase ' + String(r.request_id || '') + ': ' + (r.error ? String(r.error).slice(0, 100) : (r.rejected || []).length + ' path(s) rejected')); }\n  }\n} catch (e) {}\nconst red = errors.length > 0 || ctx.refused.length > 0;\nreturn [{ json: {\n  run_id: ctx.run_id, run_day: ctx.run_day, run_month: ctx.run_month, evidence_dir: ctx.evidence_dir,\n  test_mode: ctx.test_mode, dry_run: ctx.dry_run, periods: ctx.periods, cutoffs: ctx.cutoffs, refused: ctx.refused,\n  jobs, media, errors, red,\n  alert: red ? { kind: 'w34_retention_failure', workflow: 'W34', to: ['jonathan'], severity: 'red',\n    message: 'W34 retention ' + ctx.run_day + ': ' + (ctx.refused.length ? 'refused settings ' + ctx.refused.join(', ') + '. ' : '') + (errors.length ? errors.join(' | ') : '') } : null,\n} }];"
       }
     },
     {
@@ -965,14 +980,14 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1140,
+        1320,
         1920
       ],
       "parameters": {
-        "mode": "runOnceForAllItems",
-        "jsCode": "// I-41b: sign each batch for the w34-media-erase edge function. Scheme = the function's check\n// (supabase/functions/w34-media-erase/index.ts step 1) = /webhook/w26/status (automation/vps/provision.sh notify):\n//   X-LV-Timestamp: <unix seconds>\n//   X-LV-Signature: sha256=<hex HMAC-SHA256(W34_MEDIA_ERASE_SECRET, timestamp + \".\" + rawBody)>\n// The body is serialised ONCE here and the HTTP node sends this exact string (contentType raw), so the signed bytes are\n// the sent bytes. Window +-300 s: the HTTP node sends the batches straight after this node.\n// No credential: n8n never holds a Storage key, only this secret, which can delete broker-media objects and nothing else.\n// Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false (same as W20/W22).\nconst crypto = require('crypto');\nconst items = $input.all().map((i) => i.json || {});\nconst todo = items.filter((j) => j.any === true && Array.isArray(j.paths) && j.paths.length > 0);\nif (!todo.length) return items.map((j) => ({ json: { ...j, any: false } }));\nconst url = String($env.W34_MEDIA_ERASE_URL || '').trim();\nconst secret = String($env.W34_MEDIA_ERASE_SECRET || '');\nif (!/^https?:\\/\\/[^\\s/]+(\\/[^\\s]*)?\\/functions\\/v1\\/w34-media-erase\\/?$/.test(url)) throw new Error('W34_MEDIA_ERASE_URL is not <SUPABASE_URL>/functions/v1/w34-media-erase: media not erased');\nif (secret.length < 32) throw new Error('W34_MEDIA_ERASE_SECRET missing or shorter than 32 characters: media not erased');\nconst ts = String(Math.floor(Date.now() / 1000));\nreturn todo.map((j) => {\n  if (j.paths.length > 50) throw new Error('W34 media erase batch over 50 paths');\n  const body = JSON.stringify({ paths: j.paths, policy: j.policy, dsr_id: j.dsr_id ?? null, request_id: j.request_id });\n  const sig = crypto.createHmac('sha256', secret).update(ts + '.' + body, 'utf8').digest('hex');\n  return { json: { any: true, request_id: j.request_id, paths: j.paths.length, body, timestamp: ts, signature: 'sha256=' + sig } };\n});"
+        "mode": "runOnceForEachItem",
+        "jsCode": "// I-41b / I-42d: sign ONE batch for the w34-media-erase edge function, at send time. Scheme = the function's check\n// (supabase/functions/w34-media-erase/index.ts step 1) = /webhook/w26/status (automation/vps/provision.sh notify):\n//   X-LV-Timestamp: <unix seconds>\n//   X-LV-Signature: sha256=<hex HMAC-SHA256(W34_MEDIA_ERASE_SECRET, timestamp + \".\" + rawBody)>\n// I-42d: this node runs once per item INSIDE a Split in Batches loop (batch size 1): Loop -> Sign -> HTTP -> Loop.\n// Every batch gets its own timestamp, taken immediately before its own POST, so a long backlog (many batches, HTTP\n// retries) never leaves the function's +-300 s window. Worst case per batch: 3 tries x 30 s timeout + 2 x 5 s wait\n// = 100 s, inside the window even though a retry re-sends the same signature.\n// The body is serialised ONCE here and the HTTP node sends this exact string (contentType raw), so the signed bytes are\n// the sent bytes.\n// No credential: n8n never holds a Storage key, only this secret, which can delete broker-media objects and nothing else.\n// Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false (same as W20/W22).\nconst crypto = require('crypto');\nconst j = $input.item.json || {};\nconst url = String($env.W34_MEDIA_ERASE_URL || '').trim();\nconst secret = String($env.W34_MEDIA_ERASE_SECRET || '');\nif (!/^https?:\\/\\/[^\\s/]+(\\/[^\\s]*)?\\/functions\\/v1\\/w34-media-erase\\/?$/.test(url)) throw new Error('W34_MEDIA_ERASE_URL is not <SUPABASE_URL>/functions/v1/w34-media-erase: media not erased');\nif (secret.length < 32) throw new Error('W34_MEDIA_ERASE_SECRET missing or shorter than 32 characters: media not erased');\nif (j.any !== true || !Array.isArray(j.paths) || j.paths.length === 0) throw new Error('W34 media erase batch has no paths: nothing signed');\nif (j.paths.length > 50) throw new Error('W34 media erase batch over 50 paths');\nconst body = JSON.stringify({ paths: j.paths, policy: j.policy, dsr_id: j.dsr_id ?? null, request_id: j.request_id });\nconst ts = String(Math.floor(Date.now() / 1000));\nconst sig = crypto.createHmac('sha256', secret).update(ts + '.' + body, 'utf8').digest('hex');\nreturn { json: { any: true, request_id: j.request_id, paths: j.paths.length, body, timestamp: ts, signature: 'sha256=' + sig } };"
       },
-      "notes": "No continue-on-error: a signing failure stops the DSR before \"Complete erase request\" (W22 errorWorkflow)."
+      "notes": "I-42d: runs per batch inside \"Loop subject media erase (DSR)\". No continue-on-error: a signing failure stops the DSR before \"Complete erase request\" (W22 errorWorkflow)."
     },
     {
       "id": "w34-42",
@@ -1008,13 +1023,28 @@
       }
     },
     {
+      "id": "w34-42a",
+      "name": "Loop subject media erase (DSR)",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1260,
+        1820
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "notes": "I-42d: one batch per iteration so each is signed at its own send time. Output 0 (done) = every batch response -> Check subject media erase; output 1 (loop) -> Sign -> HTTP -> back here."
+    },
+    {
       "id": "w34-43",
       "name": "Erase subject media (storage)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1320,
-        1720
+        1440,
+        1920
       ],
       "parameters": {
         "method": "POST",
@@ -1057,7 +1087,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// I-41b: w34-media-erase answers { ok, deleted, not_found, rejected: [{path, reason}], request_id } per batch (counts and\n// broker-scoped object keys only). 207 = deleted but retention_log not written ({ ok: false, error: 'deleted_but_not_logged' }).\n// A non-2xx already stopped the run at the HTTP node. The DSR is completed only when every batch came back ok: a rejected\n// path or a missing log row stops here (W22 errorWorkflow) before \"Complete erase request\". not_found is fine (already gone).\nconst res = $input.all().map((i) => i.json || {});\nlet deleted = 0, not_found = 0, rejected = 0; const problems = [];\nfor (const r of res) {\n  deleted += Number(r.deleted) || 0; not_found += Number(r.not_found) || 0; rejected += (r.rejected || []).length;\n  if (r.ok !== true) problems.push(String(r.request_id || '?') + ': ' + (r.error ? String(r.error.message || r.error) : (r.rejected || []).length + ' path(s) rejected (' + (r.rejected || []).map((x) => x.reason).join(', ') + ')'));\n}\nif (!res.length) problems.push('no response');\nif (problems.length) throw new Error('W34 DSR media erase incomplete, request NOT completed: ' + problems.join(' | ').slice(0, 500));\nreturn [{ json: { batches: res.length, deleted, not_found, rejected } }];"
+        "jsCode": "// I-41b / I-42d: input = the done output of \"Loop subject media erase (DSR)\", one response per batch.\n// w34-media-erase answers { ok, deleted, not_found, rejected: [{path, reason}], request_id } per batch (counts and\n// broker-scoped object keys only). 207 = deleted but retention_log not written ({ ok: false, error: 'deleted_but_not_logged' }).\n// A non-2xx already stopped the run at the HTTP node. The DSR is completed only when every batch came back ok: a rejected\n// path or a missing log row stops here (W22 errorWorkflow) before \"Complete erase request\". not_found is fine (already gone).\nconst res = $input.all().map((i) => i.json || {});\nlet deleted = 0, not_found = 0, rejected = 0; const problems = [];\nfor (const r of res) {\n  deleted += Number(r.deleted) || 0; not_found += Number(r.not_found) || 0; rejected += (r.rejected || []).length;\n  if (r.ok !== true) problems.push(String(r.request_id || '?') + ': ' + (r.error ? String(r.error.message || r.error) : (r.rejected || []).length + ' path(s) rejected (' + (r.rejected || []).map((x) => x.reason).join(', ') + ')'));\n}\nif (!res.length) problems.push('no response');\nif (problems.length) throw new Error('W34 DSR media erase incomplete, request NOT completed: ' + problems.join(' | ').slice(0, 500));\nreturn [{ json: { batches: res.length, deleted, not_found, rejected } }];"
       }
     },
     {
@@ -1468,7 +1498,7 @@
       "main": [
         [
           {
-            "node": "Sign media erase (nightly)",
+            "node": "Any media?",
             "type": "main",
             "index": 0
           }
@@ -1479,7 +1509,14 @@
       "main": [
         [
           {
-            "node": "Any media?",
+            "node": "Erase media files (storage)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop media erase (nightly)",
             "type": "main",
             "index": 0
           }
@@ -1490,7 +1527,7 @@
       "main": [
         [
           {
-            "node": "Erase media files (storage)",
+            "node": "Loop media erase (nightly)",
             "type": "main",
             "index": 0
           }
@@ -1508,7 +1545,7 @@
       "main": [
         [
           {
-            "node": "Summarise night",
+            "node": "Loop media erase (nightly)",
             "type": "main",
             "index": 0
           }
@@ -1801,7 +1838,7 @@
       "main": [
         [
           {
-            "node": "Sign subject media erase (DSR)",
+            "node": "Any subject media?",
             "type": "main",
             "index": 0
           }
@@ -1812,7 +1849,7 @@
       "main": [
         [
           {
-            "node": "Any subject media?",
+            "node": "Erase subject media (storage)",
             "type": "main",
             "index": 0
           }
@@ -1823,7 +1860,7 @@
       "main": [
         [
           {
-            "node": "Erase subject media (storage)",
+            "node": "Loop subject media erase (DSR)",
             "type": "main",
             "index": 0
           }
@@ -1841,7 +1878,7 @@
       "main": [
         [
           {
-            "node": "Check subject media erase",
+            "node": "Loop subject media erase (DSR)",
             "type": "main",
             "index": 0
           }
@@ -2001,6 +2038,42 @@
         [
           {
             "node": "Send report notice (W22)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop media erase (nightly)": {
+      "main": [
+        [
+          {
+            "node": "Summarise night",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sign media erase (nightly)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop subject media erase (DSR)": {
+      "main": [
+        [
+          {
+            "node": "Check subject media erase",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sign subject media erase (DSR)",
             "type": "main",
             "index": 0
           }

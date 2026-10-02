@@ -27,14 +27,21 @@ const node = (name) => { const n = WF.nodes.find((x) => x.name === name); assert
 const SQL = workflowSql(WF);
 const strip = (s) => s.replace(/--[^\n]*/g, '').replace(/'(?:[^']|'')*'/g, "''").toLowerCase();
 
+// runOnceForAllItems: one call, `now` a single instant. runOnceForEachItem (n8n Code mode): one call per input item,
+// `now` may be an array (the clock at each item's turn, e.g. one batch per Split-in-Batches iteration).
 function runCode(name, { input = [], refs = {}, env = {}, now }) {
-  const NOW = typeof now === 'number' ? now : Date.parse(now);
-  class FakeDate extends Date { constructor(...a) { if (a.length) super(...a); else super(NOW); } static now() { return NOW; } }
+  const at = (t) => (typeof t === 'number' ? t : Date.parse(t));
   const wrap = (arr) => ({ all: () => arr.map((j) => ({ json: j })), first: () => ({ json: arr[0] }) });
-  const ctx = vm.createContext({ $input: wrap(input), $json: input[0] ?? {}, $env: env, require, Date: FakeDate,
-    $: (n) => { if (!refs[n]) throw new Error(`node "${n}" has not run`); return wrap(refs[n]); } });
-  const out = vm.runInContext(`(function () {\n${node(name).parameters.jsCode}\n})()`, ctx);
-  return JSON.parse(JSON.stringify(out.map((i) => i.json)));
+  const call = (NOW, items, item) => {
+    class FakeDate extends Date { constructor(...a) { if (a.length) super(...a); else super(NOW); } static now() { return NOW; } }
+    const ctx = vm.createContext({ $input: { ...wrap(items), item: item && { json: item } }, $json: item ?? items[0] ?? {}, $env: env, require, Date: FakeDate,
+      $: (n) => { if (!refs[n]) throw new Error(`node "${n}" has not run`); return wrap(refs[n]); } });
+    return vm.runInContext(`(function () {\n${node(name).parameters.jsCode}\n})()`, ctx);
+  };
+  if (node(name).parameters.mode === 'runOnceForEachItem') {
+    return input.map((j, i) => JSON.parse(JSON.stringify(call(at(Array.isArray(now) ? now[i] : now), [j], j).json)));
+  }
+  return JSON.parse(JSON.stringify(call(at(now), input).map((i) => i.json)));
 }
 const ctxAt = (now, env = {}) => runCode('Set retention context', { now, env })[0];
 
@@ -399,21 +406,36 @@ test('media erase (I-41b): the function signs ts + "." + rawBody, and the source
   assert.match(readFileSync(join(REPO, 'automation', 'vps', 'provision.sh'), 'utf8'), /printf '%s\.%s' "\$ts" "\$body" \| openssl dgst -sha256 -hmac/, 'same scheme as /webhook/w26/status');
 });
 
-test('media erase (I-41b): both paths route Map -> Sign (Code, HMAC-SHA256) -> IF -> HTTP (no credential) -> follow-up', () => {
+test('media erase (I-41b, I-42d): both paths route Map -> IF -> Loop (1 per batch) -> Sign (per item) -> HTTP -> Loop -> follow-up', () => {
   const raw = JSON.stringify(WF);
   assert.doesNotMatch(raw, /W34 media erase \(storage service\)/, 'retired Header Auth credential is gone');
   assert.doesNotMatch(raw, /storage\/v1\/object\/<bucket>|"prefixes"/, 'no direct Storage API call left');
   const lanes = [
-    ['Collect media to erase', 'Sign media erase (nightly)', 'Any media?', 'Erase media files (storage)', 'Summarise night'],
-    ['Map subject media to paths', 'Sign subject media erase (DSR)', 'Any subject media?', 'Erase subject media (storage)', 'Check subject media erase', 'Complete erase request'],
+    { map: 'Collect media to erase', ifn: 'Any media?', loop: 'Loop media erase (nightly)', sign: 'Sign media erase (nightly)', http: 'Erase media files (storage)', done: 'Summarise night', none: 'Summarise night' },
+    { map: 'Map subject media to paths', ifn: 'Any subject media?', loop: 'Loop subject media erase (DSR)', sign: 'Sign subject media erase (DSR)', http: 'Erase subject media (storage)', done: 'Check subject media erase', none: 'Complete erase request' },
   ];
-  for (const lane of lanes) for (let i = 0; i < lane.length - 1; i++) assert.equal(WF.connections[lane[i]].main[0][0].node, lane[i + 1], `${lane[i]} -> ${lane[i + 1]}`);
-  assert.equal(WF.connections['Any media?'].main[1][0].node, 'Summarise night');
-  assert.equal(WF.connections['Any subject media?'].main[1][0].node, 'Complete erase request', 'no media -> straight to completion');
+  const to = (from, out = 0) => (WF.connections[from].main[out] || []).map((x) => x.node);
+  for (const l of lanes) {
+    assert.deepEqual(to(l.map), [l.ifn]);
+    assert.deepEqual(to(l.ifn, 0), [l.loop]); assert.deepEqual(to(l.ifn, 1), [l.none], `${l.ifn}: no media -> ${l.none}`);
+    const lp = node(l.loop);
+    assert.equal(lp.type, 'n8n-nodes-base.splitInBatches'); assert.equal(lp.typeVersion, 3); assert.equal(lp.parameters.batchSize, 1, 'one batch per iteration');
+    assert.deepEqual(to(l.loop, 0), [l.done], `${l.loop} done -> ${l.done} (every batch result)`);
+    assert.deepEqual(to(l.loop, 1), [l.sign], `${l.loop} loop -> ${l.sign}: signed at its own send time`);
+    assert.deepEqual(to(l.sign, 0), [l.http], 'Sign sits directly before the HTTP node');
+    assert.deepEqual(to(l.http), [l.loop], 'HTTP back into the loop');
+    assert.equal(node(l.sign).parameters.mode, 'runOnceForEachItem', `${l.sign}: one signature per batch`);
+  }
+  assert.equal(WF.connections['Check subject media erase'].main[0][0].node, 'Complete erase request');
+  assert.deepEqual(to('Sign media erase (nightly)', 1), ['Loop media erase (nightly)'], 'nightly signer error -> back to the loop, never to the HTTP node');
+  assert.equal(to('Sign subject media erase (DSR)', 1).length, 0, 'DSR signer has no error branch');
+  assert.match(node('Summarise night').parameters.jsCode, /\$\('Loop media erase \(nightly\)'\)\.all\(0\)/, 'Summarise reads every batch from the loop done output');
+  assert.doesNotMatch(node('Summarise night').parameters.jsCode, /\$\('Erase media files \(storage\)'\)/, 'never the HTTP node (last loop run only)');
   assert.equal(node('Sign media erase (nightly)').parameters.jsCode, node('Sign subject media erase (DSR)').parameters.jsCode, 'one signer');
   for (const s of ['Sign media erase (nightly)', 'Sign subject media erase (DSR)']) {
     const c = node(s).parameters.jsCode;
     assert.equal(node(s).type, 'n8n-nodes-base.code');
+    assert.match(c, /\$input\.item\.json/, `${s}: signs the current item only`);
     assert.match(c, /createHmac\('sha256', secret\)\.update\(ts \+ '\.' \+ body, 'utf8'\)\.digest\('hex'\)/, `${s}: HMAC-SHA256 over ts + "." + body`);
     assert.match(c, /\$env\.W34_MEDIA_ERASE_SECRET/);
   }
@@ -428,7 +450,13 @@ test('media erase (I-41b): both paths route Map -> Sign (Code, HMAC-SHA256) -> I
   assert.equal(node('Erase media files (storage)').onError, 'continueRegularOutput', 'nightly: failure reported by Summarise night');
   assert.equal(node('Erase subject media (storage)').onError, undefined, 'DSR: a non-2xx stops before "Complete erase request"');
   assert.equal(node('Sign subject media erase (DSR)').onError, undefined);
-  assert.equal(node('Sign media erase (nightly)').onError, 'continueRegularOutput');
+  assert.equal(node('Sign media erase (nightly)').onError, 'continueErrorOutput', 'nightly: a signer error skips the send and is reported');
+  // HTTP retries reuse the signature: worst case per batch must stay inside the function's +-300 s window
+  for (const n of ['Erase media files (storage)', 'Erase subject media (storage)']) {
+    const h = node(n);
+    const worst = (h.maxTries || 1) * (h.parameters.options.timeout || 300000) + ((h.maxTries || 1) - 1) * (h.waitBetweenTries || 1000);
+    assert.ok(worst < 300000, `${n}: ${worst} ms worst case per batch < 300 s`);
+  }
 });
 
 test('media erase (I-41b): paths are what the function accepts, batched <= 50, signatures verify as the function does', async () => {
@@ -452,7 +480,7 @@ test('media erase (I-41b): paths are what the function accepts, batched <= 50, s
   assert.deepEqual(big.map((c) => c.request_id), ['dsr-d1:1', 'dsr-d1:2', 'dsr-d1:3']);
 
   const nowS = Math.floor(Date.parse(RECEIVED) / 1000);
-  const signed = runCode('Sign subject media erase (DSR)', { now: RECEIVED, env: MEDIA_ENV, input: big });
+  const signed = runCode('Sign subject media erase (DSR)', { now: RECEIVED, env: MEDIA_ENV, input: big }); // per item, same clock
   assert.equal(signed.length, 3);
   const http = node('Erase subject media (storage)');
   for (const [i, s] of signed.entries()) {
@@ -468,8 +496,8 @@ test('media erase (I-41b): paths are what the function accepts, batched <= 50, s
     assert.equal(await fnVerify('another-secret-0123456789abcdef0123', hdr, raw, nowS), 'bad_signature');
     assert.equal(await fnVerify(MEDIA_SECRET, hdr, raw, nowS + 301), 'stale_or_missing_timestamp');
   }
-  // nothing to erase: pass-through, no secret needed, IF goes false
-  assert.deepEqual(runCode('Sign subject media erase (DSR)', { now: RECEIVED, input: [{ paths: [], any: false, unmapped: [] }] }).map((j) => j.any), [false]);
+  // nothing to erase: the IF before the loop goes false; the signer never signs an empty batch
+  assert.throws(() => runCode('Sign subject media erase (DSR)', { now: RECEIVED, env: MEDIA_ENV, input: [{ paths: [], any: false, unmapped: [] }] }), /no paths: nothing signed/);
   // misconfigured: refuse rather than send unsigned / to the old Storage URL
   assert.throws(() => runCode('Sign subject media erase (DSR)', { now: RECEIVED, env: { ...MEDIA_ENV, W34_MEDIA_ERASE_SECRET: 'short' }, input: big }), /W34_MEDIA_ERASE_SECRET/);
   assert.throws(() => runCode('Sign subject media erase (DSR)', { now: RECEIVED, env: { ...MEDIA_ENV, W34_MEDIA_ERASE_URL: 'https://synthetic.supabase.co/storage/v1/object/broker-media' }, input: big }), /W34_MEDIA_ERASE_URL/);
@@ -500,27 +528,54 @@ test('media erase (I-41b): nightly retention signs with policy "retention", read
   assert.equal(runCode('Collect media to erase', { now: '2026-10-02T02:31:00+02:00', refs: { ...refs, 'Set retention context': [{ ...ctx, dry_run: true }] } })[0].any, false, 'dry run sends nothing');
   const sig = runCode('Sign media erase (nightly)', { now: '2026-10-02T02:31:00+02:00', env: MEDIA_ENV, input: col });
   assert.equal(JSON.parse(sig[0].body).policy, 'retention'); assert.equal(JSON.parse(sig[0].body).dsr_id, null);
-  const base = { ...refs, 'Collect media to erase': col, 'Sign media erase (nightly)': sig,
+  const base = { ...refs, 'Collect media to erase': col,
     'Purge expired wa_threads': [{ due: 0, done: 0 }], 'Delete non-fit entries': [{ due: 0, done: 0 }], 'Delete consent records after consent retention': [{ due: 0, done: 0 }],
     'Minimise closed DSR records': [{ done: 0 }] };
   const night = (extra) => runCode('Summarise night', { now: '2026-10-02T02:32:00+02:00', refs: { ...base, ...extra } })[0];
   // HTTP non-2xx ({error} item via continueRegularOutput) + an unmapped reference
-  const n1 = night({ 'Erase media files (storage)': [{ error: { message: '401 - {"ok":false,"error":"bad_signature"}' } }] });
+  const n1 = night({ 'Loop media erase (nightly)': [{ error: { message: '401 - {"ok":false,"error":"bad_signature"}' } }] });
   assert.equal(n1.red, true); assert.equal(n1.alert.kind, 'w34_retention_failure');
   assert.ok(n1.errors.some((e) => /not in the storage bucket/.test(e)) && n1.errors.some((e) => /bad_signature/.test(e)));
   // 2xx with rejected paths / 207 not logged
   const n2 = night({ 'Pseudonymise after lead retention': [{ media_urls: [`${B1}/x.ogg`] }], 'Collect media to erase': [{ ...col[0], unmapped: [] }],
-    'Erase media files (storage)': [{ ok: false, deleted: 0, not_found: 0, rejected: [{ path: 'p', reason: 'unsafe path' }], request_id: ctx.run_id }] });
+    'Loop media erase (nightly)': [{ ok: false, deleted: 0, not_found: 0, rejected: [{ path: 'p', reason: 'unsafe path' }], request_id: ctx.run_id }] });
   assert.equal(n2.alert.kind, 'w34_retention_failure'); assert.equal(n2.media.rejected, 1);
-  const n3 = night({ 'Collect media to erase': [{ ...col[0], unmapped: [] }], 'Erase media files (storage)': [{ ok: false, error: 'deleted_but_not_logged', deleted: 1, request_id: ctx.run_id }] });
+  const n3 = night({ 'Collect media to erase': [{ ...col[0], unmapped: [] }], 'Loop media erase (nightly)': [{ ok: false, error: 'deleted_but_not_logged', deleted: 1, request_id: ctx.run_id }] });
   assert.equal(n3.red, true); assert.match(n3.errors.join(), /deleted_but_not_logged/);
   // signing failure (secret not set) is red too
-  const n4 = night({ 'Collect media to erase': [{ ...col[0], unmapped: [] }], 'Sign media erase (nightly)': [{ error: { message: 'W34_MEDIA_ERASE_SECRET missing or shorter than 32 characters: media not erased' } }] });
+  const n4 = night({ 'Collect media to erase': [{ ...col[0], unmapped: [] }], 'Loop media erase (nightly)': [{ error: 'W34_MEDIA_ERASE_SECRET missing or shorter than 32 characters: media not erased' }] });
   assert.equal(n4.alert.kind, 'w34_retention_failure'); assert.match(n4.errors.join(), /not sent: W34_MEDIA_ERASE_SECRET/);
   // all good: counts only, green
-  const n5 = night({ 'Collect media to erase': [{ ...col[0], unmapped: [] }], 'Erase media files (storage)': [{ ok: true, deleted: 1, not_found: 0, rejected: [], request_id: ctx.run_id }] });
+  const n5 = night({ 'Collect media to erase': [{ ...col[0], unmapped: [] }], 'Loop media erase (nightly)': [{ ok: true, deleted: 1, not_found: 0, rejected: [], request_id: ctx.run_id }] });
   assert.equal(n5.red, false); assert.deepEqual(n5.media, { requested: 1, deleted: 1, not_found: 0, rejected: 0, failed: false });
   assert.doesNotMatch(JSON.stringify(n5), /@|\+27/);
+});
+
+test('media erase (I-42d): two batches signed in one run carry their own timestamps and both verify at their own send time', async () => {
+  // A long DSR backlog: 2 batches, the second sent 400 s after the first (slow responses + HTTP retries). The loop hands
+  // the signer one batch per iteration, so each is signed when it is about to be sent.
+  const big = runCode('Map subject media to paths', { now: RECEIVED, input: [{ dsr_id: 'd2', media_urls: Array.from({ length: 70 }, (_, i) => `${B1}/w${i}.ogg`) }] });
+  assert.deepEqual(big.map((c) => c.paths.length), [50, 20]);
+  const t1 = Date.parse(RECEIVED); const t2 = t1 + 400_000;
+  const http = node('Erase subject media (storage)');
+  for (const name of ['Sign subject media erase (DSR)', 'Sign media erase (nightly)']) {
+    const [s1, s2] = runCode(name, { now: [t1, t2], env: MEDIA_ENV, input: big });
+    const h1 = headersOf(http, s1), h2 = headersOf(http, s2);
+    assert.equal(h1['X-LV-Timestamp'], String(Math.floor(t1 / 1000)), `${name}: batch 1 timestamp = its own send time`);
+    assert.equal(h2['X-LV-Timestamp'], String(Math.floor(t2 / 1000)), `${name}: batch 2 timestamp = its own send time`);
+    assert.notEqual(h1['X-LV-Signature'], h2['X-LV-Signature']);
+    assert.equal(await fnVerify(MEDIA_SECRET, h1, rawOf(http, s1), Math.floor(t1 / 1000) + 5), 'ok', 'batch 1 verifies when sent');
+    assert.equal(await fnVerify(MEDIA_SECRET, h2, rawOf(http, s2), Math.floor(t2 / 1000) + 5), 'ok', 'batch 2 verifies when sent, 400 s later');
+    // the old one-timestamp-per-run scheme would have failed here: batch 1's stamp is stale by batch 2's send time
+    assert.equal(await fnVerify(MEDIA_SECRET, h1, rawOf(http, s1), Math.floor(t2 / 1000) + 5), 'stale_or_missing_timestamp');
+    assert.deepEqual([JSON.parse(rawOf(http, s1)).request_id, JSON.parse(rawOf(http, s2)).request_id], ['dsr-d2:1', 'dsr-d2:2']);
+  }
+  // the DSR check sees both responses (loop done output) and completes only when both are ok
+  const both = runCode('Check subject media erase', { now: RECEIVED, input: [
+    { ok: true, deleted: 50, not_found: 0, rejected: [], request_id: 'dsr-d2:1' }, { ok: true, deleted: 20, not_found: 0, rejected: [], request_id: 'dsr-d2:2' }] })[0];
+  assert.deepEqual(both, { batches: 2, deleted: 70, not_found: 0, rejected: 0 });
+  assert.throws(() => runCode('Check subject media erase', { now: RECEIVED, input: [
+    { ok: true, deleted: 50, not_found: 0, rejected: [], request_id: 'dsr-d2:1' }, { ok: false, error: 'stale_or_missing_timestamp', request_id: 'dsr-d2:2' }] }), /NOT completed.*dsr-d2:2/);
 });
 
 test('broker notice: broker_dsr_erase goes through the shared WhatsApp sender, broker + lead first names only', () => {
