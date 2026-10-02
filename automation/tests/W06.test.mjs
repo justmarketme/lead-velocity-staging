@@ -123,7 +123,7 @@ test(`W06 [${MODE}] L01 booked on the page inside the hold -> broker_intro_booke
   assert.ok(ms(p.send_at) <= ms(e.deadline));
   assert.deepEqual(p.variables, e.variables);
   const text = renderBody(p.template, p.variables); // the real template file in automation/templates/
-  for (const needle of ['Mark Smith Financial Services (FSP 12345)', 'an authorised financial services provider', '*Mark Smith*', 'Microsoft Teams', 'Thu 15 Oct at 10:00', 'Reply STOP to opt out.'])
+  for (const needle of ['Mark Smith Financial Services (FSP 00000)', 'an authorised financial services provider', '*Mark Smith*', 'Microsoft Teams', 'Thu 15 Oct at 10:00', 'Reply STOP to opt out.'])
     assert.ok(text.includes(needle), needle);
 });
 
@@ -175,7 +175,7 @@ test(`W06 [${MODE}] when brands.booking_ui = flow, the Flow-button card (v2) rep
   const p = planFirstTouch(leadRow(lead('L03')), B, ctxFor(lead('L03'), { bookingUi: 'flow' }));
   assert.equal(p.template, 'broker_intro_slots_v2');
   assert.equal(p.variables.length, 4);
-  assert.ok(renderBody(p.template, p.variables).includes('Mark Smith Financial Services (FSP 12345)'));
+  assert.ok(renderBody(p.template, p.variables).includes('Mark Smith Financial Services (FSP 00000)'));
 });
 
 test(`W06 [${MODE}] 100% of routed fixture leads are inside 60 s (the number this agent moves)`, async () => {
@@ -214,7 +214,7 @@ test(`W06 [${MODE}] undeliverable WhatsApp -> SMS fallback (Twilio) carrying the
   applyStatus(l, log, { id: 'wamid.TEST.L02.1', status: 'failed', at: '2026-10-12T09:02:40+02:00' });
   const sms = log.find((m) => m.channel === 'sms');
   assert.ok(sms);
-  for (const needle of ['Mark Smith Financial Services (FSP 12345)', 'authorised financial services provider', 'Mark Smith', 'Reply STOP to opt out.']) assert.ok(sms.text.includes(needle), needle);
+  for (const needle of ['Mark Smith Financial Services (FSP 00000)', 'authorised financial services provider', 'Mark Smith', 'Reply STOP to opt out.']) assert.ok(sms.text.includes(needle), needle);
   assert.ok(!sms.text.includes('*'), 'no WhatsApp bold markers in SMS');
   assert.equal(l.disclosure_delivered_at, undefined, 'a failed WhatsApp is not disclosure evidence');
 });

@@ -39,7 +39,7 @@ test('L04 consent yes: named consent first, lead row at the tap (verified), Meta
   const { actions } = run(fx);
   const consentMsg = sends(actions)[0].message;
   assert.equal(consentMsg.type, 'button');
-  assert.match(consentMsg.body, /Mark Smith Financial Services \(FSP 12345\), an authorised financial services provider/);
+  assert.match(consentMsg.body, /Mark Smith Financial Services \(FSP 00000\), an authorised financial services provider/);
   assert.deepEqual(consentMsg.buttons.map((b) => b.id), ['consent_yes', 'consent_no']);
   const ins = actions.filter((a) => a.kind === 'insert_lead');
   assert.equal(ins.length, 1);

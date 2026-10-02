@@ -344,7 +344,7 @@ test(`W01 [${MODE}] routing writes broker_id (and cycle) BEFORE the first-touch 
 test(`W01 [${MODE}] named consent must name the broker we route to, otherwise the lead is held (not messaged)`, async () => {
   const sys = fresh();
   const fx = clone(lead('L02'));
-  fx.submission.consent.text = fx.submission.consent.text.replace('Mark Smith Financial Services (FSP 12345)', 'Other Practice (FSP 99999)');
+  fx.submission.consent.text = fx.submission.consent.text.replace('Mark Smith Financial Services (FSP 00000)', 'Other Practice (FSP 99999)');
   const r = await sys.page(fx, { sub: fx.submission });
   assert.equal(r.body.status, 'held');
   const s = await sys.state(r.body.lead_id);

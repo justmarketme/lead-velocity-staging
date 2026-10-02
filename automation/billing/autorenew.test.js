@@ -138,7 +138,7 @@ test('renewal reminder: card on states the amount (invoice, else pricing) and th
   const on = autorenew.renewalReminderText({ action: 'remind_t3', open_ref: 'SMC-TEST1', card_autorenew: true, open_amount_excl_vat: 7500, open_vat_zar: null, price_zar: 9999 });
   assert.match(on, /ends in 3 days/);
   assert.match(on, /we will charge R7,500 excl\. VAT to your card at cycle end/);
-  assert.match(on, /switch it off any time in the portal: \/s\/billing/);
+  assert.match(on, /switch it off any time in the portal: https:\/\/app\.leadvelocity\.co\.za\/s\/billing/);
   const fromPricing = autorenew.renewalReminderText({ action: 'remind_t1', open_ref: null, card_autorenew: true, price_zar: 12000 });
   assert.match(fromPricing, /R12,000 excl\. VAT/);
   const off = autorenew.renewalReminderText({ action: 'remind_t1', open_ref: 'SMC-TEST2', card_autorenew: false, open_amount_excl_vat: 7500 });

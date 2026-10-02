@@ -6,7 +6,7 @@ Method (4.10 explainer method): Playwright records the real prototype at 390x844
 
 | Beat | Time | On screen (captioned) | Voice-over | Screen recording |
 |---|---|---|---|---|
-| 1 | 0:00 to 0:09 | "This is the one thing that moves your show rate most" | "This is the one step that moves your show rate most. People show up for people. If a lead has seen your face before the call, they are far more likely to come." | Title card, then the "Why" box on index.html |
+| 1 | 0:00 to 0:09 | "This is the step we're testing to help people turn up" | "This is the step we're testing to help people turn up. People show up for people. If a lead has seen your face before the call, we expect they're more likely to come, and we measure it." | Title card, then the "Why" box on index.html |
 | 2 | 0:09 to 0:21 | "Answer eight quick questions. We write three scripts in your words." | "Answer eight quick questions, typed or spoken. We write three short scripts in your own words. You pick one and change anything you like." | interview.html (type one answer), scripts.html (edit, tick shows "Compliance check passed") |
 | 3 | 0:21 to 0:35 | "Face a window, phone at eye level, read the teleprompter. 25 seconds." | "Face a window. Hold the phone at eye level and look at the lens. Read the teleprompter. It takes about twenty-five seconds, and one take is fine." | record.html: checklist with reasons, prompter scrolling, countdown, take verdict |
 | 4 | 0:35 to 0:43 | "We add captions and your FSP. You approve. Done." | "We add captions and your details. You approve it. That's it. Ten minutes, once." | approve.html message mock, Approve tapped, then the end-frame (SortMyCover tick, "a service of Lead Velocity") |

@@ -22,7 +22,7 @@ node --test automation/tests/W0{1,4,5,6,9}.test.mjs automation/tests/W1{2,3,5}.t
 - **Test hooks (staging only, built with the workflows):** `GET /test/state?lead_id|mobile`, `POST /test/tick`, `/test/reset`, `/test/seed-calendar`, `/test/seed-lead`, `/test/seed-booking`, `/test/seed-outcome`, `/test/leadgen`, `/test/suppress`, `/test/bounce`. They are guarded by `TEST_HOOKS_ENABLED` + token + `is_synthetic`. See `fixtures/time-shift.md`.
 
 ## Files
-- `fixtures/synthetic-leads.json`: 10 synthetic leads, the broker "Mark Smith Financial Services, FSP 12345", the cycle, the pricing caps, and the expected outcome per workflow. The `_meta.assumptions` block lists every assumption.
+- `fixtures/synthetic-leads.json`: 10 synthetic leads, the broker "Mark Smith Financial Services, FSP 00000", the cycle, the pricing caps, and the expected outcome per workflow. The `_meta.assumptions` block lists every assumption.
 - `fixtures/time-shift.md`: how timing is tested without waiting.
 - `_harness.mjs`: loads the fixtures and holidays, has the SAST time helpers, the online client, and renders real template bodies.
 - `_slots.mjs`: the shared slot rules (owned by W04; reused by W05/W06).

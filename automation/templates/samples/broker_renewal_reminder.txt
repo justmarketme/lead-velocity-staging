@@ -1,7 +1,7 @@
 broker_renewal_reminder (UTILITY, en)
 
 [header] Your cycle ends soon
-Hi Mark, your SortMyCover cycle ends in 3 days, on Fri 13 Nov. To keep leads coming with no gap, pay R16,500 excl. VAT for the next cycle before then. Payment reference: *LV-1042-B-202611*. Card auto-renew: on: we will charge R16,500 excl. VAT to your card at cycle end. If it is on, you can switch it off any time in the portal. No lock-in: if you don't renew, the cycle simply ends and your delivered leads stay yours.
+Hi Mark, your SortMyCover cycle ends in 3 days, on Fri 13 Nov. If card auto-renew is off, pay R16,500 excl. VAT for the next cycle before then to keep leads coming with no gap. Payment reference: *LV-1042-B-202611*. Card auto-renew: on: we will charge R16,500 excl. VAT to your card at cycle end. If it is on, you can switch it off any time in the portal. No lock-in: if you don't renew, the cycle simply ends and your delivered leads stay yours.
 [footer] SortMyCover by Lead Velocity
 [button] Pay now -> https://app.leadvelocity.co.za/billing/checkout/?ref=LV-1042-B-202611
 [button] Manage auto-renew -> https://app.leadvelocity.co.za/s/billing

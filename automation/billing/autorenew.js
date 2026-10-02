@@ -85,7 +85,7 @@ function renewalReminderTemplate(r) {
 
 function renewalReminderText(r) {
   const { days, card } = reminderParts(r);
-  return 'Your cycle ends in ' + days + ' day' + (days > 1 ? 's' : '') + '. Pay for the next one to keep leads coming with no gap. Reference: *' + (r.open_ref || 'on your invoice') + '*. Card auto-renew: ' + card + (r.card_autorenew ? ' You can switch it off any time in the portal: /s/billing.' : '');
+  return 'Your cycle ends in ' + days + ' day' + (days > 1 ? 's' : '') + '. Pay for the next one to keep leads coming with no gap. Reference: *' + (r.open_ref || 'on your invoice') + '*. Card auto-renew: ' + card + (r.card_autorenew ? ' You can switch it off any time in the portal: https://app.leadvelocity.co.za/s/billing.' : '');
 }
 
 module.exports = { TEMPLATE, parseAutorenewRequest, confirmMessage, responseBody, renewalReminderText, renewalReminderTemplate, REMINDER_TEMPLATE };

@@ -33,7 +33,7 @@
   },
 
   "consent_texts": {
-    "named-v1-DRAFT": "I agree that Lead Velocity may share my details with Mark Smith Financial Services (FSP 12345), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. Lead Velocity may also use my details to measure and improve its advertising. I can opt out at any time by replying STOP.",
+    "named-v1-DRAFT": "I agree that Lead Velocity may share my details with Mark Smith Financial Services (FSP 00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. Lead Velocity may also use my details to measure and improve its advertising. I can opt out at any time by replying STOP.",
     "ctwa-v1": "Before we start: if it's a fit, we'll share your details with an authorised financial services provider who'll contact you about life cover. OK to continue?",
     "_note": "named-v1-DRAFT = 2.1.2 'stronger alternative' (0.1: named is the default while there is one broker) + the advertising sentence from automation/capi/event-spec.md; final wording is contracts-drafter / compliance-qa's. ctwa-v1 = the 4.6 CTWA consent text verbatim."
   },
@@ -50,7 +50,7 @@
       "broker_id": "brk_test_mark",
       "brand_id": "smc",
       "practice_name": "Mark Smith Financial Services",
-      "fsp_number": "12345",
+      "fsp_number": "00000",
       "adviser_name": "Mark Smith",
       "adviser_first_name": "Mark",
       "adviser_whatsapp": "+27600000090",
@@ -123,7 +123,7 @@
         "consent": {
           "checked": true,
           "version": "named-v1-DRAFT",
-          "text": "I agree that Lead Velocity may share my details with Mark Smith Financial Services (FSP 12345), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. Lead Velocity may also use my details to measure and improve its advertising. I can opt out at any time by replying STOP.",
+          "text": "I agree that Lead Velocity may share my details with Mark Smith Financial Services (FSP 00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. Lead Velocity may also use my details to measure and improve its advertising. I can opt out at any time by replying STOP.",
           "includes_ads_sentence": true,
           "at": "2026-10-12T08:14:05+02:00",
           "page_url": "https://sortmycover.co.za/bond-gap",
@@ -167,7 +167,7 @@
       "expected": {
         "W01": { "http_status": 200, "status": "accepted", "mobile": "+27600000001", "line_type": "mobile", "broker_id": "brk_test_mark", "qualified_bands": true, "capi_lead_event_id": "5b0f7a2e-0001-4c1a-9a51-000000000001", "consent_ads": true },
         "W05": { "http_status": 201, "slot_start": "2026-10-15T10:00:00+02:00", "slot_end": "2026-10-15T10:30:00+02:00", "event_title": "Life cover call – Lerato – Teams", "is_online_meeting": true, "online_meeting_provider": "teamsForBusiness", "client_is_attendee": false, "email_status": "mx_ok", "email_purpose": "meeting_invite", "invite_from": "howzit@leadvelocity.co.za", "capi_schedule_event_id": "5b0f7a2e-0001-4c1a-9a51-000000000101", "cycle_id": "cyc_test_001" },
-        "W06": { "template": "broker_intro_booked", "trigger": "booking", "send_at": "2026-10-12T08:14:41+02:00", "deadline": "2026-10-12T08:15:05+02:00", "variables": ["Lerato", "Mark Smith Financial Services", "12345", "Mark Smith", "Microsoft Teams", "Thu 15 Oct", "10:00"] },
+        "W06": { "template": "broker_intro_booked", "trigger": "booking", "send_at": "2026-10-12T08:14:41+02:00", "deadline": "2026-10-12T08:15:05+02:00", "variables": ["Lerato", "Mark Smith Financial Services", "00000", "Mark Smith", "Microsoft Teams", "Thu 15 Oct", "10:00"] },
         "W09": {
           "compressed": false,
           "schedule": [
@@ -203,7 +203,7 @@
         "consent": {
           "checked": true,
           "version": "named-v1-DRAFT",
-          "text": "I agree that Lead Velocity may share my details with Mark Smith Financial Services (FSP 12345), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. Lead Velocity may also use my details to measure and improve its advertising. I can opt out at any time by replying STOP.",
+          "text": "I agree that Lead Velocity may share my details with Mark Smith Financial Services (FSP 00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. Lead Velocity may also use my details to measure and improve its advertising. I can opt out at any time by replying STOP.",
           "includes_ads_sentence": true,
           "at": "2026-10-12T09:02:11+02:00",
           "page_url": "https://sortmycover.co.za/family-first",
@@ -247,7 +247,7 @@
         "W01": { "http_status": 200, "status": "accepted", "mobile": "+27600000002", "line_type": "mobile", "broker_id": "brk_test_mark", "qualified_bands": true, "capi_lead_event_id": "5b0f7a2e-0002-4c1a-9a51-000000000002", "consent_ads": true },
         "W04": { "offer_at": "2026-10-12T09:02:30+02:00", "offered": ["2026-10-12T11:30:00+02:00", "2026-10-13T10:30:00+02:00", "2026-10-14T09:00:00+02:00"], "why": "Mon earliest after 2-h notice (11:02 -> 11:30 grid); Tue 09:00-10:00 busy + 15-min buffer -> 10:30; Wed 09:00; one per day (round-robin)" },
         "W05": { "http_status": 201, "slot_start": "2026-10-13T10:30:00+02:00", "event_title": "Life cover call – Sipho – Phone", "is_online_meeting": false, "body_contains": "Call Sipho on +27600000002", "email_stored": false, "capi_schedule_event_id": "evt_lead_test_L02_schedule" },
-        "W06": { "template": "broker_intro_slots", "trigger": "skip", "send_at": "2026-10-12T09:02:30+02:00", "deadline": "2026-10-12T09:03:11+02:00", "variables": ["Sipho", "Mark Smith Financial Services", "12345", "Mark Smith", "Mon 12 Oct, 11:30", "Tue 13 Oct, 10:30", "Wed 14 Oct, 09:00"] },
+        "W06": { "template": "broker_intro_slots", "trigger": "skip", "send_at": "2026-10-12T09:02:30+02:00", "deadline": "2026-10-12T09:03:11+02:00", "variables": ["Sipho", "Mark Smith Financial Services", "00000", "Mark Smith", "Mon 12 Oct, 11:30", "Tue 13 Oct, 10:30", "Wed 14 Oct, 09:00"] },
         "W09": {
           "compressed": true,
           "schedule": [
@@ -458,7 +458,7 @@
         "consent": {
           "checked": true,
           "version": "named-v1-DRAFT",
-          "text": "I agree that Lead Velocity may share my details with Mark Smith Financial Services (FSP 12345), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. Lead Velocity may also use my details to measure and improve its advertising. I can opt out at any time by replying STOP.",
+          "text": "I agree that Lead Velocity may share my details with Mark Smith Financial Services (FSP 00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. Lead Velocity may also use my details to measure and improve its advertising. I can opt out at any time by replying STOP.",
           "includes_ads_sentence": true,
           "at": "2026-10-13T12:00:00+02:00",
           "page_url": "https://sortmycover.co.za/bond-gap",
@@ -490,7 +490,7 @@
         "consent": {
           "checked": true,
           "version": "named-v1-DRAFT",
-          "text": "I agree that Lead Velocity may share my details with Mark Smith Financial Services (FSP 12345), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. Lead Velocity may also use my details to measure and improve its advertising. I can opt out at any time by replying STOP.",
+          "text": "I agree that Lead Velocity may share my details with Mark Smith Financial Services (FSP 00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. Lead Velocity may also use my details to measure and improve its advertising. I can opt out at any time by replying STOP.",
           "includes_ads_sentence": true,
           "at": "2026-10-13T13:00:00+02:00",
           "page_url": "https://sortmycover.co.za/bond-gap",
@@ -521,7 +521,7 @@
         "consent": {
           "checked": true,
           "version": "named-v1-DRAFT",
-          "text": "I agree that Lead Velocity may share my details with Mark Smith Financial Services (FSP 12345), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. Lead Velocity may also use my details to measure and improve its advertising. I can opt out at any time by replying STOP.",
+          "text": "I agree that Lead Velocity may share my details with Mark Smith Financial Services (FSP 00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. Lead Velocity may also use my details to measure and improve its advertising. I can opt out at any time by replying STOP.",
           "includes_ads_sentence": true,
           "at": "2026-10-30T19:20:00+02:00",
           "page_url": "https://sortmycover.co.za/work-cover",
@@ -552,7 +552,7 @@
         "consent": {
           "checked": true,
           "version": "named-v1-DRAFT",
-          "text": "I agree that Lead Velocity may share my details with Mark Smith Financial Services (FSP 12345), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. Lead Velocity may also use my details to measure and improve its advertising. I can opt out at any time by replying STOP.",
+          "text": "I agree that Lead Velocity may share my details with Mark Smith Financial Services (FSP 00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. Lead Velocity may also use my details to measure and improve its advertising. I can opt out at any time by replying STOP.",
           "includes_ads_sentence": true,
           "at": "2026-10-19T10:00:00+02:00",
           "page_url": "https://sortmycover.co.za/bond-gap",

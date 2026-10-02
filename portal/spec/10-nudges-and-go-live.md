@@ -30,7 +30,7 @@ Where the words live for everything W20 sends and shows. Channel rule: **WhatsAp
 | availability | Check your hours | 1 minute | We've used standard hours (Mon-Fri 9 to 5, 3 a day). Change them any time. |
 | agreement | Sign your agreement | 3 minutes | It's in plain words, and you get a copy straight away. |
 | card | Approve your intro card | 1 minute | It's the picture leads see before they meet you. |
-| media (after `onboarded`) | Record your 25-second intro | 10 minutes | People show up for people. Leads who see your face first are far less likely to no-show. |
+| media (after `onboarded`) | Record your 25-second intro | 10 minutes | We're testing whether a 25-second intro helps people turn up. Not needed to go live. |
 
 ### 72-hour nudge (WhatsApp `broker_onboarding_nudge_72h` + email; plus Jonathan's console to-do)
 - **WhatsApp:** "Hi {first_name}, your SortMyCover setup is still waiting on one thing: {next_step}. {reason72} Leads can't be sent to you until it's done. Reply here and we'll help, no call needed." Button: **Finish setup**.

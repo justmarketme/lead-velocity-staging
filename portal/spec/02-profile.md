@@ -32,7 +32,7 @@ Not asked here (asked elsewhere, once): hours, methods, capacity (Calendar), sig
 - Blocked (soft, no accusation): "We could not match that number to your practice name. Check the number and try again. Nothing is wrong yet; this takes one more try. After three tries we check it by hand and tell you on WhatsApp."
 - If the register name differs but the broker says it is right: "The register lists this FSP as {register_name}. Is that your practice? [Yes, that's us] [No, change my number]". "Yes" stores `practice_legal_name` and re-runs the check; if it still fails it goes to Jonathan.
 - A representative (not the FSP owner) can enter the FSP of the practice they operate under; the legal name goes in `practice_legal_name`. Edge case, see needs_human.
-- Screen B heading: "Your photo and two lines". Sub: "Leads see these before they meet you. A real face lifts show rate."
+- Screen B heading: "Your photo and two lines". Sub: "Leads see these before they meet you. We're testing whether a real face helps people turn up."
 - Bio hint: "Who you help and how you work. No product names, no 'best', no promises."
 - Gate trip: "Please take out '{word}'. We can't say that in a message to someone who hasn't met you yet."
 

@@ -10,7 +10,7 @@
     },
     {
       "type": "BODY",
-      "text": "Hi {{1}}, your SortMyCover cycle ends in {{2}}, on {{3}}. To keep leads coming with no gap, pay {{4}} for the next cycle before then. Payment reference: *{{5}}*. Card auto-renew: {{6}} If it is on, you can switch it off any time in the portal. No lock-in: if you don't renew, the cycle simply ends and your delivered leads stay yours.",
+      "text": "Hi {{1}}, your SortMyCover cycle ends in {{2}}, on {{3}}. If card auto-renew is off, pay {{4}} for the next cycle before then to keep leads coming with no gap. Payment reference: *{{5}}*. Card auto-renew: {{6}} If it is on, you can switch it off any time in the portal. No lock-in: if you don't renew, the cycle simply ends and your delivered leads stay yours.",
       "example": {
         "body_text": [
           [
