@@ -1,0 +1,51 @@
+{
+  "name": "broker_disposition",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Thanks. Which best describes {{1}} after the call? Pick the closest one.",
+      "example": {
+        "body_text": [
+          [
+            "Lerato M."
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover by Lead Velocity"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "QUICK_REPLY",
+          "text": "Good fit – proceeding"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Good fit – follow-up"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Not a fit – budget"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Not a fit – covered"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Not a fit – criteria"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Unreachable / wrong no."
+        }
+      ]
+    }
+  ]
+}

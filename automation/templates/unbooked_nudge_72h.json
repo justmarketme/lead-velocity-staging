@@ -1,0 +1,36 @@
+{
+  "name": "unbooked_nudge_72h",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, this is our last message about your life cover enquiry. If you would still like a 30-minute call with {{2}}, tap below to pick a time. If not, no problem, we will not message again. Reply STOP to opt out.",
+      "example": {
+        "body_text": [
+          [
+            "Lerato",
+            "Mark Smith"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "QUICK_REPLY",
+          "text": "See open times"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "No thanks"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "name": "broker_outcome_check",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, how did your {{2}} call with {{3}} go? One tap helps us replace leads that did not work out.",
+      "example": {
+        "body_text": [
+          [
+            "Mark",
+            "10:00",
+            "Lerato M."
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover by Lead Velocity"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "QUICK_REPLY",
+          "text": "Attended"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "No-show"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Rescheduled"
+        }
+      ]
+    }
+  ]
+}

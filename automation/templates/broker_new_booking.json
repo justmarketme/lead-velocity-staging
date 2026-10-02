@@ -1,0 +1,46 @@
+{
+  "name": "broker_new_booking",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "New booking"
+    },
+    {
+      "type": "BODY",
+      "text": "New booking for you, {{1}}: *{{2}}* on *{{3}} at {{4}}* by {{5}}. Age band {{6}}, budget band {{7}}. It is in your Outlook calendar, and the pre-call brief will follow 15 minutes before the call.",
+      "example": {
+        "body_text": [
+          [
+            "Mark",
+            "Lerato M.",
+            "Tue 7 Oct",
+            "10:00",
+            "Microsoft Teams",
+            "35-44",
+            "R750-R1,250"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover by Lead Velocity"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Open in portal",
+          "url": "https://portal.leadvelocity.co.za/{{1}}",
+          "example": [
+            "https://portal.leadvelocity.co.za/l/ld_51c9"
+          ]
+        }
+      ]
+    }
+  ]
+}

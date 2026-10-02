@@ -1,0 +1,46 @@
+{
+  "name": "unbooked_nudge_24h_text",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "Meet {{1}}",
+      "example": {
+        "header_text": [
+          "Mark Smith"
+        ]
+      }
+    },
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, a little about the adviser for your enquiry: {{2}} Tap below to see open times. Reply STOP to opt out.",
+      "example": {
+        "body_text": [
+          [
+            "Lerato",
+            "Mark has helped families in Gauteng for 12 years and speaks English and Afrikaans."
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "QUICK_REPLY",
+          "text": "See open times"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Not now"
+        }
+      ]
+    }
+  ]
+}

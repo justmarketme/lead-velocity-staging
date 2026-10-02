@@ -1,0 +1,48 @@
+{
+  "name": "intro_media_voice",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "A voice note from {{1}}",
+      "example": {
+        "header_text": [
+          "Mark Smith"
+        ]
+      }
+    },
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, {{2}} recorded a short voice note (about 25 seconds) for people booking a call this week. Tap Play to hear it. Your call is on *{{3}} at {{4}}*. Reply STOP to opt out.",
+      "example": {
+        "body_text": [
+          [
+            "Lerato",
+            "Mark Smith",
+            "Tue 7 Oct",
+            "10:00"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "QUICK_REPLY",
+          "text": "Play voice note"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Reschedule"
+        }
+      ]
+    }
+  ]
+}

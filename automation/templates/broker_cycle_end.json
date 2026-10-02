@@ -1,0 +1,54 @@
+{
+  "name": "broker_cycle_end",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "Your cycle summary"
+    },
+    {
+      "type": "BODY",
+      "text": "Your {{1}} cycle ends on {{2}}. Delivered: {{3}} of {{4}} committed leads. Good-fit meetings: {{5}}. Your average rating: {{6}} out of 5. {{7}} Your renewal offer is ready, with your current tier selected and no contract.",
+      "example": {
+        "body_text": [
+          [
+            "October",
+            "31 Oct",
+            "20",
+            "20",
+            "9",
+            "4.0",
+            "Replacements used: 2 of 4."
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover by Lead Velocity"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "See renewal offer",
+          "url": "https://portal.leadvelocity.co.za/{{1}}",
+          "example": [
+            "https://portal.leadvelocity.co.za/renew/cy_2026_10"
+          ]
+        },
+        {
+          "type": "URL",
+          "text": "Open report",
+          "url": "https://portal.leadvelocity.co.za/{{1}}",
+          "example": [
+            "https://portal.leadvelocity.co.za/r/cy_2026_10"
+          ]
+        }
+      ]
+    }
+  ]
+}

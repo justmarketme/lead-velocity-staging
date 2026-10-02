@@ -5,7 +5,7 @@ fail=0
 files=$(git diff --cached --name-only --diff-filter=ACM)
 for f in $files; do
   case "$f" in
-    .env.example) ;;
+    .env.example|*/.env.example) ;;
     .env|.env.*|*/.env|*/.env.*|*.pem|*.key|credentials*|*/credentials*)
       echo "pre-commit: refusing to commit secret file: $f"; fail=1 ;;
   esac

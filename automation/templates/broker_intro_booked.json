@@ -1,0 +1,58 @@
+{
+  "name": "broker_intro_booked",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "IMAGE",
+      "example": {
+        "header_handle": [
+          "__UPLOAD_HANDLE__:intro_card_sample.png"
+        ]
+      }
+    },
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, thanks for your life cover enquiry. Your details have been passed to *{{2}} (FSP {{3}})*, an authorised financial services provider. *{{4}}* will be your adviser for your {{5}} call on *{{6}} at {{7}}*. Reply STOP to opt out.",
+      "example": {
+        "body_text": [
+          [
+            "Lerato",
+            "Mark Smith Financial Services",
+            "12345",
+            "Mark Smith",
+            "Microsoft Teams",
+            "Tue 7 Oct",
+            "10:00"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Add to calendar",
+          "url": "https://sortmycover.co.za/c/{{1}}",
+          "example": [
+            "https://sortmycover.co.za/c/bk_8f3a2c"
+          ]
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Reschedule"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Cancel"
+        }
+      ]
+    }
+  ]
+}
