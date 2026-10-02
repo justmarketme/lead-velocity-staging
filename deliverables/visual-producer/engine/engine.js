@@ -123,10 +123,12 @@ const LAY = {
   '1x1': { W: 1080, H: 1080, hookY: 64, hookS: 72, visY: 310, visH: 380, st: { headY: 715, headS: 44, lineS: 28, logoY: 950, logoH: 52 }, tagS: 24 },
 };
 const V45 = { hookY: 150, hookH: 400, visY: 570, visH: 400, capY: 1010, capS: 40, tick: { x: 72, y: 72, s: 56 } };
+const V11 = { hookY: 120, hookH: 340, visY: 480, visH: 330, capY: 850, capS: 36, tick: { x: 72, y: 56, s: 44 } };
 const V9 = { hookY: 360, hookH: 540, visY: 900, visH: 400, capY: 1330, capS: 44, tick: { x: 72, y: 266, s: 64 } };
 let V = V9;
 let spec, L, def, tw, wmo;
 const EC = { '9x16': { tickY: 420, tickS: 300, wmY: 760, wmH: 84, lineY: 930, lineS: 96, ctaY: 1296, ctaS: 60, ctaPad: '36px 72px', ctaMin: 132, fineY: 1512, fineS: 33, tagY: 1452 },
+  '1x1': { tickY: 60, tickS: 200, wmY: 290, wmH: 64, lineY: 390, lineS: 80, ctaY: 760, ctaS: 48, ctaPad: '26px 56px', ctaMin: 104, fineY: 930, fineS: 28, tagY: 880 },
   '4x5': { tickY: 150, tickS: 240, wmY: 440, wmH: 72, lineY: 570, lineS: 88, ctaY: 940, ctaS: 54, ctaPad: '30px 64px', ctaMin: 120, fineY: 1150, fineS: 30, tagY: 1100 } };
 const endCard = (e, W, tagTxt, k = EC['9x16']) => { const tk = pr(e, 0, .4), pop = eb(pr(e, 0, .22)), cx = W / 2;
   const tick = SVG(cx - k.tickS / 2, k.tickY, k.tickS, k.tickS, '0 0 64 64', `<g transform="translate(32 32) scale(${.55 + .45 * pop}) translate(-32 -32)"><path d="M0 32a32 32 0 1 0 64 0a32 32 0 1 0 -64 0Z" style="fill:var(--tdisc)"/><path d="M18.2 34L26.1 41.9L45.8 22.1" fill="none" pathLength="1" stroke-dasharray="1" stroke-dashoffset="${1 - eo(tk)}" style="stroke:var(--tink)" stroke-width="9.08" stroke-linecap="round" stroke-linejoin="round" ${tk <= 0 ? 'opacity="0"' : ''}/></g>`);
@@ -134,13 +136,14 @@ const endCard = (e, W, tagTxt, k = EC['9x16']) => { const tk = pr(e, 0, .4), pop
   const cp = eb(pr(e, .9, .3)); const cta = D(`left:0;right:0;top:${k.ctaY}px;display:grid;justify-items:center;opacity:${clamp(cp * 2)};transform:scale(${.8 + .2 * cp})`, `<div style="background:var(--acc);color:var(--acc-ink);font-weight:800;font-size:${k.ctaS}px;border-radius:999px;padding:${k.ctaPad};min-height:${k.ctaMin}px;display:flex;align-items:center">Tap to check your cover</div>`);
   return tick + line + cta + T(72, k.fineY, W - 144, 'SortMyCover is a service of Lead Velocity (Pty) Ltd', k.fineS, { al: 'center', wt: 500, op: eo(pr(e, 1.2, .4)) }) + tagTxt; };
 async function init(s) {
-  spec = s; L = LAY[s.ratio]; V = s.ratio === '4x5' ? V45 : V9; def = DEFS[s.vid]; const st = document.getElementById('stage'); st.style.width = L.W + 'px'; st.style.height = L.H + 'px'; st.className = s.variant === 'teal' ? 'teal' : '';
+  spec = s; L = LAY[s.ratio]; V = s.ratio === '4x5' ? V45 : s.ratio === '1x1' ? V11 : V9; def = DEFS[s.vid]; const st = document.getElementById('stage'); st.style.width = L.W + 'px'; st.style.height = L.H + 'px'; st.className = s.variant === 'teal' ? 'teal' : '';
   tw = document.getElementById('tw'); wmo = document.getElementById('wmo'); const teal = s.variant === 'teal';
   tw.src = `../../../brand/logo/${teal ? 'tick-mark-teal' : 'tick-mark'}.svg`; wmo.src = `../../../brand/logo/${teal ? 'wordmark-charcoal-teal-tick' : 'wordmark-offwhite'}.svg`;
   await Promise.all([document.fonts.load('800 80px "DM Sans"'), document.fonts.load('500 40px "DM Sans"')]); await document.fonts.ready; await Promise.all([tw, wmo].map(i => i.decode().catch(() => {})));
   s.R = s.rows.map(r => r.t0);
 }
 async function draw(t) {
+  if (spec.mode === 'm6') return drawM6(t); if (spec.mode === 'card') return drawCard();
   const s = spec, still = s.mode === 'still', W = L.W, R = s.R; let h = ''; const stl = s.still || { row: 0, lt: 1 };
   if (still) t = R[stl.row] + stl.lt;
   const end = !still && t >= s.E, i = Math.max(0, R.filter(x => x <= t).length - 1), r = s.rows[i], lt = t - R[i];
@@ -148,8 +151,8 @@ async function draw(t) {
   const tagEl = (x, y, sz, op = .7) => s.tag ? D(`left:${x}px;top:${y}px;font-size:${sz}px;font-weight:500;color:var(--fg);opacity:${op};white-space:nowrap`, s.tag) : '';
   if (end) { const ek = EC[s.ratio] || EC['9x16']; h += endCard(t - s.E, W, s.tag ? T(72, ek.tagY, W - 144, s.tag, 30, { al: 'center', wt: 500, op: .8 }) : '', ek); wmo.style.display = 'block'; wmo.style.height = ek.wmH + 'px'; wmo.style.width = 'auto'; wmo.style.top = ek.wmY + 'px'; wmo.style.left = '0'; await wmo.decode().catch(() => {}); wmo.style.left = (W - wmo.getBoundingClientRect().width) / 2 + 'px'; wmo.style.opacity = eo(pr(t - s.E, .4, .2)); }
   else if (!still) {
-    const vw = W - 144, u = clamp(V.visH / 560, .72, 1), c = { t, lt, i, R, vw, vh: V.visH, u, still: false, ratio: s.ratio || '9x16' };
-    h += D(`left:72px;top:${V.hookY}px;width:${vw}px;height:${V.hookH}px;display:flex;flex-direction:column;justify-content:center;${r.on && r.on.includes('@chips') ? 'justify-content:flex-start;padding-top:40px;' : ''}`, onBlock(r, lt, vw, r.size || 96, false));
+    const K = s.ratio === '4x5' ? .875 : s.ratio === '1x1' ? .72 : 1, vw = W - 144, u = clamp(V.visH / 560, .72, 1), c = { t, lt, i, R, vw, vh: V.visH, u, still: false, ratio: s.ratio || '9x16' };
+    h += D(`left:72px;top:${V.hookY}px;width:${vw}px;height:${V.hookH}px;display:flex;flex-direction:column;justify-content:center;${r.on && r.on.includes('@chips') ? 'justify-content:flex-start;padding-top:40px;' : ''}`, onBlock(K < 1 ? { ...r, size: Math.round((r.size || 96) * K) } : r, lt, vw, Math.round((r.size || 96) * K), false));
     let pic = ''; if (r.v === 'wedge') pic = wedgeV(c, R[r.wedgeFrom ?? i] + (r.wedgeDelay ?? 0)); else if (r.v === 'picker') pic = pickerV(c, lt, r.slots); else if (r.v === 'reminder') pic = reminderV(c, lt, r.text); else pic = def.vis(c);
     h += D(`left:72px;top:${V.visY}px;width:${vw}px;height:${V.visH}px`, pic || '');
     if (r.cap) { const p = eo(pr(lt, 0, .1)); h += D(`left:72px;top:${V.capY}px;width:860px;opacity:${p}`, `<span style="display:inline-block;background:var(--box);border-radius:12px;padding:16px 24px;font-size:${V.capS}px;font-weight:500;line-height:1.25;max-width:860px">${r.cap}</span>`); }
@@ -165,5 +168,25 @@ async function draw(t) {
   }
   document.getElementById('dyn').innerHTML = h; await Promise.all([tw, wmo].map(i => i.decode().catch(() => {})));
 }
+
+// ---------- 6-s motion stills (4:5, loop at 6.0) and the C04 1:1 carousel ----------
+const LINE = 'Sort your cover. 30 minutes. A real adviser.';
+async function drawM6(t) { const s = spec, W = 1080, vw = 936; let h = ''; tw.style.display = 'none';
+  const hook = (on, size, o = {}) => D(`left:72px;top:72px;width:${vw}px`, onBlock({ on, size, ...o }, t, vw, size, false));
+  const paper = (at, x, y, rot, lab, what, amt) => { const p = eo(pr(t, at, .5)); return D(`left:${x}px;top:${y + 420 * (1 - p)}px;width:470px;opacity:${clamp(p * 3)};transform:rotate(${rot}deg);background:var(--sm-off-white);color:var(--sm-charcoal);border-radius:12px;padding:30px 36px;box-shadow:0 18px 48px var(--sm-scrim);font-size:36px;line-height:1.3;font-weight:500`, `<div style="font-size:30px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--sm-muted);margin-bottom:10px">${lab}</div>${what}<div style="font-weight:800;font-size:44px;white-space:nowrap;margin-top:4px">${amt}</div>`); };
+  if (s.vid === 'C01') { h += hook(['Most work life', 'cover stops at', '**2–4× salary.**'], 84, { ul: [99, 99, 3.5], ulFinal: 2 }) + T(72, 420, vw, "The bond and the bills don't.", 56, { op: eo(pr(t, 2, .4)) }) + paper(.3, 64, 700, -4, 'Payslip · Group life', 'Life cover', '2–4× salary') + paper(.5, 546, 760, 3.5, 'Home loan statement', 'Balance outstanding', 'R _ _ _ _ _ _ _'); }
+  if (s.vid === 'C02B') { const i = t >= 2.5 ? 2 : t >= 1.5 ? 1 : 0; h += hook(['3 lines on a payslip worth a look.'], 84) + D(`left:72px;top:420px;width:${vw}px;height:560px`, DEFS.C02B.vis({ t, R: [.2], i, vw, vh: 560, u: 1, still: false })); }
+  if (s.vid === 'C08') { h += hook(['No sales visit.', 'No jargon.'], 84) + ['Sales visit', 'Jargon', 'Front-door knock'].map((w, k) => { const p = eo(pr(t, [.3, 1, 1.7][k], .25)), fade = 1 - .6 * eo(pr(t, 2.5, .4)); return D(`left:72px;top:${470 + k * 110}px;font-size:72px;font-weight:800;line-height:1;opacity:${fade}`, `<span style="position:relative;display:inline-block">${w}<i style="position:absolute;left:-2%;top:52%;height:10px;width:${104 * p}%;background:var(--acc);border-radius:5px"></i></span>`); }).join('') + D(`left:72px;top:850px;width:${vw}px;font-size:140px;font-weight:800;line-height:1;color:var(--acc);opacity:${clamp(eb(pr(t, 2.5, .4)) * 2)};transform:scale(${.85 + .15 * eb(pr(t, 2.5, .4))});transform-origin:0 50%`, '30 minutes.'); }
+  if (s.vid === 'C12A') { h += hook(['No price in this ad. **On purpose.**'], 84) + D(`left:72px;top:400px;width:${vw}px;height:520px`, DEFS.C12A.vis({ t, R: [0, 99], i: 0, vw, vh: 520, u: 1, still: false })) + T(72, 950, vw, 'The real cost depends on age, health, smoking and what the cover must do.', 46, { wt: 500, op: eo(pr(t, 2.5, .5)) }); }
+  h += T(72, 1150, vw, LINE, 34, { wt: 500, op: .85 });
+  wmo.style.display = 'block'; wmo.style.height = '56px'; wmo.style.width = 'auto'; wmo.style.left = '72px'; wmo.style.top = '1226px'; wmo.style.opacity = 1;
+  document.getElementById('dyn').innerHTML = h; await Promise.all([tw, wmo].map(i => i.decode().catch(() => {}))); }
+async function drawCard() { const s = spec, n = s.card, W = 1080, vw = 936; let h = ''; tw.style.display = 'none'; wmo.style.display = 'none';
+  if (n === 4) { const k = EC['1x1']; h += endCard(9, W, '', k); wmo.style.display = 'block'; wmo.style.height = k.wmH + 'px'; wmo.style.width = 'auto'; wmo.style.top = k.wmY + 'px'; wmo.style.left = '0'; wmo.style.opacity = 1; await wmo.decode().catch(() => {}); wmo.style.left = (W - wmo.getBoundingClientRect().width) / 2 + 'px'; }
+  else { const txt = ['New **baby.**', 'New **bond.**', 'Same ~~old~~ cover?'][n - 1], ic = ['pram', 'house', 'doc'][n - 1];
+    h += icon(72, 130, 240, 1, 'var(--acc)', ICONS[ic], 3.2) + D(`left:72px;top:430px;width:${vw}px;font-size:120px;font-weight:800;line-height:1.05;letter-spacing:-.015em`, fmtLine(txt, 9, .3, true));
+    if (n === 3) h += T(72, 760, 860, 'A licensed adviser can check it in 30 minutes.', 40, { wt: 500 });
+    wmo.style.display = 'block'; wmo.style.height = '52px'; wmo.style.width = 'auto'; wmo.style.left = '72px'; wmo.style.top = '950px'; wmo.style.opacity = 1; }
+  document.getElementById('dyn').innerHTML = h; await Promise.all([tw, wmo].map(i => i.decode().catch(() => {}))); }
 window.SC = { init, draw };
 })();
