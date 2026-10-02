@@ -2,7 +2,7 @@
 //@include common
 const cfg = $('Plan').first().json.cfg;
 const samples = $('Judge samples').all().map((i) => i.json);
-const order = ['whatsapp-conversation', 'comment-reply', 'pre-call-brief', 'report', 'creative', 'landing-page'];
+const order = ['whatsapp-conversation', 'comment-reply', 'pre-call-brief', 'report', 'creative', 'landing-page', 'lead-pulse'];
 const jobOf = { creative: 'creative', 'landing-page': 'page' };
 const out = []; const skipped = [];
 for (const name of order) {

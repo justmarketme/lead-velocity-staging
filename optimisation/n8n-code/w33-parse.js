@@ -3,7 +3,7 @@ const cfg = $('Plan').first().json.cfg;
 const date = $('Plan').first().json.date;
 const reqs = $('Build judge requests').all();
 const resp = $input.all();
-const FACULTY = { 'whatsapp-conversation': 'conversation', 'comment-reply': 'comments_dms', 'pre-call-brief': 'broker', report: 'broker', creative: 'media', 'landing-page': 'page_flow' };
+const FACULTY = { 'whatsapp-conversation': 'conversation', 'comment-reply': 'comments_dms', 'pre-call-brief': 'broker', report: 'broker', creative: 'media', 'landing-page': 'page_flow', 'lead-pulse': 'nurture_show' };
 const SEV = ['critical', 'high', 'medium', 'low'];
 const findings = [], runs = [], costs = [];
 resp.forEach((r, i) => {

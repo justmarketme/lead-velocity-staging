@@ -1,9 +1,9 @@
 # SortMyCover: Meta setup runbook (laptop, gate by gate)
 
-Owner: meta-operator (Ads Platform Administrator). Date: 2026-10-02. Status: **ready to run. Nothing has been clicked, created, bought or published.** This sandbox has no browser and no Meta login.
+Owner: meta-operator (Ads Platform Administrator). Date: 2026-10-02 (rev 2: G5d EMQ without email, G10 template order, G11 GATE-ADS-APPROVE-3 rebuilt from `first-batch.csv`). Status: **ready to run. Nothing has been clicked, created, bought or published.** This sandbox has no browser and no Meta login.
 Readers: Jonathan (logged in, does every ★ himself), the Claude in Chrome agent (prepares the screens, reads them back, records), KG (second admin).
-Sources used: MASTER-PROMPT 2.1.3, 2.1.4, 2.2, 4.4a, 4.4b, 4.6, 4.7, 4.14, 6.2, 6.8b, Section 7; `build/gates-batch.md`; `deliverables/media-buyer/campaign-spec.md` (CS); `deliverables/brand-naming-lead/disclosure-wording.md` (DW); `brand/exports/`; `landing/holding/deploy.md`; `automation/templates/`; `automation/flows/booking-flow-endpoint.md`; `automation/ads/CONSOLE-ADS-API.md`; `automation/security/SECURITY.md`; migration `supabase/migrations/20261002_smc_02_core.sql` (`brands` columns).
-Companion files: `appeal-playbook.md` (when Meta says no), `template-submission-runbook.md` (GATE-TEMPLATES, GATE-FLOW-PUBLISH), `first-principles.md`. Open questions are in §14 (NH-MO-xx).
+Sources used: MASTER-PROMPT 2.1.3, 2.1.4, 2.2, 4.4a, 4.4b, 4.6, 4.7, 4.14, 6.2, 6.8b, Section 7; `build/gates-batch.md`; `deliverables/media-buyer/campaign-spec.md` (CS); `deliverables/media-buyer/first-batch.csv` (FB); `deliverables/visual-producer/assets/` + `manifest.json`; `deliverables/brand-naming-lead/disclosure-wording.md` (DW); `deliverables/compliance-qa/phase4-review-4.md` (R4); `automation/capi/event-spec.md` (ES); `brand/exports/`; `landing/holding/deploy.md`; `automation/templates/`; `automation/flows/booking-flow-endpoint.md`; `automation/ads/CONSOLE-ADS-API.md`; `automation/security/SECURITY.md`; migration `supabase/migrations/20261002_smc_02_core.sql` (`brands` columns).
+Companion files: **`jonathan-clicks.md`** (one page per gate: what Jonathan clicks, exact values, `.env` names), `template-submission-runbook.md` (GATE-TEMPLATES, GATE-FLOW-PUBLISH), `appeal-playbook.md` (when Meta says no), `first-principles.md`. Open questions are in §14 (NH-MO-xx).
 
 ---
 
@@ -16,7 +16,7 @@ Companion files: `appeal-playbook.md` (when Meta says no), `template-submission-
 5. **RECORD** = (a) type the ID into the CRM console `brands` row for `code = 'SMC'` (Settings, Brands, SortMyCover), and (b) save a screenshot to `/deliverables/meta-operator/screens/` named `G{gate}-{nn}-{slug}.png`. IDs never go into chat, WhatsApp or commit messages.
 6. **Secrets go only into the local `.env`** on Jonathan's laptop, typed by Jonathan. The `brands` row stores the **name** of the secret (for example `META_SYSTEM_USER_TOKEN`), never the value (the table has a CHECK that rejects values starting `EAA`).
 7. **Screenshots must not show:** tokens, app secret, 2FA codes, PINs, card numbers, ID numbers, personal phone numbers. Close or crop those screens before capture.
-8. **Consumer surfaces show only `sortmycover.co.za`.** Never enter `sortmycover.leadvelocity.co.za` (staging) or any `leadvelocity.co.za` URL on the Page, IG, WhatsApp profile, Pixel, ads or forms (0.1). The portfolio itself is Lead Velocity (Pty) Ltd and uses leadvelocity.co.za, because that is the legal entity.
+8. **Consumer surfaces show only `sortmycover.co.za`.** Never enter `sortmycover.leadvelocity.co.za` (staging) or any `leadvelocity.co.za` URL on the Page, IG, WhatsApp profile, Pixel, ads or forms (0.1). The portfolio itself is Lead Velocity (Pty) Ltd and uses leadvelocity.co.za, because that is the legal entity. Never use Lead Velocity's B2B Page or the broker's Page for SortMyCover.
 
 ### 0.1 Dependency map (what can start now)
 
@@ -25,14 +25,14 @@ Companion files: `appeal-playbook.md` (when Meta says no), `template-submission-
 | G1 GATE-META-PORTFOLIO | nothing | Yes |
 | G2 GATE-META-PAGE-IG | G1 | Yes. Website and email fields wait for GATE-DOMAINS (G2a steps 6 and 7, NH-MO-02) |
 | G3 GATE-AD-ACCOUNT | G1 | Yes |
-| G4 GATE-WABA | G1; two phone numbers not on WhatsApp (NH-MO-03) | Yes for the test number; real numbers when supplied |
+| G4 GATE-WABA | G1; two phone numbers not on WhatsApp (NH-MO-03 / NH-31 b) | Yes for the test number; real numbers when supplied |
 | G5 GATE-PIXEL | G1, G3; domain verification also needs GATE-DOMAINS live | Dataset yes; domain verification after GATE-DOMAINS |
 | G6 App, system user, tokens, webhooks | G1 to G5 | Yes, once G2 to G5 exist |
 | G7 Day-0 audiences | G2, G3, G5 | Yes, as soon as the assets are linked |
-| G8 Page warm-up | G2, G3, payment method; money decision NH-MO-01 | Organic posts yes; paid part waits |
+| G8 Page warm-up | G2, G3, payment method; money decision NH-MO-01 / NH-31 a | Organic posts yes; paid part waits |
 | G9 Handle reservations | nothing | Yes |
-| G10 GATE-TEMPLATES | G4, samples (present) | Yes, see `template-submission-runbook.md` |
-| G11 GATE-ADS-APPROVE-3 / GATE-CAMPAIGN-PUBLISH | G2 to G7; Mark's FSP verified (named-consent form fails closed without it, CS 3.5); creative manifest (NH-MO-10) | No, after broker onboarding data and creative exist |
+| G10 GATE-TEMPLATES | G4; sample FSP fix on the image header (R4 §1 #10); NH-19a for the 3 intro templates | Yes for 46 of 52 (see `template-submission-runbook.md` §2) |
+| G11 GATE-ADS-APPROVE-3 / GATE-CAMPAIGN-PUBLISH | G2 to G7; Mark's FSP verified (named-consent form fails closed without it, CS 3.5); creative manifest (present: `deliverables/visual-producer/assets/manifest.json`) | No: after broker onboarding data, domain and warm-up decision |
 | G12 GATE-FLOW-PUBLISH | W28 endpoint live on a stable hostname | See `template-submission-runbook.md` §6 |
 
 ---
@@ -61,7 +61,7 @@ Companion files: `appeal-playbook.md` (when Meta says no), `template-submission-
 | Website | `https://leadvelocity.co.za` live, footer showing `Lead Velocity (Pty) Ltd` and registration number | Legal name visible on the site |
 | Director identity (only if asked) | Jonathan's ID, uploaded by him | — |
 
-Common rejection causes to pre-empt (Meta Business Verification docs): legal name in the portfolio differs from the documents (for example "Lead Velocity" vs "Lead Velocity (Pty) Ltd"); address differs between documents and portfolio; document cropped, expired or unreadable; website does not show the legal name; phone not reachable for the call/SMS code. If rejected, follow `appeal-playbook.md` §7.
+Common rejection causes to pre-empt (Meta Business Verification docs): legal name in the portfolio differs from the documents (for example "Lead Velocity" vs "Lead Velocity (Pty) Ltd"); address differs between documents and portfolio; document cropped, expired or unreadable; website does not show the legal name; phone not reachable for the call/SMS code. If rejected, follow `appeal-playbook.md` §7. Verification is also the fallback if Meta ever asks for licensing proof (2.1.3): Lead Velocity is the advertiser of record and is not an FSP; the authorised FSP is named in the consent and intro card.
 
 **Pre-mortem #2:** verification is an external clock. Continue to G2 immediately; do not wait for the result.
 
@@ -136,7 +136,7 @@ Create `@coverklaar` as a separate Instagram account with Jonathan's login. No p
 | 6 | Add people | Jonathan: full control. KG: full control. | same |
 | 7 | Add assets (the ad account, Connected assets) | Page SortMyCover, Instagram @sortmycover, WABA (after G4), dataset SortMyCover (after G5) | Same, plus the standby Page |
 | 8 | **Payment method ★ Jonathan only** | Billing & payments, Add payment method. The agent leaves the screen; Jonathan types the card himself. | Default: add the same method now so a switch is fast (no spend happens without campaigns). Jonathan may choose to add it only at switch time |
-| 9 | Account spending limit (optional safety net) ★ | Jonathan's choice. Suggested: the cycle-1 monthly cap from CS §12 (R10,500 default pending NH-22). Money setting: the agent applies no default | Standby: none until used |
+| 9 | Account spending limit (optional safety net) ★ | Jonathan's choice. Suggested: the cycle-1 monthly cap from CS §12 (NH-22 b default R283/day x 30). Money setting: the agent applies no default | Standby: none until used |
 | 10 | RECORD | `ad_account_id` (format `act_...`), `standby_ad_account_id`; `G3-01-main-settings.png` (time zone + currency), `G3-02-standby-settings.png`, `G3-03-assets.png`. **No screenshot of the billing screen** | |
 
 The standby account carries no campaigns, no spend and no "warming". It exists so a non-policy outage (payment failure, compromise, stuck review) does not stop the business. When it may and may not be used: `appeal-playbook.md` §9. Re-running content Meta rejected from it is circumvention and is never done.
@@ -147,7 +147,7 @@ The standby account carries no campaigns, no spend and no "warming". It exists s
 
 **Where:** business.facebook.com, WhatsApp Manager (or Business Settings, Accounts, WhatsApp accounts, Add). The WABA must be **inside the Lead Velocity portfolio**.
 
-**Before you start:** two SA mobile numbers that are **not** active on the WhatsApp or WhatsApp Business app (registering a number on the Cloud API removes it from the app), each able to receive an SMS or voice call for the code (NH-MO-03). Until then staging runs on Meta's test number (`WHATSAPP_TEST_PHONE_NUMBER_ID`).
+**Before you start:** two SA mobile numbers that are **not** active on the WhatsApp or WhatsApp Business app (registering a number on the Cloud API removes it from the app), each able to receive an SMS or voice call for the code (NH-MO-03 / NH-31 b). Until then staging runs on Meta's test number (`WHATSAPP_TEST_PHONE_NUMBER_ID`).
 
 | # | Screen | Action | Who |
 |---|---|---|---|
@@ -179,7 +179,7 @@ Templates: submit now, per `template-submission-runbook.md` (pre-mortem #1: Day 
 |---|---|---|
 | 1 | Events Manager, Connect data sources, Web | Name: `SortMyCover`. Website URL: `https://sortmycover.co.za` (only after GATE-DOMAINS; if the form insists on a URL earlier, stop and wait). ★ Jonathan clicks Create |
 | 2 | Choose setup | Conversions API and Meta Pixel, manual. No partner integration |
-| 3 | Settings, Automatic advanced matching | **OFF** (compliance-qa phase0-review-1; `pixel.js` also sets `autoConfig=false`) |
+| 3 | Settings, Automatic advanced matching | **OFF** (`pixel.js` also sets `autoConfig=false`). Automatic matching would scrape form fields, including email, which never goes to Meta (0.1, ES) |
 | 4 | Settings, automatic events / "track events without code" | **OFF**. Only the explicit events in `landing/shared/pixel.README.md` fire |
 | 5 | Settings, First-party cookies | On |
 | 6 | Settings, Traffic permissions | Allow list: `sortmycover.co.za` only, so the staging host and any other site cannot send browser events (0.1) |
@@ -191,7 +191,7 @@ Templates: submit now, per `template-submission-runbook.md` (pre-mortem #1: Day 
 
 1. Business Settings, Brand safety, Domains, Add: `sortmycover.co.za`. Not `www.`, not the staging host, not `leadvelocity.co.za`.
 2. Method: **Meta-tag verification**. Copy only the `content` value Meta shows.
-3. devops-security / landing-page-builder replaces `{{META_DOMAIN_VERIFICATION}}` in the `<meta name="facebook-domain-verification" ...>` tag that is already in the `<head>` of every page in `landing/holding/` (index, about, privacy, complaints, how-we-make-money, 404, learn/*), then uploads per `landing/holding/deploy.md` (domain-verification paragraph). The value is not a secret, but it goes into the files, not into chat.
+3. devops-security / landing-page-builder replaces `{{META_DOMAIN_VERIFICATION}}` in the `<meta name="facebook-domain-verification" ...>` tag that is already in the `<head>` of every page in `landing/holding/`, then uploads per `landing/holding/deploy.md`. The value is not a secret, but it goes into the files, not into chat.
 4. Confirm with `view-source:https://sortmycover.co.za/` that the tag is in the head. Then ★ Jonathan clicks **Verify**.
 5. Connect the dataset to the domain if the screen asks.
 6. RECORD `G5-02-domain-verified.png`; append `domain_verified:{date}` to `brands.verification_status`.
@@ -200,15 +200,24 @@ Templates: submit now, per `template-submission-runbook.md` (pre-mortem #1: Day 
 
 1. Events Manager, the dataset, Aggregated Event Measurement (or "Configure web events"), domain `sortmycover.co.za`.
 2. Order: **1 `Lead`, 2 `Schedule`, 3 `Contact`, 4 `ViewContent`, 5 `PageView`**. ★ Jonathan clicks Apply.
-3. If the screen no longer exists, or Meta says event configuration is no longer needed, **do not hunt for it**: screenshot what Events Manager shows, write it in §13, and the Section 7 words "event priority set" go to NH-MO-08. Campaign A is on-Meta (instant form) and does not depend on it.
+3. If the screen no longer exists, **do not hunt for it**: screenshot what Events Manager shows, write it in §13, and the Section 7 words "event priority set" go to NH-MO-08. Campaign A is on-Meta (instant form) and does not depend on it.
 4. RECORD `G5-03-event-priority.png`.
 
-### G5d. Conversions API token and test events
+### G5d. Conversions API token, test events and EMQ (no email to Meta)
 
 1. Events Manager, the dataset, Settings, Conversions API, **Generate access token**. ★ Jonathan clicks; the token appears once.
 2. Jonathan pastes it straight into `.env` as `META_CAPI_TOKEN`. Not into chat, a screenshot or the console.
 3. Events Manager, Test events: copy the test code into `.env` as `META_TEST_EVENT_CODE` (staging only; removed for production, CS §1 item 9).
-4. automation-engineer runs `automation/capi/capi.test.js` against the test code. Pass: `Lead` and `Schedule` received, deduped with the browser event by `event_id`, Event Match Quality at least 6/10. Also read off Test events the GATE-PIXEL ASSUMPTIONS in `build/tasks.json` (API version v23.0, business-messaging `Schedule`, offline stage events through the dataset `/events` endpoint, ZAR value currency). RECORD `G5-04-test-events.png` (no token visible) and the EMQ value into `brands.emq`.
+4. automation-engineer runs `automation/capi/capi.test.js` against the test code. Pass: `Lead` and `Schedule` received, deduped with the browser event by `event_id`. Also read off Test events the GATE-PIXEL ASSUMPTIONS in `build/tasks.json` (API version v23.0, business-messaging `Schedule`, offline stage events through the dataset `/events` endpoint, ZAR value currency).
+5. **EMQ read-out.** Events Manager, dataset, Overview, `Lead` (then `Schedule`), Event Match Quality. **Email is never sent to Meta** (0.1: email only for a Teams/Zoom/Meet invite; `capi.js` sends no `em`, `AUDIENCE_SCHEMA` has no `EMAIL`, enforced by `capi.test.js`). So **expect a lower EMQ than an email-bearing setup**; the >= 6/10 target is a measurement to confirm, not a promise. Record the parameter-coverage panel as shown. If below 6, the levers are (ES "Aggregated Event Measurement priority and EMQ"), in this order:
+   1. `fbp` and `fbc` on every web event (`fbclid` captured on landing into `fbc`, stored on the lead);
+   2. `external_id` = SHA-256 of `lead_id`, identical on browser, server and offline `Qualified`/`Attended` events;
+   3. client IP and user agent captured server-side at form submit, sent unhashed;
+   4. `ph` in E.164 plus `fn` / `ln` / `ct` / `country`;
+   5. `ctwa_clid` + WABA id on CTWA events.
+   **Never** turn on automatic advanced matching or collect email to lift EMQ. A below-6 reading after the levers is recorded and goes to NH-MO-08b (Section 7 wording), not "fixed" with email.
+6. Privacy precondition (R4 §1 #27): before production traffic, `landing/holding/privacy.html` and `consent-and-privacy.md` must no longer say "number and email" go to Meta (contracts-drafter). Code is already email-free.
+7. RECORD `G5-04-test-events.png` (no token visible), `G5-05-emq.png`, and the EMQ value into `brands.emq`.
 
 ---
 
@@ -263,7 +272,7 @@ Templates: submit now, per `template-submission-runbook.md` (pre-mortem #1: Day 
 | 2 | `SMC_ENG_video75_30d` | Engagement: Video, watched at least 75 %, SortMyCover Page/IG videos | 30 days. Created once the first warm-up video is posted |
 | 3 | `SMC_ENG_formopen_90d` | Engagement: Lead form, "Opened this form" and separately "Opened but didn't submit" | 90 days. Created after the first form exists (G11). **Audience only, never contacted** |
 | 4 | `SMC_EXC_leads_90d` (pixel part) | Website: dataset SortMyCover, event `Lead`, 90 days | Created Day 0 (empty is fine) |
-| 5 | `SMC_EXC_leads_90d`, `SMC_EXC_booked`, `SMC_EXC_attended` (customer-list parts) | Customer list, SHA-256 hashed in n8n, only rows with `consent_ads_at` | Created by the console tool `create_customer_list_audience` at the first nightly upload. There are no real leads before go-live; synthetic data never goes to Meta. Naming of the two `leads_90d` sources: NH-MO-09 |
+| 5 | `SMC_EXC_leads_90d`, `SMC_EXC_booked`, `SMC_EXC_attended` (customer-list parts) | Customer list, SHA-256 hashed in n8n, phone / name / country / external id only (**no email column**), only rows with `consent_ads_at` | Created by the console tool `create_customer_list_audience` at the first nightly upload. There are no real leads before go-live; synthetic data never goes to Meta. Naming of the two `leads_90d` sources: NH-MO-09 |
 | 6 | Custom Audience terms | Ads Manager asks to accept them before the first customer-list audience | ★ Jonathan accepts |
 | 7 | RECORD | Audience IDs into the console; `G7-01-audiences.png` | |
 
@@ -273,19 +282,19 @@ Exclusions go on every ad set in G11 (CS 4.2). Lookalikes are **not** created no
 
 ## G8. Page warm-up (2.1.3): 7 days, organic plus a Reach-objective ad
 
-**Media-buyer's note applies: the paid part is a Reach-objective ad from Ads Manager, not the Page "Boost" button** (CS §1 item 7, §14). A Reach ad uses the objective, placements and exclusions we choose, with the same naming and audit trail; Boost does not.
+**The paid part is a Reach-objective ad from Ads Manager, not the Page "Boost" button** (CS §1 item 7, §14).
 
 | # | What | Detail |
 |---|---|---|
-| 1 | Content | 3 to 5 organic educational posts over 7 days on the Page and IG, adapted from the five `landing/holding/learn/` articles (life cover gap; payslip cover line; life events; what happens on a 30-minute call; how SortMyCover works). Third person only, no product, insurer, premium, cover amount or broker (2.1.8). Each post passes compliance-qa before posting. At least one short video, so `SMC_ENG_video75_30d` starts filling |
+| 1 | Content | 3 to 5 organic educational posts over 7 days on the Page and IG, adapted from the five `landing/holding/learn/` articles. Third person only, no product, insurer, premium, cover amount or broker (2.1.8). Each post passes compliance-qa before posting. At least one short video, so `SMC_ENG_video75_30d` starts filling |
 | 2 | Who posts | Jonathan from Business Suite (scheduled posts are fine). No posting scripts |
-| 3 | Paid part | Campaign `SMC_W_REACH_ZA_warmup`, objective **Awareness, Reach**; Special Ad Category step checked and recorded as in G11a; one ad set: South Africa, 18+ (no other targeting), Advantage+ placements without Audience Network; one ad "Use existing post" (an organic educational post); daily budget **about R50** ★; 7 days with an end date; published ★ by Jonathan only |
-| 4 | When | Before any lead campaign spends (2.1.3). Whether the ~R350 may be spent before the first broker payment is **NH-MO-01** (money; no default) |
+| 3 | Paid part | Campaign `SMC_W_REACH_ZA_warmup`, objective **Awareness, Reach**; Special Ad Category step checked and recorded as in G11a; one ad set: South Africa, 18+ (no other targeting), Advantage+ placements without Audience Network; one ad "Use existing post"; daily budget **about R50** ★; 7 days with an end date; published ★ by Jonathan only |
+| 4 | When | Before any lead campaign spends (2.1.3). NH-31 a default if silent: organic now, paid week after payment (live campaigns start 7 days later) |
 | 5 | Record | Spend, reach, any policy flags; `G8-01-warmup-settings.png`; Section 7 "7-day warm-up done" ticked with the end date |
 
 ---
 
-## G9. Handle reservations (parking only, 4.7 #8; availability-checks E7 to E10)
+## G9. Handle reservations (parking only, 4.7 #8)
 
 No content, no posting, no ads. Profile image `brand/exports/logo/tick-mark@3x.png` or none. Bio empty or `A service of Lead Velocity (Pty) Ltd.` only. Logins in the Lead Velocity password manager with 2FA on.
 
@@ -296,19 +305,19 @@ No content, no posting, no ads. Profile image `brand/exports/logo/tick-mark@3x.p
 | LinkedIn | company page `sortmycover`, `coverklaar` | Lead Velocity's admin (Jonathan's profile as page admin) | `li` |
 | X | @sortmycover, @coverklaar | Lead Velocity business email | `x` |
 
-Each creation click is ★ Jonathan (4D.4 human gate). If a handle is taken, RECORD it; no lookalike variant without brand-naming-lead. Screenshot each profile `G9-0n-{platform}.png`. CoverKlaar handles go in the CK `brands` row.
+Each creation click is ★ Jonathan. If a handle is taken, RECORD it; no lookalike variant without brand-naming-lead. Screenshot each profile `G9-0n-{platform}.png`. CoverKlaar handles go in the CK `brands` row.
 
 ---
 
 ## G10. GATE-TEMPLATES ★
 
-Follow `template-submission-runbook.md`. Day 0, straight after G4. Never blocks the build (pre-mortem #1).
+Follow `template-submission-runbook.md` (rev 2): all **52** templates in 5 batches (core 6, lead-facing 13, broker 24, ops 7, Flow-button 2), Day 0, straight after G4. Three holds only: the intro-card header PNG still shows FSP 12345 (must be `00000 (SAMPLE)`), NH-19a (AI sentence) for the three `broker_intro_*`, and the frame-0 check on the intro video sample. `unbooked_nudge_2h` / `_72h` go with the new NH-45 text. Never blocks the build (pre-mortem #1); accept Meta's category decision and log it.
 
 ---
 
-## G11. Campaigns A, B, C: Special Ad Category check, build, first-3 approval ★ (GATE-ADS-APPROVE-3, GATE-CAMPAIGN-PUBLISH)
+## G11. Campaigns A, B, C: Special Ad Category check, build, GATE-ADS-APPROVE-3 ★, GATE-CAMPAIGN-PUBLISH ★
 
-**Preconditions:** G2 to G7 done; warm-up done or scheduled (G8); Mark's `practice_name` and `fsp_number` verified (named-consent form fails closed otherwise, CS 3.5); `https://sortmycover.co.za/privacy` live and naming Pixel/CAPI; creative manifest from creative-strategist + visual-producer with compliance-qa `pass` (NH-MO-10).
+**Preconditions (all must be true):** G2 to G7 done; `sortmycover.co.za` live (no ad, form or Pixel ever points at the staging host); warm-up done or scheduled (G8 / NH-31 a); Mark's `practice_name` and `fsp_number` verified (named-consent form fails closed otherwise, CS 3.5); `https://sortmycover.co.za/privacy` live and naming Pixel/CAPI; creative files present in `deliverables/visual-producer/assets/` with compliance-qa `pass`; the C01 condition below cleared.
 
 ### G11a. Special Ad Category check (2.1.4, CS §10): on the screen, first
 
@@ -330,16 +339,43 @@ Follow `template-submission-runbook.md`. Day 0, straight after G4. Never blocks 
 | Warning text shown (verbatim) | |
 | Decision taken and by whom | |
 
-### G11b. Build (all paused)
+### G11b. Build Campaign A shell (paused)
 
-1. **Instant form A1** (and A2 paused): exactly CS §3 and `deliverables/media-buyer/instant-form-spec.json`. Lead Ads terms for the Page: ★ Jonathan accepts on the first form. Consent checkbox text from the current `consent-and-privacy.md` (CS 3.5: the file wins). Run the two staging submissions for ASSUMPTION A4 (CS 3.4) and RECORD.
-2. **Campaign A** `SMC_A_LEADS-IF_ZA_c1`: CS §4.1 to §4.3 field by field. Budget: Meta requires a positive daily budget, so enter the **minimum Meta accepts** with the campaign **Off** (CONSOLE-ADS-API: "paused at the minimum budget"); the budget entry is ★ Jonathan. Exclusions per G7. Placements per CS 4.2; RECORD the final list `G11-02-placements.png`.
-3. **Pre-approval trio only:** `C01_H1_vid-amb`, `C03_H3_vid-amb`, `C14_H10_vid-amb` (per deliverables/media-buyer/first-batch.csv rows 1–3) (CS 4.4). Upload only files named in the creative manifest.
-4. ★ **Jonathan clicks Publish** with the campaign Off. RECORD each ad's review status (`G11-03-trio-review.png`). If Meta does not review ads while the campaign is off, **do not switch it on to force a review** (that spends): RECORD and raise NH-MO-11.
-5. All three approved: GATE-ADS-APPROVE-3 is cleared; add the rest of the matrix (CS 4.5) and A2 (paused). Any disapproval: `appeal-playbook.md` §2 (one fix, one resubmit; two disapprovals on one ad for one reason = stop).
-6. **Campaign B** `SMC_B_LEADS-WEB_ZA_c1` and **Test C** `SMC_C_LEADS-CTWA_ZA_c1`: CS §5, §6, built paused, published ★ for review only.
-7. IDs: the console reads campaign, ad set and ad IDs through W21; confirm they appear on the Ads screen. GATE-CAMPAIGN-PUBLISH = all three campaigns created, approved, Off, at minimum budget.
-8. The go-live budget raise is not done here: it is the console "Approve & go live" tap (6.1 step 5, CONSOLE-ADS-API §4).
+1. **Instant form** `SMC_A1_HI_v1_named_{date}` (FB column `instant_form`; `{date}` = build date `YYYYMMDD`): exactly CS §3 and `deliverables/media-buyer/instant-form-spec.json`; named consent with Mark's practice and FSP. Lead Ads terms for the Page: ★ Jonathan accepts on the first form. Consent text from the current `consent-and-privacy.md` (CS 3.5: the file wins). Run the two staging submissions for ASSUMPTION A4 (CS 3.4) and RECORD.
+2. **Campaign** `SMC_A_LEADS-IF_ZA_c1`, **ad set** `SMC_A_BROAD_ZA_35-50`: CS §4.1 to §4.3 field by field. Budget: enter the **minimum Meta accepts** with the campaign **Off** (CONSOLE-ADS-API); the budget entry is ★ Jonathan. Exclusions per G7.
+3. **Placements:** Advantage+ placements **with Audience Network excluded** (and Messenger inbox if listed); everything else automatic (CS 4.2). RECORD the final list `G11-02-placements.png`.
+
+### G11c. GATE-ADS-APPROVE-3: the trio (FB rows 1 to 3) ★
+
+Only these three ads are built before approval. Ad name = FB `ad_name` stem with `{UPLOAD_YYYYMMDD}` = the upload date (for example `C03_H3_vid-amb_20261015`). Files from `deliverables/visual-producer/assets/` only, exactly the names below; never edit a file after upload. All three: campaign `SMC_A_LEADS-IF_ZA_c1`, ad set `SMC_A_BROAD_ZA_35-50`, form `SMC_A1_HI_v1_named_{date}`, CTA button **Learn more** (`LEARN_MORE`), end-card CTA "Check my cover", captions on (upload the `.srt`).
+
+| Order | Ad name stem | Headline (FB) | Reels / Stories / Feed-vertical (9:16) | Feed 4:5 | 1:1 | Fallback for Feed only (if the 4:5 check fails) | Captions | Condition |
+|---|---|---|---|---|---|---|---|---|
+| 1 | `C01_H1_vid-amb_{UPLOAD_YYYYMMDD}` | Work cover vs the bond. Check the gap. | `C01_employer-cover-gap_9x16_20261002.mp4` | **auto-crop of the 9:16** (do not attach the native amber 4:5) | **auto-crop of the 9:16** (do not attach the native amber 1:1) | `C01_employer-cover-gap_4x5_20261002.png` | `C01_employer-cover-gap_9x16_20261002.srt` | **Pair parity (CS 4.7 rule 4):** the teal twin (FB row 4) has no 4:5/1:1 video, so amber ships 9:16-only too; whatever Feed fallback amber gets, teal gets the same. **2-4x salary source** (NH-PCD-01 / NH-38): only upload the "2-4x salary" render once the source URL is in `verified-facts.md`; if silent, C01 runs with "Work cover is often a few times salary." and visual-producer must supply that render first |
+| 2 | `C03_H3_vid-amb_{UPLOAD_YYYYMMDD}` | The one job after bond approval | `C03_trigger-new-bond_9x16_20261002.mp4` | `C03_trigger-new-bond_4x5_20261002.mp4` (native) | `C03_trigger-new-bond_1x1_20261002.mp4` (native) | `C03_trigger-new-bond_4x5_20261002.png` | `C03_trigger-new-bond_9x16_20261002.srt` | NH-PCD-03 wording already in `concepts.csv` |
+| 3 | `C14_H10_vid-amb_{UPLOAD_YYYYMMDD}` | See every step before booking | `C14_what-the-call-is_9x16_20261002.mp4` | `C14_what-the-call-is_4x5_20261002.mp4` (native) | `C14_what-the-call-is_1x1_20261002.mp4` (native) | `C14_what-the-call-is_4x5_20261002.png` | `C14_what-the-call-is_9x16_20261002.srt` | UI mocks stay labelled "Example screen"; NH-36 phone height-fill. FB row 4 has `landing_url` = `https://sortmycover.co.za/` and the `/what-the-call/` URL in the `landing_page_status` column: confirm the intended URL with media-buyer before entering any website link (NH-MO-16) |
+
+**Per-placement asset rule (CS 4.7):** Reels, Stories and Feed-vertical always get the 9:16 video. Feed 4:5 and 1:1 get the native motion file where it exists (C03, C14), otherwise Meta's auto-crop of the same 9:16 video (C01), never a still unless the 4:5 check below fails. In the ad's "Media" step use **placement asset customisation** so each placement shows the file in the table.
+
+**4:5 safe-zone preview check (NH-36; CS 4.7 rule 3; DW S97 end-card rule), per ad, before Publish:**
+1. Ads Manager, the ad, Preview, open **Facebook Feed** and **Instagram Feed** (4:5), then **Instagram Reels** and **Facebook Stories** (9:16).
+2. 4:5 Feed (the auto-crop loses about 285 px top and bottom of a 9:16 frame): the hook line is fully readable in the first frame; the end-card shows "Check my cover" and the S97 small print ("A service of Lead Velocity (Pty) Ltd. No financial advice, product comparisons or premium quotes.") unclipped; no SAMPLE or "Example screen" label is cut off (C14).
+3. 9:16 Reels/Stories: the S97 small print and CTA sit clear of the bottom caption/CTA overlay and the right-hand icons.
+4. Pass: screenshot `G11-04-{ad}-feed45.png` and `G11-05-{ad}-reels.png`. Fail on 4:5: attach that ad's **fallback for Feed only** (column above), record which ads fell back (they are judged on Reels/Stories hook rate only), and for C01 apply the same fallback to the teal twin later. Fail on 9:16: do not publish; send back to visual-producer.
+
+**EMQ check (before Publish; not a blocker for the instant-form trio):** read Events Manager EMQ for `Lead` and `Schedule` as in G5d step 5 and type the value into `brands.emq`. Campaign A is an on-Meta instant form, so its delivery does not depend on web EMQ; Campaigns B and C do. Expect it to sit lower than an email-bearing setup because **no email is sent to Meta**; if below 6, apply the five levers in G5d (fbp/fbc, external_id, IP + UA, ph E.164 + fn/ln/ct/country, ctwa_clid) and never add email or automatic advanced matching. RECORD `G11-06-emq.png`.
+
+**Publish and read the review:**
+1. ★ **Jonathan clicks Publish** with the campaign Off and the budget at the minimum. RECORD each ad's review status `G11-03-trio-review.png`.
+2. If Meta does not review ads while the campaign is off: **do not switch it on to force a review** (that spends). RECORD; NH-MO-11 / NH-31 c default: leave off.
+3. All three **Active/Approved (campaign Off)**: GATE-ADS-APPROVE-3 is cleared; ops_gate to Jonathan. Then batch 2 (FB rows 4 to 10: C01 teal the same day as amber, C04, C05, C06, C08, C10, C13) per the same per-placement rule and 4:5 check (their 4:5/1:1 = auto-crop; fallback = the row's `fallback_feed_asset`); C13 goes to `/c13-check-not-buy/` only, never `/myth-bust/`. Pool rows 11 to 16 are not uploaded until a replacement slot opens (C02, C12 also wait for compliance-qa re-check).
+4. Any disapproval: `appeal-playbook.md` §2 (one fix, one resubmit; two disapprovals on one ad for one reason = stop).
+
+### G11d. Campaigns B and C, and GATE-CAMPAIGN-PUBLISH ★
+
+1. **Campaign B** `SMC_B_LEADS-WEB_ZA_c1` and **Test C** `SMC_C_LEADS-CTWA_ZA_c1`: CS §5, §6, built paused, published ★ for review only.
+2. IDs: the console reads campaign, ad set and ad IDs through W21; confirm they appear on the Ads screen. GATE-CAMPAIGN-PUBLISH = all three campaigns created, approved, Off, at minimum budget.
+3. The go-live budget raise is not done here: it is the console "Approve & go live" tap (6.1 step 5, CONSOLE-ADS-API §4).
 
 ---
 
@@ -353,13 +389,13 @@ Screenshots of the final settings go to `/deliverables/meta-operator/screens/`. 
 | `G2-01` to `G2-07` | Page About (disclosure), category, access; standby Page; IG profile and link; @coverklaar |
 | `G3-01` to `G3-03` | Both ad accounts' time zone and currency; assets |
 | `G4-01` to `G4-04` | WABA, both numbers (display name status, quality), profile |
-| `G5-01` to `G5-04` | Dataset settings (AAM off, allow list), domain verified, event priority, test events with EMQ |
+| `G5-01` to `G5-05` | Dataset settings (AAM off, allow list), domain verified, event priority, test events, EMQ |
 | `G6-01` to `G6-03` | App basic (secret hidden), system-user assets, leadgen test |
 | `G7-01` | Audiences |
 | `G8-01` | Warm-up settings and result |
 | `G9-*` | Parked handles |
 | `G10-*` | Template rows in WhatsApp Manager (template runbook §5) |
-| `G11-01` to `G11-03` + one per campaign | SAC step, placements, trio review; each campaign's objective, SAC, location, age, exclusions, status Off |
+| `G11-01` to `G11-06` + one per campaign | SAC step, placements, trio review, 4:5 and Reels previews per ad, EMQ; each campaign's objective, SAC, location, age, exclusions, status Off |
 | `G12-*` | Flow health check, Builder, test bookings (template runbook §6) |
 
 **`brands` row (code `SMC`) when complete** (columns from the migration; nothing else is stored):
@@ -370,7 +406,7 @@ Screenshots of the final settings go to `/deliverables/meta-operator/screens/`. 
 | `ig_user_id` | G2c |
 | `waba_id`, `phone_number_id`, `standby_phone_number_id` | G4 |
 | `ad_account_id`, `standby_ad_account_id` | G3 |
-| `pixel_id`, `dataset_id` | G5a |
+| `pixel_id`, `dataset_id`, `emq` | G5 |
 | `app_id` | G6a |
 | `system_user_token_ref` = `META_SYSTEM_USER_TOKEN` | G6b |
 | `booking_flow_id`, `flow_public_key_ref` = `FLOW_PUBLIC_KEY` | W28 (template runbook §6) |
@@ -382,7 +418,7 @@ Screenshots of the final settings go to `/deliverables/meta-operator/screens/`. 
 
 **`.env` names (Jonathan types the values; nothing else stores them):** `WABA_ID`, `PHONE_NUMBER_ID`, `WA_PHONE_NUMBER_ID`, `WA_STANDBY_PHONE_NUMBER_ID`, `WA_2FA_PIN`, `WA_2FA_PIN_STANDBY`, `WHATSAPP_TEST_PHONE_NUMBER_ID`, `META_APP_ID`, `META_APP_SECRET`, `META_WEBHOOK_VERIFY_TOKEN`, `META_GRAPH_VERSION`, `META_SYSTEM_USER_TOKEN`, `META_CAPI_TOKEN`, `META_PIXEL_ID`, `META_DATASET_ID`, `META_API_VERSION`, `META_TEST_EVENT_CODE`, `BOOKING_FLOW_ID`, `RESCHEDULE_FLOW_ID`, `FLOW_PRIVATE_KEY`, `FLOW_PRIVATE_KEY_PASSPHRASE`, `FLOW_PUBLIC_KEY`, `FLOW_ENDPOINT_URL`.
 
-**Section 7 lines this runbook turns green (W27 health must read them back):** Page + IG live, linked, disclosure in About, 7-day warm-up done; Business Portfolio verified or submitted; all Meta IDs in the `brands` row; Pixel/CAPI domain verified, event priority set, EMQ at least 6, exclusions + engagement audiences created; Pixel + CAPI verified in Events Manager, Lead Ads webhook subscribed and tested; Campaigns A, B, C created per spec with the Special Ad Category decision recorded; WhatsApp number live, Business Verification complete, display name approved, standby number on the same WABA; ads approved and Off (after G11 step 5).
+**Section 7 lines this runbook turns green (W27 health must read them back):** Page + IG live, linked, disclosure in About, 7-day warm-up done; Business Portfolio verified or submitted; all Meta IDs in the `brands` row; Pixel/CAPI domain verified, event priority set, EMQ at least 6, exclusions + engagement audiences created; Pixel + CAPI verified in Events Manager, Lead Ads webhook subscribed and tested; Campaigns A, B, C created per spec with the Special Ad Category decision recorded; WhatsApp number live, Business Verification complete, display name approved, standby number on the same WABA; ads approved and Off (after G11c).
 
 ---
 
@@ -398,17 +434,20 @@ Screenshots of the final settings go to `/deliverables/meta-operator/screens/`. 
 
 | Code | Issue | Default if silent |
 |---|---|---|
-| NH-MO-01 (money) | 2.1.3 wants a ~R50/day x 7 paid warm-up before lead campaigns; 0.1 / 6.6 say nothing spends before the first payment, and Section 7 needs the warm-up done before Go live. About R350 would be spent pre-payment. (The 2.1.3 "boost" vs media-buyer "no boosting" conflict is resolved as a Reach-objective ad.) | **No default (money).** Options: (a) Jonathan approves ~R350 pre-payment; (b) organic-only warm-up now, paid Reach week starts the day payment lands and lead campaigns go live 7 days later |
-| NH-MO-02 | GATE-DOMAINS may be deferred. Page/IG website and email, WhatsApp profile website, domain verification, Pixel website URL and template URL buttons all need `sortmycover.co.za` live. | Create every asset now with those fields empty; fill them at the domain cutover, which becomes a pre-go-live gate; never use the staging host |
-| NH-MO-03 (money) | Two SA mobile numbers not on WhatsApp are needed (primary + standby). New SIMs cost money before first payment. | Use numbers Lead Velocity already owns that are not on WhatsApp; if none, staging stays on the Meta test number until payment |
-| NH-MO-04 | Standby Page name is not specified anywhere. | `SortMyCover South Africa`, same category and disclosure |
-| NH-MO-05 | `brands` has no `standby_page_id` or reschedule Flow id column. | Store in `handles` (`fb_standby_page_id`) and `.env` (`RESCHEDULE_FLOW_ID`); platform-architect adds columns in the next additive migration |
-| NH-MO-06 | The repo uses both `PHONE_NUMBER_ID` (W22, Flow endpoint) and `WA_PHONE_NUMBER_ID` (W23, tests) for the same number. | Set both to the same value; automation-engineer unifies on one name |
-| NH-MO-07 | Using the standby number for `ops_*` messages to Jonathan/KG (6.8b says "from the SortMyCover number"; the standby is a SortMyCover number on the same WABA). | Yes: gives the standby a genuine quality history without scripts |
-| NH-MO-08 | 4.4a / Section 7 require "event priority set"; if Events Manager no longer offers the priority screen, the line cannot be ticked as written. | Record the screen; mark the line "not configurable, recorded {date}" |
-| NH-MO-09 | CS §7 names `SMC_EXC_leads_90d` as "customer list + pixel Lead 90 d", but a Meta audience has one source. | Two audiences `SMC_EXC_leads_90d_pix` and `SMC_EXC_leads_90d_list`, both excluded |
-| NH-MO-10 | No ad creative manifest exists yet (visual-producer produced brand exports and samples only). Task 5 "upload assets from the manifest" cannot run. | Waits; G11 is not on the Phase 0 path |
-| NH-MO-11 (money) | Ads published in an Off campaign may not be reviewed until the campaign is on; switching it on spends. | Do not switch on; Jonathan decides (for example a R minimum one-day run after payment) |
-| NH-MO-12 | 4.6 "never use marketing-category templates" vs 0.3 #1 "accept category decisions" (already raised by automation-engineer). | Accept and log for build/testing; same-day `_u2` utility rewrite; no lead-facing marketing template in production without Jonathan's yes |
-| NH-MO-13 | The template review samples show a fictional "FSP 12345", which may be a real FSP's number. | compliance-qa checks or replaces it with an obviously fictional value before submission |
-| NH-MO-14 | Using the standby ad account / Page / number is limited by `appeal-playbook.md` §9 (never while a policy decision stands), which narrows 2.1.3's "standby" and the 6B.10 drill wording. | Adopt the §9 rule; Jonathan acknowledges |
+| NH-MO-01 (money) | ~R350 paid warm-up before first payment. Now carried as **NH-31 a** in `gates-batch.md` | NH-31 a default: organic now, paid week after payment |
+| NH-MO-02 | GATE-DOMAINS may be deferred. Page/IG website and email, WhatsApp profile website, domain verification, Pixel website URL and the three `sortmycover.co.za` URL-button templates all need the domain live | Create every asset now with those fields empty; fill them at the domain cutover (pre-go-live gate); never use the staging host |
+| NH-MO-03 (money) | Two SA numbers not on WhatsApp. Now **NH-31 b** | Test number until payment |
+| NH-MO-04 | Standby Page name not specified | `SortMyCover South Africa` |
+| NH-MO-05 | `brands` has no `standby_page_id` or reschedule Flow id column | `handles.fb_standby_page_id` and `.env` `RESCHEDULE_FLOW_ID`; additive migration later |
+| NH-MO-06 | `PHONE_NUMBER_ID` and `WA_PHONE_NUMBER_ID` both used | Same value in both; automation-engineer unifies |
+| NH-MO-07 | Standby number sends `ops_*` | Yes |
+| NH-MO-08 | "Event priority set" may not be configurable | Record the screen; mark the line "not configurable, recorded {date}" |
+| NH-MO-08b | Section 7 says "EMQ at least 6"; with no email sent to Meta (0.1) EMQ may sit below 6 after all five levers | Record the value and levers applied; the line reads "EMQ {n}, email excluded by 0.1"; never add email |
+| NH-MO-09 | One source per Meta audience | `SMC_EXC_leads_90d_pix` and `SMC_EXC_leads_90d_list`, both excluded |
+| NH-MO-10 | ~~No creative manifest~~ **Closed:** `deliverables/visual-producer/assets/manifest.json` and `first-batch.csv` exist | — |
+| NH-MO-11 (money) | Ads in an Off campaign may not be reviewed; switching on spends. Now **NH-31 c** | Leave off |
+| NH-MO-12 | 4.6 "never marketing templates" vs 0.3 #1 "accept" | Accept and log; `_u2` rewrite; no lead-facing marketing template in production without Jonathan's yes |
+| NH-MO-13 | Sample FSP. **Partly closed:** JSON examples and brand templates use `00000 (SAMPLE)` (R4 §1 #8-9). **Still open (owner, not Jonathan):** `automation/templates/samples/intro_card_sample.png` shows "FSP 12345" (viewed 2026-10-02); visual-producer re-renders | Hold the IMAGE templates until fixed |
+| NH-MO-14 | Standby use limited by `appeal-playbook.md` §9. Now **NH-31 d** | Acknowledged by default |
+| NH-MO-15 | NH-19a AI sentence: not in the three `broker_intro_*` JSON files; NH-38 default is "yes"; DW §3 says the intro templates stay verbatim | Hold those three; if yes/default, automation-engineer adds the sentence before submission |
+| NH-MO-16 (owner: media-buyer) | `first-batch.csv` rows C14, C06, C07, C15: `landing_url` = site root while `landing_page_status` holds a page URL (looks like a shifted column) | Do not enter a website link on those ads until media-buyer confirms |

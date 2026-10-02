@@ -207,6 +207,7 @@ test('Validate decision: via is console, whatsapp (W07 source) or webhook; Decid
   assert.match(sql('Decide'), /decided_via = case when d\.decision = 'later' then p\.decided_via else coalesce\(p\.decided_via, d\.via\) end/);
   const W33 = JSON.parse(readFileSync(join(here, '..', 'W33.json'), 'utf8'));
   const j = W33.nodes.find((x) => x.name === 'Judge samples').parameters.query.replace(/\s+/g, ' ');
+  assert.match(j, /select 'lead-pulse' as rubric/); assert.doesNotMatch(j, /whatsapp-conversation/);
   assert.match(j, /from public\.lead_pulse where thumbs = 'down'/); assert.match(j, /limit 10/);
   assert.doesNotMatch(j, /lead_id|booking_id|broker_id/);
 });
