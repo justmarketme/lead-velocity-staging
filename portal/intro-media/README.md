@@ -55,7 +55,7 @@ Face found and centred (`FaceDetector` where the browser has it, else a skin-ton
 
 ## Open items for other agents
 - `brand/tokens.css` has no status or WhatsApp-mock colours; `step.css` defines `--ok`, `--warn`, `--bad`, `--info-bg` and `--wa-*` locally (visual-producer to promote or reject).
-- Media files `media/explainer.mp4`, `media/explainer-poster.jpg`, `media/example-adviser.mp4` are slots; the page shows a labelled placeholder until they exist. Source: `deliverables/intro-media/explainer-storyboard.md`. Serve `brand/` next to `portal/` (or copy `tokens.css` + `fonts/`) so the `@import` resolves.
+- Explainer (built, S7-06): `assets/explainer/explainer_1x1.mp4` (in-page, 1080x1080), `explainer_9x16.mp4` (1080x1920; full-screen on phones and the WhatsApp send), `explainer-poster.jpg`, `explainer.srt`, `explainer-vo-script.txt`, `manifest.json` (row to timestamp map). Silent, captions burned in; voice-over is a separate asset. Rebuild: `node portal/intro-media/assets/explainer/src/build.mjs`. `media/example-adviser.mp4` is still a slot; the page shows a labelled placeholder until it exists. Source: `deliverables/intro-media/explainer-storyboard.md`. Serve `brand/` next to `portal/` (or copy `tokens.css` + `fonts/`) so the `@import` resolves.
 - Accessibility: all buttons are real buttons with labels, notes use `aria-live`, colour is never the only signal (text accompanies every tick or warning), tap targets >= 44 px, `prefers-reduced-motion` and dark mode follow the tokens.
 
 

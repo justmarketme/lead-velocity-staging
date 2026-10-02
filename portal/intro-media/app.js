@@ -197,6 +197,8 @@
   function pageIndex() {
     var vid = $('#explainer');
     if (vid) {
+      // 1080x1080 is the in-page default; the 9:16 file (data-src-tall) is for full-screen phone play and the WhatsApp send
+      vid.addEventListener('fullscreenchange', function () { var t = vid.dataset.srcTall; if (!t) return; var full = !!document.fullscreenElement, want = full ? t : vid.getAttribute('src'); if (full && vid.src.indexOf('9x16') < 0) { var at = vid.currentTime, pl = !vid.paused; vid.dataset.srcSquare = vid.getAttribute('src'); vid.src = t; vid.currentTime = at; if (pl) vid.play(); } else if (!full && vid.dataset.srcSquare && vid.src.indexOf('9x16') > -1) { var at2 = vid.currentTime, pl2 = !vid.paused; vid.src = vid.dataset.srcSquare; vid.currentTime = at2; if (pl2) vid.play(); } });
       vid.addEventListener('error', function () { $('#explainer-fallback').hidden = false; vid.hidden = true; });
     }
     var ex = $('#example');

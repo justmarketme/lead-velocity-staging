@@ -1,0 +1,126 @@
+{
+  "asset": "step explainer (S7-06, 4.10b)",
+  "source": "deliverables/intro-media/explainer-storyboard.md",
+  "rendered": "2026-10-02",
+  "pipeline": "src/explainer.html + src/build.mjs (Chromium frames from brand tokens/logo SVG, ffmpeg H.264 30 fps, silent)",
+  "audio": "none; voice-over is a separate asset (explainer-vo-script.txt, explainer.srt)",
+  "limits": {
+    "max_seconds": 60,
+    "max_bytes": 8000000
+  },
+  "files": [
+    {
+      "file": "explainer_9x16.mp4",
+      "ratio": "9x16",
+      "w": 1080,
+      "h": 1920,
+      "bytes": 593253,
+      "duration_s": 44.03
+    },
+    {
+      "file": "explainer_1x1.mp4",
+      "ratio": "1x1",
+      "w": 1080,
+      "h": 1080,
+      "bytes": 449173,
+      "duration_s": 44.03
+    },
+    {
+      "file": "explainer.srt",
+      "bytes": 982
+    },
+    {
+      "file": "explainer-vo-script.txt",
+      "bytes": 932
+    },
+    {
+      "file": "explainer-poster.jpg",
+      "bytes": 68398
+    }
+  ],
+  "row_to_timestamp": [
+    {
+      "storyboard_row": 1,
+      "storyboard_time": "0:00 to 0:09",
+      "start_s": 0,
+      "end_s": 11.5,
+      "caption_burned_headline": "This is the step we're testing to help people turn up",
+      "scenes": [
+        {
+          "at_s": 0,
+          "scene": "title"
+        },
+        {
+          "at_s": 3.5,
+          "scene": "why"
+        }
+      ]
+    },
+    {
+      "storyboard_row": 2,
+      "storyboard_time": "0:09 to 0:21",
+      "start_s": 11.5,
+      "end_s": 22.5,
+      "caption_burned_headline": "Answer eight quick questions. We write three scripts in your words.",
+      "scenes": [
+        {
+          "at_s": 11.5,
+          "scene": "interview"
+        },
+        {
+          "at_s": 16.5,
+          "scene": "scripts"
+        }
+      ]
+    },
+    {
+      "storyboard_row": 3,
+      "storyboard_time": "0:21 to 0:35",
+      "start_s": 22.5,
+      "end_s": 35.5,
+      "caption_burned_headline": "Face a window, phone at eye level, read the teleprompter. 25 seconds.",
+      "scenes": [
+        {
+          "at_s": 22.5,
+          "scene": "checklist"
+        },
+        {
+          "at_s": 27,
+          "scene": "count"
+        },
+        {
+          "at_s": 28.5,
+          "scene": "prompt"
+        },
+        {
+          "at_s": 33,
+          "scene": "verdict"
+        }
+      ]
+    },
+    {
+      "storyboard_row": 4,
+      "storyboard_time": "0:35 to 0:43",
+      "start_s": 35.5,
+      "end_s": 44,
+      "caption_burned_headline": "We add captions and your FSP. You approve. Done.",
+      "scenes": [
+        {
+          "at_s": 35.5,
+          "scene": "approve"
+        },
+        {
+          "at_s": 39.5,
+          "scene": "end"
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "Row 1 window is 0 to 11.5 s, not 0 to 9: its 37 spoken words do not fit 9 s. Rows 2 to 4 shift to match; total 44 s (storyboard cap 45 s).",
+    "Burned-in captions: headline = storyboard on-screen caption for the row; lower lane = VO transcript cues (row 1 first cue omitted, identical to the headline).",
+    "Optional line \"or skip for now. Nothing is held up while you wait.\" not added (would exceed 45 s).",
+    "Screens are drawn from the brand system, labelled SAMPLE; adviser is the fictional Sam Example, FSP 00000 (SAMPLE). Not a recording of the live portal.",
+    "Storyboard says 16:9 1280x720; this build follows the task (1080x1920 phone, 1080x1080 web view). The portal slot is 16:9 with object-fit:cover, so 1x1 is cropped top and bottom: see needs_human."
+  ]
+}
