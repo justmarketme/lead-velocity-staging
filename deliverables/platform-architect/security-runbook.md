@@ -50,3 +50,9 @@ Never paste secret values into chat, commits, tickets or this file (pre-mortem #
 | `smc_erase_lead` | callable by n8n_app only |
 | secrets in DB | `brands.*_ref` hold names only (CHECK blocks `EAA…` tokens and PEM keys) |
 | leak response | Any secret or PII in chat, logs or commits → halt, rotate, record an `incidents` row; if personal information was exposed, follow the W34 breach runbook (POPIA s22) |
+
+## E. Exposing the `ops` schema to the console (I-13)
+The console Today screen reads `ops.pulses`, `ops.proposals`, `ops.signals`, `ops.notifications`, `ops.quality_grades`, `ops.judge_runs` and `ops.build_state_latest` through the Supabase client (`supabase.schema('ops')`). Every `ops` table is RLS admin-only (05 §1, 07 §1); `ops.alert_recipients` and `ops.w22_metrics` are granted to `n8n_app` only.
+1. After 06/07 are applied: Dashboard → Project Settings → API → **Exposed schemas**: add `ops` (keep `public`, `graphql_public`). Locally: `supabase/config.toml` `[api] schemas = ["public", "graphql_public", "ops"]`. **Never add `facts` or `smc_private`**; the console reads facts only via `smc_watchlist()` / `smc_watchlist_tiles()` (admin check inside).
+2. Check: as a broker JWT, `GET /rest/v1/proposals` with `Accept-Profile: ops` returns `[]`; as anon it returns 401/permission denied; as admin it returns rows.
+3. Rollback: remove `ops` from the exposed list (no data change).

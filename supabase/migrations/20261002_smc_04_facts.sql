@@ -53,6 +53,12 @@ AS $$ SELECT (ts AT TIME ZONE 'Africa/Johannesburg')::date $$;
 -- -----------------------------------------------------------------------------
 -- fact_lead — one row per SortMyCover lead, the funnel in booleans
 -- -----------------------------------------------------------------------------
+-- Guarded: migration 06 (pass 2) re-creates this view with appended columns; re-running this file must not shrink it.
+DO $smc_v$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                  WHERE table_schema = 'facts' AND table_name = 'fact_lead' AND column_name = 'verified_at') THEN
+    EXECUTE $smc_q$
 CREATE OR REPLACE VIEW facts.fact_lead AS
 SELECT
   facts.lead_key(l.id)                                  AS lead_key,
@@ -117,7 +123,10 @@ LEFT JOIN LATERAL (
    WHERE r.lead_id = l.id AND r.status <> 'rejected' LIMIT 1
 ) rp ON true
 WHERE l.brand_id IS NOT NULL
-  AND (NOT l.is_synthetic OR facts.include_synthetic());
+  AND (NOT l.is_synthetic OR facts.include_synthetic())
+    $smc_q$;
+  END IF;
+END $smc_v$;
 
 -- -----------------------------------------------------------------------------
 -- fact_message — one row per SortMyCover message; no bodies, no numbers
@@ -143,6 +152,12 @@ WHERE c.brand_id IS NOT NULL
 -- -----------------------------------------------------------------------------
 -- fact_booking
 -- -----------------------------------------------------------------------------
+-- Guarded: migration 06 (pass 2) re-creates this view with appended columns; re-running this file must not shrink it.
+DO $smc_v$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                  WHERE table_schema = 'facts' AND table_name = 'fact_booking' AND column_name = 'booked_at') THEN
+    EXECUTE $smc_q$
 CREATE OR REPLACE VIEW facts.fact_booking AS
 SELECT
   a.id                                AS booking_id,
@@ -162,11 +177,20 @@ SELECT
 FROM public.appointments a
 JOIN public.leads l ON l.id = a.client_id
 WHERE a.brand_id IS NOT NULL
-  AND (NOT l.is_synthetic OR facts.include_synthetic());
+  AND (NOT l.is_synthetic OR facts.include_synthetic())
+    $smc_q$;
+  END IF;
+END $smc_v$;
 
 -- -----------------------------------------------------------------------------
 -- fact_outcome
 -- -----------------------------------------------------------------------------
+-- Guarded: migration 06 (pass 2) re-creates this view with appended columns; re-running this file must not shrink it.
+DO $smc_v$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                  WHERE table_schema = 'facts' AND table_name = 'fact_outcome' AND column_name = 'marked_at') THEN
+    EXECUTE $smc_q$
 CREATE OR REPLACE VIEW facts.fact_outcome AS
 SELECT
   o.id                             AS outcome_id,
@@ -184,7 +208,10 @@ SELECT
 FROM public.outcomes o
 JOIN public.appointments a ON a.id = o.booking_id
 JOIN public.leads l        ON l.id = o.lead_id
-WHERE (NOT l.is_synthetic OR facts.include_synthetic());
+WHERE (NOT l.is_synthetic OR facts.include_synthetic())
+    $smc_q$;
+  END IF;
+END $smc_v$;
 
 -- -----------------------------------------------------------------------------
 -- fact_comment
@@ -208,6 +235,12 @@ FROM public.comments cm;
 -- brand's routed leads on that SA day. ASSUMPTION — allocation by lead share;
 -- validate against media_share_zar at the first cycle close (analytics-reporter).
 -- -----------------------------------------------------------------------------
+-- Guarded: migration 06 (pass 2) re-creates this view with appended columns; re-running this file must not shrink it.
+DO $smc_v$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                  WHERE table_schema = 'facts' AND table_name = 'fact_cost' AND column_name = 'cycle_id') THEN
+    EXECUTE $smc_q$
 CREATE OR REPLACE VIEW facts.fact_cost AS
 WITH raw AS (
   SELECT am.date, 'media'::text AS kind, am.brand_id, NULL::uuid AS broker_id, sum(am.spend_zar) AS amount_zar, 'ad_metrics'::text AS source
@@ -232,11 +265,20 @@ SELECT r.date, r.kind, r.brand_id, s.broker_id,
        CASE WHEN s.broker_id IS NULL THEN 'unallocated' ELSE 'lead_share' END
   FROM raw r
   LEFT JOIN share s ON s.brand_id IS NOT DISTINCT FROM r.brand_id AND s.date = r.date
- WHERE r.broker_id IS NULL;
+ WHERE r.broker_id IS NULL
+    $smc_q$;
+  END IF;
+END $smc_v$;
 
 -- -----------------------------------------------------------------------------
 -- fact_ad_day — spend (ad_metrics) joined to what the leads actually did (leads/outcomes)
 -- -----------------------------------------------------------------------------
+-- Guarded: migration 06 (pass 2) re-creates this view with appended columns; re-running this file must not shrink it.
+DO $smc_v$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                  WHERE table_schema = 'facts' AND table_name = 'fact_ad_day' AND column_name = 'day') THEN
+    EXECUTE $smc_q$
 CREATE OR REPLACE VIEW facts.fact_ad_day AS
 WITH spend AS (
   SELECT am.date, am.brand_id, am.ad_id,
@@ -280,11 +322,20 @@ SELECT
   CASE WHEN coalesce(ls.quality_n, 0) >= 5 THEN ls.quality_avg END AS quality_index,   -- n ≥ 5 (3.4)
   coalesce(ls.nofit, 0)     AS nofit
 FROM spend s
-FULL JOIN leadside ls ON ls.date = s.date AND ls.brand_id = s.brand_id AND ls.ad_id = s.ad_id;
+FULL JOIN leadside ls ON ls.date = s.date AND ls.brand_id = s.brand_id AND ls.ad_id = s.ad_id
+    $smc_q$;
+  END IF;
+END $smc_v$;
 
 -- -----------------------------------------------------------------------------
 -- fact_broker_day — a broker's week in one screen (Pipedrive): capacity, load, to-dos
 -- -----------------------------------------------------------------------------
+-- Guarded: migration 06 (pass 2) re-creates this view with appended columns; re-running this file must not shrink it.
+DO $smc_v$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                  WHERE table_schema = 'facts' AND table_name = 'fact_broker_day' AND column_name = 'day') THEN
+    EXECUTE $smc_q$
 CREATE OR REPLACE VIEW facts.fact_broker_day AS
 WITH days AS (
   SELECT b.id AS broker_id, b.brand_id, gs::date AS date
@@ -324,11 +375,20 @@ SELECT
              AND d.date BETWEEN r.week AND r.week + 6
              AND (r.opened_portal_at IS NOT NULL OR r.opened_wa_at IS NOT NULL))  AS report_opened
 FROM days d
-JOIN public.brokers b ON b.id = d.broker_id;
+JOIN public.brokers b ON b.id = d.broker_id
+    $smc_q$;
+  END IF;
+END $smc_v$;
 
 -- -----------------------------------------------------------------------------
 -- fact_cycle — committed, delivered, replacements, margin per cycle
 -- -----------------------------------------------------------------------------
+-- Guarded: migration 06 (pass 2) re-creates this view with appended columns; re-running this file must not shrink it.
+DO $smc_v$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                  WHERE table_schema = 'facts' AND table_name = 'fact_cycle' AND column_name = 'renewed') THEN
+    EXECUTE $smc_q$
 CREATE OR REPLACE VIEW facts.fact_cycle AS
 SELECT
   c.id AS cycle_id, c.broker_id, c.brand_id, c.tier_code, c.cycle_no, c.status,
@@ -366,7 +426,10 @@ CROSS JOIN LATERAL (
   WHERE fc.broker_id = c.broker_id
     AND fc.date >= facts.sa_date(c.starts_at)
     AND fc.date <  facts.sa_date(coalesce(c.extended_until, c.ends_at))
-) k;
+) k
+    $smc_q$;
+  END IF;
+END $smc_v$;
 
 -- -----------------------------------------------------------------------------
 -- v_watchlist — 6A2 #3: the seven numbers, overall and per broker.

@@ -543,6 +543,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS appointments_smc_idem_uidx ON public.appointme
 CREATE UNIQUE INDEX IF NOT EXISTS appointments_smc_graph_event_uidx ON public.appointments (graph_event_id) WHERE graph_event_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS appointments_smc_lead_idx ON public.appointments (client_id) WHERE brand_id IS NOT NULL;
 
+-- Guarded: migration 06 (pass 2) re-creates this view with appended columns; re-running this file must not shrink it.
+DO $smc_v$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                  WHERE table_schema = 'public' AND table_name = 'bookings' AND column_name = 'intro_arm') THEN
+    EXECUTE $smc_q$
 CREATE OR REPLACE VIEW public.bookings WITH (security_invoker = true) AS
 SELECT a.id, a.brand_id, a.broker_id, a.client_id AS lead_id, a.cycle_id,
        a.appointment_date AS starts_at, a.ends_at, a.method, a.status,
@@ -551,7 +557,10 @@ SELECT a.id, a.brand_id, a.broker_id, a.client_id AS lead_id, a.cycle_id,
        a.booked_via AS source, a.booked_at, a.schedule_event_id, a.confirmed_at,
        a.cancelled_at, a.reschedule_count, a.previous_booking_id, a.created_at, a.updated_at
 FROM public.appointments a
-WHERE a.brand_id IS NOT NULL;
+WHERE a.brand_id IS NOT NULL
+    $smc_q$;
+  END IF;
+END $smc_v$;
 COMMENT ON VIEW public.bookings IS 'SMC: prompt name for SortMyCover rows of appointments (INV-T24). Writes go to appointments.';
 
 -- -----------------------------------------------------------------------------

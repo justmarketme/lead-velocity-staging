@@ -309,13 +309,22 @@ END $$;
 CREATE UNIQUE INDEX IF NOT EXISTS report_history_smc_week_uidx
   ON public.report_history (broker_id, week, report_kind) WHERE brand_id IS NOT NULL;
 
+-- Guarded: migration 06 (pass 2) re-creates this view with appended columns; re-running this file must not shrink it.
+DO $smc_v$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                  WHERE table_schema = 'public' AND table_name = 'reports' AND column_name = 'edition') THEN
+    EXECUTE $smc_q$
 CREATE OR REPLACE VIEW public.reports WITH (security_invoker = true) AS
 SELECT r.id, r.brand_id, r.broker_id, r.cycle_id, r.week, r.report_kind,
        r.report_data AS payload_json, r.pdf_url, r.sent_wa_at, r.sent_email_at,
        r.opened_portal_at, r.opened_wa_at, r.ask, r.ask_done_at, r.judge_passed,
        r.status, r.created_at
 FROM public.report_history r
-WHERE r.brand_id IS NOT NULL;
+WHERE r.brand_id IS NOT NULL
+    $smc_q$;
+  END IF;
+END $smc_v$;
 COMMENT ON VIEW public.reports IS 'SMC 4.10a: prompt name for SortMyCover rows in report_history (INV-T21). One row feeds WhatsApp, portal and email.';
 
 -- -----------------------------------------------------------------------------
