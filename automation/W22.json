@@ -1,0 +1,1324 @@
+{
+  "name": "W22 Alerts",
+  "nodes": [
+    {
+      "id": "a4f348ef-6e08-a9c5-0806-516b783437f1",
+      "name": "About W22",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1200,
+        -520
+      ],
+      "parameters": {
+        "content": "## W22 Alerts (devops-security)\nThreshold table, sources and the ops.notifications contract: `automation/W22.md`.\n\nTriggers: 5-min threshold sweep, 5-min escalation/DND release, hourly Flow ping + uptime + WABA health, daily DKIM/DMARC, signals from other workflows (Execute Workflow), uptime-monitor callback, n8n Error Trigger.\n\nRules: dedupe same signal <= 1 per 24 h (SQL on dedupe_key); DND 22:00-07:00 SAST except guardrail trip, WABA restriction, payment failure, VPS/api down; unacked red at 2 h -> other partner; 4 h -> Twilio voice to both (the only voice use).\n\nNo secrets in this file. Credentials are referenced by name. Config from env (N8N_BLOCK_ENV_ACCESS_IN_NODE=false, see SECURITY.md).",
+        "width": 560,
+        "height": 340
+      }
+    },
+    {
+      "id": "a71b2762-415f-4d40-22a2-daa2e6748347",
+      "name": "Every 5 min - threshold sweep",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1200,
+        -100
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "0a4c45b1-beb7-bd96-2050-f6264d1ae88a",
+      "name": "Read metric snapshot",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -960,
+        -100
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT metric, scope, value, n, context, since FROM ops.w22_metrics;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "lv-pg-n8n-app",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "id": "fcf54e6e-46d3-4293-1c39-1ec897e60f3c",
+      "name": "Evaluate thresholds",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -720,
+        -100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Evaluate thresholds: one row per metric from ops.w22_metrics -> zero or more signals.\n// THRESHOLDS mirrors automation/W22.md section 1. Change both together (W22.test.mjs checks the keys match).\nconst THRESHOLDS = {\n  raw_cpl_zar: { key: 'cpl_kill_raw', sev: 'red', limit: 250, cmp: 'gt', gate: (m) => (m.context.spend_zar || 0) >= 3000,\n    what: (m) => `Raw CPL R${Math.round(m.value)} above R250 kill line (${m.scope})`,\n    impact: 'Spend is buying leads above the 3.4 model', action: 'Pause bottom 50% of creatives; tighten questions (3.4)' },\n  qualify_rate: { key: 'qualify_rate_low', sev: 'red', limit: 0.60, cmp: 'lt', gate: (m) => (m.context.spend_zar || 0) >= 3000,\n    what: (m) => `Qualify rate ${Math.round(m.value * 100)}% below 60% (${m.scope})`,\n    impact: 'Raw leads are not qualifying', action: 'Pause bottom 50% of creatives; tighten questions (3.4)' },\n  cost_per_qualified_zar: { key: 'cpql_kill', sev: 'red', limit: 400, cmp: 'gt', gate: (m) => (m.context.days_live || 0) >= 14,\n    what: (m) => `Cost per qualified lead R${Math.round(m.value)} above R400 after 14 days (${m.scope})`,\n    impact: 'Cycle economics at risk (Section 3)', action: 'Stop and decide with Jonathan (3.4)' },\n  show_rate_14d: { key: 'show_rate_low', sev: 'red', limit: 0.50, cmp: 'lt', gate: (m) => (m.n || 0) >= 8,\n    what: (m) => `Show rate ${Math.round(m.value * 100)}% over 14 days (${m.scope}, n=${m.n})`,\n    impact: 'Booked meetings are not being attended', action: 'Review reminder sequence and qualification (3.4)' },\n  first_message_sla_breaches: { key: 'first_msg_sla', sev: 'red', limit: 0, cmp: 'gt', gate: () => true,\n    what: (m) => `${m.value} lead(s) waited over 60 s for the first WhatsApp (worst ${m.context.worst_seconds || '?'} s)`,\n    impact: 'Warmest moment lost; W06 or the send path is slow or down', action: 'Check W06 executions and WhatsApp send errors' },\n  leads_last_hour: { key: 'intake_spike', sev: 'red', limit: null, cmp: 'spike', gate: (m) => m.value >= 20,\n    what: (m) => `${m.value} leads in the last hour vs normal ${m.context.baseline_hourly_median_7d || 0}`,\n    impact: 'Possible bot or SMS-pumping attack on /lead (6B.5)', action: 'Check Turnstile and rate-limit logs; pause the form if fake' },\n  oauth_refresh_failures_24h: { key: 'calendar_token_failed', sev: 'red', limit: 0, cmp: 'gt', gate: () => true,\n    what: (m) => `Calendar token refresh failing for ${m.scope}`,\n    impact: 'Slots and bookings fail for this broker; list fallback in use', action: 'Ask the broker to reconnect Outlook in the portal' },\n  secret_days_to_expiry: { key: 'token_expiring', sev: 'tiered', limit: 30, cmp: 'lte', gate: () => true,\n    what: (m) => `${m.scope.replace('secret:', '')} expires in ${Math.max(0, Math.floor(m.value))} days`,\n    impact: 'Integration stops at expiry', action: 'Rotate per SECURITY.md section 1 and update ops.secret_inventory' },\n  backup_hours_since_success: { key: 'backup_stale', sev: 'red', limit: 26, cmp: 'gt', gate: () => true,\n    what: (m) => `Last good pg_dump ${Math.floor(m.value)} h ago`,\n    impact: 'Consent records (legal evidence) not backed up off-server', action: 'Check pg_dump_nightly.sh log on the VPS' },\n  restore_test_days_since: { key: 'restore_test_overdue', sev: 'amber', limit: 35, cmp: 'gt', gate: () => true,\n    what: (m) => `Restore test last passed ${Math.floor(m.value)} days ago`,\n    impact: 'Monthly tested-restore target missed', action: 'Run automation/backup/restore.sh --test' },\n};\n\nfunction breached(t, m) {\n  if (t.cmp === 'gt') return m.value > t.limit;\n  if (t.cmp === 'lt') return m.value < t.limit;\n  if (t.cmp === 'lte') return m.value <= t.limit;\n  if (t.cmp === 'spike') return m.value > 3 * Math.max(1, Number(m.context.baseline_hourly_median_7d || 0));\n  return false;\n}\n\nconst out = [];\nfor (const item of $input.all()) {\n  const r = item.json || {};\n  if (r.value === null || r.value === undefined || r.value === '') continue;\n  const m = { metric: r.metric, scope: r.scope || 'global', value: Number(r.value), n: Number(r.n || 0),\n    context: typeof r.context === 'string' ? JSON.parse(r.context || '{}') : (r.context || {}) };\n  const t = THRESHOLDS[m.metric];\n  if (!t || !Number.isFinite(m.value) || !t.gate(m) || !breached(t, m)) continue;\n  const severity = t.sev === 'tiered' ? (m.value <= 7 ? 'red' : 'amber') : t.sev;\n  out.push({ json: {\n    signal_key: t.key, scope: m.scope, severity, source: 'W22.sweep', metric: m.metric,\n    value: m.value, limit: t.limit, what: t.what(m), impact: t.impact, first_action: t.action,\n    since: r.since || new Date().toISOString(),\n  } });\n}\nreturn out;\n"
+      }
+    },
+    {
+      "id": "59dfa794-8a0a-87b7-1d2a-485894e3a1e7",
+      "name": "Hourly - Flow ping, uptime, WABA",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1200,
+        140
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b4b08b53-e389-e3ab-fb4f-12a5c17916f7",
+      "name": "Build Flow ping",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -960,
+        140
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Build an encrypted health-check ping in the exact request format Meta sends to a Flow endpoint\n// (RSA-OAEP-SHA256 wrapped AES-128-GCM key, 16-byte IV, ciphertext||tag, all base64), signed with\n// X-Hub-Signature-256. It is a test client mirroring Meta's reference endpoint, not a new scheme.\nconst crypto = require('crypto');\nconst url = $env.FLOW_ENDPOINT_URL;\nconst pub = String($env.FLOW_PUBLIC_KEY || '').replace(/\\\\n/g, '\\n');\nif (!url || !pub.includes('PUBLIC KEY')) return [{ json: { skip: true, reason: 'flow_not_configured' } }];\nconst aesKey = crypto.randomBytes(16);\nconst iv = crypto.randomBytes(16);\nconst cipher = crypto.createCipheriv('aes-128-gcm', aesKey, iv);\nconst data = Buffer.concat([cipher.update(JSON.stringify({ version: '3.0', action: 'ping' }), 'utf8'), cipher.final(), cipher.getAuthTag()]);\nconst wrapped = crypto.publicEncrypt({ key: pub, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, oaepHash: 'sha256' }, aesKey);\nconst body = JSON.stringify({ encrypted_flow_data: data.toString('base64'), encrypted_aes_key: wrapped.toString('base64'), initial_vector: iv.toString('base64') });\nconst sig = 'sha256=' + crypto.createHmac('sha256', $env.META_APP_SECRET || '').update(body).digest('hex');\nreturn [{ json: { skip: false, url, body, signature: sig, k: aesKey.toString('base64'), iv: iv.toString('base64') } }];\n"
+      }
+    },
+    {
+      "id": "3a00e062-527b-d6c0-c7eb-0cc537c7dc11",
+      "name": "Ping Flow endpoint",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -720,
+        140
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.skip ? 'https://invalid.invalid/' : $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Hub-Signature-256",
+              "value": "={{ $json.signature }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.body }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 3000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "ea98c0ce-2deb-e80e-3479-2d4bf5c4254c",
+      "name": "Judge Flow ping",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        140
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Judge the ping: decrypt the response with the same AES key and the bit-flipped IV\n// (as Meta's reference endpoint encrypts it) and expect {\"data\":{\"status\":\"active\"}} within 3 s.\nconst crypto = require('crypto');\nconst req = $('Build Flow ping').first().json;\nif (req.skip) return [{ json: { failing: false, skip: true } }];\nconst res = $input.first().json || {};\nlet ok = false, reason = 'no_response';\ntry {\n  if (res.statusCode !== 200) { reason = `http_${res.statusCode || 'timeout'}`; }\n  else {\n    const buf = Buffer.from(String(res.body || res.data || '').trim(), 'base64');\n    const key = Buffer.from(req.k, 'base64');\n    const flipped = Buffer.from(Buffer.from(req.iv, 'base64').map((b) => ~b & 0xff));\n    const d = crypto.createDecipheriv('aes-128-gcm', key, flipped);\n    d.setAuthTag(buf.subarray(buf.length - 16));\n    const plain = Buffer.concat([d.update(buf.subarray(0, buf.length - 16)), d.final()]).toString('utf8');\n    const j = JSON.parse(plain);\n    ok = j && j.data && j.data.status === 'active';\n    reason = ok ? 'ok' : 'bad_status';\n  }\n} catch (e) { reason = 'decrypt_failed'; }\nreturn [{ json: { failing: !ok, reason } }];\n"
+      }
+    },
+    {
+      "id": "ccd14981-cad5-d6f3-b560-389c61dab155",
+      "name": "Revert booking_ui if failing",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -240,
+        140
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH r AS (UPDATE brands SET booking_ui = 'list' WHERE booking_ui = 'flow' AND $1::boolean RETURNING 1) SELECT count(*)::int AS reverted FROM r;",
+        "options": {
+          "queryReplacement": "={{ [ $json.failing === true ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "lv-pg-n8n-app",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "executeOnce": true,
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "id": "1dfc098b-509d-5770-7d0b-1cc1c340665a",
+      "name": "Flow ping signal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        140
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Turn the ping verdict (+ whether booking_ui was reverted) into a signal for the policy.\nconst v = $('Judge Flow ping').first().json;\nif (v.skip || !v.failing) return [];\nconst reverted = Number(($input.first().json || {}).reverted || 0);\nreturn [{ json: { kind: 'signal', signal_key: 'flow_ping_fail', scope: 'flow:booking', severity: 'red', source: 'W22.hourly',\n  what: `Booking Flow endpoint ping failed (${v.reason})`,\n  impact: reverted ? `booking_ui reverted to list for ${reverted} brand(s); leads get the 10-slot list` : 'Flow bookings may fail; list fallback applies',\n  first_action: 'Check the Flow endpoint container and FLOW_PRIVATE_KEY; re-run Meta health check', since: new Date().toISOString() } }];\n"
+      }
+    },
+    {
+      "id": "098c568d-a776-44ee-65b4-38c35df70fa8",
+      "name": "Uptime targets",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -960,
+        340
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Hourly reachability of the public surfaces. VPS-down detection itself lives in the external monitor\n// (automation/vps/UPTIME.md) because a dead VPS cannot alert about itself.\nconst t = [];\nconst add = (name, url) => { if (url && /^https:\\/\\//.test(url)) t.push({ json: { target: name, url } }); };\nadd('api', $env.N8N_PUBLIC_URL ? `${$env.N8N_PUBLIC_URL.replace(/\\/$/, '')}/healthz` : null);\nadd('app', $env.CONSOLE_URL);\nadd('portal', $env.PORTAL_URL);\nadd('consumer', $env.CONSUMER_DOMAIN ? `https://${$env.CONSUMER_DOMAIN}/` : null);\nreturn t;\n"
+      }
+    },
+    {
+      "id": "9482154c-8a80-41cb-c7f8-e385faeb5ead",
+      "name": "Probe targets",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -720,
+        340
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "f166dc01-76e7-5800-7399-5c18133e303e",
+      "name": "Judge uptime",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        340
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// 2xx/3xx = up. Down -> red; 'api' down while W22 still runs means Traefik/DNS/tunnel, not the VPS.\nconst targets = $('Uptime targets').all().map((i) => i.json);\nconst out = [];\n$input.all().forEach((i, idx) => {\n  const r = i.json || {};\n  const t = targets[idx] || { target: 'unknown' };\n  const code = Number(r.statusCode || 0);\n  if (code >= 200 && code < 400) return;\n  out.push({ json: { kind: 'signal', signal_key: 'uptime_down', scope: `target:${t.target}`, severity: 'red',\n    always_send: t.target === 'api', source: 'W22.hourly',\n    what: `${t.target} unreachable (HTTP ${code || 'timeout'})`,\n    impact: t.target === 'api' ? 'Webhooks may not reach n8n (tunnel, Traefik or DNS)' : 'A public page or the console is down',\n    first_action: 'See automation/vps/UPTIME.md runbook', since: new Date().toISOString() } });\n});\nreturn out;\n"
+      }
+    },
+    {
+      "id": "419e50c2-ef63-7fa2-529d-4e4a48329ee5",
+      "name": "WhatsApp number health",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -960,
+        540
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION || 'v23.0' }}/{{ $env.PHONE_NUMBER_ID }}?fields=quality_rating,messaging_limit_tier,status,name_status",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false,
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "lv-meta-system-user",
+          "name": "Meta system user token (Bearer)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "0adeff8b-efff-b1d6-705c-bd05e660be63",
+      "name": "Judge WABA health",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -720,
+        540
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// WhatsApp number health (hourly). A drop vs the last stored rating is a signal; RED or a lower\n// messaging tier is always-send (WABA restriction class). State kept in workflow static data.\nconst st = $getWorkflowStaticData('global');\nconst r = $input.first().json || {};\nconst RANK = { GREEN: 3, YELLOW: 2, RED: 1, UNKNOWN: 0 };\nconst out = [];\nif (r.error || !r.quality_rating) {\n  if (r.error && r.error.code === 190) {\n    out.push({ json: { kind: 'signal', signal_key: 'token_invalid', scope: 'meta:system_user', severity: 'red', source: 'W22.hourly',\n      what: 'Meta system-user token rejected (OAuth 190)', impact: 'WhatsApp, Ads and CAPI calls fail',\n      first_action: 'Regenerate the system-user token per SECURITY.md section 1', since: new Date().toISOString() } });\n  }\n  return out;\n}\nconst now = String(r.quality_rating).toUpperCase();\nconst prev = st.waba_quality || 'GREEN';\nconst tierNow = String(r.messaging_limit_tier || '');\nconst tierPrev = st.waba_tier || tierNow;\n// TIER_250 / TIER_1K / TIER_10K / TIER_100K / TIER_UNLIMITED -> daily conversation limit as a number\nconst tierNum = (t) => { if (/UNLIMITED/.test(t)) return 1e9; const m = String(t).match(/(\\d+)(K?)/); return m ? Number(m[1]) * (m[2] ? 1000 : 1) : 0; };\nif ((RANK[now] ?? 0) < (RANK[prev] ?? 3) || tierNum(tierNow) < tierNum(tierPrev)) {\n  out.push({ json: { kind: 'signal', signal_key: now === 'RED' || tierNum(tierNow) < tierNum(tierPrev) ? 'waba_restriction' : 'waba_quality',\n    scope: 'phone:primary', severity: 'red', source: 'W22.hourly',\n    what: `WhatsApp quality ${prev} -> ${now}${tierNow !== tierPrev ? `, tier ${tierPrev} -> ${tierNow}` : ''}`,\n    impact: 'Sending limits may drop; risk of restriction', first_action: 'Check WhatsApp Manager; prepare standby number',\n    since: new Date().toISOString() } });\n}\nst.waba_quality = now; st.waba_tier = tierNow;\nreturn out;\n"
+      }
+    },
+    {
+      "id": "503153d1-0603-67b6-f20b-83a7c87b15cd",
+      "name": "Daily 06:00 - email auth DNS",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1200,
+        740
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "250506d9-4e24-bdba-73fe-b03c85a82adc",
+      "name": "DNS checks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -960,
+        740
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Daily deliverability check (6B.6, monitored in W22): DKIM selector CNAMEs and DMARC TXT on leadvelocity.co.za.\nconst d = 'leadvelocity.co.za';\nreturn [\n  { json: { check: 'dmarc', url: `https://dns.google/resolve?name=_dmarc.${d}&type=TXT` } },\n  { json: { check: 'dkim1', url: `https://dns.google/resolve?name=selector1._domainkey.${d}&type=CNAME` } },\n  { json: { check: 'dkim2', url: `https://dns.google/resolve?name=selector2._domainkey.${d}&type=CNAME` } },\n];\n"
+      }
+    },
+    {
+      "id": "1b700aee-0acb-0be3-7d4d-9035811a4aea",
+      "name": "Resolve via dns.google",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -720,
+        740
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false,
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "0a093fde-3ed8-672c-39ea-9aa7577c7925",
+      "name": "Judge email auth",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        740
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Judge the daily DNS results. Missing DMARC/DKIM = amber (pulse), not a night-time page.\nconst checks = $('DNS checks').all().map((i) => i.json);\nconst out = [];\n$input.all().forEach((i, idx) => {\n  const c = checks[idx] || {};\n  const ans = (i.json && i.json.Answer) || [];\n  const ok = c.check === 'dmarc' ? ans.some((a) => /v=DMARC1/i.test(String(a.data))) : ans.length > 0;\n  if (!ok) out.push({ json: { kind: 'signal', signal_key: 'email_auth_missing', scope: `dns:${c.check}`, severity: 'amber', source: 'W22.daily',\n    what: `${c.check.toUpperCase()} record missing for leadvelocity.co.za`, impact: 'Invites and invoices from howzit@ may land in spam',\n    first_action: 'Apply automation/dns/DNS.md section 4', since: new Date().toISOString() } });\n});\nreturn out;\n"
+      }
+    },
+    {
+      "id": "5efee106-8112-898d-004a-cc649965b5a5",
+      "name": "Signal from another workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -1200,
+        960
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "bcd8dab3-74bb-777d-41b2-b2f421986118",
+      "name": "Uptime monitor callback",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1200,
+        1160
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "w22/uptime",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "webhookId": "b9548f9d-8b67-2464-4c77-86f707bb70b5",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "lv-w22-uptime-header",
+          "name": "W22 uptime monitor header token"
+        }
+      }
+    },
+    {
+      "id": "7a79373e-e651-0d3d-bcef-89c3efbe2002",
+      "name": "Any workflow failed",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1200,
+        1360
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "fd99644f-9e1c-2ec8-8e39-f67c1605a0fd",
+      "name": "Normalise inbound signal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -960,
+        1160
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Normalise a signal handed in by another workflow (Execute Workflow), the uptime-monitor callback,\n// or an n8n Error Trigger. Accepts our own shape or raw Meta/Paystack change objects.\n// Unknown shapes are not dropped: they become an amber 'unknown_signal' so nothing is silently lost.\nconst CRITICAL_WORKFLOWS = /^(W01|W02|W03|W05|W06|W16|W22|W26|W28)\\b/;\nconst out = [];\nfor (const item of $input.all()) {\n  const j = item.json || {};\n  const nowIso = new Date().toISOString();\n  // 1. Acknowledgement (console or a forwarded WhatsApp \"ACK <id>\")\n  if (j.type === 'ack' && j.notification_id) {\n    out.push({ json: { kind: 'ack', notification_id: String(j.notification_id), acked_by: String(j.acked_by || 'unknown') } });\n    continue;\n  }\n  let s = null;\n  let recognised = false; // a known event that is benign (e.g. template APPROVED) produces no signal\n  // 2. n8n Error Trigger payload\n  if (j.execution && j.workflow) {\n    const wf = String(j.workflow.name || 'unknown');\n    const crit = CRITICAL_WORKFLOWS.test(wf);\n    s = { signal_key: 'workflow_failed', scope: `workflow:${wf}`, severity: crit ? 'red' : 'amber',\n      what: `Workflow ${wf} failed at node ${j.execution.lastNodeExecuted || '?'}`,\n      impact: crit ? 'A lead-path or money-path workflow is failing' : 'A support workflow is failing',\n      first_action: 'Open the failed execution in n8n', source: 'n8n.error' };\n  }\n  // 3. Raw WhatsApp Business Account change (forwarded by the W03 ingress / W27)\n  else if (j.field === 'message_template_status_update' && j.value) {\n    recognised = true;\n    const ev = String(j.value.event || '').toUpperCase();\n    if (['REJECTED', 'PAUSED', 'DISABLED', 'FLAGGED'].includes(ev)) {\n      s = { signal_key: 'template_rejected', scope: `template:${j.value.message_template_name || j.value.message_template_id}`,\n        severity: 'red', what: `WhatsApp template ${j.value.message_template_name || ''} ${ev.toLowerCase()}`,\n        impact: 'Messages using this template cannot be sent', first_action: 'Edit wording in console and resubmit',\n        source: 'meta.webhook' };\n    }\n  } else if (j.field === 'phone_number_quality_update' && j.value) {\n    recognised = true;\n    const ev = String(j.value.event || '').toUpperCase();\n    if (ev && ev !== 'UNFLAGGED' && ev !== 'UPGRADE' && ev !== 'ONBOARDING') {\n      s = { signal_key: 'waba_quality', scope: `phone:${j.value.display_phone_number ? 'primary' : 'unknown'}`,\n        severity: 'red', always_send: ev === 'FLAGGED' || ev === 'DOWNGRADE',\n        what: `WhatsApp number quality ${ev.toLowerCase()} (limit ${j.value.current_limit || '?'})`,\n        impact: 'Sending limits may drop; risk of restriction', first_action: 'Check quality in WhatsApp Manager; prepare standby number',\n        source: 'meta.webhook' };\n    }\n  } else if (j.field === 'account_update' && j.value) {\n    s = { signal_key: 'waba_restriction', scope: 'waba', severity: 'red', always_send: true,\n      what: `WhatsApp account update: ${String(j.value.event || 'unknown').toLowerCase()}`,\n      impact: 'WhatsApp sending may be restricted', first_action: 'Open WhatsApp Manager; switch to standby number if restricted',\n      source: 'meta.webhook' };\n  }\n  // 4. Raw Paystack failure (forwarded by W16/W19 after signature check)\n  else if (j.event && /^(invoice\\.payment_failed|charge\\.failed|subscription\\.not_renew)$/.test(j.event)) {\n    s = { signal_key: 'failed_debit', scope: `paystack:${(j.data && (j.data.subscription_code || j.data.reference)) || 'unknown'}`,\n      severity: 'red', always_send: true, what: `Payment failed (${j.event})`,\n      impact: 'Cycle renewal at risk; W19 retry day 1 and 3 then pay link', first_action: 'Check the invoice in the console',\n      source: 'paystack' };\n  }\n  // 5. Uptime monitor callback: our contract {monitor, state: down|up, since}\n  else if (j.body && j.body.monitor && j.body.state) {\n    const b = j.body;\n    const down = String(b.state).toLowerCase() === 'down';\n    const isApi = /^api\\b|api\\./.test(String(b.monitor));\n    s = { signal_key: down ? 'uptime_down' : 'uptime_recovered', scope: `monitor:${b.monitor}`,\n      severity: down ? 'red' : 'amber', always_send: down && isApi,\n      what: down ? `${b.monitor} is down` : `${b.monitor} recovered (down ${b.duration || '?'})`,\n      impact: down ? (isApi ? 'Webhooks and the Flow endpoint are unreachable' : 'A public site is unreachable') : 'Downtime counted against the 99.5% SLO',\n      first_action: down ? 'See automation/vps/UPTIME.md runbook' : 'None; logged for the uptime SLO', source: 'uptime.monitor', since: b.since };\n  }\n  // 6. Our own shape from W07 / W14 / W17 / W18 / W19 / W20 / W24 / W25 / W26 / W27 / W34\n  else if (j.signal_key) {\n    s = { ...j };\n  }\n  if (!s && recognised) continue;\n  if (!s) {\n    s = { signal_key: 'unknown_signal', scope: 'w22', severity: 'amber', what: 'W22 received a signal it could not read',\n      impact: 'A producer is sending the wrong shape', first_action: 'Check the producer against W22.md section 3', source: 'W22' };\n  }\n  out.push({ json: { kind: 'signal', scope: 'global', severity: 'red', since: nowIso, source: 'unknown', ...s } });\n}\nreturn out;\n"
+      }
+    },
+    {
+      "id": "fdddd75d-f672-6db1-af61-538acdfad9d4",
+      "name": "Is acknowledgement?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -720,
+        1160
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cfdf75af-3ab7-558e-3275-4f27aa4794ec",
+              "leftValue": "={{ $json.kind }}",
+              "rightValue": "ack",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "dc1e7ac4-7b19-397b-b480-639d20217377",
+      "name": "Record ack",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -480,
+        1060
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE ops.notifications SET acked_at = now(), acked_by = $2 WHERE id::text = $1::text AND acked_at IS NULL;",
+        "options": {
+          "queryReplacement": "={{ [ $json.notification_id, $json.acked_by ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "lv-pg-n8n-app",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "e96c8bc5-460f-9c90-0869-9e7d4f108965",
+      "name": "Collect signals",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Funnel: every producer lands here; drops malformed items, splits acks from signals.\nreturn $input.all().filter((i) => i.json && (i.json.kind === 'ack' || i.json.signal_key));\n"
+      }
+    },
+    {
+      "id": "a2773aaf-1d5e-0404-3aba-0e134380eeba",
+      "name": "Policy: severity, DND, redaction",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        540,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// --- inlined redact.js sha256:9e4f9b394bc1 (regenerate: node automation/security/inline-for-n8n.mjs) ---\nconst RD = (function () { const module = { exports: {} }; const exports = module.exports;\n'use strict';\n/**\n * redact.js — log redaction for n8n execution data, workflow logs and alert payloads (0.3 #10).\n * Zero dependencies. Masks: e-mail addresses, SA / E.164 phone numbers, 13-digit SA ID numbers.\n * Keys that are always secrets are replaced wholesale. Used by W22 before writing ops.notifications\n * and by any Code node that logs or forwards a payload outside the lead's own record.\n */\nconst SECRET_KEYS = /^(authorization|cookie|set-cookie|x-hub-signature(-256)?|x-paystack-signature|x-twilio-signature|access_token|refresh_token|client_secret|password|passphrase|api_key|apikey|token|secret|private_key)$/i;\nconst EMAIL = /([A-Za-z0-9._%+-])[A-Za-z0-9._%+-]*@([A-Za-z0-9])[A-Za-z0-9.-]*\\.([A-Za-z]{2,})/g;\n// SA ID: YYMMDD SSSS C A Z — 13 digits, not part of a longer digit run.\nconst SA_ID = /(?<!\\d)\\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])\\d{7}(?!\\d)/g;\n// Phones: +27 / 27 / 0 prefixed SA mobiles and generic E.164, tolerant of spaces and dashes.\nconst PHONE = /(?<![\\w])(\\+?\\d[\\d\\s-]{7,15}\\d)(?![\\w])/g;\n// Platform object ids (ad_id, leadgen_id, wamid …) are digit runs too; keep them readable in logs.\nconst ID_KEY = /(^id$|_id$|Id$|_sid$|^sid$)/;\n\nfunction maskPhone(m) {\n  const digits = m.replace(/\\D/g, '');\n  if (digits.length < 9 || digits.length > 15) return m;\n  return (m.trim().startsWith('+') ? '+' : '') + '*'.repeat(Math.max(0, digits.length - 3)) + digits.slice(-3);\n}\n\nfunction redactString(s) {\n  if (typeof s !== 'string') return s;\n  return s\n    .replace(EMAIL, (_, a, d, tld) => `${a}***@${d}***.${tld}`)\n    .replace(SA_ID, '[id-redacted]')\n    .replace(PHONE, (m) => maskPhone(m));\n}\n\n/** Deep-copies and redacts. Never mutates the input. */\nfunction redact(value, depth = 0) {\n  if (depth > 12) return '[depth-limit]';\n  if (typeof value === 'string') return redactString(value);\n  if (Array.isArray(value)) return value.map((v) => redact(v, depth + 1));\n  if (value && typeof value === 'object') {\n    const out = {};\n    for (const [k, v] of Object.entries(value)) {\n      if (SECRET_KEYS.test(k)) out[k] = '[secret]';\n      else if (ID_KEY.test(k) && (typeof v === 'number' || (typeof v === 'string' && /^[\\w.:-]+$/.test(v)))) out[k] = v;\n      else out[k] = redact(v, depth + 1);\n    }\n    return out;\n  }\n  return value;\n}\n\nmodule.exports = { redact, redactString, maskPhone };\n\nreturn module.exports; })();\n\n// Policy: severity routing + DND 22:00-07:00 SAST (except the always-send set) + redaction.\n// Dedupe (same signal <= 1 per 24 h) is done atomically by the next node's SQL on dedupe_key.\n// red -> WhatsApp to both + email copy + console banner (the ops.notifications row); amber -> pulse only (W32 reads it).\nconst ALWAYS_SEND = new Set(['guardrail_trip', 'waba_restriction', 'failed_debit', 'uptime_down', 'vps_down']);\n// 6.8a duty table: primary owner per kind; the other partner is the 2 h re-send target.\nconst PRIMARY_KG = new Set(['failed_debit', 'unmatched_payment', 'replacement_dispute']);\nconst DND_START = 22, DND_END = 7, SAST_OFFSET = 2; // South Africa: UTC+2, no DST\n\nfunction sastHour(ms) { return (new Date(ms).getUTCHours() + SAST_OFFSET) % 24; }\nfunction inDnd(ms) { const h = sastHour(ms); return h >= DND_START || h < DND_END; }\nfunction sastLabel(iso) {\n  const t = new Date(iso).getTime();\n  const d = new Date((Number.isFinite(t) ? t : Date.now()) + SAST_OFFSET * 3600e3);\n  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;\n}\n// WhatsApp template params: no newlines/tabs, no runs of spaces, <= 200 chars; numbers/emails masked.\nfunction clean(s) {\n  return RD.redactString(String(s || '-')).replace(/[\\r\\n\\t]+/g, ' ').replace(/ {2,}/g, ' ').trim().slice(0, 200) || '-';\n}\n\nconst nowMs = Date.now();\nconst seenThisRun = new Set();\nconst out = [];\nfor (const c of $input.all().map((i) => i.json)) {\n  if (!c || c.kind === 'ack' || !c.signal_key) continue;\n  const severity = c.severity === 'amber' ? 'amber' : 'red';\n  const scope = String(c.scope || 'global');\n  const dedupe_key = `${c.signal_key}|${scope}|${severity}`;\n  if (seenThisRun.has(dedupe_key)) continue;\n  seenThisRun.add(dedupe_key);\n  const always_send = Boolean(c.always_send) || ALWAYS_SEND.has(c.signal_key);\n  let status;\n  if (severity === 'amber') status = 'amber_to_pulse';\n  else if (inDnd(nowMs) && !always_send) status = 'held_dnd';\n  else status = 'sending';\n  out.push({ json: {\n    dedupe_key, signal_key: String(c.signal_key), scope, severity, always_send, status,\n    source: String(c.source || 'unknown'), what: clean(c.what), impact: clean(c.impact), first_action: clean(c.first_action),\n    since_label: sastLabel(c.since || new Date(nowMs).toISOString()),\n    primary_partner: PRIMARY_KG.has(c.signal_key) ? 'kg' : 'jonathan',\n    payload: JSON.stringify(RD.redact(c)),\n  } });\n}\nreturn out;\n"
+      }
+    },
+    {
+      "id": "d8b5f6e6-a38f-ae2c-910c-291cad132861",
+      "name": "Dedupe 24 h + write ops.notifications",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        780,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH prior AS (\n  SELECT id FROM ops.notifications\n  WHERE dedupe_key = $1 AND created_at > now() - interval '24 hours' AND status <> 'send_failed'\n  ORDER BY created_at DESC LIMIT 1\n), touched AS (\n  UPDATE ops.notifications n SET last_seen_at = now(), seen_count = n.seen_count + 1\n  FROM prior WHERE n.id = prior.id RETURNING n.id\n), ins AS (\n  INSERT INTO ops.notifications (kind, \"to\", dedupe_key, signal_key, scope, severity, always_send, status, source, what, impact, first_action, since_label, primary_partner, payload)\n  SELECT 'alert', 'jonathan,kg', $1, $2, $3, $4, $5::boolean, $6, $7, $8, $9, $10, $11, $12, $13::jsonb\n  WHERE NOT EXISTS (SELECT 1 FROM prior)\n  RETURNING id, status, severity, what, impact, first_action, since_label, primary_partner, always_send\n)\nSELECT id::text AS notification_id, status, severity, what, impact, first_action, since_label, primary_partner, always_send, false AS suppressed FROM ins\nUNION ALL\nSELECT id::text, 'suppressed', NULL, NULL, NULL, NULL, NULL, NULL, NULL, true FROM touched;",
+        "options": {
+          "queryReplacement": "={{ [ $json.dedupe_key, $json.signal_key, $json.scope, $json.severity, $json.always_send, $json.status, $json.source, $json.what, $json.impact, $json.first_action, $json.since_label, $json.primary_partner, $json.payload ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "lv-pg-n8n-app",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "0a422994-d10b-08b7-863d-c71a0dead54b",
+      "name": "Send now?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1020,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "0fac7677-615a-8251-546f-3ad4fa4327e0",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "sending",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "bbd30773-aacb-ad9e-7741-fb066af70524",
+      "name": "Every 5 min - escalation and DND release",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        300,
+        700
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "64e1cbfe-7142-4788-9219-11a0db47bcd1",
+      "name": "Due escalations",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        540,
+        700
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id::text AS id, id::text AS notification_id, signal_key, dedupe_key, severity, always_send, status, escalation_level,\n  first_sent_at, acked_at, what, impact, first_action, since_label, primary_partner\nFROM ops.notifications\nWHERE status = 'held_dnd'\n   OR (severity = 'red' AND acked_at IS NULL AND status IN ('sent', 'escalated') AND escalation_level < 2\n       AND first_sent_at <= now() - interval '2 hours')\nORDER BY created_at\nLIMIT 50;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "lv-pg-n8n-app",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "939d350e-7d36-63e6-49c4-7f08507342bc",
+      "name": "Escalation policy",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        700
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Escalation + DND release (every 5 min). Rows come from 'Due escalations' (held_dnd, or red unacked >= 2 h).\n// Level 0 -> 1 at 2 h: re-send to the other partner (the backup for this kind, 6.8a).\n// Level 1 -> 2 at 4 h: Twilio voice call to both partners (the only voice use in the system, 6.8b).\n// Non-always-send items wait while DND is on; always-send items escalate through the night.\nconst DND_START = 22, DND_END = 7, SAST_OFFSET = 2;\nconst inDnd = (ms) => { const h = (new Date(ms).getUTCHours() + SAST_OFFSET) % 24; return h >= DND_START || h < DND_END; };\nconst other = (p) => (p === 'kg' ? 'jonathan' : 'kg');\nconst nowMs = Date.now();\nconst out = [];\nfor (const r of $input.all().map((i) => i.json)) {\n  if (!r || !r.id) continue;\n  const quiet = inDnd(nowMs) && !r.always_send;\n  if (r.status === 'held_dnd') {\n    if (!quiet) out.push({ json: { ...r, decision: 'send_now', recipients: ['jonathan', 'kg'], escalation_level: 0, released_from_dnd: true } });\n    continue;\n  }\n  if (r.acked_at || quiet) continue;\n  const age = nowMs - new Date(r.first_sent_at).getTime();\n  const lvl = Number(r.escalation_level || 0);\n  if (lvl === 0 && age >= 2 * 3600e3) {\n    out.push({ json: { ...r, decision: 'escalate_resend', recipients: [other(r.primary_partner || 'jonathan')], escalation_level: 1,\n      what: `ESCALATED, unacknowledged 2 h: ${r.what}`.slice(0, 200) } });\n  } else if (lvl === 1 && age >= 4 * 3600e3) {\n    out.push({ json: { ...r, decision: 'escalate_call', recipients: ['jonathan', 'kg'], escalation_level: 2 } });\n  }\n}\nreturn out;\n"
+      }
+    },
+    {
+      "id": "d1332d39-b81b-6a53-99e3-28617100a808",
+      "name": "Expand recipients",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1260,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Fan out one notification into one item per recipient and channel.\n// send_now / escalate_resend -> WhatsApp ops_alert per recipient (+ one email copy to OPS_EMAIL for red, first send only)\n// escalate_call -> Twilio voice per recipient. Numbers come from env (names only in .env.example).\nconst PHONE = { jonathan: $env.OPS_WHATSAPP_JONATHAN, kg: $env.OPS_WHATSAPP_KG };\nconst out = [];\nfor (const i of $input.all()) {\n  const n = i.json;\n  const id = n.notification_id || n.id;\n  if (!n.decision) n.decision = n.status === 'sending' ? 'send_now' : null;\n  if (!n.recipients && n.decision === 'send_now') n.recipients = ['jonathan', 'kg'];\n  for (const who of n.recipients || []) {\n    const to = PHONE[who];\n    if (!to) continue;\n    if (n.decision === 'escalate_call') {\n      const say = `Lead Velocity red alert. ${n.what}. Unacknowledged for four hours. Open the console and acknowledge.`\n        .replace(/[<>&\"']/g, ' ');\n      out.push({ json: { channel: 'voice', to, who, notification_id: id, escalation_level: n.escalation_level,\n        twiml: `<Response><Say voice=\"alice\" language=\"en-ZA\">${say}</Say><Pause length=\"1\"/><Say voice=\"alice\" language=\"en-ZA\">${say}</Say></Response>` } });\n    } else {\n      out.push({ json: { channel: 'whatsapp', to, who, notification_id: id, escalation_level: n.escalation_level || 0,\n        params: [n.what, n.since_label, n.impact, n.first_action].map((p) => String(p || '-')), link_path: `alerts/${id}` } });\n    }\n  }\n  if (n.decision === 'send_now' && n.severity === 'red' && $env.OPS_EMAIL) {\n    out.push({ json: { channel: 'email', to: $env.OPS_EMAIL, who: 'ops', notification_id: id, escalation_level: 0,\n      subject: `[Red] ${n.what}`.slice(0, 150),\n      text: `${n.what}\\nSince: ${n.since_label} SAST\\nImpact: ${n.impact}\\nFirst action: ${n.first_action}\\nConsole: ${$env.CONSOLE_URL || ''}/alerts/${id}\\n` } });\n  }\n}\nreturn out;\n"
+      }
+    },
+    {
+      "id": "ee1af4ab-a42e-1df6-f8b6-032af7da7fb6",
+      "name": "Route by channel",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1500,
+        400
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "a1842c1e-5e1d-a4ea-2f99-312dc5aa9730",
+                    "leftValue": "={{ $json.channel }}",
+                    "rightValue": "whatsapp",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "whatsapp"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "ed6002f7-572d-9033-032c-c32bd7c2313d",
+                    "leftValue": "={{ $json.channel }}",
+                    "rightValue": "email",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "email"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "fb7ae904-eaff-b44f-b3da-2a4a552a1530",
+                    "leftValue": "={{ $json.channel }}",
+                    "rightValue": "voice",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "voice"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a8cb9d1a-bc15-6362-1bac-be763eaf48a8",
+      "name": "WhatsApp ops_alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        260
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION || 'v23.0' }}/{{ $env.NODE_ENV === 'production' ? $env.PHONE_NUMBER_ID : ($env.WHATSAPP_TEST_PHONE_NUMBER_ID || $env.PHONE_NUMBER_ID) }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', to: $json.to, type: 'template', template: { name: 'ops_alert', language: { code: 'en' }, components: [ { type: 'body', parameters: $json.params.map(t => ({ type: 'text', text: t })) }, { type: 'button', sub_type: 'url', index: '0', parameters: [ { type: 'text', text: $json.link_path } ] } ] } }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "lv-meta-system-user",
+          "name": "Meta system user token (Bearer)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "fc6da942-5ba3-d197-e092-51e826593b85",
+      "name": "Email copy to howzit@",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        420
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.microsoft.com/v1.0/users/{{ $env.HOWZIT_MAILBOX }}/sendMail",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ message: { subject: $json.subject, body: { contentType: 'Text', content: $json.text }, toRecipients: [ { emailAddress: { address: $json.to } } ] }, saveToSentItems: true }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "oAuth2Api": {
+          "id": "lv-graph-howzit-mailsend",
+          "name": "MS Graph app-only - howzit@ Mail.Send"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "079d3e3c-5453-7443-4de6-a43e52dbead8",
+      "name": "Twilio voice call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        580
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.twilio.com/2010-04-01/Accounts/{{ $env.TWILIO_ACCOUNT_SID }}/Calls.json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "To",
+              "value": "={{ $json.to }}"
+            },
+            {
+              "name": "From",
+              "value": "={{ $env.TWILIO_VOICE_FROM }}"
+            },
+            {
+              "name": "Twiml",
+              "value": "={{ $json.twiml }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "lv-twilio-apikey",
+          "name": "Twilio API key (Basic)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 10000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "450008b1-d14f-94d8-914a-7613df366402",
+      "name": "Log delivery",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2020,
+        420
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE ops.notifications SET\n  channel_log = COALESCE(channel_log, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('at', now(), 'channel', $2::text, 'who', $3::text, 'level', $4::int, 'http', $5::int)),\n  status = CASE WHEN $2::text = 'email' THEN status\n                WHEN $5::int BETWEEN 200 AND 299 THEN CASE WHEN $4::int > 0 THEN 'escalated' ELSE 'sent' END\n                WHEN status IN ('sent', 'escalated') THEN status ELSE 'send_failed' END,\n  sent_at = CASE WHEN $5::int BETWEEN 200 AND 299 AND $2::text <> 'email' THEN now() ELSE sent_at END,\n  first_sent_at = CASE WHEN $5::int BETWEEN 200 AND 299 AND $2::text <> 'email' THEN COALESCE(first_sent_at, now()) ELSE first_sent_at END,\n  escalation_level = CASE WHEN $5::int BETWEEN 200 AND 299 THEN GREATEST(escalation_level, $4::int) ELSE escalation_level END\nWHERE id::text = $1::text;",
+        "options": {
+          "queryReplacement": "={{ [ $('Route by channel').item.json.notification_id, $('Route by channel').item.json.channel, $('Route by channel').item.json.who, $('Route by channel').item.json.escalation_level, $json.statusCode || 0 ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "lv-pg-n8n-app",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every 5 min - threshold sweep": {
+      "main": [
+        [
+          {
+            "node": "Read metric snapshot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read metric snapshot": {
+      "main": [
+        [
+          {
+            "node": "Evaluate thresholds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate thresholds": {
+      "main": [
+        [
+          {
+            "node": "Collect signals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hourly - Flow ping, uptime, WABA": {
+      "main": [
+        [
+          {
+            "node": "Build Flow ping",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Uptime targets",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "WhatsApp number health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Flow ping": {
+      "main": [
+        [
+          {
+            "node": "Ping Flow endpoint",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ping Flow endpoint": {
+      "main": [
+        [
+          {
+            "node": "Judge Flow ping",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Judge Flow ping": {
+      "main": [
+        [
+          {
+            "node": "Revert booking_ui if failing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Revert booking_ui if failing": {
+      "main": [
+        [
+          {
+            "node": "Flow ping signal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Flow ping signal": {
+      "main": [
+        [
+          {
+            "node": "Collect signals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Uptime targets": {
+      "main": [
+        [
+          {
+            "node": "Probe targets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Probe targets": {
+      "main": [
+        [
+          {
+            "node": "Judge uptime",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Judge uptime": {
+      "main": [
+        [
+          {
+            "node": "Collect signals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp number health": {
+      "main": [
+        [
+          {
+            "node": "Judge WABA health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Judge WABA health": {
+      "main": [
+        [
+          {
+            "node": "Collect signals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily 06:00 - email auth DNS": {
+      "main": [
+        [
+          {
+            "node": "DNS checks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DNS checks": {
+      "main": [
+        [
+          {
+            "node": "Resolve via dns.google",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve via dns.google": {
+      "main": [
+        [
+          {
+            "node": "Judge email auth",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Judge email auth": {
+      "main": [
+        [
+          {
+            "node": "Collect signals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Signal from another workflow": {
+      "main": [
+        [
+          {
+            "node": "Normalise inbound signal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Uptime monitor callback": {
+      "main": [
+        [
+          {
+            "node": "Normalise inbound signal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any workflow failed": {
+      "main": [
+        [
+          {
+            "node": "Normalise inbound signal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise inbound signal": {
+      "main": [
+        [
+          {
+            "node": "Is acknowledgement?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is acknowledgement?": {
+      "main": [
+        [
+          {
+            "node": "Record ack",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Collect signals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect signals": {
+      "main": [
+        [
+          {
+            "node": "Policy: severity, DND, redaction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Policy: severity, DND, redaction": {
+      "main": [
+        [
+          {
+            "node": "Dedupe 24 h + write ops.notifications",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedupe 24 h + write ops.notifications": {
+      "main": [
+        [
+          {
+            "node": "Send now?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send now?": {
+      "main": [
+        [
+          {
+            "node": "Expand recipients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every 5 min - escalation and DND release": {
+      "main": [
+        [
+          {
+            "node": "Due escalations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Due escalations": {
+      "main": [
+        [
+          {
+            "node": "Escalation policy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Escalation policy": {
+      "main": [
+        [
+          {
+            "node": "Expand recipients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expand recipients": {
+      "main": [
+        [
+          {
+            "node": "Route by channel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by channel": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp ops_alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Email copy to howzit@",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Twilio voice call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp ops_alert": {
+      "main": [
+        [
+          {
+            "node": "Log delivery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email copy to howzit@": {
+      "main": [
+        [
+          {
+            "node": "Log delivery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twilio voice call": {
+      "main": [
+        [
+          {
+            "node": "Log delivery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": false,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "owner": "devops-security",
+    "spec": "automation/W22.md"
+  },
+  "tags": [
+    {
+      "name": "sortmycover"
+    },
+    {
+      "name": "W22"
+    }
+  ]
+}

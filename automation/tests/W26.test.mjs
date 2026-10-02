@@ -30,7 +30,7 @@ test('provision.sh: default is a dry run that lists the 13 W26 steps in order an
     const env = join(d, 'env'); writeFileSync(env, 'VPS_HOST=203.0.113.10\n');
     const out = execFileSync('bash', [join(A, 'vps/provision.sh')], { env: { ...process.env, PROVISION_ENV_FILE: env }, encoding: 'utf8' });
     assert.match(out, /^DRY RUN \(no changes\)/);
-    const steps = [...out.matchAll(/step (\d+) ([a-z-]+): PLAN: (.+)/g)];
+    const steps = [...out.matchAll(/step (\d+) ([a-z0-9-]+): PLAN: (.+)/g)];
     assert.deepEqual(steps.map((m) => m[2]), ['preflight', 'harden', 'retire-template', 'ship-code', 'ship-env', 'compose-up',
       'restore-n8n', 'dns', 'tls', 'backups', 'webhooks', 'synthetic-suite', 'ready']);
     assert.ok(steps.every((m) => m[3].trim().length > 10), 'every step has a description');
@@ -45,7 +45,7 @@ test('provision.sh: safety properties', () => {
   assert.match(s, /SUPABASE_SERVICE_ROLE_KEY/, 'service-role key is stripped before shipping .env');
   assert.match(s, /umask 077/);
   assert.match(s, /07\.done/, 'n8n restore cannot silently overwrite a live VPS');
-  assert.doesNotMatch(s, /unpause|campaign.*status.*ACTIVE/i, 'provisioning never unpauses anything');
+  assert.doesNotMatch(s, /\/(campaigns|adsets|ads)\b|status=ACTIVE|daily_budget|routing.*(on|true)/i, 'provisioning never touches budgets, campaign status or routing');
   assert.match(s, /git -C "\$REPO" archive/, 'no git credentials on the VPS');
   assert.doesNotMatch(s, /kubectl|helm|swarm/i, 'single server, no orchestrator');
 });

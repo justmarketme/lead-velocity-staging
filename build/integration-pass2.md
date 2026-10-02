@@ -16,3 +16,6 @@
 | I-12 | `brokers.user_id` is NOT NULL → W16 creates the Supabase auth user (magic link) before inserting the `brokers` row | billing-automation + broker-success. |
 | I-13 | `ops` schema exposure: add `ops` to the Supabase API exposed schemas for the console (facts stays unexposed) or read via RPC | platform-architect + devops-security. |
 | I-14 | optimisation read objects owed: `facts.pulse_daily` (rolling 7-day numerators/denominators), `ops.judge_samples(date)`, `ops.proposal_actuals(date)`, `ops.notifications_due()`, `ops.alert_recipients`, `ops.build_state_latest`; apply `optimisation/sql-additions.sql` | platform-architect pass 2. |
+| I-15 | `automation/docker-compose.yml` `env_file: ../.env` hands every secret to the postgres container — scope postgres to `POSTGRES_*` only | laptop (bootstrap) session owns the compose file. |
+| I-16 | One Meta callback URL per object type: W03 = WABA ingress (routes broker video to W23), W02 = `page` ingress (routes comments to W30, DMs to W31), W30 = `instagram` ingress; use Webhook nodes, not the WhatsApp Trigger node | automation-engineer + community-response-lead. |
+| I-17 | Verifier interface (I-03) is now in `automation/security/verify-webhooks.js` positional; add the object-arg overload W30/W31 call | devops-security (next pass). |

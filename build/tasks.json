@@ -632,7 +632,7 @@
       ],
       "acceptance_test": "node automation/tests/W22.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
+      "status": "green",
       "section": "4.6 inventory"
     },
     {
@@ -672,7 +672,7 @@
       ],
       "acceptance_test": "node automation/tests/W26.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
+      "status": "in_progress",
       "section": "4.6 inventory"
     },
     {
@@ -2223,6 +2223,17 @@
       "human_gate": true,
       "status": "needs_human",
       "section": "conversation/state-machine.md"
+    },
+    {
+      "id": "NH-29",
+      "title": "Infra decisions: (a) DMARC starts at p=none for 14 days (any sender that does not DKIM-sign would be quarantined otherwise) then quarantine; (b) off-server backup target - default a free S3-compatible bucket with a write-only key, chosen at W26; (c) n8n UI protection: SSO is an Enterprise feature, so IP allowlist / SSH tunnel + owner login with MFA; (d) add POPIA breach to the always-send-at-night alert list? (default: strict 6.8b list); (e) Supabase auth schema and Storage are not in the nightly dump - acceptable (magic-link re-auth) or mirror media?",
+      "owner": "jonathan",
+      "phase": "4b",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "automation/security/SECURITY.md; automation/backup/BACKUP.md"
     }
   ]
 }

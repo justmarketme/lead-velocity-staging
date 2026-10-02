@@ -1,0 +1,87 @@
+# VPS overlay: Traefik TLS in front of n8n (Hostinger KVM + Traefik docs; n8n self-hosting docs "Docker Compose + Traefik").
+# Used only on the VPS, on top of automation/docker-compose.yml (unchanged):
+#   docker compose --env-file /opt/lead-velocity/.env -p lv \
+#     -f automation/docker-compose.yml -f automation/vps/traefik/docker-compose.traefik.yml up -d
+# Hosts (from .env): N8N_UI_HOST (editor, IP allow-list), API_HOST (webhooks + /healthz only), LINK_HOST (consumer /c/ /j/).
+# No secrets here; ACME e-mail comes from TRAEFIK_ACME_EMAIL. One server, no orchestrator.
+
+services:
+  traefik:
+    image: traefik:v3.1
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.le.acme.httpchallenge=true
+      - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
+      - --certificatesresolvers.le.acme.email=${TRAEFIK_ACME_EMAIL:?set TRAEFIK_ACME_EMAIL}
+      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+      - --api.dashboard=false
+      - --log.level=WARN
+      # access log off: webhook query strings (hub.verify_token) and client IPs stay out of logs
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_letsencrypt:/letsencrypt
+
+  n8n:
+    environment:
+      NODE_ENV: production
+      N8N_HOST: ${N8N_UI_HOST:?set N8N_UI_HOST}
+      N8N_PROTOCOL: https
+      N8N_EDITOR_BASE_URL: https://${N8N_UI_HOST}/
+      WEBHOOK_URL: https://${API_HOST:?set API_HOST}/
+      N8N_PUBLIC_URL: https://${API_HOST}
+      N8N_PROXY_HOPS: 1
+      N8N_SECURE_COOKIE: "true"
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_LOG_LEVEL: warn
+      EXECUTIONS_DATA_SAVE_ON_SUCCESS: none
+      EXECUTIONS_DATA_SAVE_ON_ERROR: all
+      EXECUTIONS_DATA_PRUNE: "true"
+      EXECUTIONS_DATA_MAX_AGE: 168
+      EXECUTIONS_DATA_PRUNE_MAX_COUNT: 5000
+      NODE_FUNCTION_ALLOW_BUILTIN: crypto
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      GENERIC_TIMEZONE: Africa/Johannesburg
+      TZ: Africa/Johannesburg
+    labels:
+      - traefik.enable=true
+      - traefik.http.services.n8n.loadbalancer.server.port=5678
+      # Editor: IP allow-list. Empty N8N_UI_ALLOW_IPS = loopback only, i.e. reach it with `ssh -L 5678:localhost:5678`.
+      - traefik.http.routers.n8n-ui.rule=Host(`${N8N_UI_HOST}`)
+      - traefik.http.routers.n8n-ui.entrypoints=websecure
+      - traefik.http.routers.n8n-ui.tls.certresolver=le
+      - traefik.http.routers.n8n-ui.middlewares=ui-allow,sec-headers
+      - traefik.http.middlewares.ui-allow.ipallowlist.sourcerange=${N8N_UI_ALLOW_IPS:-127.0.0.1/32}
+      # Public API host: production webhooks and health only (no /webhook-test, no editor, no REST API).
+      - traefik.http.routers.n8n-api.rule=Host(`${API_HOST}`) && (PathPrefix(`/webhook/`) || PathPrefix(`/healthz`))
+      - traefik.http.routers.n8n-api.entrypoints=websecure
+      - traefik.http.routers.n8n-api.tls.certresolver=le
+      - traefik.http.routers.n8n-api.middlewares=api-ratelimit,sec-headers
+      - traefik.http.middlewares.api-ratelimit.ratelimit.average=50
+      - traefik.http.middlewares.api-ratelimit.ratelimit.burst=100
+      # Consumer links on the SortMyCover domain: /c/{ref} (.ics) and /j/{ref} (join redirect) -> n8n webhooks.
+      - traefik.http.routers.n8n-link.rule=Host(`${LINK_HOST:-link.invalid}`) && (PathPrefix(`/c/`) || PathPrefix(`/j/`))
+      - traefik.http.routers.n8n-link.entrypoints=websecure
+      - traefik.http.routers.n8n-link.tls.certresolver=le
+      - traefik.http.routers.n8n-link.middlewares=link-rewrite,sec-headers
+      - traefik.http.middlewares.link-rewrite.replacepathregex.regex=^/(c|j)/(.*)
+      - traefik.http.middlewares.link-rewrite.replacepathregex.replacement=/webhook/$$1/$$2
+      # Security headers (ASVS V14)
+      - traefik.http.middlewares.sec-headers.headers.stsSeconds=31536000
+      - traefik.http.middlewares.sec-headers.headers.stsIncludeSubdomains=true
+      - traefik.http.middlewares.sec-headers.headers.contentTypeNosniff=true
+      - traefik.http.middlewares.sec-headers.headers.frameDeny=true
+      - traefik.http.middlewares.sec-headers.headers.referrerPolicy=no-referrer
+    depends_on:
+      - traefik
+
+volumes:
+  traefik_letsencrypt:
