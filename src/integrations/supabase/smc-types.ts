@@ -144,7 +144,12 @@ export interface SmcAdminDocument {
   category: string | null; content_data: Record<string, unknown> | null; created_at: Ts;
   brand_id: Uuid | null; broker_id: Uuid | null; kind: string | null; version: string | null;
   doc_sha256: string | null; signed_at: Ts | null; signed_by_name: string | null;
+  /** smc_08 (I-30b/c): IP captured server-side from x-forwarded-for; acceptances ticked at signing. */
+  signer_ip?: string | null; signer_ip_source?: "x-forwarded-for" | "x-real-ip" | "none" | null;
+  acceptances?: SmcAgreementAcceptances | null;
 }
+/** admin_documents.acceptances (smc_08 I-30c). Keys are the agreement's tick-boxes; extra keys allowed. */
+export interface SmcAgreementAcceptances { clause_11_2?: boolean; annex_1?: boolean; no_page?: boolean; version?: string; [k: string]: unknown }
 
 export interface SmcBrokerMedia {
   id: Uuid; broker_id: Uuid; brand_id: Uuid | null; kind: "voice" | "video" | "card" | "headshot"; language: string;
@@ -284,4 +289,44 @@ export interface AskAnswer {
 export interface AdsConfirmResponse {
   ok: boolean; confirm_token?: string; expires_at?: Ts;
   preview?: Record<string, unknown>; code?: string; message?: string; retry_after_ms?: number;
+}
+
+// ---------------------------------------------------------------- smc_08 (pass 3) RPCs
+/** Args of public.smc_sign_document — 6-arg form (smc_08). The 5-arg form still works; p_signer_ip is ignored (IP is server-side). */
+export interface SmcSignDocumentArgs {
+  p_document_id: Uuid; p_signed_by_name: string; p_doc_sha256: string; p_signer_ip: null; p_user_agent: string;
+  p_acceptances?: SmcAgreementAcceptances | null;
+}
+/** public.smc_report_policies_written(p_count, p_cycle_id?) → cycle id written. Broker's own cycle only; 0–1000. */
+export interface SmcReportPoliciesWrittenArgs { p_count: number; p_cycle_id?: Uuid | null }
+
+/** Row of public.smc_faculty_tiles(p_days = 28, p_include_synthetic = false) — admin only, over facts.pulse_daily. */
+export interface FacultyTile {
+  faculty: OpsFaculty | string; metric: string; date: DateStr; value: number | null; value_7d: number | null;
+  numerator_7d: number | null; denominator_7d: number | null; n: number | null; value_prev: number | null;
+  trend: { d: DateStr; v: number | null }[] | null;
+}
+
+/** ops.watchlist_targets (smc_08 §4) via smc_console_watchlist_targets() / smc_console_set_watchlist_target(). */
+export interface OpsWatchlistTarget {
+  metric_no: number; metric_code: string; target: number | null; stretch_target: number | null; floor: number | null;
+  target_rule: "<=" | ">="; unit: string; source: string; updated_by: Uuid | null; created_at: Ts; updated_at: Ts;
+}
+
+/**
+ * NH-22 default: admin RPCs over ops.* (smc_08 §10) so `ops` need not be an exposed API schema.
+ * Each checks has_role('admin') inside and returns the ops row types above.
+ */
+export interface SmcConsoleRpcs {
+  smc_console_pulses: { args: { p_limit?: number }; returns: OpsPulse[] };
+  smc_console_signals_open: { args: { p_limit?: number }; returns: OpsSignal[] };
+  smc_console_quality_grades: { args: { p_hours?: number; p_limit?: number }; returns: OpsQualityGrade[] };
+  smc_console_judge_runs: { args: { p_limit?: number }; returns: OpsJudgeRun[] };
+  smc_console_build_state: { args: Record<string, never>; returns: OpsBuildStateLatest[] };
+  smc_console_proposals: { args: { p_pulse_date?: DateStr | null }; returns: OpsProposal[] };
+  smc_console_decide_proposal: { args: { p_proposal_id: Uuid; p_decision: "approve" | "snooze" | "decline"; p_reason?: string | null }; returns: OpsProposal };
+  smc_console_proposal_from_grade: { args: { p_grade_id: Uuid }; returns: OpsProposal };
+  smc_console_watchlist_targets: { args: Record<string, never>; returns: OpsWatchlistTarget[] };
+  smc_console_set_watchlist_target: { args: { p_metric_no: number; p_target: number | null; p_stretch_target?: number | null; p_floor?: number | null; p_reason?: string | null }; returns: OpsWatchlistTarget };
+  smc_faculty_tiles: { args: { p_days?: number; p_include_synthetic?: boolean }; returns: FacultyTile[] };
 }

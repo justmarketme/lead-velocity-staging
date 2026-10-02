@@ -199,3 +199,31 @@ Implements build/integration-pass2.md I-04 and I-14; I-13 is runbook §E. Additi
 Also: non-partial unique twins for every partial unique index used as an `ON CONFLICT` target (lead_activities, bank_credits x2, appointments x2, leads.leadgen_id) — found by EXPLAIN-checking the workflows. 07: RLS/grants for all new tables, views and functions (same model as 05).
 **Changed in 02/03/04:** the `bookings`, `reports` and seven `facts.fact_*` view statements are wrapped in a guard that skips them once 06's appended column exists, so re-running the chain cannot try to shrink a view.
 **pulse_daily gaps (no source yet):** quiz_step_dropoff_max, time_to_brief_min, renewal_risk, branded_search_wow, serp_ownership, waba_quality.
+
+## Pass 3 (2026-10-02) — `20261002_smc_08_pass3.sql` (drafted, NOT applied)
+Additive and idempotent. Validated on a local Postgres 16 stub only: 01→08 applied twice, synthetic seed twice, analytics SQL, and the workflow parse-check (155 statements, same 7 untyped-parameter artefacts as before 08, no new errors).
+
+| Item | What 08 does |
+|---|---|
+| I-28 | Tries `GRANT USAGE ON SCHEMA auth` and `EXECUTE ON auth.uid()` to `n8n_app`. If the hosted project refuses, the migration logs a WARNING and does not fail. Vault is reached only through SECURITY DEFINER wrappers, which only `n8n_app` can EXECUTE: `smc_vault_store_paystack_auth(broker_id, authorization_code, customer_code)` (W16), `smc_vault_store_paystack_sub(customer_code, subscription_code, email_token)` (W16 plan mode) and `smc_vault_paystack_auth_code(broker_id)` (W19). `n8n_app` has no vault grants. *ASSUMPTION — validate after NH-15:* hosted Supabase gives a custom role nothing on `auth` or `vault`. |
+| I-24 | The partial unique index `broker_media_one_current` is replaced by the constraint `broker_media_one_current_x`, an `EXCLUDE … WHERE (is_current)` that is DEFERRABLE INITIALLY DEFERRED. The rule is the same, but it is checked at commit, so W23's one-statement demote and promote works. |
+| I-25 | `escalations_kind_check` adds `sensitive`, `dm_handoff` and `dm_after_link`. |
+| I-19 / I-22 | New table `ops.watchlist_targets`, admin-only RLS, audited. It is seeded with the NH-25 defaults: #1 R1,300 with a R900 stretch, #4 60%. A re-run never overwrites an edit. `facts.v_watchlist` reads its targets and floors from this table, and tile 4 now excludes `unreachable`. `facts.fact_broker_day` is rewritten as grouped joins: same 18 columns, and output identical to 06 on the fixture (EXCEPT both ways = 0). |
+| I-30b | `smc_sign_document` takes the signer IP from `request.headers` (first `x-forwarded-for`, else `x-real-ip`). The value must parse as `inet`, otherwise it is stored as NULL. The source goes in `admin_documents.signer_ip_source`. `p_signer_ip` is ignored. |
+| I-30c | New column `admin_documents.acceptances` (jsonb object), written once by the new 6-argument `smc_sign_document(…, p_acceptances)`. The repo has no `admin_documents.metadata`. |
+| I-30d | `smc_report_policies_written(p_count, p_cycle_id?)` lets a broker set `cycles.policies_written_reported` on his own cycle (current cycle by default, 0–1000). It also writes a `lead_activities` row of type `policies.reported`. |
+| I-30i | `smc_faculty_tiles(p_days, p_include_synthetic)` is admin-only and returns, per faculty and metric, the latest value, the 7-day value, n, the value 7 days earlier and a trend. It reads `facts.pulse_daily`. |
+| NH-22 default | Admin RPCs (has_role check inside each): `smc_console_pulses`, `_signals_open`, `_quality_grades`, `_judge_runs`, `_build_state`, `_proposals`, `_decide_proposal` (status + W32 `approval` outbox row in one transaction), `_proposal_from_grade`, `_watchlist_targets`, `_set_watchlist_target`. The console no longer needs `ops` in the exposed schemas. |
+
+Stub tests (rolled back):
+- `n8n_app` broker update: works with the grant, fails without it.
+- Vault wrappers: store, read back and plan-mode re-run all work. `n8n_app` cannot read vault directly, and `authenticated` cannot call the wrappers.
+- `broker_media` swap: passes. A real duplicate is still rejected.
+- Escalation kinds: pass.
+- `smc_sign_document`:
+  - stores the forwarded IP;
+  - stores NULL for a spoofed non-IP header;
+  - refuses a second signature;
+  - writes acceptances.
+- Policies written: the value and the timeline row are written, and a negative count is refused.
+- Admin RPCs: every one returns rows for an admin. A broker gets `admin only` from each, and anon gets permission denied.

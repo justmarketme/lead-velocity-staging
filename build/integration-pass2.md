@@ -65,3 +65,13 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-32b | `ops.page_day.visits` has no source: first-party visit beacon to n8n (preferred, no provider) or analytics provider — decide; until then quiz drop-off pulse is empty | landing-page-builder + analytics-reporter |
 | I-32c | `VITE_GEMINI_API_KEY` in legacy root `.env.example`: if the old CRM calls Gemini from the client, move to an edge function | platform-architect (NH-13/NH-15 follow-up) |
 | I-32d | n8n_app media download needs a Storage API token or service-role key kept server-side in n8n credentials | devops-security, when W20 headshots land |
+
+### I-33 · From migration 08 (platform-architect pass 3, 2026-10-02)
+| # | Item | Owner |
+|---|---|---|
+| I-33a | W16 "Card auto-renew token to Vault" / "Card auto-renew on (Plan mode)" and W19 "Cycle end: open invoice + card token" must call `smc_vault_store_paystack_auth` / `smc_vault_store_paystack_sub` / `smc_vault_paystack_auth_code` instead of querying `vault` directly | billing-automation |
+| I-33b | `facts.v_params` hard-codes the watchlist targets; read `ops.watchlist_targets` so a target exists in one place | analytics-reporter |
+| I-33c | Console/portal switch to the RPCs: Today.tsx (`smc_console_pulses/signals_open/quality_grades/judge_runs/build_state/proposals/decide_proposal/proposal_from_grade`, `smc_faculty_tiles`), Agreement.tsx 6-arg `smc_sign_document` with `p_acceptances`, Reports.tsx `smc_report_policies_written`; retire `opsDb()` | platform-architect (dispatched) |
+| I-33d | `smc_brokers_guard`: test `current_user` before `auth.uid()` so `n8n_app` works even if the hosted grant is refused (option b) | platform-architect (dispatched) |
+| I-33e | Verify on staging that the first `x-forwarded-for` entry is the client IP (one test signature vs gateway log) | devops-security, after NH-15 |
+| I-33f | W03 draft references `ops.ctwa_clicks` and `public.wa_threads`, which do not exist in 01–09: use existing tables (`lead_activities` / `dm_threads`-style) or request migration 10 | automation-engineer (W03) |
