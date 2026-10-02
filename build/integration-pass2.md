@@ -119,3 +119,7 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-32a | **done** (recorder → Bearer to `{API}/intro`, W23 JWT check); follow-ups: I-37a | — |
 | I-37a | n8n endpoints for `/intro/status`, `/intro/interview`, `/intro/script-select`, signed-URL `/intro/upload` with the same JWT check; script generation behind conversation-designer's gate; take-ownership check on upload-confirm | automation-engineer + conversation-designer |
 | I-37b | W23/W19/W04 webhook CORS allowlist: portal origin + staging subdomain + tunnel origin (env-driven) | devops-security |
+| I-37c | Portal routes `/s/calendar?day=YYYY-MM-DD` (day view) and `/s/billing` must exist for the template buttons | platform-architect |
+| I-37d | W23 inbound: replace its WhatsApp Trigger with a sub-workflow call from W07/W12 (one inbound subscription) | intro-media-producer + automation-engineer |
+| I-37e | W07 router: never forward a W03-originated message back to W03; add a route for W32 Approve/Later taps | automation-engineer + optimisation-advisor |
+| I-37f | `automation/security/n8n-webhook-pattern.md` l.32 "W03 ingress" → W07 | devops-security |

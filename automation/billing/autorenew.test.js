@@ -64,7 +64,7 @@ test('I-30e: W19 has POST /billing-autorenew with a responder on every branch', 
   assert.deepEqual(next(w, 'Autorenew: caller ok?', 1), ['Autorenew: respond error (reason only)']);
   assert.deepEqual(next(w, 'Autorenew off as n8n_app + timeline row'), ['Autorenew: respond']);
   assert.deepEqual(next(w, 'Autorenew: switched off just now?', 0).sort(), ['Autorenew: WhatsApp confirmation (template)', 'W22: card auto-renew off (disable Paystack plan if any)']);
-  assert.deepEqual(next(w, 'Autorenew: WhatsApp confirmation (template)'), ['WhatsApp: broker_onb_next (auto-renew off)']);
+  assert.deepEqual(next(w, 'Autorenew: WhatsApp confirmation (template)'), ['WhatsApp: broker_autorenew_off']);
   // portal posts to `${VITE_N8N_WEBHOOK_BASE}/billing-autorenew` with { on: false }
   const portal = fs.readFileSync(path.join(ROOT, 'src/pages/portal/Agreement.tsx'), 'utf8');
   assert.match(portal, /postWebhook\("billing-autorenew", \{ on: false \}\)/);

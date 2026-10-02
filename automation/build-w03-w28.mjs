@@ -42,47 +42,31 @@ function buildW03() {
   const c = {};
   const n = [];
   n.push(node('Sticky: read me', 'stickyNote', 1, [0, -360], { width: 760, height: 340, content:
-    'W03 Click-to-WhatsApp intake (automation-engineer). WABA ingress (I-16): one Meta callback for whatsapp_business_account. ' +
-    'Verify X-Hub-Signature-256 over the raw body -> 200 at once -> claim wamid in webhook_events (idempotent) -> route: statuses -> W06 receipts; STOP -> W15; broker number -> W12 (media -> W23); nfm_reply (Flow complete) -> W07 -> W05; lead text/taps -> W03 step. ' +
+    'W03 Click-to-WhatsApp intake (automation-engineer). Sub-workflow since I-35d: W07 owns POST /whatsapp (signature, 200, wamid claim, statuses, STOP, brokers, nfm_reply) and calls W03 for unknown numbers / CTWA entries / qualifying taps (automation/CONTRACTS.md "Inbound ownership"). ' +
+    'The adapter rebuilds the Cloud API message from W07\'s normalised msg -> W03 step. GET /whatsapp verify handshake stays here until W07 has one (one GET handler only). ' +
     'W03 step = automation/ctwa/w03.js inlined (tested by automation/tests/W03.test.mjs): consent FIRST (named mode, 0.1) -> tap-only age/budget/bond/method -> W01 Lead core routes and W06 sends the intro card < 60 s. ' +
     'No consent = only smc_hash_contact(mobile) in suppression. Pre-consent state lives in public.wa_threads (needs_human: schema pass 3). lead_token minted on insert (CONTRACTS.md). ' +
     'Second entry: GET /wa/:ref tracked redirect (I-09) -> 302 wa.me only. Env: META_APP_SECRET, META_WEBHOOK_VERIFY_TOKEN, META_GRAPH_VERSION, LEAD_TOKEN_SECRET, WA_DISPLAY_NUMBER_DIGITS. Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto.' }));
 
-  n.push(node('WABA webhook (POST)', 'webhook', 2, [0, 0], { httpMethod: 'POST', path: 'whatsapp', responseMode: 'responseNode', options: { rawBody: true } }, { webhookId: 'w03-waba-post' }));
-  n.push(code('Verify signature + split', [220, 0], VW + W3 +
-`const it = $input.first();
-const raw = it.binary && it.binary.data ? Buffer.from(it.binary.data.data, 'base64').toString('utf8') : (it.json.rawBody || JSON.stringify(it.json.body));
-const sig = (it.json.headers || {})['x-hub-signature-256'];
-const v = VW.verifyMetaSignature(raw, sig, $env.META_APP_SECRET);
-if (!v.ok) return [{ json: { valid: false } }];
-const body = JSON.parse(raw);
-const out = [];
-for (const e of body.entry || []) for (const ch of e.changes || []) {
-  const val = ch.value || {};
-  const pnid = (val.metadata || {}).phone_number_id;
-  for (const s of val.statuses || []) out.push({ json: { valid: true, kind: 'status', external_id: 'st:' + s.id + ':' + s.status, phone_number_id: pnid, status: s } });
-  for (const m of val.messages || []) {
-    const mobile = '+' + String(m.from).replace(/\\D/g, '');
-    const text = m.type === 'text' ? ((m.text || {}).body || '') : '';
-    const isStop = /^\\s*(stop|unsubscribe|opt ?out)\\s*[.!]*\\s*$/i.test(text) || W3.tapId(m) === 'stop';
-    const isFlow = m.type === 'interactive' && m.interactive && m.interactive.type === 'nfm_reply';
-    const isBroker = String($env.BROKER_WA_NUMBERS || '').split(',').map((x) => x.trim()).filter(Boolean).includes(mobile);
-    const kind = isStop ? 'stop' : isBroker ? 'broker' : isFlow ? 'flow_reply' : 'lead';
-    out.push({ json: { valid: true, kind, external_id: m.id, phone_number_id: pnid, mobile, profile_name: ((val.contacts || [])[0] || {}).profile?.name || null, msg: m, at: new Date(Number(m.timestamp) * 1000).toISOString(), payload_hash: VW.payloadHash(raw) } });
-  }
+  // I-35d: W07 owns POST /whatsapp (signature, 200, wamid claim, statuses, STOP, brokers, nfm_reply). W03 is a sub-workflow:
+  // W07 calls it with { source: 'W07', route, msg, lead, booking } where msg is W07's normaliseInbound() shape. The adapter below
+  // rebuilds the Cloud API message object that ctwa/w03.js step() reads, so the tested logic is unchanged.
+  n.push(node('Called by W07 (CTWA lead)', 'executeWorkflowTrigger', 1.1, [0, 0], { inputSource: 'passthrough' }));
+  n.push(code('W07 hand-off -> Cloud API message', [220, 0],
+`const out = [];
+for (const it of $input.all()) {
+  const j = it.json || {};
+  const g = j.msg || {};
+  if (!g.wamid || !g.from) continue;
+  const m = { id: g.wamid, from: String(g.from).replace(/^\\+/, ''), timestamp: String(Math.floor(Number(g.at_ms || Date.now()) / 1000)), type: g.type || 'text' };
+  if (g.referral) m.referral = g.referral;
+  if (m.type === 'text') m.text = { body: g.text || '' };
+  else if (m.type === 'button') m.button = { payload: g.payload, text: g.text || '' };
+  else if (m.type === 'interactive') m.interactive = g.list_id != null ? { type: 'list_reply', list_reply: { id: g.list_id, title: g.text || '' } } : { type: 'button_reply', button_reply: { id: g.payload, title: g.text || '' } };
+  else if (g.media) m[m.type] = { caption: g.text || '' };
+  out.push({ json: { kind: 'lead', source: j.source || 'W07', external_id: g.wamid, phone_number_id: g.phone_number_id, mobile: '+' + m.from, profile_name: j.profile_name || null, msg: m, at: new Date(Number(m.timestamp) * 1000).toISOString() } });
 }
-return out.length ? out : [{ json: { valid: true, kind: 'empty' } }];`));
-  n.push(respond('Respond 200 / 401', [440, -140], '={{ $json.valid ? "ok" : "bad signature" }}', '={{ $json.valid ? 200 : 401 }}'));
-  n.push(ifTrue('Valid and not empty?', [440, 0], '={{ $json.valid && $json.kind !== "empty" }}'));
-  n.push(pg('Idempotency: claim wamid', [660, 0],
-    "-- webhook_events UNIQUE (source, external_id): a Meta re-delivery returns no row and the item stops here (W03-notes rule 6).\nINSERT INTO public.webhook_events (source, external_id, signature_ok, payload_hash)\nVALUES ('whatsapp', $1, true, $2)\nON CONFLICT (source, external_id) DO NOTHING\nRETURNING id;",
-    '={{ [ $json.external_id, $json.payload_hash || null ] }}'));
-  n.push(code('Restore item', [880, 0], "return $input.all().map((_, i) => ({ json: $('Valid and not empty?').all()[i].json }));"));
-  n.push(switchOn('Route inbound', [1100, 0], '={{ $json.kind }}', ['status', 'stop', 'broker', 'flow_reply', 'lead']));
-  n.push(sub('W06 Delivery receipts', [1340, -300], 'W06 First touch'));
-  n.push(sub('W15 Opt-out', [1340, -180], 'W15 Opt-out'));
-  n.push(sub('W12 Broker inbound (media -> W23)', [1340, -60], 'W12 Outcome capture'));
-  n.push(sub('W07 Conversation agent (nfm_reply -> W05)', [1340, 60], 'W07 Conversation agent'));
+return out;`));
   n.push(pg('Load context', [1340, 200],
 `-- brand by receiving number; routed candidate (named consent needs the broker before the prompt, 0.1);
 -- 90-day open lead; LV-wide or brand suppression (a past CTWA "No thanks" may be asked again: they wrote to us);
@@ -114,7 +98,7 @@ SELECT br.id AS brand_id,
 `const out = [];
 for (const [i, item] of $input.all().entries()) {
   const ctxRow = item.json;
-  const m = $('Restore item').all()[i].json;
+  const m = $('W07 hand-off -> Cloud API message').all()[i].json;
   const broker = ctxRow.broker || null;
   const brand = { brand_id: ctxRow.brand_id, consent_mode: broker ? broker.consent_mode : 'named' };
   const r = W3.step(ctxRow.thread || null, m.msg, { at: m.at, mobile: m.mobile, profile_name: m.profile_name, lead_id: ctxRow.new_lead_id,
@@ -210,17 +194,8 @@ RETURNING id;`,
   n.push(code('Check hub.verify_token', [220, 900], VW + "const q = $input.first().json.query || {};\nconst r = VW.metaVerifyHandshake(q, $env.META_WEBHOOK_VERIFY_TOKEN);\nreturn [{ json: r }];"));
   n.push(respond('Respond hub.challenge', [440, 900], '={{ $json.ok ? $json.challenge : "forbidden" }}', '={{ $json.ok ? 200 : 403 }}'));
 
-  link(c, 'WABA webhook (POST)', 'Verify signature + split');
-  link(c, 'Verify signature + split', 'Respond 200 / 401');
-  link(c, 'Verify signature + split', 'Valid and not empty?');
-  link(c, 'Valid and not empty?', 'Idempotency: claim wamid');
-  link(c, 'Idempotency: claim wamid', 'Restore item');
-  link(c, 'Restore item', 'Route inbound');
-  link(c, 'Route inbound', 'W06 Delivery receipts', 0);
-  link(c, 'Route inbound', 'W15 Opt-out', 1);
-  link(c, 'Route inbound', 'W12 Broker inbound (media -> W23)', 2);
-  link(c, 'Route inbound', 'W07 Conversation agent (nfm_reply -> W05)', 3);
-  link(c, 'Route inbound', 'Load context', 4);
+  link(c, 'Called by W07 (CTWA lead)', 'W07 hand-off -> Cloud API message');
+  link(c, 'W07 hand-off -> Cloud API message', 'Load context');
   link(c, 'Load context', 'W03 step');
   link(c, 'W03 step', 'Save thread');
   link(c, 'W03 step', 'Fan out actions');
@@ -247,7 +222,7 @@ function buildW28() {
     'brands.booking_ui = list ships first; the Flow is a flag flip once published (HUMAN GATE) and the _v2 templates are approved. ' +
     'POST /flow: X-Hub-Signature-256 (432) -> decrypt (421; flow-crypto.js = placeholder mirror of Meta reference code, swap verbatim at W28 step 2) -> ping answers at once -> ' +
     'flow_token verified by HMAC (lead-token.js, no flow_tokens table; payload ids never trusted) -> lead/broker/booking from Postgres -> W04 slot engine (same engine as /slots; fresh getSchedule for slot_selected) -> ' +
-    'w28-endpoint.js screens (METHOD/DATE/SLOTS/EMAIL/SUMMARY; email only for Teams/Zoom/Meet) -> encrypted 200 in < 3 s. Complete is NOT here: nfm_reply -> W03 ingress -> W07 -> W05 (transactional re-check). ' +
+    'w28-endpoint.js screens (METHOD/DATE/SLOTS/EMAIL/SUMMARY; email only for Teams/Zoom/Meet) -> encrypted 200 in < 3 s. Complete is NOT here: nfm_reply -> W07 ingress (POST /whatsapp) -> W05 (transactional re-check). ' +
     'Fallback ladder: 2 errors on a token, calendar down, no slots, or op=send_list -> interactive list of the next 10 slots (spread across days). op=revert (called by W22 on ping failure) sets booking_ui = list. ' +
     'Env: META_APP_SECRET, FLOW_PRIVATE_KEY, FLOW_PRIVATE_KEY_PASSPHRASE, LEAD_TOKEN_SECRET, LEAD_TOKEN_SECRET_PREVIOUS, META_GRAPH_VERSION, PHONE_NUMBER_ID. NODE_FUNCTION_ALLOW_BUILTIN=crypto,dns.' }));
 

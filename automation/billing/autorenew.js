@@ -6,7 +6,7 @@
  * JWT rules are the /slots broker path (automation/CONTRACTS.md, I-30a): HS256 with SUPABASE_JWT_SECRET. */
 const { verifySupabaseJwt } = require('../security/lead-token');
 
-const TEMPLATE = 'broker_onb_next'; // automation/templates/broker_onb_next.json: 1 first name · 2 step done · 3 next step · 4 time; URL button 1 = step key
+const TEMPLATE = 'broker_autorenew_off'; // automation/templates/broker_autorenew_off.json (I-35j): 1 first name; URL button 1 = 'billing' (-> app.leadvelocity.co.za/s/billing)
 const MAX_BODY_KEYS = 4;
 
 function headerValue(headers, name) {
@@ -43,9 +43,8 @@ function confirmMessage(broker = {}) {
     to,
     template: {
       name: TEMPLATE,
-      body: [first, 'Switching off card auto-renew',
-        'pay each cycle from your renewal offer by Instant EFT, or by manual EFT with your reference (no fees)', '2 minutes'],
-      buttons: ['agreement'],
+      body: [first],
+      buttons: ['billing'],
     },
   };
 }

@@ -1,0 +1,44 @@
+{
+  "name": "ops_action_confirmed",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "Approved"
+    },
+    {
+      "type": "BODY",
+      "text": "Approved: *{{1}}*. Task {{2}} is open for {{3}}. We check the result on {{4}}. Approved by {{5}} and logged in the build journal.",
+      "example": {
+        "body_text": [
+          [
+            "Shorter quiz step 2",
+            "T-0412",
+            "landing-page-builder",
+            "Mon 19 Oct",
+            "Jonathan"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "Lead Velocity ops"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Open Today",
+          "url": "https://app.leadvelocity.co.za/{{1}}",
+          "example": [
+            "https://app.leadvelocity.co.za/today"
+          ]
+        }
+      ]
+    }
+  ]
+}

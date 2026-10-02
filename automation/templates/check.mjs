@@ -95,6 +95,34 @@ for (const f of files) {
   }
 }
 
+// Text review samples (samples/<name>.txt): must equal the render of the template with its example values.
+export function renderSample(t) {
+  const comp = (type) => (t.components || []).find((c) => c.type === type);
+  const fill = (text, ex) => String(text).replace(/\{\{(\d+)\}\}/g, (_, i) => (ex || [])[Number(i) - 1] ?? `{{${i}}}`);
+  const out = [`${t.name} (${t.category}, ${t.language})`, ''];
+  const h = comp('HEADER');
+  if (h) out.push(h.format === 'TEXT' ? `[header] ${fill(h.text, h.example?.header_text)}` : `[header] ${h.format}`);
+  const b = comp('BODY');
+  out.push(fill(b.text, b.example?.body_text?.[0]));
+  const f = comp('FOOTER');
+  if (f) out.push(`[footer] ${f.text}`);
+  for (const btn of comp('BUTTONS')?.buttons || []) out.push(btn.type === 'URL' ? `[button] ${btn.text} -> ${btn.example?.[0] || btn.url}` : `[button] ${btn.text}`);
+  return out.join('\n') + '\n';
+}
+const SAMPLES = join(HERE, 'samples');
+for (const f of readdirSync(SAMPLES).filter((x) => x.endsWith('.txt'))) {
+  const n = f.slice(0, -4);
+  if (!names.has(n)) { err(f, 'sample has no template'); continue; }
+  const t = JSON.parse(readFileSync(join(HERE, `${n}.json`), 'utf8'));
+  if (readFileSync(join(SAMPLES, f), 'utf8') !== renderSample(t)) err(n, `samples/${f} does not match the template (re-render: node automation/templates/check.mjs --write-sample ${n})`);
+}
+if (process.argv[2] === '--write-sample' && process.argv[3]) {
+  const { writeFileSync } = await import('node:fs');
+  const n = process.argv[3];
+  writeFileSync(join(SAMPLES, `${n}.txt`), renderSample(JSON.parse(readFileSync(join(HERE, `${n}.json`), 'utf8'))));
+  console.log(`wrote samples/${n}.txt`);
+}
+
 // submit.sh list vs files
 const sh = readFileSync(join(HERE, 'submit.sh'), 'utf8');
 const listed = new Set((sh.match(/CORE=\(([^)]*)\)/)[1] + ' ' + sh.match(/REST=\(([\s\S]*?)\n\)/)[1]).split(/\s+/).filter(Boolean));

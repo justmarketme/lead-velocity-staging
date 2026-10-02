@@ -13,31 +13,25 @@
    "parameters": {
     "width": 760,
     "height": 340,
-    "content": "W03 Click-to-WhatsApp intake (automation-engineer). WABA ingress (I-16): one Meta callback for whatsapp_business_account. Verify X-Hub-Signature-256 over the raw body -> 200 at once -> claim wamid in webhook_events (idempotent) -> route: statuses -> W06 receipts; STOP -> W15; broker number -> W12 (media -> W23); nfm_reply (Flow complete) -> W07 -> W05; lead text/taps -> W03 step. W03 step = automation/ctwa/w03.js inlined (tested by automation/tests/W03.test.mjs): consent FIRST (named mode, 0.1) -> tap-only age/budget/bond/method -> W01 Lead core routes and W06 sends the intro card < 60 s. No consent = only smc_hash_contact(mobile) in suppression. Pre-consent state lives in public.wa_threads (needs_human: schema pass 3). lead_token minted on insert (CONTRACTS.md). Second entry: GET /wa/:ref tracked redirect (I-09) -> 302 wa.me only. Env: META_APP_SECRET, META_WEBHOOK_VERIFY_TOKEN, META_GRAPH_VERSION, LEAD_TOKEN_SECRET, WA_DISPLAY_NUMBER_DIGITS. Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto."
+    "content": "W03 Click-to-WhatsApp intake (automation-engineer). Sub-workflow since I-35d: W07 owns POST /whatsapp (signature, 200, wamid claim, statuses, STOP, brokers, nfm_reply) and calls W03 for unknown numbers / CTWA entries / qualifying taps (automation/CONTRACTS.md \"Inbound ownership\"). The adapter rebuilds the Cloud API message from W07's normalised msg -> W03 step. GET /whatsapp verify handshake stays here until W07 has one (one GET handler only). W03 step = automation/ctwa/w03.js inlined (tested by automation/tests/W03.test.mjs): consent FIRST (named mode, 0.1) -> tap-only age/budget/bond/method -> W01 Lead core routes and W06 sends the intro card < 60 s. No consent = only smc_hash_contact(mobile) in suppression. Pre-consent state lives in public.wa_threads (needs_human: schema pass 3). lead_token minted on insert (CONTRACTS.md). Second entry: GET /wa/:ref tracked redirect (I-09) -> 302 wa.me only. Env: META_APP_SECRET, META_WEBHOOK_VERIFY_TOKEN, META_GRAPH_VERSION, LEAD_TOKEN_SECRET, WA_DISPLAY_NUMBER_DIGITS. Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto."
    }
   },
   {
    "id": "n02",
-   "name": "WABA webhook (POST)",
-   "type": "n8n-nodes-base.webhook",
-   "typeVersion": 2,
+   "name": "Called by W07 (CTWA lead)",
+   "type": "n8n-nodes-base.executeWorkflowTrigger",
+   "typeVersion": 1.1,
    "position": [
     0,
     0
    ],
    "parameters": {
-    "httpMethod": "POST",
-    "path": "whatsapp",
-    "responseMode": "responseNode",
-    "options": {
-     "rawBody": true
-    }
-   },
-   "webhookId": "w03-waba-post"
+    "inputSource": "passthrough"
+   }
   },
   {
    "id": "n03",
-   "name": "Verify signature + split",
+   "name": "W07 hand-off -> Cloud API message",
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
    "position": [
@@ -46,315 +40,11 @@
    ],
    "parameters": {
     "mode": "runOnceForAllItems",
-    "jsCode": "// --- inlined verify-webhooks.js sha256:ac70f3c06e10 (regenerate: node automation/security/inline-for-n8n.mjs) ---\nconst VW = (function () { const module = { exports: {} }; const exports = module.exports;\n'use strict';\n/**\n * verify-webhooks.js — inbound webhook verification for the SortMyCover build.\n * Node 18+, zero dependencies (node:crypto only). CommonJS so it can be inlined into an\n * n8n Code node (see inline-for-n8n.mjs and n8n-webhook-pattern.md).\n *\n * Source of each rule (devops-security's five): Meta / WhatsApp webhook security docs\n * (X-Hub-Signature-256 + hub.verify_token handshake), OWASP ASVS L1 (timing-safe compare,\n * reject before parse, log the reason not the payload). Paystack and Twilio signatures follow\n * their providers' published schemes (HMAC-SHA512 hex; HMAC-SHA1 base64 over URL + sorted params).\n *\n * Every verifier takes the RAW request body (Buffer or string). A parsed-then-re-serialised\n * body will not match the provider's signature, so objects are rejected with 'raw_body_required'.\n * Every verifier returns { ok: boolean, reason: string } and never throws on bad input.\n * Secrets are passed in by the caller (from .env / n8n credentials); nothing here reads env.\n */\nconst crypto = require('crypto');\n\nconst OK = Object.freeze({ ok: true, reason: 'ok' });\nconst fail = (reason) => ({ ok: false, reason });\n\n/** Constant-time string compare. Hashing both sides first removes the length side channel. */\nfunction timingSafeEqualStr(a, b) {\n  if (typeof a !== 'string' || typeof b !== 'string') return false;\n  const ha = crypto.createHash('sha256').update(a, 'utf8').digest();\n  const hb = crypto.createHash('sha256').update(b, 'utf8').digest();\n  return crypto.timingSafeEqual(ha, hb) && a.length === b.length;\n}\n\nfunction toRawBuffer(rawBody) {\n  if (Buffer.isBuffer(rawBody)) return rawBody;\n  if (typeof rawBody === 'string') return Buffer.from(rawBody, 'utf8');\n  if (rawBody instanceof Uint8Array) return Buffer.from(rawBody);\n  return null;\n}\n\nfunction headerValue(headers, name) {\n  if (!headers) return undefined;\n  const want = name.toLowerCase();\n  for (const k of Object.keys(headers)) {\n    if (k.toLowerCase() === want) {\n      const v = headers[k];\n      return Array.isArray(v) ? v[0] : v;\n    }\n  }\n  return undefined;\n}\n\nfunction hmac(alg, secret, data, enc) {\n  return crypto.createHmac(alg, secret).update(data).digest(enc);\n}\n\n/* ------------------------------------------------------------------ Meta / WhatsApp */\n\n/**\n * Meta webhooks (WhatsApp Cloud API, Lead Ads `page` object, Page feed, Instagram, Flow endpoint):\n * header `X-Hub-Signature-256: sha256=<hex HMAC-SHA256(rawBody, META_APP_SECRET)>`.\n */\nfunction verifyMetaSignature(rawBody, signatureHeader, appSecret) {\n  if (!appSecret) return fail('missing_secret');\n  const raw = toRawBuffer(rawBody);\n  if (!raw) return fail('raw_body_required');\n  if (typeof signatureHeader !== 'string' || !signatureHeader.startsWith('sha256=')) {\n    return fail('missing_or_malformed_signature');\n  }\n  const got = signatureHeader.slice('sha256='.length).trim().toLowerCase();\n  if (!/^[0-9a-f]{64}$/.test(got)) return fail('missing_or_malformed_signature');\n  const want = hmac('sha256', appSecret, raw, 'hex');\n  return timingSafeEqualStr(got, want) ? OK : fail('signature_mismatch');\n}\n\n/**\n * GET subscription handshake: Meta calls ?hub.mode=subscribe&hub.verify_token=…&hub.challenge=…\n * Returns the HTTP response to send: 200 + challenge (plain text) or 403.\n * Accepts n8n's parsed query (keys 'hub.mode' etc.) or a { hub: { mode, … } } nested shape.\n */\nfunction metaVerifyHandshake(query, verifyToken) {\n  const q = query || {};\n  const pick = (k) => (q['hub.' + k] !== undefined ? q['hub.' + k] : q.hub && q.hub[k]);\n  const mode = pick('mode');\n  const token = pick('verify_token');\n  const challenge = pick('challenge');\n  if (!verifyToken) return { ok: false, reason: 'missing_secret', status: 403, body: 'Forbidden' };\n  if (mode !== 'subscribe') return { ok: false, reason: 'bad_mode', status: 403, body: 'Forbidden' };\n  if (typeof token !== 'string' || !timingSafeEqualStr(token, verifyToken)) {\n    return { ok: false, reason: 'verify_token_mismatch', status: 403, body: 'Forbidden' };\n  }\n  if (typeof challenge !== 'string' || !/^[A-Za-z0-9_-]{1,256}$/.test(challenge)) {\n    return { ok: false, reason: 'bad_challenge', status: 400, body: 'Bad Request' };\n  }\n  return { ok: true, reason: 'ok', status: 200, body: challenge };\n}\n\n/* ------------------------------------------------------------------ Paystack */\n\n/** Paystack: header `x-paystack-signature` = hex HMAC-SHA512(rawBody, PAYSTACK_SECRET_KEY). */\nfunction verifyPaystackSignature(rawBody, signatureHeader, secretKey) {\n  if (!secretKey) return fail('missing_secret');\n  const raw = toRawBuffer(rawBody);\n  if (!raw) return fail('raw_body_required');\n  if (typeof signatureHeader !== 'string') return fail('missing_or_malformed_signature');\n  const got = signatureHeader.trim().toLowerCase();\n  if (!/^[0-9a-f]{128}$/.test(got)) return fail('missing_or_malformed_signature');\n  const want = hmac('sha512', secretKey, raw, 'hex');\n  return timingSafeEqualStr(got, want) ? OK : fail('signature_mismatch');\n}\n\n/* ------------------------------------------------------------------ Twilio */\n\nfunction twilioUrlVariants(url) {\n  // Twilio may sign with or without the default port; accept both (as Twilio's own helpers do).\n  const out = new Set([url]);\n  try {\n    const u = new URL(url);\n    const def = u.protocol === 'https:' ? '443' : '80';\n    if (u.port) {\n      if (u.port === def) { const v = new URL(url); v.port = ''; out.add(v.toString()); }\n    } else {\n      out.add(url.replace(/^(https?:\\/\\/[^/?#]+)/, `$1:${def}`));\n    }\n  } catch (_) { /* malformed URL -> only the literal is tried */ }\n  return [...out];\n}\n\nfunction twilioSignedString(url, params) {\n  let s = url;\n  if (params && typeof params === 'object') {\n    for (const key of Object.keys(params).sort()) {\n      const v = params[key];\n      if (Array.isArray(v)) for (const item of [...v].map(String).sort()) s += key + item;\n      else s += key + (v === undefined || v === null ? '' : String(v));\n    }\n  }\n  return s;\n}\n\n/**\n * Twilio: header `X-Twilio-Signature` = base64 HMAC-SHA1(url + sorted(key+value), TWILIO_AUTH_TOKEN).\n * - Form-encoded callbacks: pass `params` = the parsed POST fields.\n * - JSON-body callbacks: Twilio adds `bodySHA256` to the URL query; pass `rawBody` and the\n *   signature covers the URL only, while bodySHA256 must equal hex SHA-256 of the raw body.\n * NB: Twilio signs with the account Auth Token, not an API key secret.\n */\nfunction verifyTwilioSignature({ url, params, rawBody, signatureHeader, authToken } = {}) {\n  if (!authToken) return fail('missing_secret');\n  if (typeof url !== 'string' || !/^https?:\\/\\//.test(url)) return fail('bad_url');\n  if (typeof signatureHeader !== 'string' || signatureHeader.length < 20) {\n    return fail('missing_or_malformed_signature');\n  }\n  let bodyHash = null;\n  try { bodyHash = new URL(url).searchParams.get('bodySHA256'); } catch (_) { /* handled above */ }\n  if (bodyHash) {\n    const raw = toRawBuffer(rawBody);\n    if (!raw) return fail('raw_body_required');\n    const want = crypto.createHash('sha256').update(raw).digest('hex');\n    if (!timingSafeEqualStr(bodyHash.toLowerCase(), want)) return fail('body_hash_mismatch');\n  }\n  for (const u of twilioUrlVariants(url)) {\n    const expected = hmac('sha1', authToken, Buffer.from(twilioSignedString(u, bodyHash ? null : params), 'utf8'), 'base64');\n    if (timingSafeEqualStr(signatureHeader.trim(), expected)) return OK;\n  }\n  return fail('signature_mismatch');\n}\n\n/* ------------------------------------------------------------------ Replay window + idempotency */\n\n/**\n * Generic replay window. `timestamp` may be epoch seconds, epoch ms, or an ISO string.\n * Default tolerance 300 s in the past, 60 s clock skew into the future.\n * Use where the provider sends a timestamp (WhatsApp message `timestamp`, entry `time`,\n * our own X-LV-Timestamp on internal calls). Paystack/Twilio carry none: idempotency is the guard.\n */\nfunction checkReplayWindow(timestamp, { nowMs = Date.now(), toleranceSec = 300, futureSkewSec = 60 } = {}) {\n  let ms;\n  if (typeof timestamp === 'number' || (typeof timestamp === 'string' && /^\\d+$/.test(timestamp))) {\n    const n = Number(timestamp);\n    ms = n < 1e12 ? n * 1000 : n;\n  } else if (typeof timestamp === 'string') {\n    ms = Date.parse(timestamp);\n  }\n  if (!Number.isFinite(ms)) return fail('bad_timestamp');\n  if (ms > nowMs + futureSkewSec * 1000) return fail('timestamp_in_future');\n  if (nowMs - ms > toleranceSec * 1000) return fail('outside_replay_window');\n  return OK;\n}\n\n/** Stable key for webhook_events(source, external_id) — unique per provider event. */\nfunction idempotencyKey(source, externalId) {\n  if (!source || externalId === undefined || externalId === null || externalId === '') return null;\n  return `${String(source).toLowerCase()}:${String(externalId)}`;\n}\n\n/**\n * Pull the provider's own event ids out of a parsed payload, so a redelivery maps to the same key.\n * Falls back to a SHA-256 of the raw body when the provider gives no id.\n */\nfunction extractEventIds(source, payload, rawBody) {\n  const ids = [];\n  const p = payload || {};\n  if (source === 'meta' || source === 'whatsapp') {\n    for (const entry of p.entry || []) {\n      for (const ch of entry.changes || []) {\n        const v = ch.value || {};\n        for (const m of v.messages || []) if (m.id) ids.push(`msg:${m.id}`);\n        for (const s of v.statuses || []) if (s.id) ids.push(`status:${s.id}:${s.status || ''}`);\n        if (v.leadgen_id) ids.push(`leadgen:${v.leadgen_id}`);\n        if (v.comment_id) ids.push(`comment:${v.comment_id}:${v.verb || ''}`);\n        if (ch.field && !v.messages && !v.statuses && !v.leadgen_id && !v.comment_id && v.id) {\n          ids.push(`${ch.field}:${v.id}`);\n        }\n      }\n      for (const m of entry.messaging || []) if (m.message && m.message.mid) ids.push(`mid:${m.message.mid}`);\n    }\n  } else if (source === 'paystack') {\n    const d = p.data || {};\n    const ref = d.id || d.reference || d.subscription_code || d.invoice_code;\n    if (p.event && ref) ids.push(`${p.event}:${ref}`);\n  } else if (source === 'twilio') {\n    const sid = p.MessageSid || p.CallSid || p.Sid;\n    const status = p.MessageStatus || p.CallStatus || '';\n    if (sid) ids.push(`${sid}:${status}`);\n  }\n  if (ids.length === 0) {\n    const raw = toRawBuffer(rawBody);\n    if (raw) ids.push('sha256:' + crypto.createHash('sha256').update(raw).digest('hex'));\n  }\n  return ids;\n}\n\n/**\n * In-memory idempotency store (tests, and n8n `$getWorkflowStaticData('global')` as a cache).\n * Production truth is Postgres: INSERT INTO webhook_events (source, external_id, …)\n * ON CONFLICT (source, external_id) DO NOTHING RETURNING id  — no row returned = duplicate.\n * `backing` lets the n8n Code node pass its static-data object so state survives executions.\n */\nfunction createIdempotencyStore({ ttlMs = 72 * 3600 * 1000, backing = {}, now = () => Date.now() } = {}) {\n  const map = backing;\n  return {\n    /** true if the key was already seen inside the TTL; records it otherwise. */\n    seen(key) {\n      const t = now();\n      for (const k of Object.keys(map)) if (t - map[k] > ttlMs) delete map[k];\n      if (Object.prototype.hasOwnProperty.call(map, key)) return true;\n      map[key] = t;\n      return false;\n    },\n    size() { return Object.keys(map).length; },\n  };\n}\n\n/** SQL used by the n8n Postgres node after verification (parameterised; never string-built). */\nconst WEBHOOK_EVENTS_INSERT_SQL =\n  'INSERT INTO webhook_events (source, external_id, received_at, signature_ok, payload_hash) ' +\n  'VALUES ($1, $2, now(), $3, $4) ON CONFLICT (source, external_id) DO NOTHING RETURNING id';\n\nfunction payloadHash(rawBody) {\n  const raw = toRawBuffer(rawBody);\n  return raw ? crypto.createHash('sha256').update(raw).digest('hex') : null;\n}\n\nmodule.exports = {\n  timingSafeEqualStr,\n  headerValue,\n  verifyMetaSignature,\n  metaVerifyHandshake,\n  verifyPaystackSignature,\n  verifyTwilioSignature,\n  twilioSignedString,\n  checkReplayWindow,\n  idempotencyKey,\n  extractEventIds,\n  createIdempotencyStore,\n  payloadHash,\n  WEBHOOK_EVENTS_INSERT_SQL,\n};\n\nreturn module.exports; })();\n// --- inlined ../ctwa/w03.js sha256:cca5676fd3eb (regenerate: node automation/security/inline-for-n8n.mjs) ---\nconst W3 = (function () { const module = { exports: {} }; const exports = module.exports;\n'use strict';\n// W03 Click-to-WhatsApp intake: pure logic (no I/O). automation/W03.json inlines this file into its Code nodes;\n// automation/tests/W03.test.mjs runs it offline against fixtures/synthetic-leads.json.\n// Sources: 4.6 CTWA steps 1-4 + 7, automation/W03-notes.md (A.2 redirect, A.3 readOrigin), 0.1 consent mode `named`.\n// Which of my five: Chili Piper (one chat, no hand-off), Meta Cloud API (referral, interactive, 72-h window),\n// HBR (routing ends in W06 first touch < 60 s; nothing here waits).\n\nconst crypto = require('crypto');\n\n// ---------------------------------------------------------------- redirect (I-09, W03-notes A.2)\nconst REDIRECT_REF_RE = /^(cmt_(\\d{5,20}|org_\\d{5,20}_\\d{5,20})|dm_(messenger|instagram))$/;\nconst PREFILL = \"Hi, I'd like to check my life cover\";\n\n/** GET {CTWA_BASE_URL}/{ref} -> 302 to wa.me only. waDigits comes from the brands row, never from the URL. */\nfunction redirectFor(ref, waDigits, uaHeader = '') {\n  if (!/^27\\d{9}$/.test(String(waDigits || ''))) throw new Error('brand WhatsApp number not configured');\n  const ok = REDIRECT_REF_RE.test(String(ref || ''));\n  const text = ok ? `${PREFILL} (ref ${ref})` : PREFILL;\n  const ua = String(uaHeader).toLowerCase();\n  const uaClass = /iphone|ipad|ios/.test(ua) ? 'ios' : /android/.test(ua) ? 'android' : /windows|macintosh|linux|cros/.test(ua) ? 'desktop' : 'other';\n  return {\n    status: 302,\n    headers: { Location: `https://wa.me/${waDigits}?text=${encodeURIComponent(text)}`, 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' },\n    click: { ref: ok ? ref : null, ua_class: uaClass }, // ops.ctwa_clicks row: no IP, no full UA, no cookie\n  };\n}\n\n// ---------------------------------------------------------------- origin (W03-notes A.3, verbatim rule)\nconst REF_RE = /\\(ref ((?:cmt_(?:org_)?[0-9_]{5,45})|dm_(?:messenger|instagram))\\)\\s*$/;\nfunction readOrigin(msg) {\n  const r = msg.referral || null;\n  const body = msg.type === 'text' ? (msg.text && typeof msg.text === 'object' ? msg.text.body : msg.text) || '' : '';\n  const m = msg.type === 'text' ? REF_RE.exec(body) : null;\n  const ref = m ? m[1] : null;\n  const fromRef = ref && ref.startsWith('cmt_') ? 'comment' : ref && ref.startsWith('dm_') ? 'dm' : null;\n  const refAd = ref ? /^cmt_(\\d{5,20})$/.exec(ref) : null;\n  return {\n    origin: r ? 'ctwa' : fromRef || 'ctwa',\n    ref,\n    ad_id: r && r.source_type === 'ad' ? r.source_id : refAd ? refAd[1] : null,\n    ctwa_clid: (r && r.ctwa_clid) || null,\n    referral_source_type: (r && r.source_type) || null,\n    referral_source_id: (r && r.source_id) || null,\n    text_without_ref: m ? body.replace(REF_RE, '').trim() : msg.type === 'text' ? body : null,\n  };\n}\n\n// ---------------------------------------------------------------- consent (0.1: named while one broker)\nconst CONSENT_GENERIC_V1 = \"Before we start: if it's a fit, we'll share your details with an authorised financial services provider who'll contact you about life cover. OK to continue?\";\nfunction consentFor(mode, broker) {\n  if (mode === 'generic') return { version: 'ctwa-v1', mode: 'generic', text: CONSENT_GENERIC_V1 };\n  if (!broker || !broker.practice_name || !broker.fsp_number) return null; // named mode needs a named broker\n  return {\n    version: 'ctwa-named-v1',\n    mode: 'named',\n    text: `Before we start: if it's a fit, we'll share your details with ${broker.practice_name} (FSP ${broker.fsp_number}), an authorised financial services provider who'll contact you about life cover. OK to continue?`,\n  };\n}\n\n// ---------------------------------------------------------------- tap-only questions (4.6 step 3)\nconst AGE_ROWS = [['age_under_35', 'Under 35'], ['age_35_44', '35 to 44'], ['age_45_50', '45 to 50'], ['age_51_plus', '51 or older']];\nconst BUDGET_ROWS = [['budget_under_500', 'Under R500 a month'], ['budget_500_750', 'R500 to R750'], ['budget_750_1250', 'R750 to R1,250'], ['budget_1250_plus', 'R1,250 or more']];\nconst BOND_ROWS = [['bond_yes_dependants_yes', 'Bond and dependants'], ['bond_yes_dependants_no', 'Bond, no dependants'], ['bond_no_dependants_yes', 'Dependants, no bond'], ['bond_no_dependants_no', 'Neither']];\nconst METHOD_TITLES = { teams: 'Teams video call', zoom: 'Zoom video call', meet: 'Google Meet', whatsapp_call: 'WhatsApp call', phone: 'Phone call' };\nconst QUAL_AGE = new Set(['35_44', '45_50']); // 0.1 bands; 45-50 qualifies, 51+ does not\nconst QUAL_BUDGET = new Set(['750_1250', '1250_plus']); // 0.1: both upper bands qualify\n// fixture/quiz codes -> leads_smc_checks codes (schema uses lt35 / 51plus / lt750 / 1250plus)\nconst AGE_TO_DB = { under_35: 'lt35', '35_44': '35_44', '45_50': '45_50', '51_plus': '51plus' };\nconst BUDGET_TO_DB = { under_500: 'lt750', '500_750': 'lt750', '750_1250': '750_1250', '1250_plus': '1250plus' };\nconst METHOD_TO_DB = { teams: 'teams', zoom: 'zoom', meet: 'meet', google_meet: 'meet', whatsapp_call: 'whatsapp_call', phone: 'phone' };\nconst STALL_HOURS = [1, 20, 68]; // 4.6 step 7, inside the 72-h CTWA window\n\nconst list = (body, button, rows) => ({ type: 'list', body, button, rows: rows.map(([id, title]) => ({ id, title })) });\nconst buttons = (body, rows) => ({ type: 'button', body, buttons: rows.map(([id, title]) => ({ id, title })) });\n\nfunction question(stage, broker) {\n  if (stage === 'q_age') return list('Which age group are you in?', 'Choose age', AGE_ROWS);\n  if (stage === 'q_budget') return list('Roughly what could you put towards cover each month?', 'Choose amount', BUDGET_ROWS);\n  if (stage === 'q_bond') return list('Do you have a bond or people who depend on your income?', 'Choose one', BOND_ROWS);\n  if (stage === 'q_method') {\n    const ms = (broker && broker.methods_supported) || ['phone'];\n    const rows = ms.filter((m) => METHOD_TITLES[m] || m === 'google_meet').map((m) => [`method_${m}`, METHOD_TITLES[m] || METHOD_TITLES.meet]);\n    const body = `How would you like to talk to ${(broker && broker.adviser_first_name) || 'the adviser'}?`;\n    return rows.length <= 3 ? buttons(body, rows) : list(body, 'Choose', rows);\n  }\n  return null;\n}\n\n/** id of a tap, whatever shape the Cloud API (or the fixture) used. */\nfunction tapId(msg) {\n  if (msg.payload) return msg.payload;\n  if (msg.type === 'button' && msg.button) return msg.button.payload;\n  if (msg.type === 'interactive' && msg.interactive) {\n    const i = msg.interactive;\n    return (i.button_reply && i.button_reply.id) || (i.list_reply && i.list_reply.id) || null;\n  }\n  return null;\n}\n\nconst hashMobile = (e164) => crypto.createHash('sha256').update(e164).digest('hex');\n\n/**\n * One inbound message -> new thread state + actions for the workflow to execute.\n * ctx: { at (iso), mobile (E.164), profile_name, lead_id (uuid to use on insert), broker (routed candidate or null),\n *        brand: { brand_id, consent_mode }, existing_open_lead_id, suppressed, wamid }\n * thread: null for a sender we have never seen; persisted by the workflow (wa_threads, keyed by mobile hash).\n */\nfunction step(thread, msg, ctx) {\n  const actions = [];\n  const t = thread ? { ...thread, answers: { ...(thread.answers || {}) } } : null;\n  const send = (m) => actions.push({ kind: 'send', message: m });\n  const stall = (stage) => actions.push({ kind: 'schedule_stall', stage, hours: STALL_HOURS, from: ctx.at, replaces: true });\n\n  if (ctx.suppressed) return { thread: t, actions: [{ kind: 'ignore', reason: 'suppressed' }] }; // STOP'd number: W15 owns it\n  if (ctx.existing_open_lead_id && (!t || t.stage === 'done')) {\n    return { thread: t, actions: [{ kind: 'forward_w07', lead_id: ctx.existing_open_lead_id, reason: 'existing_lead_90d' }] }; // merge, no new consent, no new WhatsApp card\n  }\n\n  // first contact: consent first, nothing stored but the thread state\n  if (!t || t.stage === 'closed') {\n    const consent = consentFor(ctx.brand.consent_mode, ctx.broker);\n    const origin = readOrigin(msg);\n    if (!consent) {\n      send({ type: 'text', body: \"Thanks for getting in touch. We can't take new enquiries right now. Please try again in a few days.\" });\n      return { thread: { stage: 'closed', origin, closed_reason: 'no_named_broker', at: ctx.at }, actions: actions.concat([{ kind: 'alert', signal_key: 'ctwa_no_broker' }]) };\n    }\n    send(buttons(consent.text, [['consent_yes', 'Yes, continue'], ['consent_no', 'No thanks']]));\n    return { thread: { stage: 'await_consent', origin, consent, answers: {}, first_at: ctx.at, broker_id: ctx.broker ? ctx.broker.broker_id : null }, actions };\n  }\n\n  const id = tapId(msg);\n  if (t.stage === 'await_consent') {\n    if (id === 'consent_no') {\n      actions.push({ kind: 'suppress', mobile_hash: hashMobile(ctx.mobile), source: 'no_consent_ctwa' });\n      send({ type: 'text', body: 'No problem. We won’t contact you again. Take care.' });\n      return { thread: { stage: 'closed', closed_reason: 'consent_no', at: ctx.at }, actions: actions.concat([{ kind: 'cancel_stall' }]) }; // origin + answers dropped\n    }\n    if (id === 'consent_yes') {\n      const o = t.origin || {};\n      const row = {\n        id: ctx.lead_id, brand_id: ctx.brand.brand_id, origin: o.origin || 'ctwa', ref: o.ref || null, ad_id: o.ad_id || null,\n        ctwa_clid: o.ctwa_clid || null, phone: ctx.mobile, first_name: ctx.profile_name || null,\n        consent_text: t.consent.text, consent_text_version: t.consent.version, consent_mode: t.consent.mode,\n        consent_at: ctx.at, consent_source: 'ctwa', verified_at: ctx.at, wa_delivered_at: t.first_at, stage: 'verified',\n        is_synthetic: !!ctx.is_synthetic,\n      };\n      actions.push({ kind: 'insert_lead', row });\n      // business-messaging Lead (4.6: consent + valid number); needs Meta's ctwa_clid to attribute (W03-notes rule 1)\n      if (row.ctwa_clid) actions.push({ kind: 'capi', event_name: 'Lead', event_id: `evt_${row.id}_ctwa_lead`, action_source: 'business_messaging' });\n      t.stage = 'q_age';\n      t.lead_id = row.id;\n      send(question('q_age'));\n      stall('q_age');\n      return { thread: t, actions };\n    }\n    send(buttons(t.consent.text, [['consent_yes', 'Yes, continue'], ['consent_no', 'No thanks']])); // free text before consent: ask again\n    return { thread: t, actions };\n  }\n\n  const ORDER = { q_age: 'age_', q_budget: 'budget_', q_bond: 'bond_', q_method: 'method_' };\n  const prefix = ORDER[t.stage];\n  if (!prefix) return { thread: t, actions: [{ kind: 'forward_w07', lead_id: t.lead_id, reason: 'after_qualifying' }] };\n  if (!id || !id.startsWith(prefix)) {\n    // tap-only: free text mid-question is logged for the brief (W07) and the same question is shown again\n    if (msg.type === 'text') actions.push({ kind: 'forward_w07', lead_id: t.lead_id, reason: 'free_text_mid_qualifying', reply: false });\n    send({ ...question(t.stage, ctx.broker), body: `Please tap one of the options. ${question(t.stage, ctx.broker).body}` });\n    return { thread: t, actions };\n  }\n  const val = id.slice(prefix.length);\n  if (t.stage === 'q_age') {\n    t.answers.age_band = val;\n    if (!QUAL_AGE.has(val)) return outOfBand(t, ctx, 'age_band', actions);\n    t.stage = 'q_budget';\n  } else if (t.stage === 'q_budget') {\n    t.answers.budget_band = val;\n    if (!QUAL_BUDGET.has(val)) return outOfBand(t, ctx, 'budget_band', actions);\n    t.stage = 'q_bond';\n  } else if (t.stage === 'q_bond') {\n    t.answers.bond = val.startsWith('yes');\n    t.answers.dependants = val.endsWith('dependants_yes');\n    t.stage = 'q_method';\n  } else if (t.stage === 'q_method') {\n    t.answers.method_pref = METHOD_TO_DB[val] || null;\n    t.stage = 'done';\n    actions.push({ kind: 'cancel_stall' });\n    actions.push({\n      kind: 'update_lead', id: t.lead_id,\n      set: { age_band: AGE_TO_DB[t.answers.age_band], budget_band: BUDGET_TO_DB[t.answers.budget_band], bond: t.answers.bond, dependants: t.answers.dependants, method_pref: t.answers.method_pref, qualified_at: ctx.at, stage: 'qualified' },\n    });\n    // route (1.3) is W01 core's job: same routing for every intake path; it writes broker_id/cycle_id/routed_at\n    // before W06 exists (W01 rule), then W06 sends broker_intro_slots (or _v2 with the Flow button) < 60 s.\n    actions.push({ kind: 'route_and_first_touch', lead_id: t.lead_id, template_hint: 'broker_intro_slots', deadline_s: 60 });\n    return { thread: t, actions };\n  }\n  send(question(t.stage, ctx.broker));\n  stall(t.stage);\n  return { thread: t, actions };\n}\n\nfunction outOfBand(t, ctx, reason, actions) {\n  const del = new Date(Date.parse(ctx.at) + 24 * 3600 * 1000).toISOString();\n  actions.push({ kind: 'cancel_stall' });\n  actions.push({\n    kind: 'update_lead', id: t.lead_id,\n    set: { age_band: AGE_TO_DB[t.answers.age_band] || null, budget_band: BUDGET_TO_DB[t.answers.budget_band] || null, disqualified_reason: reason, broker_id: null, stage: 'disqualified', retention_delete_after: del },\n  });\n  actions.push({ kind: 'send', message: { type: 'text', body: 'Thanks for your answers. Based on them, we’re not the right fit for you right now, so we won’t pass your details on. Take care.' } });\n  return { thread: { ...t, stage: 'closed', closed_reason: reason }, actions };\n}\n\n/** Cloud API body for one `send` action (session message, inside the customer service window). */\nfunction toCloudApi(to, m) {\n  const base = { messaging_product: 'whatsapp', recipient_type: 'individual', to: String(to).replace('+', '') };\n  if (m.type === 'text') return { ...base, type: 'text', text: { body: m.body } };\n  if (m.type === 'button') {\n    return { ...base, type: 'interactive', interactive: { type: 'button', body: { text: m.body }, action: { buttons: m.buttons.map((b) => ({ type: 'reply', reply: { id: b.id, title: b.title.slice(0, 20) } })) } } };\n  }\n  return { ...base, type: 'interactive', interactive: { type: 'list', body: { text: m.body }, action: { button: m.button.slice(0, 20), sections: [{ title: 'Options', rows: m.rows.map((r) => ({ id: r.id, title: r.title.slice(0, 24) })) }] } } };\n}\n\nmodule.exports = { redirectFor, readOrigin, consentFor, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_V1, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };\n\nreturn module.exports; })();\nconst it = $input.first();\nconst raw = it.binary && it.binary.data ? Buffer.from(it.binary.data.data, 'base64').toString('utf8') : (it.json.rawBody || JSON.stringify(it.json.body));\nconst sig = (it.json.headers || {})['x-hub-signature-256'];\nconst v = VW.verifyMetaSignature(raw, sig, $env.META_APP_SECRET);\nif (!v.ok) return [{ json: { valid: false } }];\nconst body = JSON.parse(raw);\nconst out = [];\nfor (const e of body.entry || []) for (const ch of e.changes || []) {\n  const val = ch.value || {};\n  const pnid = (val.metadata || {}).phone_number_id;\n  for (const s of val.statuses || []) out.push({ json: { valid: true, kind: 'status', external_id: 'st:' + s.id + ':' + s.status, phone_number_id: pnid, status: s } });\n  for (const m of val.messages || []) {\n    const mobile = '+' + String(m.from).replace(/\\D/g, '');\n    const text = m.type === 'text' ? ((m.text || {}).body || '') : '';\n    const isStop = /^\\s*(stop|unsubscribe|opt ?out)\\s*[.!]*\\s*$/i.test(text) || W3.tapId(m) === 'stop';\n    const isFlow = m.type === 'interactive' && m.interactive && m.interactive.type === 'nfm_reply';\n    const isBroker = String($env.BROKER_WA_NUMBERS || '').split(',').map((x) => x.trim()).filter(Boolean).includes(mobile);\n    const kind = isStop ? 'stop' : isBroker ? 'broker' : isFlow ? 'flow_reply' : 'lead';\n    out.push({ json: { valid: true, kind, external_id: m.id, phone_number_id: pnid, mobile, profile_name: ((val.contacts || [])[0] || {}).profile?.name || null, msg: m, at: new Date(Number(m.timestamp) * 1000).toISOString(), payload_hash: VW.payloadHash(raw) } });\n  }\n}\nreturn out.length ? out : [{ json: { valid: true, kind: 'empty' } }];"
+    "jsCode": "const out = [];\nfor (const it of $input.all()) {\n  const j = it.json || {};\n  const g = j.msg || {};\n  if (!g.wamid || !g.from) continue;\n  const m = { id: g.wamid, from: String(g.from).replace(/^\\+/, ''), timestamp: String(Math.floor(Number(g.at_ms || Date.now()) / 1000)), type: g.type || 'text' };\n  if (g.referral) m.referral = g.referral;\n  if (m.type === 'text') m.text = { body: g.text || '' };\n  else if (m.type === 'button') m.button = { payload: g.payload, text: g.text || '' };\n  else if (m.type === 'interactive') m.interactive = g.list_id != null ? { type: 'list_reply', list_reply: { id: g.list_id, title: g.text || '' } } : { type: 'button_reply', button_reply: { id: g.payload, title: g.text || '' } };\n  else if (g.media) m[m.type] = { caption: g.text || '' };\n  out.push({ json: { kind: 'lead', source: j.source || 'W07', external_id: g.wamid, phone_number_id: g.phone_number_id, mobile: '+' + m.from, profile_name: j.profile_name || null, msg: m, at: new Date(Number(m.timestamp) * 1000).toISOString() } });\n}\nreturn out;"
    }
   },
   {
    "id": "n04",
-   "name": "Respond 200 / 401",
-   "type": "n8n-nodes-base.respondToWebhook",
-   "typeVersion": 1.1,
-   "position": [
-    440,
-    -140
-   ],
-   "parameters": {
-    "respondWith": "text",
-    "responseBody": "={{ $json.valid ? \"ok\" : \"bad signature\" }}",
-    "options": {
-     "responseCode": "={{ $json.valid ? 200 : 401 }}"
-    }
-   }
-  },
-  {
-   "id": "n05",
-   "name": "Valid and not empty?",
-   "type": "n8n-nodes-base.if",
-   "typeVersion": 2,
-   "position": [
-    440,
-    0
-   ],
-   "parameters": {
-    "conditions": {
-     "options": {
-      "caseSensitive": true,
-      "leftValue": "",
-      "typeValidation": "loose"
-     },
-     "conditions": [
-      {
-       "id": "c1",
-       "leftValue": "={{ $json.valid && $json.kind !== \"empty\" }}",
-       "rightValue": true,
-       "operator": {
-        "type": "boolean",
-        "operation": "true",
-        "singleValue": true
-       }
-      }
-     ],
-     "combinator": "and"
-    },
-    "options": {}
-   }
-  },
-  {
-   "id": "n06",
-   "name": "Idempotency: claim wamid",
-   "type": "n8n-nodes-base.postgres",
-   "typeVersion": 2.5,
-   "position": [
-    660,
-    0
-   ],
-   "parameters": {
-    "operation": "executeQuery",
-    "query": "-- webhook_events UNIQUE (source, external_id): a Meta re-delivery returns no row and the item stops here (W03-notes rule 6).\nINSERT INTO public.webhook_events (source, external_id, signature_ok, payload_hash)\nVALUES ('whatsapp', $1, true, $2)\nON CONFLICT (source, external_id) DO NOTHING\nRETURNING id;",
-    "options": {
-     "queryReplacement": "={{ [ $json.external_id, $json.payload_hash || null ] }}"
-    }
-   },
-   "credentials": {
-    "postgres": {
-     "id": "",
-     "name": "LV Supabase Postgres"
-    }
-   }
-  },
-  {
-   "id": "n07",
-   "name": "Restore item",
-   "type": "n8n-nodes-base.code",
-   "typeVersion": 2,
-   "position": [
-    880,
-    0
-   ],
-   "parameters": {
-    "mode": "runOnceForAllItems",
-    "jsCode": "return $input.all().map((_, i) => ({ json: $('Valid and not empty?').all()[i].json }));"
-   }
-  },
-  {
-   "id": "n08",
-   "name": "Route inbound",
-   "type": "n8n-nodes-base.switch",
-   "typeVersion": 3,
-   "position": [
-    1100,
-    0
-   ],
-   "parameters": {
-    "rules": {
-     "values": [
-      {
-       "conditions": {
-        "options": {
-         "caseSensitive": true,
-         "leftValue": "",
-         "typeValidation": "strict"
-        },
-        "conditions": [
-         {
-          "leftValue": "={{ $json.kind }}",
-          "rightValue": "status",
-          "operator": {
-           "type": "string",
-           "operation": "equals"
-          }
-         }
-        ],
-        "combinator": "and"
-       },
-       "renameOutput": true,
-       "outputKey": "status"
-      },
-      {
-       "conditions": {
-        "options": {
-         "caseSensitive": true,
-         "leftValue": "",
-         "typeValidation": "strict"
-        },
-        "conditions": [
-         {
-          "leftValue": "={{ $json.kind }}",
-          "rightValue": "stop",
-          "operator": {
-           "type": "string",
-           "operation": "equals"
-          }
-         }
-        ],
-        "combinator": "and"
-       },
-       "renameOutput": true,
-       "outputKey": "stop"
-      },
-      {
-       "conditions": {
-        "options": {
-         "caseSensitive": true,
-         "leftValue": "",
-         "typeValidation": "strict"
-        },
-        "conditions": [
-         {
-          "leftValue": "={{ $json.kind }}",
-          "rightValue": "broker",
-          "operator": {
-           "type": "string",
-           "operation": "equals"
-          }
-         }
-        ],
-        "combinator": "and"
-       },
-       "renameOutput": true,
-       "outputKey": "broker"
-      },
-      {
-       "conditions": {
-        "options": {
-         "caseSensitive": true,
-         "leftValue": "",
-         "typeValidation": "strict"
-        },
-        "conditions": [
-         {
-          "leftValue": "={{ $json.kind }}",
-          "rightValue": "flow_reply",
-          "operator": {
-           "type": "string",
-           "operation": "equals"
-          }
-         }
-        ],
-        "combinator": "and"
-       },
-       "renameOutput": true,
-       "outputKey": "flow_reply"
-      },
-      {
-       "conditions": {
-        "options": {
-         "caseSensitive": true,
-         "leftValue": "",
-         "typeValidation": "strict"
-        },
-        "conditions": [
-         {
-          "leftValue": "={{ $json.kind }}",
-          "rightValue": "lead",
-          "operator": {
-           "type": "string",
-           "operation": "equals"
-          }
-         }
-        ],
-        "combinator": "and"
-       },
-       "renameOutput": true,
-       "outputKey": "lead"
-      }
-     ]
-    },
-    "options": {
-     "fallbackOutput": "none"
-    }
-   }
-  },
-  {
-   "id": "n09",
-   "name": "W06 Delivery receipts",
-   "type": "n8n-nodes-base.executeWorkflow",
-   "typeVersion": 1.1,
-   "position": [
-    1340,
-    -300
-   ],
-   "parameters": {
-    "source": "database",
-    "workflowId": {
-     "__rl": true,
-     "mode": "list",
-     "value": "",
-     "cachedResultName": "W06 First touch"
-    },
-    "options": {
-     "waitForSubWorkflow": false
-    }
-   }
-  },
-  {
-   "id": "n10",
-   "name": "W15 Opt-out",
-   "type": "n8n-nodes-base.executeWorkflow",
-   "typeVersion": 1.1,
-   "position": [
-    1340,
-    -180
-   ],
-   "parameters": {
-    "source": "database",
-    "workflowId": {
-     "__rl": true,
-     "mode": "list",
-     "value": "",
-     "cachedResultName": "W15 Opt-out"
-    },
-    "options": {
-     "waitForSubWorkflow": false
-    }
-   }
-  },
-  {
-   "id": "n11",
-   "name": "W12 Broker inbound (media -> W23)",
-   "type": "n8n-nodes-base.executeWorkflow",
-   "typeVersion": 1.1,
-   "position": [
-    1340,
-    -60
-   ],
-   "parameters": {
-    "source": "database",
-    "workflowId": {
-     "__rl": true,
-     "mode": "list",
-     "value": "",
-     "cachedResultName": "W12 Outcome capture"
-    },
-    "options": {
-     "waitForSubWorkflow": false
-    }
-   }
-  },
-  {
-   "id": "n12",
-   "name": "W07 Conversation agent (nfm_reply -> W05)",
-   "type": "n8n-nodes-base.executeWorkflow",
-   "typeVersion": 1.1,
-   "position": [
-    1340,
-    60
-   ],
-   "parameters": {
-    "source": "database",
-    "workflowId": {
-     "__rl": true,
-     "mode": "list",
-     "value": "",
-     "cachedResultName": "W07 Conversation agent"
-    },
-    "options": {
-     "waitForSubWorkflow": false
-    }
-   }
-  },
-  {
-   "id": "n13",
    "name": "Load context",
    "type": "n8n-nodes-base.postgres",
    "typeVersion": 2.5,
@@ -377,7 +67,7 @@
    }
   },
   {
-   "id": "n14",
+   "id": "n05",
    "name": "W03 step",
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
@@ -387,11 +77,11 @@
    ],
    "parameters": {
     "mode": "runOnceForAllItems",
-    "jsCode": "// --- inlined ../ctwa/w03.js sha256:cca5676fd3eb (regenerate: node automation/security/inline-for-n8n.mjs) ---\nconst W3 = (function () { const module = { exports: {} }; const exports = module.exports;\n'use strict';\n// W03 Click-to-WhatsApp intake: pure logic (no I/O). automation/W03.json inlines this file into its Code nodes;\n// automation/tests/W03.test.mjs runs it offline against fixtures/synthetic-leads.json.\n// Sources: 4.6 CTWA steps 1-4 + 7, automation/W03-notes.md (A.2 redirect, A.3 readOrigin), 0.1 consent mode `named`.\n// Which of my five: Chili Piper (one chat, no hand-off), Meta Cloud API (referral, interactive, 72-h window),\n// HBR (routing ends in W06 first touch < 60 s; nothing here waits).\n\nconst crypto = require('crypto');\n\n// ---------------------------------------------------------------- redirect (I-09, W03-notes A.2)\nconst REDIRECT_REF_RE = /^(cmt_(\\d{5,20}|org_\\d{5,20}_\\d{5,20})|dm_(messenger|instagram))$/;\nconst PREFILL = \"Hi, I'd like to check my life cover\";\n\n/** GET {CTWA_BASE_URL}/{ref} -> 302 to wa.me only. waDigits comes from the brands row, never from the URL. */\nfunction redirectFor(ref, waDigits, uaHeader = '') {\n  if (!/^27\\d{9}$/.test(String(waDigits || ''))) throw new Error('brand WhatsApp number not configured');\n  const ok = REDIRECT_REF_RE.test(String(ref || ''));\n  const text = ok ? `${PREFILL} (ref ${ref})` : PREFILL;\n  const ua = String(uaHeader).toLowerCase();\n  const uaClass = /iphone|ipad|ios/.test(ua) ? 'ios' : /android/.test(ua) ? 'android' : /windows|macintosh|linux|cros/.test(ua) ? 'desktop' : 'other';\n  return {\n    status: 302,\n    headers: { Location: `https://wa.me/${waDigits}?text=${encodeURIComponent(text)}`, 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' },\n    click: { ref: ok ? ref : null, ua_class: uaClass }, // ops.ctwa_clicks row: no IP, no full UA, no cookie\n  };\n}\n\n// ---------------------------------------------------------------- origin (W03-notes A.3, verbatim rule)\nconst REF_RE = /\\(ref ((?:cmt_(?:org_)?[0-9_]{5,45})|dm_(?:messenger|instagram))\\)\\s*$/;\nfunction readOrigin(msg) {\n  const r = msg.referral || null;\n  const body = msg.type === 'text' ? (msg.text && typeof msg.text === 'object' ? msg.text.body : msg.text) || '' : '';\n  const m = msg.type === 'text' ? REF_RE.exec(body) : null;\n  const ref = m ? m[1] : null;\n  const fromRef = ref && ref.startsWith('cmt_') ? 'comment' : ref && ref.startsWith('dm_') ? 'dm' : null;\n  const refAd = ref ? /^cmt_(\\d{5,20})$/.exec(ref) : null;\n  return {\n    origin: r ? 'ctwa' : fromRef || 'ctwa',\n    ref,\n    ad_id: r && r.source_type === 'ad' ? r.source_id : refAd ? refAd[1] : null,\n    ctwa_clid: (r && r.ctwa_clid) || null,\n    referral_source_type: (r && r.source_type) || null,\n    referral_source_id: (r && r.source_id) || null,\n    text_without_ref: m ? body.replace(REF_RE, '').trim() : msg.type === 'text' ? body : null,\n  };\n}\n\n// ---------------------------------------------------------------- consent (0.1: named while one broker)\nconst CONSENT_GENERIC_V1 = \"Before we start: if it's a fit, we'll share your details with an authorised financial services provider who'll contact you about life cover. OK to continue?\";\nfunction consentFor(mode, broker) {\n  if (mode === 'generic') return { version: 'ctwa-v1', mode: 'generic', text: CONSENT_GENERIC_V1 };\n  if (!broker || !broker.practice_name || !broker.fsp_number) return null; // named mode needs a named broker\n  return {\n    version: 'ctwa-named-v1',\n    mode: 'named',\n    text: `Before we start: if it's a fit, we'll share your details with ${broker.practice_name} (FSP ${broker.fsp_number}), an authorised financial services provider who'll contact you about life cover. OK to continue?`,\n  };\n}\n\n// ---------------------------------------------------------------- tap-only questions (4.6 step 3)\nconst AGE_ROWS = [['age_under_35', 'Under 35'], ['age_35_44', '35 to 44'], ['age_45_50', '45 to 50'], ['age_51_plus', '51 or older']];\nconst BUDGET_ROWS = [['budget_under_500', 'Under R500 a month'], ['budget_500_750', 'R500 to R750'], ['budget_750_1250', 'R750 to R1,250'], ['budget_1250_plus', 'R1,250 or more']];\nconst BOND_ROWS = [['bond_yes_dependants_yes', 'Bond and dependants'], ['bond_yes_dependants_no', 'Bond, no dependants'], ['bond_no_dependants_yes', 'Dependants, no bond'], ['bond_no_dependants_no', 'Neither']];\nconst METHOD_TITLES = { teams: 'Teams video call', zoom: 'Zoom video call', meet: 'Google Meet', whatsapp_call: 'WhatsApp call', phone: 'Phone call' };\nconst QUAL_AGE = new Set(['35_44', '45_50']); // 0.1 bands; 45-50 qualifies, 51+ does not\nconst QUAL_BUDGET = new Set(['750_1250', '1250_plus']); // 0.1: both upper bands qualify\n// fixture/quiz codes -> leads_smc_checks codes (schema uses lt35 / 51plus / lt750 / 1250plus)\nconst AGE_TO_DB = { under_35: 'lt35', '35_44': '35_44', '45_50': '45_50', '51_plus': '51plus' };\nconst BUDGET_TO_DB = { under_500: 'lt750', '500_750': 'lt750', '750_1250': '750_1250', '1250_plus': '1250plus' };\nconst METHOD_TO_DB = { teams: 'teams', zoom: 'zoom', meet: 'meet', google_meet: 'meet', whatsapp_call: 'whatsapp_call', phone: 'phone' };\nconst STALL_HOURS = [1, 20, 68]; // 4.6 step 7, inside the 72-h CTWA window\n\nconst list = (body, button, rows) => ({ type: 'list', body, button, rows: rows.map(([id, title]) => ({ id, title })) });\nconst buttons = (body, rows) => ({ type: 'button', body, buttons: rows.map(([id, title]) => ({ id, title })) });\n\nfunction question(stage, broker) {\n  if (stage === 'q_age') return list('Which age group are you in?', 'Choose age', AGE_ROWS);\n  if (stage === 'q_budget') return list('Roughly what could you put towards cover each month?', 'Choose amount', BUDGET_ROWS);\n  if (stage === 'q_bond') return list('Do you have a bond or people who depend on your income?', 'Choose one', BOND_ROWS);\n  if (stage === 'q_method') {\n    const ms = (broker && broker.methods_supported) || ['phone'];\n    const rows = ms.filter((m) => METHOD_TITLES[m] || m === 'google_meet').map((m) => [`method_${m}`, METHOD_TITLES[m] || METHOD_TITLES.meet]);\n    const body = `How would you like to talk to ${(broker && broker.adviser_first_name) || 'the adviser'}?`;\n    return rows.length <= 3 ? buttons(body, rows) : list(body, 'Choose', rows);\n  }\n  return null;\n}\n\n/** id of a tap, whatever shape the Cloud API (or the fixture) used. */\nfunction tapId(msg) {\n  if (msg.payload) return msg.payload;\n  if (msg.type === 'button' && msg.button) return msg.button.payload;\n  if (msg.type === 'interactive' && msg.interactive) {\n    const i = msg.interactive;\n    return (i.button_reply && i.button_reply.id) || (i.list_reply && i.list_reply.id) || null;\n  }\n  return null;\n}\n\nconst hashMobile = (e164) => crypto.createHash('sha256').update(e164).digest('hex');\n\n/**\n * One inbound message -> new thread state + actions for the workflow to execute.\n * ctx: { at (iso), mobile (E.164), profile_name, lead_id (uuid to use on insert), broker (routed candidate or null),\n *        brand: { brand_id, consent_mode }, existing_open_lead_id, suppressed, wamid }\n * thread: null for a sender we have never seen; persisted by the workflow (wa_threads, keyed by mobile hash).\n */\nfunction step(thread, msg, ctx) {\n  const actions = [];\n  const t = thread ? { ...thread, answers: { ...(thread.answers || {}) } } : null;\n  const send = (m) => actions.push({ kind: 'send', message: m });\n  const stall = (stage) => actions.push({ kind: 'schedule_stall', stage, hours: STALL_HOURS, from: ctx.at, replaces: true });\n\n  if (ctx.suppressed) return { thread: t, actions: [{ kind: 'ignore', reason: 'suppressed' }] }; // STOP'd number: W15 owns it\n  if (ctx.existing_open_lead_id && (!t || t.stage === 'done')) {\n    return { thread: t, actions: [{ kind: 'forward_w07', lead_id: ctx.existing_open_lead_id, reason: 'existing_lead_90d' }] }; // merge, no new consent, no new WhatsApp card\n  }\n\n  // first contact: consent first, nothing stored but the thread state\n  if (!t || t.stage === 'closed') {\n    const consent = consentFor(ctx.brand.consent_mode, ctx.broker);\n    const origin = readOrigin(msg);\n    if (!consent) {\n      send({ type: 'text', body: \"Thanks for getting in touch. We can't take new enquiries right now. Please try again in a few days.\" });\n      return { thread: { stage: 'closed', origin, closed_reason: 'no_named_broker', at: ctx.at }, actions: actions.concat([{ kind: 'alert', signal_key: 'ctwa_no_broker' }]) };\n    }\n    send(buttons(consent.text, [['consent_yes', 'Yes, continue'], ['consent_no', 'No thanks']]));\n    return { thread: { stage: 'await_consent', origin, consent, answers: {}, first_at: ctx.at, broker_id: ctx.broker ? ctx.broker.broker_id : null }, actions };\n  }\n\n  const id = tapId(msg);\n  if (t.stage === 'await_consent') {\n    if (id === 'consent_no') {\n      actions.push({ kind: 'suppress', mobile_hash: hashMobile(ctx.mobile), source: 'no_consent_ctwa' });\n      send({ type: 'text', body: 'No problem. We won’t contact you again. Take care.' });\n      return { thread: { stage: 'closed', closed_reason: 'consent_no', at: ctx.at }, actions: actions.concat([{ kind: 'cancel_stall' }]) }; // origin + answers dropped\n    }\n    if (id === 'consent_yes') {\n      const o = t.origin || {};\n      const row = {\n        id: ctx.lead_id, brand_id: ctx.brand.brand_id, origin: o.origin || 'ctwa', ref: o.ref || null, ad_id: o.ad_id || null,\n        ctwa_clid: o.ctwa_clid || null, phone: ctx.mobile, first_name: ctx.profile_name || null,\n        consent_text: t.consent.text, consent_text_version: t.consent.version, consent_mode: t.consent.mode,\n        consent_at: ctx.at, consent_source: 'ctwa', verified_at: ctx.at, wa_delivered_at: t.first_at, stage: 'verified',\n        is_synthetic: !!ctx.is_synthetic,\n      };\n      actions.push({ kind: 'insert_lead', row });\n      // business-messaging Lead (4.6: consent + valid number); needs Meta's ctwa_clid to attribute (W03-notes rule 1)\n      if (row.ctwa_clid) actions.push({ kind: 'capi', event_name: 'Lead', event_id: `evt_${row.id}_ctwa_lead`, action_source: 'business_messaging' });\n      t.stage = 'q_age';\n      t.lead_id = row.id;\n      send(question('q_age'));\n      stall('q_age');\n      return { thread: t, actions };\n    }\n    send(buttons(t.consent.text, [['consent_yes', 'Yes, continue'], ['consent_no', 'No thanks']])); // free text before consent: ask again\n    return { thread: t, actions };\n  }\n\n  const ORDER = { q_age: 'age_', q_budget: 'budget_', q_bond: 'bond_', q_method: 'method_' };\n  const prefix = ORDER[t.stage];\n  if (!prefix) return { thread: t, actions: [{ kind: 'forward_w07', lead_id: t.lead_id, reason: 'after_qualifying' }] };\n  if (!id || !id.startsWith(prefix)) {\n    // tap-only: free text mid-question is logged for the brief (W07) and the same question is shown again\n    if (msg.type === 'text') actions.push({ kind: 'forward_w07', lead_id: t.lead_id, reason: 'free_text_mid_qualifying', reply: false });\n    send({ ...question(t.stage, ctx.broker), body: `Please tap one of the options. ${question(t.stage, ctx.broker).body}` });\n    return { thread: t, actions };\n  }\n  const val = id.slice(prefix.length);\n  if (t.stage === 'q_age') {\n    t.answers.age_band = val;\n    if (!QUAL_AGE.has(val)) return outOfBand(t, ctx, 'age_band', actions);\n    t.stage = 'q_budget';\n  } else if (t.stage === 'q_budget') {\n    t.answers.budget_band = val;\n    if (!QUAL_BUDGET.has(val)) return outOfBand(t, ctx, 'budget_band', actions);\n    t.stage = 'q_bond';\n  } else if (t.stage === 'q_bond') {\n    t.answers.bond = val.startsWith('yes');\n    t.answers.dependants = val.endsWith('dependants_yes');\n    t.stage = 'q_method';\n  } else if (t.stage === 'q_method') {\n    t.answers.method_pref = METHOD_TO_DB[val] || null;\n    t.stage = 'done';\n    actions.push({ kind: 'cancel_stall' });\n    actions.push({\n      kind: 'update_lead', id: t.lead_id,\n      set: { age_band: AGE_TO_DB[t.answers.age_band], budget_band: BUDGET_TO_DB[t.answers.budget_band], bond: t.answers.bond, dependants: t.answers.dependants, method_pref: t.answers.method_pref, qualified_at: ctx.at, stage: 'qualified' },\n    });\n    // route (1.3) is W01 core's job: same routing for every intake path; it writes broker_id/cycle_id/routed_at\n    // before W06 exists (W01 rule), then W06 sends broker_intro_slots (or _v2 with the Flow button) < 60 s.\n    actions.push({ kind: 'route_and_first_touch', lead_id: t.lead_id, template_hint: 'broker_intro_slots', deadline_s: 60 });\n    return { thread: t, actions };\n  }\n  send(question(t.stage, ctx.broker));\n  stall(t.stage);\n  return { thread: t, actions };\n}\n\nfunction outOfBand(t, ctx, reason, actions) {\n  const del = new Date(Date.parse(ctx.at) + 24 * 3600 * 1000).toISOString();\n  actions.push({ kind: 'cancel_stall' });\n  actions.push({\n    kind: 'update_lead', id: t.lead_id,\n    set: { age_band: AGE_TO_DB[t.answers.age_band] || null, budget_band: BUDGET_TO_DB[t.answers.budget_band] || null, disqualified_reason: reason, broker_id: null, stage: 'disqualified', retention_delete_after: del },\n  });\n  actions.push({ kind: 'send', message: { type: 'text', body: 'Thanks for your answers. Based on them, we’re not the right fit for you right now, so we won’t pass your details on. Take care.' } });\n  return { thread: { ...t, stage: 'closed', closed_reason: reason }, actions };\n}\n\n/** Cloud API body for one `send` action (session message, inside the customer service window). */\nfunction toCloudApi(to, m) {\n  const base = { messaging_product: 'whatsapp', recipient_type: 'individual', to: String(to).replace('+', '') };\n  if (m.type === 'text') return { ...base, type: 'text', text: { body: m.body } };\n  if (m.type === 'button') {\n    return { ...base, type: 'interactive', interactive: { type: 'button', body: { text: m.body }, action: { buttons: m.buttons.map((b) => ({ type: 'reply', reply: { id: b.id, title: b.title.slice(0, 20) } })) } } };\n  }\n  return { ...base, type: 'interactive', interactive: { type: 'list', body: { text: m.body }, action: { button: m.button.slice(0, 20), sections: [{ title: 'Options', rows: m.rows.map((r) => ({ id: r.id, title: r.title.slice(0, 24) })) }] } } };\n}\n\nmodule.exports = { redirectFor, readOrigin, consentFor, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_V1, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };\n\nreturn module.exports; })();\nconst out = [];\nfor (const [i, item] of $input.all().entries()) {\n  const ctxRow = item.json;\n  const m = $('Restore item').all()[i].json;\n  const broker = ctxRow.broker || null;\n  const brand = { brand_id: ctxRow.brand_id, consent_mode: broker ? broker.consent_mode : 'named' };\n  const r = W3.step(ctxRow.thread || null, m.msg, { at: m.at, mobile: m.mobile, profile_name: m.profile_name, lead_id: ctxRow.new_lead_id,\n    broker, brand, existing_open_lead_id: ctxRow.existing_open_lead_id, suppressed: ctxRow.suppressed, wamid: m.external_id, is_synthetic: false });\n  const st = r.actions.find((a) => a.kind === 'schedule_stall');\n  const cancel = r.actions.some((a) => a.kind === 'cancel_stall');\n  const stallDue = st && !cancel ? new Date(Date.parse(m.at) + st.hours[0] * 3600e3).toISOString() : null;\n  out.push({ json: { brand_id: ctxRow.brand_id, mobile: m.mobile, wamid: m.external_id, at: m.at, phone_number_id: m.phone_number_id, broker, thread: r.thread, actions: r.actions, stall_due_at: stallDue } });\n}\nreturn out;"
+    "jsCode": "// --- inlined ../ctwa/w03.js sha256:cca5676fd3eb (regenerate: node automation/security/inline-for-n8n.mjs) ---\nconst W3 = (function () { const module = { exports: {} }; const exports = module.exports;\n'use strict';\n// W03 Click-to-WhatsApp intake: pure logic (no I/O). automation/W03.json inlines this file into its Code nodes;\n// automation/tests/W03.test.mjs runs it offline against fixtures/synthetic-leads.json.\n// Sources: 4.6 CTWA steps 1-4 + 7, automation/W03-notes.md (A.2 redirect, A.3 readOrigin), 0.1 consent mode `named`.\n// Which of my five: Chili Piper (one chat, no hand-off), Meta Cloud API (referral, interactive, 72-h window),\n// HBR (routing ends in W06 first touch < 60 s; nothing here waits).\n\nconst crypto = require('crypto');\n\n// ---------------------------------------------------------------- redirect (I-09, W03-notes A.2)\nconst REDIRECT_REF_RE = /^(cmt_(\\d{5,20}|org_\\d{5,20}_\\d{5,20})|dm_(messenger|instagram))$/;\nconst PREFILL = \"Hi, I'd like to check my life cover\";\n\n/** GET {CTWA_BASE_URL}/{ref} -> 302 to wa.me only. waDigits comes from the brands row, never from the URL. */\nfunction redirectFor(ref, waDigits, uaHeader = '') {\n  if (!/^27\\d{9}$/.test(String(waDigits || ''))) throw new Error('brand WhatsApp number not configured');\n  const ok = REDIRECT_REF_RE.test(String(ref || ''));\n  const text = ok ? `${PREFILL} (ref ${ref})` : PREFILL;\n  const ua = String(uaHeader).toLowerCase();\n  const uaClass = /iphone|ipad|ios/.test(ua) ? 'ios' : /android/.test(ua) ? 'android' : /windows|macintosh|linux|cros/.test(ua) ? 'desktop' : 'other';\n  return {\n    status: 302,\n    headers: { Location: `https://wa.me/${waDigits}?text=${encodeURIComponent(text)}`, 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' },\n    click: { ref: ok ? ref : null, ua_class: uaClass }, // ops.ctwa_clicks row: no IP, no full UA, no cookie\n  };\n}\n\n// ---------------------------------------------------------------- origin (W03-notes A.3, verbatim rule)\nconst REF_RE = /\\(ref ((?:cmt_(?:org_)?[0-9_]{5,45})|dm_(?:messenger|instagram))\\)\\s*$/;\nfunction readOrigin(msg) {\n  const r = msg.referral || null;\n  const body = msg.type === 'text' ? (msg.text && typeof msg.text === 'object' ? msg.text.body : msg.text) || '' : '';\n  const m = msg.type === 'text' ? REF_RE.exec(body) : null;\n  const ref = m ? m[1] : null;\n  const fromRef = ref && ref.startsWith('cmt_') ? 'comment' : ref && ref.startsWith('dm_') ? 'dm' : null;\n  const refAd = ref ? /^cmt_(\\d{5,20})$/.exec(ref) : null;\n  return {\n    origin: r ? 'ctwa' : fromRef || 'ctwa',\n    ref,\n    ad_id: r && r.source_type === 'ad' ? r.source_id : refAd ? refAd[1] : null,\n    ctwa_clid: (r && r.ctwa_clid) || null,\n    referral_source_type: (r && r.source_type) || null,\n    referral_source_id: (r && r.source_id) || null,\n    text_without_ref: m ? body.replace(REF_RE, '').trim() : msg.type === 'text' ? body : null,\n  };\n}\n\n// ---------------------------------------------------------------- consent (0.1: named while one broker)\nconst CONSENT_GENERIC_V1 = \"Before we start: if it's a fit, we'll share your details with an authorised financial services provider who'll contact you about life cover. OK to continue?\";\nfunction consentFor(mode, broker) {\n  if (mode === 'generic') return { version: 'ctwa-v1', mode: 'generic', text: CONSENT_GENERIC_V1 };\n  if (!broker || !broker.practice_name || !broker.fsp_number) return null; // named mode needs a named broker\n  return {\n    version: 'ctwa-named-v1',\n    mode: 'named',\n    text: `Before we start: if it's a fit, we'll share your details with ${broker.practice_name} (FSP ${broker.fsp_number}), an authorised financial services provider who'll contact you about life cover. OK to continue?`,\n  };\n}\n\n// ---------------------------------------------------------------- tap-only questions (4.6 step 3)\nconst AGE_ROWS = [['age_under_35', 'Under 35'], ['age_35_44', '35 to 44'], ['age_45_50', '45 to 50'], ['age_51_plus', '51 or older']];\nconst BUDGET_ROWS = [['budget_under_500', 'Under R500 a month'], ['budget_500_750', 'R500 to R750'], ['budget_750_1250', 'R750 to R1,250'], ['budget_1250_plus', 'R1,250 or more']];\nconst BOND_ROWS = [['bond_yes_dependants_yes', 'Bond and dependants'], ['bond_yes_dependants_no', 'Bond, no dependants'], ['bond_no_dependants_yes', 'Dependants, no bond'], ['bond_no_dependants_no', 'Neither']];\nconst METHOD_TITLES = { teams: 'Teams video call', zoom: 'Zoom video call', meet: 'Google Meet', whatsapp_call: 'WhatsApp call', phone: 'Phone call' };\nconst QUAL_AGE = new Set(['35_44', '45_50']); // 0.1 bands; 45-50 qualifies, 51+ does not\nconst QUAL_BUDGET = new Set(['750_1250', '1250_plus']); // 0.1: both upper bands qualify\n// fixture/quiz codes -> leads_smc_checks codes (schema uses lt35 / 51plus / lt750 / 1250plus)\nconst AGE_TO_DB = { under_35: 'lt35', '35_44': '35_44', '45_50': '45_50', '51_plus': '51plus' };\nconst BUDGET_TO_DB = { under_500: 'lt750', '500_750': 'lt750', '750_1250': '750_1250', '1250_plus': '1250plus' };\nconst METHOD_TO_DB = { teams: 'teams', zoom: 'zoom', meet: 'meet', google_meet: 'meet', whatsapp_call: 'whatsapp_call', phone: 'phone' };\nconst STALL_HOURS = [1, 20, 68]; // 4.6 step 7, inside the 72-h CTWA window\n\nconst list = (body, button, rows) => ({ type: 'list', body, button, rows: rows.map(([id, title]) => ({ id, title })) });\nconst buttons = (body, rows) => ({ type: 'button', body, buttons: rows.map(([id, title]) => ({ id, title })) });\n\nfunction question(stage, broker) {\n  if (stage === 'q_age') return list('Which age group are you in?', 'Choose age', AGE_ROWS);\n  if (stage === 'q_budget') return list('Roughly what could you put towards cover each month?', 'Choose amount', BUDGET_ROWS);\n  if (stage === 'q_bond') return list('Do you have a bond or people who depend on your income?', 'Choose one', BOND_ROWS);\n  if (stage === 'q_method') {\n    const ms = (broker && broker.methods_supported) || ['phone'];\n    const rows = ms.filter((m) => METHOD_TITLES[m] || m === 'google_meet').map((m) => [`method_${m}`, METHOD_TITLES[m] || METHOD_TITLES.meet]);\n    const body = `How would you like to talk to ${(broker && broker.adviser_first_name) || 'the adviser'}?`;\n    return rows.length <= 3 ? buttons(body, rows) : list(body, 'Choose', rows);\n  }\n  return null;\n}\n\n/** id of a tap, whatever shape the Cloud API (or the fixture) used. */\nfunction tapId(msg) {\n  if (msg.payload) return msg.payload;\n  if (msg.type === 'button' && msg.button) return msg.button.payload;\n  if (msg.type === 'interactive' && msg.interactive) {\n    const i = msg.interactive;\n    return (i.button_reply && i.button_reply.id) || (i.list_reply && i.list_reply.id) || null;\n  }\n  return null;\n}\n\nconst hashMobile = (e164) => crypto.createHash('sha256').update(e164).digest('hex');\n\n/**\n * One inbound message -> new thread state + actions for the workflow to execute.\n * ctx: { at (iso), mobile (E.164), profile_name, lead_id (uuid to use on insert), broker (routed candidate or null),\n *        brand: { brand_id, consent_mode }, existing_open_lead_id, suppressed, wamid }\n * thread: null for a sender we have never seen; persisted by the workflow (wa_threads, keyed by mobile hash).\n */\nfunction step(thread, msg, ctx) {\n  const actions = [];\n  const t = thread ? { ...thread, answers: { ...(thread.answers || {}) } } : null;\n  const send = (m) => actions.push({ kind: 'send', message: m });\n  const stall = (stage) => actions.push({ kind: 'schedule_stall', stage, hours: STALL_HOURS, from: ctx.at, replaces: true });\n\n  if (ctx.suppressed) return { thread: t, actions: [{ kind: 'ignore', reason: 'suppressed' }] }; // STOP'd number: W15 owns it\n  if (ctx.existing_open_lead_id && (!t || t.stage === 'done')) {\n    return { thread: t, actions: [{ kind: 'forward_w07', lead_id: ctx.existing_open_lead_id, reason: 'existing_lead_90d' }] }; // merge, no new consent, no new WhatsApp card\n  }\n\n  // first contact: consent first, nothing stored but the thread state\n  if (!t || t.stage === 'closed') {\n    const consent = consentFor(ctx.brand.consent_mode, ctx.broker);\n    const origin = readOrigin(msg);\n    if (!consent) {\n      send({ type: 'text', body: \"Thanks for getting in touch. We can't take new enquiries right now. Please try again in a few days.\" });\n      return { thread: { stage: 'closed', origin, closed_reason: 'no_named_broker', at: ctx.at }, actions: actions.concat([{ kind: 'alert', signal_key: 'ctwa_no_broker' }]) };\n    }\n    send(buttons(consent.text, [['consent_yes', 'Yes, continue'], ['consent_no', 'No thanks']]));\n    return { thread: { stage: 'await_consent', origin, consent, answers: {}, first_at: ctx.at, broker_id: ctx.broker ? ctx.broker.broker_id : null }, actions };\n  }\n\n  const id = tapId(msg);\n  if (t.stage === 'await_consent') {\n    if (id === 'consent_no') {\n      actions.push({ kind: 'suppress', mobile_hash: hashMobile(ctx.mobile), source: 'no_consent_ctwa' });\n      send({ type: 'text', body: 'No problem. We won’t contact you again. Take care.' });\n      return { thread: { stage: 'closed', closed_reason: 'consent_no', at: ctx.at }, actions: actions.concat([{ kind: 'cancel_stall' }]) }; // origin + answers dropped\n    }\n    if (id === 'consent_yes') {\n      const o = t.origin || {};\n      const row = {\n        id: ctx.lead_id, brand_id: ctx.brand.brand_id, origin: o.origin || 'ctwa', ref: o.ref || null, ad_id: o.ad_id || null,\n        ctwa_clid: o.ctwa_clid || null, phone: ctx.mobile, first_name: ctx.profile_name || null,\n        consent_text: t.consent.text, consent_text_version: t.consent.version, consent_mode: t.consent.mode,\n        consent_at: ctx.at, consent_source: 'ctwa', verified_at: ctx.at, wa_delivered_at: t.first_at, stage: 'verified',\n        is_synthetic: !!ctx.is_synthetic,\n      };\n      actions.push({ kind: 'insert_lead', row });\n      // business-messaging Lead (4.6: consent + valid number); needs Meta's ctwa_clid to attribute (W03-notes rule 1)\n      if (row.ctwa_clid) actions.push({ kind: 'capi', event_name: 'Lead', event_id: `evt_${row.id}_ctwa_lead`, action_source: 'business_messaging' });\n      t.stage = 'q_age';\n      t.lead_id = row.id;\n      send(question('q_age'));\n      stall('q_age');\n      return { thread: t, actions };\n    }\n    send(buttons(t.consent.text, [['consent_yes', 'Yes, continue'], ['consent_no', 'No thanks']])); // free text before consent: ask again\n    return { thread: t, actions };\n  }\n\n  const ORDER = { q_age: 'age_', q_budget: 'budget_', q_bond: 'bond_', q_method: 'method_' };\n  const prefix = ORDER[t.stage];\n  if (!prefix) return { thread: t, actions: [{ kind: 'forward_w07', lead_id: t.lead_id, reason: 'after_qualifying' }] };\n  if (!id || !id.startsWith(prefix)) {\n    // tap-only: free text mid-question is logged for the brief (W07) and the same question is shown again\n    if (msg.type === 'text') actions.push({ kind: 'forward_w07', lead_id: t.lead_id, reason: 'free_text_mid_qualifying', reply: false });\n    send({ ...question(t.stage, ctx.broker), body: `Please tap one of the options. ${question(t.stage, ctx.broker).body}` });\n    return { thread: t, actions };\n  }\n  const val = id.slice(prefix.length);\n  if (t.stage === 'q_age') {\n    t.answers.age_band = val;\n    if (!QUAL_AGE.has(val)) return outOfBand(t, ctx, 'age_band', actions);\n    t.stage = 'q_budget';\n  } else if (t.stage === 'q_budget') {\n    t.answers.budget_band = val;\n    if (!QUAL_BUDGET.has(val)) return outOfBand(t, ctx, 'budget_band', actions);\n    t.stage = 'q_bond';\n  } else if (t.stage === 'q_bond') {\n    t.answers.bond = val.startsWith('yes');\n    t.answers.dependants = val.endsWith('dependants_yes');\n    t.stage = 'q_method';\n  } else if (t.stage === 'q_method') {\n    t.answers.method_pref = METHOD_TO_DB[val] || null;\n    t.stage = 'done';\n    actions.push({ kind: 'cancel_stall' });\n    actions.push({\n      kind: 'update_lead', id: t.lead_id,\n      set: { age_band: AGE_TO_DB[t.answers.age_band], budget_band: BUDGET_TO_DB[t.answers.budget_band], bond: t.answers.bond, dependants: t.answers.dependants, method_pref: t.answers.method_pref, qualified_at: ctx.at, stage: 'qualified' },\n    });\n    // route (1.3) is W01 core's job: same routing for every intake path; it writes broker_id/cycle_id/routed_at\n    // before W06 exists (W01 rule), then W06 sends broker_intro_slots (or _v2 with the Flow button) < 60 s.\n    actions.push({ kind: 'route_and_first_touch', lead_id: t.lead_id, template_hint: 'broker_intro_slots', deadline_s: 60 });\n    return { thread: t, actions };\n  }\n  send(question(t.stage, ctx.broker));\n  stall(t.stage);\n  return { thread: t, actions };\n}\n\nfunction outOfBand(t, ctx, reason, actions) {\n  const del = new Date(Date.parse(ctx.at) + 24 * 3600 * 1000).toISOString();\n  actions.push({ kind: 'cancel_stall' });\n  actions.push({\n    kind: 'update_lead', id: t.lead_id,\n    set: { age_band: AGE_TO_DB[t.answers.age_band] || null, budget_band: BUDGET_TO_DB[t.answers.budget_band] || null, disqualified_reason: reason, broker_id: null, stage: 'disqualified', retention_delete_after: del },\n  });\n  actions.push({ kind: 'send', message: { type: 'text', body: 'Thanks for your answers. Based on them, we’re not the right fit for you right now, so we won’t pass your details on. Take care.' } });\n  return { thread: { ...t, stage: 'closed', closed_reason: reason }, actions };\n}\n\n/** Cloud API body for one `send` action (session message, inside the customer service window). */\nfunction toCloudApi(to, m) {\n  const base = { messaging_product: 'whatsapp', recipient_type: 'individual', to: String(to).replace('+', '') };\n  if (m.type === 'text') return { ...base, type: 'text', text: { body: m.body } };\n  if (m.type === 'button') {\n    return { ...base, type: 'interactive', interactive: { type: 'button', body: { text: m.body }, action: { buttons: m.buttons.map((b) => ({ type: 'reply', reply: { id: b.id, title: b.title.slice(0, 20) } })) } } };\n  }\n  return { ...base, type: 'interactive', interactive: { type: 'list', body: { text: m.body }, action: { button: m.button.slice(0, 20), sections: [{ title: 'Options', rows: m.rows.map((r) => ({ id: r.id, title: r.title.slice(0, 24) })) }] } } };\n}\n\nmodule.exports = { redirectFor, readOrigin, consentFor, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_V1, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };\n\nreturn module.exports; })();\nconst out = [];\nfor (const [i, item] of $input.all().entries()) {\n  const ctxRow = item.json;\n  const m = $('W07 hand-off -> Cloud API message').all()[i].json;\n  const broker = ctxRow.broker || null;\n  const brand = { brand_id: ctxRow.brand_id, consent_mode: broker ? broker.consent_mode : 'named' };\n  const r = W3.step(ctxRow.thread || null, m.msg, { at: m.at, mobile: m.mobile, profile_name: m.profile_name, lead_id: ctxRow.new_lead_id,\n    broker, brand, existing_open_lead_id: ctxRow.existing_open_lead_id, suppressed: ctxRow.suppressed, wamid: m.external_id, is_synthetic: false });\n  const st = r.actions.find((a) => a.kind === 'schedule_stall');\n  const cancel = r.actions.some((a) => a.kind === 'cancel_stall');\n  const stallDue = st && !cancel ? new Date(Date.parse(m.at) + st.hours[0] * 3600e3).toISOString() : null;\n  out.push({ json: { brand_id: ctxRow.brand_id, mobile: m.mobile, wamid: m.external_id, at: m.at, phone_number_id: m.phone_number_id, broker, thread: r.thread, actions: r.actions, stall_due_at: stallDue } });\n}\nreturn out;"
    }
   },
   {
-   "id": "n15",
+   "id": "n06",
    "name": "Save thread",
    "type": "n8n-nodes-base.postgres",
    "typeVersion": 2.5,
@@ -414,7 +104,7 @@
    }
   },
   {
-   "id": "n16",
+   "id": "n07",
    "name": "Fan out actions",
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
@@ -428,7 +118,7 @@
    }
   },
   {
-   "id": "n17",
+   "id": "n08",
    "name": "Action?",
    "type": "n8n-nodes-base.switch",
    "typeVersion": 3,
@@ -623,7 +313,7 @@
    }
   },
   {
-   "id": "n18",
+   "id": "n09",
    "name": "Build Cloud API body",
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
@@ -637,7 +327,7 @@
    }
   },
   {
-   "id": "n19",
+   "id": "n10",
    "name": "WhatsApp send (session)",
    "type": "n8n-nodes-base.httpRequest",
    "typeVersion": 4.2,
@@ -672,7 +362,7 @@
    "waitBetweenTries": 2000
   },
   {
-   "id": "n20",
+   "id": "n11",
    "name": "Insert lead (consent at the tap)",
    "type": "n8n-nodes-base.postgres",
    "typeVersion": 2.5,
@@ -695,7 +385,7 @@
    }
   },
   {
-   "id": "n21",
+   "id": "n12",
    "name": "Mint lead_token",
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
@@ -709,7 +399,7 @@
    }
   },
   {
-   "id": "n22",
+   "id": "n13",
    "name": "Update lead (answers / out-of-band)",
    "type": "n8n-nodes-base.postgres",
    "typeVersion": 2.5,
@@ -732,7 +422,7 @@
    }
   },
   {
-   "id": "n23",
+   "id": "n14",
    "name": "Suppress (hash only)",
    "type": "n8n-nodes-base.postgres",
    "typeVersion": 2.5,
@@ -755,7 +445,7 @@
    }
   },
   {
-   "id": "n24",
+   "id": "n15",
    "name": "CAPI business-messaging Lead",
    "type": "n8n-nodes-base.executeWorkflow",
    "typeVersion": 1.1,
@@ -777,7 +467,7 @@
    }
   },
   {
-   "id": "n25",
+   "id": "n16",
    "name": "W01 Lead core (route + W06 first touch < 60 s)",
    "type": "n8n-nodes-base.executeWorkflow",
    "typeVersion": 1.1,
@@ -799,7 +489,7 @@
    }
   },
   {
-   "id": "n26",
+   "id": "n17",
    "name": "W07 Conversation agent (forward)",
    "type": "n8n-nodes-base.executeWorkflow",
    "typeVersion": 1.1,
@@ -821,7 +511,7 @@
    }
   },
   {
-   "id": "n27",
+   "id": "n18",
    "name": "W22 Alerts: W03",
    "type": "n8n-nodes-base.executeWorkflow",
    "typeVersion": 1.1,
@@ -843,7 +533,7 @@
    }
   },
   {
-   "id": "n28",
+   "id": "n19",
    "name": "CTWA redirect (GET /wa/:ref)",
    "type": "n8n-nodes-base.webhook",
    "typeVersion": 2,
@@ -860,7 +550,7 @@
    "webhookId": "w03-ctwa-redirect"
   },
   {
-   "id": "n29",
+   "id": "n20",
    "name": "Build redirect",
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
@@ -874,7 +564,7 @@
    }
   },
   {
-   "id": "n30",
+   "id": "n21",
    "name": "Respond 302 to wa.me",
    "type": "n8n-nodes-base.respondToWebhook",
    "typeVersion": 1.1,
@@ -906,7 +596,7 @@
    }
   },
   {
-   "id": "n31",
+   "id": "n22",
    "name": "Log click (no IP, no UA)",
    "type": "n8n-nodes-base.postgres",
    "typeVersion": 2.5,
@@ -929,7 +619,7 @@
    }
   },
   {
-   "id": "n32",
+   "id": "n23",
    "name": "Meta webhook verify (GET)",
    "type": "n8n-nodes-base.webhook",
    "typeVersion": 2,
@@ -946,7 +636,7 @@
    "webhookId": "w03-waba-get"
   },
   {
-   "id": "n33",
+   "id": "n24",
    "name": "Check hub.verify_token",
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
@@ -960,7 +650,7 @@
    }
   },
   {
-   "id": "n34",
+   "id": "n25",
    "name": "Respond hub.challenge",
    "type": "n8n-nodes-base.respondToWebhook",
    "typeVersion": 1.1,
@@ -978,96 +668,19 @@
   }
  ],
  "connections": {
-  "WABA webhook (POST)": {
+  "Called by W07 (CTWA lead)": {
    "main": [
     [
      {
-      "node": "Verify signature + split",
+      "node": "W07 hand-off -> Cloud API message",
       "type": "main",
       "index": 0
      }
     ]
    ]
   },
-  "Verify signature + split": {
+  "W07 hand-off -> Cloud API message": {
    "main": [
-    [
-     {
-      "node": "Respond 200 / 401",
-      "type": "main",
-      "index": 0
-     },
-     {
-      "node": "Valid and not empty?",
-      "type": "main",
-      "index": 0
-     }
-    ]
-   ]
-  },
-  "Valid and not empty?": {
-   "main": [
-    [
-     {
-      "node": "Idempotency: claim wamid",
-      "type": "main",
-      "index": 0
-     }
-    ]
-   ]
-  },
-  "Idempotency: claim wamid": {
-   "main": [
-    [
-     {
-      "node": "Restore item",
-      "type": "main",
-      "index": 0
-     }
-    ]
-   ]
-  },
-  "Restore item": {
-   "main": [
-    [
-     {
-      "node": "Route inbound",
-      "type": "main",
-      "index": 0
-     }
-    ]
-   ]
-  },
-  "Route inbound": {
-   "main": [
-    [
-     {
-      "node": "W06 Delivery receipts",
-      "type": "main",
-      "index": 0
-     }
-    ],
-    [
-     {
-      "node": "W15 Opt-out",
-      "type": "main",
-      "index": 0
-     }
-    ],
-    [
-     {
-      "node": "W12 Broker inbound (media -> W23)",
-      "type": "main",
-      "index": 0
-     }
-    ],
-    [
-     {
-      "node": "W07 Conversation agent (nfm_reply -> W05)",
-      "type": "main",
-      "index": 0
-     }
-    ],
     [
      {
       "node": "Load context",
