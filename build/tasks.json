@@ -436,7 +436,7 @@
       ],
       "acceptance_test": "node automation/tests/W08.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
+      "status": "in_progress",
       "section": "4.6 inventory"
     },
     {
@@ -465,7 +465,7 @@
       ],
       "acceptance_test": "node automation/tests/W10.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
+      "status": "in_progress",
       "section": "4.6 inventory"
     },
     {
@@ -479,7 +479,7 @@
       ],
       "acceptance_test": "node automation/tests/W11.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
+      "status": "in_progress",
       "section": "4.6 inventory"
     },
     {
@@ -672,7 +672,7 @@
       ],
       "acceptance_test": "node automation/tests/W26.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "in_progress",
+      "status": "green",
       "section": "4.6 inventory"
     },
     {
@@ -698,7 +698,7 @@
       ],
       "acceptance_test": "node automation/tests/W24.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "in_progress",
+      "status": "green",
       "section": "4.6 inventory"
     },
     {
@@ -727,7 +727,7 @@
       ],
       "acceptance_test": "node automation/tests/W29.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
+      "status": "in_progress",
       "section": "4.6 inventory"
     },
     {
@@ -794,7 +794,7 @@
       ],
       "acceptance_test": "node automation/tests/W34.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
+      "status": "in_progress",
       "section": "4.6 inventory"
     },
     {
@@ -808,7 +808,7 @@
       ],
       "acceptance_test": "node automation/tests/W35.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
+      "status": "in_progress",
       "section": "4.6 inventory"
     },
     {
@@ -2355,6 +2355,94 @@
       "human_gate": true,
       "status": "needs_human",
       "section": "4C.2"
+    },
+    {
+      "id": "NH-41",
+      "title": "Privacy page placeholders (surname, KG name, IO phone, CIPC, address) + practitioner items",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "2.3"
+    },
+    {
+      "id": "NH-42",
+      "title": "Schedule C1A: lead cancels and never rebooks — pick (a)/(b)/(a)+(b); STOP-after-cancel addendum",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "Schedule C"
+    },
+    {
+      "id": "NH-43",
+      "title": "Policies-written field: keep portal-only (default keep)",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.12a"
+    },
+    {
+      "id": "NH-44",
+      "title": "Broker PDF initials-only (default yes)",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.10a"
+    },
+    {
+      "id": "NH-45",
+      "title": "Nudge template wording 'no obligation to buy' + 72 h rewrite (default apply)",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.12"
+    },
+    {
+      "id": "NH-46",
+      "title": "W34 practitioner questions; howzit@ read by n8n for DSR intake (default yes)",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "POPIA"
+    },
+    {
+      "id": "NH-47",
+      "title": "4.0a lookups queued (8) — run from laptop or confirm at gates",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.0a"
+    },
+    {
+      "id": "NH-48",
+      "title": "go.leadvelocity.co.za in CORS origins? (default no); media-erase key; CSP report-only",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "6.7"
     }
   ]
 }

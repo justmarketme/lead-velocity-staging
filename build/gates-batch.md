@@ -107,3 +107,11 @@ GATE-HIDE-WORDS (Phase 2) · GATE-TEST-W01/W04/W05/W06/W09/W12/W13/W15 — you w
 | NH-39 | Re-render follow-ups | Owner alignment only, nothing for you |
 | NH-40 | Consent fixture L04–L06 generic vs named (0.1) at GATE-TEST-W01 | Update fixture to named |
 | NH-22 | `ops` schema exposure | Resolved by default: RPC only (migration 08); say so if you want `ops` exposed instead |
+| NH-41 | Privacy page: your surname, KG's full name, IO phone, CIPC number, address; practitioner Q9/Q11 | Fill when convenient; page stays DRAFT and unpublished |
+| NH-42 | Schedule C1A cancel rule: (a) quiet after rebook offer + nurture = uncontactable; (b) "I don't want a call" = disqualified; both replaceable | (a)+(b); STOP-after-cancel claims nothing |
+| NH-43 | Keep the portal-only "policies written" field? | Keep; never emailed, never a fee input |
+| NH-44 | Broker weekly PDF initials-only (full names on screen in the portal) | Yes |
+| NH-45 | Nudge templates: "no obligation to buy" + the 72 h rewrite before submission | Apply |
+| NH-46 | n8n may read howzit@ (read-only, keyword filter) for data-subject requests | Yes; the 10 retention questions go to the practitioner |
+| NH-47 | Eight 4.0a lookups (Meta API version first) — run from your laptop session | Nothing blocked on them |
+| NH-48 | Add go.leadvelocity.co.za to CORS origins? | No (SortMyCover domains only) |
