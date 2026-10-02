@@ -13,7 +13,7 @@
       "parameters": {
         "width": 680,
         "height": 300,
-        "content": "W27 Meta asset health. Hourly at :17 and on Meta webhook events (page / whatsapp_business_account / ad account). One batched Graph call per brand (<= 50). Writes brands health fields; any NEW restriction / rejection / quality drop -> W22 urgent (both phones). Template status is synced into message_templates. Read-only against Meta. Needs env META_SYSTEM_USER_TOKEN, META_APP_SECRET, META_WEBHOOK_VERIFY_TOKEN. ASSUMPTION: brands.health_alerts jsonb + health_json jsonb columns exist (add them); EMQ edge (dataset_quality) is unverified: emq stays null if it fails."
+        "content": "W27 Meta asset health. Hourly at :17 and on Meta webhook events (page / whatsapp_business_account / ad account). One batched Graph call per brand (<= 50). Writes brands health fields; any NEW restriction / rejection / quality drop -> W22 urgent (both phones). Template status is synced into message_templates. Read-only against Meta. Needs env META_SYSTEM_USER_TOKEN, META_APP_SECRET, META_WEBHOOK_VERIFY_TOKEN. ASSUMPTION: brands.health_alerts jsonb + health_json jsonb columns exist (add them); EMQ edge (dataset_quality) is unverified: emq stays null if it fails. Writes: brands health fields + health_alerts (jsonb), message_templates.meta_status / meta_category / rejected_reason / status_synced_at (never legacy status/category), ops.notifications console row with body jsonb for new alerts."
       }
     },
     {
@@ -128,7 +128,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT brand_id, business_id, page_id, ig_user_id, waba_id, phone_number_id, ad_account_id, pixel_id, waba_quality, health_alerts FROM brands WHERE coalesce(status,'active') = 'active';",
+        "query": "SELECT id AS brand_id, business_id, page_id, ig_user_id, waba_id, phone_number_id, ad_account_id, pixel_id, waba_quality, health_alerts FROM public.brands WHERE is_active;",
         "options": {}
       },
       "credentials": {
@@ -193,7 +193,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE brands SET page_status = $2, ig_status = $3, bv_status = $4, ad_account_status = $5, waba_quality = $6, template_status = $7::jsonb, emq = $8::numeric, health_alerts = $9::jsonb, health_checked_at = now()\nWHERE brand_id = $1::uuid RETURNING brand_id;",
+        "query": "UPDATE public.brands SET page_status = $2, ig_status = $3, bv_status = $4, ad_account_status = $5, waba_quality = $6, template_status = $7::jsonb, emq = $8::numeric, health_alerts = $9::jsonb, health_checked_at = now()\nWHERE id = $1::uuid RETURNING id AS brand_id;",
         "options": {
           "queryReplacement": "={{ [$json.brand_id, $json.health.page_status || null, $json.health.ig_status || null, $json.health.bv_status || null, $json.health.ad_account_status || null, $json.health.waba_quality || null, JSON.stringify($json.health.template_status || {}), $json.health.emq, JSON.stringify($json.health.alerts || [])] }}"
         }
@@ -216,9 +216,9 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "-- ASSUMPTION: message_templates (name, status, category, rejected_reason, status_synced_at) per the crm-gap \"message_templates extension\". UPDATE only: submission is submit.sh / meta-operator.\nUPDATE message_templates t SET status = x.status, category = x.category, rejected_reason = x.rejected_reason, status_synced_at = now()\nFROM jsonb_to_recordset($1::jsonb) AS x(name text, status text, category text, rejected_reason text) WHERE t.name = x.name RETURNING t.name;",
+        "query": "-- UPDATE only: submission is submit.sh / meta-operator. Writes the Meta-assigned state (meta_status / meta_category); the legacy status / category columns are never touched.\n-- Match by brand + WhatsApp template name (wa_name), falling back to the legacy name column.\nWITH up AS (\nUPDATE public.message_templates t SET meta_status = x.status, meta_category = x.category, rejected_reason = x.rejected_reason, status_synced_at = now(),\n  approved_at = CASE WHEN x.status = 'APPROVED' THEN coalesce(t.approved_at, now()) ELSE t.approved_at END\nFROM jsonb_to_recordset($1::jsonb) AS x(name text, status text, category text, rejected_reason text)\nWHERE (t.wa_name = x.name OR (t.wa_name IS NULL AND t.name = x.name)) AND (t.brand_id = $2::uuid OR t.brand_id IS NULL)\nRETURNING t.id)\nSELECT count(*)::int AS synced FROM up;",
         "options": {
-          "queryReplacement": "={{ JSON.stringify($json.templates) }}"
+          "queryReplacement": "={{ [JSON.stringify($json.templates), $json.brand_id] }}"
         }
       },
       "credentials": {
@@ -234,7 +234,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1320,
+        1540,
         0
       ],
       "parameters": {
@@ -247,7 +247,7 @@
           "conditions": [
             {
               "id": "c1",
-              "leftValue": "={{ String($json.urgent) }}",
+              "leftValue": "={{ String($('Pull health (one batch per brand) + diff').item.json.urgent) }}",
               "rightValue": "true",
               "operator": {
                 "type": "string",
@@ -264,8 +264,8 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        1540,
-        0
+        1980,
+        -80
       ],
       "parameters": {
         "source": "database",
@@ -301,6 +301,37 @@
         320
       ],
       "parameters": {}
+    },
+    {
+      "id": "n17",
+      "name": "Record alerts (ops.notifications.body)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Console feed row: one per brand per distinct set of NEW alerts (24 h dedupe). Delivery/escalation is W22's job (separate row, signal_key meta_asset_health). Always returns one row.\nWITH ins AS (\nINSERT INTO ops.notifications (kind, \"to\", channel, severity, status, source, ref_table, ref_id, dedupe_key, what, body)\nSELECT 'alert', 'console', 'console', CASE WHEN $3::boolean THEN 'red' ELSE 'amber' END, 'sent', 'W27', 'brands', $1::text, $2::text,\n       'Meta asset health: ' || jsonb_array_length($4::jsonb) || ' new alert(s)', jsonb_build_object('brand_id', $1::text, 'urgent', $3::boolean, 'alerts', $4::jsonb)\nWHERE jsonb_array_length($4::jsonb) > 0\n  AND NOT EXISTS (SELECT 1 FROM ops.notifications n WHERE n.dedupe_key = $2::text AND n.created_at > now() - interval '24 hours')\nRETURNING 1)\nSELECT count(*)::int AS recorded FROM ins;",
+        "options": {
+          "queryReplacement": "={{ (() => { const h = $('Pull health (one batch per brand) + diff').item.json; const a = h.new_alerts || []; return [h.brand_id, 'w27:' + h.brand_id + ':' + a.map((x) => x.code).sort().join(','), !!h.urgent, JSON.stringify(a)]; })() }}"
+        }
+      }
+    },
+    {
+      "id": "n18",
+      "name": "Shape W22 signal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        -80
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const h = $('Pull health (one batch per brand) + diff').item.json;\nconst urgent = (h.new_alerts || []).filter((a) => a.severity === 'urgent');\nconst codes = urgent.map((a) => a.code).sort();\n// Producer contract (W22.md s3). No PII: codes and asset ids only.\nreturn { json: { signal_key: codes.some((c) => c.startsWith('WABA_')) ? 'waba_restriction' : 'meta_asset_health', scope: 'brand:' + h.brand_id, severity: 'red',\n  what: 'Meta asset health: ' + (codes.join(', ') || 'WABA quality drop'), impact: 'Ads, WhatsApp or lead capture may be affected',\n  first_action: 'Open the console Ads screen, then Business Settings for the failing asset', since: new Date().toISOString(), source: 'W27' } };"
+      }
     }
   ],
   "connections": {
@@ -408,7 +439,7 @@
       "main": [
         [
           {
-            "node": "New urgent alert?",
+            "node": "Record alerts (ops.notifications.body)",
             "type": "main",
             "index": 0
           }
@@ -419,7 +450,7 @@
       "main": [
         [
           {
-            "node": "W22 Alerts: URGENT to both phones",
+            "node": "Shape W22 signal",
             "type": "main",
             "index": 0
           }
@@ -427,6 +458,28 @@
         [
           {
             "node": "Quiet: nothing new",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record alerts (ops.notifications.body)": {
+      "main": [
+        [
+          {
+            "node": "New urgent alert?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shape W22 signal": {
+      "main": [
+        [
+          {
+            "node": "W22 Alerts: URGENT to both phones",
             "type": "main",
             "index": 0
           }

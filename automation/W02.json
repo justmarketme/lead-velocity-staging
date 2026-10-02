@@ -107,7 +107,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT id FROM leads WHERE leadgen_id = $1 LIMIT 1;",
+        "query": "-- physical column, full unique index leads_leadgen_full_uidx (06). The insert itself is W01's: it must use INSERT INTO public.leads (leadgen_id, ...) ... ON CONFLICT (leadgen_id) DO NOTHING, so a webhook re-delivery racing this check still stores one lead.\nSELECT id FROM public.leads WHERE leadgen_id = $1 LIMIT 1;",
         "options": {
           "queryReplacement": "={{ [$json.leadgen_id] }}"
         }
@@ -233,9 +233,9 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO ops.notifications (kind, \"to\", dedupe_key) VALUES ('lead_routed_out', 'console', $1) ON CONFLICT DO NOTHING; -- ASSUMPTION: replace with an ads_routed_out counter if platform-architect adds one. Reasons are in the execution data only; the lead is not stored (2.1.7).",
+        "query": "INSERT INTO ops.notifications (kind, \"to\", channel, severity, status, source, dedupe_key, what, body)\nSELECT 'lead_routed_out', 'console', 'console', 'info', 'sent', 'W02', $1::text, 'Lead Ad lead routed out (not qualified)', jsonb_build_object('ad_id', $2::text)\nWHERE NOT EXISTS (SELECT 1 FROM ops.notifications n WHERE n.dedupe_key = $1::text AND n.created_at > now() - interval '24 hours')\nRETURNING 1; -- anonymous: ad id only, reasons stay in the execution data and the lead is not stored (2.1.7).",
         "options": {
-          "queryReplacement": "={{ [ \"routed_out:\" + $json.ad_id + \":\" + $json.leadgen_id ] }}"
+          "queryReplacement": "={{ [ \"routed_out:\" + $json.ad_id + \":\" + $json.leadgen_id, String($json.ad_id || '') ] }}"
         }
       },
       "credentials": {

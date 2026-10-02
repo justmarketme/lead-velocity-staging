@@ -1,5 +1,5 @@
 {
-  "name": "W21 Ads sync (hourly insights -> ad_metrics)",
+  "name": "W21 Ads sync (hourly insights -> ad_metrics + ad_objects)",
   "nodes": [
     {
       "id": "n01",
@@ -13,7 +13,7 @@
       "parameters": {
         "width": 640,
         "height": 260,
-        "content": "W21 Ads sync. Hourly at :07. Insights are NEVER fetched more often than hourly (meta-ads.js refuses with TOO_SOON). Back-off at 80% of X-Business-Use-Case-Usage (0.3 #11): on RATE_LIMIT_BACKOFF this run ends quietly and the next hour retries; 3 consecutive back-offs -> W22 warning. Reads only: no ad changes here. Needs: META_SYSTEM_USER_TOKEN, META_API_VERSION in n8n env; repo automation/ mounted read-only at /opt/lv/automation; NODE_FUNCTION_ALLOW_BUILTIN=crypto; N8N_BLOCK_ENV_ACCESS_IN_NODE=false. Credential: \"LV Supabase Postgres\"."
+        "content": "W21 Ads sync. Hourly at :07. Insights are NEVER fetched more often than hourly (meta-ads.js refuses with TOO_SOON). Back-off at 80% of X-Business-Use-Case-Usage (0.3 #11): on RATE_LIMIT_BACKOFF this run ends quietly and the next hour retries; 3 consecutive back-offs -> W22 warning. Reads only: no ad changes here. Needs: META_SYSTEM_USER_TOKEN, META_API_VERSION in n8n env; repo automation/ mounted read-only at /opt/lv/automation; NODE_FUNCTION_ALLOW_BUILTIN=crypto; N8N_BLOCK_ENV_ACCESS_IN_NODE=false. Credential: \"LV Supabase Postgres\". Writes: ad_metrics (ON CONFLICT date, ad_id, placement; placement 'all' when the insights row has no breakdown; generated cpl/cost_per_* never written), brands.insights_last_fetched_at, ad_objects (status/budget cache for the console and W30)."
       }
     },
     {
@@ -47,7 +47,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT brand_id, ad_account_id, insights_last_fetched_at FROM brands WHERE ad_account_id IS NOT NULL AND coalesce(status,'active') = 'active';",
+        "query": "SELECT id AS brand_id, ad_account_id, insights_last_fetched_at FROM brands WHERE ad_account_id IS NOT NULL AND is_active;",
         "options": {}
       },
       "credentials": {
@@ -68,7 +68,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const M = require('/opt/lv/automation/ads/meta-ads.js');\nconst out = [];\nconst client = M.createClient({ token: $env.META_SYSTEM_USER_TOKEN, apiVersion: $env.META_API_VERSION || 'v23.0', maxInlineWaitMs: 20000 });\nfor (const it of $input.all()) {\n  const b = it.json;\n  try {\n    // last_3d re-reads yesterday/day-before so late attribution revisions overwrite (upsert by ad/day).\n    const r = await client.getInsights({ adAccountId: b.ad_account_id, level: 'ad', datePreset: 'last_3d', lastFetchedAt: b.insights_last_fetched_at });\n    out.push({ json: { status: 'ok', brand_id: b.brand_id, fetched_at: r.fetched_at, usage_pct: r.usage && r.usage.pct, truncated: r.truncated, rows: M.insightsToAdMetrics(r.rows, { brandId: b.brand_id }) } });\n  } catch (e) {\n    const status = e.code === 'RATE_LIMIT_BACKOFF' || e.code === 'RATE_LIMIT' ? 'backoff' : e.code === 'TOO_SOON' ? 'too_soon' : 'error';\n    out.push({ json: { status, brand_id: b.brand_id, code: e.code || 'ERR', message: String(e.message).slice(0, 300), retry_after_ms: e.retryAfterMs || null } });\n  }\n}\nreturn out;"
+        "jsCode": "const M = require('/opt/lv/automation/ads/meta-ads.js');\nconst out = [];\nconst client = M.createClient({ token: $env.META_SYSTEM_USER_TOKEN, apiVersion: $env.META_API_VERSION || 'v23.0', maxInlineWaitMs: 20000 });\nfor (const it of $input.all()) {\n  const b = it.json;\n  try {\n    // last_3d re-reads yesterday/day-before so late attribution revisions overwrite (upsert by ad/day).\n    const r = await client.getInsights({ adAccountId: b.ad_account_id, level: 'ad', datePreset: 'last_3d', lastFetchedAt: b.insights_last_fetched_at });\n    // Ad status / budget cache (ad_objects). Non-fatal: a failure here never blocks the metrics upsert.\n    let objects = [];\n    try { objects = (await client.getAdObjects({ adAccountId: b.ad_account_id, brandId: b.brand_id, lastFetchedAt: b.insights_last_fetched_at })).rows; } catch (e2) { objects = []; }\n    out.push({ json: { status: 'ok', brand_id: b.brand_id, fetched_at: r.fetched_at, usage_pct: r.usage && r.usage.pct, truncated: r.truncated, rows: M.insightsToAdMetrics(r.rows, { brandId: b.brand_id }), objects } });\n  } catch (e) {\n    const status = e.code === 'RATE_LIMIT_BACKOFF' || e.code === 'RATE_LIMIT' ? 'backoff' : e.code === 'TOO_SOON' ? 'too_soon' : 'error';\n    out.push({ json: { status, brand_id: b.brand_id, code: e.code || 'ERR', message: String(e.message).slice(0, 300), retry_after_ms: e.retryAfterMs || null } });\n  }\n}\nreturn out;"
       }
     },
     {
@@ -112,9 +112,9 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO ad_metrics (date, brand_id, campaign_id, campaign_name, adset_id, adset_name, ad_id, ad_name, concept, angle, format, spend_zar, impressions, clicks, leads_raw, cpl, frequency, hook_rate, hold_rate)\nSELECT x.date, x.brand_id, x.campaign_id, x.campaign_name, x.adset_id, x.adset_name, x.ad_id, x.ad_name, x.concept, x.angle, x.format, x.spend_zar, x.impressions, x.clicks, x.leads_raw, x.cpl, x.frequency, x.hook_rate, x.hold_rate\nFROM jsonb_to_recordset($1::jsonb) AS x(date date, brand_id uuid, campaign_id text, campaign_name text, adset_id text, adset_name text, ad_id text, ad_name text, concept text, angle text, format text, spend_zar numeric, impressions int, clicks int, leads_raw int, cpl numeric, frequency numeric, hook_rate numeric, hold_rate numeric)\nON CONFLICT (date, ad_id) DO UPDATE SET campaign_name = EXCLUDED.campaign_name, adset_name = EXCLUDED.adset_name, ad_name = EXCLUDED.ad_name, spend_zar = EXCLUDED.spend_zar, impressions = EXCLUDED.impressions, clicks = EXCLUDED.clicks, leads_raw = EXCLUDED.leads_raw, cpl = EXCLUDED.cpl, frequency = EXCLUDED.frequency, hook_rate = EXCLUDED.hook_rate, hold_rate = EXCLUDED.hold_rate\n-- qualified / booked / attended / cost_per_* are NOT touched here: the join below (and W29 for broker quality) own them.\nRETURNING 1;",
+        "query": "-- cpl / cost_per_qualified / cost_per_attended / cost_per_good_fit are GENERATED columns: never inserted or updated.\nWITH up AS (\nINSERT INTO public.ad_metrics (date, brand_id, campaign_id, campaign_name, adset_id, adset_name, ad_id, ad_name, concept, angle, format, placement, spend_zar, impressions, clicks, leads_raw, frequency, hook_rate, hold_rate)\nSELECT x.date, x.brand_id, x.campaign_id, x.campaign_name, x.adset_id, x.adset_name, x.ad_id, x.ad_name, x.concept, x.angle, x.format, coalesce(x.placement, 'all'), x.spend_zar, x.impressions, x.clicks, x.leads_raw, x.frequency, x.hook_rate, x.hold_rate\nFROM jsonb_to_recordset($1::jsonb) AS x(date date, brand_id uuid, campaign_id text, campaign_name text, adset_id text, adset_name text, ad_id text, ad_name text, concept text, angle text, format text, placement text, spend_zar numeric, impressions bigint, clicks bigint, leads_raw int, frequency numeric, hook_rate numeric, hold_rate numeric)\nON CONFLICT (date, ad_id, placement) DO UPDATE SET campaign_name = EXCLUDED.campaign_name, adset_name = EXCLUDED.adset_name, ad_name = EXCLUDED.ad_name, concept = EXCLUDED.concept, angle = EXCLUDED.angle, format = EXCLUDED.format, spend_zar = EXCLUDED.spend_zar, impressions = EXCLUDED.impressions, clicks = EXCLUDED.clicks, leads_raw = EXCLUDED.leads_raw, frequency = EXCLUDED.frequency, hook_rate = EXCLUDED.hook_rate, hold_rate = EXCLUDED.hold_rate, synced_at = now()\n-- qualified / booked / attended are NOT touched here: the join below (and W29 for broker quality) own them.\nRETURNING 1)\nSELECT count(*)::int AS upserted FROM up;",
         "options": {
-          "queryReplacement": "={{ JSON.stringify($json.rows) }}"
+          "queryReplacement": "={{ JSON.stringify($('Fetch insights (back-off aware)').item.json.rows) }}"
         }
       },
       "credentials": {
@@ -126,18 +126,18 @@
     },
     {
       "id": "n07",
-      "name": "Join funnel: qualified + cost per qualified",
+      "name": "Join funnel: qualified (cost_per_qualified is generated)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        1100,
+        1320,
         -100
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "-- ASSUMPTION: leads.ad_id, leads.qualified (bool), leads.created_at, leads.brand_id exist per build/crm-gap.md. booked / attended / cost_per_attended are joined from bookings + outcomes by W29 once those tables exist.\nUPDATE ad_metrics m SET qualified = s.q, cost_per_qualified = CASE WHEN s.q > 0 THEN round(m.spend_zar / s.q, 2) END\nFROM (SELECT ad_id, (created_at AT TIME ZONE 'Africa/Johannesburg')::date AS d, count(*) FILTER (WHERE qualified) AS q FROM leads WHERE brand_id = $1::uuid AND ad_id IS NOT NULL AND created_at > now() - interval '5 days' GROUP BY 1, 2) s\nWHERE m.ad_id = s.ad_id AND m.date = s.d AND m.brand_id = $1::uuid;\nUPDATE brands SET insights_last_fetched_at = $2::timestamptz WHERE brand_id = $1::uuid;",
+        "query": "-- leads.qualified is a generated boolean (06). cost_per_qualified is a GENERATED column on ad_metrics: it recomputes itself when qualified changes.\nWITH s AS (SELECT ad_id, (created_at AT TIME ZONE 'Africa/Johannesburg')::date AS d, count(*) FILTER (WHERE qualified) AS q FROM public.leads WHERE brand_id = $1::uuid AND ad_id IS NOT NULL AND created_at > now() - interval '5 days' GROUP BY 1, 2),\nu AS (UPDATE public.ad_metrics m SET qualified = s.q FROM s WHERE m.ad_id = s.ad_id AND m.date = s.d AND m.brand_id = $1::uuid RETURNING 1)\nSELECT count(*)::int AS joined FROM u;",
         "options": {
-          "queryReplacement": "={{ [$(\"Fetch insights (back-off aware)\").item.json.brand_id, $(\"Fetch insights (back-off aware)\").item.json.fetched_at] }}"
+          "queryReplacement": "={{ [$('Fetch insights (back-off aware)').item.json.brand_id] }}"
         }
       },
       "credentials": {
@@ -209,6 +209,40 @@
         280
       ],
       "parameters": {}
+    },
+    {
+      "id": "n11",
+      "name": "Stamp brands.insights_last_fetched_at",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1100,
+        -100
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH u AS (UPDATE public.brands SET insights_last_fetched_at = $2::timestamptz WHERE id = $1::uuid RETURNING 1) SELECT count(*)::int AS stamped FROM u;",
+        "options": {
+          "queryReplacement": "={{ [$('Fetch insights (back-off aware)').item.json.brand_id, $('Fetch insights (back-off aware)').item.json.fetched_at] }}"
+        }
+      }
+    },
+    {
+      "id": "n12",
+      "name": "Cache ad status/budget (ad_objects)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1540,
+        -100
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH up AS (\nINSERT INTO public.ad_objects (id, level, brand_id, campaign_id, adset_id, name, status, effective_status, daily_budget_zar, lifetime_budget_zar, spend_cap_zar, creative_id, effective_object_story_id, ig_media_id, launched_at, fetched_at)\nSELECT x.id, x.level, x.brand_id, x.campaign_id, x.adset_id, x.name, x.status, x.effective_status, x.daily_budget_zar, x.lifetime_budget_zar, x.spend_cap_zar, x.creative_id, x.effective_object_story_id, x.ig_media_id, x.launched_at, now()\nFROM jsonb_to_recordset($1::jsonb) AS x(id text, level text, brand_id uuid, campaign_id text, adset_id text, name text, status text, effective_status text, daily_budget_zar numeric, lifetime_budget_zar numeric, spend_cap_zar numeric, creative_id text, effective_object_story_id text, ig_media_id text, launched_at timestamptz)\nON CONFLICT (id) DO UPDATE SET level = EXCLUDED.level, campaign_id = EXCLUDED.campaign_id, adset_id = EXCLUDED.adset_id, name = EXCLUDED.name, status = EXCLUDED.status, effective_status = EXCLUDED.effective_status,\n  daily_budget_zar = EXCLUDED.daily_budget_zar, lifetime_budget_zar = EXCLUDED.lifetime_budget_zar, spend_cap_zar = EXCLUDED.spend_cap_zar, creative_id = EXCLUDED.creative_id,\n  effective_object_story_id = coalesce(EXCLUDED.effective_object_story_id, public.ad_objects.effective_object_story_id), ig_media_id = coalesce(EXCLUDED.ig_media_id, public.ad_objects.ig_media_id),\n  launched_at = coalesce(public.ad_objects.launched_at, EXCLUDED.launched_at), fetched_at = now()\n-- last_budget_change_at is owned by the confirm-to-apply write path (console), never by this read-only sync.\nRETURNING 1)\nSELECT count(*)::int AS cached FROM up;",
+        "options": {
+          "queryReplacement": "={{ JSON.stringify($('Fetch insights (back-off aware)').item.json.objects || []) }}"
+        }
+      }
     }
   ],
   "connections": {
@@ -267,7 +301,7 @@
       "main": [
         [
           {
-            "node": "Join funnel: qualified + cost per qualified",
+            "node": "Stamp brands.insights_last_fetched_at",
             "type": "main",
             "index": 0
           }
@@ -286,6 +320,28 @@
         [
           {
             "node": "Back-off or too soon: retry next hour",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stamp brands.insights_last_fetched_at": {
+      "main": [
+        [
+          {
+            "node": "Join funnel: qualified (cost_per_qualified is generated)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Join funnel: qualified (cost_per_qualified is generated)": {
+      "main": [
+        [
+          {
+            "node": "Cache ad status/budget (ad_objects)",
             "type": "main",
             "index": 0
           }

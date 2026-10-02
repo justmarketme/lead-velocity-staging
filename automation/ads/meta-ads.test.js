@@ -114,7 +114,7 @@ test('write returns audit_log + ops.notifications rows with who/when/why', async
   assert.equal(r.audit[0].requested_by, 'jonathan');
   assert.equal(r.audit[0].action, 'pause_ad');
   assert.ok(r.audit[0].at);
-  assert.equal(r.notifications[0].kind, 'ads_write');
+  assert.equal(r.notifications[0].kind, 'ads_audit'); assert.equal(r.notifications[0].channel, 'console'); assert.equal(typeof r.notifications[0].body, 'object');
 });
 
 test('budget caps: daily cap, monthly cap (sum of media shares), minimum, 20% step and 48 h cooldown', () => {
@@ -229,6 +229,7 @@ test('insights: hourly guard, pagination, ad_metrics mapping', async () => {
   const rows = M.insightsToAdMetrics(r.rows, { brandId: 'b1' });
   assert.equal(rows[0].spend_zar, 120.5); assert.equal(rows[0].leads_raw, 5); assert.equal(rows[0].cpl, 24.1);
   assert.equal(rows[0].concept, '01'); assert.equal(rows[0].hook_rate, 0.3); assert.equal(rows[1].cpl, null);
+  assert.equal(rows[0].placement, 'all'); assert.equal(M.insightsToAdMetrics([{ ad_id: 'A3', date_start: '2026-10-16', publisher_platform: 'instagram' }])[0].placement, 'instagram');
 });
 
 test('customer-list audience accepts hashed rows only', async () => {
@@ -321,4 +322,18 @@ test('qualifyLead backstop: bands, call preference, consent; key or label accept
   assert.deepEqual(M.qualifyLead(lead(good, null)).reasons, ['no_consent']);
   assert.deepEqual(M.qualifyLead(lead(good, 'false')).reasons, ['no_consent']);
   assert.equal(M.specHash({ a: 1, b: 2 }), M.specHash({ b: 2, a: 1 }));
+});
+
+test('ad objects cache: three paged reads, minor units to ZAR, hourly guard, ids as text', async () => {
+  const { c, calls } = client((url) => {
+    if (url.includes('/campaigns')) return { body: { data: [{ id: 'C1', name: 'SMC_x', status: 'ACTIVE', effective_status: 'ACTIVE', daily_budget: '15000' }] } };
+    if (url.includes('/adsets')) return { body: { data: [{ id: 'S1', name: 's', status: 'ACTIVE', campaign_id: 'C1' }] } };
+    return { body: { data: [{ id: 'A1', name: 'C01_H1_sta-amb_20261015', status: 'PAUSED', effective_status: 'PENDING_REVIEW', campaign_id: 'C1', adset_id: 'S1', creative: { id: 'CR1', effective_object_story_id: 'P_1' } }] } };
+  });
+  const r = await c.getAdObjects({ adAccountId: '999', brandId: 'b1' });
+  assert.equal(calls.length, 3);
+  assert.deepEqual(r.rows.map((x) => x.level), ['campaign', 'adset', 'ad']);
+  assert.equal(r.rows[0].daily_budget_zar, 150); assert.equal(r.rows[2].effective_status, 'PENDING_REVIEW'); assert.equal(r.rows[2].effective_object_story_id, 'P_1');
+  assert.equal(r.rows[2].adset_id, 'S1'); assert.equal(r.rows[0].brand_id, 'b1');
+  await assert.rejects(() => c.getAdObjects({ adAccountId: '999', brandId: 'b1' }), (e) => e.code === 'TOO_SOON');
 });

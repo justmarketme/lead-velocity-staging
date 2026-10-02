@@ -215,7 +215,7 @@ function createClient(opts = {}) {
     return {
       audit: [{ at, actor_uid: confirmedBy, actor_role: 'admin', source, table_name: 'meta_ads', row_id: String(target), action,
         diff: { before: before === undefined ? null : before, after }, reason: d.why, requested_by: d.by, requested_at: new Date(d.at).toISOString() }],
-      notifications: [{ kind: 'ads_write', to: 'jonathan', sent_at: null, acked_at: null, escalated_at: null,
+      notifications: [{ kind: 'ads_audit', to: 'jonathan', channel: 'console', sent_at: null, acked_at: null, escalated_at: null,
         dedupe_key: `ads_write:${action}:${target}:${at}`,
         body: { action, target, by: confirmedBy, why: d.why, after } }],
     };
@@ -254,6 +254,33 @@ function createClient(opts = {}) {
     } while (next && pages < maxPages);
     state.lastInsights.set(key, now());
     return { rows, usage: state.lastUsage, fetched_at: new Date(now()).toISOString(), truncated: !!next };
+  }
+
+  /* Ad status / budget cache for ops.ad_objects (public.ad_objects). Same hourly guard as insights; three paged reads (campaigns, adsets, ads), no writes. */
+  const OBJ_FIELDS = {
+    campaigns: 'id,name,status,effective_status,daily_budget,lifetime_budget,spend_cap,start_time,updated_time',
+    adsets: 'id,name,status,effective_status,campaign_id,daily_budget,lifetime_budget,start_time,updated_time',
+    ads: 'id,name,status,effective_status,campaign_id,adset_id,created_time,creative{id,effective_object_story_id}',
+  };
+  async function getAdObjects({ adAccountId, brandId, lastFetchedAt, limit = 500, maxPages = 10 }) {
+    if (!adAccountId) throw new MetaError('adAccountId required', { code: 'BAD_INPUT' });
+    const acct = normAcct(adAccountId);
+    const key = stable({ acct, objects: true });
+    const last = Math.max(lastFetchedAt ? new Date(lastFetchedAt).getTime() : 0, state.lastInsights.get(key) || 0);
+    if (last && now() - last < MIN_INSIGHTS_INTERVAL_MS) throw new MetaError('ad objects are fetched at most hourly', { code: 'TOO_SOON', retryAfterMs: MIN_INSIGHTS_INTERVAL_MS - (now() - last) });
+    const by = {};
+    for (const edge of ['campaigns', 'adsets', 'ads']) {
+      by[edge] = [];
+      let next = null, pages = 0;
+      do {
+        const r = next ? await request('GET', next) : await request('GET', `${acct}/${edge}`, { query: { fields: OBJ_FIELDS[edge], limit } });
+        by[edge].push(...((r.data && r.data.data) || []));
+        next = r.data && r.data.paging && r.data.paging.next;
+        pages++;
+      } while (next && pages < maxPages);
+    }
+    state.lastInsights.set(key, now());
+    return { rows: adObjectsToRows(by, { brandId }), fetched_at: new Date(now()).toISOString() };
   }
 
   /* ---------- guarded writes ---------- */
@@ -437,7 +464,7 @@ function createClient(opts = {}) {
     return out;
   }
 
-  return { request, batch, requestConfirm, verifyConfirm, getInsights, setCampaignBudget, pauseAd, resumeAd, createCampaignTree, createLeadgenForm,
+  return { request, batch, requestConfirm, verifyConfirm, getInsights, getAdObjects, setCampaignBudget, pauseAd, resumeAd, createCampaignTree, createLeadgenForm,
     subscribeLeadAdsWebhook, fetchLead, getAssetHealth, createEngagementAudiences, createCustomerListAudience, addAudienceUsers, createLookalike,
     uploadOfflineEvents, checkBudget, state, version };
 }
@@ -647,6 +674,22 @@ function diffHealth(prev, next) {
   return { new_alerts: fresh, urgent: fresh.filter((a) => a.severity === 'urgent').length > 0 || !!drop, quality_drop: !!drop };
 }
 
+/* ---- Graph campaigns/adsets/ads -> public.ad_objects rows (status + budget cache; budgets arrive in minor units) ---- */
+const minorToZar = (v) => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : +(Number(v) / 100).toFixed(2));
+function adObjectsToRows(by, { brandId } = {}) {
+  const row = (level, o, extra = {}) => ({ id: String(o.id), level, brand_id: brandId || null, campaign_id: extra.campaign_id || null, adset_id: extra.adset_id || null,
+    name: o.name || '(unnamed)', status: o.status || null, effective_status: o.effective_status || null,
+    daily_budget_zar: minorToZar(o.daily_budget), lifetime_budget_zar: minorToZar(o.lifetime_budget), spend_cap_zar: minorToZar(o.spend_cap),
+    creative_id: (o.creative && o.creative.id) || null, effective_object_story_id: (o.creative && o.creative.effective_object_story_id) || null,
+    ig_media_id: null, // ASSUMPTION: IG media id is not on the ad edge; W30 resolves it via the story id.
+    launched_at: o.start_time || o.created_time || null });
+  return [
+    ...(by.campaigns || []).map((o) => row('campaign', o, { campaign_id: String(o.id) })),
+    ...(by.adsets || []).map((o) => row('adset', o, { campaign_id: o.campaign_id, adset_id: String(o.id) })),
+    ...(by.ads || []).map((o) => row('ad', o, { campaign_id: o.campaign_id, adset_id: o.adset_id })),
+  ];
+}
+
 /* ---- insights -> ad_metrics rows (joined later to leads/bookings/outcomes by ad_id/day) ---- */
 const actionVal = (arr, type) => { const a = (arr || []).find((x) => x.action_type === type); return a ? Number(a.value) : 0; };
 function insightsToAdMetrics(rows, { brandId } = {}) {
@@ -659,7 +702,7 @@ function insightsToAdMetrics(rows, { brandId } = {}) {
     const play = (r.video_play_actions || [])[0] ? Number(r.video_play_actions[0].value) : v3;
     const thru = (r.video_thruplay_watched_actions || [])[0] ? Number(r.video_thruplay_watched_actions[0].value) : 0;
     return { date: r.date_start, brand_id: brandId || null, campaign_id: r.campaign_id, campaign_name: r.campaign_name, adset_id: r.adset_id, adset_name: r.adset_name,
-      ad_id: r.ad_id, ad_name: r.ad_name, concept: p.concept || null, angle: p.angle || null, format: p.format || null, placement: r.publisher_platform || null,
+      ad_id: r.ad_id, ad_name: r.ad_name, concept: p.concept || null, angle: p.angle || null, format: p.format || null, placement: r.publisher_platform || 'all',
       spend_zar: spend, impressions: imps, clicks: Number(r.clicks) || 0, leads_raw: leads, cpl: leads ? +(spend / leads).toFixed(2) : null,
       frequency: r.frequency != null ? Number(r.frequency) : null, hook_rate: imps && (v3 || play) ? +((v3 || play) / imps).toFixed(4) : null, hold_rate: (v3 || play) ? +(thru / (v3 || play)).toFixed(4) : null,
       source_fetched_at: new Date().toISOString() };
@@ -667,5 +710,5 @@ function insightsToAdMetrics(rows, { brandId } = {}) {
 }
 
 module.exports = { createClient, parseUsage, decideBackoff, buildAdName, parseAdName, campaignName, adsetName, planCampaignTree, planLeadgenForm, planEngagementAudiences,
-  normalizeLead, qualifyLead, specHash, verifyWebhookSignature, parseLeadgenWebhook, normalizeAssetHealth, diffHealth, insightsToAdMetrics, assertHashedRows, toForm, zarToMinor,
+  normalizeLead, qualifyLead, specHash, verifyWebhookSignature, parseLeadgenWebhook, normalizeAssetHealth, diffHealth, insightsToAdMetrics, adObjectsToRows, assertHashedRows, toForm, zarToMinor,
   apiVersion, MetaError, BACKOFF_PCT, MAX_BATCH, MIN_INSIGHTS_INTERVAL_MS };
