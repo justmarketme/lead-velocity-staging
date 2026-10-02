@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { inlineModule } from './security/inline-for-n8n.mjs';
 import { LINES } from '../conversation/lines.mjs';
 // I-39k: the lines.mjs keys W28 uses outside the Flow screens, inlined as data (n8n Code nodes cannot import ESM).
-const LINES_W28 = `const LINES = ${JSON.stringify(Object.fromEntries(Object.entries(LINES).map(([lang, L]) => [lang, { SLOTS_INTRO: L.SLOTS_INTRO, METHOD_CHANGED: L.METHOD_CHANGED }])))};\n`;
+const LINES_W28 = `const LINES = ${JSON.stringify(Object.fromEntries(Object.entries(LINES).map(([lang, L]) => [lang, { SLOTS_INTRO: L.SLOTS_INTRO, METHOD_CHANGED: L.METHOD_CHANGED, EMAIL_Q: L.EMAIL_Q, TZ: L.TZ }])))};\n`;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PG = { postgres: { id: '', name: 'LV Supabase - n8n_app (least privilege)' } };
@@ -382,6 +382,8 @@ return [{ json: { lead_id: l.lead_id, brand_id: l.brand_id, broker_id: l.broker_
 }
 function EP_SAFE() { return W28; }
 
-writeFileSync(join(HERE, 'W03.json'), JSON.stringify(buildW03(), null, 1) + '\n');
-writeFileSync(join(HERE, 'W28.json'), JSON.stringify(buildW28(), null, 1) + '\n');
-console.log('wrote automation/W03.json, automation/W28.json');
+// GEN_OUT_DIR: write elsewhere (automation/tests/generators.test.mjs regenerates into a temp dir and compares, I-40a).
+const OUT_DIR = process.env.GEN_OUT_DIR || HERE;
+writeFileSync(join(OUT_DIR, 'W03.json'), JSON.stringify(buildW03(), null, 1) + '\n');
+writeFileSync(join(OUT_DIR, 'W28.json'), JSON.stringify(buildW28(), null, 1) + '\n');
+console.log(`wrote ${OUT_DIR === HERE ? 'automation' : OUT_DIR}/W03.json, W28.json`);

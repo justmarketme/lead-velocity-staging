@@ -164,9 +164,10 @@ test('fallback ladder: second error on a token -> 10-slot list; calendar down ->
   assert.ok(g.response.data.error_message);
 });
 
-test('10-slot list (launch path): <= 10 rows, spread across days earliest-first, titles fit 24 chars, ids carry the ISO start', () => {
+test('10-slot list (launch path): <= 10 rows, spread across days earliest-first, titles fit 24 chars, ids carry the ISO start', async () => {
   const slots = engine(MARK).slots;
-  const body = EP.listFallback(MARK, slots, offerSlots, '+27600000002');
+  const { LINES: LN } = await import('../../conversation/lines.mjs');
+  const body = EP.listFallback(MARK, slots, offerSlots, '+27600000002', { lines: LN });
   const rows = body.interactive.action.sections[0].rows;
   assert.equal(rows.length, 10);
   assert.deepEqual(rows.map((r) => r.id.slice(5)), offerSlots(slots, 10).map((s) => s.start));
@@ -235,8 +236,8 @@ test('I-39k ask_email WITHOUT delegate.body: lead_lines + intro_line if given, e
 test('I-39k 10-slot list carries the W04/W07 delegate body in its one body; without it, SLOTS_INTRO in the lead\'s language', () => {
   const slots = engine(MARK).slots;
   const withBody = EP.listFallback(MARK, slots, offerSlots, '+27600000002', { delegate: { body: 'Sure. Here are the next open times with Mark.', lang: 'en' }, lines: LINES });
-  assert.equal(withBody.interactive.body.text, 'Sure. Here are the next open times with Mark. Times are South African time.');
+  assert.equal(withBody.interactive.body.text, `Sure. Here are the next open times with Mark. ${LINES.en.TZ}`);
   const af = EP.listFallback(MARK, slots, offerSlots, '+27600000002', { lead: { language: 'af' }, lines: LINES });
-  assert.equal(af.interactive.body.text, `${LINES.af.SLOTS_INTRO.replace('{adviser_first}', 'Mark')} Tye is Suid-Afrikaanse tyd.`);
+  assert.equal(af.interactive.body.text, `${LINES.af.SLOTS_INTRO.replace('{adviser_first}', 'Mark')} ${LINES.af.TZ}`);
   assert.equal(af.interactive.action.sections[0].rows.length, 10, 'still one interactive message with the list');
 });
