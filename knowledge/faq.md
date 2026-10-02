@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Version | `faq-v1.0.0` (2026-10-02) |
+| Version | `faq-v1.0.1` (2026-10-02). Changelog at the end of this file. |
 | Owner | conversation-designer |
 | Used by | Thandi / W07 (WhatsApp), W30/W31 comment and DM replies (4.14), the landing-page FAQ block, the broker explainer |
 | Change rule | Any edit runs `node evals/run.mjs --dry-run` (and the live eval when `ANTHROPIC_API_KEY` is set) in CI and cannot merge below the baseline (6B.1). Bump the version on every change. |
-| **Compliance sign-off** | compliance-qa: `PENDING` · name: ______ · date: ______ · version signed: ______ |
+| **Compliance sign-off** | compliance-qa: `PENDING` (v1.0.0 withheld in phase4-review-2; v1.0.1 applies K-1…K-7 for re-review) · name: ______ · date: ______ · version signed: ______ |
 | Practitioner review (2.3) | `PENDING`, within 30 days of launch |
 
 **How this file is read by code.** `evals/run.mjs` and W07 parse every `### ` entry. Each entry has `topic` (the intent model's topic label, see `conversation/prompts/intent-slot.md`), `type` (`answer` = Thandi may send it, `defer` = Thandi must send the fixed deferral line), `en` and `af`. Placeholders are filled from the `brokers` row: `{adviser_first}`, `{adviser}`, `{practice}`, `{fsp}`, `{city}`, `{methods}`, `{adviser_languages}`.
@@ -28,8 +28,8 @@
 - topic: call_cost
 - type: answer
 - asked as: "Do I pay for the call?" · "Is it free?" · "Kos die oproep iets?"
-- en: No, the call is free. There is nothing to buy on the call.
-- af: Nee, die oproep is gratis. Daar is niks om op die oproep te koop nie.
+- en: No, the call is free, and there's no obligation to buy anything.
+- af: Nee, die oproep is gratis, en jy is nie verplig om iets te koop nie.
 
 ### FAQ-03 · Who is the adviser?
 - topic: adviser_who
@@ -49,8 +49,8 @@
 - topic: privacy
 - type: answer
 - asked as: "What do you do with my details?" · "Is my info safe?" · "Wat doen julle met my inligting?"
-- en: Your details go only to {practice} so {adviser_first} can hold your call, and you can ask us to delete them at any time. The full privacy notice is at sortmycover.co.za/privacy.
-- af: Jou besonderhede gaan net na {practice} sodat {adviser_first} jou oproep kan hou, en jy kan ons enige tyd vra om dit uit te vee. Die volle privaatheidskennisgewing is by sortmycover.co.za/privacy.
+- en: We share your details with {practice} only, never with other advisers, and you can ask us to delete them at any time. The service providers we use are listed at sortmycover.co.za/privacy.
+- af: Ons deel jou besonderhede net met {practice}, nooit met ander adviseurs nie, en jy kan ons enige tyd vra om dit uit te vee. Die diensverskaffers wat ons gebruik, is by sortmycover.co.za/privacy gelys.
 
 ### FAQ-06 · Can I cancel or move my call?
 - topic: cancel_move
@@ -77,22 +77,22 @@
 - topic: business_model
 - type: answer
 - asked as: "What's in it for you?" · "Who pays you?" · "Hoe maak julle geld?"
-- en: Advisers pay Lead Velocity a flat fee to set up calls, and you pay nothing. The fee is the same whether or not anyone buys anything.
-- af: Adviseurs betaal Lead Velocity 'n vaste fooi om oproepe te reël, en jy betaal niks. Die fooi is dieselfde of iemand iets koop of nie.
+- en: Advisers pay Lead Velocity the same flat fee for each 30-day cycle, and you pay nothing. It is never a commission and never a share of any policy.
+- af: Adviseurs betaal Lead Velocity dieselfde vaste fooi vir elke siklus van 30 dae, en jy betaal niks. Dit is nooit kommissie nie en nooit 'n deel van enige polis nie.
 
 ### FAQ-10 · Will I be sold something?
 - topic: sales_pressure
 - type: answer
 - asked as: "Will he try sell me something?" · "Is this a sales call?" · "Gaan hy my iets probeer verkoop?"
-- en: No selling on the call. {adviser_first} goes through where you are, and any next step is your choice.
-- af: Daar word niks op die oproep verkoop nie. {adviser_first} kyk saam met jou waar jy staan, en enige volgende stap is jou keuse.
+- en: There's no obligation to buy anything. {adviser_first} goes through where you are, and any next step is your choice.
+- af: Jy is nie verplig om iets te koop nie. {adviser_first} kyk saam met jou waar jy staan, en enige volgende stap is jou keuse.
 
 ### FAQ-11 · What if I already have cover?
 - topic: existing_cover
 - type: answer
 - asked as: "I already have a policy" · "I have cover through work" · "Ek het klaar 'n polis"
-- en: That's fine, many people who book already have some cover. The call is a chance to talk it through with {adviser_first}.
-- af: Dit is reg so, baie mense wat bespreek het klaar 'n polis. Die oproep is 'n kans om dit met {adviser_first} deur te praat.
+- en: That's fine. The call is a chance to talk it through with {adviser_first}.
+- af: Dit is reg so. Die oproep is 'n kans om dit met {adviser_first} deur te praat.
 
 ### FAQ-12 · What if I'm older than 50?
 - topic: age_over
@@ -126,8 +126,8 @@
 - topic: call_content
 - type: answer
 - asked as: "What happens on the call?" · "What will we talk about?" · "Waaroor gaan ons praat?"
-- en: {adviser_first} will ask a few simple questions about your home, your family and what you have through work. It's a conversation, not a sale.
-- af: {adviser_first} sal 'n paar eenvoudige vrae vra oor jou huis, jou gesin en wat jy deur die werk het. Dit is 'n gesprek, nie 'n verkoopspraatjie nie.
+- en: {adviser_first} will ask a few simple questions about your home, your family and what you have through work. It's a conversation, and any next step is your choice.
+- af: {adviser_first} sal 'n paar eenvoudige vrae vra oor jou huis, jou gesin en wat jy deur die werk het. Dit is 'n gesprek, en enige volgende stap is jou keuse.
 
 ### FAQ-17 · How can we meet?
 - topic: methods
@@ -175,8 +175,8 @@
 - topic: data_sharing
 - type: answer
 - asked as: "Will I get calls from other people?" · "Do you sell my number?" · "Verkoop julle my nommer?"
-- en: No, your details go only to {practice}. We never sell them or pass them to other advisers.
-- af: Nee, jou besonderhede gaan net na {practice}. Ons verkoop dit nooit en gee dit nie vir ander adviseurs nie.
+- en: No. We share them with {practice} only, and we never sell them or pass them to other advisers.
+- af: Nee. Ons deel dit net met {practice}, en ons verkoop dit nooit of gee dit vir ander adviseurs nie.
 
 ### FAQ-24 · Why do you need my email?
 - topic: email_why
@@ -189,14 +189,18 @@
 - topic: after_call
 - type: answer
 - asked as: "Will he follow up?" · "Then what?" · "Wat gebeur daarna?"
-- en: {adviser_first} will follow up with you directly after the call. We won't send you anything else unless you book again.
-- af: {adviser_first} sal na die oproep self met jou opvolg. Ons stuur niks verder nie, tensy jy weer bespreek.
+- en: {adviser_first} will follow up with you directly after the call. Apart from one quick question about how the call went, we won't send you anything else.
+- af: {adviser_first} sal na die oproep self met jou opvolg. Behalwe vir een vinnige vraag oor hoe die oproep was, stuur ons niks verder nie.
 
 ---
 
 ## Part B: questions Thandi ALWAYS defers (FAIS 2.1.1, 2.1.7)
 
 Every entry below is answered with the fixed deferral line from `conversation/lines.mjs`, verbatim, followed by the "I've made a note" line. The question (or, for health and ID, only the words "has a health question for you") goes into the pre-call brief. Thandi never adds a sentence about the topic itself.
+
+**FAQ-05 / FAQ-23 note (K-1, K-2, NH-17).** "{practice} only" means the only *adviser* who gets the lead. The service providers who process data for us (hosting, WhatsApp, the AI model, and Meta, which receives a hashed contact for ad measurement as the consent sentence says) are listed in the privacy notice. Thandi never says "only to {practice}" without the provider line, and never says "nobody else".
+
+**Self-harm and bereavement are not in this file.** A message that suggests self-harm, or tells us someone has died, gets no FAQ entry and no deferral line: the bot pauses and Jonathan and KG are alerted at once (`conversation/handoff.md`, trigger 6).
 
 ### DEF-01 · What would cover cost me?
 - topic: premium
@@ -254,3 +258,42 @@ Every entry below is answered with the fixed deferral line from `conversation/li
 - en: That's exactly what {adviser_first} will go through with you on the call.
 - af: Dit is presies wat {adviser_first} saam met jou op die oproep sal deurgaan.
 - extra: the stored transcript keeps `[health detail removed]`; the brief says only "has a health question for you"; an ID number also triggers the fixed ID warning line.
+
+### DEF-09 · Will they pay out? Claims
+- topic: claims
+- type: defer
+- asked as: "Will they actually pay my family?" · "How do claims work?" · "Sal hulle uitbetaal?" · problem form: "My late husband's policy isn't paying" (see extra)
+- en: That's exactly what {adviser_first} will go through with you on the call.
+- af: Dit is presies wat {adviser_first} saam met jou op die oproep sal deurgaan.
+- extra: a claim that is being refused or not paid on an existing policy (topic `claim_problem`) also hands off to a person (`DEFER` + handoff). If the message says someone has died, trigger 6 in `handoff.md` wins: no deferral line, a person at once.
+
+### DEF-10 · Investments, retirement annuities, savings, medical aid
+- topic: investments
+- type: defer
+- asked as: "Should I put money in an RA instead?" · "Is my medical aid enough?" · "What about my pension fund?" · "Moet ek eerder belê?"
+- en: That's exactly what {adviser_first} will go through with you on the call.
+- af: Dit is presies wat {adviser_first} saam met jou op die oproep sal deurgaan.
+
+### DEF-11 · Wills, estate, beneficiaries
+- topic: estate
+- type: defer
+- asked as: "Do I need a will first?" · "Who should be my beneficiary?" · "What happens to my estate?" · "Moet ek 'n testament hê?"
+- en: That's exactly what {adviser_first} will go through with you on the call.
+- af: Dit is presies wat {adviser_first} saam met jou op die oproep sal deurgaan.
+
+### DEF-12 · How much does the adviser earn?
+- topic: commission
+- type: defer
+- asked as: "How much does Mark earn on this?" · "Does he get commission?" · "Kry hy kommissie?"
+- en: That's exactly what {adviser_first} will go through with you on the call.
+- af: Dit is presies wat {adviser_first} saam met jou op die oproep sal deurgaan.
+- extra: disclosing the adviser's remuneration is the adviser's FAIS duty, so it is his to answer. A question about how *we* are paid is FAQ-09 (business_model), not this entry.
+
+---
+
+## Changelog
+
+| Version | Date | Change | Source |
+|---|---|---|---|
+| `faq-v1.0.1` | 2026-10-02 | FAQ-05 and FAQ-23: "only to {practice}" replaced; details go to {practice} as the only adviser, providers listed at /privacy (K-1, K-2, NH-17). FAQ-09: flat fee per 30-day cycle, never a commission or a share of any policy (K-3, 2.1.1). FAQ-25: names the one follow-up question after the call (W35 lead pulse) (K-4). FAQ-11: unsourced "many people who book already have some cover" removed (K-5, 2.1.5). FAQ-02, FAQ-10, FAQ-16: "nothing to buy / no selling / not a sale" replaced with "no obligation to buy" / "any next step is your choice" (K-6, NH-new-B default b). Part B: DEF-09 claims (+ a person for refused claims), DEF-10 investments / RAs / savings / medical aid, DEF-11 wills / estate / beneficiaries, DEF-12 adviser commission (K-7). Self-harm and bereavement note. | compliance-qa phase4-review-2 §3a |
+| `faq-v1.0.0` | 2026-10-02 | First version: 25 answers, 8 defer topics. | conversation-designer |

@@ -11,8 +11,14 @@ export const LINES = {
     DEFER: "That's exactly what {adviser_first} will go through with you on the call.",
     // Lemonade: say what you will do with the answer (approved chat replay, 21:31).
     DEFER_NOTED: "I've made a note so {adviser_first} comes prepared for it.",
+    // Post-call variant (states attended / closed_attended): there is no upcoming call. 4.12 attended wording.
+    DEFER_AFTER_CALL: "That's one for {adviser_first}, who will follow up with you directly.",
     // 2.1.7: an ID number was typed. Sent once, after DEFER.
     ID_WARNING: "For your safety, please don't send ID numbers in this chat.",
+    // 2.1.7: bank or card numbers were typed. Digits are masked before any LLM call and in storage.
+    BANK_WARNING: "For your safety, please don't send bank or card details in this chat.",
+    // A photo, file or video was sent. It is never downloaded, opened or sent to an LLM.
+    MEDIA_NOT_OPENED: "I can't open photos or files in this chat, so please keep it for your call with {adviser_first}.",
     // 4.11 disclosure on first free-text contact (approved chat replay, 21:15).
     DISCLOSE: "Hi {first_name}, I'm Thandi, Lead Velocity's booking assistant for {adviser_first}. I'm an AI assistant, and you can ask for a person at any time.",
     // Disclosure before an adviser is routed (CTWA consent step, no adviser named yet).
@@ -46,7 +52,10 @@ export const LINES = {
   af: {
     DEFER: "Dit is presies wat {adviser_first} saam met jou op die oproep sal deurgaan.",
     DEFER_NOTED: "Ek het 'n nota gemaak sodat {adviser_first} daarvoor voorbereid is.",
+    DEFER_AFTER_CALL: "Dit is 'n vraag vir {adviser_first}, wat self met jou sal opvolg.",
     ID_WARNING: "Vir jou veiligheid, moet asseblief nie ID-nommers in hierdie klets stuur nie.",
+    BANK_WARNING: "Vir jou veiligheid, moet asseblief nie bank- of kaartbesonderhede in hierdie klets stuur nie.",
+    MEDIA_NOT_OPENED: "Ek kan nie foto's of lêers in hierdie klets oopmaak nie, so hou dit asseblief vir jou oproep met {adviser_first}.",
     DISCLOSE: "Hallo {first_name}, ek is Thandi, Lead Velocity se besprekingsassistent vir {adviser_first}. Ek is 'n KI-assistent, en jy kan enige tyd vra om met 'n mens te praat.",
     DISCLOSE_PRE_ROUTE: "Hallo, ek is Thandi, die SortMyCover-besprekingsassistent van Lead Velocity. Ek is 'n KI-assistent, en jy kan enige tyd vra om met 'n mens te praat.",
     COMMIT_ASK: "Kan jy asseblief die datum en tyd van jou oproep terugstuur sodat ek weet dit is in jou dagboek?",

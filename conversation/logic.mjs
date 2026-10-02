@@ -24,8 +24,11 @@ export const FAQ_TOPICS = {
   call_content: 'FAQ-16', methods: 'FAQ-17', teams_install: 'FAQ-18', partner_join: 'FAQ-19', language_call: 'FAQ-20',
   missed_call: 'FAQ-21', stop_how: 'FAQ-22', data_sharing: 'FAQ-23', email_why: 'FAQ-24', after_call: 'FAQ-25'
 };
-export const DEFER_TOPICS = ['premium', 'cover_amount', 'product', 'insurer', 'comparison', 'suitability', 'switching', 'tax', 'health'];
-export const OTHER_TOPICS = ['id_number', 'complaint', 'language_chat', 'my_booking', 'off_topic', 'thanks', 'greeting', 'unknown'];
+export const DEFER_TOPICS = ['premium', 'cover_amount', 'product', 'insurer', 'comparison', 'suitability', 'switching', 'tax', 'health',
+  'claims', 'investments', 'estate', 'commission'];
+// distress = self-harm or bereavement (person immediately, nothing automated); claim_problem = an existing claim
+// is being refused or not paid (deferral + a person); bank_details = account / card numbers volunteered.
+export const OTHER_TOPICS = ['id_number', 'bank_details', 'complaint', 'distress', 'claim_problem', 'language_chat', 'my_booking', 'off_topic', 'thanks', 'greeting', 'unknown'];
 export const ALL_TOPICS = [...Object.keys(FAQ_TOPICS), ...DEFER_TOPICS, ...OTHER_TOPICS];
 
 export const STATES = [
@@ -60,16 +63,29 @@ export function decide(state, nlu = {}, pre = {}, ctx = {}) {
 
   // 1. Global interrupts, in priority order.
   if (pre.stop || has('stop')) return { actions: ['stop'], next_state: 'opted_out' };
+  // Self-harm or bereavement: a person, now, in every state. Nothing automated is sent (no deferral line, no
+  // handoff line); handoff.md trigger 6 alerts Jonathan and KG together.
+  if (pre.distress || topics.includes('distress')) return { actions: ['handoff_urgent'], next_state: 'handoff' };
   if (state === 'opted_out') return { actions: ['human_review'], next_state: 'opted_out' };
   if (state === 'handoff') return { actions: ['paused'], next_state: 'handoff' };
   if (has('person') || pre.person || pre.complaint || topics.includes('complaint')) return { actions: ['handoff'], next_state: 'handoff' };
   if (nlu.sentiment === 'frustrated') return { actions: ['handoff'], next_state: 'handoff' };
+  // An existing claim being refused or not paid (DEF-09): the deferral line, then a person.
+  if (pre.claim_problem || topics.includes('claim_problem')) return { actions: ['defer', 'handoff'], next_state: 'handoff' };
 
   // A typed monthly amount while answering the budget question is a qualifying answer, not a price question.
   const budgetAnswer = (state === 'q_budget' || state === 'q_budget_clarify') && slots.budget_band && !pre.health
     && (pre.advice_topics || []).every((t) => t === 'amount');
   const defer = (Boolean(pre.defer) && !budgetAnswer) || topics.some((t) => DEFER_TOPICS.includes(t));
-  const tail = () => { const a = []; if (defer) a.push('defer'); if (pre.id_number || topics.includes('id_number')) a.push('id_warning'); return a; };
+  const tail = () => {
+    const a = [];
+    // After the meeting there is no "call" to defer to: the post-call variant points to the adviser's own follow-up (4.12).
+    if (defer) a.push(state === 'attended' || state === 'closed_attended' ? 'defer_after_call' : 'defer');
+    if (pre.id_number || topics.includes('id_number')) a.push('id_warning');
+    if (pre.bank || topics.includes('bank_details')) a.push('bank_warning');
+    if (pre.media) a.push('media_not_opened');
+    return a;
+  };
 
   if (pre.injection || pre.impersonation) return { actions: ['stay_in_lane', ...(defer ? ['defer'] : [])], next_state: state };
 

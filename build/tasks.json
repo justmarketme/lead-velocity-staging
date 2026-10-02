@@ -2267,6 +2267,17 @@
       "human_gate": true,
       "status": "needs_human",
       "section": "automation/W03-notes.md §B"
+    },
+    {
+      "id": "NH-33",
+      "title": "Distress handling: (a) when a lead writes about self-harm or bereavement the bot sends nothing, pauses reminders and alerts Jonathan + KG - should that alert ring at night (add to the 6.8b do-not-disturb exceptions)? conversation-designer recommends yes; (b) if nobody replies within the handoff window, send a pre-approved support-line message automatically? default no (compliance asked for no automated content).",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "conversation/handoff.md trigger 6"
     }
   ]
 }

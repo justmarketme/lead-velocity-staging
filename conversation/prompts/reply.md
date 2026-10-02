@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Version | `reply-v1.0.0` |
+| Version | `reply-v1.0.1` (2026-10-02: examples follow faq-v1.0.1; assembly order adds the new fixed lines; FIRST_NAME is the sanitised value) |
 | Model | `claude-haiku-4-5-20251001`, temperature 0.4, max_tokens 220 |
 | Escalate to | `claude-sonnet-5-5` once, when the draft fails the output gate or the guardrail classifier and the turn had a non-advice part worth keeping (multi-intent). A second failure sends fixed lines only. |
 | Input | the **decision** from `logic.mjs` (actions + the facts code looked up), the lead's message (redacted), language, register hints. |
@@ -13,7 +13,8 @@
 1. `logic.mjs` decides the actions. Only these actions reach the reply model: `answer:FAQ-xx`, `send_slots`, `offer_slots`, `reschedule`, `reschedule_slots`, `cancel_confirm`, `change_method`, `capture_contact`, `set_language`. Every other action is a fixed line (see `conversation/lines.mjs`) or a Layer 1 button message, and skips this call entirely.
 2. For `answer:` actions, code passes the approved FAQ answer from `knowledge/faq.md` as `facts.faq`. The model may shorten or warm it up. It may not add a fact.
 3. After the call: `outputGate()` (regex), then the guardrail classifier (`guardrail.md`), then `toneCheck()`. Any failure drops the generated text and sends the FAQ answer verbatim (for `answer:`) or the action's fixed fallback.
-4. Assembly order of the message the lead sees: `[DISCLOSE if first free-text reply]` + `text` + `[DEFER + DEFER_NOTED if the turn defers]` + `[ID_WARNING]` + buttons/list.
+4. Assembly order of the message the lead sees: `[DISCLOSE if first free-text reply]` + `text` + `[DEFER + DEFER_NOTED if the turn defers]` (after the call: `DEFER_AFTER_CALL` alone) + `[ID_WARNING]` + `[BANK_WARNING]` + `[MEDIA_NOT_OPENED]` + buttons/list. `handoff_urgent` (self-harm, bereavement) sends nothing at all: no call to this prompt, no fixed line (`handoff.md` trigger 6).
+5. `FIRST_NAME` is the value after `sanitiseField('first_name', …)` in `guardrail.mjs`; if the stored name failed the check it is empty and the reply uses no name.
 
 ## System prompt
 
@@ -69,7 +70,7 @@ THEIR MESSAGE: """{redacted message}"""
 
 | Decision | Their message | Good `text` | Why |
 |---|---|---|---|
-| `answer:FAQ-10`, defer | "Will he try sell me something though? And roughly what would cover cost for someone my age?" | "No selling on the call. {adviser_first} goes through where you are, and any next step is your choice." | Answers the allowed part, says nothing about cost; code appends DEFER + DEFER_NOTED (approved replay, 21:31) |
+| `answer:FAQ-10`, defer | "Will he try sell me something though? And roughly what would cover cost for someone my age?" | "There's no obligation to buy anything. {adviser_first} goes through where you are, and any next step is your choice." | Answers the allowed part, says nothing about cost; code appends DEFER + DEFER_NOTED (approved replay, 21:31) |
 | `offer_slots` | "can we do friday after 2" | "Friday works. These are {adviser_first}'s open times after 2." | One sentence, list attached by code |
-| `answer:FAQ-02`, af | "kos die oproep iets?" | "Nee, die oproep is gratis, en daar is niks om te koop nie." | Register and language mirrored |
+| `answer:FAQ-02`, af | "kos die oproep iets?" | "Nee, die oproep is gratis, en jy is nie verplig om iets te koop nie." | Register and language mirrored |
 | `reschedule` | "something came up thursday 😕" (emoji) | "No stress, things happen 🙂 Let's find you another time." | Emoji only because they used one; note: 2 sentences |

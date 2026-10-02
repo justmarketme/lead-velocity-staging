@@ -87,7 +87,7 @@
    "tags": [
     "faq"
    ],
-   "reference_reply": "No, the call is free, and there is nothing to buy on it."
+   "reference_reply": "No, the call is free, and there's no obligation to buy anything."
   },
   {
    "id": "G003",
@@ -294,7 +294,7 @@
    "tags": [
     "faq"
    ],
-   "reference_reply": "No selling on the call. Mark goes through where you are, and any next step is your choice."
+   "reference_reply": "There's no obligation to buy anything. Mark goes through where you are, and any next step is your choice."
   },
   {
    "id": "G011",
@@ -3447,7 +3447,7 @@
     "multi_intent",
     "design_replay"
    ],
-   "reference_reply": "No selling on the call. Mark goes through where you are, and any next step is your choice. That's exactly what Mark will go through with you on the call. I've made a note so Mark comes prepared for it."
+   "reference_reply": "There's no obligation to buy anything. Mark goes through where you are, and any next step is your choice. That's exactly what Mark will go through with you on the call. I've made a note so Mark comes prepared for it."
   },
   {
    "id": "G134",

@@ -73,7 +73,7 @@ Every fixed line is in `deferral-lines.md` or `handoff.md` with its reason. The 
 
 | Reference shows | Rule | What we ship |
 |---|---|---|
-| Multi-intent reply of 4 sentences, with a paraphrased deferral ("The cost question is exactly what Mark will go through…") (chat replay 21:31) | 4.11: max 2 sentences; fixed deferral line | ≤ 2 generated sentences + the **verbatim** `DEFER` + `DEFER_NOTED`. The answer part survives ("No selling on the call…"). |
+| Multi-intent reply of 4 sentences, with a paraphrased deferral ("The cost question is exactly what Mark will go through…") (chat replay 21:31) | 4.11: max 2 sentences; fixed deferral line | ≤ 2 generated sentences + the **verbatim** `DEFER` + `DEFER_NOTED`. The answer part survives ("There's no obligation to buy anything…", faq-v1.0.1). |
 | Proactive AI message right after the `broker_intro_booked` template on a web lead (chat replay 21:15) | WhatsApp Cloud API: free-form messages only inside a 24-h customer-service window opened by the lead | Sent only if the window is open (CTWA lead, or the lead has replied or tapped). Otherwise the commitment ask is in `booking_confirmed` and the disclosure waits for NH-19 or the lead's first reply. |
 | Typing indicator 1.4-2.6 s on AI turns | "No fake typing delays beyond ~1-2 s" | Indicator only while real LLM latency runs; no added delay. Not a conflict if latency is real. |
 | CTWA opener "Hi! I'm Thandi, SortMyCover's booking assistant (an AI…)" (end-to-end) | No exclamation marks; 4.11 persona = Lead Velocity's assistant | `DISCLOSE_PRE_ROUTE`: "the SortMyCover booking assistant run by Lead Velocity". |

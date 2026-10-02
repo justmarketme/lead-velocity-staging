@@ -76,6 +76,14 @@ Priority order, exactly as `decide()` implements it:
 | any | email / phone number typed | `capture_contact` (Lookup / MX check as 4.6) |
 | any | FAQ question | `answer:FAQ-xx` |
 | any | advice / health / ID | `defer` (+ `id_warning`) |
+| `attended`, `closed_attended` | advice / health | `defer_after_call` (`DEFER_AFTER_CALL`: the adviser follows up directly; the 4.11 line would point to a call that already happened) |
+| any | bank, branch or card number | `bank_warning` (digits masked before any LLM, in storage and the brief) |
+| any | photo, document, video or sticker (W07 `message.type`) | `media_not_opened` (never downloaded, never sent to a model; the brief says "has a document to show you"); a caption is read like text, so "is this good?" also gets `defer` |
+| any | voice note | transcribed (W07, Whisper-class, `lang` hint from the lead), the audio deleted after transcription, and the transcript is read like typed text; low transcription confidence → `clarify` |
+| any | self-harm or bereavement ("better off with the payout", "my late husband…") | `handoff_urgent`: **nothing automated is sent**, the bot pauses, Jonathan and KG are alerted together (`handoff.md` trigger 6). Beats every rule below STOP. |
+| any | an existing claim being refused or not paid | `defer` + `handoff` |
+| `opted_out` | anything (including an advice question) | `human_review` only: nothing automated after STOP (distress still alerts a person) |
+| any, after a deferred turn | "so for me then?", "yes or no?", "just roughly" | `defer` again (`prefilter(…, { prev_deferred })`: the crescendo is the same question) |
 | any | "can we chat in Afrikaans" | `set_language` (language stored; templates stay EN until AF templates exist, 6B.11) |
 | any | "thanks" / "great" / 👍 | `none` (no reply: "Great thanks" got no reply in the approved replay) |
 | any | unclear | `clarify`; second unclear in a row → `handoff` |
@@ -117,3 +125,8 @@ Multi-intent: answers first, then the deferral, then the operational action (its
 - Tapped or typed age `Under 35` / `51 or over` → `CLOSE_OOB_AGE`. Budget `Under R750` (or `Really not sure` after the clarify step) → `CLOSE_OOB_BUDGET`. No hand-over to any broker, no adviser named.
 - Data: deleted within 24 h; for CTWA "no consent", only a hashed number is kept for suppression.
 - After booking, a contradiction is not auto-closed: it is flagged for a human (SUMMARY `needs_human`).
+
+## Untrusted inputs that are not the lead's message (red-team gaps 10, 11)
+
+- **Stored fields.** `first_name` (from the form or the WhatsApp profile name) and any stored quote are run through `sanitiseField()` before they reach a reply, a template variable or the pre-call brief. A value that is not a plain name (or carries instruction-like text, digits, advice, health, ID or bank content) is stored as `null` with a console flag; replies use no name and the brief shows "first name withheld (failed check)". `briefCheck()` fails a brief that carries instruction-like text or the unsanitised name.
+- **CTWA referral.** `referralCheck()` keeps only `source_id` (digits) and `ctwa_clid` (opaque token) from Meta's `referral` object. `headline`, `body` and any `ref` are never put into a prompt; an injection there is logged and dropped. The prefilled first message is the lead's message and goes through `prefilter()` like any other.

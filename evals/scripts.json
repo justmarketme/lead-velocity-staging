@@ -1,122 +1,282 @@
 {
- "version": "scripts-v1.0.0",
+ "version": "scripts-v1.1.0",
  "facts": {
   "practice": "Mark Williams Financial Planning",
-  "fsp": "00000"
+  "fsp": "00000",
+  "verified_credentials": [
+   "CFP®",
+   "RE5"
+  ]
  },
- "note": "Fictional adviser (4.10b example). 8 compliant, 12 that the script gate must block.",
+ "note": "Fictional adviser (4.10b example). Closes are day-neutral (NH-24 a). Rules 1-20 + I-7 of deliverables/intro-media/rubric.md. `lang` defaults to en; `kind: transcript` runs transcriptCheck (I-7).",
  "cases": [
   {
    "id": "S01",
    "expect": "pass",
-   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I work with families who've got a bond and people depending on them, and want to know whether the cover they have through work actually matches their life. On our call I'll ask a few questions and tell you plainly where you stand. There's nothing to buy and no pressure. Thirty minutes is usually all it takes. Looking forward to {day}."
+   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I work with families who've got a bond and people depending on them, and want to know whether the cover they have through work actually matches their life. On our call I'll ask a few questions and tell you plainly where you stand. There's nothing to buy and no pressure. Thirty minutes is usually all it takes. Looking forward to speaking with you."
   },
   {
    "id": "S02",
    "expect": "pass",
-   "text": "Hello, Mark here, from Mark Williams Financial Planning, FSP 00000. Most people I meet are in their thirties or forties, busy with work and kids, and not sure what they already have. On our call I'll listen first, ask a few simple questions, and explain things in plain words. Nothing to buy, no pressure. Thirty minutes is enough to get a clear picture. See you on {day}."
+   "text": "Hello, Mark here, from Mark Williams Financial Planning, FSP 00000. Most people I meet are in their thirties or forties, busy with work and kids, and not sure what they already have. On our call I'll listen first, ask a few simple questions, and explain things in plain words. Nothing to buy, no pressure. Thirty minutes is enough to get a clear picture. Speak soon."
   },
   {
    "id": "S03",
    "expect": "pass",
-   "text": "Hi there, I'm Mark from Mark Williams Financial Planning, FSP 00000. I live in Cape Town with my wife and two boys, so I know how full life gets. Our call is just a conversation: I'll ask about your home and family and tell you where you stand. There is nothing to buy and no pressure at all. Give me thirty minutes and you'll leave with a clearer view. See you on {day}."
+   "text": "Hi there, I'm Mark from Mark Williams Financial Planning, FSP 00000. I live in Cape Town with my wife and two boys, so I know how full life gets. Our call is just a conversation: I'll ask about your home and family and tell you where you stand. There is nothing to buy and no pressure at all. Give me thirty minutes and you'll leave with a clearer view. Looking forward to our call."
   },
   {
    "id": "S04",
    "expect": "pass",
-   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I've been helping families for fourteen years, mostly people with a bond and kids at school. When we talk, I'll ask a few questions about your situation and answer yours in plain language. It's a conversation, not a sales call, so there's nothing to buy. Thirty minutes is usually all it takes to get clear. Looking forward to {day}."
+   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I mostly help families with a bond and kids at school, here in Cape Town and further away by video. When we talk, I'll ask a few questions about your situation and answer yours in plain language. It's a conversation, not a sales call, so there's nothing to buy. Thirty minutes is usually all it takes to get clear. Looking forward to speaking with you."
   },
   {
    "id": "S05",
    "expect": "pass",
-   "text": "Hello, I'm Mark, from Mark Williams Financial Planning, FSP 00000. I help people who want to understand what they already have before they decide anything. On the call we'll talk through your home, the people who rely on you, and what you have through work. No jargon and no pressure, and nothing to buy. Thirty minutes is all we need, and you can ask me anything. Speak soon, see you {day}."
+   "text": "Hello, I'm Mark, from Mark Williams Financial Planning, FSP 00000. I help people who want to understand what they already have before they decide anything. On the call we'll talk through your home, the people who rely on you, and what you have through work. No jargon and no pressure, and nothing to buy. Thirty minutes is all we need, and you can ask me anything. Speak soon, and see you on the call."
   },
   {
    "id": "S06",
    "expect": "pass",
-   "text": "Hi, Mark here from Mark Williams Financial Planning, FSP 00000. A lot of the people I talk to tell me afterwards that they finally understood what they had. That's what our call is for: a few questions, plain answers, and nothing to buy. I keep it to thirty minutes because your time matters. Bring any questions you've been sitting on, and we'll go through them together. See you on {day}."
+   "text": "Hi, Mark here from Mark Williams Financial Planning, FSP 00000. I like things simple and honest, so that's what our call is for: a few questions, plain answers, and nothing to buy. I keep it to thirty minutes because your time matters. Bring any questions you've been sitting on, and we'll go through them together. Looking forward to speaking with you."
   },
   {
    "id": "S07",
    "expect": "pass",
-   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I grew up in Bellville and still work from here, helping families across the country by video. On our call I'll ask how things look at home and with work, and explain where you stand in plain words. There's no pressure and nothing to buy. Thirty minutes is usually plenty. I'm looking forward to meeting you on {day}."
+   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I grew up in Bellville and still work from here, helping families across the country by video. On our call I'll ask how things look at home and with work, and explain where you stand in plain words. There's no pressure and nothing to buy. Thirty minutes is usually plenty. I'm looking forward to meeting you."
   },
   {
    "id": "S08",
    "expect": "pass",
-   "text": "Hello, I'm Mark from Mark Williams Financial Planning, FSP 00000. I mostly help parents who are juggling a bond, school fees and a busy job. Our call is relaxed: I'll ask a few questions, you can ask yours, and I'll tell you honestly where you stand. There's nothing to buy and no pressure. Thirty minutes is all it takes, and you can join from your phone. See you on {day}."
+   "text": "Hello, I'm Mark from Mark Williams Financial Planning, FSP 00000. I mostly help parents who are juggling a bond, school fees and a busy job. Our call is relaxed: I'll ask a few questions, you can ask yours, and I'll tell you honestly where you stand. There's nothing to buy and no pressure. Thirty minutes is all it takes, and you can join from your phone. Looking forward to speaking with you."
   },
   {
    "id": "S09",
    "expect": "block",
    "why": "cheapest + too short",
-   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I'll find you the cheapest cover in South Africa. Thirty minutes is all it takes, and there's no pressure. See you on {day}."
+   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I'll find you the cheapest cover in South Africa. Thirty minutes is all it takes, and there's no pressure. Looking forward to speaking with you."
   },
   {
    "id": "S10",
    "expect": "block",
    "why": "premium + amount",
-   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I help families with a bond and kids. On our call I'll show you how to get R2 million cover for under R400 a month. There's nothing to buy on the call and no pressure at all. Thirty minutes is usually all it takes to get it sorted for you. See you on {day}."
+   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I help families with a bond and kids. On our call I'll show you how to get R2 million cover for under R400 a month. There's nothing to buy on the call and no pressure at all. Thirty minutes is usually all it takes to get it sorted for you. Looking forward to speaking with you."
   },
   {
    "id": "S11",
    "expect": "block",
    "why": "insurer names",
-   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I work with Discovery and Old Mutual to get families the right cover. On our call I'll ask a few questions and tell you where you stand. There's nothing to buy and no pressure. Thirty minutes is usually all it takes to get clear. See you on {day}."
+   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I work with Discovery and Old Mutual to get families the right cover. On our call I'll ask a few questions and tell you where you stand. There's nothing to buy and no pressure. Thirty minutes is usually all it takes to get clear. Looking forward to speaking with you."
   },
   {
    "id": "S12",
    "expect": "block",
    "why": "suitability / you should",
-   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. Most people are underinsured, and you probably are too. On our call I'll ask a few questions and tell you exactly how much more cover you should get. There's nothing to buy and no pressure. Thirty minutes is usually all it takes. See you on {day}."
+   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. Most people are underinsured, and you probably are too. On our call I'll ask a few questions and tell you exactly how much more cover you should get. There's nothing to buy and no pressure. Thirty minutes is usually all it takes. Looking forward to speaking with you."
   },
   {
    "id": "S13",
    "expect": "block",
    "why": "product names",
-   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I help families protect what matters with term life and disability cover. On our call I'll ask a few questions and explain the options. There's nothing to buy and no pressure. Thirty minutes is usually all it takes to get it clear. See you on {day}."
+   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I help families protect what matters with term life and disability cover. On our call I'll ask a few questions and explain the options. There's nothing to buy and no pressure. Thirty minutes is usually all it takes to get it clear. Looking forward to speaking with you."
   },
   {
    "id": "S14",
    "expect": "block",
    "why": "no FSP number",
-   "text": "Hi, I'm Mark from Mark Williams Financial Planning. I help families with a bond and kids understand what they have. On our call I'll ask a few questions and tell you plainly where you stand. There's nothing to buy and no pressure. Thirty minutes is usually all it takes to get clear on things. See you on {day}."
+   "text": "Hi, I'm Mark from Mark Williams Financial Planning. I help families with a bond and kids understand what they have. On our call I'll ask a few questions and tell you plainly where you stand. There's nothing to buy and no pressure. Thirty minutes is usually all it takes to get clear on things. Looking forward to speaking with you."
   },
   {
    "id": "S15",
    "expect": "block",
    "why": "FSP twice",
-   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000, and yes, FSP 00000 is on the FSCA register. I help families with a bond and kids. On our call I'll ask a few questions and tell you plainly where you stand. There's nothing to buy and no pressure. Thirty minutes is usually all it takes. See you on {day}."
+   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000, and yes, FSP 00000 is on the FSCA register. I help families with a bond and kids. On our call I'll ask a few questions and tell you plainly where you stand. There's nothing to buy and no pressure. Thirty minutes is usually all it takes. Looking forward to speaking with you."
   },
   {
    "id": "S16",
    "expect": "block",
    "why": "urgency",
-   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I help families with a bond and kids. Book now because my diary is almost full and prices are going up next month. There's nothing to buy and no pressure on the call. Thirty minutes is usually all it takes. See you on {day}."
+   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I help families with a bond and kids. Book now because my diary is almost full and prices are going up next month. There's nothing to buy and no pressure on the call. Thirty minutes is usually all it takes. Looking forward to speaking with you."
   },
   {
    "id": "S17",
    "expect": "block",
-   "why": "guarantee",
-   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I guarantee you will save money after our chat, like the hundreds of families I've helped. There's nothing to buy and no pressure. Thirty minutes is usually all it takes to see the difference. Looking forward to {day}."
+   "why": "guarantee + client claim (I-3)",
+   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I guarantee you will save money after our chat, like the hundreds of families I've helped. There's nothing to buy and no pressure. Thirty minutes is usually all it takes to see the difference. Looking forward to speaking with you."
   },
   {
    "id": "S18",
    "expect": "block",
    "why": "exclamation + emoji",
-   "text": "Hi! I'm Mark from Mark Williams Financial Planning, FSP 00000 😊 I help families with a bond and kids understand what they have. On our call I'll ask a few questions and tell you plainly where you stand. There's nothing to buy and no pressure. Thirty minutes is usually all it takes. See you on {day}!"
+   "text": "Hi! I'm Mark from Mark Williams Financial Planning, FSP 00000 😊 I help families with a bond and kids understand what they have. On our call I'll ask a few questions and tell you plainly where you stand. There's nothing to buy and no pressure. Thirty minutes is usually all it takes. Looking forward to speaking with you!"
   },
   {
    "id": "S19",
    "expect": "block",
    "why": "health",
-   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. If you smoke or have a medical condition, don't worry, I can still help. On our call I'll ask a few questions and tell you plainly where you stand. There's nothing to buy and no pressure. Thirty minutes is usually all it takes. See you on {day}."
+   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. If you smoke or have a medical condition, don't worry, I can still help. On our call I'll ask a few questions and tell you plainly where you stand. There's nothing to buy and no pressure. Thirty minutes is usually all it takes. Looking forward to speaking with you."
   },
   {
    "id": "S20",
    "expect": "block",
    "why": "does not say nothing to buy / no pressure",
-   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I help families with a bond and kids understand what they have through work. On our call I'll ask you a few questions about your home and your family, and I'll explain everything in plain language. Thirty minutes is usually all it takes to get a clear picture. See you on {day}."
+   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I help families with a bond and kids understand what they have through work. On our call I'll ask you a few questions about your home and your family, and I'll explain everything in plain language. Thirty minutes is usually all it takes to get a clear picture. Looking forward to speaking with you."
+  },
+  {
+   "id": "S21",
+   "expect": "pass",
+   "why": "no-obligation wording (NH-30 b default) + day-neutral close",
+   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I help families with a bond and kids understand what they already have. On our call I'll ask a few questions and tell you plainly where you stand. There's no obligation to buy and no pressure. Thirty minutes is usually all it takes, and you can join from your phone. Looking forward to speaking with you."
+  },
+  {
+   "id": "S22",
+   "expect": "block",
+   "why": "names a weekday: one video serves many dates (NH-24 a, rule 14)",
+   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I help families with a bond and kids understand what they already have. On our call I'll ask a few questions and tell you plainly where you stand. There's no obligation to buy and no pressure. Thirty minutes is usually all it takes, and you can join from your phone. See you on Thursday."
+  },
+  {
+   "id": "S23",
+   "expect": "block",
+   "why": "I-1 underwriting promise",
+   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I help families with a bond and kids, and even if you smoke, anyone can get cover with no medicals. On our call I'll ask a few questions and tell you plainly where you stand. There's no obligation to buy and no pressure. Thirty minutes is usually all it takes, and you can join from your phone. Looking forward to speaking with you."
+  },
+  {
+   "id": "S24",
+   "expect": "block",
+   "why": "I-2 unverified years",
+   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I've spent twenty years helping families with a bond and kids understand what they already have. On our call I'll ask a few questions and tell you plainly where you stand. There's no obligation to buy and no pressure. Thirty minutes is usually all it takes, and you can join from your phone. Looking forward to speaking with you."
+  },
+  {
+   "id": "S25",
+   "expect": "pass",
+   "why": "I-2 verified credential (CFP in brokers.verified_credentials)",
+   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I'm a CFP and I help families with a bond and kids understand what they already have. On our call I'll ask a few questions and tell you plainly where you stand. There's no obligation to buy and no pressure. Thirty minutes is usually all it takes, and you can join from your phone. Looking forward to speaking with you."
+  },
+  {
+   "id": "S26",
+   "expect": "block",
+   "why": "I-3 client story / count",
+   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I help families with a bond and kids understand what they already have. On our call I'll ask a few questions and tell you plainly where you stand. There's no obligation to buy and no pressure. I've helped over 300 families, and thirty minutes is usually all it takes. Looking forward to speaking with you."
+  },
+  {
+   "id": "S27",
+   "expect": "block",
+   "why": "I-4 claims SortMyCover chose him",
+   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. SortMyCover picked me to help families with a bond and kids understand what they already have. On our call I'll ask a few questions and tell you plainly where you stand. There's no obligation to buy and no pressure. Thirty minutes is usually all it takes, and you can join from your phone. Looking forward to speaking with you."
+  },
+  {
+   "id": "S28",
+   "expect": "block",
+   "why": "I-5 tax claim",
+   "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I help families with a bond and kids understand what they already have. On our call I'll ask a few questions and tell you plainly where you stand, including the tax-free part. There's no obligation to buy and no pressure. Thirty minutes is usually all it takes, and you can join from your phone. Looking forward to speaking with you."
+  },
+  {
+   "id": "S29",
+   "expect": "block",
+   "lang": "af",
+   "why": "I-6 Afrikaans word list (waarborg, beste, premie)",
+   "text": "Hallo, ek is Mark van Mark Williams Financial Planning, FSP 00000. Ek help gesinne met 'n verband en kinders om te verstaan wat hulle klaar het. Op ons oproep vra ek 'n paar vrae en ek waarborg jou die beste premie in die land. Daar is geen druk nie. Dertig minute is gewoonlik genoeg. Ek sien uit daarna om met jou te praat."
+  },
+  {
+   "id": "S30",
+   "expect": "pass",
+   "lang": "af",
+   "why": "Afrikaans compliant, day-neutral close",
+   "text": "Hallo, ek is Mark van Mark Williams Financial Planning, FSP 00000. Ek help gesinne met 'n verband en kinders om te verstaan wat hulle klaar het. Op ons oproep vra ek 'n paar eenvoudige vrae en ek sê jou eerlik waar jy staan. Daar is niks om te koop nie en geen druk nie. Dertig minute is gewoonlik genoeg. Ek sien uit daarna om met jou te praat."
+  },
+  {
+   "id": "S31",
+   "expect": "review",
+   "lang": "zu",
+   "why": "I-6 other language: no word list, judge + human review",
+   "text": "Sawubona, ngingu Mark wase Mark Williams Financial Planning, FSP 00000. Ngisiza imindeni enezindlu nezingane ukuthi baqonde abanakho. Ocingweni ngizobuza imibuzo embalwa. Akukho okuthengwayo futhi akukho ukucindezela. Imizuzu engamashumi amathathu yanele. Ngibheke phambili ukukhuluma nawe."
+  },
+  {
+   "id": "T01",
+   "kind": "transcript",
+   "expect": "pass",
+   "why": "spoken take, confident, clean",
+   "transcript": {
+    "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I help families with a bond and kids understand what they already have. On our call I'll ask a few questions and tell you plainly where you stand. There's no obligation to buy and no pressure. Thirty minutes is usually all it takes, and you can join from your phone. Looking forward to speaking with you.",
+    "segments": [
+     {
+      "confidence": 0.93
+     },
+     {
+      "confidence": 0.88
+     },
+     {
+      "confidence": 0.91
+     }
+    ]
+   }
+  },
+  {
+   "id": "T02",
+   "kind": "transcript",
+   "expect": "review",
+   "why": "I-7 mean confidence < 0.80",
+   "transcript": {
+    "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I help families with a bond and kids understand what they already have. On our call I'll ask a few questions and tell you plainly where you stand. There's no obligation to buy and no pressure. Thirty minutes is usually all it takes, and you can join from your phone. Looking forward to speaking with you.",
+    "segments": [
+     {
+      "confidence": 0.7
+     },
+     {
+      "confidence": 0.75
+     },
+     {
+      "confidence": 0.82
+     }
+    ]
+   }
+  },
+  {
+   "id": "T03",
+   "kind": "transcript",
+   "expect": "review",
+   "why": "I-7 one segment < 0.50",
+   "transcript": {
+    "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I help families with a bond and kids understand what they already have. On our call I'll ask a few questions and tell you plainly where you stand. There's no obligation to buy and no pressure. Thirty minutes is usually all it takes, and you can join from your phone. Looking forward to speaking with you.",
+    "segments": [
+     {
+      "confidence": 0.97
+     },
+     {
+      "confidence": 0.45
+     },
+     {
+      "confidence": 0.99
+     }
+    ]
+   }
+  },
+  {
+   "id": "T04",
+   "kind": "transcript",
+   "expect": "review",
+   "why": "I-7 empty transcript fails closed",
+   "transcript": {
+    "text": "",
+    "segments": []
+   }
+  },
+  {
+   "id": "T05",
+   "kind": "transcript",
+   "expect": "block",
+   "why": "ad-libbed premium on the take",
+   "transcript": {
+    "text": "Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I help families with a bond and kids understand what they already have. On our call I'll ask a few questions and tell you plainly where you stand. There's no obligation to buy and no pressure. Most of my clients pay about R400 a month. Looking forward to speaking with you.",
+    "segments": [
+     {
+      "confidence": 0.95
+     },
+     {
+      "confidence": 0.9
+     }
+    ]
+   }
   }
  ]
 }
