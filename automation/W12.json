@@ -14,7 +14,7 @@
       "parameters": {
         "width": 900,
         "height": 380,
-        "content": "W12 Outcome, disposition & feedback (two-sided), 4.6 W12 row + 4.12a + Schedule C/D + 0.1 broker feedback rule. DRAFT pending GATE-TEST-W12.\nLogic: automation/lib/w12.mjs (pure), loaded by every Code node through the lv-automation loader (index.cjs).\nBroker side: broker_outcome_check at slot end + 15 min (Attended / No-show / Rescheduled), ONE nudge 3 h later. Attended -> one-tap disposition list at once (session; the tap opened his window; 4.12a codes; template broker_disposition only out of window) -> W29 takes the reply, asks quality 1-5 and the optional voice note. Unmarked at 24 h -> attended + auto_marked + unconfirmed (flagged in the console; two in a cycle -> Jonathan calls the broker). W11 keeps its 24-h backstop (ON CONFLICT (booking_id) DO NOTHING on both sides).\nLead side: reach_check at slot end + 30 min. Broker \"No-show\" counts only after the lead stays silent for the 2-h reach window; lead \"No, not yet\" waits for the broker (R6-03): still unmarked at broker_nudge_at = BROKER no-show (Schedule D: lines.mjs BROKER_NO_SHOW_APOLOGY, W10 rebook at our cost, KG alerted, never a replacement); a broker Attended / Rescheduled / No-show against it = conflict for KG in the console, nothing to the lead; Unreachable/wrong number = normal W13 path. Sides disagree -> console queue, nothing guessed.\nWrites: outcomes (one row per booking, first writer wins), appointments.status, leads.stage, lead_activities timeline (w12:mark / w12:reach rows, last tap wins per CONTRACTS). Calls: W29 outcome_recorded (every outcome; pulse/facts, quality index), CAPI Send Attended, W13 no_show (missed_you + 48-h clock), W10 rebook. Voice note (op voice_note): only the WhatsApp media reference is stored (outcomes.voice_note_url = whatsapp-media:{id}).\nNeeds NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation. Env: DRY_RUN_SENDS, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TEST_HOOKS_ENABLED."
+        "content": "W12 Outcome, disposition & feedback (two-sided), 4.6 W12 row + 4.12a + Schedule C/D + 0.1 broker feedback rule. DRAFT pending GATE-TEST-W12.\nLogic: automation/lib/w12.mjs (pure), loaded by every Code node through the lv-automation loader (index.cjs).\nBroker side: broker_outcome_check at slot end + 15 min (Attended / No-show / Rescheduled), ONE nudge 3 h later. Attended -> one-tap disposition list at once (session; the tap opened his window; 4.12a codes; template broker_disposition only out of window) -> W29 takes the reply, asks quality 1-5 and the optional voice note. Unmarked at 24 h -> attended + auto_marked + unconfirmed (flagged in the console; two in a cycle -> Jonathan calls the broker). W11 keeps its 24-h backstop (ON CONFLICT (booking_id) DO NOTHING on both sides).\nLead side: reach_check at slot end + 30 min. Broker \"No-show\" counts only after the lead stays silent for the 2-h reach window; lead \"No, not yet\" waits for the broker (R6-03): still unmarked at broker_nudge_at = BROKER no-show (Schedule D: lines.mjs BROKER_NO_SHOW_APOLOGY, W10 rebook at our cost, KG alerted, never a replacement); a broker Attended / Rescheduled / No-show against it = conflict for KG in the console, nothing to the lead; Unreachable/wrong number = normal W13 path. Sides disagree -> console queue, nothing guessed.\nWrites: outcomes (one row per booking, first writer wins), appointments.status, leads.stage, lead_activities timeline (w12:mark / w12:reach rows, last tap wins per CONTRACTS). Calls: W29 outcome_recorded (every outcome; pulse/facts, quality index), CAPI Send Attended (I-51b: held until the lead answered or her 2.5-h window closed; held on a lead \"No\" until KG decides via op kg_decision; never on Unreachable; w12:capi_hold / w12:capi_release rows), W13 no_show (missed_you + 48-h clock), W10 rebook. Voice note (op voice_note): only the WhatsApp media reference is stored (outcomes.voice_note_url = whatsapp-media:{id}).\nNeeds NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation. Env: DRY_RUN_SENDS, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TEST_HOOKS_ENABLED."
       }
     },
     {
@@ -236,6 +236,28 @@
                     "id": "s6",
                     "leftValue": "={{ $json.op }}",
                     "rightValue": "reject",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "kg_decision",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s7",
+                    "leftValue": "={{ $json.op }}",
+                    "rightValue": "kg_decision",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
@@ -731,6 +753,50 @@
                   }
                 ]
               }
+            },
+            {
+              "outputKey": "capi_hold",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s6",
+                    "leftValue": "={{ $json.fu }}",
+                    "rightValue": "capi_hold",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "capi_release",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s7",
+                    "leftValue": "={{ $json.fu }}",
+                    "rightValue": "capi_release",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
             }
           ]
         },
@@ -891,6 +957,168 @@
     },
     {
       "id": "n29",
+      "name": "Park held CAPI Attended (w12:capi_hold)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2880,
+        1400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W12', 'system', 'capi_attended_held', jsonb_build_object('booking_id', $5::text, 'event_id', $6::text, 'event_time', $7::text, 'reason', $8::text), now(), 'w12:capi_hold:' || $5::text)\nON CONFLICT (idempotency_key) DO NOTHING;",
+        "options": {
+          "queryReplacement": "={{ [$json.lead_id, $json.brand_id, $json.broker_id, $json.cycle_id, $json.booking_id, $json.event_id, $json.event_time, $json.reason] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "id": "n30",
+      "name": "Claim CAPI release (once per booking, logs the reason)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2880,
+        1600
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W12', 'system', 'capi_attended_release', jsonb_build_object('booking_id', $5::text, 'event_id', $6::text, 'decision', $7::text, 'reason', $8::text), now(), 'w12:capi_release:' || $5::text)\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$json.lead_id, $json.brand_id, $json.broker_id, $json.cycle_id, $json.booking_id, $json.event_id, $json.decision, $json.reason] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "id": "n31",
+      "name": "Release item (w12.releaseCapi, only when claimed + decision send)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3120,
+        1600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w12;\nconst out = [];\n$input.all().forEach((it, i) => {\n  if (!it.json.id) return; // already released or dropped\n  const item = $('Release source').itemMatching(i).json;\n  if (item.decision === 'send') out.push({ json: L.releaseCapi(item) });\n});\nreturn out;"
+      }
+    },
+    {
+      "id": "n32",
+      "name": "Release source",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2880,
+        1800
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { json: $json };"
+      }
+    },
+    {
+      "id": "n33",
+      "name": "Held CAPI Attended (not yet released)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1200,
+        1800
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT a.id AS booking_id, h.lead_id, h.brand_id, h.broker_id, h.cycle_id, a.ends_at AS slot_end,\n       h.payload->>'event_id' AS event_id, o.outcome AS outcome_outcome, o.disposition_code,\n       (SELECT r.payload->>'answer' FROM public.lead_activities r WHERE r.idempotency_key = 'w12:reach:' || a.id::text) AS reach,\n       (SELECT k.payload->>'decision' FROM public.lead_activities k WHERE k.idempotency_key = 'w12:kg_decision:' || a.id::text) AS kg_decision,\n       l.first_name, l.last_name, b.adviser_name, b.contact_person\n  FROM public.lead_activities h\n  JOIN public.appointments a ON a.id::text = h.payload->>'booking_id'\n  JOIN public.outcomes o ON o.booking_id = a.id\n  JOIN public.leads l ON l.id = h.lead_id\n  JOIN public.brokers b ON b.id = a.broker_id\n WHERE h.activity_type = 'capi_attended_held'\n   AND NOT EXISTS (SELECT 1 FROM public.lead_activities x WHERE x.idempotency_key = 'w12:capi_release:' || a.id::text)\n   AND ($3::uuid IS NULL OR a.id = $3::uuid)\n   AND (NOT $2::boolean OR l.is_synthetic)\n ORDER BY a.ends_at\n LIMIT 200;",
+        "options": {
+          "queryReplacement": "={{ (() => { const c = $('Classify + validate (w12.classifyOp)').first().json; return [c.now_iso, c.synthetic_only, c.op === 'kg_decision' ? c.booking_id : null]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "id": "n34",
+      "name": "Release held (w12.releaseHeld)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        1800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w12;\nconst now = Date.parse($('Classify + validate (w12.classifyOp)').first().json.now_iso);\nconst out = [];\nfor (const it of $input.all()) if (it.json.booking_id) for (const x of L.releaseHeld(it.json, now)) out.push({ json: x });\nreturn out;"
+      }
+    },
+    {
+      "id": "n35",
+      "name": "Record KG decision (w12:kg_decision, first wins)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        960,
+        2000
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT a.client_id, a.brand_id, a.broker_id, a.cycle_id, 'W12', 'system', 'outcome_kg_decision', jsonb_build_object('decision', $2::text, 'booking_id', a.id::text, 'decided_by', $3::text), now(), 'w12:kg_decision:' || a.id::text\n  FROM public.appointments a WHERE a.id = $1::uuid\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$json.booking_id, $json.decision, $json.decided_by || null] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n36",
+      "name": "Resolve the open dispute escalation",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1200,
+        2000
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.escalations SET resolved_at = now(), updated_at = now(), note = COALESCE(note, '') || ' | KG decided: ' || $2::text\n WHERE ref_table = 'appointments' AND ref_id = $1::text AND resolved_at IS NULL AND kind = 'outcome_unmarked' AND note LIKE 'esc_kind=outcome_disputed%'\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$('Classify + validate (w12.classifyOp)').first().json.booking_id, $('Classify + validate (w12.classifyOp)').first().json.decision] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n37",
       "name": "Attended tap? (ask disposition now)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -920,7 +1148,7 @@
       }
     },
     {
-      "id": "n30",
+      "id": "n38",
       "name": "Load meeting (disposition ask)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -944,7 +1172,7 @@
       "alwaysOutputData": false
     },
     {
-      "id": "n31",
+      "id": "n39",
       "name": "Disposition ask (w12.dispositionItem)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -958,7 +1186,7 @@
       }
     },
     {
-      "id": "n32",
+      "id": "n40",
       "name": "Voice note reference (w12.voiceNoteRef)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -972,7 +1200,7 @@
       }
     },
     {
-      "id": "n33",
+      "id": "n41",
       "name": "Store voice note reference (no audio, no transcript here)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -996,7 +1224,7 @@
       "alwaysOutputData": false
     },
     {
-      "id": "n34",
+      "id": "n42",
       "name": "Log subcall_rejected (CONTRACTS: never guessed)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1020,7 +1248,7 @@
       "alwaysOutputData": false
     },
     {
-      "id": "n35",
+      "id": "n43",
       "name": "Live send?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -1050,7 +1278,7 @@
       }
     },
     {
-      "id": "n36",
+      "id": "n44",
       "name": "Send WhatsApp",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -1088,7 +1316,7 @@
       }
     },
     {
-      "id": "n37",
+      "id": "n45",
       "name": "Store outbound",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1115,7 +1343,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n38",
+      "id": "n46",
       "name": "Touch leads.last_contact_at (lead outbound)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1139,7 +1367,7 @@
       "alwaysOutputData": false
     },
     {
-      "id": "n39",
+      "id": "n47",
       "name": "Accepted by Meta? (wamid)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -1169,7 +1397,7 @@
       }
     },
     {
-      "id": "n40",
+      "id": "n48",
       "name": "Log send failed (once; W22 reads it)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1245,6 +1473,11 @@
             "node": "Meeting state (ended, no outcome yet)",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Held CAPI Attended (not yet released)",
+            "type": "main",
+            "index": 0
           }
         ],
         [
@@ -1285,6 +1518,13 @@
         [
           {
             "node": "Log subcall_rejected (CONTRACTS: never guessed)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record KG decision (w12:kg_decision, first wins)",
             "type": "main",
             "index": 0
           }
@@ -1501,6 +1741,20 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Park held CAPI Attended (w12:capi_hold)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Release source",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -1520,6 +1774,83 @@
         [
           {
             "node": "Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Release source": {
+      "main": [
+        [
+          {
+            "node": "Claim CAPI release (once per booking, logs the reason)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim CAPI release (once per booking, logs the reason)": {
+      "main": [
+        [
+          {
+            "node": "Release item (w12.releaseCapi, only when claimed + decision send)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Release item (w12.releaseCapi, only when claimed + decision send)": {
+      "main": [
+        [
+          {
+            "node": "CAPI Send (Attended)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Held CAPI Attended (not yet released)": {
+      "main": [
+        [
+          {
+            "node": "Release held (w12.releaseHeld)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Release held (w12.releaseHeld)": {
+      "main": [
+        [
+          {
+            "node": "Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record KG decision (w12:kg_decision, first wins)": {
+      "main": [
+        [
+          {
+            "node": "Resolve the open dispute escalation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve the open dispute escalation": {
+      "main": [
+        [
+          {
+            "node": "Held CAPI Attended (not yet released)",
             "type": "main",
             "index": 0
           }

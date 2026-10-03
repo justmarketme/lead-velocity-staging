@@ -304,8 +304,8 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | # | Item | Owner |
 |---|---|---|
 | I-51a (PARTIAL: import + harness ok; W01 blocked by F1/F2/F3 → I-52) | Day-in-the-life rehearsal (6B.10) on the local n8n: import all 39 workflow files, run synthetic lead L01 through intake → first touch → slots → book → reminders (time-shifted) → outcome → no-show → replacement → STOP with the egress guard and DRY_RUN; precise failure list per stage | automation-engineer — dispatched |
-| I-51b | W12 holds CAPI Attended on an Attended-vs-"No" conflict but nothing releases it after KG decides; an Attended sent before the lead answers cannot be recalled; Attended + unreachable disposition still sends Attended | attribution-analyst + automation-engineer (W12) |
-| I-51c | W07 "-> W28" route is unused after I-45d; remove it in a pass that renumbers the Route switch outputs | automation-engineer (W07) |
+| I-51b ✅ | W12 holds CAPI Attended on an Attended-vs-"No" conflict but nothing releases it after KG decides; an Attended sent before the lead answers cannot be recalled; Attended + unreachable disposition still sends Attended | attribution-analyst + automation-engineer (W12) |
+| I-51c ✅ | W07 "-> W28" route is unused after I-45d; remove it in a pass that renumbers the Route switch outputs | automation-engineer (W07) |
 | I-51d | Late broker-mark conflict is logged to public.escalations (W12 convention) rather than ops.notifications — keep (default) or move | compliance-qa |
 
 ### I-52 · 2026-10-03 (rehearsal L01 findings)
@@ -344,3 +344,5 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-54d | CAPI evidence: no `capi_log` row under DRY_RUN by design — log dry rows, or a test-event-code run against the stub? | needs_human (default: log a `dry` capi_log row, no network) |
 | I-52c / I-53h ✅ | W26/RUN-LOCAL publish every sub-workflow target; pubcheck checksum step before any run | devops-security — dispatched (session 2, wave 1) |
 | I-54e | Round 4: stage 8 (STOP with a live booking → STOP_ACK_CANCELLED) + re-run 1–7 after I-54a–c; needs the local n8n + Postgres stub rebuilt in this container | automation-engineer — next wave |
+| I-54f ✅ | W05 howzit@ sendMail (booking + W10 method-change invites) behind the DRY_RUN gate; KNOWN_UNGATED empty | automation-engineer (session 2, wave 2) |
+| I-54g | After KG decides `not_attended` on an Attended-vs-"No" conflict, what happens to the `outcomes` row and the delivered/verified count? (I-51b closed only the CAPI side) | needs_human (default proposal: outcome → no_show, replacement_eligible within the cycle cap, delivered count unchanged) |

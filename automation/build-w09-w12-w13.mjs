@@ -323,7 +323,7 @@ function buildW12() {
     'Logic: automation/lib/w12.mjs (pure), loaded by every Code node through the lv-automation loader (index.cjs).\n' +
     'Broker side: broker_outcome_check at slot end + 15 min (Attended / No-show / Rescheduled), ONE nudge 3 h later. Attended -> one-tap disposition list at once (session; the tap opened his window; 4.12a codes; template broker_disposition only out of window) -> W29 takes the reply, asks quality 1-5 and the optional voice note. Unmarked at 24 h -> attended + auto_marked + unconfirmed (flagged in the console; two in a cycle -> Jonathan calls the broker). W11 keeps its 24-h backstop (ON CONFLICT (booking_id) DO NOTHING on both sides).\n' +
     'Lead side: reach_check at slot end + 30 min. Broker "No-show" counts only after the lead stays silent for the 2-h reach window; lead "No, not yet" waits for the broker (R6-03): still unmarked at broker_nudge_at = BROKER no-show (Schedule D: lines.mjs BROKER_NO_SHOW_APOLOGY, W10 rebook at our cost, KG alerted, never a replacement); a broker Attended / Rescheduled / No-show against it = conflict for KG in the console, nothing to the lead; Unreachable/wrong number = normal W13 path. Sides disagree -> console queue, nothing guessed.\n' +
-    'Writes: outcomes (one row per booking, first writer wins), appointments.status, leads.stage, lead_activities timeline (w12:mark / w12:reach rows, last tap wins per CONTRACTS). Calls: W29 outcome_recorded (every outcome; pulse/facts, quality index), CAPI Send Attended, W13 no_show (missed_you + 48-h clock), W10 rebook. Voice note (op voice_note): only the WhatsApp media reference is stored (outcomes.voice_note_url = whatsapp-media:{id}).\n' +
+    'Writes: outcomes (one row per booking, first writer wins), appointments.status, leads.stage, lead_activities timeline (w12:mark / w12:reach rows, last tap wins per CONTRACTS). Calls: W29 outcome_recorded (every outcome; pulse/facts, quality index), CAPI Send Attended (I-51b: held until the lead answered or her 2.5-h window closed; held on a lead "No" until KG decides via op kg_decision; never on Unreachable; w12:capi_hold / w12:capi_release rows), W13 no_show (missed_you + 48-h clock), W10 rebook. Voice note (op voice_note): only the WhatsApp media reference is stored (outcomes.voice_note_url = whatsapp-media:{id}).\n' +
     'Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation. Env: DRY_RUN_SENDS, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TEST_HOOKS_ENABLED.');
 
   const tSub = trigger('Called by W07 / W11 / portal', [0, 0]);
@@ -338,7 +338,7 @@ const now = L.nowFrom(j, $env, wall);
 const tap = L.parseTap(j.msg || {});
 return { json: { ...j, op: v.ok ? op : 'reject', asked_op: op, missing: v.ok ? [] : v.missing, tap, booking_id: (tap && tap.booking_id) || j.booking_id || null, now_iso: L.iso(now), synthetic_only: now !== wall } };`);
   link(tSub, cls); link(tCron, tickIn); link(tickIn, cls);
-  const OPS = ['tick', 'broker_tap', 'reach', 'auto_attended', 'voice_note', 'feedback', 'reject'];
+  const OPS = ['tick', 'broker_tap', 'reach', 'auto_attended', 'voice_note', 'feedback', 'reject', 'kg_decision'];
   const sw = switchOn('Op', [3, 0], '$json.op', OPS);
   link(cls, sw);
 
@@ -470,7 +470,7 @@ for (const it of $input.all()) {
 return out;`, 'runOnceForAllItems');
   link(auto, autoFu);
 
-  const fuSw = switchOn('Follow-up', [11, 2], '$json.fu', ['send', 'capi', 'w29', 'w13', 'w10', 'alert']);
+  const fuSw = switchOn('Follow-up', [11, 2], '$json.fu', ['send', 'capi', 'w29', 'w13', 'w10', 'alert', 'capi_hold', 'capi_release']);
   link(fu, fuSw); link(autoFu, fuSw);
   const capi = sub('CAPI Send (Attended)', [12, 2], 'CAPI Send');
   const w29 = sub('W29 outcome_recorded (quality, pulse facts)', [12, 3], 'W29 Feedback loop');
@@ -499,6 +499,72 @@ SELECT $1::uuid, $2, $3, 'appointments', $4, $5::uuid, $6::uuid, now(), $7
 for (const it of $input.all()) for (const x of L.lateMarkConflict(it.json)) out.push({ json: x });
 return out;`, 'runOnceForAllItems');
   link(markB, lateQ); link(lateQ, lateFu); link(lateFu, fuSw);
+
+
+  // ---- I-51b: CAPI Attended hold / release. Attended cannot be recalled, so it is held until the lead answered or her
+  // window closed (lib capiAttendedGate); a conflict is released or dropped by KG's decision (op kg_decision).
+  const holdW = pg('Park held CAPI Attended (w12:capi_hold)', [12, 7],
+`INSERT INTO public.lead_activities (${ACTIVITY_COLS})
+VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W12', 'system', 'capi_attended_held', jsonb_build_object('booking_id', $5::text, 'event_id', $6::text, 'event_time', $7::text, 'reason', $8::text), now(), 'w12:capi_hold:' || $5::text)
+ON CONFLICT (idempotency_key) DO NOTHING;`,
+    '={{ [$json.lead_id, $json.brand_id, $json.broker_id, $json.cycle_id, $json.booking_id, $json.event_id, $json.event_time, $json.reason] }}');
+  const relClaim = pg('Claim CAPI release (once per booking, logs the reason)', [12, 8],
+`INSERT INTO public.lead_activities (${ACTIVITY_COLS})
+VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W12', 'system', 'capi_attended_release', jsonb_build_object('booking_id', $5::text, 'event_id', $6::text, 'decision', $7::text, 'reason', $8::text), now(), 'w12:capi_release:' || $5::text)
+ON CONFLICT (idempotency_key) DO NOTHING
+RETURNING id;`,
+    '={{ [$json.lead_id, $json.brand_id, $json.broker_id, $json.cycle_id, $json.booking_id, $json.event_id, $json.decision, $json.reason] }}');
+  const relSend = code('Release item (w12.releaseCapi, only when claimed + decision send)', [13, 8], IMPORT('w12') +
+`const out = [];
+$input.all().forEach((it, i) => {
+  if (!it.json.id) return; // already released or dropped
+  const item = $('Release source').itemMatching(i).json;
+  if (item.decision === 'send') out.push({ json: L.releaseCapi(item) });
+});
+return out;`, 'runOnceForAllItems');
+  const relSrc = code('Release source', [12, 9], 'return { json: $json };');
+  link(fuSw, holdW, 6); link(fuSw, relSrc, 7); link(relSrc, relClaim); link(relClaim, relSend); link(relSend, capi);
+
+  const heldQ = pg('Held CAPI Attended (not yet released)', [5, 9],
+`SELECT a.id AS booking_id, h.lead_id, h.brand_id, h.broker_id, h.cycle_id, a.ends_at AS slot_end,
+       h.payload->>'event_id' AS event_id, o.outcome AS outcome_outcome, o.disposition_code,
+       (SELECT r.payload->>'answer' FROM public.lead_activities r WHERE r.idempotency_key = 'w12:reach:' || a.id::text) AS reach,
+       (SELECT k.payload->>'decision' FROM public.lead_activities k WHERE k.idempotency_key = 'w12:kg_decision:' || a.id::text) AS kg_decision,
+       l.first_name, l.last_name, b.adviser_name, b.contact_person
+  FROM public.lead_activities h
+  JOIN public.appointments a ON a.id::text = h.payload->>'booking_id'
+  JOIN public.outcomes o ON o.booking_id = a.id
+  JOIN public.leads l ON l.id = h.lead_id
+  JOIN public.brokers b ON b.id = a.broker_id
+ WHERE h.activity_type = 'capi_attended_held'
+   AND NOT EXISTS (SELECT 1 FROM public.lead_activities x WHERE x.idempotency_key = 'w12:capi_release:' || a.id::text)
+   AND ($3::uuid IS NULL OR a.id = $3::uuid)
+   AND (NOT $2::boolean OR l.is_synthetic)
+ ORDER BY a.ends_at
+ LIMIT 200;`,
+    "={{ (() => { const c = $('Classify + validate (w12.classifyOp)').first().json; return [c.now_iso, c.synthetic_only, c.op === 'kg_decision' ? c.booking_id : null]; })() }}");
+  const heldFu = code('Release held (w12.releaseHeld)', [6, 9], IMPORT('w12') +
+`const now = Date.parse($('Classify + validate (w12.classifyOp)').first().json.now_iso);
+const out = [];
+for (const it of $input.all()) if (it.json.booking_id) for (const x of L.releaseHeld(it.json, now)) out.push({ json: x });
+return out;`, 'runOnceForAllItems');
+  link(sw, heldQ, 0); link(heldQ, heldFu); link(heldFu, fuSw);
+
+  // ---- op kg_decision (console -> W12): KG's call on an Attended-vs-"No" conflict. First decision wins; the open
+  // console escalation is resolved; the held event is then released (send, same event_id) or dropped (logged reason).
+  const kgW = pg('Record KG decision (w12:kg_decision, first wins)', [4, 10],
+`INSERT INTO public.lead_activities (${ACTIVITY_COLS})
+SELECT a.client_id, a.brand_id, a.broker_id, a.cycle_id, 'W12', 'system', 'outcome_kg_decision', jsonb_build_object('decision', $2::text, 'booking_id', a.id::text, 'decided_by', $3::text), now(), 'w12:kg_decision:' || a.id::text
+  FROM public.appointments a WHERE a.id = $1::uuid
+ON CONFLICT (idempotency_key) DO NOTHING
+RETURNING id;`,
+    '={{ [$json.booking_id, $json.decision, $json.decided_by || null] }}', { alwaysOutputData: true });
+  const kgEsc = pg('Resolve the open dispute escalation', [5, 10],
+`UPDATE public.escalations SET resolved_at = now(), updated_at = now(), note = COALESCE(note, '') || ' | KG decided: ' || $2::text
+ WHERE ref_table = 'appointments' AND ref_id = $1::text AND resolved_at IS NULL AND kind = 'outcome_unmarked' AND note LIKE 'esc_kind=outcome_disputed%'
+RETURNING id;`,
+    "={{ [$('Classify + validate (w12.classifyOp)').first().json.booking_id, $('Classify + validate (w12.classifyOp)').first().json.decision] }}", { alwaysOutputData: true });
+  link(sw, kgW, 7); link(kgW, kgEsc); link(kgEsc, heldQ);
 
   // ---- Attended tap -> disposition ask at once (list in window)
   const attTap = ifTrue('Attended tap? (ask disposition now)', [5, 1], "$json.mark === 'attended'");

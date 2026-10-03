@@ -370,3 +370,80 @@ test('I-50f: a broker mark after the Schedule D apology went out -> one KG confl
   assert.deepEqual(WF.connections['Late mark conflict (w12.lateMarkConflict)'].main[0].map((c) => c.node), ['Follow-up']);
   assert.ok(WF.connections['Record broker mark (w12:mark, last tap wins)'].main[0].some((c) => c.node === 'Late broker mark? (apology already sent)'));
 });
+
+// ============================================================================================
+// I-51b: CAPI Attended hold / release (attribution-analyst). Attended cannot be recalled, so the gate decides once.
+// ============================================================================================
+const END = '2026-10-15T10:30:00+02:00';
+const GATE_BASE = { slotEnd: END, leadId: 'x', consentAds: true };
+const WINDOW_CLOSES = ms(END) + 30 * MIN + 2 * H;
+
+test('I-51b (b): Attended waits for the lead (answer or the 2.5-h window), then goes with the same event_id; never before', () => {
+  const early = resolveOutcome({ ...GATE_BASE, brokerMark: 'attended', reach: null }, ms(END) + 20 * MIN);
+  assert.deepEqual(early.capi, []); assert.deepEqual(early.capi_held, ['Attended']); assert.equal(early.capi_gate.reason, 'awaiting_lead');
+  const park = R.followUps(early, { booking_id: 'bk', lead_id: 'x', brand_id: 'b', broker_id: 'br', slot_end: END }, 'o1').find((f) => f.fu === 'capi_hold');
+  assert.deepEqual([park.booking_id, park.event_id, park.reason], ['bk', 'evt_x_attended', 'awaiting_lead']);
+  const held = { booking_id: 'bk', lead_id: 'x', brand_id: 'b', broker_id: 'br', slot_end: END, event_id: 'evt_x_attended', outcome_outcome: 'attended' };
+  assert.deepEqual(R.releaseHeld(held, WINDOW_CLOSES - 1), [], 'still holding one ms before the window closes');
+  const [rel] = R.releaseHeld(held, WINDOW_CLOSES);
+  assert.deepEqual([rel.fu, rel.decision, rel.reason], ['capi_release', 'send', 'lead_window_closed']);
+  const capi = R.releaseCapi(rel);
+  assert.deepEqual([capi.event_name, capi.event_id, capi.action_source, capi.event_time], ['Attended', 'evt_x_attended', 'system_generated', END]);
+  const [yes] = R.releaseHeld({ ...held, reach: 'yes' }, ms(END) + 40 * MIN);
+  assert.deepEqual([yes.decision, yes.reason], ['send', 'lead_confirmed']);
+  // inside Meta's 7-day event window: dropped 12 h before the edge, with a reason, never sent stale
+  const [stale] = R.releaseHeld({ ...held, reach: 'no' }, ms(END) + 7 * D - 11 * H);
+  assert.deepEqual([stale.decision, stale.reason], ['drop', 'meta_window_expired']);
+  assert.ok(R.CAPI_HOLD_MAX < 7 * D);
+});
+
+test('I-51b (a): conflict hold is released on KG "attended" (same event_id) and dropped with a reason on "not_attended"', () => {
+  const held = { booking_id: 'bk', lead_id: 'x', brand_id: 'b', broker_id: 'br', slot_end: END, event_id: 'evt_x_attended', outcome_outcome: 'attended', reach: 'no', first_name: 'Lerato', last_name: 'M', adviser_name: 'Mark Smith' };
+  const [alert] = R.releaseHeld(held, ms(END) + 3 * H);
+  assert.equal(alert.fu, 'alert'); assert.match(alert.note, /^esc_kind=outcome_disputed;.*held until then/, 'a lead No that arrives after the outcome row still reaches KG');
+  const [send] = R.releaseHeld({ ...held, kg_decision: 'attended' }, ms(END) + 3 * H);
+  assert.deepEqual([send.fu, send.decision, send.reason, send.event_id], ['capi_release', 'send', 'kg_attended', 'evt_x_attended']);
+  assert.equal(R.releaseCapi(send).event_id, 'evt_x_attended');
+  const [drop] = R.releaseHeld({ ...held, kg_decision: 'not_attended' }, ms(END) + 3 * H);
+  assert.deepEqual([drop.decision, drop.reason], ['drop', 'kg_not_attended']);
+  assert.equal(R.capiAttendedGate({ ...GATE_BASE, reach: 'no', kgDecision: 'attended' }, ms(END) + H).action, 'send');
+  assert.deepEqual(R.releaseHeld({ ...held, outcome_outcome: 'no_show', kg_decision: 'attended' }, ms(END) + H).map((x) => [x.decision, x.reason]), [['drop', 'outcome_not_attended']]);
+  assert.equal(R.validateInput('kg_decision', { booking_id: 'bk', decision: 'attended' }).ok, true);
+  assert.deepEqual(R.validateInput('kg_decision', { booking_id: 'bk', decision: 'maybe' }).missing, ['decision (attended|not_attended)']);
+  assert.equal(R.classifyOp({ op: 'kg_decision' }), 'kg_decision');
+});
+
+test('I-51b (c): Attended + unreachable never sends Attended (any reach, any timing, even after KG "attended" or while held)', () => {
+  for (const reach of [null, 'yes', 'no']) {
+    const r = resolveOutcome({ ...GATE_BASE, brokerMark: 'attended', reach, disposition: 'unreachable' }, WINDOW_CLOSES + H);
+    assert.deepEqual(r.capi, [], `reach ${reach}`); assert.equal(r.capi_dropped, 'unreachable_disposition');
+    const fu = R.followUps(r, { booking_id: 'bk', lead_id: 'x', brand_id: 'b', broker_id: 'br', slot_end: END }, 'o1');
+    assert.ok(!fu.some((f) => f.fu === 'capi'));
+    assert.deepEqual(fu.filter((f) => f.fu === 'capi_release').map((f) => [f.decision, f.reason]), [['drop', 'unreachable_disposition']]);
+  }
+  // the disposition usually arrives AFTER the Attended tap: the held event is dropped on the next tick
+  const held = { booking_id: 'bk', lead_id: 'x', brand_id: 'b', broker_id: 'br', slot_end: END, outcome_outcome: 'attended', disposition_code: 'unreachable', kg_decision: 'attended', reach: 'yes' };
+  assert.deepEqual(R.releaseHeld(held, WINDOW_CLOSES).map((x) => [x.decision, x.reason]), [['drop', 'unreachable_disposition']]);
+  assert.equal(R.capiAttendedGate({ ...GATE_BASE, reach: 'yes', disposition: 'fit_proceeding' }, ms(END) + H).action, 'send');
+});
+
+test('W12.json I-51b: kg_decision op, held-queue sweep, claim-once release, CAPI Send only on a claimed send; no DDL', async () => {
+  const ops = node('Op').parameters.rules.values.map((v) => v.outputKey);
+  assert.equal(ops.indexOf('reject'), 6); assert.ok(ops.includes('kg_decision'));
+  const fus = node('Follow-up').parameters.rules.values.map((v) => v.outputKey);
+  assert.deepEqual(fus.slice(6), ['capi_hold', 'capi_release']);
+  assert.match(node('Park held CAPI Attended (w12:capi_hold)').parameters.query, /'w12:capi_hold:' \|\| \$5::text\)\s+ON CONFLICT \(idempotency_key\) DO NOTHING/);
+  assert.match(node('Claim CAPI release (once per booking, logs the reason)').parameters.query, /'w12:capi_release:'[\s\S]*ON CONFLICT \(idempotency_key\) DO NOTHING\s+RETURNING id/);
+  assert.match(node('Record KG decision (w12:kg_decision, first wins)').parameters.query, /'w12:kg_decision:' \|\| a\.id::text/);
+  assert.match(node('Held CAPI Attended (not yet released)').parameters.query, /NOT EXISTS[\s\S]*'w12:capi_release:'/);
+  assert.match(node('Resolve the open dispute escalation').parameters.query, /UPDATE public\.escalations SET resolved_at/);
+  assert.ok(WF.connections['Op'].main[7].some((c) => c.node === 'Record KG decision (w12:kg_decision, first wins)'));
+  assert.ok(WF.connections['Release item (w12.releaseCapi, only when claimed + decision send)'].main[0].some((c) => c.node === 'CAPI Send (Attended)'));
+  assert.doesNotMatch(JSON.stringify(WF), /CREATE TABLE|ALTER TABLE|CREATE INDEX/);
+  // the code nodes run as n8n runs them
+  const row = { booking_id: 'bk', lead_id: 'ld', brand_id: 'b', broker_id: 'br', slot_end: END, event_id: 'evt_ld_attended', outcome_outcome: 'attended', reach: 'no', kg_decision: 'attended' };
+  const out = (await runCode(WF, 'Release held (w12.releaseHeld)', { items: [row], refs: { 'Classify + validate (w12.classifyOp)': { now_iso: '2026-10-15T14:00:00+02:00' } } })).map((x) => x.json);
+  assert.deepEqual(out.map((x) => [x.fu, x.decision, x.reason]), [['capi_release', 'send', 'kg_attended']]);
+  const sent = await runCode(WF, 'Release item (w12.releaseCapi, only when claimed + decision send)', { items: [{ id: 'act1' }, {}], refs: { 'Release source': out[0] } });
+  assert.ok(sent.length >= 1 && sent[0].json.event_id === 'evt_ld_attended' && sent[0].json.fu === 'capi');
+});

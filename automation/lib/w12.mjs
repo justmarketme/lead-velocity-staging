@@ -25,6 +25,30 @@ export const AUTO_ATTEND_AFTER_END = 24 * H;
 export const REACH_WINDOW = 2 * H; // fixtures _meta REACH_CHECK_WINDOW_H
 export const FIT_FOLLOWUP_AFTER = 7 * D;
 export const STALE_AFTER_END = 48 * H; // the sweep stops looking at a meeting after this
+// I-51b (b): CAPI Attended cannot be recalled once sent, so it goes only when the lead has had her say. Meta takes an
+// event up to 7 days old (ASSUMPTION, CONTRACTS "CAPI Attended hold"); a held event is dropped 12 h before that edge.
+export const CAPI_META_WINDOW = 7 * D;
+export const CAPI_HOLD_MAX = CAPI_META_WINDOW - 12 * H;
+
+/**
+ * capiAttendedGate(m, now) -> { action: 'send'|'hold'|'drop', reason }  (I-51b a, b, c). Pure; the ONE place that decides.
+ * m = { slotEnd, reach: 'yes'|'no'|null, disposition, kgDecision: 'attended'|'not_attended'|null, consentAds }
+ *  drop  unreachable_disposition (c) | kg_not_attended (a) | no_ads_consent | meta_window_expired (held too long)
+ *  send  kg_attended (a, same event_id: Meta dedupes) | lead_confirmed | lead_window_closed (b: end + 30 min + 2 h)
+ *  hold  conflict_pending_kg (broker Attended vs lead "No") | awaiting_lead (b)
+ */
+export function capiAttendedGate(m, now) {
+  const end = ms(m.slotEnd);
+  if (m.disposition === 'unreachable') return { action: 'drop', reason: 'unreachable_disposition' };
+  if (m.kgDecision === 'not_attended') return { action: 'drop', reason: 'kg_not_attended' };
+  if (m.consentAds === false) return { action: 'drop', reason: 'no_ads_consent' };
+  if (now >= end + CAPI_HOLD_MAX) return { action: 'drop', reason: 'meta_window_expired' };
+  if (m.kgDecision === 'attended') return { action: 'send', reason: 'kg_attended' };
+  if (m.reach === 'no') return { action: 'hold', reason: 'conflict_pending_kg' };
+  if (m.reach === 'yes') return { action: 'send', reason: 'lead_confirmed' };
+  if (now >= end + REACH_CHECK_AFTER_END + REACH_WINDOW) return { action: 'send', reason: 'lead_window_closed' };
+  return { action: 'hold', reason: 'awaiting_lead' };
+}
 // 4.12a order = broker_disposition.json button order = session list row order.
 export const CODES = ['fit_proceeding', 'fit_followup', 'nofit_budget', 'nofit_covered', 'nofit_criteria', 'unreachable'];
 export const REPLACEMENT_CODES = new Set(['unreachable', 'nofit_criteria']); // 4.12a: "nothing else does"
@@ -64,7 +88,13 @@ export function resolveOutcome(m, now) {
   const attended = (extra = {}) => {
     Object.assign(r, { outcome: 'attended', ...extra });
     if (!m.optedOut) r.lead_message = 'attended_thanks';
-    if (m.consentAds !== false) r.capi.push({ event_name: 'Attended', event_id: `evt_${m.leadId}_attended` });
+    // I-51b: CAPI Attended goes through capiAttendedGate (hold until the lead answered or her window closed; never on
+    // unreachable; never against a lead "No" until KG decides). Held/dropped events are logged by followUps().
+    const g = capiAttendedGate({ slotEnd: m.slotEnd, reach: m.reach ?? null, disposition: m.disposition ?? null, kgDecision: m.kgDecision ?? null, consentAds: m.consentAds }, now);
+    r.capi_gate = g;
+    if (g.action === 'send') r.capi.push({ event_name: 'Attended', event_id: `evt_${m.leadId}_attended` });
+    else if (g.action === 'hold') r.capi_held = ['Attended'];
+    else r.capi_dropped = g.reason;
     r.next = r.next || 'W12_disposition';
     return r;
   };
@@ -75,11 +105,10 @@ export function resolveOutcome(m, now) {
   if (m.reach === 'no') {
     if (m.brokerMark === 'rescheduled') return Object.assign(r, { outcome: 'rescheduled', dispute_status: 'open', next: 'console_queue' }); // no W10 offer until KG decides
     if (m.brokerMark === 'attended') {
-      if (m.disposition === 'unreachable') { attended(); r.lead_message = null; return r; } // W29 -> W13 replacement
+      if (m.disposition === 'unreachable') { attended(); r.lead_message = null; return r; } // W29 -> W13 replacement; gate drops CAPI (c)
       attended({ dispute_status: 'open', next: 'console_queue' }); r.lead_message = null; // no thank-you either
-      // I-50f: CAPI Attended is HELD (emitted nowhere) while KG decides; Meta must not learn a meeting the lead denies.
-      // Release on KG's decision is attribution-analyst's (console decision -> CAPI Send), not built here.
-      r.capi_held = r.capi.map((c) => c.event_name); r.capi = [];
+      // I-50f / I-51b (a): the gate HOLDS Attended (reach 'no') while KG decides; releaseHeld() sends it (same event_id)
+      // on KG "attended" or drops it with a logged reason on "not_attended" (op kg_decision).
       return r;
     }
     if (m.brokerMark === 'no_show') return Object.assign(r, { outcome: 'disputed', dispute_status: 'open', next: 'console_queue' });
@@ -135,7 +164,7 @@ export function parseTap(msg = {}) {
 /** classifyOp(input) -> 'tick'|'auto_attended'|'broker_tap'|'reach'|'voice_note'|'feedback'|'reject' */
 export function classifyOp(input = {}) {
   if (input.event === 'auto_attended') return 'auto_attended';
-  if (['tick', 'feedback', 'voice_note'].includes(input.op)) return input.op;
+  if (['tick', 'feedback', 'voice_note', 'kg_decision'].includes(input.op)) return input.op;
   const t = parseTap(input.msg);
   if (t) return t.side === 'broker' ? 'broker_tap' : 'reach';
   if (input.msg?.media === 'audio') return 'voice_note';
@@ -148,6 +177,7 @@ export function validateInput(op, input = {}) {
   if (op === 'auto_attended' && !input.outcome_id) missing.push('outcome_id');
   if ((op === 'broker_tap' || op === 'reach') && !parseTap(input.msg)?.booking_id) missing.push('msg.payload booking id');
   if (op === 'feedback' && !input.booking_id) missing.push('booking_id');
+  if (op === 'kg_decision') { if (!input.booking_id) missing.push('booking_id'); if (!KG_DECISIONS.includes(input.decision)) missing.push('decision (attended|not_attended)'); }
   if (op === 'voice_note' && !(input.msg?.media_id || input.media_id)) missing.push('media_id');
   if (op === 'reject') missing.push('op');
   return missing.length ? { ok: false, missing } : { ok: true };
@@ -256,7 +286,7 @@ export function voiceNoteRef(msg = {}) {
 }
 
 /** Sub-call payloads. */
-export const capiAttended = (lead, brandId) => ({ event_name: 'Attended', event_id: `evt_${lead.id}_attended`, action_source: 'system_generated', lead_id: lead.id, brand_id: brandId });
+export const capiAttended = (lead, brandId, eventTime) => ({ event_name: 'Attended', event_id: `evt_${lead.id}_attended`, action_source: 'system_generated', lead_id: lead.id, brand_id: brandId, ...(eventTime ? { event_time: eventTime } : {}) });
 export const w13NoShow = (outcomeId, booking, leadId, confirmedAt) => ({ op: 'no_show', outcome_id: outcomeId, booking_id: booking.id, lead_id: leadId, confirmed_at: confirmedAt, idempotency_key: `w12:no_show:${booking.id}` });
 export const w10Rebook = (booking, lead, why) => ({ source: 'W12', outcome: 'rescheduled', reason: why, schedule_d: why === 'broker_no_show', booking: { id: booking.id }, lead: { id: lead.id } });
 
@@ -304,7 +334,11 @@ export function followUps(r, row = {}, outcomeId, brandId = row.brand_id) {
   const out = outcomeId ? [{ fu: 'w29', event: 'outcome_recorded', outcome_id: outcomeId }] : []; // disputed: no row, alert only
   if (r.lead_message === 'attended_thanks') out.push(sendItem(row, attendedThanksMessage(lead, broker), `w12:attended_thanks:${row.booking_id}`));
   if (r.lead_message === 'broker_no_show_apology') out.push(sendItem(row, brokerNoShowApology(lead, broker), `w12:apology:${row.booking_id}`));
-  for (const c of r.capi || []) if (c.event_name === 'Attended') out.push({ fu: 'capi', ...capiAttended(lead, brandId) });
+  for (const c of r.capi || []) if (c.event_name === 'Attended') out.push({ fu: 'capi', ...capiAttended(lead, brandId, row.slot_end) });
+  // I-51b: a held Attended is parked (w12:capi_hold row = the release queue); a dropped one is logged with its reason.
+  const capiKeys = { lead_id: row.lead_id, brand_id: brandId, broker_id: row.broker_id, cycle_id: row.cycle_id || null, booking_id: row.booking_id, event_id: `evt_${row.lead_id}_attended`, event_time: row.slot_end || null };
+  if ((r.capi_held || []).length) out.push({ fu: 'capi_hold', ...capiKeys, reason: r.capi_gate?.reason || 'awaiting_lead' });
+  if (r.capi_dropped) out.push({ fu: 'capi_release', ...capiKeys, decision: 'drop', reason: r.capi_dropped });
   if (r.outcome === 'no_show') out.push({ fu: 'w13', ...w13NoShow(outcomeId, booking, row.lead_id, r.no_show_confirmed_at) });
   if (r.outcome === 'broker_no_show') out.push({ fu: 'w10', ...w10Rebook(booking, lead, 'broker_no_show') });
   if (r.outcome === 'rescheduled' && r.dispute_status !== 'open') out.push({ fu: 'w10', ...w10Rebook(booking, lead, 'broker_rescheduled') });
@@ -331,3 +365,28 @@ export function dispositionItem(row = {}, now, brokerLastInboundMs) {
   const m = dispositionAsk(booking, lead, broker, { broker_last_inbound_ms: brokerLastInboundMs, now });
   return sendItem(row, m, `w12:disposition_ask:${row.booking_id}:${m.template ? 'tpl' : 'list'}`, { claim: true });
 }
+
+/**
+ * I-51b (a)(b)(c): release queue for held CAPI Attended. row = one "w12:capi_hold" activity joined to its meeting:
+ * { booking_id, lead_id, brand_id, broker_id, cycle_id, slot_end, event_id, reach, disposition_code, kg_decision,
+ *   broker_mark, outcome_outcome }. Re-evaluated every tick and straight after a kg_decision. Returns [] while it still
+ * holds, one { fu: 'capi_release', decision: 'send'|'drop', reason, ... } when decided (claimed once per booking in
+ * the workflow), and the KG escalation when a lead "No" arrived after the outcome row was written and none is open.
+ */
+export function releaseHeld(row = {}, now) {
+  if (row.outcome_outcome && row.outcome_outcome !== 'attended') return [{ fu: 'capi_release', ...heldKeys(row), decision: 'drop', reason: 'outcome_not_attended' }];
+  const g = capiAttendedGate({ slotEnd: row.slot_end, reach: row.reach || null, disposition: row.disposition_code || null, kgDecision: row.kg_decision || null, consentAds: row.consent_ads === false ? false : undefined }, now);
+  if (g.action === 'hold') {
+    if (g.reason !== 'conflict_pending_kg') return [];
+    const { lead, broker } = partsOf(row);
+    return [{ fu: 'alert', to: 'console', kind: 'outcome_unmarked', severity: 'normal', lead_id: row.lead_id, broker_id: row.broker_id, brand_id: row.brand_id, booking_id: row.booking_id,
+      note: `esc_kind=outcome_disputed; ${firstAndInitial(lead)}: broker marked attended, lead answered no. KG decides in the console (op kg_decision attended | not_attended); CAPI Attended held until then (not sent), dropped if still undecided 12 h before Meta's 7-day window closes.` }];
+  }
+  return [{ fu: 'capi_release', ...heldKeys(row), decision: g.action, reason: g.reason }];
+}
+const heldKeys = (row) => ({ lead_id: row.lead_id, brand_id: row.brand_id, broker_id: row.broker_id, cycle_id: row.cycle_id || null, booking_id: row.booking_id, event_id: row.event_id || `evt_${row.lead_id}_attended`, event_time: row.slot_end || null });
+
+/** The release item -> the CAPI Send input (same event_id as the held event, so Meta dedupes a retry). */
+export const releaseCapi = (item) => ({ fu: 'capi', ...capiAttended({ id: item.lead_id }, item.brand_id, item.event_time) });
+
+export const KG_DECISIONS = ['attended', 'not_attended'];
