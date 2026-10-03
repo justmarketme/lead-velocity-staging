@@ -16,9 +16,9 @@ Human gates (2.2): publish, any budget entry, any payment screen, any account-le
 | 2 | Create Day-0 audiences (section 7) | |
 | 3 | Create the instant form A1 (and A2 paused) (section 3; `instant-form-spec.json`) | |
 | 4 | Create Campaign A, one ad set, **3 pre-approval ads** (section 4.4) paused | ★ Special Ad Category decision recorded (section 10) |
-| 5 | Wait for Meta review; if all 3 approved, add the remaining matrix ads (2.1.8: 3 approved before the full batch) | |
+| 5 | Wait for Meta review; if all 3 approved, add the other 3 live-set ads (C01 teal, C04, C05; 2.1.8: 3 approved before the rest) | |
 | 6 | Build Campaign B and Test C **paused**; they are switched on only by the section 11 triggers | |
-| 7 | At Go-live (6.1 step 5, Jonathan taps) Campaign A budget goes from R0 to R350/day | ★ budget |
+| 7 | At Go-live (6.1 step 5, Jonathan taps) Campaign A budget goes from R0 to the section 12 start figure (R246/day entered, about R283 with VAT; NH-22 b) | ★ budget |
 
 ---
 
@@ -34,7 +34,8 @@ Tick each against the `brands` row; the ID goes in the CRM, not in chat. Any unt
 | 4 | WhatsApp Business Account + number | Display name "SortMyCover"; standby number registered | `waba_id`, `phone_number_id` |
 | 5 | Ad account (ZAR, Africa/Johannesburg) + standby ad account | Page, IG, WABA assigned; payment added by Jonathan only | `ad_account_id` |
 | 6 | Pixel / dataset "SortMyCover" | Domain sortmycover.co.za verified; CAPI system-user token in `.env`; Lead Ads webhook subscribed to the Page (`leadgen`) with `leads_retrieval`, `pages_manage_ads` | `pixel_id`, `dataset_id`, `app_id` |
-| 7 | Page warm-up (2.1.3) | 7 days organic posts first. See `needs_human` 7: the R50/day "boost" in 2.1.3 conflicts with my no-boosting rule | n/a |
+| 7 | Page warm-up (2.1.3) | **NH-31 a (confirmed 2026-10-03): organic Page posts now; the paid warm-up (a Reach ad, never a Boost) runs only after first payment.** Live campaigns start 7 days after payment. Ads stay off until then (NH-31 c) | n/a |
+| 7b | WhatsApp number | **NH-31 b: Meta's test number until first payment**; the two real SA numbers are registered after payment | `phone_number_id` |
 | 8 | Event priority (aggregated events, domain sortmycover.co.za) | `Lead` > `Schedule` > `Contact` (then ViewContent, PageView). Applies to Campaign B only; Campaign A is on-Meta | see event-spec.md |
 | 9 | Test events | `META_TEST_EVENT_CODE` on during staging; removed for production; EMQ >= 6/10 on test Lead and Schedule | |
 
@@ -132,7 +133,7 @@ Do not add: email (collected only inside WhatsApp, and only for Teams/Zoom/Meet)
 
 - `{practice_name}` and `{fsp_number}` are read from the `brokers` row at entry time and typed literally into the form (a Meta form cannot merge). **Fail closed:** if either is empty or the FSP number is not marked verified, do not create the form. The consent file's source is DRAFT for practitioner review: re-read it before entry and use its current text; if it differs from the quote above, the file wins.
 - Switching `consent_mode` to `generic` (CONSENT-GENERIC-v1) means a new form version; never edit a live form's consent text.
-- Named consent makes the form broker-specific: with a second broker the form must be duplicated per broker (or generic mode must be approved). `needs_human` 6.
+- Named consent makes the form broker-specific: with a second broker the form must be duplicated per broker (or generic mode must be approved). **NH-22 (e) confirmed 2026-10-03: one instant form per broker.**
 - **ASSUMPTION**: checkbox text length limit. If the combined text is too long, put the 1.4 sentence in the disclaimer body and mark `needs_human` for compliance-qa (the sentence is meant to sit inside the same tick).
 
 **3.6 Thank-you screen:** Title "Thanks. Check WhatsApp." Body "Check WhatsApp. Your adviser's details and times are on their way." Button "What happens next" -> `https://sortmycover.co.za/what-happens-next` (placeholder: confirm the page exists, else the home page).
@@ -153,7 +154,7 @@ Do not add: email (collected only inside WhatsApp, and only for Teams/Zoom/Meet)
 | Objective | **Leads** (API `OUTCOME_LEADS`) |
 | **Special ad categories** | **Leave unticked ONLY IF the procedure in section 10 shows it is not required.** Do the section 10 check on this screen first. RECORD what Meta shows. |
 | A/B test | Off |
-| Campaign budget (Advantage campaign budget) | **On** (budget lives at campaign level so Meta spreads across the ad set's ads; one ad set so no practical difference). Daily budget: section 12 (R0 until Go-live, then R350) |
+| Campaign budget (Advantage campaign budget) | **On** (budget lives at campaign level so Meta spreads across the ad set's ads; one ad set so no practical difference). Daily budget: section 12 (R0 until Go-live, then the NH-22 b start figure) |
 | Campaign spending limit | Monthly cap per section 12 |
 | Bid strategy | Highest volume (lowest cost, **no cost cap, no bid cap**). Cost cap only after day 14 with >= 30 leads of data, as a proposed single-variable test |
 | Status when created | **Paused** |
@@ -185,29 +186,33 @@ All ads: Page identity `{page_id}`, Instagram `{ig_user_id}`, destination = Inst
 
 **4.4 Pre-approval trio (publish first; 2.1.8):** `C01_H1_vid-amb`, `C03_H3_vid-amb`, `C14_H10_vid-amb` (concept ids and hooks per `deliverables/performance-creative-director/test-matrix.md`; hook wording per `hook-library-v2.md`). Together they clear the three riskiest Meta patterns: a number in the hook (C01), a life-event scene (C03), the plain explainer with UI mocks (C14). All three must be approved by Meta before anything else is added. If any is disapproved, see section 10 and 11 (do not re-submit blindly).
 
-### 4.5 Cycle-1 test: one colour pair on H1 video, plus the diversity set (10 ads live, all video, same ad set)
-Basis: NH-22 (d) default. Cycle 1 tests colour on H1 video only; the full 2x2 on H1 and H3 is not run (arithmetic in test-matrix.md: ~50 raw leads/month cannot power 8 arms). If Jonathan picks the full 2x2, the cycle-2 arms start on day 1 and nothing else changes.
+### 4.5 Cycle-1 live set: exactly 6 ads (5 concepts), all video, same ad set
+Basis: **NH-64 (confirmed 2026-10-03; supersedes the earlier 10-ad set) and NH-22 (d)**. Cycle 1 tests colour on H1 video only; no other colour arms. At the NH-22 (b) budget, ~40 raw leads a month cannot power more arms, and six ads is what that volume can feed (test-matrix.md arithmetic). Ranking and reasons: `deliverables/creative-strategist/angle-ranking.md`.
 
-| Step | Ad name (date = upload date) | Hook (frame-1 text, exactly) | Colour |
-|---|---|---|---|
-| 1. Trio | `C01_H1_vid-amb_{date}` | H1 "Most work life cover stops at 2-4x salary." Beat 2: "The bond and the bills don't." | amber on charcoal |
-| 1. Trio | `C03_H3_vid-amb_{date}` | H3 "Bond approved. Champagne open. Cover checked?" | amber |
-| 1. Trio | `C14_H10_vid-amb_{date}` | H10 "Here's exactly what happens on the call." | amber |
-| 2. Matrix arm (after trio approved) | `C01_H1_vid-teal_{date}` | H1, identical to `C01_H1_vid-amb` except palette | teal on cream |
-| 3. Diversity (after trio approved) | `C04_H4_vid-amb_{date}` | H4 "New baby. New bond. Same old cover?" | amber |
-| 3. Diversity | `C05_H5_vid-amb_{date}` | H5 "Cover set up at 28. Life at 40." | amber |
-| 3. Diversity | `C06_H9_vid-amb_{date}` | H9 "Many families carry more than one household." | amber |
-| 3. Diversity | `C08_H6_vid-amb_{date}` | H6 "No sales visit. No jargon. 30 minutes." | amber |
-| 3. Diversity | `C10_H7_vid-amb_{date}` | H7 "No boss. No payslip. No group cover." | amber |
-| 3. Diversity | `C13_H16_vid-amb_{date}` | H16 "Checking cover is not the same as buying." | amber |
+| Slot | Step | Ad name (date = upload date) | Hook (frame-1 text, exactly) | Colour |
+|---|---|---|---|---|
+| 1 | 1. Trio | `C01_H1_vid-amb_{date}` | H1 "Most work life cover stops at 2-4x salary." Beat 2: "The bond and the bills don't." | amber on charcoal |
+| 2 | 2. After trio approved | `C01_H1_vid-teal_{date}` | H1, identical to `C01_H1_vid-amb` except palette | teal on cream |
+| 3 | 1. Trio | `C03_H3_vid-amb_{date}` | H3 "Bond approved. Champagne open. Cover checked?" | amber |
+| 4 | 2. After trio approved | `C04_H4_vid-amb_{date}` | H4 "New baby. New bond. Same old cover?" | amber |
+| 5 | 2. After trio approved | `C05_H5_vid-amb_{date}` | H5 "Cover set up at 28. Life at 40." | amber |
+| 6 | 1. Trio | `C14_H10_vid-amb_{date}` (**holds the C16 slot**) | H10 "Here's exactly what happens on the call." | amber |
 
-That is 10 ads (the cap), one per angle plus the colour pair, so all 7 angles are live. Placement assets follow the 4.7 motion rule (9:16 video everywhere; 4:5 native video only where it exists and parity allows). Not live (pool, replacements and the week 2-3 refresh): C02 (H12; H2 not approved, NH-PCD-02 decided), C07, C09, C11, C12 (H18; H8 held, NH-PCD-04, no source), C15, all stills, 6-s motion stills, the C04 carousel. Statics are not live in cycle 1; static vs video is a cycle-2 test (`C01_H1_sta-{col}` vs `C01_H1_vid-{col}`), and the H3 teal twin (`C03_H3_vid-teal`) enters in cycle 2 if Jonathan keeps that arm. Replacement mapping after the 2,000-impression rule is in test-matrix.md (e.g. C06 -> C07, C08 -> C09, C10 -> C11, C13 -> C12, C14 -> C15; C01 arms are never swapped mid-test). Same copy within the C01 pair so colour is the only variable (single-variable discipline); upload both on the same day and never edit either.
+**Report C01 amber + teal as ONE concept.** The colour result is not readable in cycle 1 (needs >= 30 leads per arm; the whole cycle gives about 40, and Meta will skew delivery between two near-identical ads). Read it from cost per qualified lead after cycle 1 only; it never pauses an arm. The five concepts are five distinct angles (employer gap, new bond, new baby, turned 40, what the call is).
+
+**Slot 6 / C16 rule.** C14 runs in slot 6 until C16 (bond paperwork, H1 "Bond signing day is busy.") is approved for live. **Status 2026-10-03: not yet, so C14 stays.** compliance-qa's verdict (`deliverables/compliance-qa/review-C16-C17.md`) is **PASS-WITH-FIXES**, not a clean pass; the source-free rewrite is final and applied, but compliance-qa said it will re-check the rendered frames before C16 leaves `_draft/`, and that re-check is not logged. Also open: C16 has no native 4:5 video (spec 4.7 parity: every live ad carries 9:16 + 4:5), and its landing page is still `landing/angles/_draft/bond-paperwork.json`. The swap happens when compliance-qa marks C16 publishable (clean PASS) **and** the 4:5 video exists **and** Jonathan confirms; then C16 replaces C14 (pause C14, never edit it; logged confirm-to-apply change, one swap, not counted as an edit to a live ad) and C14 moves to the pool. If C03 and C16 cannibalise each other in week 1, keep whichever has the lower cost per qualified lead (angle-ranking).
+
+**Refresh pool, in order** (`first-batch.csv` rows 8-13): **C17** (policy review; BLOCKED until the practitioner's s14 / replacement-rules answer is logged and compliance-qa gives a clean pass; no keep / cancel / replace / cheaper / save / switch wording anywhere), **C14 / C16** (whichever is not live), **C13**, **C11**, **C08**, **C10**. Reserve behind them (not on the NH-64 list): C02 (H12; H2 not approved, NH-PCD-02), C09, C15. **Hold, never uploaded: C06 and C12** (H18; H8 held, NH-PCD-04), and C07 with C06 (same audience and risk; Jonathan may release it).
+
+Placement assets follow the 4.7 motion rule (9:16 video everywhere; native 4:5 video for Feed). Not live: all stills, 6-s motion stills, the C04 carousel. Statics are not live in cycle 1; static vs video is a cycle-2 test (`C01_H1_sta-{col}` vs `C01_H1_vid-{col}`). Replacement after the 2,000-impression rule follows the pool order above (C01 arms are never swapped mid-test; a pool ad that has no 4:5 video gets it rendered first, 4.7 item 4). Same copy within the C01 pair so colour is the only variable; upload both on the same day and never edit either.
+
+**Open copy flag (C05):** compliance-qa asked that the C17 replacement for "Nobody sends a reminder to check it" be applied to C05 too; `concepts.csv` still carries the old line. creative-strategist to apply (and visual-producer re-check) before C05 is uploaded.
 
 **Delivery-split note (NH-PCD-06):** Meta does not split delivery evenly between the two colour ads inside one ad set. **Default: accept this for cycle 1.** If either arm gets < 25% of the pair's impressions over 7 days, record that week as inconclusive. Alternative, decided at cycle-1 close: run the C01 pair as a Meta A/B test (two ad sets, even split) in cycle 2, once Campaign A has >= 30 leads.
 
 **Reading the colour test (CXL discipline):**
 - Compare the pair (`C01_H1_vid-amb` vs `C01_H1_vid-teal`). Leading read once each has >= 2,000 impressions: hook, hold, CTR, WhatsApp reply rate, booking rate. This informs the *next batch* only; it never pauses an arm.
-- Verdict only at **>= 30 leads per arm**. Teal wins only if its cost per qualified lead is >= 20% lower and hook rate points the same way; any smaller difference or a split signal means amber stays. At ~R350/day the pair draws roughly 10-15 leads in cycle 1, so the verdict lands in cycle 2 or 3 (needs_human 4 is answered by the NH-22 (d) default). Never kill an arm on lead count.
+- Verdict only at **>= 30 leads per arm**. Teal wins only if its cost per qualified lead is >= 20% lower and hook rate points the same way; any smaller difference or a split signal means amber stays. At ~R246/day entered (about R283 with VAT) the pair draws roughly 8-12 leads in cycle 1, so the verdict lands in cycle 2 or 3 and the colour result is **not readable in cycle 1** (NH-22 (d) confirmed: colour on H1 only; report as one concept). Never kill an arm on lead count.
 - Creative hygiene (4D.4a): any ad under hook < 30% (Reels) / < 25% (Feed) or hold < 35% after 2,000 impressions is replaced in the *next batch*, not mid-flight.
 - The 3.4 R3,000 rule still applies as written (pause bottom 50% on raw CPL or qualify rate). If it removes a matrix arm, record that arm as "inconclusive" and the matrix is re-run in the next batch. 3.4 wins over matrix completeness.
 
@@ -294,7 +299,7 @@ Fed back for learning and seeds (not optimisation targets in cycle 1): `Schedule
 ## 9. Learning-phase rules (apply all of them; this is test discipline, not caution)
 
 1. **One campaign, one ad set, one form** for cycle 1. Do not add ad sets.
-2. **ASSUMPTION (standard Meta guidance, confirm on the screen):** an ad set exits learning at about 50 optimisation events in 7 days. At R350/day and R200 CPL that is ~12 leads a week, so expect the ad set to sit in **"Learning limited"**. 4.4 says cycle 1 should exit learning: it will not at this budget (needs_human 5). This is acceptable: consolidation (one ad set) is the mitigation, and the leading indicators drive decisions.
+2. **ASSUMPTION (standard Meta guidance, confirm on the screen):** an ad set exits learning at about 50 optimisation events in 7 days. At R246/day entered and R200 CPL that is ~9 leads a week, so expect the ad set to sit in **"Learning limited"**. 4.4 says cycle 1 should exit learning: it will not at this budget. **NH-22 (c) confirmed: accept learning-limited, one ad set; do not raise the budget to chase it.** This is acceptable: consolidation (one ad set) is the mitigation, and the leading indicators drive decisions.
 3. **No edits in days 1–14 except:** adding the matrix ads after the trio is approved (day 1–3), pausing a disapproved ad, an SLO burn (first message < 60 s breached, token/policy problem), or the R3,000 rule. Every edit logged with who/when/why and confirm-to-apply (6.2).
 4. Budget changes: **no more than +/-20% per change, not more than once per 48 h**, and never during days 1–2 (no day-2 panic changes).
 5. No changes to the form, consent text or targeting once live; make a new version instead.
@@ -389,14 +394,14 @@ All figures ex-VAT as Meta shows them in the ad account unless stated; Meta bill
 | Phase | Campaign A daily budget | Notes |
 |---|---|---|
 | Before Go-live / before first payment | **R0** (all paused, ads approved) | nothing spends pre-payment (0.1) |
-| Cycle 1, days 1–14 | **R350/day** (6B.12) | R4,900 over 14 days. A is the only campaign |
+| Cycle 1, days 1–14 | **R246/day entered in Meta (about R283/day billed incl. 15% VAT)** (NH-22 a + b, confirmed 2026-10-03; supersedes R350) | R3,444 entered over 14 days. A is the only campaign |
 | After day 14 (and from cycle 2) | **`sum over active brokers of media_share_zar` ÷ 30** per day, changed in <= 20% steps, once per 48 h | `media_share_zar` read from the `pricing` table (3.6), never typed from this document |
 
-Reference values from 3.5 (VAT-inclusive media at R200 CPL; for sanity only, the table is the source): Bronze R8,492 -> R283/day; Silver R12,738 -> R425/day; Gold R19,108 -> R637/day. Check: R350/day for 30 days = R10,500, which is above Bronze's R8,492; see needs_human 2.
+**NH-22 (a), confirmed 2026-10-03: `media_share_zar` is VAT-inclusive. Daily budget entered in Meta = `media_share_zar` ÷ 1.15 ÷ 30.** Reference values (sanity only; the `pricing` table is the source): Bronze R8,492 -> R283/day incl. VAT -> **R246/day entered**; Silver R12,738 -> R425 -> R369 entered; Gold R19,108 -> R637 -> R554 entered. Cycle-1 start (NH-22 b) = Bronze's share, so R246 entered / about R283 billed. The R350 funding gap is closed (no one funds a gap). **Reading note:** "start R283/day" is taken as the VAT-inclusive figure, consistent with (a). If Jonathan meant R283 entered (R325 billed), say so and this table changes.
 
 **Daily cap and monthly cap rule**
 - Daily: the campaign daily budget is the cap on average. Meta may spend up to ~25% above the daily budget on a day while keeping the weekly total; do not "fix" that. A guardrail in the console alerts if any single day's spend > 1.5x the daily budget.
-- Monthly: set the campaign **spending limit** = the sum of `media_share_zar` of active brokers for the cycle, except in cycle 1, where the default limit is R10,500 (R350 x 30) and the shortfall against the tier's media share is Jonathan's decision (needs_human 2). If a broker pauses or does not renew, routing is off and budget is lowered at cycle end (6.1 step 7); the limit is lowered in the same step.
+- Monthly: set the campaign **spending limit** = the sum of `media_share_zar` of active brokers for the cycle, after dividing each by 1.15 (NH-22 a); in cycle 1 that is Bronze's R8,492 ÷ 1.15 = **R7,384 entered** (R246 x 30), about R8,492 billed incl. VAT. No funding gap. If a broker pauses or does not renew, routing is off and budget is lowered at cycle end (6.1 step 7); the limit is lowered in the same step.
 - Pause on cap: when 100% of the monthly cap is spent, delivery stops; alert at 80% (WhatsApp to Jonathan/KG, 6.3).
 - When B and C are on: A 60%, B 30%, C 10% of the same total. At R20,000/month (about R667/day) that is about R400 / R200 / R67 per day; the R67 for C is very small and will not exit learning, so C is run as a measured test and reported on reply rate, not CPL, until it has >= 30 leads (needs_human 3).
 

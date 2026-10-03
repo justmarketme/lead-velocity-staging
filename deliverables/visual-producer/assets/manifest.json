@@ -38,6 +38,29 @@
       "DRAFT (compliance-qa PASS once fixes in, review-C16-C17.md): not in the cycle-1 batch until Jonathan clears NH-64 AND the practitioner answers the s14 / replacement-rules question (GATE-OPINION). No keep, cancel, replace, cheaper, save or switch wording anywhere."
     ]
   },
+  "cycle1_live_set": {
+    "decision": "NH-64 confirmed by Jonathan 2026-10-03; media-buyer 2026-10-03. Source of order: deliverables/media-buyer/first-batch.csv",
+    "live_ads": [
+      "C01_H1_vid-amb",
+      "C01_H1_vid-teal",
+      "C03_H3_vid-amb",
+      "C04_H4_vid-amb",
+      "C05_H5_vid-amb",
+      "C14_H10_vid-amb"
+    ],
+    "live_count": 6,
+    "concept_count": 5,
+    "note_colour": "C01 amber + teal are ONE concept; colour result not readable in cycle 1 (NH-22 d).",
+    "slot_6": {
+      "holder": "C14",
+      "reserved_for": "C16",
+      "swap_condition": "compliance-qa clean PASS (currently PASS-WITH-FIXES, rendered-frame re-check not logged) + native 4:5 video rendered + landing page out of _draft/ + Jonathan confirms",
+      "status": "C14 stays 2026-10-03"
+    },
+    "refresh_pool_in_order": ["C17 (blocked: practitioner s14 answer + compliance-qa clean pass)", "C14/C16", "C13", "C11", "C08", "C10"],
+    "reserve": ["C02", "C09", "C15"],
+    "hold": ["C06", "C12", "C07"]
+  },
   "count": 119,
   "files": [
     {
