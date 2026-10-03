@@ -291,11 +291,16 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 ### I-50 · 2026-10-03 (parse-check against the migrated stub + review-6 wiring)
 | # | Item | Owner |
 |---|---|---|
-| I-50a | Real SQL bugs: SUB-capi-send "Update capi_log" casts `id` to uuid (column is bigint); W05 "Insert appointment" writes a non-existent `appointments.lead_id` | automation-engineer — dispatched |
-| I-50b | SUB-whatsapp-send inserts `recipient_contact` NULL into a NOT NULL legacy column — write the recipient number | automation-engineer — dispatched |
+| I-50a ✅ | Real SQL bugs: SUB-capi-send "Update capi_log" casts `id` to uuid (column is bigint); W05 "Insert appointment" writes a non-existent `appointments.lead_id` | automation-engineer — dispatched |
+| I-50b ✅ | SUB-whatsapp-send inserts `recipient_contact` NULL into a NOT NULL legacy column — write the recipient number | automation-engineer — dispatched |
 | I-50c | Ask-the-data Q12 (capacity days left) 49.0/28 vs expected 50.8/29 — fixture drifts with today's date; pin the fixture date | analytics-reporter |
 | I-50d | Re-running analytics/W14-*.sql resets the two facts functions to SECURITY INVOKER; analytics layer has no migration path to production (migration 10 §3) | platform-architect |
 | I-50e | L02 fixture in synthetic-leads.json still expects the old no-show reading (broker No-show + lead "No" → apology); update at GATE-TEST-W12 with the R6-03 rule | automation-engineer at GATE-TEST-W12 |
 | I-50f | W12: a broker mark that arrives after the apology went out is not logged as a conflict for KG; CAPI Attended still fires on an Attended-vs-"No" conflict | automation-engineer (W12) + attribution-analyst |
 | I-50g | W17 NDR detection assumes Microsoft 365 subjects "Undeliverable: Your call with …" — verify against a real NDR at staging | billing-automation, Phase 5 |
 | I-50h | W19: switch the pay-link and come-back calls from session text to broker_cycle_ended / broker_come_back (variable order: first name, reason, end date, reference / first name, reference) and supply the cycle end date | billing-automation |
+
+### I-51 · 2026-10-03 (Phase 5 rehearsal attempt)
+| # | Item | Owner |
+|---|---|---|
+| I-51a | Day-in-the-life rehearsal (6B.10) on the local n8n: import all 39 workflow files, run synthetic lead L01 through intake → first touch → slots → book → reminders (time-shifted) → outcome → no-show → replacement → STOP with the egress guard and DRY_RUN; precise failure list per stage | automation-engineer — dispatched |
