@@ -321,13 +321,16 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 ### I-53 · 2026-10-03 (rehearsal L01 round 2 findings)
 | # | Item | Owner |
 |---|---|---|
-| I-53a | F4 W06: DRY_RUN false outputs unconnected — no communications row / disclosure evidence on a dry run | automation-engineer — dispatched |
-| I-53b | F9 W09: what_to_expect scheduled from the real clock, not the booking/test clock | automation-engineer — dispatched |
-| I-53c | F10 W29: insights node loses `$json.o` after the ad_metrics query ("Query Parameters must be…") | automation-engineer — dispatched |
-| I-53d | F11 W13: alertNote pairedItem error when Claim replacement returns two items | automation-engineer — dispatched |
-| I-53e | F8 W05: shared-fallback POST with an empty calendar id; graph_event_id never stored; SMC_SHARED_CALENDAR_ID env | automation-engineer — dispatched |
-| I-53f | F6 seed: broker calendar_status null → represent a go-live-ready broker (shared_fallback, ok, synthetic shared calendar id) | automation-engineer (seed values) — dispatched |
-| I-53g | F7 runtime: W04/W05/CAPI/W22 executions stay "running" with no saved data; W28 never produced an execution — settings or runner cause | automation-engineer — dispatched |
+| I-53a ✅ | F4 W06: DRY_RUN false outputs unconnected — no communications row / disclosure evidence on a dry run | automation-engineer — dispatched |
+| I-53b ✅ | F9 W09: what_to_expect scheduled from the real clock, not the booking/test clock | automation-engineer — dispatched |
+| I-53c ✅ | F10 W29: insights node loses `$json.o` after the ad_metrics query ("Query Parameters must be…") | automation-engineer — dispatched |
+| I-53d ✅ | F11 W13: alertNote pairedItem error when Claim replacement returns two items | automation-engineer — dispatched |
+| I-53e ✅ | F8 W05: shared-fallback POST with an empty calendar id; graph_event_id never stored; SMC_SHARED_CALENDAR_ID env | automation-engineer — dispatched |
+| I-53f ✅ | F6 seed: broker calendar_status null → represent a go-live-ready broker (shared_fallback, ok, synthetic shared calendar id) | automation-engineer (seed values) — dispatched |
+| I-53g ✅ | F7 runtime: W04/W05/CAPI/W22 executions stay "running" with no saved data; W28 never produced an execution — settings or runner cause | automation-engineer — dispatched |
 | I-53h | F5 process: workflows published from an older version mid-run — W26 restore + RUN-LOCAL re-import everything before a run (add a checksum step) | devops-security |
-| I-53i | Local MX stub for the fixture's Teams/Zoom/Meet email path (scratch egress guard only) | automation-engineer — dispatched |
+| I-53i ✅ | Local MX stub for the fixture's Teams/Zoom/Meet email path (scratch egress guard only) | automation-engineer — dispatched |
 | I-53j | Stage 8 (W15 STOP) + CAPI capi_log row + W28 list path still unrehearsed → round 3 after I-53a–g | automation-engineer, next |
+| I-53k | W05's W09 schedule call must forward x-test-now / is_synthetic so what_to_expect shifts in a /book-driven rehearsal | automation-engineer — dispatched with round 3 |
+| I-53l | W01 POST /lead 500 at "Guard (w01.guard) + Lookup needed?" ($('Turnstile check needed? ...').first() undefined) in the latest store — regression after the fixture/registry pass or a node-name drift; fix + _n8ncode test | automation-engineer — dispatched with round 3 |
+| I-53m | Round 3: stages 1–8 from a real /lead with the fixes (incl. W15 STOP, CAPI capi_log row) | automation-engineer — dispatched |
