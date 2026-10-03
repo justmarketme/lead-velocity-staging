@@ -1,0 +1,1727 @@
+{
+  "id": "smc-w01",
+  "name": "W01 Lead intake (web) (DRAFT pending GATE-TEST-W01)",
+  "nodes": [
+    {
+      "id": "n01",
+      "name": "Sticky: read me",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -440
+      ],
+      "parameters": {
+        "width": 900,
+        "height": 400,
+        "content": "W01 Lead intake (web) - DRAFT pending GATE-TEST-W01 (automation-engineer). Logic: automation/lib/w01.mjs (tested by automation/tests/W01.test.mjs, which also checks this file).\nEntry 1 POST /lead (landing page): screen (origin, honeypot, fill time, E.164, consent) -> Context (per-IP + per-number counters in webhook_events, latest lead with the same digits-only hash, suppression, brokers) -> Turnstile siteverify (fail mode per TURNSTILE_FAIL_MODE) -> guard -> Twilio Lookup only when no 30-day cached line type -> decide (landline/VoIP reject, 90-day merge, bands lt35/35_44/45_50/51plus + lt750/750_1250/1250plus, named-consent check, suppression, routing) -> one INSERT (lead + timeline) -> 200 with lead_token (CONTRACTS.md) -> CAPI Send Lead (ids only, never email) -> W06 First touch (fire-and-forget, < 60 s).\nEntry 2 POST /lead/skip (X-Lead-Token): the page's \"I'll pick on WhatsApp\" -> W06 op skip (slots card at once).\nEntry 3 Execute Workflow \"W01 Lead core\": W02 { action: ingest, lead } (waits for { outcome, lead_id }) and W03 { kind: route_and_first_touch, lead_id } (routing written before W06 is called).\nEmail is stored only when the chosen method needs an invite (teams/zoom/meet), purpose meeting_invite. Consent text stored verbatim with its version; registry mismatch logged (consent_audit). Out-of-band: stored with retention_delete_after = +24 h (W34 purge), never routed, never messaged.\nEnv: BRAND_ID, PUBLIC_ALLOWED_ORIGINS, TURNSTILE_SECRET_KEY, TURNSTILE_FAIL_MODE, RATE_LIMIT_PER_IP_PER_HOUR, RATE_LIMIT_PER_NUMBER_PER_DAY, RATE_LIMIT_IP_SALT, TWILIO_LOOKUP_ENABLED, TWILIO_ACCOUNT_SID, LEAD_TOKEN_SECRET(_PREVIOUS), TEST_HOOKS_ENABLED, TEST_HOOKS_TOKEN, CONSUMER_DOMAIN. Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation."
+      }
+    },
+    {
+      "id": "n02",
+      "name": "POST /lead (landing page)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "w01-lead-post"
+    },
+    {
+      "id": "n03",
+      "name": "Screen (w01.normaliseSubmission + screen)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w01;\nconst brand_id = L.brandUuid(null, $env.BRAND_ID); // I-52b: fail fast on a slug / empty BRAND_ID (rehearsal F1)\nconst it = $input.first().json; const h = it.headers || {};\nconst body = it.body || {};\nconst test_hooks = $env.TEST_HOOKS_ENABLED === 'true' && !!$env.TEST_HOOKS_TOKEN && h['x-test-token'] === $env.TEST_HOOKS_TOKEN && body.is_synthetic === true;\nconst now = test_hooks && h['x-test-now'] ? Date.parse(h['x-test-now']) : Date.now();\nconst ip = h['cf-connecting-ip'] || String(h['x-forwarded-for'] || '').split(',')[0].trim() || null;\nconst allowed = String($env.PUBLIC_ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);\nconst origin_ok = !allowed.length || !h.origin || allowed.includes(h.origin);\nconst sub = L.normaliseSubmission(body, { ip, user_agent: h['user-agent'] || null });\nconst scr = L.screen(sub, { now, origin_ok });\nconst lead_id = L.newLeadId();\nconst form_post = /x-www-form-urlencoded/i.test(h['content-type'] || '');\nconst keys = L.rateKeys({ ip, mobile_hash: scr.ok ? scr.mobile_hash : null, request_id: sub.request_id || lead_id, salt: $env.RATE_LIMIT_IP_SALT, now });\nreturn [{ json: { from: 'page', sub, scr, now, lead_id, test_hooks, form_post, keys, brand_id, mobile: scr.ok ? scr.mobile : null,\n  lookup_override: test_hooks ? (h['x-test-lookup-line-type'] || null) : null,\n  http: scr.ok ? null : { http_status: scr.http_status, body: scr.body }, result: scr.ok ? null : { outcome: 'rejected', reason: scr.reason } } }];"
+      }
+    },
+    {
+      "id": "n04",
+      "name": "Screen passed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.scr.ok) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n05",
+      "name": "Context: counters, prior lead, suppression, brokers",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- One round trip. Counters: one webhook_events row per counted request (no raw IP: HMAC key; number: digits-only hash).\n-- The CTE inserts are not visible to the counts below (same snapshot), so the counts are \"before this request\".\nWITH ipc AS (\n  INSERT INTO public.webhook_events (source, external_id, received_at, signature_ok)\n  SELECT 'w01_ip', $1, now(), true WHERE $1 IS NOT NULL AND $1 <> ''\n  ON CONFLICT DO NOTHING RETURNING id),\nnumc AS (\n  INSERT INTO public.webhook_events (source, external_id, received_at, signature_ok)\n  SELECT 'w01_num', $2, now(), true WHERE $2 IS NOT NULL AND $2 <> ''\n  ON CONFLICT DO NOTHING RETURNING id)\nSELECT br.id AS brand_uuid,\n       (SELECT count(*) FROM public.webhook_events w WHERE w.source = 'w01_ip' AND $3 <> '' AND w.external_id LIKE $3 || '%' AND w.received_at > now() - interval '1 hour')::int AS ip_hits,\n       (SELECT count(*) FROM public.webhook_events v WHERE v.source = 'w01_num' AND $4 <> '' AND v.external_id LIKE $4 || '%' AND v.received_at > now() - interval '24 hours')::int AS number_hits,\n       (SELECT to_jsonb(p) FROM (SELECT l.id, l.brand_id, l.created_at, l.line_type, l.duplicate_of, l.broker_id, l.opted_out_at\n                                   FROM public.leads l\n                                  WHERE l.dedupe_hash = public.smc_hash_contact($5) AND l.brand_id = br.id\n                                  ORDER BY l.created_at DESC LIMIT 1) p) AS prior,\n       EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact($5) AND (s.brand_id IS NULL OR s.brand_id = br.id)) AS suppressed,\n       COALESCE((SELECT jsonb_agg(jsonb_build_object(\n                  'id', b.id, 'broker_id', b.id, 'brand_id', b.brand_id, 'status', b.status, 'routing_on', b.routing_on, 'active', b.active,\n                  'bookings_paused', b.bookings_paused, 'practice_name', b.firm_name, 'fsp_number', b.fsp_number, 'consent_mode', b.consent_mode,\n                  'current_cycle_id', b.current_cycle_id, 'tier_code', b.tier_code, 'methods_supported', b.methods_supported,\n                  'committed_leads', cy.committed_leads,\n                  'leads_this_cycle', (SELECT count(*) FROM public.leads x WHERE x.broker_id = b.id AND x.cycle_id = b.current_cycle_id)))\n                   FROM public.brokers b LEFT JOIN public.cycles cy ON cy.id = b.current_cycle_id\n                  WHERE b.brand_id = br.id), '[]'::jsonb) AS brokers\n  FROM public.brands br\n WHERE br.id = $6::uuid;",
+        "options": {
+          "queryReplacement": "={{ [$json.keys.ip_external_id || '', $json.keys.num_external_id || '', $json.keys.ip_prefix || '', $json.keys.num_prefix || '', $json.mobile, /^[0-9a-f-]{36}$/i.test($json.brand_id || '') ? $json.brand_id : $env.BRAND_ID] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n06",
+      "name": "Turnstile check needed? (page, secret set, not a test hook)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($('Screen passed?').item.json.from === 'page' && !!$env.TURNSTILE_SECRET_KEY && !$('Screen passed?').item.json.test_hooks) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n07",
+      "name": "Turnstile siteverify",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        -200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "secret",
+              "value": "={{ $env.TURNSTILE_SECRET_KEY }}"
+            },
+            {
+              "name": "response",
+              "value": "={{ $('Screen passed?').item.json.sub.turnstile_token || '' }}"
+            },
+            {
+              "name": "remoteip",
+              "value": "={{ $('Screen passed?').item.json.sub.context.client_ip || '' }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 1500,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "n08",
+      "name": "Guard (w01.guard) + Lookup needed?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w01;\nconst s = $('Screen passed?').first().json;\nconst ctx = $('Context: counters, prior lead, suppression, brokers').first().json;\n// I-53l: never read the IF node here. When it takes its false branch (no secret / test hook / not the page) its\n// output 0 is empty, so reading that IF node's first() item gave undefined and .json threw (500 on every page lead).\n// The same condition is recomputed from the Screen item; when it holds, this node's input is the siteverify reply.\nconst needed = s.from === 'page' && !!$env.TURNSTILE_SECRET_KEY && !s.test_hooks;\nconst allowed = String($env.PUBLIC_ALLOWED_ORIGINS || '').split(',').map((x) => x.replace(/^https?:\\/\\//, '').trim()).filter(Boolean);\nconst tin = needed ? ($input.first() || {}).json : null;\nconst turnstile = !needed ? { skipped: true } : L.turnstileVerdict(tin && tin.success !== undefined ? tin : null, { allowed_hosts: allowed, action: 'lead' });\nconst g = L.guard(s.scr, { channel: s.sub.channel, ip_hits: ctx.ip_hits, number_hits: ctx.number_hits, turnstile, test_hooks: s.test_hooks,\n  limits: { ip: Number($env.RATE_LIMIT_PER_IP_PER_HOUR) || L.IP_LIMIT_PER_HOUR, number: Number($env.RATE_LIMIT_PER_NUMBER_PER_DAY) || L.NUMBER_LIMIT_PER_DAY }, fail_mode: $env.TURNSTILE_FAIL_MODE || 'open' });\nconst need_lookup = g.ok && !s.lookup_override && $env.TWILIO_LOOKUP_ENABLED === 'true' && L.lookupNeeded(ctx.prior, s.now);\nreturn [{ json: { ...s, ctx, g, need_lookup, http: g.ok ? null : { http_status: g.http_status, body: g.body }, result: g.ok ? null : { outcome: 'rejected', reason: g.reason } } }];"
+      }
+    },
+    {
+      "id": "n09",
+      "name": "Guard passed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.g.ok) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n10",
+      "name": "Lookup needed? (no 30-day cached line type)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.need_lookup) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n11",
+      "name": "Twilio Lookup v2 (line type)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        -200
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://lookups.twilio.com/v2/PhoneNumbers/{{ encodeURIComponent($json.mobile) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "Fields",
+              "value": "line_type_intelligence"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 1500,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "",
+          "name": "Twilio API key (Basic)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "n12",
+      "name": "Decide (w01.decide) + lead_token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w01;\nconst LT = require('lv-automation').leadToken;\nconst s = $('Guard passed?').first().json;\nconst resp = s.need_lookup ? $input.first().json : null;\nconst line_type = s.lookup_override ? L.lineTypeOf(s.lookup_override) : resp ? L.lineTypeFromLookup(resp) : (s.ctx.prior && s.ctx.prior.line_type) || 'unknown';\nconst brokers = s.ctx.brokers || [];\nconst routable = brokers.find((b) => b.status === 'active' && b.routing_on !== false);\nconst sub = L.withRegistryText(s.sub, routable); // lead-ad registry text gets the practice once the broker is known\nconst decision = L.decide(sub, { mobile: s.mobile, line_type, prior: s.ctx.prior, suppressed: s.ctx.suppressed, brokers, brand_id: s.ctx.brand_uuid,\n  consent_mode: (routable && routable.consent_mode) || 'named', now: s.now, lead_id: s.lead_id, bot_check: s.g.bot_check });\nif (decision.row) decision.row.is_synthetic = !!s.sub.is_synthetic && s.test_hooks;\nconst audit = L.consentAudit(sub, L.consentRegistry(routable || {}));\nif (decision.kind === 'insert') decision.activities.push({ activity_type: 'consent_audit', actor_type: 'system', occurred_at: decision.row.created_at, idempotency_key: 'w01:consent:' + decision.row.id, payload: audit });\nconst token = decision.mint_token ? LT.mintLeadToken(decision.lead_id || decision.row.id, { secret: $env.LEAD_TOKEN_SECRET }).token : null;\nconst http = L.pageResponse(decision, token);\nconst angle = /^[a-z0-9-]{1,40}$/.test(s.sub.angle || '') ? s.sub.angle : 'cover';\nconst redirect = s.form_post && http.http_status === 200 ? 'https://' + ($env.CONSUMER_DOMAIN || 'sortmycover.co.za') + '/' + angle + '/thanks/' : null;\nreturn [{ json: { from: s.from, kind: decision.kind, decision, http, redirect, result: L.coreResult(decision) } }];"
+      }
+    },
+    {
+      "id": "n13",
+      "name": "Kind?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        2420,
+        0
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "reject",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s0",
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "reject",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "duplicate",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s1",
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "duplicate",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "insert",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s2",
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "insert",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "n14",
+      "name": "Log duplicate on the existing lead (no new lead, no WhatsApp, no CAPI)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2640,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT l.id, l.brand_id, 'W01', 'lead', 'duplicate_submission', $2::jsonb, now(), $3\n  FROM public.leads l WHERE l.id = $1::uuid\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$json.decision.lead_id, JSON.stringify($json.decision.activities[0].payload), $json.decision.activities[0].idempotency_key] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n15",
+      "name": "Duplicate answer (same body as a new lead: the page never learns)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Kind?').first().json }];"
+      }
+    },
+    {
+      "id": "n16",
+      "name": "Insert lead + timeline (one statement; broker_id written before W06 exists)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2640,
+        200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH r AS (SELECT $1::jsonb AS j),\nins AS (\n  INSERT INTO public.leads (id, brand_id, origin, source, is_synthetic, created_at, first_name, phone, line_type, language,\n                            age_band, budget_band, bond, dependants, work_cover, method_pref, angle, email, email_purpose, email_status,\n                            consent_text, consent_text_version, consent_mode, consent_at, consent_page_url, consent_source, consent_ads_at,\n                            lead_event_id, fbclid, fbp, fbc, ad_id, adset_id, campaign_id, leadgen_id,\n                            utm_source, utm_medium, utm_campaign, utm_content, utm_term, page_url, client_ip, client_user_agent,\n                            broker_id, cycle_id, tier_code, routed_at, routing_reason, stage, disqualified_reason, retention_delete_after, opted_out_at)\n  SELECT (j->>'id')::uuid, (j->>'brand_id')::uuid, j->>'origin', j->>'source', COALESCE((j->>'is_synthetic')::boolean, false), (j->>'created_at')::timestamptz,\n         j->>'first_name', j->>'phone', j->>'line_type', j->>'language',\n         j->>'age_band', j->>'budget_band', (j->>'bond')::boolean, (j->>'dependants')::boolean, (j->>'work_cover')::boolean, j->>'method_pref', j->>'angle',\n         j->>'email', j->>'email_purpose', j->>'email_status',\n         j->>'consent_text', j->>'consent_text_version', j->>'consent_mode', (j->>'consent_at')::timestamptz, j->>'consent_page_url', j->>'consent_source', (j->>'consent_ads_at')::timestamptz,\n         j->>'lead_event_id', j->>'fbclid', j->>'fbp', j->>'fbc', j->>'ad_id', j->>'adset_id', j->>'campaign_id', j->>'leadgen_id',\n         j->>'utm_source', j->>'utm_medium', j->>'utm_campaign', j->>'utm_content', j->>'utm_term', j->>'page_url', j->>'client_ip', j->>'client_user_agent',\n         (j->>'broker_id')::uuid, (j->>'cycle_id')::uuid, j->>'tier_code', (j->>'routed_at')::timestamptz, j->>'routing_reason', j->>'stage', j->>'disqualified_reason',\n         (j->>'retention_delete_after')::timestamptz, (j->>'opted_out_at')::timestamptz\n    FROM r\n  ON CONFLICT DO NOTHING\n  RETURNING id, brand_id, broker_id, cycle_id)\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT ins.id, ins.brand_id, ins.broker_id, ins.cycle_id, 'W01', a->>'actor_type', a->>'activity_type', a->'payload', (a->>'occurred_at')::timestamptz, a->>'idempotency_key'\n  FROM ins, jsonb_array_elements($2::jsonb) a\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING lead_id;",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($json.decision.row), JSON.stringify($json.decision.activities)] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n17",
+      "name": "Inserted? (a same-event_id race inserts nothing: answer, send nothing)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const d = $('Kind?').first().json;\nconst inserted = $input.all().some((i) => i.json && i.json.lead_id);\nreturn [{ json: { ...d, inserted, first_touch: inserted ? d.decision.first_touch : null, capi: inserted ? d.decision.capi : null } }];"
+      }
+    },
+    {
+      "id": "n18",
+      "name": "From the page? (respond)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.from === 'page') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n19",
+      "name": "No-JS form post? (303 to thanks)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$json.redirect) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n20",
+      "name": "Respond 303 (no-JS form)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        3520,
+        -200
+      ],
+      "parameters": {
+        "respondWith": "noData",
+        "options": {
+          "responseCode": 303,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Location",
+                "value": "={{ $json.redirect }}"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "n21",
+      "name": "Respond (lead_id + lead_token)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        3520,
+        0
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.http.body) }}",
+        "options": {
+          "responseCode": "={{ $json.http.http_status }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "n22",
+      "name": "Result for the caller (W02 waits on it)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map((i) => ({ json: i.json.result || { outcome: i.json.kind } }));"
+      }
+    },
+    {
+      "id": "n23",
+      "name": "CAPI Lead? (consent gate passed, row inserted)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3740,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$json.capi) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n24",
+      "name": "CAPI payload (ids only, no email)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3960,
+        -200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// CONTRACTS.md \"CAPI Send\": ids travel, the callee hashes phone + name inside capi.js; email is never sent to Meta.\nreturn $input.all().map((i) => { const c = i.json.capi; return { json: { event_name: c.event_name, event_id: c.event_id, action_source: c.action_source, lead_id: c.lead_id, brand_id: c.brand_id, event_time: c.event_time } }; });"
+      }
+    },
+    {
+      "id": "n25",
+      "name": "CAPI Send (Lead)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        4180,
+        -200
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-capi-send",
+          "cachedResultName": "CAPI Send"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Called with { event_name: Lead, event_id, action_source, lead_id, brand_id, event_time }. Consent gate, hashing and back-off inside the callee (automation/capi)."
+    },
+    {
+      "id": "n26",
+      "name": "First touch? (routed, not suppressed)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3740,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$json.first_touch) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n27",
+      "name": "W06 input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3960,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map((i) => ({ json: { op: 'routed', lead_id: i.json.first_touch.lead_id, origin: i.json.first_touch.origin, not_before: i.json.first_touch.not_before } }));"
+      }
+    },
+    {
+      "id": "n28",
+      "name": "W06 First touch (< 60 s)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        4180,
+        200
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w06",
+          "cachedResultName": "W06 First touch"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Called with { op: routed, lead_id, origin }. The lead row (broker_id, cycle_id, routed_at) is committed before this call. W06 holds page leads 45 s for the in-page booking."
+    },
+    {
+      "id": "n29",
+      "name": "POST /lead/skip (I'll pick on WhatsApp)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        800
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead/skip",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "w01-lead-skip"
+    },
+    {
+      "id": "n30",
+      "name": "Verify X-Lead-Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const LT = require('lv-automation').leadToken;\nconst h =$input.first().json.headers || {};\nconst v = LT.verifyLeadToken(h['x-lead-token'] || '', { secret: $env.LEAD_TOKEN_SECRET, previousSecret: $env.LEAD_TOKEN_SECRET_PREVIOUS || undefined });\nreturn [{ json: { ok: !!v.ok, lead_id: v.ok ? v.lead_id : null, http: v.ok ? { http_status: 202, body: { ok: true } } : { http_status: 401, body: { error: 'try_again' } } } }];"
+      }
+    },
+    {
+      "id": "n31",
+      "name": "Respond 202 / 401",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        800
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.http.body) }}",
+        "options": {
+          "responseCode": "={{ $json.http.http_status }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "n32",
+      "name": "Token ok?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        800
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.ok) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n33",
+      "name": "Lead still live + routed?",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        880,
+        800
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT l.id AS lead_id FROM public.leads l WHERE l.id = $1::uuid AND l.opted_out_at IS NULL AND l.broker_id IS NOT NULL AND l.first_message_at IS NULL;",
+        "options": {
+          "queryReplacement": "={{ [$json.lead_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n34",
+      "name": "W06 skip input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().filter((i) => i.json.lead_id).map((i) => ({ json: { op: 'skip', lead_id: i.json.lead_id } }));"
+      }
+    },
+    {
+      "id": "n35",
+      "name": "W06 First touch (skip)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1320,
+        800
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w06",
+          "cachedResultName": "W06 First touch"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Called with { op: skip, lead_id }: the slots card goes now instead of at the end of the 45-s hold."
+    },
+    {
+      "id": "n36",
+      "name": "Called as W01 Lead core (W02 ingest / W03 route)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        1200
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "n37",
+      "name": "Core action?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        220,
+        1200
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "ingest",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s0",
+                    "leftValue": "={{ $json.action === 'ingest' ? 'ingest' : $json.kind === 'route_and_first_touch' ? 'route' : 'other' }}",
+                    "rightValue": "ingest",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "route",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s1",
+                    "leftValue": "={{ $json.action === 'ingest' ? 'ingest' : $json.kind === 'route_and_first_touch' ? 'route' : 'other' }}",
+                    "rightValue": "route",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "other",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s2",
+                    "leftValue": "={{ $json.action === 'ingest' ? 'ingest' : $json.kind === 'route_and_first_touch' ? 'route' : 'other' }}",
+                    "rightValue": "other",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "n38",
+      "name": "Lead ad -> submission (w01.normaliseLeadAd + screen)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        1000
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w01;\nconst out = [];\nfor (const it of $input.all()) {\n  const sub = L.normaliseLeadAd(it.json, {});\n  const now = Date.now();\n  const scr = L.screen(sub, { now });\n  const lead_id = L.newLeadId();\n  out.push({ json: { from: 'core', sub, scr, now, lead_id, test_hooks: false, form_post: false, keys: L.rateKeys({ mobile_hash: scr.ok ? scr.mobile_hash : null, request_id: sub.request_id || lead_id, now }),\n    mobile: scr.ok ? scr.mobile : null, lookup_override: null, brand_id: L.brandUuid(it.json.lead && it.json.lead.brand_id, $env.BRAND_ID),\n    http: scr.ok ? null : { http_status: scr.http_status, body: scr.body }, result: scr.ok ? null : { outcome: 'rejected', reason: scr.reason } } });\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "n39",
+      "name": "Load CTWA lead + brokers",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        440,
+        1400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT to_jsonb(q) AS lead,\n       COALESCE((SELECT jsonb_agg(jsonb_build_object('id', b.id, 'broker_id', b.id, 'brand_id', b.brand_id, 'status', b.status, 'routing_on', b.routing_on,\n                  'active', b.active, 'bookings_paused', b.bookings_paused, 'practice_name', b.firm_name, 'fsp_number', b.fsp_number,\n                  'current_cycle_id', b.current_cycle_id, 'tier_code', b.tier_code, 'consent_mode', b.consent_mode))\n                   FROM public.brokers b WHERE b.brand_id = q.brand_id), '[]'::jsonb) AS brokers\n  FROM (SELECT l.id, l.brand_id, l.origin, l.broker_id, l.routed_at, l.opted_out_at, l.disqualified_reason, l.consent_text, l.consent_mode,\n               l.routing_reason, l.consent_ads_at, l.lead_event_id, l.created_at,\n               EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone) AND (s.brand_id IS NULL OR s.brand_id = l.brand_id)) AS suppressed\n          FROM public.leads l WHERE l.id = $1::uuid) q;",
+        "options": {
+          "queryReplacement": "={{ [$json.lead_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n40",
+      "name": "Route (w01.routeExisting)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        1400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w01;\nconst out = [];\nfor (const it of $input.all()) {\n  const r = L.routeExisting(it.json.lead, { brokers: it.json.brokers || [], now: Date.now() });\n  out.push({ json: { lead_id: it.json.lead && it.json.lead.id, r, routed: r.action === 'routed', update: r.update || null } });\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "n41",
+      "name": "Routed or held? (write it)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        880,
+        1400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(['routed', 'held'].includes($json.r.action)) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n42",
+      "name": "Write routing (only if not routed yet) + timeline",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1100,
+        1400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH u AS (\n  UPDATE public.leads l\n     SET broker_id = COALESCE(($2::jsonb->>'broker_id')::uuid, l.broker_id), cycle_id = COALESCE(($2::jsonb->>'cycle_id')::uuid, l.cycle_id),\n         tier_code = COALESCE($2::jsonb->>'tier_code', l.tier_code), routed_at = COALESCE(($2::jsonb->>'routed_at')::timestamptz, l.routed_at),\n         routing_reason = $2::jsonb->>'routing_reason', updated_at = now()\n   WHERE l.id = $1::uuid AND l.broker_id IS NULL AND l.opted_out_at IS NULL\n  RETURNING l.id, l.brand_id, l.broker_id, l.cycle_id)\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT u.id, u.brand_id, u.broker_id, u.cycle_id, 'W01', 'system', CASE WHEN u.broker_id IS NULL THEN 'routing_held' ELSE 'routed' END, $2::jsonb, now(), 'w01:routed:' || u.id::text\n  FROM u\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING lead_id, broker_id;",
+        "options": {
+          "queryReplacement": "={{ [$json.lead_id, JSON.stringify($json.update || { routing_reason: $json.r.update && $json.r.update.routing_reason })] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n43",
+      "name": "CAPI Lead at hand-over (held -> routed)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        1600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const routed = new Set($input.all().filter((i) => i.json.broker_id).map((i) => String(i.json.lead_id)));\nreturn $('Route (w01.routeExisting)').all().map((i) => i.json).filter((x) => x.r && x.r.capi && routed.has(String(x.lead_id)))\n  .map((x) => { const c = x.r.capi; return { json: { event_name: c.event_name, event_id: c.event_id, action_source: c.action_source, lead_id: c.lead_id, brand_id: c.brand_id, event_time: c.event_time } }; });"
+      }
+    },
+    {
+      "id": "n44",
+      "name": "CAPI Send (Lead at hand-over)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1540,
+        1600
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-capi-send",
+          "cachedResultName": "CAPI Send"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "I-49c: { event_name: Lead, event_id, ... } for a lead held at intake (no CAPI then). Consent gate inside the callee."
+    },
+    {
+      "id": "n45",
+      "name": "W06 input (CTWA)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        1400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().filter((i) => i.json.broker_id).map((i) => ({ json: { op: 'routed', lead_id: i.json.lead_id, origin: 'ctwa' } }));"
+      }
+    },
+    {
+      "id": "n46",
+      "name": "W06 First touch (CTWA)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1540,
+        1400
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w06",
+          "cachedResultName": "W06 First touch"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Called with { op: routed, lead_id, origin: ctwa }: slots card (or Flow v2) at once."
+    },
+    {
+      "id": "n47",
+      "name": "Unknown core call (logged, never guessed)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        1800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { outcome: 'subcall_rejected', reason: 'W01 Lead core needs action=ingest or kind=route_and_first_touch', keys: Object.keys($input.first().json || {}) } }];"
+      }
+    }
+  ],
+  "connections": {
+    "POST /lead (landing page)": {
+      "main": [
+        [
+          {
+            "node": "Screen (w01.normaliseSubmission + screen)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Screen (w01.normaliseSubmission + screen)": {
+      "main": [
+        [
+          {
+            "node": "Screen passed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Screen passed?": {
+      "main": [
+        [
+          {
+            "node": "Context: counters, prior lead, suppression, brokers",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "From the page? (respond)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Context: counters, prior lead, suppression, brokers": {
+      "main": [
+        [
+          {
+            "node": "Turnstile check needed? (page, secret set, not a test hook)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Turnstile check needed? (page, secret set, not a test hook)": {
+      "main": [
+        [
+          {
+            "node": "Turnstile siteverify",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Guard (w01.guard) + Lookup needed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Turnstile siteverify": {
+      "main": [
+        [
+          {
+            "node": "Guard (w01.guard) + Lookup needed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guard (w01.guard) + Lookup needed?": {
+      "main": [
+        [
+          {
+            "node": "Guard passed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guard passed?": {
+      "main": [
+        [
+          {
+            "node": "Lookup needed? (no 30-day cached line type)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "From the page? (respond)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup needed? (no 30-day cached line type)": {
+      "main": [
+        [
+          {
+            "node": "Twilio Lookup v2 (line type)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Decide (w01.decide) + lead_token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twilio Lookup v2 (line type)": {
+      "main": [
+        [
+          {
+            "node": "Decide (w01.decide) + lead_token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide (w01.decide) + lead_token": {
+      "main": [
+        [
+          {
+            "node": "Kind?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kind?": {
+      "main": [
+        [
+          {
+            "node": "From the page? (respond)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log duplicate on the existing lead (no new lead, no WhatsApp, no CAPI)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Insert lead + timeline (one statement; broker_id written before W06 exists)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log duplicate on the existing lead (no new lead, no WhatsApp, no CAPI)": {
+      "main": [
+        [
+          {
+            "node": "Duplicate answer (same body as a new lead: the page never learns)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Duplicate answer (same body as a new lead: the page never learns)": {
+      "main": [
+        [
+          {
+            "node": "From the page? (respond)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert lead + timeline (one statement; broker_id written before W06 exists)": {
+      "main": [
+        [
+          {
+            "node": "Inserted? (a same-event_id race inserts nothing: answer, send nothing)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inserted? (a same-event_id race inserts nothing: answer, send nothing)": {
+      "main": [
+        [
+          {
+            "node": "From the page? (respond)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "CAPI Lead? (consent gate passed, row inserted)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "First touch? (routed, not suppressed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "From the page? (respond)": {
+      "main": [
+        [
+          {
+            "node": "No-JS form post? (303 to thanks)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Result for the caller (W02 waits on it)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No-JS form post? (303 to thanks)": {
+      "main": [
+        [
+          {
+            "node": "Respond 303 (no-JS form)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond (lead_id + lead_token)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CAPI Lead? (consent gate passed, row inserted)": {
+      "main": [
+        [
+          {
+            "node": "CAPI payload (ids only, no email)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CAPI payload (ids only, no email)": {
+      "main": [
+        [
+          {
+            "node": "CAPI Send (Lead)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "First touch? (routed, not suppressed)": {
+      "main": [
+        [
+          {
+            "node": "W06 input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W06 input": {
+      "main": [
+        [
+          {
+            "node": "W06 First touch (< 60 s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /lead/skip (I'll pick on WhatsApp)": {
+      "main": [
+        [
+          {
+            "node": "Verify X-Lead-Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify X-Lead-Token": {
+      "main": [
+        [
+          {
+            "node": "Respond 202 / 401",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond 202 / 401": {
+      "main": [
+        [
+          {
+            "node": "Token ok?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Token ok?": {
+      "main": [
+        [
+          {
+            "node": "Lead still live + routed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lead still live + routed?": {
+      "main": [
+        [
+          {
+            "node": "W06 skip input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W06 skip input": {
+      "main": [
+        [
+          {
+            "node": "W06 First touch (skip)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Called as W01 Lead core (W02 ingest / W03 route)": {
+      "main": [
+        [
+          {
+            "node": "Core action?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Core action?": {
+      "main": [
+        [
+          {
+            "node": "Lead ad -> submission (w01.normaliseLeadAd + screen)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Load CTWA lead + brokers",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Unknown core call (logged, never guessed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lead ad -> submission (w01.normaliseLeadAd + screen)": {
+      "main": [
+        [
+          {
+            "node": "Screen passed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load CTWA lead + brokers": {
+      "main": [
+        [
+          {
+            "node": "Route (w01.routeExisting)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route (w01.routeExisting)": {
+      "main": [
+        [
+          {
+            "node": "Routed or held? (write it)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Routed or held? (write it)": {
+      "main": [
+        [
+          {
+            "node": "Write routing (only if not routed yet) + timeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write routing (only if not routed yet) + timeline": {
+      "main": [
+        [
+          {
+            "node": "W06 input (CTWA)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "CAPI Lead at hand-over (held -> routed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W06 input (CTWA)": {
+      "main": [
+        [
+          {
+            "node": "W06 First touch (CTWA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CAPI Lead at hand-over (held -> routed)": {
+      "main": [
+        [
+          {
+            "node": "CAPI Send (Lead at hand-over)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "saveManualExecutions": true,
+    "errorWorkflow": "smc-w22"
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "SortMyCover"
+    },
+    {
+      "name": "core-path"
+    },
+    {
+      "name": "draft"
+    }
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "generatedBy": "automation/build-w01-w06-w15.mjs"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "_comment": "Verbatim from deliverables/contracts-drafter/consent-and-privacy.md CP-v0.1 (1.2, 1.3, 1.4). Do not edit here without editing there. {practice_name}/{fsp_number} come from site.json (brokers row).",
+  "named": {
+    "version": "CONSENT-NAMED-v1+CONSENT-ADS-v1",
+    "text": "I agree that Lead Velocity may share my details with {practice_name} (FSP {fsp_number}), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP."
+  },
+  "generic": {
+    "version": "CONSENT-GENERIC-v1+CONSENT-ADS-v1",
+    "text": "I agree that Lead Velocity may share my details with an authorised financial services provider (FSP), who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP."
+  },
+  "ads": "We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
+  "link_text": "Privacy notice",
+  "footer_line": "SortMyCover is a service of Lead Velocity (Pty) Ltd. We connect you with authorised financial services providers. We do not give financial advice, compare products or quote premiums."
+}

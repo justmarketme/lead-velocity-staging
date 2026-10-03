@@ -1,0 +1,455 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>SortMyCover End-to-End</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;0,9..40,800&display=swap">
+<style>
+:root{
+  --amber:#F5A623; --amber-ink:#2A1B02; --char:#1F2933; --off:#FBF8F2; --off-2:#F1ECE2;
+  --bg:var(--off); --fg:var(--char); --muted:#5C6672; --rule:#DCD6CB; --card:#FFFFFF; --ok:#2E7D4F; --ok-bg:#E6F2EA; --warn:#B4541A; --warn-bg:#FBEBDD;
+  --wa-bg:#E5DDD5; --wa-in:#FFFFFF; --wa-out:#DCF8C6; --wa-head:#075E54; --wa-link:#027EB5; --wa-sys:#FFF5C4; --wa-text:#1F2933; --wa-muted:#667781; --wa-green:#25D366;
+  --ol-ev:#D9E6F7; --ol-ev-b:#2F6FBF; --ol-our:#FDE7BF; --ol-our-b:#C77D00;
+  --font:"DM Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --bg:#15191F; --fg:#F1ECE2; --muted:#A8B0BA; --rule:#2F3842; --card:#1F2933; --off-2:#262F3A; --ok-bg:#1F3A2B; --warn-bg:#3F2A18; --wa-bg:#0B141A; --wa-in:#1F2C34; --wa-out:#005C4B; --wa-sys:#1D2A2F; --wa-text:#E9EDEF; --wa-muted:#8696A0; --ol-ev:#24364F; --ol-our:#4A3410; color-scheme:dark } }
+:root[data-theme="dark"]{ --bg:#15191F; --fg:#F1ECE2; --muted:#A8B0BA; --rule:#2F3842; --card:#1F2933; --off-2:#262F3A; --ok-bg:#1F3A2B; --warn-bg:#3F2A18; --wa-bg:#0B141A; --wa-in:#1F2C34; --wa-out:#005C4B; --wa-sys:#1D2A2F; --wa-text:#E9EDEF; --wa-muted:#8696A0; --ol-ev:#24364F; --ol-our:#4A3410; color-scheme:dark }
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:15px;line-height:1.45}
+.wrap{max-width:1180px;margin:0 auto;padding-block:14px 36px;padding-inline:16px}
+.top{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin-bottom:12px}
+.logo{font-weight:800;font-size:19px;letter-spacing:-.02em}
+.logo .tick{display:inline-block;width:.78em;height:.78em;border-radius:50%;background:var(--amber);vertical-align:-.08em;position:relative;margin:0 .02em}
+.logo .tick::after{content:"";position:absolute;left:.26em;top:.12em;width:.2em;height:.38em;border:solid var(--amber-ink);border-width:0 .13em .13em 0;transform:rotate(45deg)}
+.top h1{font-size:17px;margin:0;font-weight:700}
+.top p{margin:0;color:var(--muted);font-size:13.5px;flex-basis:100%}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-left:auto}
+.btn{appearance:none;border:0;font:inherit;font-weight:800;padding:9px 16px;border-radius:999px;cursor:pointer;background:var(--amber);color:var(--amber-ink)}
+.btn.sec{background:transparent;border:1.5px solid var(--rule);color:var(--fg);font-weight:600}
+.spd{display:flex;border:1.5px solid var(--rule);border-radius:999px;overflow:hidden}
+.spd button{appearance:none;border:0;background:transparent;font:inherit;font-weight:700;color:var(--muted);padding:7px 11px;cursor:pointer}
+.spd button[aria-pressed="true"]{background:var(--char);color:var(--off)}
+.stage{display:grid;grid-template-columns:340px minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:760px){.stage{grid-template-columns:1fr}}
+
+/* phone */
+.phone{width:340px;max-width:100%;margin:0 auto;background:#111;border-radius:36px;padding:10px;box-shadow:0 20px 50px rgba(0,0,0,.28)}
+.screen{border-radius:28px;overflow:hidden;position:relative;height:640px;display:flex;flex-direction:column;background:var(--wa-bg)}
+.scene{position:absolute;inset:0;display:none;flex-direction:column}
+.scene.on{display:flex}
+/* reel */
+.reel{background:#0d0f12;color:#fff;position:relative}
+.reel .sb{display:flex;justify-content:space-between;padding:10px 16px 0;font-size:12px;font-weight:700}
+.reel .art{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 40%,#2B3845 0,#1F2933 55%,#0d0f12 100%)}
+.reel .hook{position:absolute;left:18px;right:70px;top:26%;font-size:26px;font-weight:800;line-height:1.1;letter-spacing:-.01em;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+.reel .hook em{font-style:normal;color:var(--amber)}
+.reel .sub{position:absolute;left:18px;right:70px;top:52%;font-size:13.5px;opacity:.9}
+.reel .who{position:absolute;left:14px;bottom:88px;display:flex;gap:8px;align-items:center;font-size:13px;font-weight:700}
+.reel .who .av{width:30px;height:30px;border-radius:50%;background:var(--amber);position:relative}
+.reel .who .av::after{content:"";position:absolute;left:11px;top:6px;width:6px;height:12px;border:solid var(--amber-ink);border-width:0 3px 3px 0;transform:rotate(45deg)}
+.reel .who small{display:block;font-weight:500;opacity:.8}
+.reel .cta{position:absolute;left:14px;right:14px;bottom:36px;background:var(--wa-green);color:#062b17;font-weight:800;text-align:center;padding:12px;border-radius:10px;font-size:14px;transition:transform .15s}
+.reel .cta.tap{transform:scale(.96);filter:brightness(.9)}
+.reel .ic{position:absolute;right:14px;bottom:130px;display:flex;flex-direction:column;gap:16px;font-size:12px;text-align:center;opacity:.9}
+.reel .ic span{display:block;width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.18);margin:0 auto 2px}
+.reel .lbl{position:absolute;left:14px;bottom:12px;font-size:10.5px;opacity:.7}
+/* chat */
+.wa .sb{display:flex;justify-content:space-between;padding:10px 18px 0;font-size:12px;font-weight:700;color:#fff;background:var(--wa-head)}
+.wa-head{background:var(--wa-head);color:#fff;padding:8px 12px 10px;display:flex;gap:10px;align-items:center;flex:none}
+.wa-av{width:36px;height:36px;border-radius:50%;background:var(--amber);position:relative;flex:none}
+.wa-av::after{content:"";position:absolute;left:13px;top:8px;width:7px;height:14px;border:solid var(--amber-ink);border-width:0 3px 3px 0;transform:rotate(45deg)}
+.wa-head .n{font-weight:700;line-height:1.1}.wa-head .s{font-size:12px;opacity:.85;min-height:14px}
+.chat{padding:10px 10px 12px;display:flex;flex-direction:column;gap:6px;overflow-y:auto;flex:1;scroll-behavior:smooth;color:var(--wa-text)}
+.comp{flex:none;display:flex;gap:8px;align-items:center;padding:8px 10px;background:var(--wa-bg)}
+.comp .inp{flex:1;background:var(--wa-in);border-radius:999px;padding:8px 14px;font-size:13.5px;min-height:36px;color:var(--wa-text);word-break:break-word}
+.comp .inp:empty::before{content:"Message";color:var(--wa-muted)}
+.comp .inp .cur{display:inline-block;width:1px;height:1em;background:var(--wa-text);vertical-align:-.15em;margin-left:1px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.comp .send{width:36px;height:36px;border-radius:50%;background:var(--wa-head);flex:none;position:relative}
+.comp .send::after{content:"";position:absolute;left:12px;top:11px;border-left:12px solid #fff;border-top:7px solid transparent;border-bottom:7px solid transparent}
+.day,.sys,.skip{align-self:center;background:var(--wa-sys);font-size:11px;padding:5px 10px;border-radius:8px;box-shadow:0 1px 1px rgba(0,0,0,.08);text-align:center;max-width:92%;color:var(--wa-text)}
+.day{font-weight:700;margin-top:6px}
+.skip{background:var(--char);color:var(--off);font-weight:700}
+.msg{max-width:88%;padding:7px 9px 6px;border-radius:10px;font-size:13px;line-height:1.38;box-shadow:0 1px 1px rgba(0,0,0,.08);position:relative;word-wrap:break-word;animation:pop .22s ease-out}
+@keyframes pop{from{opacity:0;transform:translateY(6px) scale(.98)}to{opacity:1;transform:none}}
+.in{align-self:flex-start;background:var(--wa-in);border-top-left-radius:2px}
+.out{align-self:flex-end;background:var(--wa-out);border-top-right-radius:2px}
+.msg .ts{display:block;text-align:right;font-size:10px;color:var(--wa-muted);margin-top:3px}
+.msg .ts .tk{color:#53BDEB;font-weight:700}
+.msg b{font-weight:700}
+.btns{display:flex;flex-direction:column;gap:3px;margin-top:6px;border-top:1px solid rgba(0,0,0,.08);padding-top:5px}
+.btns span{display:block;text-align:center;color:var(--wa-link);font-weight:600;font-size:13px;padding:5px;background:var(--wa-in);border-radius:7px;transition:background .15s}
+.btns span.flow::before{content:"▤ ";font-size:11px}
+.btns span.tap{background:var(--amber);color:var(--amber-ink)}
+.link{color:var(--wa-link);text-decoration:underline;word-break:break-all}
+.typing{align-self:flex-start;background:var(--wa-in);border-radius:10px;border-top-left-radius:2px;padding:10px 14px;display:flex;gap:4px;box-shadow:0 1px 1px rgba(0,0,0,.08)}
+.typing i{width:7px;height:7px;border-radius:50%;background:var(--wa-muted);animation:dot 1.2s infinite}
+.typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}
+@keyframes dot{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-4px);opacity:1}}
+.card{background:#FBF8F2;color:#1F2933;border-radius:8px;overflow:hidden;margin:-3px -5px 6px;border:1px solid #e8e2d6}
+.card .ctop{background:#1F2933;color:#FBF8F2;padding:9px 10px 8px;display:flex;gap:10px;align-items:center}
+.hs{width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,#8FA3B8,#5C7089);display:grid;place-items:center;color:#fff;font-weight:800;font-size:16px;flex:none;border:2px solid var(--amber)}
+.card .nm{font-weight:800;font-size:14px;line-height:1.1}.card .pr{font-size:11.5px;opacity:.9}
+.card .fsp{font-size:10.5px;background:var(--amber);color:var(--amber-ink);font-weight:800;padding:2px 7px;border-radius:4px;display:inline-block;margin-top:4px}
+.card .bio{padding:7px 10px;font-size:12px}
+.card .foot{border-top:1px solid #e8e2d6;padding:5px 10px;display:flex;justify-content:space-between;align-items:center;font-size:10.5px}
+.card .foot .lg{font-weight:800;font-size:12px}
+.teams{display:flex;gap:8px;align-items:center;background:#EEF2FA;border-radius:8px;padding:8px;margin:4px -3px 6px;color:#1F2933}
+.teams .ic{width:34px;height:34px;border-radius:8px;background:#4B53BC;color:#fff;font-weight:800;display:grid;place-items:center;flex:none;font-size:13px}
+.teams .t1{font-weight:700;font-size:12px}.teams .t2{font-size:10.5px;color:#5C6672}
+
+/* WhatsApp bottom sheet (list / flow) */
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--wa-in);color:var(--wa-text);border-radius:16px 16px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.25);transform:translateY(105%);transition:transform .35s ease;max-height:92%;display:flex;flex-direction:column;z-index:5}
+.sheet.on{transform:none}
+.sheet .sh{display:flex;justify-content:space-between;align-items:center;padding:12px 14px 8px;border-bottom:1px solid rgba(0,0,0,.08);font-weight:700;font-size:14px}
+.sheet .sh small{font-weight:500;color:var(--wa-muted);font-size:11px;display:block}
+.sheet .sb2{padding:10px 14px 14px;overflow-y:auto;font-size:13.5px}
+.opt{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid rgba(0,0,0,.06)}
+.opt:last-child{border-bottom:0}
+.opt i{width:18px;height:18px;border-radius:50%;border:2px solid var(--wa-muted);flex:none;position:relative}
+.opt.sel i{border-color:var(--wa-head)}.opt.sel i::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--wa-head)}
+.opt small{display:block;color:var(--wa-muted);font-size:11.5px}
+.fbtn{margin-top:12px;background:var(--wa-head);color:#fff;text-align:center;font-weight:700;padding:11px;border-radius:999px;font-size:14px;transition:transform .15s}
+.fbtn.dis{opacity:.4}.fbtn.tap{transform:scale(.97)}
+.field{border:1.5px solid rgba(0,0,0,.18);border-radius:8px;padding:9px 11px;font-size:14px;min-height:40px;margin-top:6px;color:var(--wa-text)}
+.field .cur{display:inline-block;width:1px;height:1em;background:var(--wa-text);vertical-align:-.15em;animation:blink 1s steps(1) infinite}
+.field.ph{color:var(--wa-muted)}
+.cal{margin-top:6px}
+.cal .mh{display:flex;justify-content:space-between;font-weight:700;margin-bottom:6px;font-size:13.5px}
+.cal .g{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center;font-size:12.5px}
+.cal .g .h{font-size:10.5px;color:var(--wa-muted);font-weight:700;padding:2px 0}
+.cal .d{padding:7px 0;border-radius:8px}
+.cal .d.off{color:var(--wa-muted);opacity:.45}
+.cal .d.full{text-decoration:line-through;color:var(--wa-muted);opacity:.6}
+.cal .d.sel{background:var(--wa-head);color:#fff;font-weight:800}
+.cal .d.today{outline:1.5px solid var(--wa-head)}
+.spin{display:flex;align-items:center;gap:8px;color:var(--wa-muted);font-size:12.5px;padding:10px 0}
+.spin::before{content:"";width:14px;height:14px;border:2px solid var(--wa-muted);border-top-color:transparent;border-radius:50%;animation:rot .8s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+.sum{font-size:13px;line-height:1.5}
+.sum b{display:inline-block;min-width:70px;color:var(--wa-muted);font-weight:600}
+.flowfoot{font-size:10.5px;color:var(--wa-muted);text-align:center;padding:6px 0 2px}
+
+/* right panel */
+.side{display:flex;flex-direction:column;gap:12px;min-width:0}
+.now{border:1px solid var(--rule);border-radius:14px;padding:14px 16px;background:var(--card)}
+.now .k{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.now .k b{color:var(--amber-ink);background:var(--amber);padding:1px 6px;border-radius:4px;margin-left:6px}
+.now h3{margin:4px 0 6px;font-size:17px;text-wrap:balance}
+.now p{margin:0;font-size:14px}
+.widget{border:1px solid var(--rule);border-radius:14px;background:var(--card);overflow:hidden;min-height:330px;display:none}
+.widget.on{display:block}
+.wh{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--char);color:var(--off);font-size:13px;font-weight:700}
+.wh small{font-weight:500;opacity:.8}
+.wb{padding:12px 14px}
+/* CRM card */
+.stagebar{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px}
+.stagebar span{font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px;background:var(--off-2);color:var(--muted)}
+.stagebar span.done{background:var(--ok-bg);color:var(--ok)}
+.stagebar span.now{background:var(--amber);color:var(--amber-ink)}
+.kv{display:grid;grid-template-columns:140px minmax(0,1fr);gap:4px 10px;font-size:13px}
+.kv dt{color:var(--muted)}.kv dd{margin:0;font-weight:600;min-height:1.2em}
+.kv dd.new{animation:hl 1.2s ease-out}
+@keyframes hl{from{background:var(--amber)}to{background:transparent}}
+.kv dd code{font-size:11.5px;background:var(--off-2);padding:1px 5px;border-radius:4px;font-family:ui-monospace,Menlo,Consolas,monospace}
+.log{font-size:12.5px;margin-top:10px;border-top:1px solid var(--rule);padding-top:8px;display:flex;flex-direction:column;gap:3px;max-height:150px;overflow:hidden}
+.log div{display:grid;grid-template-columns:58px 44px 1fr;gap:8px;animation:pop .25s}
+.log .t{color:var(--muted);font-variant-numeric:tabular-nums}.log .w{font-weight:800;font-size:11px;color:var(--muted)}
+.log .ok{color:var(--ok);font-weight:700}.log .wn{color:var(--warn);font-weight:700}
+/* Outlook */
+.ol{font-size:12px}
+.ol .olh{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:12.5px}
+.ol .olh b{font-size:14px}
+.ol .cap{font-size:11.5px;color:var(--muted)}
+.olg{display:grid;grid-template-columns:44px repeat(5,1fr);gap:2px}
+.olg .hd{font-weight:700;text-align:center;padding:4px 0;font-size:11.5px;border-bottom:1px solid var(--rule)}
+.olg .hd small{display:block;font-weight:500;color:var(--muted);font-size:10.5px}
+.olg .tm{font-size:10.5px;color:var(--muted);text-align:right;padding-right:4px;padding-top:2px;height:34px;border-top:1px solid var(--rule)}
+.olg .cell{height:34px;border-top:1px solid var(--rule);position:relative}
+.olg .cell.lunch{background:repeating-linear-gradient(45deg,transparent 0 6px,rgba(0,0,0,.04) 6px 12px)}
+.ev{position:absolute;left:2px;right:2px;top:1px;border-radius:5px;padding:3px 5px;font-size:10.5px;line-height:1.2;overflow:hidden;border-left:3px solid var(--ol-ev-b);background:var(--ol-ev);color:var(--fg);animation:pop .3s}
+.ev.our{border-left-color:var(--ol-our-b);background:var(--ol-our)}
+.ev.new{box-shadow:0 0 0 2px var(--amber)}
+.ev b{display:block;font-weight:700}
+.olfoot{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;font-size:11.5px;color:var(--muted)}
+.olfoot i{display:inline-block;width:10px;height:10px;border-radius:3px;vertical-align:-1px;margin-right:4px}
+.capline{display:flex;gap:6px;margin-top:8px;font-size:11.5px}
+.capline span{flex:1;text-align:center;padding:4px;border-radius:6px;background:var(--off-2);color:var(--muted)}
+.capline span.full{background:var(--warn-bg);color:var(--warn);font-weight:700}
+/* broker phone mini */
+.bp{background:var(--wa-bg);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:6px;max-width:380px;color:var(--wa-text)}
+.bp .msg{max-width:94%}
+/* impact */
+.imp{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.imp div{border:1px solid var(--rule);border-radius:10px;padding:10px;font-size:12.5px;animation:pop .3s}
+.imp b{display:block;font-size:13px;margin-bottom:2px}
+.imp .ok{color:var(--ok)}.imp .wn{color:var(--warn)}
+.prog{height:6px;background:var(--rule);border-radius:999px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--amber);width:0;transition:width .3s}
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <span class="logo">SortMyC<span class="tick"></span>ver</span>
+    <h1>From the ad tap to the broker's feedback — the whole loop, in real time</h1>
+    <div class="ctl">
+      <div class="spd" role="group" aria-label="Speed"><button data-s="1" aria-pressed="true">1×</button><button data-s="2" aria-pressed="false">2×</button><button data-s="4" aria-pressed="false">4×</button></div>
+      <button class="btn" id="play">▶ Play</button>
+      <button class="btn sec" id="reset">Replay</button>
+    </div>
+    <p>Left: Lerato's phone. Right: what the system, Mark's Outlook and Mark's own WhatsApp are doing at the same moment. Days are compressed into dark skip cards; everything inside a scene runs at planned timing.</p>
+  </div>
+
+  <div class="stage">
+    <div class="phone"><div class="screen">
+      <!-- Scene A: Instagram Reel -->
+      <div class="scene reel on" id="sc-reel">
+        <div class="art"></div>
+        <div class="sb"><span id="clock-r">20:58</span><span>▂▄▆ 5G 🔋</span></div>
+        <div class="hook">Most work life cover stops at <em>2–4× salary.</em><br>Most bonds don't.</div>
+        <div class="sub">Check if yours lines up. 30 minutes with a licensed adviser. Nothing to buy on the call.</div>
+        <div class="ic"><div><span></span>2.1k</div><div><span></span>84</div><div><span></span></div></div>
+        <div class="who"><div class="av"></div><div>sortmycover<small>Sponsored</small></div></div>
+        <div class="cta" id="cta">Send WhatsApp message</div>
+        <div class="lbl">Not an FSP · Lead Velocity (Pty) Ltd · sortmycover.co.za</div>
+      </div>
+      <!-- Scene B: WhatsApp -->
+      <div class="scene wa" id="sc-wa">
+        <div class="sb"><span id="clock">20:58</span><span>▂▄▆ 5G 🔋</span></div>
+        <div class="wa-head"><div class="wa-av"></div><div><div class="n">SortMyCover</div><div class="s" id="status">Business account</div></div></div>
+        <div class="chat" id="chat"></div>
+        <div class="comp"><div class="inp" id="inp"></div><div class="send"></div></div>
+        <div class="sheet" id="sheet"></div>
+      </div>
+    </div></div>
+
+    <aside class="side">
+      <div class="now" id="now"><div class="k">Ready</div><h3>Press Play</h3><p>Monday 5 Oct, 20:58. Lerato is scrolling Instagram Reels on the couch.</p></div>
+      <div class="prog"><i id="prog"></i></div>
+      <div class="widget" id="w-crm"><div class="wh"><span>Lead Velocity · Console</span><small>Lead #SMC-0417 · live</small></div><div class="wb">
+        <div class="stagebar" id="stages"></div>
+        <dl class="kv" id="kv"></dl>
+        <div class="log" id="log"></div>
+      </div></div>
+      <div class="widget" id="w-ol"><div class="wh"><span>Mark's Outlook · Calendar</span><small id="olwk">Week of 5 Oct · Work week</small></div><div class="wb ol">
+        <div class="olh"><b>Mark Williams</b><span class="cap" id="olcap">Max 3 SortMyCover calls/day · 12/week · 15-min buffer</span></div>
+        <div class="olg" id="olg"></div>
+        <div class="capline" id="capline"></div>
+        <div class="olfoot"><span><i style="background:var(--ol-our);border-left:3px solid var(--ol-our-b)"></i>SortMyCover booking</span><span><i style="background:var(--ol-ev);border-left:3px solid var(--ol-ev-b)"></i>Mark's own appointments (block slots automatically)</span></div>
+      </div></div>
+      <div class="widget" id="w-bp"><div class="wh"><span>Mark's WhatsApp</span><small>from SortMyCover · Thu 8 Oct</small></div><div class="wb"><div class="bp" id="bp"></div></div></div>
+      <div class="widget" id="w-imp"><div class="wh"><span>What Mark's 20 seconds of feedback changed</span><small>W29</small></div><div class="wb imp" id="imp"></div></div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  var chat=$('chat'), inp=$('inp'), clock=$('clock'), status=$('status'), now=$('now'), prog=$('prog'), sheet=$('sheet');
+  var speed=1, token=0;
+  var CARD='<div class="card"><div class="ctop"><div class="hs">MW</div><div><div class="nm">Mark Williams</div><div class="pr">Mark Williams Financial Planning</div><span class="fsp">Authorised FSP · FSP 00000</span></div></div><div class="bio">I help families in their 30s and 40s make sure the cover they have actually matches the life they\'ve built. No jargon, no pressure.</div><div class="foot"><span class="lg">SortMyCover ✓</span><span>30-min call · No obligation</span></div></div>';
+  var TEAMS='<div class="teams"><div class="ic">T</div><div><div class="t1">Life cover call – Lerato – Teams</div><div class="t2">Thu 8 Oct · 11:00–11:30 · Microsoft Teams meeting</div></div></div>';
+
+  function el(cls,html){var d=document.createElement('div');d.className=cls;d.innerHTML=html;return d;}
+  function scroll(){chat.scrollTop=chat.scrollHeight;}
+  function sleep(ms){return new Promise(function(r){setTimeout(r,ms/speed);});}
+  function ts(t,out){return '<span class="ts">'+t+(out?' <span class="tk">✓✓</span>':'')+'</span>';}
+  function note(k,h,p,tag){now.innerHTML='<div class="k">'+k+(tag?'<b>'+tag+'</b>':'')+'</div><h3>'+h+'</h3><p>'+p+'</p>';}
+  function widget(id){['w-crm','w-ol','w-bp','w-imp'].forEach(function(w){$(w).classList.toggle('on',w===id);});}
+  function setClock(t){clock.textContent=t;$('clock-r').textContent=t;}
+  async function typeInto(target,text,my,extraCls){
+    var shown='';
+    for(var i=0;i<text.length;i++){ if(my!==token) return false; shown+=text[i]; target.innerHTML=shown.replace(/</g,'&lt;')+'<span class="cur"></span>'; await sleep(text[i]===' '?80:50+Math.random()*45); }
+    await sleep(300); return true;
+  }
+  async function aiSay(html,t,typing,my){ status.textContent='typing…'; var ty=el('typing','<i></i><i></i><i></i>'); chat.appendChild(ty); scroll(); await sleep(typing||1500); if(my!==token) return; ty.remove(); status.textContent='online'; chat.appendChild(el('msg in',html+ts(t))); scroll(); }
+  function tplSay(html,t){ chat.appendChild(el('msg in',html+ts(t))); scroll(); }
+  function outSay(text,t){ chat.appendChild(el('msg out',text+ts(t,true))); scroll(); }
+  async function tap(sel,my){ var b=chat.querySelector(sel); await sleep(700); if(b) b.classList.add('tap'); await sleep(450); return my===token; }
+
+  // CRM widget helpers
+  var STAGES=['Lead','Consent','Qualified','Routed','Booked','Confirmed','Attended','Disposition'];
+  function stages(doneUpTo,nowIdx){ $('stages').innerHTML=STAGES.map(function(s,i){return '<span class="'+(i<doneUpTo?'done':(i===nowIdx?'now':''))+'">'+s+'</span>';}).join(''); }
+  var KV={};
+  function kv(k,v){ KV[k]=v; $('kv').innerHTML=Object.keys(KV).map(function(key){return '<dt>'+key+'</dt><dd class="'+(key===k?'new':'')+'">'+KV[key]+'</dd>';}).join(''); }
+  function log(t,w,h){ var d=el('',''); d.innerHTML='<span class="t">'+t+'</span><span class="w">'+w+'</span><span>'+h+'</span>'; $('log').prepend(d); }
+
+  // Outlook widget
+  var DAYS=[['Mon','5'],['Tue','6'],['Wed','7'],['Thu','8'],['Fri','9']];
+  var HOURS=['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00'];
+  function olBuild(){ var g=$('olg'); var h='<div></div>'+DAYS.map(function(d){return '<div class="hd">'+d[0]+'<small>'+d[1]+' Oct</small></div>';}).join('');
+    HOURS.forEach(function(hr){ h+='<div class="tm">'+hr+'</div>'; for(var c=0;c<5;c++){ h+='<div class="cell'+(hr==='13:00'?' lunch':'')+'" data-d="'+c+'" data-h="'+hr+'"></div>'; } });
+    g.innerHTML=h; }
+  function olEv(day,hr,title,sub,ours,isNew){ var c=document.querySelector('.cell[data-d="'+day+'"][data-h="'+hr+'"]'); if(!c) return; var e=el('ev'+(ours?' our':'')+(isNew?' new':''),'<b>'+title+'</b>'+(sub||'')); c.appendChild(e); setTimeout(function(){e.classList.remove('new');},2500/speed); }
+  function capline(counts,caps){ $('capline').innerHTML=counts.map(function(n,i){return '<span class="'+(n>=3?'full':'')+'">'+DAYS[i][0]+' '+n+'/3'+(n>=3?' · full':'')+'</span>';}).join(''); }
+
+  // Sheets
+  function openSheet(title,sub,body){ sheet.innerHTML='<div class="sh"><div>'+title+'<small>'+sub+'</small></div><span style="color:var(--wa-muted);font-weight:500">✕</span></div><div class="sb2">'+body+'</div>'; sheet.classList.add('on'); }
+  function closeSheet(){ sheet.classList.remove('on'); }
+  function opts(list,sel){ return list.map(function(o,i){return '<div class="opt'+(i===sel?' sel':'')+'" data-i="'+i+'"><i></i><div>'+o[0]+(o[1]?'<small>'+o[1]+'</small>':'')+'</div></div>';}).join(''); }
+  async function pickOpt(i,my){ await sleep(900); if(my!==token) return false; var o=sheet.querySelector('.opt[data-i="'+i+'"]'); if(o) o.classList.add('sel'); var fb=sheet.querySelector('.fbtn'); if(fb) fb.classList.remove('dis'); await sleep(700); return my===token; }
+  async function tapF(my){ var fb=sheet.querySelector('.fbtn'); if(fb) fb.classList.add('tap'); await sleep(400); return my===token; }
+  function calHtml(selDay){ var h='<div class="cal"><div class="mh"><span>‹</span><span>October 2026</span><span>›</span></div><div class="g">';
+    ['M','T','W','T','F','S','S'].forEach(function(x){h+='<div class="h">'+x+'</div>';});
+    // Oct 2026 starts Thursday
+    for(var i=0;i<3;i++) h+='<div class="d off"></div>';
+    for(var d=1;d<=31;d++){ var dow=(3+d-1)%7; var cls='d'; if(dow>=5) cls+=' off'; if(d<=5) cls+=' off'; if(d===6) cls+=' full'; if(d>=20) cls+=' off'; if(d===5) cls+=' today'; if(d===selDay) cls=' d sel'; h+='<div class="'+cls+'">'+d+'</div>'; }
+    h+='</div></div><div class="flowfoot">Mon–Fri · up to 14 days ahead · struck-through days are full</div>'; return h; }
+
+  async function run(){
+    var my=++token; $('play').textContent='Playing…';
+    chat.innerHTML=''; inp.innerHTML=''; closeSheet(); $('sc-reel').classList.add('on'); $('sc-wa').classList.remove('on'); $('log').innerHTML=''; KV={}; $('kv').innerHTML=''; $('bp').innerHTML=''; $('imp').innerHTML=''; olBuild(); widget(null); setClock('20:58'); status.textContent='Business account';
+    var P=0, TOTAL=34; function step(){P++; prog.style.width=Math.round(100*P/TOTAL)+'%';}
+
+    // ---- A. Ad ----
+    note('Mon 5 Oct · 20:58','The ad','Instagram Reel, Click-to-WhatsApp objective. Hook = the exact sentence that will be the first thing she reads in the chat and on any page (message match). No broker, no FSP, no product — educational only.','Meta · CTWA'); step();
+    await sleep(3200); if(my!==token) return;
+    $('cta').classList.add('tap'); await sleep(500);
+    note('20:58','She taps “Send WhatsApp message”','WhatsApp opens with a prefilled line. Meta attaches the ad and campaign ID to the conversation (CTWA referral), so this lead is attributed to this exact Reel without a pixel or a landing page.','W03'); step();
+    await sleep(600); $('sc-reel').classList.remove('on'); $('sc-wa').classList.add('on');
+    chat.appendChild(el('day','Mon 5 Oct')); chat.appendChild(el('sys','This chat started from a SortMyCover ad · Business account · Lead Velocity (Pty) Ltd'));
+    inp.innerHTML='Hi, I\'d like to check my life cover'; await sleep(1400); inp.innerHTML=''; outSay('Hi, I\'d like to check my life cover','20:58'); step();
+    widget('w-crm'); stages(0,0); kv('Source','Instagram Reels · <code>C2_bondgap_reel_v3</code>'); kv('Number','+27 82 ••• 4471 · valid mobile'); log('20:58','W03','Conversation opened · CTWA referral stored (ad, campaign)');
+    await sleep(1200);
+
+    // ---- B. Consent ----
+    note('20:58 · 2 s','Consent before anything else','Fixed wording, logged with timestamp. If she taps “No thanks” nothing is stored beyond the log and the chat ends politely.','W03 · POPIA'); step();
+    tplSay('Hi! I\'m Thandi, SortMyCover\'s booking assistant (an AI — you can ask for a person any time). Before we start: if it\'s a fit, we\'ll share your name and number with an authorised financial services provider who\'ll contact you here about life cover. OK to continue?<div class="btns" id="bc"><span data-b>Yes, continue</span><span>No thanks</span></div>','20:58');
+    if(!await tap('#bc span[data-b]',my)) return; outSay('✅ Yes, continue','20:59'); setClock('20:59');
+    stages(1,1); kv('Consent','20:59:04 · wording v3 · <code>generic</code>'); log('20:59','W03','Consent logged · exact wording + timestamp'); step();
+    await sleep(900);
+
+    // ---- C. Qualify (tap only) ----
+    note('20:59','Four taps, no typing','Qualifying is buttons and lists — zero generated text, nothing that could read as advice. Each answer lands in the CRM as a band, never an exact figure.','W03'); step();
+    tplSay('Great. Four quick taps and I\'ll match you with the right adviser.<br><br>First — which age band are you in?<div class="btns" id="bq1"><span class="flow" data-b>Choose age band</span></div>','20:59');
+    if(!await tap('#bq1 span[data-b]',my)) return;
+    openSheet('Your age band','SortMyCover',opts([['Under 35'],['35–44'],['45–50'],['51 or over']],-1)+'<div class="fbtn dis">Send</div>');
+    if(!await pickOpt(1,my)) return; if(!await tapF(my)) return; closeSheet(); outSay('35–44','20:59'); kv('Age band','35–44'); await sleep(700);
+    tplSay('Do you have a bond on your home?<div class="btns" id="bq2"><span data-b>Yes</span><span>No</span></div>','20:59');
+    if(!await tap('#bq2 span[data-b]',my)) return; outSay('✅ Yes','20:59'); kv('Bond','Yes'); await sleep(600);
+    tplSay('Does anyone depend on your income — kids, partner, parents?<div class="btns" id="bq3"><span data-b>Yes</span><span>No</span></div>','20:59');
+    if(!await tap('#bq3 span[data-b]',my)) return; outSay('✅ Yes','21:00','true'); setClock('21:00'); kv('Dependants','Yes'); await sleep(600);
+    tplSay('Last one — what monthly amount would you be comfortable putting towards cover?<div class="btns" id="bq4"><span class="flow" data-b>Choose a range</span></div>','21:00');
+    if(!await tap('#bq4 span[data-b]',my)) return;
+    openSheet('Monthly budget','A range is all we need',opts([['Under R750'],['R750 – R1,250'],['R1,250 or more'],['Not sure yet']],-1)+'<div class="fbtn dis">Send</div>');
+    if(!await pickOpt(1,my)) return; if(!await tapF(my)) return; closeSheet(); outSay('R750 – R1,250','21:00'); kv('Budget band','R750–1,250');
+    stages(2,3); kv('Qualified','<span style="color:var(--ok)">Yes · meets 3.3</span>'); log('21:00','1.3','Qualified → routed to Mark Williams (capacity 7/12 this week)'); step();
+    await sleep(1300);
+
+    // ---- D. Intro card + Flow button ----
+    note('21:00','The disclosure — and one button to book','Now that she\'s qualified and routed, the broker is named: adviser, practice, FSP number. The template carries a Flow button — the calendar opens inside WhatsApp, no browser.','W06 · broker_intro_slots'); step();
+    tplSay(CARD+'Thanks Lerato — your details have been passed to <b>Mark Williams Financial Planning (FSP 00000)</b>, an authorised financial services provider. <b>Mark Williams</b> can do a 30-minute call. Pick a time below. Reply STOP to opt out.<div class="btns" id="bf"><span class="flow" data-b>Pick a time</span><span>Ask a question</span></div>','21:00');
+    stages(3,4); log('21:00','W06','broker_intro_slots sent · intro card · Flow button · msg id logged');
+    if(!await tap('#bf span[data-b]',my)) return;
+
+    // ---- E. Flow screens ----
+    note('21:01 · Flow screen 1 of 5','How would you like to meet Mark?','Only the methods Mark supports are shown. This choice decides what gets created: Teams → an online meeting in his Outlook plus an invite; WhatsApp or phone → a plain event with her number and no email asked.','W28'); step(); setClock('21:01');
+    openSheet('Book your call with Mark','Step 1 of 5 · Pick how to meet',opts([['Microsoft Teams (video)','Join from your phone, no account needed'],['WhatsApp video call','Mark calls you here'],['Phone call','Mark calls your number']],-1)+'<div class="fbtn dis">Continue</div>');
+    if(!await pickOpt(0,my)) return; if(!await tapF(my)) return; kv('Method','Microsoft Teams');
+    note('21:01 · Flow screen 2','Pick a day — WhatsApp\'s native calendar','Meta\'s CalendarPicker component. Weekends and past days are off; Tue 6 is struck through because Mark is already at 3 calls that day. Up to 14 days ahead.','W28 · CalendarPicker'); step();
+    openSheet('Book your call with Mark','Step 2 of 5 · Pick a day',calHtml(0)+'<div class="fbtn dis">Continue</div>');
+    await sleep(1600); if(my!==token) return;
+    // select Thu 8
+    sheet.querySelector('.sb2').innerHTML=calHtml(8)+'<div class="spin">Checking Mark\'s calendar…</div>';
+    note('21:01 · data_exchange','WhatsApp asks our endpoint for Thursday','The date goes (encrypted) to our n8n endpoint, which reads Mark\'s free/busy from Outlook via Microsoft Graph, applies hours, buffers and his daily cap, and returns the open slots — about half a second.','W28 → W04'); step();
+    log('21:01','W04','getSchedule(Mark, Thu 8 Oct) → 5 free slots');
+    await sleep(1500); if(my!==token) return;
+    openSheet('Book your call with Mark','Step 3 of 5 · Thu 8 Oct — pick a time',opts([['09:30'],['11:00'],['14:00'],['15:30'],['16:30']],-1)+'<div class="fbtn dis">Continue</div>');
+    if(!await pickOpt(1,my)) return; if(!await tapF(my)) return;
+    note('21:02 · Flow screen 4','Email — only because she chose Teams','The invite with the join link has to go somewhere. Had she picked phone or WhatsApp call, this screen is skipped entirely. The address is stored for the invite only and passed to Mark with the lead.','W28 · POPIA purpose'); step(); setClock('21:02');
+    openSheet('Book your call with Mark','Step 4 of 5 · Where should we send the Teams invite?','<div style="font-size:12.5px;color:var(--wa-muted)">Email address</div><div class="field ph" id="em">name@example.com</div><div style="font-size:11.5px;color:var(--wa-muted);margin-top:6px">Used only to send your meeting invite.</div><div class="fbtn dis">Continue</div>');
+    await sleep(700); var em=$('em'); em.classList.remove('ph'); if(!await typeInto(em,'lerato.m@gmail.com',my)) return; em.innerHTML='lerato.m@gmail.com'; sheet.querySelector('.fbtn').classList.remove('dis'); await sleep(500); if(!await tapF(my)) return; kv('Email','lerato.m@gmail.com · <code>meeting_invite</code>');
+    note('21:02 · Flow screen 5','Summary → Confirm','One screen to check everything. On Complete, WhatsApp posts the Flow response to us and W05 books.','W28'); step();
+    openSheet('Book your call with Mark','Step 5 of 5 · Check and confirm','<div class="sum"><b>Adviser</b> Mark Williams · FSP 00000<br><b>When</b> Thu 8 Oct 2026, 11:00–11:30<br><b>How</b> Microsoft Teams<br><b>Invite to</b> lerato.m@gmail.com<br><b>Number</b> +27 82 ••• 4471</div><div class="fbtn">Confirm booking</div>');
+    await sleep(1600); if(!await tapF(my)) return; closeSheet();
+    outSay('▤ Booking sent<br><span style="font-size:11.5px;color:var(--wa-muted)">Thu 8 Oct · 11:00 · Teams</span>','21:02');
+
+    // ---- F. Booking engine + confirmation ----
+    note('21:02 · 3 seconds','W05 books it','Re-checks the slot is still free, creates the Teams meeting in Mark\'s Outlook (Graph, isOnlineMeeting), emails the invite + .ics to Lerato from howzit@, alerts Mark, fires the Schedule event to Meta so the ad learns.','W05'); step();
+    log('21:02','W05','Slot re-checked · Outlook event created · Teams link · invite emailed'); log('21:02','W05','broker_new_booking → Mark · CAPI Schedule'); stages(4,5); kv('Booking','Thu 8 Oct 11:00 · Teams · <code>evt_7f2…</code>');
+    await sleep(1800); if(my!==token) return;
+    tplSay('Booked ✅ <b>Thu 8 Oct at 11:00</b> on Microsoft Teams with <b>Mark Williams</b>.'+TEAMS+'The invite is in your inbox (lerato.m@gmail.com) and I\'ll send the link here on the morning too.<div class="btns"><span>Add to calendar</span><span>Reschedule</span></div>','21:02');
+    await sleep(1400); if(my!==token) return;
+    await aiSay('Could you reply with the date and time so I know it\'s in your diary?','21:02',1400,my); if(my!==token) return;
+    await sleep(600); if(!await typeInto(inp,'Thurs 8th 11am 👍',my)) return; inp.innerHTML=''; outSay('Thurs 8th 11am 👍','21:03'); setClock('21:03');
+    await aiSay('Perfect. Nothing to prepare — Mark will do the asking. Speak Thursday.','21:03',1300,my); if(my!==token) return;
+    await sleep(1600);
+
+    // ---- G. Mark's calendar ----
+    widget('w-ol');
+    note('Mark\'s Outlook · Mon night','Where the booking landed','Lerato appears in Mark\'s real calendar as “Life cover call – Lerato – Teams”, amber category so it\'s visibly ours. His own appointments are the blue blocks.','W05 · Graph'); step();
+    olEv(0,'09:00','Client review','Van Zyl',false); olEv(0,'15:00','Compliance CPD','',false);
+    olEv(1,'09:00','Life cover call – Sipho','Teams',true); olEv(1,'11:00','Life cover call – Nomsa','Phone',true); olEv(1,'14:00','Life cover call – Dewald','WhatsApp',true);
+    olEv(2,'10:00','Life cover call – Anél','Teams',true); olEv(2,'14:00','Dentist','',false);
+    olEv(4,'09:00','Life cover call – Thabo','Teams',true);
+    capline([0,3,1,0,1]);
+    await sleep(1800); if(my!==token) return;
+    olEv(3,'11:00','Life cover call – Lerato','Teams',true,true); capline([0,3,1,1,1]);
+    await sleep(2600); if(my!==token) return;
+    chat.appendChild(el('skip','⏩ Tue 6 Oct – Wed 7 Oct · the week fills')); scroll();
+    note('Tue–Wed','How the week fills — and how Mark stays in control','Slots are offered earliest-first but spread across days, so no day is stacked while another is empty. Tuesday hit its cap of 3, so the calendar struck it out. When Mark drops “School run” into his own Outlook, that slot vanishes from the Flow on the next request — Outlook is the source of truth.','W04 · capacity'); step();
+    olEv(2,'09:00','Life cover call – Pieter','Teams',true,true); capline([0,3,2,1,1]); await sleep(1300); if(my!==token) return;
+    olEv(3,'14:00','Life cover call – Zanele','WhatsApp',true,true); capline([0,3,2,2,1]); await sleep(1300); if(my!==token) return;
+    olEv(3,'15:00','School run','',false,true); await sleep(1200); if(my!==token) return;
+    olEv(4,'11:00','Life cover call – Kabelo','Teams',true,true); capline([0,3,2,2,2]); await sleep(1300); if(my!==token) return;
+    olEv(2,'15:00','Life cover call – Riaan','Phone',true,true); capline([0,3,3,2,2]);
+    note('Wed night · 10 of 12','Capacity-aware spend','Mark\'s next 7 days are now ≥ 80% booked, so routing holds new leads in the nurture path offering later dates and trims his media share by 30% until the week opens up. If it stays full for 5 working days, Jonathan gets an alert: upsell the tier or add a broker.','W04 · 6.2'); step();
+    $('olcap').textContent='10 of 12 booked this week · spend trimmed −30%';
+    await sleep(3200); if(my!==token) return;
+
+    // ---- H. Reminders quick ----
+    widget('w-crm');
+    chat.appendChild(el('day','Wed 7 Oct')); tplSay('Hi Lerato, a reminder of your Teams call with <b>Mark Williams</b> tomorrow, <b>Thu 8 Oct at 11:00</b>. Most people find 30 minutes is all it takes.<div class="btns" id="b24"><span data-b>Confirm</span><span>Reschedule</span></div>','11:00'); setClock('11:00');
+    note('Wed 11:00 · T-24 h','Reminders run as before','T-48 h Mark\'s intro video, T-24 h confirm, T-2 h and T-10 min with the Teams link. Reschedule reopens the same calendar Flow with her booking pre-filled.','W09'); step();
+    if(!await tap('#b24 span[data-b]',my)) return; outSay('✅ Confirm','12:47'); stages(5,6); log('Wed 12:47','W09','Confirmed via button');
+    chat.appendChild(el('skip','⏩ Thu 8 Oct · 11:00 · the call happens')); scroll(); await sleep(1800); if(my!==token) return;
+
+    // ---- I. Broker feedback ----
+    widget('w-bp'); var bp=$('bp');
+    function bpIn(html,t){ bp.appendChild(el('msg in',html+ts(t))); }
+    function bpOut(text,t){ bp.appendChild(el('msg out',text+ts(t,true))); }
+    async function bpTap(sel){ var b=bp.querySelector(sel); await sleep(800); if(b) b.classList.add('tap'); await sleep(450); return my===token; }
+    note('Thu 11:45 · T+15','Mark\'s feedback, in under 20 seconds','Fifteen minutes after the slot ends Mark gets this on his own WhatsApp. Outcome → disposition → quality → optional voice note. Three taps. The same buttons exist in the portal for brokers who prefer it.','W12 · broker_outcome_check'); step(); setClock('11:45');
+    bpIn('How did it go with <b>Lerato M.</b> (11:00, Teams)?<div class="btns" id="o1"><span data-b>Attended</span><span>No-show</span><span>Rescheduled</span></div>','11:45');
+    if(!await bpTap('#o1 span[data-b]')) return; bpOut('Attended','11:46');
+    note('11:46','Disposition — one tap, fixed words','Six options, the same words in the portal, the CRM and the contract. “Unreachable” and “Outside criteria” open a replacement automatically; the others don\'t. No more “was that a real lead?” debates at renewal.','W12 · broker_disposition'); step();
+    bpIn('Quick disposition:<div class="btns" id="o2"><span>Good fit – proceeding</span><span data-b>Good fit – needs follow-up</span><span>Not a fit – budget</span><span>Not a fit – already well covered</span><span>Not a fit – outside criteria</span><span>Unreachable / wrong number</span></div>','11:46');
+    if(!await bpTap('#o2 span[data-b]')) return; bpOut('Good fit – needs follow-up','11:46');
+    bpIn('Lead quality?<div class="btns" id="o3" style="flex-direction:row"><span style="flex:1">1</span><span style="flex:1">2</span><span style="flex:1">3</span><span style="flex:1" data-b>4</span><span style="flex:1">5</span></div>','11:46');
+    if(!await bpTap('#o3 span[data-b]')) return; bpOut('4','11:46');
+    bpIn('Anything we should know? Hold to record a voice note (optional).','11:46'); await sleep(1400); if(my!==token) return;
+    bpOut('🎤 Voice note · 0:14','11:47'); setClock('11:47');
+    note('11:47','The voice note becomes data','Transcribed and summarised into the lead record for Jonathan and KG; never sent to the lead. “What mattered” lines like these sharpen every future pre-call brief for Mark.','W29'); step();
+    await sleep(1600); if(my!==token) return;
+    bpIn('Logged, thanks Mark. Your note: <i>“Good one — bond around R1.4m, work cover is 2× salary, wants a needs analysis by Friday. The bond angle is landing.”</i><br><br>That ad angle is now rated <b>4.2 from 6</b> of your calls — we\'re putting more behind it. Follow-up reminder set for next Thursday.','11:47');
+    await sleep(2600); if(my!==token) return;
+
+    // Lead side outcome check
+    chat.appendChild(el('day','Thu 8 Oct')); tplSay('Hi Lerato, did Mark reach you today?<div class="btns" id="oc"><span data-b>Yes</span><span>No</span></div>','12:00'); setClock('12:00');
+    if(!await tap('#oc span[data-b]',my)) return; outSay('✅ Yes','12:04'); tplSay('Thanks for your time today, Lerato. Mark will follow up with you directly from here.','12:04');
+
+    // ---- J. Impact ----
+    widget('w-imp');
+    note('Done','What that feedback changed','Mark\'s 20 seconds just moved money, qualification and his own renewal case. This is the loop that makes cycle 2 better than cycle 1.','W29'); step();
+    var imp=$('imp');
+    var items=[
+      ['<span class="ok">Lead delivered · no replacement</span>','Good fit – follow-up counts toward his 20. Disposition locked; 48-h dispute window not opened.'],
+      ['<span class="ok">C2_bondgap_reel_v3 → scale +20%</span>','Quality index 4.2 (n=6), CPL R186. Kill/scale rule 3.4 now uses quality alongside cost.'],
+      ['<span class="wn">C1_worksalary_feed_v2 → watch</span>','3 of 5 dispositions “already well covered”. Copy gets a pre-filter line; paused if it passes 40%.'],
+      ['Pre-call brief corpus +1','“Bond angle is landing” → future briefs for Mark lead with the bond figure band.'],
+      ['Follow-up nudge · Thu 15 Oct','We remind Mark; the follow-up itself stays his (FAIS).'],
+      ['Renewal line · Mon 26 Oct','“11 good-fit meetings from 20 leads · your average quality 4.1” — his numbers, in his words.']
+    ];
+    for(var i=0;i<items.length;i++){ if(my!==token) return; imp.appendChild(el('','<b>'+items[i][0]+'</b>'+items[i][1])); await sleep(900); }
+    stages(8,-1); prog.style.width='100%'; await sleep(2500);
+    $('play').textContent='▶ Play again';
+  }
+
+  $('play').addEventListener('click',function(){ run(); });
+  $('reset').addEventListener('click',function(){ token++; chat.innerHTML=''; inp.innerHTML=''; closeSheet(); $('sc-reel').classList.add('on'); $('sc-wa').classList.remove('on'); $('cta').classList.remove('tap'); widget(null); prog.style.width='0'; setClock('20:58'); now.innerHTML='<div class="k">Ready</div><h3>Press Play</h3><p>Monday 5 Oct, 20:58. Lerato is scrolling Instagram Reels on the couch.</p>'; $('play').textContent='▶ Play'; });
+  document.querySelectorAll('.spd button').forEach(function(b){ b.addEventListener('click',function(){ speed=+b.dataset.s; document.querySelectorAll('.spd button').forEach(function(x){x.setAttribute('aria-pressed',String(x===b));}); }); });
+  olBuild();
+  if((location.hash||'')==='#autoplay'){ setTimeout(run,600); }
+  window.__run=run;
+})();
+</script>
+
+</body></html>

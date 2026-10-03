@@ -1,0 +1,862 @@
+{
+  "id": "smc-w08",
+  "name": "W08 Unbooked nurture",
+  "nodes": [
+    {
+      "id": "n01",
+      "name": "Sticky: read me",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "width": 760,
+        "height": 360,
+        "content": "W08 Unbooked nurture (4.6 item 5, 4.12 last row, state-machine.md 5). Every 5 min: leads that were disclosed (first_message_at) and have no live booking.\nWeb / lead-ad: unbooked_nudge_2h (+2 h) -> unbooked_nudge_24h (+24 h, intro video; _text with bio_short if no video) -> unbooked_nudge_72h (+72 h, last) -> close as unbooked_closed (+24 h after the last).\nCTWA stall nudges: W03 is the single owner (STALL_HOURS 1/20/68, consent question only before consent). W08 skips every lead with no broker_id (pre-routing CTWA = stop reason ctwa_pre_routing_w03; the candidate query also INNER JOINs brokers).\nTemplate outside the 24-h window; inside it the same words go as a session interactive message. Stops on booking, STOP/opt-out, suppression, handoff, \"No thanks\", closed stage, 12-message cap. \"No thanks\" = objection: the close UPDATE and INSERT INTO suppression (smc_hash_contact(phone), source objection, note no_thanks_nurture, brand NULL = Lead Velocity-wide) run in ONE statement.\nASSUMPTIONS (needs_human): quiet hours 20:00-08:00 SAST shift a nudge to 08:00; close = last nudge + 24 h.\nIdempotency: lead_activities.idempotency_key w08:{lead}:{touch} claimed with ON CONFLICT DO NOTHING RETURNING before any send. Logic: automation/lib/w08.mjs; tests automation/tests/W08.test.mjs.\nSession words (inside the 24-h window) come from lib/w08.mjs sessionWords(): English = the approved template text; Afrikaans leads get LINES.af NUDGE_* once conversation-designer adds them. Templates stay English-only.\nI-39c: a cancelled booking restarts +2/+24/+72 h from appointments.cancelled_at (new idempotency keys :r<ms>; no close here, W10's hourly sweep decides at 96 h); declined_call leads are skipped. leads.last_contact_at is set after every Meta-accepted send (CONTRACTS.md I-38d)."
+      }
+    },
+    {
+      "id": "n02",
+      "name": "Every 5 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/5 * * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n03",
+      "name": "Candidates (disclosed, unbooked, not opted out)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT l.id, ca.cancelled_at, l.first_name, l.language, l.origin, l.stage, l.conv_state, l.opted_out_at, l.first_message_at, l.broker_id, l.brand_id, l.phone,\n       b.contact_person, b.bio_short, b.intro_video_url,\n       EXISTS (SELECT 1 FROM public.appointments a WHERE a.client_id = l.id AND a.brand_id IS NOT NULL AND a.status IN ('booked','confirmed')) AS has_live_booking,\n       EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone)) AS suppressed,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'inbound') AS last_inbound_at,\n       (SELECT count(*) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'outbound') AS outbound_count,\n       -- I-39c: after a cancellation only touches of the restarted sequence count\n       COALESCE((SELECT jsonb_agg(x.payload->>'touch') FROM public.lead_activities x WHERE x.lead_id = l.id AND x.activity_type = 'nurture_sent' AND (ca.cancelled_at IS NULL OR x.occurred_at >= ca.cancelled_at)), '[]'::jsonb) AS sent\n  FROM public.leads l\n  JOIN public.brokers b ON b.id = l.broker_id\n  LEFT JOIN LATERAL (SELECT max(a.cancelled_at) AS cancelled_at FROM public.appointments a WHERE a.client_id = l.id AND a.brand_id IS NOT NULL AND a.status = 'cancelled') ca ON true\n WHERE l.brand_id IS NOT NULL\n   AND l.first_message_at IS NOT NULL\n   AND GREATEST(l.first_message_at, ca.cancelled_at) > now() - interval '6 days'\n   AND l.opted_out_at IS NULL\n   AND (COALESCE(l.stage, 'new') NOT IN ('unbooked_closed','opted_out','disqualified','booked','confirmed','attended','no_show','dispositioned','replacement_due')\n        OR (l.stage IN ('booked','confirmed') AND ca.cancelled_at IS NOT NULL))  -- cancelled booking: live-booking check in w08.due stops it if rebooked\n   AND NOT COALESCE((l.conv_state->>'declined_call')::boolean, false)  -- C1A (b): said plainly no call -> no nurture\n ORDER BY l.first_message_at\n LIMIT 500;",
+        "options": {
+          "queryReplacement": "={{ [] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n04",
+      "name": "Decide (w08.due)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w08;\nconst r = $json; if (!r.id) return { json: { action: 'none' } };\nconst lead = { id: r.id, first_name: r.first_name, language: r.language, origin: r.origin, stage: r.stage, conv_state: r.conv_state || {}, opted_out_at: r.opted_out_at, first_message_at: r.first_message_at, cancelled_at: r.cancelled_at, broker_id: r.broker_id };\nconst ctx = { has_live_booking: r.has_live_booking, suppressed: r.suppressed, sent: new Set(r.sent || []), last_inbound_ms: r.last_inbound_at ? Date.parse(r.last_inbound_at) : NaN, outbound_count: Number(r.outbound_count || 0), broker: { contact_person: r.contact_person, bio_short: r.bio_short, intro_video_url: r.intro_video_url } };\nconst d = L.due(lead, ctx, Date.now());\nreturn { json: { ...d, lead_id: r.id, brand_id: r.brand_id, broker_id: r.broker_id, phone: r.phone, lang: r.language === 'af' ? 'af' : 'en' } };"
+      }
+    },
+    {
+      "id": "n05",
+      "name": "Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "send",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s0",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "send",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "close",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s1",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "close",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      }
+    },
+    {
+      "id": "n06",
+      "name": "Claim touch (idempotency)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, $3::uuid, 'W08', 'system', 'nurture_sent', jsonb_build_object('touch', $4::text, 'channel', $5::text, 'template', $6::text), now(), $7)\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$json.lead_id, $json.brand_id, $json.broker_id, $json.touch, $json.channel, $json.template, $json.idempotency_key] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n07",
+      "name": "Claimed? (first scheduler run only)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$json.id) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n08",
+      "name": "Build message (template or session)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const d = $('Decide (w08.due)').item.json;\nconst btn = d.buttons.map(([id, t]) => [id + d.payload_suffix, t]);\nlet wa;\nif (d.channel === 'template') {\n  const comps = [];\n  if (d.header && d.header.type === 'video') comps.push({ type: 'header', parameters: [{ type: 'video', video: { link: d.header.link } }] });\n  if (d.header && d.header.type === 'text') comps.push({ type: 'header', parameters: d.header.params.map((t) => ({ type: 'text', text: t })) });\n  comps.push({ type: 'body', parameters: d.vars.map((t) => ({ type: 'text', text: String(t) })) });\n  btn.forEach(([p], i) => comps.push({ type: 'button', sub_type: 'quick_reply', index: String(i), parameters: [{ type: 'payload', payload: p }] }));\n  wa = { messaging_product: 'whatsapp', to: d.phone, type: 'template', template: { name: d.template, language: { code: d.template_lang || 'en' }, components: comps } };\n} else {\n  // inside the 24-h window: same approved words as a session interactive message (no template fee)\n  // words live in automation/lib/w08.mjs sessionWords() (same text as the approved template; Afrikaans when lines.mjs has it)\n  const words = (d.session && d.session.body) || '';\n  const header = d.header && d.header.type === 'video' ? { type: 'video', video: { link: d.header.link } } : undefined;\n  wa = { messaging_product: 'whatsapp', to: d.phone, type: 'interactive', interactive: { type: 'button', ...(header ? { header } : {}), body: { text: words }, action: { buttons: btn.map(([id, t]) => ({ type: 'reply', reply: { id, title: t } })) } } };\n}\nreturn { json: { ...d, wa } };"
+      }
+    },
+    {
+      "id": "n09",
+      "name": "Live send?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($env.DRY_RUN_SENDS !== 'true') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n10",
+      "name": "Send WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION }}/{{ $env.PHONE_NUMBER_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.META_SYSTEM_USER_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.wa) }}",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "n11",
+      "name": "Store outbound",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        440,
+        200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, broker_id, author, workflow, template_name, template_category, metadata)\nVALUES ($1::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, $3, 'sent', $4, $5::uuid, $6::uuid, 'system', 'W08', $7, $8, $9::jsonb)\nON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING;",
+        "options": {
+          "queryReplacement": "={{ (() => { const d = $('Build message (template or session)').item.json; return [d.brand_id, d.phone, d.template, ($json.messages && $json.messages[0] && $json.messages[0].id) || ('dry:' + d.idempotency_key), d.lead_id, d.broker_id, d.channel === 'template' ? d.template : null, d.channel === 'template' ? 'utility' : 'service', JSON.stringify({ touch: d.touch, channel: d.channel })]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n12",
+      "name": "Close as unbooked (no live booking)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH c AS (\n  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\n  VALUES ($1::uuid, $2::uuid, $3::uuid, 'W08', 'system', 'nurture_closed', '{\"reason\":\"sequence finished\"}'::jsonb, now(), $4)\n  ON CONFLICT (idempotency_key) DO NOTHING\n  RETURNING lead_id)\nUPDATE public.leads l\n   SET stage = 'unbooked_closed',\n       conv_state = COALESCE(l.conv_state, '{}'::jsonb) || '{\"state\":\"closed_unbooked\"}'::jsonb,\n       updated_at = now()\n  FROM c\n WHERE l.id = c.lead_id\n   AND NOT EXISTS (SELECT 1 FROM public.appointments a WHERE a.client_id = l.id AND a.brand_id IS NOT NULL AND a.status IN ('booked','confirmed'));",
+        "options": {
+          "queryReplacement": "={{ [$json.lead_id, $json.brand_id, $json.broker_id, $json.idempotency_key] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n13",
+      "name": "Execute Workflow Trigger (W07: Not now / No thanks / close)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        200
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "n14",
+      "name": "On tap (w08.onTap)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w08;\nconst j = $json; const p = (j.msg && j.msg.payload) || (j.delegate && j.delegate.action === 'close' ? 'no_thanks' : '');\nconst r = L.onTap(j.lead || {}, p);\nif (!r) return { json: { skip: true } };\nreturn { json: { skip: false, lead: j.lead, brand_id: j.lead.brand_id, msg: j.msg, r, from: j.msg && j.msg.from } };"
+      }
+    },
+    {
+      "id": "n15",
+      "name": "Save tap result",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1320,
+        200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH upd AS (UPDATE public.leads SET stage = $2, conv_state = $3::jsonb, updated_at = now() WHERE id = $1::uuid AND opted_out_at IS NULL RETURNING id, phone),\nsup AS (INSERT INTO public.suppression (mobile_hash, source, brand_id, lead_id, note)\n        SELECT public.smc_hash_contact(upd.phone), $4, NULL, upd.id, $5 FROM upd WHERE $4 IS NOT NULL AND upd.phone IS NOT NULL\n        ON CONFLICT DO NOTHING RETURNING id)\nSELECT (SELECT count(*) FROM upd) AS updated, (SELECT count(*) FROM sup) AS suppressed;",
+        "options": {
+          "queryReplacement": "={{ [$json.lead.id, $json.r.stage, JSON.stringify($json.r.conv_state), ($json.r.suppress && $json.r.suppress.source) || null, ($json.r.suppress && $json.r.suppress.note) || null] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n16",
+      "name": "Reply CLOSE_UNBOOKED?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($('On tap (w08.onTap)').item.json.r.reply_line === 'CLOSE_UNBOOKED') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n17",
+      "name": "Build CLOSE_UNBOOKED (session; the tap opened the window)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const { LINES } = require('lv-automation').lines;\nconst j = $('On tap (w08.onTap)').item.json;\nconst lang = j.lead.language === 'af' ? 'af' : 'en';\nreturn { json: { ...j, wa: { messaging_product: 'whatsapp', to: j.from, type: 'text', text: { body: LINES[lang].CLOSE_UNBOOKED } } } };"
+      }
+    },
+    {
+      "id": "n18",
+      "name": "Live send? (tap)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        220,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($env.DRY_RUN_SENDS !== 'true') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n19",
+      "name": "Send close line",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        400
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION }}/{{ $env.PHONE_NUMBER_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.META_SYSTEM_USER_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.wa) }}",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "n_i39c_if",
+      "name": "Accepted by Meta? (wamid)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        360
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!($json.messages && $json.messages[0] && $json.messages[0].id)) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n_i39c_touch",
+      "name": "Touch leads.last_contact_at (lead outbound)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        360
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.leads SET last_contact_at = now() WHERE id = $1::uuid;  -- CONTRACTS.md I-38d: only after Meta accepted (wamid), never on dry runs",
+        "options": {
+          "queryReplacement": "={{ [$('Build message (template or session)').item.json.lead_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n_i39c_if2",
+      "name": "Accepted by Meta? (close line)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!($json.messages && $json.messages[0] && $json.messages[0].id)) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n_i39c_touch2",
+      "name": "Touch leads.last_contact_at (close line)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        880,
+        400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.leads SET last_contact_at = now() WHERE id = $1::uuid;  -- CONTRACTS.md I-38d: only after Meta accepted (wamid), never on dry runs",
+        "options": {
+          "queryReplacement": "={{ [$('On tap (w08.onTap)').item.json.lead.id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    }
+  ],
+  "connections": {
+    "Every 5 minutes": {
+      "main": [
+        [
+          {
+            "node": "Candidates (disclosed, unbooked, not opted out)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Candidates (disclosed, unbooked, not opted out)": {
+      "main": [
+        [
+          {
+            "node": "Decide (w08.due)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide (w08.due)": {
+      "main": [
+        [
+          {
+            "node": "Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Action": {
+      "main": [
+        [
+          {
+            "node": "Claim touch (idempotency)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Close as unbooked (no live booking)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim touch (idempotency)": {
+      "main": [
+        [
+          {
+            "node": "Claimed? (first scheduler run only)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claimed? (first scheduler run only)": {
+      "main": [
+        [
+          {
+            "node": "Build message (template or session)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build message (template or session)": {
+      "main": [
+        [
+          {
+            "node": "Live send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Live send?": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Store outbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Store outbound",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Accepted by Meta? (wamid)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Workflow Trigger (W07: Not now / No thanks / close)": {
+      "main": [
+        [
+          {
+            "node": "On tap (w08.onTap)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On tap (w08.onTap)": {
+      "main": [
+        [
+          {
+            "node": "Save tap result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save tap result": {
+      "main": [
+        [
+          {
+            "node": "Reply CLOSE_UNBOOKED?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply CLOSE_UNBOOKED?": {
+      "main": [
+        [
+          {
+            "node": "Build CLOSE_UNBOOKED (session; the tap opened the window)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build CLOSE_UNBOOKED (session; the tap opened the window)": {
+      "main": [
+        [
+          {
+            "node": "Live send? (tap)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Live send? (tap)": {
+      "main": [
+        [
+          {
+            "node": "Send close line",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Accepted by Meta? (wamid)": {
+      "main": [
+        [
+          {
+            "node": "Touch leads.last_contact_at (lead outbound)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send close line": {
+      "main": [
+        [
+          {
+            "node": "Accepted by Meta? (close line)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Accepted by Meta? (close line)": {
+      "main": [
+        [
+          {
+            "node": "Touch leads.last_contact_at (close line)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "saveManualExecutions": true,
+    "errorWorkflow": "smc-w22"
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "nurture"
+    },
+    {
+      "name": "whatsapp"
+    }
+  ],
+  "meta": {
+    "notes": "automation-engineer. W08 unbooked nurture; logic automation/lib/w08.mjs; tests automation/tests/W08.test.mjs."
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "name": "ops_action",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "Approval needed"
+    },
+    {
+      "type": "BODY",
+      "text": "Approval needed: *{{1}}*. Moves: {{2}}. Cost: {{3}}. Evidence grade: {{4}}. Owner: {{5}}. Tap Approve to go ahead, or Later to decide in the console.",
+      "example": {
+        "body_text": [
+          [
+            "Shorter quiz step 2",
+            "page completion +4 pts (forecast)",
+            "R0, 1 build hour",
+            "B",
+            "landing-page-builder"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "Lead Velocity ops"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "QUICK_REPLY",
+          "text": "Approve"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Later"
+        }
+      ]
+    }
+  ]
+}

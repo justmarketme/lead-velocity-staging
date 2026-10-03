@@ -1,0 +1,3148 @@
+{
+  "id": "smc-w05",
+  "name": "W05 Book (DRAFT pending GATE-TEST-W05)",
+  "nodes": [
+    {
+      "id": "n01",
+      "name": "Sticky: read me",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "width": 760,
+        "height": 380,
+        "content": "W05 Book (DRAFT pending GATE-TEST-W05; automation-engineer). POST /book (X-Lead-Token or broker JWT, CONTRACTS.md; I-45h page calls also pass the bot guard: per-IP + per-lead counters, Turnstile action=book, FAILS CLOSED 503 when siteverify is down (NH-32); broker-JWT and sub-calls skip it; env TURNSTILE_SECRET_KEY, RATE_LIMIT_PER_IP_PER_HOUR, RATE_LIMIT_PER_NUMBER_PER_DAY, RATE_LIMIT_IP_SALT, PUBLIC_ALLOWED_ORIGINS, TEST_HOOKS_*) and sub-calls: book (W07 slot taps + Flow nfm_reply, W10, W28), update_method (W10), invite_bounced (W17 NDR). Logic automation/lib/w05.mjs (tests automation/tests/W05.test.mjs). Zero double-bookings: W04 is_free (fresh getSchedule + our appointments + buffer) -> INSERT with the overlap+buffer re-check in the same statement, ON CONFLICT DO NOTHING (gist exclusion + unique indexes), re-select = replay or taken (next 3). Outlook event via Graph (Teams: isOnlineMeeting, teamsForBusiness; ASSUMPTION shapes) in the broker calendar (W04 graph_token) or the howzit@ shared calendar (0.3 #4). Email only for Teams/Zoom/Meet (0.1); invite from howzit@ with .ics. Then: broker_new_booking + email, W06 booking event (first confirmation is W06's), W09 schedule/rebuild, W07 contact confirm (call methods), CAPI Send Schedule (no email). Lead sends touch last_contact_at (I-38d)."
+      }
+    },
+    {
+      "id": "n02",
+      "name": "POST /book",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "book",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "w05-book-post"
+    },
+    {
+      "id": "n03",
+      "name": "Parse + verify caller (w05.parseHttp)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nconst j = $input.first().json;\nconst h = j.headers || {};\nconst p = L.parseHttp(h, j.body || {}, $env, Date.now());\nreturn [{ json: { lane: 'http', ...p, hdr: { 'x-test-token': h['x-test-token'] || '', 'x-test-now': h['x-test-now'] || '' } } }];"
+      }
+    },
+    {
+      "id": "n04",
+      "name": "Caller ok?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.ok === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n05",
+      "name": "Guard counters (bk_ip / bk_lead)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        960,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Same pattern as W01 Context: one webhook_events row per counted /book (HMAC key, no raw IP); counts are \"before this request\".\nWITH ipc AS (\n  INSERT INTO public.webhook_events (source, external_id, received_at, signature_ok)\n  SELECT 'w01_ip', $1, now(), true WHERE $1 <> '' ON CONFLICT DO NOTHING RETURNING id),\nlc AS (\n  INSERT INTO public.webhook_events (source, external_id, received_at, signature_ok)\n  SELECT 'w01_num', $2, now(), true WHERE $2 <> '' ON CONFLICT DO NOTHING RETURNING id)\nSELECT (SELECT count(*) FROM public.webhook_events w WHERE w.source = 'w01_ip' AND $3 <> '' AND w.external_id LIKE $3 || '%' AND w.received_at > now() - interval '1 hour')::int AS ip_hits,\n       (SELECT count(*) FROM public.webhook_events v WHERE v.source = 'w01_num' AND $4 <> '' AND v.external_id LIKE $4 || '%' AND v.received_at > now() - interval '24 hours')::int AS lead_hits;",
+        "options": {
+          "queryReplacement": "={{ (() => { const g = $json.guard.applies ? $json.guard.keys : {}; return [g.ip_external_id || '', g.lead_external_id || '', g.ip_prefix || '', g.lead_prefix || '']; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n06",
+      "name": "Turnstile needed? (page, secret set, not a test hook)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($('Parse + verify caller (w05.parseHttp)').first().json.guard.turnstile_needed === true && !!$('Parse + verify caller (w05.parseHttp)').first().json.guard.turnstile_token) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n07",
+      "name": "Turnstile siteverify (book)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1440,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "secret",
+              "value": "={{ $env.TURNSTILE_SECRET_KEY }}"
+            },
+            {
+              "name": "response",
+              "value": "={{ $('Parse + verify caller (w05.parseHttp)').first().json.guard.turnstile_token }}"
+            },
+            {
+              "name": "remoteip",
+              "value": "={{ $('Parse + verify caller (w05.parseHttp)').first().json.guard.ip || '' }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 1500,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "n08",
+      "name": "Guard (w05.bookGuard)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nconst p = $('Parse + verify caller (w05.parseHttp)').first().json;\nconst cnt = $('Guard counters (bk_ip / bk_lead)').first().json;\nconst ran = $('Turnstile siteverify (book)').isExecuted;\nconst tin = ran ? ($('Turnstile siteverify (book)').first() || {}).json : null;\nconst g = L.bookGuard(p.guard, { ip_hits: cnt.ip_hits, lead_hits: cnt.lead_hits, turnstile: tin && tin.success !== undefined ? tin : null }, $env);\nreturn [{ json: g.ok ? { ...p, bot_check: g.bot_check } : { lane: 'http', ok: false, status: g.status, body: g.body, reason: g.reason } }];"
+      }
+    },
+    {
+      "id": "n09",
+      "name": "Guard passed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.ok === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n10",
+      "name": "Called by W07/W10/W17/W28",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        200
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "n11",
+      "name": "Normalise sub-call (w05.parseSub)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nreturn $input.all().map((it) => ({ json: { lane: 'sub', ok: true, req: L.parseSub(it.json || {}, $env, Date.now()), hdr: {} } }));"
+      }
+    },
+    {
+      "id": "n12",
+      "name": "Sub op?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        720,
+        200
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.req.op }}",
+                    "rightValue": "book",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "book"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.req.op }}",
+                    "rightValue": "update_method",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "update_method"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.req.op }}",
+                    "rightValue": "invite_bounced",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "invite_bounced"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.req.op }}",
+                    "rightValue": "to_w10",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "to_w10"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.req.op }}",
+                    "rightValue": "reject",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "reject"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "n13",
+      "name": "Log subcall_rejected",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        960,
+        200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, workflow, actor_type, activity_type, payload, occurred_at)\nVALUES (NULLIF($1, '')::uuid, 'W05', 'system', $3, jsonb_build_object('reason', $2::text), now()) RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$json.req.lead_id || '', $json.req.reason || 'unknown', $json.req.security ? 'flow_security_event' : 'subcall_rejected'] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n14",
+      "name": "W10 pick payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nreturn $input.all().map((it) => ({ json: it.json.req ? (it.json.req.w10 || it.json.w10) : it.json.w10 }));"
+      }
+    },
+    {
+      "id": "n15",
+      "name": "-> W10 reschedule pick",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        1440,
+        200
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w10",
+          "cachedResultName": "W10 Reschedule / cancel"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    },
+    {
+      "id": "n16",
+      "name": "Load lead, broker, replay, live booking",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1680,
+        200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- lead + its broker + idempotent replay + the lead's live booking (one round trip)\nWITH ld AS (\n  SELECT l.id, l.brand_id, l.broker_id, l.cycle_id, l.first_name, l.phone, l.email, l.email_status, l.email_purpose, l.age_band, l.budget_band,\n         l.consent_text_version, l.consent_at, l.consent_ads_at, l.origin, l.ad_id, l.ctwa_clid, l.call_number, l.method_pref, l.language,\n         l.conv_state, l.opted_out_at, l.is_synthetic\n    FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL\n), bk AS (\n  SELECT b.id, b.brand_id, b.status, b.adviser_name, b.contact_person, b.practice_name, b.firm_name, b.fsp_number, b.adviser_whatsapp, b.whatsapp_number, b.email,\n         b.methods_supported, b.meeting_hours, b.slot_minutes, b.buffer_minutes, b.min_notice_hours, b.horizon_days, b.max_meetings_per_day,\n         b.max_meetings_per_week, b.bookings_paused, b.add_client_as_attendee, b.calendar_provider, b.calendar_status, b.calendar_mode,\n         b.calendar_email, b.ms_tenant_id, b.calendar_status_at, b.calendar_status_detail, b.current_cycle_id FROM public.brokers b WHERE b.brand_id IS NOT NULL AND b.id = (SELECT ld.broker_id FROM ld)\n), byuser AS (\n  SELECT b.id FROM public.brokers b WHERE $3 <> '' AND b.user_id::text = $3 AND b.brand_id IS NOT NULL LIMIT 1\n)\nSELECT (SELECT to_jsonb(ld) FROM ld) AS lead, (SELECT to_jsonb(bk) FROM bk) AS broker, (SELECT to_jsonb(byuser) FROM byuser) AS broker_by_user,\n       (SELECT to_jsonb(e) FROM (SELECT a.id, a.appointment_date, a.ends_at, a.method, a.status, a.join_url, a.ics_url FROM public.appointments a WHERE a.idempotency_key = $2 LIMIT 1) e) AS existing,\n       (SELECT to_jsonb(v) FROM (SELECT a.id, a.appointment_date, a.ends_at, a.method, a.status FROM public.appointments a\n                                  WHERE a.client_id::text = $1 AND a.brand_id IS NOT NULL AND a.status IN ('booked','confirmed') AND a.ends_at > now()\n                                  ORDER BY a.appointment_date LIMIT 1) v) AS live;",
+        "options": {
+          "queryReplacement": "={{ [$json.req.lead_id || '', $json.req.idempotency_key || '', $json.mode === 'broker' ? ($json.user_id || '') : ''] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n17",
+      "name": "Decide (w05.decide + MX)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nconst dns = require('dns').promises;\nconst x = $('Load lead, broker, replay, live booking').first().json;\nconst c = $input.first().json.req ? $input.first().json : ($('Parse + verify caller (w05.parseHttp)').isExecuted ? $('Parse + verify caller (w05.parseHttp)').first().json : $('Normalise sub-call (w05.parseSub)').first().json);\nconst wall = Date.now();\nconst now = L.clockFor(c.hdr || {}, $env, !!(x.lead && x.lead.is_synthetic), wall);\nconst mx = {};\nconst d = L.emailDomain(c.req.email || (x.lead && x.lead.email) || '');\nif (d) { try { const r = await Promise.race([dns.resolveMx(d), new Promise((_, rj) => setTimeout(() => rj(new Error('t')), 300))]); mx[d] = Array.isArray(r) && r.length > 0; } catch (e) { mx[d] = false; } }\nconst ctx = { lane: c.lane, mode: c.mode, req: c.req, lead: x.lead, broker: x.broker, broker_by_user: x.broker_by_user, existing: x.existing, live: x.live, mx, now, test_clock: now !== wall };\nconst dec = L.decide(ctx);\nreturn [{ json: { ctx, dec, action: dec.action, lane: c.lane, status: dec.status, body: dec.body, wa: dec.wa || null, to: 'lead', lead_id: x.lead ? x.lead.id : null, w10: dec.w10 || null } }];"
+      }
+    },
+    {
+      "id": "n18",
+      "name": "Decision?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        240,
+        400
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "respond",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "respond"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "replay",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "replay"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "message",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "message"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "to_w10",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "to_w10"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "stop",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "stop"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "check",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "check"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "n19",
+      "name": "is_free input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nreturn [{ json: $input.first().json.dec.is_free }];"
+      }
+    },
+    {
+      "id": "n20",
+      "name": "W04 is_free (re-check, waits)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        400
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w04",
+          "cachedResultName": "W04 Slots API"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "n21",
+      "name": "After re-check (w05.afterCheck)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nconst d = $('Decide (w05.decide + MX)').first().json;\nconst r = L.afterCheck(d.ctx, d.dec, $input.first().json);\nreturn [{ json: { ...d, check: r, action: r.action, status: r.status, body: r.body, wa: r.wa || null, row: r.row || null } }];"
+      }
+    },
+    {
+      "id": "n22",
+      "name": "Free?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.action === 'insert') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n23",
+      "name": "Insert appointment (re-check overlap + buffer, idempotent)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1440,
+        400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Zero double-bookings: the overlap+buffer re-check and the insert are ONE statement. appointments_smc_no_overlap (gist),\n-- appointments_smc_no_double_booking and appointments_smc_idem_uidx are the last line of defence: ON CONFLICT DO NOTHING\n-- turns any of them into \"no row\", and the re-select below decides replay (same key) or taken (next 3).\nINSERT INTO public.appointments (client_id, broker_id, brand_id, cycle_id, appointment_date, ends_at, method, status, calendar_provider, booked_via, booked_at, idempotency_key, previous_booking_id, call_number, invite_email_status, schedule_event_id)\nSELECT $1::uuid, $2::uuid, $3::uuid, NULLIF($4, '')::uuid, $5::timestamptz, $6::timestamptz, $7, 'booked', $8, $9, now(), $10, NULLIF($11, '')::uuid, NULLIF($12, ''), NULLIF($13, ''), NULLIF($14, '')\n WHERE NOT EXISTS (\n   SELECT 1 FROM public.appointments x\n    WHERE x.broker_id = $2::uuid AND x.brand_id IS NOT NULL AND x.status IN ('booked','confirmed')\n      AND tstzrange(x.appointment_date - make_interval(mins => $15::int), x.ends_at + make_interval(mins => $15::int), '[)')\n          && tstzrange($5::timestamptz, $6::timestamptz, '[)'))\nON CONFLICT DO NOTHING\nRETURNING id, client_id, broker_id, cycle_id, appointment_date, ends_at, method, status, booked_at, booked_via, idempotency_key;",
+        "options": {
+          "queryReplacement": "={{ (() => { const r = $json.row; const b = $json.ctx.broker || {}; return [r.client_id, r.broker_id, r.brand_id, r.cycle_id || '', r.appointment_date, r.ends_at, r.method, r.calendar_provider, r.booked_via, r.idempotency_key, r.previous_booking_id || '', r.call_number || '', r.invite_email_status || '', r.schedule_event_id || '', b.buffer_minutes == null ? 15 : b.buffer_minutes]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "n24",
+      "name": "Inserted?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$json.id) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n25",
+      "name": "Re-select by idempotency key",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        600
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT (SELECT to_jsonb(e) FROM (SELECT a.id, a.appointment_date, a.ends_at, a.method, a.status, a.join_url, a.ics_url FROM public.appointments a WHERE a.idempotency_key = $1 LIMIT 1) e) AS existing;",
+        "options": {
+          "queryReplacement": "={{ [$('After re-check (w05.afterCheck)').first().json.row.idempotency_key] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n26",
+      "name": "Lost the race: replay or next 3",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nconst d = $('After re-check (w05.afterCheck)').first().json;\nconst ex = $input.first().json.existing;\nif (ex) return [{ json: { ...d, action: 'replay', status: 201, body: L.publicBody(ex), wa: null } }];\nconst t = L.taken(d.ctx, d.dec.plan, []);\nreturn [{ json: { ...d, action: 'taken', status: 409, body: t.body, wa: t.wa || null } }];"
+      }
+    },
+    {
+      "id": "n27",
+      "name": "Broker calendar (graph)?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        480,
+        600
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($('Decide (w05.decide + MX)').first().json.dec.plan.route === 'graph') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n28",
+      "name": "graph_token input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nreturn [{ json: { op: 'graph_token', broker_id: $('Decide (w05.decide + MX)').first().json.dec.plan.broker_id } }];"
+      }
+    },
+    {
+      "id": "n29",
+      "name": "W04 graph_token (waits)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        600
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w04",
+          "cachedResultName": "W04 Slots API"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "n30",
+      "name": "Event body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nconst d = $('Decide (w05.decide + MX)').first().json;\nreturn [{ json: { access_token: $input.first().json.access_token || '', event: L.graphEvent(d.ctx, d.dec.plan, { portalUrl: $env.PORTAL_URL }) } }];"
+      }
+    },
+    {
+      "id": "n31",
+      "name": "Graph create event (broker calendar, ASSUMPTION)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1440,
+        600
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.microsoft.com/v1.0/me/events",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            },
+            {
+              "name": "Prefer",
+              "value": "outlook.timezone=\"Africa/Johannesburg\""
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Event body').first().json.event) }}",
+        "options": {
+          "timeout": 8000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n32",
+      "name": "Event body (shared)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nconst d = $('Decide (w05.decide + MX)').first().json;\nreturn [{ json: L.sharedEventItem(d.ctx, d.dec.plan, { HOWZIT_MAILBOX: $env.HOWZIT_MAILBOX, SMC_SHARED_CALENDAR_ID: $env.SMC_SHARED_CALENDAR_ID }, { portalUrl: $env.PORTAL_URL }) }];"
+      }
+    },
+    {
+      "id": "n33",
+      "name": "Shared calendar id?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        0,
+        800
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!$json.error && !!$json.url) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n34",
+      "name": "Graph create event (howzit@ shared calendar, ASSUMPTION)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        800
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "microsoftOutlookOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.event) }}",
+        "options": {
+          "timeout": 8000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "",
+          "name": "Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n35",
+      "name": "After event (w05.finish)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nconst d = $('Decide (w05.decide + MX)').first().json;\nconst row = $('Insert appointment (re-check overlap + buffer, idempotent)').first().json;\nconst ev = L.afterEvent($input.first().json);\nconst f = L.finish(d.ctx, d.dec.plan, row, ev, { site: $env.SITE_URL, ics_secret: $env.LEAD_TOKEN_SECRET });\nreturn [{ json: { ...d, booking: row, ev, f, lane: d.lane, status: f.response.status, body: f.response.body } }];"
+      }
+    },
+    {
+      "id": "n36",
+      "name": "Save event ids + lead (stage, broker, cycle, invite email)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        720,
+        800
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH a AS (\n  UPDATE public.appointments\n     SET graph_event_id = NULLIF($2, ''), ical_uid = NULLIF($3, ''), join_url = NULLIF($4, ''), ics_url = $5,\n         invite_email_status = NULLIF($6, ''), schedule_event_id = NULLIF($7, ''), updated_at = now()\n   WHERE id = $1::uuid\n  RETURNING client_id)\nUPDATE public.leads l\n   SET stage = 'booked', stage_entered_at = now(), broker_id = $8::uuid, cycle_id = NULLIF($9, '')::uuid,\n       email = CASE WHEN $10 <> '' THEN $10 ELSE l.email END,\n       email_status = CASE WHEN $10 <> '' THEN $11 ELSE l.email_status END,\n       email_purpose = CASE WHEN $10 <> '' THEN 'meeting_invite' ELSE l.email_purpose END,\n       updated_at = now()\n  FROM a WHERE l.id = a.client_id\nRETURNING l.id;",
+        "options": {
+          "queryReplacement": "={{ (() => { const f = $json.f; const u = f.appointment_update; const lu = f.lead_update; return [$json.booking.id, u.graph_event_id || '', u.ical_uid || '', u.join_url || '', u.ics_url, u.invite_email_status || '', u.schedule_event_id || '', lu.broker_id, lu.cycle_id || '', lu.email || '', lu.email_status || '']; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n37",
+      "name": "Timeline: booked",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        960,
+        800
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, NULLIF($2, '')::uuid, $3::uuid, NULLIF($4, '')::uuid, 'W05', 'lead', 'booking_created', jsonb_build_object('booking_id', $5::text, 'start', $6::text, 'method', $7::text, 'booked_via', $8::text, 'graph_event', $9::boolean), now(), 'w05:booked:' || $5)\nON CONFLICT (idempotency_key) DO NOTHING RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ (() => { const d = $('After event (w05.finish)').first().json; const p = d.dec.plan; return [p.lead_id, (d.ctx.lead || {}).brand_id || '', p.broker_id, d.booking.cycle_id || '', d.booking.id, p.start, p.method, p.booked_via, !!d.ev.ok]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n38",
+      "name": "Answer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nconst j = $input.first().json;\nconst src = j.f ? j : ($('After event (w05.finish)').isExecuted ? $('After event (w05.finish)').first().json : j);\nreturn [{ json: { lane: src.lane, status: src.status || 200, body: src.body || {}, wa: src.wa || null, to: 'lead', lead_id: src.lead_id || (src.ctx && src.ctx.lead && src.ctx.lead.id) || null, f: src.f || null } }];"
+      }
+    },
+    {
+      "id": "n39",
+      "name": "HTTP lane?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        800
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.lane === 'http') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n40",
+      "name": "Respond (book JSON)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1680,
+        800
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "responseCode": "={{ $json.status }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "n41",
+      "name": "Fan out effects",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1000
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nconst j = $input.first().json;\nconst out = [];\nif (j.wa) out.push({ kind: 'wa', to: 'lead', lead_id: j.lead_id, wa: j.wa });\nconst f = j.f; if (!f) return out.map((x) => ({ json: x }));\nif (f.invite) out.push({ kind: 'mail', mail: { message: f.invite.message, saveToSentItems: true } });\nif (f.broker.email) out.push({ kind: 'mail', mail: { message: { subject: f.broker.email.subject, body: { contentType: 'Text', content: f.broker.email.body }, toRecipients: [{ emailAddress: { address: f.broker.email.to } }] }, saveToSentItems: true } });\nif (f.broker.wa) out.push({ kind: 'wa', to: 'broker', lead_id: j.lead_id, wa: f.broker.wa });\nif (f.lead_wa) out.push({ kind: 'wa', to: 'lead', lead_id: j.lead_id, wa: f.lead_wa });\nfor (const k of ['w06', 'w09', 'w07', 'capi', 'ask_email', 'alert']) if (f[k]) out.push({ kind: k, ...f[k] });\nreturn out.map((x) => ({ json: x }));"
+      }
+    },
+    {
+      "id": "n42",
+      "name": "Effect?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        240,
+        1000
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "wa",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "wa"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "mail",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "mail"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "w06",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "w06"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "w09",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "w09"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "w07",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "w07"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "capi",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "capi"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "ask_email",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "ask_email"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "alert",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "alert"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "n43",
+      "name": "Live send?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        480,
+        1000
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$json.wa && $env.DRY_RUN_SENDS !== 'true') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n44",
+      "name": "Send WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        1000
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION }}/{{ $env.PHONE_NUMBER_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.META_SYSTEM_USER_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.wa) }}",
+        "options": {
+          "timeout": 8000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n45",
+      "name": "Touch leads.last_contact_at (lead sends)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        960,
+        1000
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- I-38d: every lead-facing send Meta accepted (wamid) updates last_contact_at; broker sends never.\nUPDATE public.leads SET last_contact_at = now() WHERE id = $1::uuid AND $2 = 'lead' AND $3 <> '' RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$('Live send?').item.json.lead_id, $('Live send?').item.json.to, (($json.body || {}).messages || [{}])[0].id || ''] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n46",
+      "name": "Email from howzit@ (Graph sendMail)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        1000
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.microsoft.com/v1.0/users/{{ encodeURIComponent($env.HOWZIT_MAILBOX) }}/sendMail",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "microsoftOutlookOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.mail) }}",
+        "options": {
+          "timeout": 8000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "",
+          "name": "Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n47",
+      "name": "-> W06 First touch (booking event)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        1440,
+        1000
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w06",
+          "cachedResultName": "W06 First touch"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    },
+    {
+      "id": "n48",
+      "name": "-> W09 Reminder sequence (schedule / rebuild)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        1680,
+        1000
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w09",
+          "cachedResultName": "W09 Reminder sequence"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    },
+    {
+      "id": "n49",
+      "name": "-> W07 post-booking contact confirm",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        1200
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w07",
+          "cachedResultName": "W07 Conversation agent (Thandi)"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    },
+    {
+      "id": "n50",
+      "name": "-> CAPI Send (Schedule, no email)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        1200
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-capi-send",
+          "cachedResultName": "CAPI Send"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    },
+    {
+      "id": "n51",
+      "name": "-> W28 ask_email",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        1200
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w28",
+          "cachedResultName": "W28 Booking Flow endpoint"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    },
+    {
+      "id": "n52",
+      "name": "-> W22 Alerts",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        1200
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w22",
+          "cachedResultName": "W22 Alerts"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    },
+    {
+      "id": "n53",
+      "name": "GET /c/:booking_id (.ics)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        960,
+        1200
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "c/:booking_id",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "w05-ics-get"
+    },
+    {
+      "id": "n54",
+      "name": "Verify .ics caller (w05.parseIcsRequest)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        1200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nconst j = $input.first().json;\nconst r = L.parseIcsRequest({ headers: j.headers || {}, params: j.params || {}, query: j.query || {} }, $env, Date.now());\nreturn [{ json: r }];"
+      }
+    },
+    {
+      "id": "n55",
+      "name": ".ics caller ok?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        1200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.ok === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n56",
+      "name": "Load booking for .ics (id only, no lead PII)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1680,
+        1200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- I-45j: only the columns the invite already carries; nothing from the leads table is selected.\nSELECT (SELECT to_jsonb(k) FROM (SELECT a.id, a.client_id, a.appointment_date, a.ends_at, a.method, a.status, a.join_url, a.booked_at FROM public.appointments a WHERE a.id::text = $1 AND a.brand_id IS NOT NULL) k) AS booking,\n       (SELECT COALESCE(b.adviser_name, b.contact_person) FROM public.brokers b JOIN public.appointments a ON a.broker_id = b.id WHERE a.id::text = $1) AS adviser;",
+        "options": {
+          "queryReplacement": "={{ [$json.booking_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n57",
+      "name": "Build .ics (w05.icsResponse)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nconst c = $('Verify .ics caller (w05.parseIcsRequest)').first().json;\nconst x = $input.first().json;\nreturn [{ json: L.icsResponse(x.booking, { adviser: x.adviser || '', caller: c }) }];"
+      }
+    },
+    {
+      "id": "n58",
+      "name": ".ics not found (404)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        1400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nreturn [{ json: { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }, body: 'not found' } }];"
+      }
+    },
+    {
+      "id": "n59",
+      "name": "Respond (.ics)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        1400
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.body }}",
+        "options": {
+          "responseCode": "={{ $json.status }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "={{ $json.headers[\"Content-Type\"] }}"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              },
+              {
+                "name": "Content-Disposition",
+                "value": "={{ $json.headers[\"Content-Disposition\"] || \"inline\" }}"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "n60",
+      "name": "Load booking for method change",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        720,
+        1400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT (SELECT to_jsonb(k) FROM (SELECT a.id, a.client_id, a.broker_id, a.appointment_date, a.ends_at, a.method, a.status, a.graph_event_id, a.calendar_provider, a.idempotency_key, a.booked_via FROM public.appointments a WHERE a.id::text = $1) k) AS booking,\n       (SELECT to_jsonb(q) FROM (SELECT l.id, l.first_name, l.phone, l.email, l.email_status, l.email_purpose, l.age_band, l.budget_band, l.consent_text_version, l.consent_at, l.origin, l.ad_id, l.call_number, l.language, l.brand_id FROM public.leads l JOIN public.appointments a ON a.client_id = l.id WHERE a.id::text = $1) q) AS lead,\n       (SELECT to_jsonb(r) FROM (SELECT b.id, b.brand_id, b.status, b.adviser_name, b.contact_person, b.practice_name, b.firm_name, b.fsp_number, b.adviser_whatsapp, b.whatsapp_number, b.email,\n         b.methods_supported, b.meeting_hours, b.slot_minutes, b.buffer_minutes, b.min_notice_hours, b.horizon_days, b.max_meetings_per_day,\n         b.max_meetings_per_week, b.bookings_paused, b.add_client_as_attendee, b.calendar_provider, b.calendar_status, b.calendar_mode,\n         b.calendar_email, b.ms_tenant_id, b.calendar_status_at, b.calendar_status_detail, b.current_cycle_id FROM public.brokers b JOIN public.appointments a ON a.broker_id = b.id WHERE a.id::text = $1) r) AS broker;",
+        "options": {
+          "queryReplacement": "={{ [$json.req.booking_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n61",
+      "name": "Plan method change (w05.planUpdateMethod)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        1400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nconst x = $input.first().json;\nconst req = $('Normalise sub-call (w05.parseSub)').first().json.req;\nconst p = L.planUpdateMethod({ req, booking: x.booking, lead: x.lead, broker: x.broker, now: Date.now() });\nconst invite = p.action === 'patch' ? L.inviteMail({ lead: x.lead, broker: x.broker }, p.plan, x.booking, {}) : null;\nreturn [{ json: { ...p, booking: x.booking, ask: p.ask_email || null, mail: invite ? { message: invite.message, saveToSentItems: true } : null, kind: p.action } }];"
+      }
+    },
+    {
+      "id": "n62",
+      "name": "Method plan?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1200,
+        1400
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "patch",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "patch"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "ask_email",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "ask_email"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "reject",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "reject"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "n63",
+      "name": "Method calendar target (w05.graphEventTarget)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        1400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nconst x = $('Plan method change (w05.planUpdateMethod)').first().json;\nconst t = L.graphEventTarget(x.booking, x.broker, { HOWZIT_MAILBOX: $env.HOWZIT_MAILBOX, SMC_SHARED_CALENDAR_ID: $env.SMC_SHARED_CALENDAR_ID });\nreturn [{ json: { target: t, route: t.error || t.route === 'none' ? 'skip' : t.route, broker_id: x.booking.broker_id } }];"
+      }
+    },
+    {
+      "id": "n64",
+      "name": "Method event calendar?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1680,
+        1400
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "shared",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "shared"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "broker",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "broker"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "skip",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "skip"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "n65",
+      "name": "Graph PATCH event (method, howzit@ shared calendar)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        1600
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $('Method calendar target (w05.graphEventTarget)').first().json.target.url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "microsoftOutlookOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Plan method change (w05.planUpdateMethod)').first().json.graph_patch) }}",
+        "options": {
+          "timeout": 8000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "",
+          "name": "Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n66",
+      "name": "graph_token input (method)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        1600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nreturn [{ json: { op: 'graph_token', broker_id: $json.broker_id } }];"
+      }
+    },
+    {
+      "id": "n67",
+      "name": "W04 graph_token (method, waits)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        1600
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w04",
+          "cachedResultName": "W04 Slots API"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "n68",
+      "name": "Graph PATCH event (method, ASSUMPTION)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        1600
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $('Method calendar target (w05.graphEventTarget)').first().json.target.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Plan method change (w05.planUpdateMethod)').first().json.graph_patch) }}",
+        "options": {
+          "timeout": 8000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n69",
+      "name": "Save method",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        960,
+        1600
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.appointments SET method = $2, call_number = NULLIF($3, ''), invite_email_status = $4, join_url = CASE WHEN $2 IN ('teams','zoom','meet') THEN join_url ELSE NULL END, updated_at = now() WHERE id = $1::uuid RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ (() => { const p = $('Plan method change (w05.planUpdateMethod)').first().json; return [p.booking.id, p.appointment_update.method, p.appointment_update.call_number || '', p.appointment_update.invite_email_status]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n70",
+      "name": "Method invite?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        1600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nconst p = $('Plan method change (w05.planUpdateMethod)').first().json;\nreturn p.mail ? [{ json: { kind: 'mail', mail: p.mail } }] : [];"
+      }
+    },
+    {
+      "id": "n71",
+      "name": "ask_email input (method)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        1600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nreturn [{ json: $json.ask }];"
+      }
+    },
+    {
+      "id": "n72",
+      "name": "Mark invite bounced",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1680,
+        1600
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH l AS (\n  UPDATE public.leads SET email_status = 'bounced', updated_at = now()\n   WHERE lower(email) = $1 AND email_purpose = 'meeting_invite' AND brand_id IS NOT NULL\n  RETURNING id, email, phone, language, first_name)\nSELECT l.id, l.email, l.phone, l.language, l.first_name, bk.method, bk.adviser_name,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'inbound') AS last_inbound_at\n  FROM l\n  LEFT JOIN LATERAL (\n    SELECT a.method, COALESCE(b.adviser_name, b.contact_person) AS adviser_name\n      FROM public.appointments a JOIN public.brokers b ON b.id = a.broker_id\n     WHERE a.client_id = l.id AND ($2 = '' OR a.id::text = $2)\n     ORDER BY a.appointment_date DESC\n     LIMIT 1) bk ON true;",
+        "options": {
+          "queryReplacement": "={{ [$json.req.recipient || '', $json.req.booking_id || ''] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n73",
+      "name": "Bounce prompt (w05.bounceEffect)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nreturn $input.all().filter((it) => it.json.id).map((it) => L.bounceEffect(it.json, { now: Date.now(), last_inbound_ms: Date.parse(it.json.last_inbound_at || '') }).send).filter(Boolean).map((send) => ({ json: send }));"
+      }
+    },
+    {
+      "id": "n74",
+      "name": "-> WhatsApp Send (invite bounce)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        1800
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    },
+    {
+      "id": "545c4f0b-e64f-22c9-e646-9e2289cbc433",
+      "name": "Live send? (Email from howzit@ (Graph sendMail))",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        1000
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $env.DRY_RUN_SENDS !== 'true' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "09d7a4ce-8d62-0463-8ce0-9a96b9571edc",
+      "name": "Dry-run stub (Email from howzit@ (Graph sendMail))",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        1160
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// DRY_RUN_SENDS=true: nothing leaves the box (email). Pass the input on with a fake 2xx so downstream logging still runs.\nreturn $input.all().map((i, n) => ({ json: { ...i.json, dry_run: true, statusCode: 200, body: { messages: [{ id: 'dry:' + n }] } } }));"
+      }
+    }
+  ],
+  "connections": {
+    "POST /book": {
+      "main": [
+        [
+          {
+            "node": "Parse + verify caller (w05.parseHttp)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse + verify caller (w05.parseHttp)": {
+      "main": [
+        [
+          {
+            "node": "Caller ok?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Caller ok?": {
+      "main": [
+        [
+          {
+            "node": "Guard counters (bk_ip / bk_lead)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guard counters (bk_ip / bk_lead)": {
+      "main": [
+        [
+          {
+            "node": "Turnstile needed? (page, secret set, not a test hook)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Turnstile needed? (page, secret set, not a test hook)": {
+      "main": [
+        [
+          {
+            "node": "Turnstile siteverify (book)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Guard (w05.bookGuard)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Turnstile siteverify (book)": {
+      "main": [
+        [
+          {
+            "node": "Guard (w05.bookGuard)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guard (w05.bookGuard)": {
+      "main": [
+        [
+          {
+            "node": "Guard passed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guard passed?": {
+      "main": [
+        [
+          {
+            "node": "Load lead, broker, replay, live booking",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Called by W07/W10/W17/W28": {
+      "main": [
+        [
+          {
+            "node": "Normalise sub-call (w05.parseSub)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise sub-call (w05.parseSub)": {
+      "main": [
+        [
+          {
+            "node": "Sub op?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sub op?": {
+      "main": [
+        [
+          {
+            "node": "Load lead, broker, replay, live booking",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Load booking for method change",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark invite bounced",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "W10 pick payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log subcall_rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W10 pick payload": {
+      "main": [
+        [
+          {
+            "node": "-> W10 reschedule pick",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load lead, broker, replay, live booking": {
+      "main": [
+        [
+          {
+            "node": "Decide (w05.decide + MX)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide (w05.decide + MX)": {
+      "main": [
+        [
+          {
+            "node": "Decision?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decision?": {
+      "main": [
+        [
+          {
+            "node": "Answer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Answer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Answer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "W10 pick payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log subcall_rejected",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "is_free input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "is_free input": {
+      "main": [
+        [
+          {
+            "node": "W04 is_free (re-check, waits)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W04 is_free (re-check, waits)": {
+      "main": [
+        [
+          {
+            "node": "After re-check (w05.afterCheck)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "After re-check (w05.afterCheck)": {
+      "main": [
+        [
+          {
+            "node": "Free?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Free?": {
+      "main": [
+        [
+          {
+            "node": "Insert appointment (re-check overlap + buffer, idempotent)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert appointment (re-check overlap + buffer, idempotent)": {
+      "main": [
+        [
+          {
+            "node": "Inserted?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inserted?": {
+      "main": [
+        [
+          {
+            "node": "Broker calendar (graph)?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Re-select by idempotency key",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-select by idempotency key": {
+      "main": [
+        [
+          {
+            "node": "Lost the race: replay or next 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lost the race: replay or next 3": {
+      "main": [
+        [
+          {
+            "node": "Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Broker calendar (graph)?": {
+      "main": [
+        [
+          {
+            "node": "graph_token input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Event body (shared)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "graph_token input": {
+      "main": [
+        [
+          {
+            "node": "W04 graph_token (waits)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W04 graph_token (waits)": {
+      "main": [
+        [
+          {
+            "node": "Event body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Event body": {
+      "main": [
+        [
+          {
+            "node": "Graph create event (broker calendar, ASSUMPTION)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graph create event (broker calendar, ASSUMPTION)": {
+      "main": [
+        [
+          {
+            "node": "After event (w05.finish)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Event body (shared)": {
+      "main": [
+        [
+          {
+            "node": "Shared calendar id?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shared calendar id?": {
+      "main": [
+        [
+          {
+            "node": "Graph create event (howzit@ shared calendar, ASSUMPTION)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "After event (w05.finish)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graph create event (howzit@ shared calendar, ASSUMPTION)": {
+      "main": [
+        [
+          {
+            "node": "After event (w05.finish)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "After event (w05.finish)": {
+      "main": [
+        [
+          {
+            "node": "Save event ids + lead (stage, broker, cycle, invite email)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save event ids + lead (stage, broker, cycle, invite email)": {
+      "main": [
+        [
+          {
+            "node": "Timeline: booked",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Timeline: booked": {
+      "main": [
+        [
+          {
+            "node": "Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Answer": {
+      "main": [
+        [
+          {
+            "node": "HTTP lane?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP lane?": {
+      "main": [
+        [
+          {
+            "node": "Respond (book JSON)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fan out effects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond (book JSON)": {
+      "main": [
+        [
+          {
+            "node": "Fan out effects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fan out effects": {
+      "main": [
+        [
+          {
+            "node": "Effect?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Effect?": {
+      "main": [
+        [
+          {
+            "node": "Live send?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Live send? (Email from howzit@ (Graph sendMail))",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> W06 First touch (booking event)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> W09 Reminder sequence (schedule / rebuild)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> W07 post-booking contact confirm",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> CAPI Send (Schedule, no email)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> W28 ask_email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> W22 Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Live send?": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Touch leads.last_contact_at (lead sends)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load booking for method change": {
+      "main": [
+        [
+          {
+            "node": "Plan method change (w05.planUpdateMethod)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan method change (w05.planUpdateMethod)": {
+      "main": [
+        [
+          {
+            "node": "Method plan?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Method plan?": {
+      "main": [
+        [
+          {
+            "node": "Method calendar target (w05.graphEventTarget)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ask_email input (method)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log subcall_rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Method calendar target (w05.graphEventTarget)": {
+      "main": [
+        [
+          {
+            "node": "Method event calendar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Method event calendar?": {
+      "main": [
+        [
+          {
+            "node": "Graph PATCH event (method, howzit@ shared calendar)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "graph_token input (method)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save method",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graph PATCH event (method, howzit@ shared calendar)": {
+      "main": [
+        [
+          {
+            "node": "Save method",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "graph_token input (method)": {
+      "main": [
+        [
+          {
+            "node": "W04 graph_token (method, waits)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W04 graph_token (method, waits)": {
+      "main": [
+        [
+          {
+            "node": "Graph PATCH event (method, ASSUMPTION)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graph PATCH event (method, ASSUMPTION)": {
+      "main": [
+        [
+          {
+            "node": "Save method",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save method": {
+      "main": [
+        [
+          {
+            "node": "Method invite?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Method invite?": {
+      "main": [
+        [
+          {
+            "node": "Live send? (Email from howzit@ (Graph sendMail))",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ask_email input (method)": {
+      "main": [
+        [
+          {
+            "node": "-> W28 ask_email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET /c/:booking_id (.ics)": {
+      "main": [
+        [
+          {
+            "node": "Verify .ics caller (w05.parseIcsRequest)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify .ics caller (w05.parseIcsRequest)": {
+      "main": [
+        [
+          {
+            "node": ".ics caller ok?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    ".ics caller ok?": {
+      "main": [
+        [
+          {
+            "node": "Load booking for .ics (id only, no lead PII)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": ".ics not found (404)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load booking for .ics (id only, no lead PII)": {
+      "main": [
+        [
+          {
+            "node": "Build .ics (w05.icsResponse)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build .ics (w05.icsResponse)": {
+      "main": [
+        [
+          {
+            "node": "Respond (.ics)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    ".ics not found (404)": {
+      "main": [
+        [
+          {
+            "node": "Respond (.ics)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark invite bounced": {
+      "main": [
+        [
+          {
+            "node": "Bounce prompt (w05.bounceEffect)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bounce prompt (w05.bounceEffect)": {
+      "main": [
+        [
+          {
+            "node": "-> WhatsApp Send (invite bounce)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Live send? (Email from howzit@ (Graph sendMail))": {
+      "main": [
+        [
+          {
+            "node": "Email from howzit@ (Graph sendMail)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dry-run stub (Email from howzit@ (Graph sendMail))",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry-run stub (Email from howzit@ (Graph sendMail))": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "saveManualExecutions": false,
+    "saveDataSuccessExecution": "none",
+    "errorWorkflow": "smc-w22"
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "booking"
+    },
+    {
+      "name": "core"
+    },
+    {
+      "name": "draft"
+    }
+  ],
+  "meta": {
+    "notes": "automation-engineer. W05 book; logic automation/lib/w05.mjs (+ lib/w04.mjs via the W04 sub-workflow); tests automation/tests/W05.test.mjs. Callers bind by id smc-w05 (name kept as cachedResultName only)."
+  }
+}

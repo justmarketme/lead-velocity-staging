@@ -1,0 +1,68 @@
+# Section 7 status — go-live checklist, line by line
+
+Generated 2026-10-03 by compliance-qa from `node scripts/readiness.mjs` and `build/gates-batch.md`. Not committed.
+
+**Script result: green 0 · amber 18 · red 10 · "Go live blocked".** Nothing here is marked green because the script marks nothing green. "Amber (ready to provision)" on S7-26 is amber.
+
+**Proposed, not confirmed:** NH-61 (Paystack and FNB inContact last; manual EFT marked paid by one tap). Jonathan has not confirmed it. Rows it touches say "proposed". Until he confirms, the Paystack steps stay on the launch path as written in 0.1.
+
+Tags: [build] = offline, can be done now · [Jonathan] = a gate or decision from you · [clock] = external wait (Meta, DNS, banks, regulators) · [live] = a live run, possible only after a gate or clock clears.
+
+## Summary
+
+| Tag | Steps |
+|---|---|
+| [build] offline, can be done now | 14 |
+| [Jonathan] gate or decision | 46 |
+| [clock] external wait | 9 |
+| [live] live run after a gate | 49 |
+
+Steps the build will do next (all offline):
+
+- S7-02: review favicon check page in light and dark and log it
+- S7-03: test that confirm / alternate number / best-time taps land in the pre-call brief
+- S7-05: axe accessibility pass on page, portal, console (local)
+- S7-05: put quarterly drills on the schedule
+- S7-06: wire the 24/72-hour nudges from W20 and test on local staging
+- S7-07: generate W14 from the synthetic cycle (local)
+- S7-07: check WhatsApp 6-liner, Reports tab and email show the same numbers
+- S7-07: test the one-ask button
+- S7-08: test alert quiet hours, de-duplication and escalation with synthetic alerts
+- S7-08: test that Approve on a proposal creates a task
+- S7-09: test that Approve creates a task
+- S7-17: compliance-qa sign-off, only after the live run is clean
+- S7-25: stop the price check flagging report files and signed documents (NH-18d default)
+- S7-28: run the breach drill as a desk exercise and log it
+
+## The 28 lines
+
+| Line | Status now | Already proven offline | Exact remaining steps |
+|---|---|---|---|
+| S7-01 Ads ready (15 concepts, 3 ratios) | amber | 15 concepts listed; assets exist in all 3 ratios | [Jonathan: NH-35] approve the 15 concepts after compliance-qa check (phone review sheet) · [Jonathan: GATE-ADS-APPROVE-3] first 3 ads approved by Meta · [live] all ads approved by Meta and paused at R0 (W21 sync) |
+| S7-02 Brand and trust pages | amber | Brand bible v1 + tokens; 8+ logo SVGs; favicon set + light/dark check page | [build] review favicon check page in light and dark and log it · [Jonathan: GATE-DOMAINS] buy domains (you asked to defer; relayed, not confirmed) · [Jonathan: GATE-DNS] DNS records · [clock: DNS propagation] · [live] brand bible reachable at /brand/ · [live] About / How we make money / Privacy / Complaints return 200 |
+| S7-03 Lead intake and checks | amber | W01 and W05 tests pass; W01 workflow built (7 of 11 checks) | [build] test that confirm / alternate number / best-time taps land in the pre-call brief · [Jonathan: GATE-CLOUD-ENV] Twilio keys and Lookup switch on · [Jonathan: GATE-CLOUD-ENV] email-check switch on · [live] bounced-address correction test arrives on WhatsApp |
+| S7-04 Facts and Ask-the-data | amber | Facts schema; metric dictionary; 20 questions scripted | [Jonathan: NH-15 / NH-11] approve migrations on the staging database · [live] synthetic cycle in the facts views · [live] 20 of 20 questions pass on that database · [live] 7 or more watchlist tiles show real values · [live] first pulse row carries business_line |
+| S7-05 Quality, access, email security | amber | Eval gate dry run; golden set 200+; gate wired into the unattended check (17 of 25) | [build] axe accessibility pass on page, portal, console (local) · [build] put quarterly drills on the schedule · [Jonathan: GATE-CLOUD-ENV] Turnstile bot-protection secret · [Jonathan: GATE-USABILITY] five test people (names) · [clock: DNS propagation] DKIM + DMARC verified · [live] day-in-the-life rehearsal on production URLs · [live] CPL tile pinned for 14 days |
+| S7-06 Broker video and portal explainer | amber | Script → record → approve flow; FAIS gate on scripts; AI check, captions, W23 pipeline | [build] wire the 24/72-hour nudges from W20 and test on local staging · [Jonathan: NH-51] pick the explainer voice, then URL goes in env · [Jonathan: NH-24b] a consenting real person for the example clip · [live] record step tested on iOS and on Android (real phones) · [live] WhatsApp-capture path tested end to end |
+| S7-07 Broker report | amber | W14 built and tested; report email test passes | [build] generate W14 from the synthetic cycle (local) · [build] check WhatsApp 6-liner, Reports tab and email show the same numbers · [build] test the one-ask button · [Jonathan: GATE-CLOUD-ENV] Anthropic key for the W33 report rubric |
+| S7-08 Today screen and ops alerts | amber | Today screen with 11 tiles; W22 built | [build] test alert quiet hours, de-duplication and escalation with synthetic alerts · [build] test that Approve on a proposal creates a task · [clock: template review] 7 ops templates approved · [live] Today screen live on the console |
+| S7-09 Daily pulse and judge | amber | W32 and W33 built; W32 test passes | [build] test that Approve creates a task · [Jonathan: NH-15] migration approval so SLOs and limits can be seeded · [live] schedule W32 06:30 and W33 · [live] first pulse and first weekly memo generated |
+| S7-10 Public comment replies | amber | W30 and W31 built; hide words, rules, reply corpus, SLA measurement | [Jonathan: GATE-HIDE-WORDS] approve hide-word list · [Jonathan: GATE-META-PAGE-IG] Page and IG ids · [live] W30/W31 subscribed and replying · [live] first 50 replies reviewed · [live] reply SLA dashboard green on synthetic comments (needs the ids first) |
+| S7-11 Pixel and audiences | red | CAPI test passes; pixel code exists | [Jonathan: GATE-PIXEL] Pixel, domain verification, CAPI token · [clock: Meta Business Verification] portfolio verified · [live] domain verified; event priority; EMQ 6 or more (NH-MO-08b: may stay lower, email is excluded by 0.1) · [live] exclusion and engagement audiences created |
+| S7-12 Facebook Page and Instagram | red | W27 built; profile and cover exports | [Jonathan: GATE-META-PAGE-IG] create Page + IG · [Jonathan: GATE-META-PORTFOLIO] portfolio · [Jonathan: NH-31a] organic or paid warm-up · [clock: Meta Business Verification] · [live] 7 warm-up days; About disclosure; ids in the brands row; W27 health green |
+| S7-13 Campaigns | red | Campaign spec A/B/C and section 10; instant form spec; meta-ads test passes | [Jonathan: GATE-AD-ACCOUNT] ad account + payment method (yours only) · [Jonathan: GATE-CAMPAIGN-PUBLISH] · [live] create A, A2, B, C campaigns paused at R0 · [live] spec read-back clean · [live] record what Meta showed on special ad category |
+| S7-14 Meta event tracking | red | CAPI test passes; W02 built | [Jonathan: GATE-PIXEL] Pixel id + CAPI token · [live] test events received and de-duplicated by event id · [live] Lead Ads webhook subscribed and a test lead reaches W02 |
+| S7-15 Landing pages | amber | Lighthouse 90+ and LCP under 2.5 s locally; consent box unticked; privacy page (4 of 9) | [Jonathan: GATE-DNS] pages on the production host · [clock: DNS propagation] · [live] Lighthouse 90+ and LCP under 2.5 s on the live URL · [live] privacy and terms return 200 |
+| S7-16 WhatsApp account and templates | red | Template check passes; 6 core templates listed; quality alert in W22 | [Jonathan: GATE-META-PORTFOLIO] · [Jonathan: GATE-WABA] account, number, standby number · [clock: Meta Business Verification] · [clock: template review] 6 core approved, the rest tracked (log file does not exist yet) · [clock: display-name review] · [live] standby number on same account |
+| S7-17 Guardrails (no advice) | amber | Eval dry run passes; red-team dry run zero leaks; guardrail and handoff built | [Jonathan: GATE-CLOUD-ENV] Anthropic key · [live] live red-team run of 50 adversarial prompts · [build] compliance-qa sign-off, only after the live run is clean · [live] guardrail on in production W07 · [live] handoff reaches Jonathan's and KG's numbers |
+| S7-18 Mark's calendar | amber | W04 and W05 tests pass; W04 built | [Jonathan: GATE-ENTRA] app registration + ids in env · [live] real Outlook free/busy · [live] booking creates the Outlook event and stores its id · [live] Teams link when method is Teams · [live] .ics opens on iOS and Android |
+| S7-19 Ten synthetic leads end to end | amber | 10-lead fixture; W01 and W04 tests pass (11 of 14) | [live] the 10-lead run on production URLs, all stages logged. Needs most gates above, so it comes last. |
+| S7-20 Mark onboarded | red | W20 built and tested | [Jonathan: NH-20 / NH-41] your details · [Jonathan] FSP verified on the FSCA register, calendar connected, hours and capacity, intro card and video approved · [Jonathan: NH-40] consent mode: named (0.1) unless GATE-OPINION says otherwise |
+| S7-21 Agreement and tier | red | Agreement and in-portal e-sign screen | [Jonathan: GATE-TERM-SHEET] send the term sheet · [Jonathan: GATE-AGREEMENT] agreement and authorisation letter signed · [live] tier chosen; payment reference issued (format per NH-26) |
+| S7-22 Mark sees the explainer | red | Explainer and completion tracking built | [Jonathan] watch it or walk Mark through it (evidence row in build/evidence) |
+| S7-23 First payment (Paystack) | red | Billing, auto-renew and W16 tests pass | Today as written: [Jonathan: GATE-PAYSTACK-KYC] · [Jonathan: GATE-R1-LIVE] R1 live transaction and refund · [Jonathan: GATE-CLOUD-ENV] Paystack keys · [live] plans per tier, signed webhook, refund. **Proposed (NH-61, unconfirmed): all of this moves to after launch and stays built but switched off; the launch path becomes manual EFT.** Nothing changes until you confirm. |
+| S7-24 Bank payment matching | red | W17 and W18 tests pass; W17 built (4 of 10) | [Jonathan: GATE-INCONTACT] FNB alerts to howzit@ · [Jonathan: GATE-CLOUD-ENV] mailbox and sender in env · [live] R1 EFT alert parsed by W17 · [live] W18 statement import scheduled. **Proposed (NH-61): this becomes the main launch payment path, so it moves up in priority.** |
+| S7-25 One price everywhere | amber | W25 test passes; pricing seed and table in migrations | [build] stop the price check flagging report files and signed documents (NH-18d default) · [Jonathan: NH-14] withdraw the old B2B tiers from the site or not (money) · [Jonathan: NH-15] migration approval · [live] pricing rows live · [live] W25 diff against the deployed site clean |
+| S7-26 Server, backups, webhook signatures | amber (ready to provision) | W26 provisioning kit; W26 and webhook-signature tests pass | [Jonathan: GATE-VPS] buy the server, only after first payment · [Jonathan: NH-29b] backup bucket · [live] provision, nightly off-server backup, secrets in server .env, uptime monitor on api. · [live] Meta, WhatsApp, Paystack signature checks on live |
+| S7-27 Console and alerts | amber | Console dashboard screens; W21 and W22 built | [Jonathan: NH-20] alert phone numbers for you and KG · [live] spend / leads / qualified / booked / show from live data · [live] test alert reaches both phones |
+| S7-28 POPIA and regulator paperwork | amber | PAIA manual, privacy and terms pages, IO and NCC packs; obligations register; W24 built | [build] run the breach drill as a desk exercise and log it · [Jonathan: GATE-INFO-OFFICER] register you and KG · [Jonathan: GATE-NCC] registration, then date the renewal · [Jonathan: NH-41] privacy page details, then publish · [live] PAIA and privacy notice published · [live] W24 on schedule and first monthly cleanse evidence |

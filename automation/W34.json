@@ -1,0 +1,2228 @@
+{
+  "id": "smc-w34",
+  "name": "W34 POPIA operations",
+  "nodes": [
+    {
+      "id": "w34-01",
+      "name": "Nightly 02:30 SAST (retention)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 2 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "w34-02",
+      "name": "Manual run (synthetic nightly)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        180
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "w34-03",
+      "name": "Set retention context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        90
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// W34 nightly retention context. No PII. Periods come from .env so the practitioner can change them without a\n// workflow edit. Defaults = privacy notice draft (deliverables/contracts-drafter/consent-and-privacy.md, \"How long\n// we keep it\"): non-fit form entries 24 h; details and messages 12 months after last contact; consent record and\n// opt-out 5 years. A value that is not a whole number, or is below its floor, is REFUSED: that job is skipped and a\n// red alert goes out. A typo must never purge early. All arithmetic is here (one place, tested); the SQL only\n// compares against the cutoffs. Africa/Johannesburg has no DST, so SAST = UTC+2 for calendar arithmetic.\nconst H = 3600000, SAST = 2 * H;\nconst now = Date.now();\nconst refused = [];\nconst env = (k) => { const v = $env[k]; return v === undefined || v === null || String(v).trim() === '' ? undefined : String(v).trim(); };\nfunction int(name, dflt, floor) {\n  const raw = env(name);\n  if (raw === undefined) return dflt;\n  const n = Number(raw);\n  if (!/^-?\\d+$/.test(raw) || !Number.isInteger(n) || n < floor) { refused.push(name + '=' + raw); return null; }\n  return n;\n}\n// Calendar months back from a SAST wall-clock instant; day clamped to the month's last day (never purges early).\nfunction minusMonths(t, m) {\n  const d = new Date(t + SAST);\n  const y = d.getUTCFullYear(), mo = d.getUTCMonth() - m;\n  const last = new Date(Date.UTC(y, mo + 1, 0)).getUTCDate();\n  return Date.UTC(y, mo, Math.min(d.getUTCDate(), last), d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds(), d.getUTCMilliseconds()) - SAST;\n}\nconst p = {\n  nonfit_hours: int('W34_NONFIT_RETENTION_HOURS', 24, 1),\n  lead_months: int('W34_LEAD_RETENTION_MONTHS', 12, 1),\n  consent_years: int('W34_CONSENT_RETENTION_YEARS', 5, 1),\n  wa_grace_hours: int('W34_WA_THREAD_GRACE_HOURS', 0, 0),\n  wa_max_hours: int('W34_UNFINISHED_RETENTION_HOURS', 72, 1),\n  dsr_record_years: int('W34_DSR_RECORD_YEARS', 5, 1),\n};\nlet batch = int('W34_BATCH_LIMIT', 500, 1);\nif (batch === null) batch = 500; // not a period: fall back, still reported as refused\n// Invariant: the consent record must outlive the lead data it is evidence for.\nif (p.lead_months !== null && p.consent_years !== null && p.consent_years * 12 < p.lead_months) {\n  refused.push('W34_CONSENT_RETENTION_YEARS shorter than W34_LEAD_RETENTION_MONTHS');\n  p.consent_years = null;\n}\nconst iso = (t) => (t === null ? '' : new Date(t).toISOString());\nconst day = new Date(now + SAST).toISOString().slice(0, 10);\nreturn [{ json: {\n  run_id: 'W34-nightly-' + day,\n  run_day: day,\n  run_month: day.slice(0, 7),\n  run_started_at: iso(now),\n  test_mode: String($env.W34_TEST_MODE || 'false') === 'true',\n  dry_run: String($env.W34_DRY_RUN || 'false') === 'true',\n  evidence_dir: $env.W34_EVIDENCE_DIR || '/home/node/compliance/evidence/w34',\n  batch,\n  periods: p,\n  refused,\n  cutoffs: {\n    nonfit_before: p.nonfit_hours === null ? '' : iso(now - p.nonfit_hours * H),\n    lead_before: p.lead_months === null ? '' : iso(minusMonths(now, p.lead_months)),\n    consent_before: p.consent_years === null ? '' : iso(minusMonths(now, p.consent_years * 12)),\n    wa_expired_before: p.wa_grace_hours === null ? '' : iso(now - p.wa_grace_hours * H),\n    wa_stale_before: p.wa_max_hours === null ? '' : iso(now - p.wa_max_hours * H),\n    dsr_record_before: p.dsr_record_years === null ? '' : iso(minusMonths(now, p.dsr_record_years * 12)),\n  },\n  policy: {\n    nonfit: p.nonfit_hours === null ? '' : 'unqualified_' + p.nonfit_hours + 'h',\n    lead: p.lead_months === null ? '' : p.lead_months + 'm_after_last_contact',\n    consent: p.consent_years === null ? '' : 'consent_' + p.consent_years + 'y',\n    wa: 'wa_thread_expired',\n    dsr_record: p.dsr_record_years === null ? '' : 'dsr_record_' + p.dsr_record_years + 'y',\n  },\n} }];"
+      }
+    },
+    {
+      "id": "w34-04",
+      "name": "Purge expired wa_threads",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        480,
+        90
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- W34 job 1 (I-35l): WhatsApp quiz threads past expires_at (72 h life, smc_10), or whose last inbound message is older\n-- than W34_UNFINISHED_RETENTION_HOURS (PN-v1.1 {{retention_unfinished_hours}}), whichever comes first. One retention_log row per thread; row_id carries only a\n-- 12-character hash prefix (no full identifier kept for a person who never became a lead).\n-- $1 wa_expired_before, $2 wa_stale_before, $3 dry_run\nwith due as (\n  select wx.brand_id, wx.mobile_hash\n  from public.wa_threads wx\n  where (nullif($1, '') is not null and wx.expires_at is not null and wx.expires_at < nullif($1, '')::timestamptz)\n     or (nullif($2, '') is not null and coalesce(wx.last_inbound_at, wx.updated_at) < nullif($2, '')::timestamptz)\n), del as (\n  delete from public.wa_threads wt\n  using due\n  where not $3::boolean and wt.brand_id = due.brand_id and wt.mobile_hash = due.mobile_hash\n  returning wt.brand_id, wt.mobile_hash\n), lg as (\n  insert into public.retention_log (table_name, row_id, action, policy)\n  select 'public.wa_threads', del.brand_id::text || ':' || left(del.mobile_hash, 12), 'delete', 'wa_thread_expired' from del\n  returning 1\n)\nselect 'wa_threads' as job, (select count(*) from due)::int as due, (select count(*) from lg)::int as done;",
+        "options": {
+          "queryReplacement": "={{ [$('Set retention context').first().json.cutoffs.wa_expired_before, $('Set retention context').first().json.cutoffs.wa_stale_before, $('Set retention context').first().json.dry_run] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w34-05",
+      "name": "Delete non-fit entries",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        720,
+        90
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- W34 job 2: form entries that did not fit (age/budget band) are deleted W34_NONFIT_RETENTION_HOURS after\n-- created_at (privacy notice: \"deleted within 24 hours\"). Only rows never qualified AND never handed to a broker.\n-- smc_erase_lead('delete') removes the row (cascades activities); suppression rows survive (lead_id SET NULL).\n-- $1 nonfit_before, $2 test_mode, $3 batch, $4 dry_run, $5 policy\nwith due as (\n  select l.id\n  from public.leads l\n  where nullif($1, '') is not null\n    and l.brand_id is not null\n    and coalesce(l.is_synthetic, false) = $2::boolean\n    and l.qualified_at is null\n    and l.disqualified_reason is not null\n    and l.broker_id is null\n    and l.created_at <= nullif($1, '')::timestamptz\n    and not exists (select 1 from public.dsr_requests dq where dq.lead_id = l.id and dq.status not in ('completed', 'rejected'))\n  order by l.created_at\n  limit $3::int\n), done as (\n  select d.id, public.smc_erase_lead(d.id, 'delete', $5) from due d where not $4::boolean\n)\nselect 'nonfit' as job, (select count(*) from due)::int as due, (select count(*) from done)::int as done, '[]'::jsonb as media_urls;",
+        "options": {
+          "queryReplacement": "={{ [$('Set retention context').first().json.cutoffs.nonfit_before, $('Set retention context').first().json.test_mode, $('Set retention context').first().json.batch, $('Set retention context').first().json.dry_run, $('Set retention context').first().json.policy.nonfit] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w34-06",
+      "name": "Pseudonymise after lead retention",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        960,
+        90
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- W34 job 3: details and messages W34_LEAD_RETENTION_MONTHS after last contact -> smc_erase_lead('pseudonymise').\n-- Names, numbers, email, IP/UA, message content, transcripts, join links go; the consent record (wording, version,\n-- timestamps, URL, source, disclosure message id) stays as evidence until job 5. Skips leads with an open data-subject\n-- request (records under request must not be destroyed) and leads with a future booking.\n-- Media references are read in the same snapshot, before erasure, for the media-erase step.\n-- $1 lead_before, $2 test_mode, $3 batch, $4 dry_run, $5 policy\nwith due as (\n  select l.id\n  from public.leads l\n  where nullif($1, '') is not null\n    and l.brand_id is not null\n    and coalesce(l.is_synthetic, false) = $2::boolean\n    and coalesce(l.phone, '') not like 'erased:%'\n    and greatest(coalesce(l.last_contact_at, l.created_at), coalesce(l.opted_out_at, l.created_at), l.created_at) <= nullif($1, '')::timestamptz\n    and not exists (select 1 from public.dsr_requests dq where dq.lead_id = l.id and dq.status not in ('completed', 'rejected'))\n    and not exists (select 1 from public.appointments ap where ap.client_id = l.id and ap.status in ('booked', 'confirmed') and coalesce(ap.ends_at, ap.appointment_date::timestamptz) > now())\n  order by l.created_at\n  limit $3::int\n), media as (\n  select o.voice_note_url as url from public.outcomes o where o.lead_id in (select id from due) and o.voice_note_url is not null\n  union all\n  select c.call_recording_url from public.communications c where c.lead_id in (select id from due) and c.call_recording_url is not null\n), done as (\n  select d.id, public.smc_erase_lead(d.id, 'pseudonymise', $5) from due d where not $4::boolean\n)\nselect 'lead_retention' as job, (select count(*) from due)::int as due, (select count(*) from done)::int as done,\n       case when $4::boolean then '[]'::jsonb else (select coalesce(jsonb_agg(media.url), '[]'::jsonb) from media) end as media_urls;",
+        "options": {
+          "queryReplacement": "={{ [$('Set retention context').first().json.cutoffs.lead_before, $('Set retention context').first().json.test_mode, $('Set retention context').first().json.batch, $('Set retention context').first().json.dry_run, $('Set retention context').first().json.policy.lead] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w34-07",
+      "name": "Delete consent records after consent retention",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1440,
+        90
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- W34 job 4: the consent record and opt-out are evidence for W34_CONSENT_RETENTION_YEARS (privacy notice: 5 years).\n-- Anchor = the latest of consent, opt-out and last contact. Only already-pseudonymised rows qualify (the consent period\n-- can never end before the lead period: enforced in Set retention context). smc_erase_lead('delete') removes the row.\n-- NEVER touched: public.suppression (hash + source survive; lead_id goes NULL), public.audit_log, public.retention_log.\n-- $1 consent_before, $2 test_mode, $3 batch, $4 dry_run, $5 policy\nwith due as (\n  select l.id\n  from public.leads l\n  where nullif($1, '') is not null\n    and l.brand_id is not null\n    and coalesce(l.is_synthetic, false) = $2::boolean\n    and coalesce(l.phone, '') like 'erased:%'\n    and greatest(coalesce(l.consent_at, l.created_at), coalesce(l.opted_out_at, l.created_at), coalesce(l.last_contact_at, l.created_at)) <= nullif($1, '')::timestamptz\n    and not exists (select 1 from public.dsr_requests dq where dq.lead_id = l.id and dq.status not in ('completed', 'rejected'))\n  order by l.created_at\n  limit $3::int\n), done as (\n  select d.id, public.smc_erase_lead(d.id, 'delete', $5) from due d where not $4::boolean\n)\nselect 'consent_retention' as job, (select count(*) from due)::int as due, (select count(*) from done)::int as done, '[]'::jsonb as media_urls;",
+        "options": {
+          "queryReplacement": "={{ [$('Set retention context').first().json.cutoffs.consent_before, $('Set retention context').first().json.test_mode, $('Set retention context').first().json.batch, $('Set retention context').first().json.dry_run, $('Set retention context').first().json.policy.consent] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w34-08",
+      "name": "Minimise closed DSR records",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1680,
+        90
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- W34 job 5: closed data-subject requests keep their dates, kind and outcome (evidence of the 30-day answer) but lose\n-- the requester's name and contact after W34_DSR_RECORD_YEARS. Real records only: skipped in test mode.\n-- $1 dsr_record_before, $2 policy, $3 test_mode, $4 dry_run\nwith u as (\n  update public.dsr_requests dm\n  set requester = null, requester_contact = null, updated_at = now()\n  where nullif($1, '') is not null\n    and not $3::boolean and not $4::boolean\n    and dm.status in ('completed', 'rejected')\n    and coalesce(dm.completed_at, dm.updated_at) <= nullif($1, '')::timestamptz\n    and (dm.requester is not null or dm.requester_contact is not null)\n  returning dm.id\n), lg as (\n  insert into public.retention_log (table_name, row_id, action, policy, dsr_id)\n  select 'public.dsr_requests', u.id::text, 'pseudonymise', $2, u.id from u\n  returning 1\n)\nselect 'dsr_records' as job, (select count(*) from lg)::int as done;",
+        "options": {
+          "queryReplacement": "={{ [$('Set retention context').first().json.cutoffs.dsr_record_before, $('Set retention context').first().json.policy.dsr_record, $('Set retention context').first().json.test_mode, $('Set retention context').first().json.dry_run] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w34-09",
+      "name": "Collect media to erase",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        90
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-41b: media erase goes through the w34-media-erase edge function (automation/local/LOCAL-STAGING.md §1d;\n// supabase/functions/w34-media-erase/index.ts). The function accepts only \"broker-media/<broker uuid>/<file>\" paths\n// (no \"..\", \"//\", \"*\" or trailing \"/\"; file chars [A-Za-z0-9._/-]), 1-50 per call. The same rule is applied here, so the\n// function never has to reject: anything else (another bucket, a Meta media id, another host, a non-uuid folder) is\n// NOT sent and is reported (red, delete by hand).\n// Accepts .../storage/v1/object/[sign/|public/|authenticated/]broker-media/<key>[?token], \"broker-media/<key>\" or \"<key>\".\nconst BUCKET = 'broker-media'; const MAX_PATHS = 50;\nconst PATH_RE = /^broker-media\\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\/[A-Za-z0-9._\\/-]{1,200}$/;\nfunction toPath(u) {\n  const s = String(u || '').trim(); if (!s) return null;\n  let key;\n  const m = s.match(/\\/storage\\/v1\\/object\\/(?:sign\\/|public\\/|authenticated\\/)?broker-media\\/([^?#]+)/);\n  if (m) { try { key = decodeURIComponent(m[1]); } catch (e) { return null; } }\n  else if (/^[a-z]+:\\/\\//i.test(s) || /^\\d+$/.test(s)) return null;\n  else key = s.replace(/^\\/+/, '').replace(/^broker-media\\//, '');\n  const p = BUCKET + '/' + key;\n  if (p.includes('..') || p.includes('//') || p.includes('*') || p.endsWith('/') || !PATH_RE.test(p)) return null;\n  return p;\n}\n// One item per call: { paths (<= 50), policy, dsr_id, request_id, unmapped, any }. request_id gets \":<n>\" when split.\nfunction batches(urls, policy, dsrId, requestId) {\n  const paths = [...new Set(urls.map(toPath).filter(Boolean))];\n  const unmapped = urls.filter((u) => u && !toPath(u));\n  const out = [];\n  for (let i = 0; i < paths.length; i += MAX_PATHS) {\n    out.push({ policy, dsr_id: dsrId, request_id: requestId + (paths.length > MAX_PATHS ? ':' + (i / MAX_PATHS + 1) : ''), paths: paths.slice(i, i + MAX_PATHS), unmapped, any: true });\n  }\n  if (!out.length) out.push({ policy, dsr_id: dsrId, request_id: requestId, paths: [], unmapped, any: false });\n  return out;\n}\n// Media files referenced by rows erased tonight (voice notes, call recordings) -> policy \"retention\", no dsr_id.\nconst ctx = $('Set retention context').first().json;\nconst urls = [];\nfor (const n of ['Pseudonymise after lead retention']) {\n  try { for (const u of ($(n).first().json.media_urls || [])) if (u) urls.push(u); } catch (e) { /* node failed: reported in the summary */ }\n}\nreturn batches(ctx.dry_run ? [] : [...new Set(urls)], 'retention', null, ctx.run_id).map((c) => ({ json: { run_id: ctx.run_id, urls: urls.length, ...c } }));"
+      }
+    },
+    {
+      "id": "w34-11a",
+      "name": "Sign media erase (nightly)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// I-41b / I-42d: sign ONE batch for the w34-media-erase edge function, at send time. Scheme = the function's check\n// (supabase/functions/w34-media-erase/index.ts step 1) = /webhook/w26/status (automation/vps/provision.sh notify):\n//   X-LV-Timestamp: <unix seconds>\n//   X-LV-Signature: sha256=<hex HMAC-SHA256(W34_MEDIA_ERASE_SECRET, timestamp + \".\" + rawBody)>\n// I-42d: this node runs once per item INSIDE a Split in Batches loop (batch size 1): Loop -> Sign -> HTTP -> Loop.\n// Every batch gets its own timestamp, taken immediately before its own POST, so a long backlog (many batches, HTTP\n// retries) never leaves the function's +-300 s window. Worst case per batch: 3 tries x 30 s timeout + 2 x 5 s wait\n// = 100 s, inside the window even though a retry re-sends the same signature.\n// The body is serialised ONCE here and the HTTP node sends this exact string (contentType raw), so the signed bytes are\n// the sent bytes.\n// No credential: n8n never holds a Storage key, only this secret, which can delete broker-media objects and nothing else.\n// Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false (same as W20/W22).\nconst crypto = require('crypto');\nconst j = $input.item.json || {};\nconst url = String($env.W34_MEDIA_ERASE_URL || '').trim();\nconst secret = String($env.W34_MEDIA_ERASE_SECRET || '');\nif (!/^https?:\\/\\/[^\\s/]+(\\/[^\\s]*)?\\/functions\\/v1\\/w34-media-erase\\/?$/.test(url)) throw new Error('W34_MEDIA_ERASE_URL is not <SUPABASE_URL>/functions/v1/w34-media-erase: media not erased');\nif (secret.length < 32) throw new Error('W34_MEDIA_ERASE_SECRET missing or shorter than 32 characters: media not erased');\nif (j.any !== true || !Array.isArray(j.paths) || j.paths.length === 0) throw new Error('W34 media erase batch has no paths: nothing signed');\nif (j.paths.length > 50) throw new Error('W34 media erase batch over 50 paths');\nconst body = JSON.stringify({ paths: j.paths, policy: j.policy, dsr_id: j.dsr_id ?? null, request_id: j.request_id });\nconst ts = String(Math.floor(Date.now() / 1000));\nconst sig = crypto.createHmac('sha256', secret).update(ts + '.' + body, 'utf8').digest('hex');\nreturn { json: { any: true, request_id: j.request_id, paths: j.paths.length, body, timestamp: ts, signature: 'sha256=' + sig } };"
+      },
+      "onError": "continueErrorOutput",
+      "notes": "I-42d: runs per batch inside \"Loop media erase (nightly)\". A signing failure (URL/secret not set) leaves on the error output straight back to the loop (nothing is sent) and Summarise night raises w34_retention_failure."
+    },
+    {
+      "id": "w34-10",
+      "name": "Any media?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        90
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "any-media-",
+              "leftValue": "={{ $json.any }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w34-10a",
+      "name": "Loop media erase (nightly)",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2280,
+        90
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "notes": "I-42d: one batch per iteration so each is signed at its own send time. Output 0 (done) = every batch result -> Summarise night; output 1 (loop) -> Sign -> HTTP -> back here."
+    },
+    {
+      "id": "w34-11",
+      "name": "Erase media files (storage)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2520,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.W34_MEDIA_ERASE_URL }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-LV-Timestamp",
+              "value": "={{ $json.timestamp }}"
+            },
+            {
+              "name": "X-LV-Signature",
+              "value": "={{ $json.signature }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.body }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput",
+      "notes": "w34-media-erase edge function (LOCAL-STAGING.md 1d): POST, HMAC-signed raw body {paths<=50, policy:\"retention\", dsr_id:null, request_id}, one call per item, no credential. Non-2xx -> {error} item -> Summarise night -> w34_retention_failure. Response {ok, deleted, not_found, rejected[], request_id} is checked in Summarise night."
+    },
+    {
+      "id": "w34-12",
+      "name": "Summarise night",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        90
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// W34 nightly evidence: counts only, no PII. Feeds the monthly report and obligation P8.\nconst ctx = $('Set retention context').first().json;\nconst JOBS = ['Purge expired wa_threads', 'Delete non-fit entries', 'Pseudonymise after lead retention', 'Delete consent records after consent retention', 'Minimise closed DSR records'];\nconst jobs = {}; const errors = [];\nfor (const n of JOBS) {\n  let items = [];\n  try { items = $(n).all().map((i) => i.json); } catch (e) { errors.push(n + ': did not run'); continue; }\n  const err = items.find((j) => j && j.error);\n  if (err) { errors.push(n + ': ' + String(err.error.message || err.error).slice(0, 200)); continue; }\n  const j = items[0] || {};\n  jobs[n] = { due: j.due ?? null, done: j.done ?? 0 };\n}\n// Media (I-41b): w34-media-erase answers { ok, deleted, not_found, rejected: [{path, reason}], request_id } per batch.\n// Red (w34_retention_failure) on: a reference outside broker-media/<uuid>/, a signing failure, a non-2xx ({error} item),\n// or a 2xx with ok:false (rejected path; 207 deleted_but_not_logged). not_found alone is not a failure.\nlet media = { requested: 0, deleted: 0, not_found: 0, rejected: 0, failed: false };\ntry { const ms = $('Collect media to erase').all().map((i) => i.json); media.requested = ms.reduce((a, m) => a + (m.paths || []).length, 0); const un = (ms[0] && ms[0].unmapped) || []; if (un.length) { media.failed = true; errors.push('media erase: ' + un.length + ' reference(s) not in the storage bucket, not deleted'); } } catch (e) {}\n// I-42d: one item per batch arrives on the loop's done output (Sign error output or HTTP response); the HTTP node's own\n// $() view would hold only the last loop run. A signer error means that batch was never sent.\nconst SIGNER_RX = /^(W34_MEDIA_ERASE_|W34 media erase batch)/;\ntry {\n  for (const i of $('Loop media erase (nightly)').all(0)) {\n    const r = i.json || {};\n    if (r.ok === undefined && r.error) { const m = String(r.error.message || r.error); media.failed = true; errors.push((SIGNER_RX.test(m) ? 'media erase not sent: ' : 'media erase: ') + m.slice(0, 200)); continue; }\n    media.deleted += Number(r.deleted) || 0; media.not_found += Number(r.not_found) || 0; media.rejected += (r.rejected || []).length;\n    if (r.ok !== true) { media.failed = true; errors.push('media erase ' + String(r.request_id || '') + ': ' + (r.error ? String(r.error).slice(0, 100) : (r.rejected || []).length + ' path(s) rejected')); }\n  }\n} catch (e) {}\nconst red = errors.length > 0 || ctx.refused.length > 0;\nreturn [{ json: {\n  run_id: ctx.run_id, run_day: ctx.run_day, run_month: ctx.run_month, evidence_dir: ctx.evidence_dir,\n  test_mode: ctx.test_mode, dry_run: ctx.dry_run, periods: ctx.periods, cutoffs: ctx.cutoffs, refused: ctx.refused,\n  jobs, media, errors, red,\n  alert: red ? { kind: 'w34_retention_failure', workflow: 'W34', to: ['jonathan'], severity: 'red',\n    message: 'W34 retention ' + ctx.run_day + ': ' + (ctx.refused.length ? 'refused settings ' + ctx.refused.join(', ') + '. ' : '') + (errors.length ? errors.join(' | ') : '') } : null,\n} }];"
+      }
+    },
+    {
+      "id": "w34-13",
+      "name": "Night summary to file",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        2880,
+        90
+      ],
+      "parameters": {
+        "operation": "toJson",
+        "mode": "once",
+        "options": {
+          "fileName": "={{ $json.run_day }}.json"
+        }
+      }
+    },
+    {
+      "id": "w34-14",
+      "name": "Write nightly evidence",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        3120,
+        90
+      ],
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $('Summarise night').first().json.evidence_dir }}/nightly/{{ $('Summarise night').first().json.run_day }}.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w34-15",
+      "name": "Update P8 retention obligation",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        3360,
+        90
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Register P8 (retention purge nightly). green when every job ran and no setting was refused; red otherwise.\nupdate public.obligations\nset last_done_at = now(), status = case when $1::boolean then 'red' else 'green' end, note = $2, updated_at = now()\nwhere code = 'P8' and not $3::boolean\nreturning code, status;",
+        "options": {
+          "queryReplacement": "={{ [$('Summarise night').first().json.red, 'W34 ' + $('Summarise night').first().json.run_day + ': ' + JSON.stringify($('Summarise night').first().json.jobs), $('Summarise night').first().json.test_mode] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "w34-16",
+      "name": "Retention alert?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3600,
+        90
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "retention-alert-",
+              "leftValue": "={{ $('Summarise night').first().json.red }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w34-17",
+      "name": "Build retention alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3840,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Summarise night').first().json.alert }];"
+      }
+    },
+    {
+      "id": "w34-18",
+      "name": "Alert Jonathan: retention (W22)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        4080,
+        0
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w22"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "executeOnce": true,
+      "notes": "W22 input: { kind: 'w34_retention_failure', to: ['jonathan'], severity: 'red', message } (refused setting or a job error; next night retries)"
+    },
+    {
+      "id": "w34-19",
+      "name": "howzit@ mailbox (DSR keywords)",
+      "type": "n8n-nodes-base.microsoftOutlookTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        700
+      ],
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "value": 10,
+              "unit": "minutes"
+            }
+          ]
+        },
+        "event": "messageReceived",
+        "output": "fields",
+        "fields": [
+          "subject",
+          "bodyPreview",
+          "from",
+          "receivedDateTime",
+          "id"
+        ],
+        "filters": {},
+        "options": {}
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "name": "Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send)"
+        }
+      },
+      "notes": "Same mailbox credential as W17. Read-only here: W34 never marks, moves or replies. Non-DSR mail (FNB, bounces, brokers) is dropped by the normaliser. Lane B2 (breach reports) reads the same trigger."
+    },
+    {
+      "id": "w34-20",
+      "name": "DSR intake (manual webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        900
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "w34/dsr",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {
+          "responseCode": 202
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "W34 DSR webhook token"
+        }
+      },
+      "webhookId": "w34-dsr-intake",
+      "notes": "Console / IO posts {kind, channel, requester, contact, lead_id?, request_ref?, note?}. Portal form, WhatsApp \"delete my details\" and post are entered here."
+    },
+    {
+      "id": "w34-21",
+      "name": "Normalise DSR request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// W34 DSR intake normaliser. Email (howzit@) or manual webhook. The subject's contact is hashed with the same rules\n// as W24/W15 (mobile: E.164 digits, SHA-256; email: smc_hash_contact = SHA-256 of lower(trim)) so the request is\n// matched to leads without copying the number around. The 30-day clock starts at receipt.\nconst crypto = require('crypto');\nconst sha = (s) => crypto.createHash('sha256').update(String(s), 'utf8').digest('hex');\nconst DAY = 86400000;\nconst KINDS = ['access', 'correct', 'erase', 'object'];\nconst CHANNELS = ['portal', 'email', 'whatsapp', 'post', 'other'];\nlet dueDays = Number($env.W34_DSR_DUE_DAYS || 30);\nif (!Number.isInteger(dueDays) || dueDays < 1 || dueDays > 30) dueDays = 30; // never longer than the 30 days the notice promises\nconst e164 = (raw) => {\n  let d = String(raw || '').replace(/\\D/g, '');\n  if (d.startsWith('00')) d = d.slice(2); else if (d.startsWith('0')) d = '27' + d.slice(1);\n  return /^27\\d{9}$/.test(d) ? d : null;\n};\nconst emailNorm = (s) => { const e = String(s || '').trim().toLowerCase(); return /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(e) ? e : null; };\nfunction classify(text) {\n  const t = String(text || '').toLowerCase();\n  if (/\\bforget me\\b|right to be forgotten|\\b(delete|erase|remove)\\b[^.?!]{0,40}\\b(my|me)\\b/.test(t)) return 'erase';\n  if (/\\bobject(ion)?\\b[^.?!]{0,40}\\b(processing|marketing|use)\\b/.test(t)) return 'object';\n  if (/\\b(correct|update|change)\\b[^.?!]{0,30}\\bmy (details|information|data|number|name|email|surname)\\b/.test(t)) return 'correct';\n  if (/\\b(what|which) (personal )?(information|data|details) do you (hold|have|keep)\\b|\\bcopy of (all )?my (personal )?(information|data|details)\\b|\\baccess (request|to my)\\b|\\bpaia\\b|\\bpopia request\\b|\\bsubject access\\b/.test(t)) return 'access';\n  return null;\n}\nconst out = [];\nfor (const item of $input.all()) {\n  const j = item.json || {};\n  const now = Date.now();\n  if (j.body && typeof j.body === 'object' && j.headers) {\n    const b = j.body;\n    const kind = String(b.kind || '').toLowerCase();\n    if (!KINDS.includes(kind)) throw new Error('W34 intake: kind must be one of ' + KINDS.join('/'));\n    const channel = CHANNELS.includes(String(b.channel || '').toLowerCase()) ? String(b.channel).toLowerCase() : 'other';\n    const mobile = e164(b.contact) || e164(b.mobile);\n    const email = emailNorm(b.contact) || emailNorm(b.email);\n    const leadId = /^[0-9a-f-]{36}$/i.test(String(b.lead_id || '')) ? String(b.lead_id).toLowerCase() : null;\n    if (!mobile && !email && !leadId) throw new Error('W34 intake: need a mobile, an email or a lead_id');\n    const received = b.received_at && !Number.isNaN(Date.parse(b.received_at)) ? Date.parse(b.received_at) : now;\n    const ref = String(b.request_ref || (kind + '|' + (mobile || email || leadId) + '|' + new Date(received + 7200000).toISOString().slice(0, 10)));\n    out.push({ json: { kind, channel, requester: b.requester ? String(b.requester).slice(0, 120) : null,\n      requester_contact: email || (mobile ? '+' + mobile : null), subject_hash: email ? sha(email) : null, mobile_hash: mobile ? sha(mobile) : null,\n      lead_id: leadId, received_at: new Date(received).toISOString(), due_at: new Date(received + dueDays * DAY).toISOString(),\n      dedupe_key: 'dsar:' + sha('webhook:' + ref).slice(0, 32), source_ref: 'webhook:' + sha(ref).slice(0, 12) } });\n    continue;\n  }\n  if (j.subject !== undefined || j.bodyPreview !== undefined) {\n    const kind = classify((j.subject || '') + ' \\n ' + (j.bodyPreview || ''));\n    if (!kind) continue; // not a data-subject request: W34 ignores it (W17 / people handle the rest)\n    const from = (j.from && j.from.emailAddress) || {};\n    const email = emailNorm(from.address);\n    const m = String((j.subject || '') + ' ' + (j.bodyPreview || '')).match(/(?:\\+?27|0)[\\s-]?\\d{2}[\\s-]?\\d{3}[\\s-]?\\d{4}/);\n    const mobile = m ? e164(m[0]) : null;\n    const received = j.receivedDateTime && !Number.isNaN(Date.parse(j.receivedDateTime)) ? Date.parse(j.receivedDateTime) : now;\n    out.push({ json: { kind, channel: 'email', requester: from.name ? String(from.name).slice(0, 120) : null,\n      requester_contact: email, subject_hash: email ? sha(email) : null, mobile_hash: mobile ? sha(mobile) : null,\n      lead_id: null, received_at: new Date(received).toISOString(), due_at: new Date(received + dueDays * DAY).toISOString(),\n      dedupe_key: 'dsar:' + sha('email:' + (j.id || received)).slice(0, 32), source_ref: 'email:' + sha(String(j.id || received)).slice(0, 12) } });\n  }\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "w34-22",
+      "name": "Record DSR + dsar ticket",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        480,
+        800
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- W34 intake: one dsr_requests row (the 30-day clock: due_at) + one ops.notifications ticket kind 'dsar' for the\n-- Information Officer. Idempotent on dedupe_key (same email / same request_ref never opens two tickets).\n-- The ticket payload carries no name or contact: dsr id, kind, due date and how many leads the hash matched.\n-- Nothing is exported or erased here: identity is verified by the IO first (verified_at), then the action webhook runs.\n-- $1 normalised request (json), $2 IO recipient\nwith v as (\n  select * from jsonb_to_record($1::jsonb) as v(kind text, channel text, requester text, requester_contact text, subject_hash text,\n    mobile_hash text, lead_id uuid, received_at timestamptz, due_at timestamptz, dedupe_key text, source_ref text)\n), dup as (\n  select 1 as hit from ops.notifications nd, v where nd.dedupe_key = v.dedupe_key limit 1\n), r as (\n  insert into public.dsr_requests (kind, channel, requester, requester_contact, subject_hash, mobile_hash, lead_id, received_at, due_at, status, note)\n  select v.kind, v.channel, v.requester, v.requester_contact, v.subject_hash, v.mobile_hash, v.lead_id, v.received_at, v.due_at, 'received', v.source_ref\n  from v where not exists (select 1 from dup)\n  returning id, kind, due_at, subject_hash, mobile_hash, lead_id\n), m as (\n  select count(*)::int as n\n  from public.leads lm, r\n  where lm.brand_id is not null\n    and (lm.id = r.lead_id\n      or (r.mobile_hash is not null and public.smc_hash_contact(lm.phone) = r.mobile_hash)\n      or (r.subject_hash is not null and public.smc_hash_contact(lm.email) = r.subject_hash))\n), t as (\n  insert into ops.notifications (kind, recipient, channel, ref_table, ref_id, dedupe_key, status, source, what, severity, payload)\n  select 'dsar', $2, 'whatsapp', 'public.dsr_requests', r.id::text, (select dedupe_key from v), 'queued', 'W34',\n         'Data-subject request (' || r.kind || ') received. Verify identity, then answer by ' || to_char(r.due_at at time zone 'Africa/Johannesburg', 'YYYY-MM-DD'),\n         'amber', jsonb_build_object('dsr_id', r.id, 'kind', r.kind, 'due_at', r.due_at, 'matched_leads', (select n from m))\n  from r\n  returning id\n)\nselect (select id from r) as dsr_id, (select kind from r) as kind, (select due_at from r) as due_at,\n       (select n from m) as matched_leads, (select count(*) from t)::int as tickets, exists (select 1 from dup) as duplicate;",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($json), $env.W34_IO_RECIPIENT || 'jonathan'] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "executeOnce": false,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "w34-23",
+      "name": "Build IO alert (new DSR)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// One W22 alert per new request (duplicates are silent). No name or contact in the alert.\nconst out = [];\nfor (const i of $input.all()) {\n  const j = i.json;\n  if (!j.dsr_id || j.duplicate) continue;\n  out.push({ json: { kind: 'dsar_received', workflow: 'W34', to: [$env.W34_IO_RECIPIENT || 'jonathan'], severity: 'amber', dsr_id: j.dsr_id,\n    deep_link: ($env.CONSOLE_URL || '') + '/compliance/dsr/' + j.dsr_id,\n    message: 'New data-subject request (' + j.kind + '). Due ' + String(j.due_at).slice(0, 10) + '. Leads matched: ' + j.matched_leads + '. Verify identity first.' } });\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "w34-24",
+      "name": "Alert Information Officer (W22)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        800
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w22"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "executeOnce": true,
+      "notes": "W22 input: { kind: 'dsar_received', to: [IO], severity: 'amber', deep_link: console /compliance/dsr/<id> }"
+    },
+    {
+      "id": "w34-25",
+      "name": "Daily 07:00 SAST (DSR clock)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        1200
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "w34-26",
+      "name": "Read open DSRs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        240,
+        1200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Open data-subject requests and their clock. No name or contact selected.\nselect dr.id, dr.kind, dr.status, dr.received_at, dr.verified_at, dr.due_at\nfrom public.dsr_requests dr\nwhere dr.status not in ('completed', 'rejected')\norder by dr.due_at;",
+        "options": {
+          "queryReplacement": "={{ [] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "w34-27",
+      "name": "DSR clock",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        1200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// W34 30-day clock. red = past due_at (POPIA answer missed: W22 Red, both phones). amber = W34_DSR_WARN_DAYS or fewer\n// days left, or identity still unverified W34_DSR_VERIFY_DAYS after receipt. One ticket per request per SAST day.\nconst D = 86400000, SAST = 7200000;\nconst now = Date.now();\nconst int = (k, d, lo, hi) => { const n = Number($env[k]); return Number.isInteger(n) && n >= lo && n <= hi ? n : d; };\nconst warn = int('W34_DSR_WARN_DAYS', 7, 1, 29);\nconst verify = int('W34_DSR_VERIFY_DAYS', 5, 1, 29);\nconst day = new Date(now + SAST).toISOString().slice(0, 10);\nconst tickets = [];\nfor (const i of $input.all()) {\n  const r = i.json;\n  if (!r || !r.id || ['completed', 'rejected'].includes(r.status)) continue;\n  const due = Date.parse(r.due_at);\n  const left = (due - now) / D;\n  let severity = null; let why = '';\n  if (now > due) { severity = 'red'; why = 'overdue by ' + Math.ceil((now - due) / D) + ' day(s)'; }\n  else if (left <= warn) { severity = 'amber'; why = Math.ceil(left) + ' day(s) left'; }\n  else if (!r.verified_at && now - Date.parse(r.received_at) > verify * D) { severity = 'amber'; why = 'identity not verified after ' + verify + ' days'; }\n  if (!severity) continue;\n  tickets.push({ dsr_id: r.id, severity, days_left: Math.ceil(left), dedupe_key: 'dsar-clock:' + r.id + ':' + day,\n    what: 'DSR ' + r.kind + ' (' + String(r.id).slice(0, 8) + '): ' + why + '. Due ' + new Date(due + SAST).toISOString().slice(0, 10) + '.' });\n}\nconst red = tickets.filter((t) => t.severity === 'red').length;\nreturn [{ json: { day, tickets, count: tickets.length, red, amber: tickets.length - red, any: tickets.length > 0 } }];"
+      }
+    },
+    {
+      "id": "w34-28",
+      "name": "Any DSR due?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        1200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "any-dsr-due-",
+              "leftValue": "={{ $json.any }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w34-29",
+      "name": "Queue DSR clock tickets",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        960,
+        1140
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- One 'dsar' ticket per request per day (dedupe_key). $1 tickets json, $2 IO recipient\nwith x as (\n  select * from jsonb_to_recordset($1::jsonb) as x(dsr_id uuid, severity text, days_left int, dedupe_key text, what text)\n), ins as (\n  insert into ops.notifications (kind, recipient, channel, ref_table, ref_id, dedupe_key, status, source, what, severity, always_send, payload)\n  select 'dsar', $2, 'whatsapp', 'public.dsr_requests', x.dsr_id::text, x.dedupe_key, 'queued', 'W34', x.what, x.severity, (x.severity = 'red'),\n         jsonb_build_object('dsr_id', x.dsr_id, 'days_left', x.days_left)\n  from x\n  where not exists (select 1 from ops.notifications nn where nn.dedupe_key = x.dedupe_key)\n  returning 1\n)\nselect count(*)::int as queued from ins;",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($json.tickets), $env.W34_IO_RECIPIENT || 'jonathan'] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "w34-30",
+      "name": "Build DSR clock alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        1140
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const c = $('DSR clock').first().json;\nreturn [{ json: { kind: c.red ? 'dsar_overdue' : 'dsar_due', workflow: 'W34', to: c.red ? ['jonathan', 'kg'] : [$env.W34_IO_RECIPIENT || 'jonathan'],\n  severity: c.red ? 'red' : 'amber', deep_link: ($env.CONSOLE_URL || '') + '/compliance/dsr',\n  message: c.red + ' data-subject request(s) overdue, ' + c.amber + ' due soon or unverified (' + c.day + ').' } }];"
+      }
+    },
+    {
+      "id": "w34-31",
+      "name": "Alert DSR clock (W22)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        1440,
+        1140
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w22"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "executeOnce": true,
+      "notes": "Missed 30-day SLA = Red (both phones + email, MASTER-PROMPT W34 row). Amber = IO only."
+    },
+    {
+      "id": "w34-32",
+      "name": "DSR action (manual webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1600
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "w34/dsr-action",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {
+          "responseCode": 202
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "W34 DSR webhook token"
+        }
+      },
+      "webhookId": "w34-dsr-action",
+      "notes": "Console posts {dsr_id, action: export|erase, confirm_dsr_id}. The SQL itself refuses unless dsr_requests.verified_at is set and the request is open."
+    },
+    {
+      "id": "w34-33",
+      "name": "Check DSR action",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        1600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Guard: the IO types the request id twice; action must match a supported statement. Correction is done by hand in\n// the console (a person edits the field); objection runs W15 (STOP path).\nconst b = ($input.first().json || {}).body || {};\nconst UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nconst action = String(b.action || '').toLowerCase();\nif (!['export', 'erase'].includes(action)) throw new Error('W34 action must be export or erase');\nif (!UUID.test(String(b.dsr_id || '')) || String(b.dsr_id).toLowerCase() !== String(b.confirm_dsr_id || '').toLowerCase()) throw new Error('W34 action: dsr_id missing or not confirmed');\nlet eraseAction = String($env.W34_DSR_ERASE_ACTION || 'pseudonymise').toLowerCase();\nif (!['pseudonymise', 'delete'].includes(eraseAction)) eraseAction = 'pseudonymise';\nreturn [{ json: { dsr_id: String(b.dsr_id).toLowerCase(), action, erase_action: eraseAction,\n  export_dir: $env.W34_EXPORT_DIR || '/home/node/compliance/dsr-exports' } }];"
+      }
+    },
+    {
+      "id": "w34-34",
+      "name": "Export or erase?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        480,
+        1600
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a-export",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "export",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "export"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a-erase",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "erase",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "erase"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w34-35",
+      "name": "Export subject data",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        720,
+        1500
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- W34 DSR export (access request, POPIA s23). Reviewed statement: physical column names only. Runs only for a verified,\n-- open request. Covers leads, communications, appointments, outcomes, lead_activities and the suppression entry.\n-- Not exported: other people's data, internal scores of other leads, audit_log internals.\n-- $1 dsr_id\nwith q as (\n  select dq.id as dsr_id, dq.lead_id, dq.mobile_hash, dq.subject_hash\n  from public.dsr_requests dq\n  where dq.id = $1::uuid and dq.verified_at is not null and dq.status not in ('completed', 'rejected')\n), subj as (\n  select ls.id from public.leads ls, q where ls.brand_id is not null\n    and (ls.id = q.lead_id\n      or (q.mobile_hash is not null and public.smc_hash_contact(ls.phone) = q.mobile_hash)\n      or (q.subject_hash is not null and public.smc_hash_contact(ls.email) = q.subject_hash))\n)\nselect (select dsr_id from q) as dsr_id, (select count(*) from subj)::int as leads_found,\n  jsonb_build_object(\n    'generated_at', now(),\n    'leads', (select coalesce(jsonb_agg(jsonb_build_object(\n        'id', le.id, 'first_name', le.first_name, 'last_name', le.last_name, 'phone', le.phone, 'email', le.email,\n        'call_number', le.call_number, 'alt_number', le.alt_number, 'language', le.language, 'best_time', le.best_time,\n        'age_band', le.age_band, 'budget_band', le.budget_band, 'bond', le.bond, 'dependants', le.dependants, 'work_cover', le.work_cover,\n        'method_pref', le.method_pref, 'stage', le.stage, 'created_at', le.created_at, 'last_contact_at', le.last_contact_at,\n        'origin', le.origin, 'source', le.source, 'page_url', le.page_url, 'utm_campaign', le.utm_campaign,\n        'client_ip', le.client_ip, 'client_user_agent', le.client_user_agent,\n        'consent_text', le.consent_text, 'consent_text_version', le.consent_text_version, 'consent_mode', le.consent_mode,\n        'consent_at', le.consent_at, 'consent_ads_at', le.consent_ads_at, 'consent_page_url', le.consent_page_url, 'consent_source', le.consent_source,\n        'disclosure_msg_id', le.disclosure_msg_id, 'disclosure_delivered_at', le.disclosure_delivered_at,\n        'qualified_at', le.qualified_at, 'disqualified_reason', le.disqualified_reason, 'opted_out_at', le.opted_out_at,\n        'broker_id', le.broker_id, 'retention_delete_after', le.retention_delete_after)), '[]'::jsonb)\n      from public.leads le where le.id in (select id from subj)),\n    'messages', (select coalesce(jsonb_agg(jsonb_build_object(\n        'channel', cm.channel, 'direction', cm.direction, 'created_at', cm.created_at, 'content', cm.content, 'subject', cm.subject,\n        'template_name', cm.template_name, 'status', cm.status, 'delivered_at', cm.delivered_at, 'read_at', cm.read_at) order by cm.created_at), '[]'::jsonb)\n      from public.communications cm where cm.lead_id in (select id from subj)),\n    'bookings', (select coalesce(jsonb_agg(jsonb_build_object(\n        'appointment_date', ap.appointment_date, 'ends_at', ap.ends_at, 'method', ap.method, 'status', ap.status,\n        'booked_at', ap.booked_at, 'cancelled_at', ap.cancelled_at, 'call_number', ap.call_number)), '[]'::jsonb)\n      from public.appointments ap where ap.client_id in (select id from subj)),\n    'outcomes', (select coalesce(jsonb_agg(jsonb_build_object(\n        'outcome', oc.outcome, 'disposition_code', oc.disposition_code, 'quality_score', oc.quality_score, 'summary', oc.summary,\n        'marked_at', oc.marked_at)), '[]'::jsonb)\n      from public.outcomes oc where oc.lead_id in (select id from subj)),\n    'activity', (select coalesce(jsonb_agg(jsonb_build_object('activity_type', la.activity_type, 'occurred_at', la.occurred_at, 'workflow', la.workflow) order by la.occurred_at), '[]'::jsonb)\n      from public.lead_activities la where la.lead_id in (select id from subj)),\n    'opt_outs', (select coalesce(jsonb_agg(jsonb_build_object('source', sp.source, 'added_at', sp.added_at)), '[]'::jsonb)\n      from public.suppression sp where sp.lead_id in (select id from subj))\n  ) as export;",
+        "options": {
+          "queryReplacement": "={{ [$json.dsr_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "w34-36",
+      "name": "Export to file",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        1500
+      ],
+      "parameters": {
+        "operation": "toJson",
+        "mode": "once",
+        "options": {
+          "fileName": "={{ 'dsr-' + $json.dsr_id + '.json' }}"
+        }
+      }
+    },
+    {
+      "id": "w34-37",
+      "name": "Write export file",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        1500
+      ],
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $('Check DSR action').first().json.export_dir }}/dsr-{{ $('Check DSR action').first().json.dsr_id }}.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w34-38",
+      "name": "Mark export ready",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1440,
+        1500
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- The IO sends the file over a secure channel and closes the request in the console (completed_at).\nupdate public.dsr_requests dx\nset export_url = $2, status = 'in_progress', updated_at = now()\nwhere dx.id = $1::uuid and dx.verified_at is not null and dx.status not in ('completed', 'rejected')\nreturning dx.id, dx.due_at;",
+        "options": {
+          "queryReplacement": "={{ [$('Check DSR action').first().json.dsr_id, $('Check DSR action').first().json.export_dir + '/dsr-' + $('Check DSR action').first().json.dsr_id + '.json'] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "w34-39",
+      "name": "Suppress subject (erase step 1)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        720,
+        1720
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- W34 DSR erase step 1 (POPIA s24): suppress FIRST, hash only, Lead Velocity-wide (brand_id NULL), so nothing can\n-- message the person while or after the erase runs. Insert-only; an existing hash is left exactly as it is.\n-- Also captures what the broker notice needs (privacy notice: \"we also tell the adviser\") before names are erased.\n-- $1 dsr_id\nwith q as (\n  select dq.id as dsr_id, dq.lead_id, dq.mobile_hash, dq.subject_hash\n  from public.dsr_requests dq\n  where dq.id = $1::uuid and dq.kind = 'erase' and dq.verified_at is not null and dq.status not in ('completed', 'rejected')\n), subj as (\n  select ls.id, ls.broker_id, ls.first_name, public.smc_hash_contact(ls.phone) as mh\n  from public.leads ls, q\n  where coalesce(ls.phone, '') not like 'erased:%' and ls.brand_id is not null\n    and (ls.id = q.lead_id\n      or (q.mobile_hash is not null and public.smc_hash_contact(ls.phone) = q.mobile_hash)\n      or (q.subject_hash is not null and public.smc_hash_contact(ls.email) = q.subject_hash))\n), hs as (\n  select s.mh, s.id from subj s where s.mh is not null\n  union\n  select q.mobile_hash, q.lead_id from q where q.mobile_hash is not null\n), ins as (\n  insert into public.suppression (mobile_hash, source, brand_id, lead_id, note)\n  select distinct on (hs.mh) hs.mh, 'dsr_erase', null, hs.id, 'W34 ' || (select dsr_id from q) from hs\n  on conflict (mobile_hash, source) do nothing\n  returning 1\n)\nselect (select dsr_id from q) as dsr_id, (select count(*) from subj)::int as leads_found, (select count(*) from ins)::int as suppressed,\n       (select coalesce(jsonb_agg(s.id), '[]'::jsonb) from subj s) as lead_ids,\n       (select coalesce(jsonb_agg(jsonb_build_object('broker_id', s.broker_id, 'lead_id', s.id, 'first_name', s.first_name,\n          'broker_first_name', split_part(btrim(coalesce(br.adviser_name, br.signatory_name, '')), ' ', 1),\n          'broker_to', coalesce(br.adviser_whatsapp, br.whatsapp_number))), '[]'::jsonb)\n     from subj s join public.brokers br on br.id = s.broker_id) as broker_notices;",
+        "options": {
+          "queryReplacement": "={{ [$json.dsr_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "w34-40",
+      "name": "Erase subject (erase step 2)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        960,
+        1720
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- W34 DSR erase step 2: smc_erase_lead per matched lead (audited; retention_log row carries dsr_id).\n-- Default action 'pseudonymise' keeps the consent record as evidence (W34_DSR_ERASE_ACTION=delete removes the row:\n-- practitioner question). Never touches public.suppression, public.audit_log or public.retention_log.\n-- $1 dsr_id, $2 lead ids (json array), $3 erase action\nwith q as (\n  select dq.id as dsr_id\n  from public.dsr_requests dq\n  where dq.id = $1::uuid and dq.kind = 'erase' and dq.verified_at is not null and dq.status not in ('completed', 'rejected')\n), ids as (\n  select (jsonb_array_elements_text($2::jsonb))::uuid as id\n), media as (\n  select o.voice_note_url as url from public.outcomes o where o.lead_id in (select id from ids) and o.voice_note_url is not null\n  union all\n  select c.call_recording_url from public.communications c where c.lead_id in (select id from ids) and c.call_recording_url is not null\n), done as (\n  select i.id, public.smc_erase_lead(i.id, $3, 'dsr_erase', (select dsr_id from q)) from ids i where exists (select 1 from q)\n)\nselect (select dsr_id from q) as dsr_id, (select count(*) from done)::int as erased,\n       (select coalesce(jsonb_agg(media.url), '[]'::jsonb) from media) as media_urls;",
+        "options": {
+          "queryReplacement": "={{ [$json.dsr_id, JSON.stringify($json.lead_ids || []), $('Check DSR action').first().json.erase_action] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "w34-41",
+      "name": "Map subject media to paths",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        1820
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-41b: media erase goes through the w34-media-erase edge function (automation/local/LOCAL-STAGING.md §1d;\n// supabase/functions/w34-media-erase/index.ts). The function accepts only \"broker-media/<broker uuid>/<file>\" paths\n// (no \"..\", \"//\", \"*\" or trailing \"/\"; file chars [A-Za-z0-9._/-]), 1-50 per call. The same rule is applied here, so the\n// function never has to reject: anything else (another bucket, a Meta media id, another host, a non-uuid folder) is\n// NOT sent and is reported (red, delete by hand).\n// Accepts .../storage/v1/object/[sign/|public/|authenticated/]broker-media/<key>[?token], \"broker-media/<key>\" or \"<key>\".\nconst BUCKET = 'broker-media'; const MAX_PATHS = 50;\nconst PATH_RE = /^broker-media\\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\/[A-Za-z0-9._\\/-]{1,200}$/;\nfunction toPath(u) {\n  const s = String(u || '').trim(); if (!s) return null;\n  let key;\n  const m = s.match(/\\/storage\\/v1\\/object\\/(?:sign\\/|public\\/|authenticated\\/)?broker-media\\/([^?#]+)/);\n  if (m) { try { key = decodeURIComponent(m[1]); } catch (e) { return null; } }\n  else if (/^[a-z]+:\\/\\//i.test(s) || /^\\d+$/.test(s)) return null;\n  else key = s.replace(/^\\/+/, '').replace(/^broker-media\\//, '');\n  const p = BUCKET + '/' + key;\n  if (p.includes('..') || p.includes('//') || p.includes('*') || p.endsWith('/') || !PATH_RE.test(p)) return null;\n  return p;\n}\n// One item per call: { paths (<= 50), policy, dsr_id, request_id, unmapped, any }. request_id gets \":<n>\" when split.\nfunction batches(urls, policy, dsrId, requestId) {\n  const paths = [...new Set(urls.map(toPath).filter(Boolean))];\n  const unmapped = urls.filter((u) => u && !toPath(u));\n  const out = [];\n  for (let i = 0; i < paths.length; i += MAX_PATHS) {\n    out.push({ policy, dsr_id: dsrId, request_id: requestId + (paths.length > MAX_PATHS ? ':' + (i / MAX_PATHS + 1) : ''), paths: paths.slice(i, i + MAX_PATHS), unmapped, any: true });\n  }\n  if (!out.length) out.push({ policy, dsr_id: dsrId, request_id: requestId, paths: [], unmapped, any: false });\n  return out;\n}\n// DSR erase step 3: the subject's media -> policy \"dsr\", dsr_id on every retention_log row the function writes.\nconst e = $input.first().json || {};\nreturn batches(e.media_urls || [], 'dsr', e.dsr_id || null, 'dsr-' + e.dsr_id).map((c) => ({ json: c }));"
+      }
+    },
+    {
+      "id": "w34-43a",
+      "name": "Sign subject media erase (DSR)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        1920
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// I-41b / I-42d: sign ONE batch for the w34-media-erase edge function, at send time. Scheme = the function's check\n// (supabase/functions/w34-media-erase/index.ts step 1) = /webhook/w26/status (automation/vps/provision.sh notify):\n//   X-LV-Timestamp: <unix seconds>\n//   X-LV-Signature: sha256=<hex HMAC-SHA256(W34_MEDIA_ERASE_SECRET, timestamp + \".\" + rawBody)>\n// I-42d: this node runs once per item INSIDE a Split in Batches loop (batch size 1): Loop -> Sign -> HTTP -> Loop.\n// Every batch gets its own timestamp, taken immediately before its own POST, so a long backlog (many batches, HTTP\n// retries) never leaves the function's +-300 s window. Worst case per batch: 3 tries x 30 s timeout + 2 x 5 s wait\n// = 100 s, inside the window even though a retry re-sends the same signature.\n// The body is serialised ONCE here and the HTTP node sends this exact string (contentType raw), so the signed bytes are\n// the sent bytes.\n// No credential: n8n never holds a Storage key, only this secret, which can delete broker-media objects and nothing else.\n// Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false (same as W20/W22).\nconst crypto = require('crypto');\nconst j = $input.item.json || {};\nconst url = String($env.W34_MEDIA_ERASE_URL || '').trim();\nconst secret = String($env.W34_MEDIA_ERASE_SECRET || '');\nif (!/^https?:\\/\\/[^\\s/]+(\\/[^\\s]*)?\\/functions\\/v1\\/w34-media-erase\\/?$/.test(url)) throw new Error('W34_MEDIA_ERASE_URL is not <SUPABASE_URL>/functions/v1/w34-media-erase: media not erased');\nif (secret.length < 32) throw new Error('W34_MEDIA_ERASE_SECRET missing or shorter than 32 characters: media not erased');\nif (j.any !== true || !Array.isArray(j.paths) || j.paths.length === 0) throw new Error('W34 media erase batch has no paths: nothing signed');\nif (j.paths.length > 50) throw new Error('W34 media erase batch over 50 paths');\nconst body = JSON.stringify({ paths: j.paths, policy: j.policy, dsr_id: j.dsr_id ?? null, request_id: j.request_id });\nconst ts = String(Math.floor(Date.now() / 1000));\nconst sig = crypto.createHmac('sha256', secret).update(ts + '.' + body, 'utf8').digest('hex');\nreturn { json: { any: true, request_id: j.request_id, paths: j.paths.length, body, timestamp: ts, signature: 'sha256=' + sig } };"
+      },
+      "notes": "I-42d: runs per batch inside \"Loop subject media erase (DSR)\". No continue-on-error: a signing failure stops the DSR before \"Complete erase request\" (W22 errorWorkflow)."
+    },
+    {
+      "id": "w34-42",
+      "name": "Any subject media?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        1820
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "any-subject-media-",
+              "leftValue": "={{ $json.any }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w34-42a",
+      "name": "Loop subject media erase (DSR)",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1260,
+        1820
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "notes": "I-42d: one batch per iteration so each is signed at its own send time. Output 0 (done) = every batch response -> Check subject media erase; output 1 (loop) -> Sign -> HTTP -> back here."
+    },
+    {
+      "id": "w34-43",
+      "name": "Erase subject media (storage)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1440,
+        1920
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.W34_MEDIA_ERASE_URL }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-LV-Timestamp",
+              "value": "={{ $json.timestamp }}"
+            },
+            {
+              "name": "X-LV-Signature",
+              "value": "={{ $json.signature }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.body }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "notes": "Same edge function as the nightly node, policy \"dsr\" + dsr_id. Non-2xx stops the run (no continue-on-error); a 2xx with ok:false (rejected path, 207 not logged) is stopped by \"Check subject media erase\". Either way the request is never marked completed with media left."
+    },
+    {
+      "id": "w34-43b",
+      "name": "Check subject media erase",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1380,
+        1620
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-41b / I-42d: input = the done output of \"Loop subject media erase (DSR)\", one response per batch.\n// w34-media-erase answers { ok, deleted, not_found, rejected: [{path, reason}], request_id } per batch (counts and\n// broker-scoped object keys only). 207 = deleted but retention_log not written ({ ok: false, error: 'deleted_but_not_logged' }).\n// A non-2xx already stopped the run at the HTTP node. The DSR is completed only when every batch came back ok: a rejected\n// path or a missing log row stops here (W22 errorWorkflow) before \"Complete erase request\". not_found is fine (already gone).\nconst res = $input.all().map((i) => i.json || {});\nlet deleted = 0, not_found = 0, rejected = 0; const problems = [];\nfor (const r of res) {\n  deleted += Number(r.deleted) || 0; not_found += Number(r.not_found) || 0; rejected += (r.rejected || []).length;\n  if (r.ok !== true) problems.push(String(r.request_id || '?') + ': ' + (r.error ? String(r.error.message || r.error) : (r.rejected || []).length + ' path(s) rejected (' + (r.rejected || []).map((x) => x.reason).join(', ') + ')'));\n}\nif (!res.length) problems.push('no response');\nif (problems.length) throw new Error('W34 DSR media erase incomplete, request NOT completed: ' + problems.join(' | ').slice(0, 500));\nreturn [{ json: { batches: res.length, deleted, not_found, rejected } }];"
+      }
+    },
+    {
+      "id": "w34-44",
+      "name": "Complete erase request",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1440,
+        1720
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Close the request. in_time = answered inside the 30-day clock (register P7 evidence).\n-- $1 dsr_id, $2 erased count, $3 erase action\nupdate public.dsr_requests dc\nset status = 'completed', completed_at = now(), updated_at = now(),\n    note = coalesce(dc.note, '') || ' | W34 ' || $3 || ' ' || $2 || ' lead(s)'\nwhere dc.id = $1::uuid and dc.kind = 'erase' and dc.verified_at is not null and dc.status not in ('completed', 'rejected')\nreturning dc.id, dc.completed_at, dc.due_at, (dc.completed_at <= dc.due_at) as in_time;",
+        "options": {
+          "queryReplacement": "={{ [$('Erase subject (erase step 2)').first().json.dsr_id, String($('Erase subject (erase step 2)').first().json.erased), $('Check DSR action').first().json.erase_action] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "w34-45",
+      "name": "Build IO erase confirmation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        1660
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// IO confirmation via W22 (no name, no number). Red if completed after the 30-day due date.\nconst s = $('Suppress subject (erase step 1)').first().json;\nconst c = $input.first().json || {};\nlet unmapped = 0; try { unmapped = ($('Map subject media to paths').first().json.unmapped || []).length; } catch (e) { /* no media step */ }\nlet mediaDeleted = 0; try { mediaDeleted = $('Check subject media erase').first().json.deleted || 0; } catch (e) { /* no media to erase */ }\nreturn [{ json: { kind: 'dsar_erased', workflow: 'W34', to: [$env.W34_IO_RECIPIENT || 'jonathan'], severity: c.in_time === false || unmapped > 0 ? 'red' : 'info', dsr_id: s.dsr_id, unmapped_media: unmapped, media_deleted: mediaDeleted,\n  message: 'DSR ' + String(s.dsr_id).slice(0, 8) + ': ' + s.leads_found + ' lead(s) erased, ' + s.suppressed + ' number(s) suppressed, ' + (s.broker_notices || []).length + ' broker notice(s). ' + (c.in_time === false ? 'Completed AFTER the 30-day due date.' : 'Inside 30 days.') + (unmapped ? ' ' + unmapped + ' media reference(s) outside the storage bucket: delete by hand.' : '') } }];"
+      }
+    },
+    {
+      "id": "w34-46",
+      "name": "Notify IO (W22)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        1920,
+        1660
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w22"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "executeOnce": true,
+      "notes": "W22 input: { kind: 'dsar_erased', to: [IO], severity: info|red }"
+    },
+    {
+      "id": "w34-47",
+      "name": "Build broker erase messages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        1780
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Privacy notice: \"we also tell the adviser\". Template broker_dsr_erase (UTILITY, automation/templates): {{1}} broker\n// first name, {{2}} the person's first name. Nothing else about the person. One message per broker and lead.\n// Sender contract (shared sub-workflow, as W19): { broker_id, to, template: { name, body, buttons } }.\nconst s = $('Suppress subject (erase step 1)').first().json;\nconst seen = new Set(); const out = [];\nfor (const b of s.broker_notices || []) {\n  const key = b.broker_id + ':' + b.lead_id;\n  if (!b.broker_id || !b.broker_to || seen.has(key)) continue;\n  seen.add(key);\n  out.push({ json: { broker_id: b.broker_id, to: b.broker_to, idempotency_key: 'w34-dsr-erase:' + s.dsr_id + ':' + key,\n    template: { name: 'broker_dsr_erase', body: [b.broker_first_name || 'there', b.first_name || 'not recorded'], buttons: [] } } });\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "w34-48",
+      "name": "WhatsApp: broker_dsr_erase",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1920,
+        1780
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "automation-engineer sender sub-workflow: { broker_id, to, template { name, body, buttons } }. One item per broker+lead.",
+      "notesInFlow": true
+    },
+    {
+      "id": "w34-49",
+      "name": "Monthly 1st 07:30 SAST (report)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        2100
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 7 1 * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "w34-50",
+      "name": "Set report month",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        2100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Previous calendar month in SAST. No PII.\nconst SAST = 7200000;\nconst d = new Date(Date.now() + SAST);\nconst prev = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, 1));\nconst month = prev.toISOString().slice(0, 7);\nreturn [{ json: { month, evidence_dir: $env.W34_EVIDENCE_DIR || '/home/node/compliance/evidence/w34', test_mode: String($env.W34_TEST_MODE || 'false') === 'true' } }];"
+      }
+    },
+    {
+      "id": "w34-51",
+      "name": "Monthly POPIA stats",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        480,
+        2100
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- What was purged last month (retention_log, append-only) + the DSR clock record. Counts only.\n-- $1 month 'YYYY-MM' (SAST)\nwith b as (\n  select (($1 || '-01')::date::timestamp at time zone 'Africa/Johannesburg') as start_at,\n         ((($1 || '-01')::date + interval '1 month')::timestamp at time zone 'Africa/Johannesburg') as end_at\n)\nselect\n  (select coalesce(jsonb_agg(jsonb_build_object('policy', x.policy, 'table_name', x.table_name, 'action', x.action, 'rows', x.n) order by x.table_name, x.policy), '[]'::jsonb)\n     from (select rl.policy, rl.table_name, rl.action, count(*)::int as n from public.retention_log rl, b\n           where rl.at >= b.start_at and rl.at < b.end_at group by rl.policy, rl.table_name, rl.action) x) as purged,\n  (select count(*) from public.dsr_requests d1, b where d1.received_at >= b.start_at and d1.received_at < b.end_at)::int as dsr_received,\n  (select count(*) from public.dsr_requests d2, b where d2.completed_at >= b.start_at and d2.completed_at < b.end_at)::int as dsr_completed,\n  (select count(*) from public.dsr_requests d3, b where d3.completed_at >= b.start_at and d3.completed_at < b.end_at and d3.completed_at > d3.due_at)::int as dsr_completed_late,\n  (select count(*) from public.dsr_requests d4 where d4.status not in ('completed', 'rejected') and d4.due_at < now())::int as dsr_overdue_now,\n  (select count(*) from public.suppression s1, b where s1.added_at >= b.start_at and s1.added_at < b.end_at and s1.source = 'dsr_erase')::int as dsr_suppressed;",
+        "options": {
+          "queryReplacement": "={{ [$json.month] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "w34-52",
+      "name": "Read nightly evidence",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        720,
+        2100
+      ],
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "={{ $('Set report month').first().json.evidence_dir }}/nightly/{{ $('Set report month').first().json.month }}-*.json",
+        "options": {}
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w34-53",
+      "name": "Parse nightly evidence",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        960,
+        2100
+      ],
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w34-54",
+      "name": "Build monthly report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        2100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// W34 monthly POPIA operations report (register P7/P8 evidence; compliance-register monthly line 4). PII-free.\nconst m = $('Set report month').first().json;\nconst s = $('Monthly POPIA stats').first().json || {};\nconst nights = $input.all().map((i) => (i.json && i.json.data) || i.json).filter((n) => n && n.run_day && String(n.run_day).startsWith(m.month));\nconst [y, mo] = m.month.split('-').map(Number);\nconst daysInMonth = new Date(Date.UTC(y, mo, 0)).getUTCDate();\nconst days = new Set(nights.map((n) => n.run_day));\nconst missing = [];\nfor (let d = 1; d <= daysInMonth; d++) { const k = m.month + '-' + String(d).padStart(2, '0'); if (!days.has(k)) missing.push(k); }\nconst redNights = nights.filter((n) => n.red).map((n) => n.run_day).sort();\nconst purged = s.purged || [];\nconst lines = [\n  '# W34 POPIA operations: ' + m.month,\n  '',\n  '## Retention purge',\n  'Nights run: ' + days.size + ' of ' + daysInMonth + (missing.length ? ' (missing: ' + missing.join(', ') + ')' : '') + '.',\n  'Nights with an error or refused setting: ' + (redNights.length ? redNights.join(', ') : 'none') + '.',\n  '',\n  '| Table | Action | Policy | Rows |',\n  '|---|---|---|---|',\n  ...(purged.length ? purged.map((p) => '| ' + p.table_name + ' | ' + p.action + ' | ' + p.policy + ' | ' + p.rows + ' |') : ['| (nothing purged) | | | 0 |']),\n  '',\n  '## Data-subject requests',\n  'Received: ' + (s.dsr_received ?? 0) + '. Completed: ' + (s.dsr_completed ?? 0) + ' (late: ' + (s.dsr_completed_late ?? 0) + '). Open and overdue now: ' + (s.dsr_overdue_now ?? 0) + '. Numbers suppressed on erase: ' + (s.dsr_suppressed ?? 0) + '.',\n  '',\n  '## Never deleted by W34',\n  'public.suppression (hashes), public.audit_log, public.retention_log.',\n  '',\n  'Generated ' + new Date().toISOString() + ' by W34. Counts only; no personal information in this file.',\n];\nconst red = missing.length > 0 || redNights.length > 0 || (s.dsr_overdue_now ?? 0) > 0 || (s.dsr_completed_late ?? 0) > 0;\nreturn [{ json: { month: m.month, evidence_dir: m.evidence_dir, test_mode: m.test_mode, report_md: lines.join('\\n'), red,\n  alert: { kind: 'w34_monthly_report', workflow: 'W34', to: ['jonathan'], severity: red ? 'amber' : 'info',\n    message: 'W34 ' + m.month + ': ' + days.size + '/' + daysInMonth + ' nights, ' + purged.reduce((a, p) => a + p.rows, 0) + ' rows purged, DSR received ' + (s.dsr_received ?? 0) + ', overdue ' + (s.dsr_overdue_now ?? 0) + '.' } } }];"
+      },
+      "executeOnce": true
+    },
+    {
+      "id": "w34-55",
+      "name": "Report to file",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1440,
+        2100
+      ],
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "report_md",
+        "options": {}
+      }
+    },
+    {
+      "id": "w34-56",
+      "name": "Write monthly report",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1680,
+        2100
+      ],
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $('Build monthly report').first().json.evidence_dir }}/popia-ops-{{ $('Build monthly report').first().json.month }}.md",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w34-57",
+      "name": "Update P7/P8 evidence",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1920,
+        2100
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Monthly evidence link on P7 (DSR 30 days) and P8 (retention). Status is set nightly (P8) / by the IO (P7).\nupdate public.obligations\nset evidence_url = $1, updated_at = now()\nwhere code in ('P7', 'P8') and not $2::boolean\nreturning code;",
+        "options": {
+          "queryReplacement": "={{ [$('Build monthly report').first().json.evidence_dir + '/popia-ops-' + $('Build monthly report').first().json.month + '.md', $('Build monthly report').first().json.test_mode] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "w34-58",
+      "name": "Build report notice",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        2100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Build monthly report').first().json.alert }];"
+      }
+    },
+    {
+      "id": "w34-59",
+      "name": "Send report notice (W22)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        2400,
+        2100
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w22"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "executeOnce": true,
+      "notes": "W22 input: { kind: 'w34_monthly_report', to: ['jonathan'], severity: info|amber }"
+    },
+    {
+      "id": "w34-b2-1",
+      "name": "Detect breach report (EN + AF keywords)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        1000
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// W34 B2 breach-report detector (POPIA s22 / compliance register Part 3 step 2). howzit@ inbound mail only.\n// CONSERVATIVE on purpose: whole phrases, English + Afrikaans, documented in deliverables/compliance-qa/W34-popia-ops.md.\n// A match opens an incident DRAFT and alerts both phones; a person decides whether it is a breach. A DSR email (\"what data do you\n// hold\", \"delete my details\") never matches. Nothing here replies, marks or moves mail. No message text is kept: only a hash of the\n// mail id and the sender's domain.\nconst crypto = require('crypto');\nconst sha = (s) => crypto.createHash('sha256').update(String(s), 'utf8').digest('hex');\nconst OWN = String($env.HOWZIT_MAILBOX || 'howzit@leadvelocity.co.za').toLowerCase();\nconst DATA = '(?:personal (?:information|details|data)|(?:my|our|their) (?:information|details|data|number|numbers|name)|leads?|client data|customer data|database|export|spreadsheet|list)';\nconst BAD = '(?:leaked|leaking|exposed|compromised|breached|hacked|stolen|disclosed|published|made public|publicly (?:visible|accessible|available))';\nconst AF_DATA = '(?:persoonlike inligting|(?:my|ons|hul) (?:inligting|besonderhede|data|nommer|nommers)|leads?|kliënt ?data|databasis)';\nconst AF_BAD = '(?:uitgelek|blootgestel|gekompromitteer|gehack|gesteel|openbaar gemaak|openbaar beskikbaar|vir almal sigbaar)';\nconst PATTERNS = [\n  ['en.breach_phrase', /\\b(?:data|security|privacy|popia) (?:breach|leak|compromise)\\b|\\bsecurity incident\\b|\\bsecurity compromise\\b/],\n  ['en.unauthorised', /\\bunauthori[sz]ed (?:disclosure|access|release|sharing)\\b|\\bwithout (?:my|our|their) (?:consent|permission|knowledge)\\b[^.?!]{0,40}\\b(?:shared|disclosed|published|passed)\\b/],\n  ['en.data_then_bad', new RegExp('\\\\b' + DATA + '\\\\b[^.?!]{0,60}\\\\b(?:has|have|had|was|were|is|are|been)\\\\b[^.?!]{0,20}\\\\b' + BAD + '\\\\b')],\n  ['en.bad_then_data', new RegExp('\\\\b' + BAD + '\\\\b[^.?!]{0,40}\\\\b' + DATA + '\\\\b')],\n  ['en.found_online', /\\b(?:found|saw|spotted)\\b[^.?!]{0,60}\\b(?:your|lead velocity|sortmycover)\\b[^.?!]{0,60}\\b(?:online|public|gist|pastebin|github|website|internet)\\b/],\n  ['af.breach_phrase', /\\b(?:databreuk|datalek|data-lek|data lek|sekuriteitsbreuk|sekuriteitsinbreuk|inbreuk op (?:die )?(?:sekuriteit|data|privaatheid)|sekuriteitsvoorval)\\b/],\n  ['af.unauthorised', /\\bonbevoegde (?:openbaarmaking|toegang|blootstelling)\\b|\\bsonder (?:my|ons|hul) (?:toestemming|medewete)\\b[^.?!]{0,40}\\b(?:gedeel|openbaar|bekend)/],\n  ['af.data_then_bad', new RegExp('\\\\b' + AF_DATA + '\\\\b[^.?!]{0,60}\\\\b' + AF_BAD + '\\\\b')],\n  ['af.bad_then_data', new RegExp('\\\\b' + AF_BAD + '\\\\b[^.?!]{0,40}\\\\b' + AF_DATA + '\\\\b')],\n];\nconst out = [];\nfor (const item of $input.all()) {\n  const j = item.json || {};\n  if (j.subject === undefined && j.bodyPreview === undefined) continue;\n  const from = (j.from && j.from.emailAddress) || {};\n  const addr = String(from.address || '').toLowerCase();\n  if (addr === OWN) continue; // our own W22 e-mail copies and invites must never re-trigger this lane\n  const text = String((j.subject || '') + ' \\n ' + (j.bodyPreview || '')).toLowerCase().normalize('NFC');\n  const hits = PATTERNS.filter(([, re]) => re.test(text)).map(([id]) => id);\n  if (!hits.length) continue;\n  const received = j.receivedDateTime && !Number.isNaN(Date.parse(j.receivedDateTime)) ? new Date(Date.parse(j.receivedDateTime)).toISOString() : new Date().toISOString();\n  const ref = sha('breach-mail:' + (j.id || received)).slice(0, 12);\n  out.push({ json: { ref, received_at: received, matched: hits, sender_domain: addr.includes('@') ? addr.split('@')[1] : null,\n    summary: 'DRAFT: possible breach / unauthorised-disclosure report received at howzit@ (ref ' + ref + '). Not yet assessed. Open the mail, then run the breach runbook (register Part 3).' } });\n}\nreturn out;"
+      },
+      "notes": "G1 (breach drill P14). Reads the same howzit@ trigger as the DSR lane. Conservative whole-phrase list; the keyword set is documented in deliverables/compliance-qa/W34-popia-ops.md. Read-only on the mailbox."
+    },
+    {
+      "id": "w34-b2-2",
+      "name": "Open incident draft",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        480,
+        1000
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- W34 B2: one incidents DRAFT row per breach-report e-mail (idempotent on the ref in the summary, so a re-poll never opens two).\n-- severity high until a person assesses it; affected_count unknown (null). No sender name, address or message text is stored.\n-- Existing table only (migration smc_03): the exposure window, data categories and notice wording have no columns yet (drill gap G5, platform-architect).\n-- $1 detector item (json)\nwith v as (\n  select * from jsonb_to_record($1::jsonb) as v(ref text, received_at timestamptz, summary text)\n), ins as (\n  insert into public.incidents (declared_at, severity, summary)\n  select v.received_at, 'high', v.summary from v\n  where not exists (select 1 from public.incidents i where i.summary like '%(ref ' || v.ref || ')%')\n  returning id\n)\nselect (select id from ins limit 1) as incident_id, (select ref from v) as ref, not exists (select 1 from ins) as duplicate;",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($json)] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "executeOnce": false,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "w34-b2-3",
+      "name": "Build breach alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        1000
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// One W22 alert per NEW incident draft (duplicates are silent). Red, both phones (registry: popia_breach, to 'both').\n// No message text, name or contact. Whether it rings at night is NOT decided here: W22's DND list is unchanged (NH-29(d)).\nconst out = [];\nfor (const i of $input.all()) {\n  const j = i.json;\n  if (!j.incident_id || j.duplicate) continue;\n  out.push({ json: { kind: 'popia_breach', workflow: 'W34', to: ['jonathan', 'kg'], severity: 'red', incident_id: j.incident_id,\n    deep_link: ($env.CONSOLE_URL || '') + '/compliance/incidents/' + j.incident_id,\n    message: 'Possible POPIA breach reported to howzit@ (ref ' + j.ref + '). Incident draft opened. Read the mail, contain first, then follow the breach runbook.' } });\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "w34-b2-4",
+      "name": "Alert breach (W22)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        1000
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w22"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "executeOnce": true,
+      "notes": "W22 input: { kind: 'popia_breach', to: [both], severity: 'red', incident_id }. Producer contract W22.md section 3. No send here: W22 owns delivery and DRY_RUN."
+    },
+    {
+      "id": "w34-60",
+      "name": "Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -400
+      ],
+      "parameters": {
+        "width": 620,
+        "height": 300,
+        "content": "## W34 POPIA operations (DRAFT, inactive until GATE-TEST-W34)\nSpec: deliverables/compliance-qa/W34-popia-ops.md. Owner: compliance-qa (+ devops-security). Timezone Africa/Johannesburg.\nA. Nightly 02:30: wa_threads expiry (I-35l), non-fit 24 h, 12 m pseudonymise, 5 y delete, DSR record minimisation, media erase.\nB. DSR intake: howzit@ mailbox or webhook -> dsr_requests + ops.notifications kind dsar -> IO alert (W22).\nC. Daily 07:00 DSR 30-day clock. D. Export / erase (verified requests only). E. Monthly report on the 1st.\nPeriods from .env: W34_NONFIT_RETENTION_HOURS, W34_LEAD_RETENTION_MONTHS, W34_CONSENT_RETENTION_YEARS, W34_DSR_RECORD_YEARS, W34_WA_THREAD_*.\nNEVER deleted: public.suppression, public.audit_log, public.retention_log. Credentials by name only. Sub-calls and errorWorkflow reference W22 by its id smc-w22 (I-44b)."
+      }
+    }
+  ],
+  "connections": {
+    "Nightly 02:30 SAST (retention)": {
+      "main": [
+        [
+          {
+            "node": "Set retention context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual run (synthetic nightly)": {
+      "main": [
+        [
+          {
+            "node": "Set retention context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set retention context": {
+      "main": [
+        [
+          {
+            "node": "Purge expired wa_threads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Purge expired wa_threads": {
+      "main": [
+        [
+          {
+            "node": "Delete non-fit entries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete non-fit entries": {
+      "main": [
+        [
+          {
+            "node": "Pseudonymise after lead retention",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pseudonymise after lead retention": {
+      "main": [
+        [
+          {
+            "node": "Delete consent records after consent retention",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete consent records after consent retention": {
+      "main": [
+        [
+          {
+            "node": "Minimise closed DSR records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Minimise closed DSR records": {
+      "main": [
+        [
+          {
+            "node": "Collect media to erase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect media to erase": {
+      "main": [
+        [
+          {
+            "node": "Any media?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sign media erase (nightly)": {
+      "main": [
+        [
+          {
+            "node": "Erase media files (storage)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop media erase (nightly)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any media?": {
+      "main": [
+        [
+          {
+            "node": "Loop media erase (nightly)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Summarise night",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Erase media files (storage)": {
+      "main": [
+        [
+          {
+            "node": "Loop media erase (nightly)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarise night": {
+      "main": [
+        [
+          {
+            "node": "Night summary to file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Night summary to file": {
+      "main": [
+        [
+          {
+            "node": "Write nightly evidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write nightly evidence": {
+      "main": [
+        [
+          {
+            "node": "Update P8 retention obligation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update P8 retention obligation": {
+      "main": [
+        [
+          {
+            "node": "Retention alert?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retention alert?": {
+      "main": [
+        [
+          {
+            "node": "Build retention alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build retention alert": {
+      "main": [
+        [
+          {
+            "node": "Alert Jonathan: retention (W22)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "howzit@ mailbox (DSR keywords)": {
+      "main": [
+        [
+          {
+            "node": "Normalise DSR request",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Detect breach report (EN + AF keywords)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DSR intake (manual webhook)": {
+      "main": [
+        [
+          {
+            "node": "Normalise DSR request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise DSR request": {
+      "main": [
+        [
+          {
+            "node": "Record DSR + dsar ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record DSR + dsar ticket": {
+      "main": [
+        [
+          {
+            "node": "Build IO alert (new DSR)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build IO alert (new DSR)": {
+      "main": [
+        [
+          {
+            "node": "Alert Information Officer (W22)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily 07:00 SAST (DSR clock)": {
+      "main": [
+        [
+          {
+            "node": "Read open DSRs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read open DSRs": {
+      "main": [
+        [
+          {
+            "node": "DSR clock",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DSR clock": {
+      "main": [
+        [
+          {
+            "node": "Any DSR due?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any DSR due?": {
+      "main": [
+        [
+          {
+            "node": "Queue DSR clock tickets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue DSR clock tickets": {
+      "main": [
+        [
+          {
+            "node": "Build DSR clock alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build DSR clock alert": {
+      "main": [
+        [
+          {
+            "node": "Alert DSR clock (W22)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DSR action (manual webhook)": {
+      "main": [
+        [
+          {
+            "node": "Check DSR action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check DSR action": {
+      "main": [
+        [
+          {
+            "node": "Export or erase?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Export or erase?": {
+      "main": [
+        [
+          {
+            "node": "Export subject data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Suppress subject (erase step 1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Export subject data": {
+      "main": [
+        [
+          {
+            "node": "Export to file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Export to file": {
+      "main": [
+        [
+          {
+            "node": "Write export file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write export file": {
+      "main": [
+        [
+          {
+            "node": "Mark export ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Suppress subject (erase step 1)": {
+      "main": [
+        [
+          {
+            "node": "Erase subject (erase step 2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Erase subject (erase step 2)": {
+      "main": [
+        [
+          {
+            "node": "Map subject media to paths",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map subject media to paths": {
+      "main": [
+        [
+          {
+            "node": "Any subject media?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sign subject media erase (DSR)": {
+      "main": [
+        [
+          {
+            "node": "Erase subject media (storage)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any subject media?": {
+      "main": [
+        [
+          {
+            "node": "Loop subject media erase (DSR)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Complete erase request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Erase subject media (storage)": {
+      "main": [
+        [
+          {
+            "node": "Loop subject media erase (DSR)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check subject media erase": {
+      "main": [
+        [
+          {
+            "node": "Complete erase request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Complete erase request": {
+      "main": [
+        [
+          {
+            "node": "Build IO erase confirmation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build broker erase messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build IO erase confirmation": {
+      "main": [
+        [
+          {
+            "node": "Notify IO (W22)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build broker erase messages": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp: broker_dsr_erase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Monthly 1st 07:30 SAST (report)": {
+      "main": [
+        [
+          {
+            "node": "Set report month",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set report month": {
+      "main": [
+        [
+          {
+            "node": "Monthly POPIA stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Monthly POPIA stats": {
+      "main": [
+        [
+          {
+            "node": "Read nightly evidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read nightly evidence": {
+      "main": [
+        [
+          {
+            "node": "Parse nightly evidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse nightly evidence": {
+      "main": [
+        [
+          {
+            "node": "Build monthly report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build monthly report": {
+      "main": [
+        [
+          {
+            "node": "Report to file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Report to file": {
+      "main": [
+        [
+          {
+            "node": "Write monthly report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write monthly report": {
+      "main": [
+        [
+          {
+            "node": "Update P7/P8 evidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update P7/P8 evidence": {
+      "main": [
+        [
+          {
+            "node": "Build report notice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build report notice": {
+      "main": [
+        [
+          {
+            "node": "Send report notice (W22)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop media erase (nightly)": {
+      "main": [
+        [
+          {
+            "node": "Summarise night",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sign media erase (nightly)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop subject media erase (DSR)": {
+      "main": [
+        [
+          {
+            "node": "Check subject media erase",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sign subject media erase (DSR)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect breach report (EN + AF keywords)": {
+      "main": [
+        [
+          {
+            "node": "Open incident draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Open incident draft": {
+      "main": [
+        [
+          {
+            "node": "Build breach alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build breach alert": {
+      "main": [
+        [
+          {
+            "node": "Alert breach (W22)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": false,
+    "saveExecutionProgress": false,
+    "errorWorkflow": "smc-w22",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "owner": "compliance-qa",
+    "spec": "deliverables/compliance-qa/W34-popia-ops.md"
+  },
+  "tags": [
+    {
+      "name": "SortMyCover"
+    },
+    {
+      "name": "compliance"
+    },
+    {
+      "name": "W34"
+    }
+  ]
+}

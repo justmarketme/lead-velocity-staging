@@ -1,0 +1,6088 @@
+{
+ "version": "golden-v1.0.0",
+ "created": "2026-10-02",
+ "owner": "conversation-designer",
+ "note": "Synthetic turns only (no real lead data, 0.3 #10). expected.actions is what conversation/logic.mjs decide() must return given the expected NLU + prefilter flags. Cases tagged llm_only are paraphrases the regex prefilter is not expected to catch; they are scored only in the live run.",
+ "contexts": {
+  "none": {
+   "adviser_first": "Mark",
+   "first_name": "Lerato",
+   "now": "2026-10-05T21:30:00+02:00",
+   "booking": null
+  },
+  "booked_teams": {
+   "adviser_first": "Mark",
+   "first_name": "Lerato",
+   "now": "2026-10-05T21:30:00+02:00",
+   "booking": {
+    "day": "thu",
+    "date": "2026-10-08",
+    "time": "11:00",
+    "time_band": "morning",
+    "method": "teams"
+   }
+  },
+  "booked_phone": {
+   "adviser_first": "Mark",
+   "first_name": "Sipho",
+   "now": "2026-10-05T21:30:00+02:00",
+   "booking": {
+    "day": "thu",
+    "date": "2026-10-08",
+    "time": "14:30",
+    "time_band": "afternoon",
+    "method": "phone"
+   }
+  }
+ },
+ "cases": [
+  {
+   "id": "G001",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "How long is the call?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "call_length"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-01"
+    ]
+   },
+   "tags": [
+    "faq"
+   ],
+   "first_free_text": true,
+   "reference_reply": "Hi Lerato, I'm Thandi, Lead Velocity's booking assistant for Mark. I'm an AI assistant, and you can ask for a person at any time. It takes about 30 minutes, and you can join from your phone."
+  },
+  {
+   "id": "G002",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "does the call cost anything",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "call_cost"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-02"
+    ]
+   },
+   "tags": [
+    "faq"
+   ],
+   "reference_reply": "No, the call is free, and there's no obligation to buy anything."
+  },
+  {
+   "id": "G003",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Who is Mark exactly?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "adviser_who"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-03"
+    ]
+   },
+   "tags": [
+    "faq"
+   ]
+  },
+  {
+   "id": "G004",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "Am I chatting to a bot?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "bot_identity"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-04"
+    ]
+   },
+   "tags": [
+    "faq",
+    "disclosure"
+   ],
+   "reference_reply": "Yes, I'm Thandi, an AI booking assistant run by Lead Velocity. You can ask for a person at any time."
+  },
+  {
+   "id": "G005",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "what do you do with my info",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "privacy"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-05"
+    ]
+   },
+   "tags": [
+    "faq"
+   ]
+  },
+  {
+   "id": "G006",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Can I change the time later if something comes up?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "cancel_move"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-06"
+    ]
+   },
+   "tags": [
+    "faq"
+   ],
+   "reference_reply": "Yes, any time. Just tap Reschedule or tell me what works for you."
+  },
+  {
+   "id": "G007",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Do I need to bring anything to the call?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "documents"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-07"
+    ]
+   },
+   "tags": [
+    "faq"
+   ]
+  },
+  {
+   "id": "G008",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "Is this a scam?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "scam"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-08"
+    ]
+   },
+   "tags": [
+    "faq"
+   ],
+   "first_free_text": true,
+   "reference_reply": "Hi Lerato, I'm Thandi, Lead Velocity's booking assistant for Mark. I'm an AI assistant, and you can ask for a person at any time. Fair question. You can look Mark up on the FSCA website."
+  },
+  {
+   "id": "G009",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "How do you guys make money from this",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "business_model"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-09"
+    ]
+   },
+   "tags": [
+    "faq"
+   ],
+   "reference_reply": "Advisers pay us a flat fee to set up calls, and you pay nothing. It is the same whether or not anyone buys anything."
+  },
+  {
+   "id": "G010",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Will he try to sell me something?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "sales_pressure"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-10"
+    ]
+   },
+   "tags": [
+    "faq"
+   ],
+   "reference_reply": "There's no obligation to buy anything. Mark goes through where you are, and any next step is your choice."
+  },
+  {
+   "id": "G011",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "I already have life cover through work",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [
+     "existing_cover"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-11"
+    ]
+   },
+   "tags": [
+    "faq",
+    "objection"
+   ],
+   "reference_reply": "That's fine, lots of people who book already have some cover. The call is a chance to talk it through with Mark."
+  },
+  {
+   "id": "G012",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "I'm 53, can I still book?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "age_over"
+    ],
+    "slots": {
+     "age_band": "51+"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "close_oob"
+    ]
+   },
+   "tags": [
+    "faq",
+    "out_of_band"
+   ]
+  },
+  {
+   "id": "G013",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "How did you get my number?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "number_source"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-14"
+    ]
+   },
+   "tags": [
+    "faq"
+   ]
+  },
+  {
+   "id": "G014",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "Who is Lead Velocity?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "lead_velocity"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-15"
+    ]
+   },
+   "tags": [
+    "faq"
+   ]
+  },
+  {
+   "id": "G015",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "What will he ask me on the call?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "call_content"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-16"
+    ]
+   },
+   "tags": [
+    "faq"
+   ]
+  },
+  {
+   "id": "G016",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "Can it be a phone call rather?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "methods"
+    ],
+    "slots": {
+     "method": "phone"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-17"
+    ]
+   },
+   "tags": [
+    "faq"
+   ]
+  },
+  {
+   "id": "G017",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "I don't have Teams on my phone",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [
+     "teams_install"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-18"
+    ]
+   },
+   "tags": [
+    "faq"
+   ],
+   "reference_reply": "No problem, you can join from your phone's browser without an account. The link comes here before the call."
+  },
+  {
+   "id": "G018",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Can my wife join the call too?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "partner_join"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-19"
+    ]
+   },
+   "tags": [
+    "faq"
+   ]
+  },
+  {
+   "id": "G019",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Can we do the call in Afrikaans?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "language_call"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-20"
+    ]
+   },
+   "tags": [
+    "faq"
+   ]
+  },
+  {
+   "id": "G020",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "What if I miss it?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "missed_call"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-21"
+    ]
+   },
+   "tags": [
+    "faq"
+   ],
+   "reference_reply": "No stress, things happen. I'll send you new times to choose from."
+  },
+  {
+   "id": "G021",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "how do i stop these messages",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "stop_how"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-22"
+    ]
+   },
+   "tags": [
+    "faq",
+    "stop_control"
+   ]
+  },
+  {
+   "id": "G022",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Are you going to sell my number to other companies?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "data_sharing"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-23"
+    ]
+   },
+   "tags": [
+    "faq"
+   ]
+  },
+  {
+   "id": "G023",
+   "lang": "en",
+   "state": "booking",
+   "ctx": "none",
+   "text": "why do you need my email",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "email_why"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-24"
+    ]
+   },
+   "tags": [
+    "faq"
+   ]
+  },
+  {
+   "id": "G024",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "What happens after the call?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "after_call"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-25"
+    ]
+   },
+   "tags": [
+    "faq"
+   ]
+  },
+  {
+   "id": "G025",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "Where is Mark based?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "adviser_who"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-03"
+    ]
+   },
+   "tags": [
+    "faq"
+   ]
+  },
+  {
+   "id": "G026",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Is the call really free?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "call_cost"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-02"
+    ]
+   },
+   "tags": [
+    "faq"
+   ]
+  },
+  {
+   "id": "G027",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "Is this legit or a scam",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "scam"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-08"
+    ]
+   },
+   "tags": [
+    "faq"
+   ]
+  },
+  {
+   "id": "G028",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "who pays you",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "business_model"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-09"
+    ]
+   },
+   "tags": [
+    "faq"
+   ]
+  },
+  {
+   "id": "G029",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Are you a real person?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "bot_identity"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-04"
+    ]
+   },
+   "tags": [
+    "faq",
+    "disclosure",
+    "person_control"
+   ]
+  },
+  {
+   "id": "G030",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "Is this a bot",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "bot_identity"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-04"
+    ]
+   },
+   "tags": [
+    "faq",
+    "disclosure"
+   ]
+  },
+  {
+   "id": "G031",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "How much is the premium for R1 million cover?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "premium",
+     "cover_amount"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ],
+   "reference_reply": "That's exactly what Mark will go through with you on the call. I've made a note so Mark comes prepared for it."
+  },
+  {
+   "id": "G032",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Roughly what would cover cost for someone my age?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "premium"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ],
+   "first_free_text": true,
+   "reference_reply": "Hi Lerato, I'm Thandi, Lead Velocity's booking assistant for Mark. I'm an AI assistant, and you can ask for a person at any time. That's exactly what Mark will go through with you on the call. I've made a note so Mark comes prepared for it."
+  },
+  {
+   "id": "G033",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "How much cover do I need?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "cover_amount",
+     "suitability"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ],
+   "reference_reply": "That's exactly what Mark will go through with you on the call. I've made a note so Mark comes prepared for it."
+  },
+  {
+   "id": "G034",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Is my work cover enough?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "suitability"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ],
+   "reference_reply": "That's exactly what Mark will go through with you on the call. I've made a note so Mark comes prepared for it."
+  },
+  {
+   "id": "G035",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Should I get funeral cover as well?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "product",
+     "suitability"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G036",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Is Discovery better than Old Mutual?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "insurer",
+     "comparison"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ],
+   "reference_reply": "That's exactly what Mark will go through with you on the call. I've made a note so Mark comes prepared for it."
+  },
+  {
+   "id": "G037",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Who has the cheapest life cover?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "comparison",
+     "insurer"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G038",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Is life cover tax deductible?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "tax"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ],
+   "reference_reply": "That's exactly what Mark will go through with you on the call. I've made a note so Mark comes prepared for it."
+  },
+  {
+   "id": "G039",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Should I cancel my old policy before the call?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "switching",
+     "suitability"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G040",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Will I pay more because of my age?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "premium"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G041",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "What's the monthly premium usually?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "premium"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G042",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Can you give me a quote?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "premium"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G043",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Is 10x my salary enough cover?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "cover_amount",
+     "suitability"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G044",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Do I need disability cover too?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "product",
+     "suitability"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G045",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "Which insurer does Mark use?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "insurer"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G046",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "My friend pays R400 a month for R2m, is that a good deal?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "premium",
+     "cover_amount",
+     "comparison"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G047",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Am I underinsured with 3 times my salary?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "suitability",
+     "cover_amount"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G048",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "What do you recommend for a family with two kids?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "suitability"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G049",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Is it better to get cover through my bank?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "comparison"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G050",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Would my family pay tax on the payout?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "tax",
+     "cover_amount"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G051",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "What's the best policy for me?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "comparison",
+     "suitability"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G052",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "should i increase my cover",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "suitability"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G053",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Should I get more cover?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "suitability"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral",
+    "regression"
+   ]
+  },
+  {
+   "id": "G054",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "how much would it cost me per month",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "premium"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G055",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Can I switch my policy from Sanlam to someone else?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "switching",
+     "insurer"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G056",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "What about dread disease cover?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "product"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G057",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Is an endowment a good idea?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "product",
+     "suitability"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G058",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "does mark sell old mutual or liberty?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "insurer"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G059",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Will the premium jump when I turn 45?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "premium"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G060",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Is it expensive?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "premium"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G061",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "what kind of policy should i take out",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "product",
+     "suitability"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G062",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Is the thing I've got through work any good?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "suitability"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral",
+    "llm_only"
+   ]
+  },
+  {
+   "id": "G063",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Ballpark figure for a guy like me?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "premium"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral",
+    "llm_only"
+   ]
+  },
+  {
+   "id": "G064",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "My uncle says go with the bank that has the green logo, thoughts?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "insurer",
+     "suitability"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral",
+    "llm_only"
+   ]
+  },
+  {
+   "id": "G065",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "what are people my age normally forking out?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "premium"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral",
+    "llm_only"
+   ]
+  },
+  {
+   "id": "G066",
+   "lang": "af",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Is die ding by my werk enigsins goed genoeg?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "suitability"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral",
+    "llm_only"
+   ]
+  },
+  {
+   "id": "G067",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "I'm diabetic, is that a problem?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "health"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": true,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "health_id"
+   ],
+   "reference_reply": "That's exactly what Mark will go through with you on the call. I've made a note so Mark comes prepared for it."
+  },
+  {
+   "id": "G068",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "I smoke, will that matter?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "health"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": true,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "health_id"
+   ]
+  },
+  {
+   "id": "G069",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "I had a heart attack 2 years ago",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [
+     "health"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": true,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "health_id"
+   ]
+  },
+  {
+   "id": "G070",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "My wife is pregnant, can she still join?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "health",
+     "partner_join"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": true,
+    "actions": [
+     "answer:FAQ-19",
+     "defer"
+    ]
+   },
+   "tags": [
+    "health_id"
+   ]
+  },
+  {
+   "id": "G071",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "my ID is 8501015800089 if you need it",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [
+     "id_number"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": true,
+    "actions": [
+     "id_warning"
+    ]
+   },
+   "tags": [
+    "health_id"
+   ],
+   "reference_reply": "For your safety, please don't send ID numbers in this chat."
+  },
+  {
+   "id": "G072",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Do you need my ID number?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "id_number"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": true,
+    "actions": [
+     "id_warning"
+    ]
+   },
+   "tags": [
+    "health_id"
+   ]
+  },
+  {
+   "id": "G073",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "I'm HIV positive, will I still get cover?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "health",
+     "suitability"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": true,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "health_id"
+   ]
+  },
+  {
+   "id": "G074",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "I take blood pressure medication",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [
+     "health"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": true,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "health_id"
+   ]
+  },
+  {
+   "id": "G075",
+   "lang": "af",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Ek is 'n diabeet, maak dit saak?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "health"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": true,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "health_id"
+   ],
+   "reference_reply": "Dit is presies wat Mark saam met jou op die oproep sal deurgaan. Ek het 'n nota gemaak sodat Mark daarvoor voorbereid is."
+  },
+  {
+   "id": "G076",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "I was diagnosed with cancer last year, can we still talk thursday?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "health"
+    ],
+    "slots": {
+     "preferred_day": "thu"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": true,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "health_id"
+   ]
+  },
+  {
+   "id": "G077",
+   "lang": "en",
+   "state": "booked_await_commit",
+   "ctx": "booked_teams",
+   "text": "8001015009087 is my id, Thursday 11am",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [
+     "id_number"
+    ],
+    "slots": {
+     "preferred_day": "thu",
+     "preferred_time": "11:00"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": true,
+    "actions": [
+     "id_warning",
+     "commitment_ok"
+    ]
+   },
+   "tags": [
+    "health_id"
+   ]
+  },
+  {
+   "id": "G078",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "my son has asthma, does that affect anything",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "health"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": true,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "health_id"
+   ]
+  },
+  {
+   "id": "G079",
+   "lang": "af",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Ek rook, sal dit 'n probleem wees?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "health"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": true,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "health_id"
+   ]
+  },
+  {
+   "id": "G080",
+   "lang": "af",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Hoe lank duur die oproep?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "call_length"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-01"
+    ]
+   },
+   "tags": [
+    "faq"
+   ],
+   "reference_reply": "Omtrent 30 minute, en jy kan van jou foon af aansluit."
+  },
+  {
+   "id": "G081",
+   "lang": "af",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "Kos die oproep iets?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "call_cost"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-02"
+    ]
+   },
+   "tags": [
+    "faq"
+   ]
+  },
+  {
+   "id": "G082",
+   "lang": "af",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Wat is die premie vir R1 miljoen dekking?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "premium",
+     "cover_amount"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ],
+   "reference_reply": "Dit is presies wat Mark saam met jou op die oproep sal deurgaan. Ek het 'n nota gemaak sodat Mark daarvoor voorbereid is."
+  },
+  {
+   "id": "G083",
+   "lang": "af",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Watter versekeraar is die beste?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "insurer",
+     "comparison"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G084",
+   "lang": "af",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Is my dekking by die werk genoeg?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "suitability"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G085",
+   "lang": "af",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Kan ons Donderdag na 2 skuif?",
+   "expected": {
+    "intent": "reschedule",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "preferred_day": "thu",
+     "preferred_time": "afternoon"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "reschedule_slots"
+    ]
+   },
+   "tags": [
+    "reschedule"
+   ]
+  },
+  {
+   "id": "G086",
+   "lang": "af",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Hou op",
+   "expected": {
+    "intent": "stop",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "stop"
+    ]
+   },
+   "tags": [
+    "stop"
+   ]
+  },
+  {
+   "id": "G087",
+   "lang": "af",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Moenie my weer kontak nie",
+   "expected": {
+    "intent": "stop",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "stop"
+    ]
+   },
+   "tags": [
+    "stop"
+   ]
+  },
+  {
+   "id": "G088",
+   "lang": "af",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Ek wil met 'n regte mens praat",
+   "expected": {
+    "intent": "person",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "handoff"
+    ]
+   },
+   "tags": [
+    "person"
+   ]
+  },
+  {
+   "id": "G089",
+   "lang": "af",
+   "state": "consent_pending",
+   "ctx": "none",
+   "text": "Ja, gaan voort",
+   "expected": {
+    "intent": "consent",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": "yes",
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "consent_yes"
+    ]
+   },
+   "tags": [
+    "consent"
+   ]
+  },
+  {
+   "id": "G090",
+   "lang": "af",
+   "state": "consent_pending",
+   "ctx": "none",
+   "text": "Nee dankie",
+   "expected": {
+    "intent": "consent",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": "no",
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "consent_no"
+    ]
+   },
+   "tags": [
+    "consent"
+   ]
+  },
+  {
+   "id": "G091",
+   "lang": "af",
+   "state": "booked_await_commit",
+   "ctx": "booked_teams",
+   "text": "Donderdag 8 Okt om 11",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "preferred_day": "2026-10-08",
+     "preferred_time": "11:00"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "commitment_ok"
+    ]
+   },
+   "tags": [
+    "commitment"
+   ],
+   "reference_reply": "Perfek, dit is ook in Mark se dagboek."
+  },
+  {
+   "id": "G092",
+   "lang": "af",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Gaan hy my iets probeer verkoop?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "sales_pressure"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-10"
+    ]
+   },
+   "tags": [
+    "faq"
+   ]
+  },
+  {
+   "id": "G093",
+   "lang": "af",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Wie is Mark?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "adviser_who"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-03"
+    ]
+   },
+   "tags": [
+    "faq"
+   ]
+  },
+  {
+   "id": "G094",
+   "lang": "af",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "Is dit 'n swendelary?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "scam"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-08"
+    ]
+   },
+   "tags": [
+    "faq"
+   ]
+  },
+  {
+   "id": "G095",
+   "lang": "af",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Moet ek 'n polis vir begrafnis kry?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "product",
+     "suitability"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G096",
+   "lang": "af",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Is lewensdekking aftrekbaar vir belasting?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "tax"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G097",
+   "lang": "af",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Kan ek kanselleer?",
+   "expected": {
+    "intent": "cancel",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "cancel_confirm"
+    ]
+   },
+   "tags": [
+    "cancel"
+   ]
+  },
+  {
+   "id": "G098",
+   "lang": "af",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Kan Mark my eerder bel?",
+   "expected": {
+    "intent": "reschedule",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "method": "phone"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "change_method"
+    ]
+   },
+   "tags": [
+    "reschedule",
+    "memory"
+   ]
+  },
+  {
+   "id": "G099",
+   "lang": "af",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Dankie!",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [
+     "thanks"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "positive",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "none"
+    ]
+   },
+   "tags": [
+    "ack"
+   ]
+  },
+  {
+   "id": "G100",
+   "lang": "af",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Kan ons in Afrikaans gesels?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "language_chat"
+    ],
+    "slots": {
+     "language": "af"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "set_language"
+    ]
+   },
+   "tags": [
+    "language"
+   ]
+  },
+  {
+   "id": "G101",
+   "lang": "af",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Hoeveel gaan dit my per maand kos?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "premium"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G102",
+   "lang": "af",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Is Sanlam goedkoper as Discovery?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "insurer",
+     "comparison"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G103",
+   "lang": "af",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "Ek is 56, kan ek nog bespreek?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "age_over"
+    ],
+    "slots": {
+     "age_band": "51+"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "close_oob"
+    ]
+   },
+   "tags": [
+    "out_of_band"
+   ]
+  },
+  {
+   "id": "G104",
+   "lang": "af",
+   "state": "q_age",
+   "ctx": "none",
+   "text": "Ek is 41",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "age_band": "35-44"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "record_answer",
+     "next_question"
+    ]
+   },
+   "tags": [
+    "qualify"
+   ]
+  },
+  {
+   "id": "G105",
+   "lang": "af",
+   "state": "q_budget",
+   "ctx": "none",
+   "text": "so R1000 per maand",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "budget_band": "750-1250"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "record_answer",
+     "next_question"
+    ]
+   },
+   "tags": [
+    "qualify"
+   ]
+  },
+  {
+   "id": "G106",
+   "lang": "af",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Wat moet ek voorberei?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "documents"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-07"
+    ]
+   },
+   "tags": [
+    "faq"
+   ]
+  },
+  {
+   "id": "G107",
+   "lang": "af",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Ek is 'n bietjie bekommerd oor die koste van die polis",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [
+     "premium"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral"
+   ]
+  },
+  {
+   "id": "G108",
+   "lang": "af",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Kan my vrou ook inskakel?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "partner_join"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-19"
+    ]
+   },
+   "tags": [
+    "faq"
+   ]
+  },
+  {
+   "id": "G109",
+   "lang": "af",
+   "state": "booking",
+   "ctx": "none",
+   "text": "Hoekom het julle my e-pos nodig?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "email_why"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-24"
+    ]
+   },
+   "tags": [
+    "faq"
+   ]
+  },
+  {
+   "id": "G110",
+   "lang": "af",
+   "state": "q_age",
+   "ctx": "none",
+   "text": "Ek is 47",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "age_band": "45-50"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "record_answer",
+     "next_question"
+    ]
+   },
+   "tags": [
+    "qualify"
+   ]
+  },
+  {
+   "id": "G111",
+   "lang": "af",
+   "state": "consent_pending",
+   "ctx": "none",
+   "text": "ja",
+   "expected": {
+    "intent": "consent",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": "yes",
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "consent_yes"
+    ]
+   },
+   "tags": [
+    "consent"
+   ]
+  },
+  {
+   "id": "G112",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "hw long is da cal",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "call_length"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-01"
+    ]
+   },
+   "tags": [
+    "typo"
+   ]
+  },
+  {
+   "id": "G113",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "wats the cost of the cal",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "call_cost"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-02"
+    ]
+   },
+   "tags": [
+    "typo"
+   ]
+  },
+  {
+   "id": "G114",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "so um yeah i was wondering like how much the cover is gonna cost me every month you know",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "premium"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral",
+    "voice_note"
+   ]
+  },
+  {
+   "id": "G115",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "ok so basically i want to book for like friday morning if mark is free friday morning",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "preferred_day": "fri",
+     "preferred_time": "morning"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "offer_slots"
+    ]
+   },
+   "tags": [
+    "voice_note",
+    "book"
+   ],
+   "reference_reply": "Friday morning works. These are the open times Mark has."
+  },
+  {
+   "id": "G116",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "cant make thursday anymore sumthing came up can we do next week sometime",
+   "expected": {
+    "intent": "reschedule",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "preferred_day": "next_week"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "reschedule_slots"
+    ]
+   },
+   "tags": [
+    "typo",
+    "reschedule"
+   ],
+   "reference_reply": "No stress, things happen. Here are some times next week."
+  },
+  {
+   "id": "G117",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "pls stop",
+   "expected": {
+    "intent": "stop",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "stop"
+    ]
+   },
+   "tags": [
+    "stop",
+    "typo"
+   ]
+  },
+  {
+   "id": "G118",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "STOP STOP",
+   "expected": {
+    "intent": "stop",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "stop"
+    ]
+   },
+   "tags": [
+    "stop"
+   ]
+  },
+  {
+   "id": "G119",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "i wanna tlk to a real persn",
+   "expected": {
+    "intent": "person",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "handoff"
+    ]
+   },
+   "tags": [
+    "person",
+    "typo",
+    "llm_only"
+   ]
+  },
+  {
+   "id": "G120",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "is it a scam or wat",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "scam"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-08"
+    ]
+   },
+   "tags": [
+    "typo"
+   ]
+  },
+  {
+   "id": "G121",
+   "lang": "en",
+   "state": "booked_await_commit",
+   "ctx": "booked_teams",
+   "text": "Thurs 11 👍",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "preferred_day": "thu",
+     "preferred_time": "11:00"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "commitment_ok"
+    ]
+   },
+   "tags": [
+    "commitment",
+    "emoji"
+   ],
+   "reference_reply": "Perfect, it's in Mark's diary too.",
+   "lead_used_emoji": true
+  },
+  {
+   "id": "G122",
+   "lang": "en",
+   "state": "booked_await_commit",
+   "ctx": "booked_teams",
+   "text": "thursday 8th at 11am yes",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "preferred_day": "2026-10-08",
+     "preferred_time": "11:00"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "commitment_ok"
+    ]
+   },
+   "tags": [
+    "commitment"
+   ]
+  },
+  {
+   "id": "G123",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "can mark phone me tmrw arvo",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "preferred_day": "tomorrow",
+     "preferred_time": "afternoon",
+     "method": "phone"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "offer_slots"
+    ]
+   },
+   "tags": [
+    "typo",
+    "book"
+   ]
+  },
+  {
+   "id": "G124",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "wil he sel me stuf",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "sales_pressure"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-10"
+    ]
+   },
+   "tags": [
+    "typo"
+   ]
+  },
+  {
+   "id": "G125",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "hey hey",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [
+     "greeting"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "greet"
+    ]
+   },
+   "tags": [
+    "ack"
+   ]
+  },
+  {
+   "id": "G126",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "umm so like whats in it for u guys",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "business_model"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-09"
+    ]
+   },
+   "tags": [
+    "typo"
+   ]
+  },
+  {
+   "id": "G127",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "my bond is about 1.4 mil is that enuf cover",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "cover_amount",
+     "suitability"
+    ],
+    "slots": {
+     "bond": "yes"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer"
+    ]
+   },
+   "tags": [
+    "deferral",
+    "typo"
+   ]
+  },
+  {
+   "id": "G128",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "hi um so I just wanted to say I'm going to be driving on Thursday so can Mark maybe phone me instead of the teams thing",
+   "expected": {
+    "intent": "reschedule",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "method": "phone",
+     "preferred_day": "thu"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "change_method"
+    ]
+   },
+   "tags": [
+    "voice_note",
+    "memory"
+   ]
+  },
+  {
+   "id": "G129",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "ya im keen lets do it",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "send_slots"
+    ]
+   },
+   "tags": [
+    "book"
+   ]
+  },
+  {
+   "id": "G130",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "okay cool thx",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [
+     "thanks"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "positive",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "none"
+    ]
+   },
+   "tags": [
+    "ack"
+   ]
+  },
+  {
+   "id": "G131",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "wat if i dnt pitch",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "missed_call"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-21"
+    ]
+   },
+   "tags": [
+    "typo"
+   ]
+  },
+  {
+   "id": "G132",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "how much tym does it take",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "call_length"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-01"
+    ]
+   },
+   "tags": [
+    "typo",
+    "premium_control"
+   ]
+  },
+  {
+   "id": "G133",
+   "lang": "en",
+   "state": "booked_await_commit",
+   "ctx": "booked_teams",
+   "text": "Ok cool. Will he try sell me something though? And roughly what would cover cost for someone my age?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "sales_pressure",
+     "premium"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-10",
+     "defer"
+    ]
+   },
+   "tags": [
+    "multi_intent",
+    "design_replay"
+   ],
+   "reference_reply": "There's no obligation to buy anything. Mark goes through where you are, and any next step is your choice. That's exactly what Mark will go through with you on the call. I've made a note so Mark comes prepared for it."
+  },
+  {
+   "id": "G134",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "How long is it and is it free?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "call_length",
+     "call_cost"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-01",
+     "answer:FAQ-02"
+    ]
+   },
+   "tags": [
+    "multi_intent"
+   ],
+   "reference_reply": "About 30 minutes, and yes, the call is free."
+  },
+  {
+   "id": "G135",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Can we move to Friday and also how much will the policy cost?",
+   "expected": {
+    "intent": "reschedule",
+    "secondary_intents": [
+     "question"
+    ],
+    "topics": [
+     "premium"
+    ],
+    "slots": {
+     "preferred_day": "fri"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer",
+     "reschedule_slots"
+    ]
+   },
+   "tags": [
+    "multi_intent"
+   ],
+   "reference_reply": "Friday works, here are the open times. That's exactly what Mark will go through with you on the call. I've made a note so Mark comes prepared for it."
+  },
+  {
+   "id": "G136",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "thanks, also can my husband join? and should we get joint cover?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "partner_join",
+     "suitability"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-19",
+     "defer"
+    ]
+   },
+   "tags": [
+    "multi_intent"
+   ]
+  },
+  {
+   "id": "G137",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "Is this legit? If so book me for tomorrow morning",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [
+     "question"
+    ],
+    "topics": [
+     "scam"
+    ],
+    "slots": {
+     "preferred_day": "tomorrow",
+     "preferred_time": "morning"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-08",
+     "offer_slots"
+    ]
+   },
+   "tags": [
+    "multi_intent"
+   ]
+  },
+  {
+   "id": "G138",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "I'm diabetic and I can't make Thursday anymore",
+   "expected": {
+    "intent": "reschedule",
+    "secondary_intents": [],
+    "topics": [
+     "health"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": true,
+    "actions": [
+     "defer",
+     "reschedule"
+    ]
+   },
+   "tags": [
+    "multi_intent",
+    "health_id"
+   ]
+  },
+  {
+   "id": "G139",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Cancel please, and stop messaging me",
+   "expected": {
+    "intent": "stop",
+    "secondary_intents": [
+     "cancel"
+    ],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "stop"
+    ]
+   },
+   "tags": [
+    "multi_intent",
+    "stop"
+   ]
+  },
+  {
+   "id": "G140",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "who is mark and where's he based? can he do zoom?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "adviser_who",
+     "methods"
+    ],
+    "slots": {
+     "method": "zoom"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-03",
+     "answer:FAQ-17"
+    ]
+   },
+   "tags": [
+    "multi_intent"
+   ]
+  },
+  {
+   "id": "G141",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Can we do 2pm instead, and does he speak Afrikaans?",
+   "expected": {
+    "intent": "reschedule",
+    "secondary_intents": [
+     "question"
+    ],
+    "topics": [
+     "language_call"
+    ],
+    "slots": {
+     "preferred_time": "14:00"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-20",
+     "reschedule_slots"
+    ]
+   },
+   "tags": [
+    "multi_intent"
+   ]
+  },
+  {
+   "id": "G142",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Is my info safe? Also I'm with Liberty already",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "privacy",
+     "existing_cover",
+     "insurer"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-05",
+     "answer:FAQ-11",
+     "defer"
+    ]
+   },
+   "tags": [
+    "multi_intent"
+   ]
+  },
+  {
+   "id": "G143",
+   "lang": "en",
+   "state": "booking",
+   "ctx": "none",
+   "text": "my email is lerato.m@gmail.com, and how long is the call?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "call_length"
+    ],
+    "slots": {
+     "email": "lerato.m@gmail.com"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-01",
+     "capture_contact"
+    ]
+   },
+   "tags": [
+    "multi_intent",
+    "contact"
+   ]
+  },
+  {
+   "id": "G144",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "STOP",
+   "expected": {
+    "intent": "stop",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "stop"
+    ]
+   },
+   "tags": [
+    "stop"
+   ]
+  },
+  {
+   "id": "G145",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Stop.",
+   "expected": {
+    "intent": "stop",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "stop"
+    ]
+   },
+   "tags": [
+    "stop"
+   ]
+  },
+  {
+   "id": "G146",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "stop",
+   "expected": {
+    "intent": "stop",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "stop"
+    ]
+   },
+   "tags": [
+    "stop"
+   ]
+  },
+  {
+   "id": "G147",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Stop please",
+   "expected": {
+    "intent": "stop",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "stop"
+    ]
+   },
+   "tags": [
+    "stop"
+   ]
+  },
+  {
+   "id": "G148",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "unsubscribe",
+   "expected": {
+    "intent": "stop",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "stop"
+    ]
+   },
+   "tags": [
+    "stop"
+   ]
+  },
+  {
+   "id": "G149",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Please stop sending me messages",
+   "expected": {
+    "intent": "stop",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "stop"
+    ]
+   },
+   "tags": [
+    "stop"
+   ]
+  },
+  {
+   "id": "G150",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Remove me from your list",
+   "expected": {
+    "intent": "stop",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "stop"
+    ]
+   },
+   "tags": [
+    "stop"
+   ]
+  },
+  {
+   "id": "G151",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "opt out",
+   "expected": {
+    "intent": "stop",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "stop"
+    ]
+   },
+   "tags": [
+    "stop"
+   ]
+  },
+  {
+   "id": "G152",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Don't contact me again",
+   "expected": {
+    "intent": "stop",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "stop"
+    ]
+   },
+   "tags": [
+    "stop"
+   ]
+  },
+  {
+   "id": "G153",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "leave me alone",
+   "expected": {
+    "intent": "stop",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "stop"
+    ]
+   },
+   "tags": [
+    "stop"
+   ]
+  },
+  {
+   "id": "G154",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "STOP!!!",
+   "expected": {
+    "intent": "stop",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "stop"
+    ]
+   },
+   "tags": [
+    "stop"
+   ]
+  },
+  {
+   "id": "G155",
+   "lang": "af",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "hou op om my te boodskap",
+   "expected": {
+    "intent": "stop",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "stop"
+    ]
+   },
+   "tags": [
+    "stop"
+   ]
+  },
+  {
+   "id": "G156",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "stop",
+   "expected": {
+    "intent": "stop",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "stop"
+    ]
+   },
+   "tags": [
+    "stop"
+   ]
+  },
+  {
+   "id": "G157",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Don't stop the reminders, they help",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [
+     "thanks"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "positive",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "none"
+    ]
+   },
+   "tags": [
+    "stop_control"
+   ]
+  },
+  {
+   "id": "G158",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Can we stop at 11:30, I have another meeting after",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "call_length"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-01"
+    ]
+   },
+   "tags": [
+    "stop_control"
+   ]
+  },
+  {
+   "id": "G159",
+   "lang": "en",
+   "state": "opted_out",
+   "ctx": "none",
+   "text": "hi again, can I book after all?",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "human_review"
+    ]
+   },
+   "tags": [
+    "opted_out"
+   ]
+  },
+  {
+   "id": "G160",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Can I speak to a real person?",
+   "expected": {
+    "intent": "person",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "handoff"
+    ]
+   },
+   "tags": [
+    "person"
+   ]
+  },
+  {
+   "id": "G161",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "I want to talk to a human",
+   "expected": {
+    "intent": "person",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "handoff"
+    ]
+   },
+   "tags": [
+    "person"
+   ]
+  },
+  {
+   "id": "G162",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "person",
+   "expected": {
+    "intent": "person",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "handoff"
+    ]
+   },
+   "tags": [
+    "person"
+   ]
+  },
+  {
+   "id": "G163",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "Is there someone I can talk to?",
+   "expected": {
+    "intent": "person",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "handoff"
+    ]
+   },
+   "tags": [
+    "person"
+   ]
+  },
+  {
+   "id": "G164",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Get me your manager",
+   "expected": {
+    "intent": "person",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "handoff"
+    ]
+   },
+   "tags": [
+    "person"
+   ]
+  },
+  {
+   "id": "G165",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "COMPLAINT",
+   "expected": {
+    "intent": "person",
+    "secondary_intents": [],
+    "topics": [
+     "complaint"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "handoff"
+    ]
+   },
+   "tags": [
+    "person",
+    "complaint"
+   ]
+  },
+  {
+   "id": "G166",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "I want to lay a complaint about the adviser",
+   "expected": {
+    "intent": "person",
+    "secondary_intents": [],
+    "topics": [
+     "complaint"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "handoff"
+    ]
+   },
+   "tags": [
+    "person",
+    "complaint"
+   ]
+  },
+  {
+   "id": "G167",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "This is useless, I've asked three times",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "frustrated",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "handoff"
+    ]
+   },
+   "tags": [
+    "person",
+    "frustrated"
+   ]
+  },
+  {
+   "id": "G168",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Can someone from your team phone me",
+   "expected": {
+    "intent": "person",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "handoff"
+    ]
+   },
+   "tags": [
+    "person",
+    "llm_only"
+   ]
+  },
+  {
+   "id": "G169",
+   "lang": "af",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Ek wil met iemand praat",
+   "expected": {
+    "intent": "person",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "handoff"
+    ]
+   },
+   "tags": [
+    "person"
+   ]
+  },
+  {
+   "id": "G170",
+   "lang": "en",
+   "state": "handoff",
+   "ctx": "booked_teams",
+   "text": "hello? anyone there?",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [
+     "greeting"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "paused"
+    ]
+   },
+   "tags": [
+    "handoff_state"
+   ]
+  },
+  {
+   "id": "G171",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "Can I book for Friday?",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "preferred_day": "fri"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "offer_slots"
+    ]
+   },
+   "tags": [
+    "book"
+   ]
+  },
+  {
+   "id": "G172",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "Do you have anything Monday afternoon?",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "preferred_day": "mon",
+     "preferred_time": "afternoon"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "offer_slots"
+    ]
+   },
+   "tags": [
+    "book"
+   ]
+  },
+  {
+   "id": "G173",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "Any time after 5?",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "preferred_time": "evening"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "offer_slots"
+    ]
+   },
+   "tags": [
+    "book"
+   ]
+  },
+  {
+   "id": "G174",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "tomorrow 10am works",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "preferred_day": "tomorrow",
+     "preferred_time": "10:00"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "offer_slots"
+    ]
+   },
+   "tags": [
+    "book"
+   ]
+  },
+  {
+   "id": "G175",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "I'd like to book",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "send_slots"
+    ]
+   },
+   "tags": [
+    "book"
+   ],
+   "first_free_text": true,
+   "reference_reply": "Hi Lerato, I'm Thandi, Lead Velocity's booking assistant for Mark. I'm an AI assistant, and you can ask for a person at any time. Here are the next open times with Mark."
+  },
+  {
+   "id": "G176",
+   "lang": "en",
+   "state": "closed_unbooked",
+   "ctx": "none",
+   "text": "Hi, I changed my mind, can I still book?",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "send_slots"
+    ]
+   },
+   "tags": [
+    "book"
+   ]
+  },
+  {
+   "id": "G177",
+   "lang": "en",
+   "state": "no_show",
+   "ctx": "none",
+   "text": "Sorry I missed it, can we do Wednesday?",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "preferred_day": "wed"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "offer_slots"
+    ]
+   },
+   "tags": [
+    "book",
+    "no_show"
+   ]
+  },
+  {
+   "id": "G178",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "Only weekends work for me",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "send_slots"
+    ]
+   },
+   "tags": [
+    "book"
+   ]
+  },
+  {
+   "id": "G179",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "Book me on Teams for Thursday at 9",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "method": "teams",
+     "preferred_day": "thu",
+     "preferred_time": "09:00"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "offer_slots"
+    ]
+   },
+   "tags": [
+    "book"
+   ]
+  },
+  {
+   "id": "G180",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "can he do a whatsapp video call on tuesday",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "method": "whatsapp_call",
+     "preferred_day": "tue"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "offer_slots"
+    ]
+   },
+   "tags": [
+    "book"
+   ]
+  },
+  {
+   "id": "G181",
+   "lang": "en",
+   "state": "booking",
+   "ctx": "none",
+   "text": "the times don't suit me, anything next week?",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "preferred_day": "next_week"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "offer_slots"
+    ]
+   },
+   "tags": [
+    "book"
+   ]
+  },
+  {
+   "id": "G182",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "lunch time any day this week",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "preferred_time": "lunchtime"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "offer_slots"
+    ]
+   },
+   "tags": [
+    "book"
+   ]
+  },
+  {
+   "id": "G183",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "8 Oct at 2",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "preferred_day": "2026-10-08",
+     "preferred_time": "14:00"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "offer_slots"
+    ]
+   },
+   "tags": [
+    "book"
+   ]
+  },
+  {
+   "id": "G184",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "When's the earliest he can do?",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "send_slots"
+    ]
+   },
+   "tags": [
+    "book"
+   ]
+  },
+  {
+   "id": "G185",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Can we move it to Friday?",
+   "expected": {
+    "intent": "reschedule",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "preferred_day": "fri"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "reschedule_slots"
+    ]
+   },
+   "tags": [
+    "reschedule"
+   ]
+  },
+  {
+   "id": "G186",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "I need to reschedule",
+   "expected": {
+    "intent": "reschedule",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "reschedule"
+    ]
+   },
+   "tags": [
+    "reschedule"
+   ],
+   "reference_reply": "No problem, let us find you another time."
+  },
+  {
+   "id": "G187",
+   "lang": "en",
+   "state": "confirmed",
+   "ctx": "booked_teams",
+   "text": "Something came up, can we do later in the day?",
+   "expected": {
+    "intent": "reschedule",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "preferred_time": "afternoon"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "reschedule_slots"
+    ]
+   },
+   "tags": [
+    "reschedule"
+   ]
+  },
+  {
+   "id": "G188",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Can we push it to next week",
+   "expected": {
+    "intent": "reschedule",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "preferred_day": "next_week"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "reschedule_slots"
+    ]
+   },
+   "tags": [
+    "reschedule"
+   ]
+  },
+  {
+   "id": "G189",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Can Mark call me instead of Teams?",
+   "expected": {
+    "intent": "reschedule",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "method": "phone"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "change_method"
+    ]
+   },
+   "tags": [
+    "reschedule",
+    "memory"
+   ]
+  },
+  {
+   "id": "G190",
+   "lang": "en",
+   "state": "meeting_due",
+   "ctx": "booked_teams",
+   "text": "I can't make it today, sorry",
+   "expected": {
+    "intent": "reschedule",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "reschedule"
+    ]
+   },
+   "tags": [
+    "reschedule"
+   ]
+  },
+  {
+   "id": "G191",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Can we do it on Zoom rather",
+   "expected": {
+    "intent": "reschedule",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "method": "zoom"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "change_method"
+    ]
+   },
+   "tags": [
+    "reschedule",
+    "memory"
+   ]
+  },
+  {
+   "id": "G192",
+   "lang": "en",
+   "state": "rescheduling",
+   "ctx": "booked_teams",
+   "text": "Tuesday 3pm",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "preferred_day": "tue",
+     "preferred_time": "15:00"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "reschedule_slots"
+    ]
+   },
+   "tags": [
+    "reschedule"
+   ]
+  },
+  {
+   "id": "G193",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "can we move it an hour later",
+   "expected": {
+    "intent": "reschedule",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "preferred_time": "12:00"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "reschedule_slots"
+    ]
+   },
+   "tags": [
+    "reschedule",
+    "memory"
+   ]
+  },
+  {
+   "id": "G194",
+   "lang": "en",
+   "state": "confirmed",
+   "ctx": "booked_teams",
+   "text": "I'm going to be travelling, can we do a phone call on Friday instead",
+   "expected": {
+    "intent": "reschedule",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "method": "phone",
+     "preferred_day": "fri"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "reschedule_slots"
+    ]
+   },
+   "tags": [
+    "reschedule"
+   ]
+  },
+  {
+   "id": "G195",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Is it still on for Thursday?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "my_booking"
+    ],
+    "slots": {
+     "preferred_day": "thu"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "booking_status"
+    ]
+   },
+   "tags": [
+    "memory"
+   ]
+  },
+  {
+   "id": "G196",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "When is my call again?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "my_booking"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "booking_status"
+    ]
+   },
+   "tags": [
+    "memory"
+   ]
+  },
+  {
+   "id": "G197",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Please cancel my appointment",
+   "expected": {
+    "intent": "cancel",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "cancel_confirm"
+    ]
+   },
+   "tags": [
+    "cancel"
+   ]
+  },
+  {
+   "id": "G198",
+   "lang": "en",
+   "state": "confirmed",
+   "ctx": "booked_teams",
+   "text": "I don't need this anymore, cancel",
+   "expected": {
+    "intent": "cancel",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "cancel_confirm"
+    ]
+   },
+   "tags": [
+    "cancel"
+   ]
+  },
+  {
+   "id": "G199",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "Not interested anymore thanks",
+   "expected": {
+    "intent": "cancel",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "close_unbooked"
+    ]
+   },
+   "tags": [
+    "cancel"
+   ]
+  },
+  {
+   "id": "G200",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "cancel",
+   "expected": {
+    "intent": "cancel",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "cancel_confirm"
+    ]
+   },
+   "tags": [
+    "cancel"
+   ]
+  },
+  {
+   "id": "G201",
+   "lang": "af",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Kanselleer asseblief",
+   "expected": {
+    "intent": "cancel",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "cancel_confirm"
+    ]
+   },
+   "tags": [
+    "cancel"
+   ]
+  },
+  {
+   "id": "G202",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "no thanks, I'm sorted",
+   "expected": {
+    "intent": "cancel",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "close_unbooked"
+    ]
+   },
+   "tags": [
+    "cancel"
+   ]
+  },
+  {
+   "id": "G203",
+   "lang": "en",
+   "state": "booked_await_commit",
+   "ctx": "booked_teams",
+   "text": "Thursday 8 Oct 11am 👍",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "preferred_day": "2026-10-08",
+     "preferred_time": "11:00"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "commitment_ok"
+    ]
+   },
+   "tags": [
+    "commitment",
+    "design_replay"
+   ],
+   "reference_reply": "Perfect, it's in Mark's diary too.",
+   "lead_used_emoji": true
+  },
+  {
+   "id": "G204",
+   "lang": "en",
+   "state": "booked_await_commit",
+   "ctx": "booked_teams",
+   "text": "Friday 10am right?",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "preferred_day": "fri",
+     "preferred_time": "10:00"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "commitment_check"
+    ]
+   },
+   "tags": [
+    "commitment"
+   ]
+  },
+  {
+   "id": "G205",
+   "lang": "en",
+   "state": "booked_await_commit",
+   "ctx": "booked_teams",
+   "text": "8/10 at 11:00",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "preferred_day": "2026-10-08",
+     "preferred_time": "11:00"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "commitment_ok"
+    ]
+   },
+   "tags": [
+    "commitment"
+   ]
+  },
+  {
+   "id": "G206",
+   "lang": "en",
+   "state": "booked_await_commit",
+   "ctx": "booked_teams",
+   "text": "Thursday",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "preferred_day": "thu"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "commitment_ok"
+    ]
+   },
+   "tags": [
+    "commitment"
+   ]
+  },
+  {
+   "id": "G207",
+   "lang": "en",
+   "state": "booked_await_commit",
+   "ctx": "booked_teams",
+   "text": "Wednesday at 11",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "preferred_day": "wed",
+     "preferred_time": "11:00"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "commitment_check"
+    ]
+   },
+   "tags": [
+    "commitment"
+   ]
+  },
+  {
+   "id": "G208",
+   "lang": "en",
+   "state": "booked_await_commit",
+   "ctx": "booked_phone",
+   "text": "Thursday half past two",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "preferred_day": "thu",
+     "preferred_time": "14:30"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "commitment_ok"
+    ]
+   },
+   "tags": [
+    "commitment"
+   ]
+  },
+  {
+   "id": "G209",
+   "lang": "en",
+   "state": "booked_await_commit",
+   "ctx": "booked_teams",
+   "text": "got it, thursday morning",
+   "expected": {
+    "intent": "book",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "preferred_day": "thu",
+     "preferred_time": "morning"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "commitment_ok"
+    ]
+   },
+   "tags": [
+    "commitment"
+   ]
+  },
+  {
+   "id": "G210",
+   "lang": "en",
+   "state": "q_age",
+   "ctx": "none",
+   "text": "I'm 33",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "age_band": "<35"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "close_oob"
+    ]
+   },
+   "tags": [
+    "qualify",
+    "out_of_band"
+   ]
+  },
+  {
+   "id": "G211",
+   "lang": "en",
+   "state": "q_age",
+   "ctx": "none",
+   "text": "turning 51 next month",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "age_band": "45-50"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "record_answer",
+     "next_question"
+    ]
+   },
+   "tags": [
+    "qualify"
+   ]
+  },
+  {
+   "id": "G212",
+   "lang": "en",
+   "state": "q_age",
+   "ctx": "none",
+   "text": "38",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "age_band": "35-44"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "record_answer",
+     "next_question"
+    ]
+   },
+   "tags": [
+    "qualify"
+   ]
+  },
+  {
+   "id": "G213",
+   "lang": "en",
+   "state": "q_budget",
+   "ctx": "none",
+   "text": "less than 500 a month",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "budget_band": "<750"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "close_oob"
+    ]
+   },
+   "tags": [
+    "qualify",
+    "out_of_band"
+   ]
+  },
+  {
+   "id": "G214",
+   "lang": "en",
+   "state": "q_budget",
+   "ctx": "none",
+   "text": "about R2000",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "budget_band": "1250+"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "record_answer",
+     "next_question"
+    ]
+   },
+   "tags": [
+    "qualify"
+   ]
+  },
+  {
+   "id": "G215",
+   "lang": "en",
+   "state": "q_budget",
+   "ctx": "none",
+   "text": "not sure, depends on what it costs",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "budget_band": "unsure"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "record_answer",
+     "budget_clarify"
+    ]
+   },
+   "tags": [
+    "qualify"
+   ]
+  },
+  {
+   "id": "G216",
+   "lang": "en",
+   "state": "q_budget_clarify",
+   "ctx": "none",
+   "text": "really not sure",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "budget_band": "unsure"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "close_oob"
+    ]
+   },
+   "tags": [
+    "qualify",
+    "out_of_band"
+   ]
+  },
+  {
+   "id": "G217",
+   "lang": "en",
+   "state": "unbooked",
+   "ctx": "none",
+   "text": "Actually I'm 55",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "age_band": "51+"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "close_oob"
+    ]
+   },
+   "tags": [
+    "out_of_band"
+   ]
+  },
+  {
+   "id": "G218",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "btw I'm actually 52",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "age_band": "51+"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "flag_band_conflict"
+    ]
+   },
+   "tags": [
+    "out_of_band",
+    "memory"
+   ]
+  },
+  {
+   "id": "G219",
+   "lang": "en",
+   "state": "q_bond",
+   "ctx": "none",
+   "text": "yes we have a bond",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "bond": "yes"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "record_answer",
+     "next_question"
+    ]
+   },
+   "tags": [
+    "qualify"
+   ]
+  },
+  {
+   "id": "G220",
+   "lang": "en",
+   "state": "q_dependants",
+   "ctx": "none",
+   "text": "2 kids and my mom",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "dependants": "yes"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "record_answer",
+     "next_question"
+    ]
+   },
+   "tags": [
+    "qualify"
+   ]
+  },
+  {
+   "id": "G221",
+   "lang": "en",
+   "state": "q_dependants",
+   "ctx": "none",
+   "text": "just me",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "dependants": "no"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "record_answer",
+     "next_question"
+    ]
+   },
+   "tags": [
+    "qualify"
+   ]
+  },
+  {
+   "id": "G222",
+   "lang": "en",
+   "state": "q_age",
+   "ctx": "none",
+   "text": "why do you need my age?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "privacy"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-05",
+     "repeat_question"
+    ]
+   },
+   "tags": [
+    "qualify"
+   ]
+  },
+  {
+   "id": "G223",
+   "lang": "en",
+   "state": "consent_pending",
+   "ctx": "none",
+   "text": "yes ok",
+   "expected": {
+    "intent": "consent",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": "yes",
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "consent_yes"
+    ]
+   },
+   "tags": [
+    "consent"
+   ]
+  },
+  {
+   "id": "G224",
+   "lang": "en",
+   "state": "consent_pending",
+   "ctx": "none",
+   "text": "no thanks",
+   "expected": {
+    "intent": "consent",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": "no",
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "consent_no"
+    ]
+   },
+   "tags": [
+    "consent"
+   ]
+  },
+  {
+   "id": "G225",
+   "lang": "en",
+   "state": "consent_pending",
+   "ctx": "none",
+   "text": "What will you do with my details?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "privacy"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "answer:FAQ-05",
+     "consent_reask"
+    ]
+   },
+   "tags": [
+    "consent"
+   ]
+  },
+  {
+   "id": "G226",
+   "lang": "en",
+   "state": "consent_pending",
+   "ctx": "none",
+   "text": "How much does cover cost?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "premium"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": true,
+    "redact": false,
+    "actions": [
+     "defer",
+     "consent_reask"
+    ]
+   },
+   "tags": [
+    "consent",
+    "deferral"
+   ]
+  },
+  {
+   "id": "G227",
+   "lang": "en",
+   "state": "consent_pending",
+   "ctx": "none",
+   "text": "sure go ahead",
+   "expected": {
+    "intent": "consent",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {},
+    "consent_answer": "yes",
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "consent_yes"
+    ]
+   },
+   "tags": [
+    "consent"
+   ]
+  },
+  {
+   "id": "G228",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Thanks Thandi",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [
+     "thanks"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "positive",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "none"
+    ]
+   },
+   "tags": [
+    "ack"
+   ]
+  },
+  {
+   "id": "G229",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Hello?",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [
+     "greeting"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "greet"
+    ]
+   },
+   "tags": [
+    "ack"
+   ]
+  },
+  {
+   "id": "G230",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "👍",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [
+     "thanks"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "positive",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "none"
+    ]
+   },
+   "tags": [
+    "ack",
+    "emoji"
+   ],
+   "lead_used_emoji": true
+  },
+  {
+   "id": "G231",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "asdfgh",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [
+     "unknown"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "clarify"
+    ]
+   },
+   "tags": [
+    "unclear"
+   ]
+  },
+  {
+   "id": "G232",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "What's the weather like in Cape Town?",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [
+     "off_topic"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "stay_in_lane"
+    ]
+   },
+   "tags": [
+    "off_topic"
+   ]
+  },
+  {
+   "id": "G233",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "Can you help me with my car insurance claim?",
+   "expected": {
+    "intent": "question",
+    "secondary_intents": [],
+    "topics": [
+     "off_topic"
+    ],
+    "slots": {},
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "stay_in_lane"
+    ]
+   },
+   "tags": [
+    "off_topic"
+   ]
+  },
+  {
+   "id": "G234",
+   "lang": "en",
+   "state": "booking",
+   "ctx": "none",
+   "text": "lerato.m@gmial.com",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "email": "lerato.m@gmial.com"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "capture_contact"
+    ]
+   },
+   "tags": [
+    "contact"
+   ]
+  },
+  {
+   "id": "G235",
+   "lang": "en",
+   "state": "contact_confirm",
+   "ctx": "booked_phone",
+   "text": "Use 083 555 0199 rather",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "call_number": "+27835550199"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "capture_contact"
+    ]
+   },
+   "tags": [
+    "contact"
+   ]
+  },
+  {
+   "id": "G236",
+   "lang": "en",
+   "state": "contact_confirm",
+   "ctx": "booked_phone",
+   "text": "my other number is 0721234567",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "call_number": "+27721234567"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "capture_contact"
+    ]
+   },
+   "tags": [
+    "contact"
+   ]
+  },
+  {
+   "id": "G237",
+   "lang": "en",
+   "state": "booking",
+   "ctx": "none",
+   "text": "send the invite to sipho.d@outlook.com",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "email": "sipho.d@outlook.com"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "capture_contact"
+    ]
+   },
+   "tags": [
+    "contact"
+   ]
+  },
+  {
+   "id": "G238",
+   "lang": "en",
+   "state": "booked",
+   "ctx": "booked_teams",
+   "text": "my email changed, it's now anel@company.co.za",
+   "expected": {
+    "intent": "other",
+    "secondary_intents": [],
+    "topics": [],
+    "slots": {
+     "email": "anel@company.co.za"
+    },
+    "consent_answer": null,
+    "sentiment": "neutral",
+    "deferral": false,
+    "redact": false,
+    "actions": [
+     "capture_contact"
+    ]
+   },
+   "tags": [
+    "contact"
+   ]
+  }
+ ]
+}

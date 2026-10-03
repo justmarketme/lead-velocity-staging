@@ -1,0 +1,43 @@
+{
+  "name": "ops_weekly",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "Weekly memo"
+    },
+    {
+      "type": "BODY",
+      "text": "Week of {{1}}. If you do one thing this week: *{{2}}*. Top signals: {{3}}. Forecast vs actual: {{4}}. The full memo is in your email and the console.",
+      "example": {
+        "body_text": [
+          [
+            "6 Oct",
+            "Move R100/day to the bond angle",
+            "CPL R310 vs R350 model; show rate 71%",
+            "2 of 3 approved changes hit forecast"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "Lead Velocity ops"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Open memo",
+          "url": "https://app.leadvelocity.co.za/{{1}}",
+          "example": [
+            "https://app.leadvelocity.co.za/memo/2026w41"
+          ]
+        }
+      ]
+    }
+  ]
+}

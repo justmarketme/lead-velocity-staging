@@ -1,0 +1,36 @@
+{
+  "name": "unbooked_nudge_2h",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, following up on your life cover enquiry. A call with {{2}} takes about 30 minutes, and there's no obligation to buy anything. Tap below to see open times. Reply STOP to opt out.",
+      "example": {
+        "body_text": [
+          [
+            "Lerato",
+            "Mark Smith"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "QUICK_REPLY",
+          "text": "See open times"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Not now"
+        }
+      ]
+    }
+  ]
+}

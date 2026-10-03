@@ -1,0 +1,12 @@
+{
+  // I-55d: SMC-only type-check gate. Roots are the SMC files; tsc follows their imports, so only legacy files an SMC
+  // file actually imports are checked. The legacy CRM's pre-existing tsc errors elsewhere do not block this gate.
+  "extends": "./tsconfig.app.json",
+  "include": [
+    "src/vite-env.d.ts",
+    "src/pages/portal/**/*",
+    "src/pages/smc/**/*",
+    "src/lib/smc*.ts",
+    "src/lib/smc*.tsx"
+  ]
+}

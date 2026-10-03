@@ -1,0 +1,45 @@
+<!doctype html><html lang="en-ZA"><meta charset="utf8"><title>Intro video 9:16, 10 s (deterministic: window.__setT(seconds))</title>
+<link rel="stylesheet" href="_base.css">
+<!-- Meta review sample for media-header templates. Frame 1 already shows text; motion starts at 0.0 s; the tick draws once (400 ms) on the end-card (brand rule).
+     Text stays inside the safe zone: y 250 to 1580. The line is stated once. Fictional adviser. -->
+<style>
+body{width:1080px;height:1920px}
+.l{position:absolute;left:72px;right:72px;font-size:120px;opacity:0}
+.sil{position:absolute;left:340px;top:930px;width:400px;height:400px;border-radius:50%;overflow:hidden;border:8px solid var(--sm-amber);opacity:0}
+.lt{position:absolute;left:72px;right:72px;top:1350px;background:var(--sm-scrim);border-left:14px solid var(--sm-amber);border-radius:0 16px 16px 0;padding:26px 36px;opacity:0}
+.lt .n{font-size:66px}.lt .p{font-size:40px}.lt .f{font-size:34px}
+.end{position:absolute;inset:0;opacity:0;background:var(--sm-charcoal)}
+.end svg{position:absolute;left:340px;top:520px;width:400px;height:400px;overflow:visible}
+.end .wm{position:absolute;left:0;right:0;top:1000px;display:grid;justify-items:center;opacity:0}.end .wm img{height:96px}
+.end .who{position:absolute;left:72px;right:72px;top:1180px;text-align:center;font-size:44px;font-weight:800;opacity:0}
+.end .cta{position:absolute;left:0;right:0;top:1290px;display:grid;justify-items:center;opacity:0}.end .cta .pill{font-size:54px;padding:30px 64px}
+.tag{position:absolute;left:0;right:0;top:262px;text-align:center;font-size:33px;font-weight:800;color:var(--sm-amber);opacity:1}
+</style>
+<body class="dark">
+<div class="l hd" id="l1" style="top:370px">Sort your cover.</div>
+<div class="l hd" id="l2" style="top:530px">30 minutes.</div>
+<div class="l hd" id="l3" style="top:690px"><em class="hl">A real adviser.</em></div>
+<div class="sil" id="sil"><svg class="sil" style="position:static;border:0;opacity:1" viewBox="0 0 100 100"><rect class="bg" width="100" height="100"/><circle class="fg" cx="50" cy="38" r="17"/><path class="fg" d="M16 100c0-24 15-38 34-38s34 14 34 38z"/></svg></div>
+<div class="lt" id="lt"><div class="n hd">Mark Smith</div><div class="p">Mark Smith Financial Services</div><div class="f">Authorised financial services provider &middot; FSP 00000 (SAMPLE: fictional adviser)</div></div>
+<div class="end" id="end">
+ <svg viewBox="0 0 64 64"><circle id="disc" cx="32" cy="32" r="32" style="fill:var(--sm-amber)"/><path id="tk" d="M17 33 L27.5 43.5 L47 19.5" style="stroke:var(--sm-accent-text)" fill="none" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" pathLength="1" stroke-dasharray="1" stroke-dashoffset="1"/></svg>
+ <div class="wm" id="wm"><img src="../logo/wordmark-offwhite.svg" alt=""></div>
+ <div class="who" id="who">Mark Smith &middot; FSP 00000 (SAMPLE: fictional adviser)</div>
+ <div class="cta" id="cta"><div class="pill">Tap to book a call</div></div>
+</div>
+<div class="tag" id="tag">SAMPLE: fictional adviser</div>
+<script>
+const c=(x,a=0,b=1)=>Math.min(b,Math.max(a,x)), ease=x=>1-Math.pow(1-c(x),3), $=id=>document.getElementById(id);
+function pop(el,t,t0,dur=.5,rise=40){const p=ease((t-t0)/dur);el.style.opacity=t<t0?0:p;el.style.transform=`translateY(${(1-p)*rise}px)`;}
+window.__setT=function(t){
+  pop($('l1'),t,0,.45); if(t<.45)$('l1').style.opacity=1; pop($('l2'),t,1.0,.45); pop($('l3'),t,2.0,.45);
+  pop($('sil'),t,3.0,.5,60); pop($('lt'),t,3.6,.5,60);
+  const e=c((t-6.2)/.4); $('end').style.opacity=e;
+  const ending=t>=6.2;
+  ['l1','l2','l3','sil','lt'].forEach(i=>{ if(ending) $(i).style.opacity=Math.min(+$(i).style.opacity,1-e); });
+  $('tk').setAttribute('stroke-dashoffset',1-c((t-6.8)/.4));   // the single 400 ms draw
+  pop($('wm'),t,7.3,.4,24); pop($('who'),t,7.6,.4,24); pop($('cta'),t,7.9,.4,24);
+  $("tag").style.opacity=1;
+};
+window.__setT(0);
+</script>

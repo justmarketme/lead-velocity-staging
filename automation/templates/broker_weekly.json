@@ -1,0 +1,53 @@
+{
+  "name": "broker_weekly",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "Your SortMyCover week"
+    },
+    {
+      "type": "BODY",
+      "text": "This week: {{1}}\nDelivered: {{2}}\nBooked: {{3}} · Show rate: {{4}}\nTo-dos: {{5}}\nOne ask: {{6}}\nTap below to do it, or open the full report.",
+      "example": {
+        "body_text": [
+          [
+            "Week 2 of your October cycle. On track.",
+            "7 of 20 (target 10 by now, last week 4)",
+            "5 (last week 3)",
+            "80% (target 65%, last week 75%)",
+            "2 outcomes to mark",
+            "Mark the 2 open outcomes"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover by Lead Velocity"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Do it now",
+          "url": "https://app.leadvelocity.co.za/{{1}}",
+          "example": [
+            "https://app.leadvelocity.co.za/ask/rp_2026w41"
+          ]
+        },
+        {
+          "type": "URL",
+          "text": "Open report",
+          "url": "https://app.leadvelocity.co.za/{{1}}",
+          "example": [
+            "https://app.leadvelocity.co.za/r/rp_2026w41"
+          ]
+        }
+      ]
+    }
+  ]
+}

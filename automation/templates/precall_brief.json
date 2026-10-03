@@ -1,0 +1,48 @@
+{
+  "name": "precall_brief",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "Call in 15 minutes"
+    },
+    {
+      "type": "BODY",
+      "text": "Your next call: *{{1}}* at {{2}} by {{3}}. Number to call: {{4}}. Best time: {{5}}. Age band {{6}}, budget band {{7}}. Asked before the call: {{8}}. Language: {{9}}. Full brief in the portal.",
+      "example": {
+        "body_text": [
+          [
+            "Lerato M.",
+            "10:00",
+            "phone call",
+            "083 555 0123 (not the WhatsApp number)",
+            "afternoons",
+            "35-44",
+            "R1,250+",
+            "how long the call takes; has a question for you about an existing policy",
+            "English"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover by Lead Velocity"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Open brief",
+          "url": "https://app.leadvelocity.co.za/{{1}}",
+          "example": [
+            "https://app.leadvelocity.co.za/b/bk_8f3a2c"
+          ]
+        }
+      ]
+    }
+  ]
+}

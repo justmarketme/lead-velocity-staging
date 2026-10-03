@@ -1,0 +1,6 @@
+broker_booking_changed (UTILITY, en)
+
+[header] Booking changed
+Hi Mark, a SortMyCover booking has changed. *Lerato M.* (Microsoft Teams) was booked for Tue 13 Oct, 11:30. Now: *Wed 14 Oct, 14:00*. Your calendar has been updated, so there is nothing for you to do.
+[footer] SortMyCover by Lead Velocity
+[button] Open the day -> https://app.leadvelocity.co.za/s/calendar?day=2026-10-14

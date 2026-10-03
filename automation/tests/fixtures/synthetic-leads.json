@@ -1,0 +1,608 @@
+{
+  "_meta": {
+    "purpose": "10 synthetic leads that walk every branch of the core path (MASTER-PROMPT 4.6, 4.12, 4.12a, 3.3, Schedule C/D). Read by automation/tests/W*.test.mjs. DRAFT for GATE-TEST-* (Jonathan approves or edits).",
+    "synthetic": true,
+    "pii": "None. Names are invented, numbers are in the unallocated-looking +27 60 000 00xx test range, emails are plus-addresses on Lead Velocity's own domain (howzit+...@leadvelocity.co.za) so any invite sent in an online run lands in our own mailbox. IPs are from TEST-NET-1 (192.0.2.0/24).",
+    "timezone": "Africa/Johannesburg (UTC+02:00, no DST). Every time below is written with +02:00.",
+    "base_clock": "2026-10-12T08:00:00+02:00",
+    "time_shift": "Offline tests use these times as-is (virtual clock). Online runs shift every time forward by whole weeks; see fixtures/time-shift.md.",
+    "band_codes": {
+      "age_band": ["under_35", "35_44", "45_50", "51_plus"],
+      "budget_band": ["under_500", "500_750", "750_1250", "1250_plus"],
+      "qualifying_age": ["35_44", "45_50"],
+      "qualifying_budget": ["750_1250", "1250_plus"]
+    },
+    "method_labels": { "teams": "Microsoft Teams", "zoom": "Zoom", "meet": "Google Meet", "whatsapp_call": "WhatsApp call", "phone": "phone" },
+    "disposition_codes": ["fit_proceeding", "fit_followup", "nofit_budget", "nofit_covered", "nofit_criteria", "unreachable"],
+    "assumptions": [
+      "FIRST_TOUCH_HOLD_S = 45: a page lead's first WhatsApp waits up to 45 s for the in-page booking, so a fast booker gets broker_intro_booked; the 'I'll pick on WhatsApp' tap or the 45-s hold sends broker_intro_slots. Hard deadline 60 s after the lead row is created.",
+      "Lead-ad and CTWA leads have no page booking step, so their first touch is sent as soon as routing is written.",
+      "REACH_CHECK_WINDOW_H = 2: a broker 'No-show' becomes a lead no-show only if the lead has not answered reach_check 2 h after it was sent (Schedule C: 'did not answer the T+30 check').",
+      "reach_check is sent T+30 min after the slot ENDS (same anchor as the broker's T+15).",
+      "intro_media 'straight after booking' (4.12, bookings < 3 days out) = T0 + 15 min, i.e. after what_to_expect at T0 + 10 min.",
+      "max_meetings_per_week counts Monday 00:00 to Sunday 24:00 Africa/Johannesburg.",
+      "Buffer applies against every busy block (Outlook events and our own bookings): a slot is free only if [start - buffer, end + buffer) touches nothing busy."
+    ]
+  },
+
+  "brand": {
+    "brand_id": "smc",
+    "name": "SortMyCover",
+    "booking_ui": "list",
+    "consent_mode": "named"
+  },
+
+  "consent_texts": {
+    "CONSENT-NAMED-v1+CONSENT-ADS-v1": "I agree that Lead Velocity may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
+    "ctwa-v1": "Before we start: if it's a fit, we'll share your details with an authorised financial services provider who'll contact you about life cover. OK to continue?",
+    "_note": "CONSENT-NAMED-v1+CONSENT-ADS-v1 = landing/config/consent.json named text rendered for the seeded broker (supabase/seed/smc_synthetic.sql) by automation/tests/fixtures/align-fixture.mjs; never hand-edit. ctwa-v1 = the 4.6 CTWA consent text verbatim (NH-40)."
+  },
+
+  "pricing": [
+    { "tier_code": "SMC_BRONZE", "committed_leads": 20, "replacement_cap_cycle": 4 },
+    { "tier_code": "SMC_SILVER", "committed_leads": 30, "replacement_cap_cycle": 6 },
+    { "tier_code": "SMC_GOLD", "committed_leads": 45, "replacement_cap_cycle": 9 }
+  ],
+  "_pricing_note": "Prices are deliberately absent (W25 diff check: no hard-coded price anywhere in the repo). Tests that need a cycle price use the synthetic value SYNTHETIC_PRICE in W13.test.mjs, which is not a tier price.",
+
+  "brokers": [
+    {
+      "broker_id": "brk_test_mark",
+      "brand_id": "smc",
+      "practice_name": "Synthetic Test Advisory (TEST ONLY)",
+      "fsp_number": "TEST-00000",
+      "adviser_name": "Mark Smith",
+      "adviser_first_name": "Mark",
+      "adviser_whatsapp": "+27600000090",
+      "email": "howzit+mark.test@leadvelocity.co.za",
+      "calendar_provider": "outlook",
+      "calendar_id": "howzit+mark.test@leadvelocity.co.za",
+      "methods_supported": ["teams", "whatsapp_call", "phone"],
+      "meeting_hours": {
+        "mon": [["09:00", "17:00"]],
+        "tue": [["09:00", "17:00"]],
+        "wed": [["09:00", "17:00"]],
+        "thu": [["09:00", "17:00"]],
+        "fri": [["09:00", "17:00"]],
+        "sat": [],
+        "sun": []
+      },
+      "slot_minutes": 30,
+      "buffer_minutes": 15,
+      "min_notice_hours": 2,
+      "horizon_days": 14,
+      "max_meetings_per_day": 3,
+      "max_meetings_per_week": 12,
+      "bookings_paused": false,
+      "add_client_as_attendee": false,
+      "consent_mode": "named",
+      "routing_on": true,
+      "status": "active",
+      "tier_code": "SMC_BRONZE",
+      "current_cycle_id": "cyc_test_001",
+      "intro_card_url": "https://sortmycover.co.za/media/test/intro-card-mark.png",
+      "intro_video_url": { "en": "https://sortmycover.co.za/media/test/intro-mark-en.mp4" },
+      "intro_voice_url": { "en": "https://sortmycover.co.za/media/test/intro-mark-en.ogg" },
+      "calendar_busy": [
+        { "start": "2026-10-13T09:00:00+02:00", "end": "2026-10-13T10:00:00+02:00", "label": "school run (broker's own Outlook event)" },
+        { "start": "2026-10-14T12:00:00+02:00", "end": "2026-10-14T13:00:00+02:00", "label": "lunch" },
+        { "start": "2026-10-15T15:00:00+02:00", "end": "2026-10-15T16:00:00+02:00", "label": "existing client" }
+      ]
+    }
+  ],
+
+  "cycles": [
+    {
+      "cycle_id": "cyc_test_001",
+      "broker_id": "brk_test_mark",
+      "tier_code": "SMC_BRONZE",
+      "committed_leads": 20,
+      "replacement_cap": 4,
+      "starts_at": "2026-10-12T00:00:00+02:00",
+      "ends_at": "2026-11-11T00:00:00+02:00",
+      "status": "active",
+      "replacements_used": 0
+    }
+  ],
+
+  "leads": [
+    {
+      "fixture_id": "L01",
+      "lead_id": "lead_test_L01",
+      "branches": ["page_booked_teams_email", "full_reminder_sequence", "attended_fit_followup"],
+      "origin": "page",
+      "lookup": { "line_type": "mobile" },
+      "submission": {
+        "brand_id": "smc",
+        "is_synthetic": true,
+        "submitted_at": "2026-10-12T08:14:05+02:00",
+        "first_name": "Lerato",
+        "mobile": "060 000 0101",
+        "language": "en",
+        "quiz": { "age_band": "35_44", "has_bond": true, "has_dependants": true, "has_work_cover": true, "budget_band": "750_1250" },
+        "consent": {
+          "checked": true,
+          "version": "CONSENT-NAMED-v1+CONSENT-ADS-v1",
+          "text": "I agree that Lead Velocity may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
+          "includes_ads_sentence": true,
+          "at": "2026-10-12T08:14:05+02:00",
+          "page_url": "https://sortmycover.co.za/bond-gap",
+          "source": "page"
+        },
+        "context": {
+          "event_id": "5b0f7a2e-0001-4c1a-9a51-000000000001",
+          "fbclid": "IwAR_TEST_L01",
+          "fbp": "fb.1.1760249645000.1111111101",
+          "fbc": "fb.1.1760249645000.IwAR_TEST_L01",
+          "utm_source": "facebook",
+          "utm_medium": "paid_social",
+          "utm_campaign": "smc_a_bond_gap",
+          "utm_content": "ad_test_001",
+          "utm_term": "",
+          "ad_id": "ad_test_001",
+          "page_url": "https://sortmycover.co.za/bond-gap?utm_source=facebook&utm_medium=paid_social&utm_campaign=smc_a_bond_gap&utm_content=ad_test_001&fbclid=IwAR_TEST_L01",
+          "client_user_agent": "SyntheticTest/1.0 (Android 14)",
+          "client_ip": "192.0.2.11"
+        },
+        "honeypot": ""
+      },
+      "booking_request": {
+        "idempotency_key": "book_L01_1",
+        "requested_at": "2026-10-12T08:14:41+02:00",
+        "slot_start": "2026-10-15T10:00:00+02:00",
+        "method": "teams",
+        "email": "howzit+lerato.test@leadvelocity.co.za",
+        "booked_via": "page",
+        "context": { "event_id": "5b0f7a2e-0001-4c1a-9a51-000000000101" }
+      },
+      "timeline": [
+        { "at": "2026-10-12T08:14:05+02:00", "actor": "lead", "event": "POST /lead" },
+        { "at": "2026-10-12T08:14:41+02:00", "actor": "lead", "event": "POST /book", "data": { "slot": "2026-10-15T10:00:00+02:00", "method": "teams" } },
+        { "at": "2026-10-14T10:12:00+02:00", "actor": "lead", "event": "tap", "data": { "template": "reminder_24h", "button": "Confirm" } },
+        { "at": "2026-10-15T10:52:00+02:00", "actor": "broker", "event": "tap", "data": { "template": "broker_outcome_check", "button": "Attended" } },
+        { "at": "2026-10-15T10:53:00+02:00", "actor": "broker", "event": "tap", "data": { "template": "broker_disposition", "payload": "fit_followup" } },
+        { "at": "2026-10-15T10:53:30+02:00", "actor": "broker", "event": "tap", "data": { "template": "broker_quality", "payload": "4" } },
+        { "at": "2026-10-15T11:04:00+02:00", "actor": "lead", "event": "tap", "data": { "template": "reach_check", "button": "Yes, we spoke" } }
+      ],
+      "expected": {
+        "W01": { "http_status": 200, "status": "accepted", "mobile": "+27600000101", "line_type": "mobile", "broker_id": "brk_test_mark", "qualified_bands": true, "capi_lead_event_id": "5b0f7a2e-0001-4c1a-9a51-000000000001", "consent_ads": true },
+        "W05": { "http_status": 201, "slot_start": "2026-10-15T10:00:00+02:00", "slot_end": "2026-10-15T10:30:00+02:00", "event_title": "Life cover call – Lerato – Teams", "is_online_meeting": true, "online_meeting_provider": "teamsForBusiness", "client_is_attendee": false, "email_status": "mx_ok", "email_purpose": "meeting_invite", "invite_from": "howzit@leadvelocity.co.za", "capi_schedule_event_id": "5b0f7a2e-0001-4c1a-9a51-000000000101", "cycle_id": "cyc_test_001" },
+        "W06": { "template": "broker_intro_booked", "trigger": "booking", "send_at": "2026-10-12T08:14:41+02:00", "deadline": "2026-10-12T08:15:05+02:00", "variables": ["Lerato", "Synthetic Test Advisory (TEST ONLY)", "TEST-00000", "Mark Smith", "Microsoft Teams", "Thu 15 Oct", "10:00"] },
+        "W09": {
+          "compressed": false,
+          "schedule": [
+            { "touch": "what_to_expect", "at": "2026-10-12T08:24:41+02:00" },
+            { "touch": "intro_media", "at": "2026-10-13T10:00:00+02:00" },
+            { "touch": "reminder_24h", "at": "2026-10-14T10:00:00+02:00" },
+            { "touch": "prep_nudge", "at": "2026-10-14T10:00:00+02:00" },
+            { "touch": "reminder_2h", "at": "2026-10-15T08:00:00+02:00" },
+            { "touch": "reminder_10m", "at": "2026-10-15T09:50:00+02:00" }
+          ],
+          "after_confirm_tap": { "booking_status": "confirmed" }
+        },
+        "W12": { "outcome_check_at": "2026-10-15T10:45:00+02:00", "reach_check_at": "2026-10-15T11:00:00+02:00", "outcome": "attended", "disposition_code": "fit_followup", "quality_score": 4, "auto_marked": false, "unconfirmed": false, "lead_reach_check": "yes", "capi_attended_event_id": "evt_lead_test_L01_attended", "lead_message": "attended_thanks", "broker_fit_followup_at": "2026-10-22T10:53:00+02:00" },
+        "W13": { "replacement": false },
+        "W15": { "opted_out": false }
+      }
+    },
+
+    {
+      "fixture_id": "L02",
+      "lead_id": "lead_test_L02",
+      "branches": ["page_unbooked", "book_from_whatsapp_list", "compressed_sequence", "lead_says_adviser_did_not_call"],
+      "origin": "page",
+      "lookup": { "line_type": "mobile" },
+      "submission": {
+        "brand_id": "smc",
+        "is_synthetic": true,
+        "submitted_at": "2026-10-12T09:02:11+02:00",
+        "first_name": "Sipho",
+        "mobile": "+27 60 000 0102",
+        "language": "en",
+        "quiz": { "age_band": "45_50", "has_bond": true, "has_dependants": false, "has_work_cover": false, "budget_band": "1250_plus" },
+        "consent": {
+          "checked": true,
+          "version": "CONSENT-NAMED-v1+CONSENT-ADS-v1",
+          "text": "I agree that Lead Velocity may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
+          "includes_ads_sentence": true,
+          "at": "2026-10-12T09:02:11+02:00",
+          "page_url": "https://sortmycover.co.za/family-first",
+          "source": "page"
+        },
+        "context": {
+          "event_id": "5b0f7a2e-0002-4c1a-9a51-000000000002",
+          "fbclid": "IwAR_TEST_L02",
+          "fbp": "fb.1.1760252531000.1111111102",
+          "fbc": "fb.1.1760252531000.IwAR_TEST_L02",
+          "utm_source": "facebook",
+          "utm_medium": "paid_social",
+          "utm_campaign": "smc_b_family_first",
+          "utm_content": "ad_test_002",
+          "utm_term": "",
+          "ad_id": "ad_test_002",
+          "page_url": "https://sortmycover.co.za/family-first?utm_source=facebook&utm_content=ad_test_002&fbclid=IwAR_TEST_L02",
+          "client_user_agent": "SyntheticTest/1.0 (iOS 18)",
+          "client_ip": "192.0.2.12"
+        },
+        "honeypot": "",
+        "skip_booking_at": "2026-10-12T09:02:30+02:00"
+      },
+      "booking_request": {
+        "idempotency_key": "book_L02_1",
+        "requested_at": "2026-10-12T11:40:00+02:00",
+        "slot_start": "2026-10-13T10:30:00+02:00",
+        "method": "phone",
+        "booked_via": "list",
+        "context": {}
+      },
+      "timeline": [
+        { "at": "2026-10-12T09:02:11+02:00", "actor": "lead", "event": "POST /lead" },
+        { "at": "2026-10-12T09:02:30+02:00", "actor": "lead", "event": "tap 'I'll pick a time on WhatsApp'" },
+        { "at": "2026-10-12T11:02:30+02:00", "actor": "system", "event": "W08 unbooked_nudge_2h" },
+        { "at": "2026-10-12T11:40:00+02:00", "actor": "lead", "event": "tap", "data": { "template": "broker_intro_slots", "button": "Time 2" } },
+        { "at": "2026-10-13T11:18:00+02:00", "actor": "broker", "event": "tap", "data": { "template": "broker_outcome_check", "button": "No-show" } },
+        { "at": "2026-10-13T11:41:00+02:00", "actor": "lead", "event": "tap", "data": { "template": "reach_check", "button": "No, not yet" } }
+      ],
+      "expected": {
+        "W01": { "http_status": 200, "status": "accepted", "mobile": "+27600000102", "line_type": "mobile", "broker_id": "brk_test_mark", "qualified_bands": true, "capi_lead_event_id": "5b0f7a2e-0002-4c1a-9a51-000000000002", "consent_ads": true },
+        "W04": { "offer_at": "2026-10-12T09:02:30+02:00", "offered": ["2026-10-12T11:30:00+02:00", "2026-10-13T10:30:00+02:00", "2026-10-14T09:00:00+02:00"], "why": "Mon earliest after 2-h notice (11:02 -> 11:30 grid); Tue 09:00-10:00 busy + 15-min buffer -> 10:30; Wed 09:00; one per day (round-robin)" },
+        "W05": { "http_status": 201, "slot_start": "2026-10-13T10:30:00+02:00", "event_title": "Life cover call – Sipho – Phone", "is_online_meeting": false, "body_contains": "Call Sipho on +27600000102", "email_stored": false, "capi_schedule_event_id": "evt_lead_test_L02_schedule" },
+        "W06": { "template": "broker_intro_slots", "trigger": "skip", "send_at": "2026-10-12T09:02:30+02:00", "deadline": "2026-10-12T09:03:11+02:00", "variables": ["Sipho", "Synthetic Test Advisory (TEST ONLY)", "TEST-00000", "Mark Smith", "Mon 12 Oct, 11:30", "Tue 13 Oct, 10:30", "Wed 14 Oct, 09:00"] },
+        "W09": {
+          "compressed": true,
+          "schedule": [
+            { "touch": "what_to_expect", "at": "2026-10-12T11:50:00+02:00" },
+            { "touch": "intro_media", "at": "2026-10-12T11:55:00+02:00" },
+            { "touch": "reminder_2h", "at": "2026-10-13T08:30:00+02:00" },
+            { "touch": "reminder_10m", "at": "2026-10-13T10:20:00+02:00" }
+          ],
+          "cancelled_on_booking": ["unbooked_nudge_24h", "unbooked_nudge_72h"]
+        },
+        "W12": { "outcome_check_at": "2026-10-13T11:15:00+02:00", "reach_check_at": "2026-10-13T11:30:00+02:00", "outcome": "broker_no_show", "lead_reach_check": "no", "lead_message": "broker_no_show_apology", "alert": "KG", "capi_attended_event_id": null },
+        "W13": { "replacement": false, "why": "broker no-show (Schedule D): no replacement; Lead Velocity apologises and offers a rebooking at its cost" },
+        "W15": { "opted_out": false }
+      }
+    },
+
+    {
+      "fixture_id": "L03",
+      "lead_id": "lead_test_L03",
+      "branches": ["instant_form", "compressed_sequence", "reschedule", "broker_no_show"],
+      "origin": "lead_ad",
+      "lookup": { "line_type": "mobile" },
+      "submission": {
+        "is_synthetic": true,
+        "leadgen_id": "lg_test_0003",
+        "form_id": "form_test_01",
+        "ad_id": "ad_test_003",
+        "adset_id": "adset_test_01",
+        "campaign_id": "camp_test_01",
+        "created_time": "2026-10-12T14:40:00+02:00",
+        "field_data": [
+          { "name": "first_name", "values": ["Anele"] },
+          { "name": "phone_number", "values": ["+27600000103"] },
+          { "name": "age_band", "values": ["35_44"] },
+          { "name": "budget_band", "values": ["1250_plus"] },
+          { "name": "has_bond", "values": ["yes"] },
+          { "name": "has_dependants", "values": ["yes"] },
+          { "name": "preferred_method", "values": ["whatsapp_call"] }
+        ],
+        "custom_disclaimer_responses": [{ "checkbox_key": "consent", "is_checked": "1" }],
+        "consent_text_version": "CONSENT-NAMED-v1+CONSENT-ADS-v1"
+      },
+      "booking_request": {
+        "idempotency_key": "book_L03_1",
+        "requested_at": "2026-10-12T15:02:00+02:00",
+        "slot_start": "2026-10-13T11:30:00+02:00",
+        "method": "whatsapp_call",
+        "booked_via": "list",
+        "context": {}
+      },
+      "reschedule_request": {
+        "idempotency_key": "resched_L03_1",
+        "requested_at": "2026-10-13T09:36:00+02:00",
+        "new_slot_start": "2026-10-14T14:00:00+02:00"
+      },
+      "timeline": [
+        { "at": "2026-10-12T14:40:00+02:00", "actor": "meta", "event": "leadgen webhook" },
+        { "at": "2026-10-12T15:02:00+02:00", "actor": "lead", "event": "tap", "data": { "template": "broker_intro_slots", "button": "Time 1" } },
+        { "at": "2026-10-13T09:34:00+02:00", "actor": "lead", "event": "tap", "data": { "template": "reminder_2h", "button": "Reschedule" } },
+        { "at": "2026-10-13T09:36:00+02:00", "actor": "lead", "event": "tap", "data": { "template": "reschedule_offer", "slot": "2026-10-14T14:00:00+02:00" } },
+        { "at": "2026-10-14T15:20:00+02:00", "actor": "lead", "event": "tap", "data": { "template": "reach_check", "button": "No, not yet" } }
+      ],
+      "expected": {
+        "W01": { "via": "W02", "status": "accepted", "routed_at": "2026-10-12T14:40:05+02:00", "mobile": "+27600000103", "broker_id": "brk_test_mark", "leadgen_id": "lg_test_0003", "capi_lead_event_id": "evt_lead_test_L03_lead" },
+        "W04": { "offer_at": "2026-10-12T14:40:05+02:00", "offered": ["2026-10-13T11:30:00+02:00", "2026-10-14T09:00:00+02:00", "2026-10-15T09:00:00+02:00"], "why": "Mon: 16:40 earliest, no 30-min slot ends by 17:00; Tue 10:00-11:00 blocked by busy and L02's 10:30 + buffers -> 11:30; Wed 09:00; Thu 09:00" },
+        "W05": { "http_status": 201, "slot_start": "2026-10-13T11:30:00+02:00", "event_title": "Life cover call – Anele – WhatsApp call", "body_contains": "WhatsApp-call Anele on +27600000103", "capi_schedule_event_id": "evt_lead_test_L03_schedule" },
+        "W06": { "template": "broker_intro_slots", "trigger": "routed", "send_at": "2026-10-12T14:40:05+02:00", "deadline": "2026-10-12T14:41:00+02:00" },
+        "W09": {
+          "compressed": true,
+          "schedule": [
+            { "touch": "what_to_expect", "at": "2026-10-12T15:12:00+02:00" },
+            { "touch": "intro_media", "at": "2026-10-12T15:17:00+02:00" },
+            { "touch": "reminder_2h", "at": "2026-10-13T09:30:00+02:00" },
+            { "touch": "reminder_10m", "at": "2026-10-13T11:20:00+02:00" }
+          ],
+          "after_reschedule": {
+            "same_graph_event_id": true,
+            "reschedule_count": 1,
+            "cancelled": ["reminder_10m@2026-10-13T11:20:00+02:00"],
+            "schedule": [
+              { "touch": "reminder_24h", "at": "2026-10-13T14:00:00+02:00" },
+              { "touch": "prep_nudge", "at": "2026-10-13T14:00:00+02:00" },
+              { "touch": "reminder_2h", "at": "2026-10-14T12:00:00+02:00" },
+              { "touch": "reminder_10m", "at": "2026-10-14T13:50:00+02:00" }
+            ],
+            "not_resent": ["what_to_expect", "intro_media"]
+          }
+        },
+        "W12": { "outcome_check_at": "2026-10-14T14:45:00+02:00", "broker_nudge_at": "2026-10-14T17:45:00+02:00", "reach_check_at": "2026-10-14T15:00:00+02:00", "broker_marked": null, "lead_reach_check": "no", "outcome": "broker_no_show", "auto_marked": false, "lead_message": "broker_no_show_apology" },
+        "W13": { "replacement": false },
+        "W15": { "opted_out": false }
+      }
+    },
+
+    {
+      "fixture_id": "L04",
+      "lead_id": "lead_test_L04",
+      "branches": ["ctwa_consent_yes", "no_show_replacement"],
+      "origin": "ctwa",
+      "lookup": { "line_type": "mobile" },
+      "submission": {
+        "is_synthetic": true,
+        "wa_id": "27600000104",
+        "profile_name": "Pieter",
+        "inbound": [
+          { "at": "2026-10-12T19:05:00+02:00", "type": "text", "text": "Hi, I'd like to check my life cover", "referral": { "source_type": "ad", "source_id": "ad_test_ctwa_01", "ctwa_clid": "ctwa_test_L04", "headline": "Most bonds outlast work cover" } },
+          { "at": "2026-10-12T19:05:40+02:00", "type": "button", "payload": "consent_yes" },
+          { "at": "2026-10-12T19:05:55+02:00", "type": "list", "payload": "age_45_50" },
+          { "at": "2026-10-12T19:06:05+02:00", "type": "list", "payload": "budget_750_1250" },
+          { "at": "2026-10-12T19:06:12+02:00", "type": "button", "payload": "bond_yes_dependants_yes" },
+          { "at": "2026-10-12T19:06:20+02:00", "type": "button", "payload": "method_phone" }
+        ],
+        "consent_text_version": "ctwa-v1"
+      },
+      "booking_request": {
+        "idempotency_key": "book_L04_1",
+        "requested_at": "2026-10-12T19:08:00+02:00",
+        "slot_start": "2026-10-15T14:00:00+02:00",
+        "method": "phone",
+        "booked_via": "list",
+        "context": {}
+      },
+      "timeline": [
+        { "at": "2026-10-12T19:05:00+02:00", "actor": "lead", "event": "CTWA first message (referral)" },
+        { "at": "2026-10-12T19:05:40+02:00", "actor": "lead", "event": "tap Yes, continue" },
+        { "at": "2026-10-12T19:06:20+02:00", "actor": "lead", "event": "qualifying complete -> routed" },
+        { "at": "2026-10-12T19:07:00+02:00", "actor": "lead", "event": "tap", "data": { "template": "broker_intro_slots", "button": "Other times" } },
+        { "at": "2026-10-12T19:08:00+02:00", "actor": "lead", "event": "list pick", "data": { "slot": "2026-10-15T14:00:00+02:00" } },
+        { "at": "2026-10-15T14:50:00+02:00", "actor": "broker", "event": "tap", "data": { "template": "broker_outcome_check", "button": "No-show" } }
+      ],
+      "expected": {
+        "W01": { "via": "W03", "lead_row_at": "2026-10-12T19:05:40+02:00", "verified_at": "2026-10-12T19:05:40+02:00", "routed_at": "2026-10-12T19:06:20+02:00", "broker_id": "brk_test_mark", "consent_text_version": "ctwa-v1", "ctwa_clid": "ctwa_test_L04", "capi_lead_event_id": "evt_lead_test_L04_ctwa_lead" },
+        "W05": { "http_status": 201, "slot_start": "2026-10-15T14:00:00+02:00", "event_title": "Life cover call – Pieter – Phone", "capi_schedule_event_id": "evt_lead_test_L04_ctwa_schedule", "capi_schedule_action_source": "business_messaging" },
+        "W06": { "template": "broker_intro_slots", "trigger": "routed", "send_at": "2026-10-12T19:06:20+02:00", "deadline": "2026-10-12T19:07:20+02:00" },
+        "W09": {
+          "compressed": false,
+          "schedule": [
+            { "touch": "what_to_expect", "at": "2026-10-12T19:18:00+02:00" },
+            { "touch": "intro_media", "at": "2026-10-12T19:23:00+02:00" },
+            { "touch": "reminder_24h", "at": "2026-10-14T14:00:00+02:00" },
+            { "touch": "prep_nudge", "at": "2026-10-14T14:00:00+02:00" },
+            { "touch": "reminder_2h", "at": "2026-10-15T12:00:00+02:00" },
+            { "touch": "reminder_10m", "at": "2026-10-15T13:50:00+02:00" }
+          ]
+        },
+        "W12": { "outcome_check_at": "2026-10-15T14:45:00+02:00", "reach_check_at": "2026-10-15T15:00:00+02:00", "lead_reach_check": "none", "outcome": "no_show", "no_show_confirmed_at": "2026-10-15T17:00:00+02:00", "lead_message": "missed_you" },
+        "W13": { "replacement": true, "reason": "no_show", "replacement_due_at": "2026-10-17T17:00:00+02:00", "dispute_window_ends_at": "2026-10-19T17:00:00+02:00", "status_after_window": "approved", "replacements_used_after": 1, "alert": "Jonathan" },
+        "W15": { "opted_out": false }
+      }
+    },
+
+    {
+      "fixture_id": "L05",
+      "lead_id": null,
+      "branches": ["ctwa_consent_no"],
+      "origin": "ctwa",
+      "submission": {
+        "is_synthetic": true,
+        "wa_id": "27600000105",
+        "profile_name": "Thabo",
+        "inbound": [
+          { "at": "2026-10-12T20:10:00+02:00", "type": "text", "text": "Hi, I'd like to check my life cover", "referral": { "source_type": "ad", "source_id": "ad_test_ctwa_01", "ctwa_clid": "ctwa_test_L05" } },
+          { "at": "2026-10-12T20:10:30+02:00", "type": "button", "payload": "consent_no" }
+        ],
+        "consent_text_version": "ctwa-v1"
+      },
+      "expected": {
+        "W01": { "via": "W03", "lead_row": false, "suppression": { "source": "no_consent_ctwa", "mobile_hash_of": "+27600000105" }, "broker_named": false, "capi_lead": false, "messages_after_no": 1 }
+      }
+    },
+
+    {
+      "fixture_id": "L06",
+      "lead_id": "lead_test_L06",
+      "branches": ["out_of_band_age"],
+      "origin": "ctwa",
+      "lookup": { "line_type": "mobile" },
+      "submission": {
+        "is_synthetic": true,
+        "wa_id": "27600000106",
+        "profile_name": "Johan",
+        "inbound": [
+          { "at": "2026-10-13T07:30:00+02:00", "type": "text", "text": "Hi, I'd like to check my life cover", "referral": { "source_type": "ad", "source_id": "ad_test_ctwa_02", "ctwa_clid": "ctwa_test_L06" } },
+          { "at": "2026-10-13T07:30:30+02:00", "type": "button", "payload": "consent_yes" },
+          { "at": "2026-10-13T07:30:45+02:00", "type": "list", "payload": "age_51_plus" }
+        ],
+        "consent_text_version": "ctwa-v1"
+      },
+      "expected": {
+        "W01": { "via": "W03", "qualified": false, "disqualified_reason": "age_band", "broker_id": null, "first_touch": false, "delete_after": "2026-10-14T07:30:45+02:00", "polite_close": true }
+      }
+    },
+
+    {
+      "fixture_id": "L07",
+      "lead_id": "lead_test_L07",
+      "branches": ["out_of_band_budget"],
+      "origin": "page",
+      "lookup": { "line_type": "mobile" },
+      "submission": {
+        "brand_id": "smc",
+        "is_synthetic": true,
+        "submitted_at": "2026-10-13T12:00:00+02:00",
+        "first_name": "Nomsa",
+        "mobile": "0600000107",
+        "language": "en",
+        "quiz": { "age_band": "35_44", "has_bond": false, "has_dependants": true, "has_work_cover": true, "budget_band": "500_750" },
+        "consent": {
+          "checked": true,
+          "version": "CONSENT-NAMED-v1+CONSENT-ADS-v1",
+          "text": "I agree that Lead Velocity may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
+          "includes_ads_sentence": true,
+          "at": "2026-10-13T12:00:00+02:00",
+          "page_url": "https://sortmycover.co.za/bond-gap",
+          "source": "page"
+        },
+        "context": { "event_id": "5b0f7a2e-0007-4c1a-9a51-000000000007", "client_ip": "192.0.2.17", "client_user_agent": "SyntheticTest/1.0" },
+        "honeypot": "",
+        "_note": "The real page never posts an out-of-band lead (4.5 #7: exit, no capture). This is the defence-in-depth case: a tampered or replayed request."
+      },
+      "expected": {
+        "W01": { "http_status": 200, "status": "not_qualified", "qualified": false, "disqualified_reason": "budget_band", "broker_id": null, "first_touch": false, "capi_lead": false, "delete_after": "2026-10-14T12:00:00+02:00" }
+      }
+    },
+
+    {
+      "fixture_id": "L08",
+      "lead_id": null,
+      "branches": ["landline_voip_rejected"],
+      "origin": "page",
+      "lookup": { "line_type": "voip" },
+      "submission": {
+        "brand_id": "smc",
+        "is_synthetic": true,
+        "submitted_at": "2026-10-13T13:00:00+02:00",
+        "first_name": "Kagiso",
+        "mobile": "060 000 0108",
+        "language": "en",
+        "quiz": { "age_band": "35_44", "has_bond": true, "has_dependants": true, "has_work_cover": true, "budget_band": "750_1250" },
+        "consent": {
+          "checked": true,
+          "version": "CONSENT-NAMED-v1+CONSENT-ADS-v1",
+          "text": "I agree that Lead Velocity may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
+          "includes_ads_sentence": true,
+          "at": "2026-10-13T13:00:00+02:00",
+          "page_url": "https://sortmycover.co.za/bond-gap",
+          "source": "page"
+        },
+        "context": { "event_id": "5b0f7a2e-0008-4c1a-9a51-000000000008", "client_ip": "192.0.2.18", "client_user_agent": "SyntheticTest/1.0" },
+        "honeypot": ""
+      },
+      "expected": {
+        "W01": { "http_status": 422, "status": "rejected", "error_code": "not_mobile", "page_message": "Please use a mobile number.", "lead_row": false, "whatsapp": false, "capi_lead": false }
+      }
+    },
+
+    {
+      "fixture_id": "L09",
+      "lead_id": "lead_test_L01",
+      "branches": ["duplicate_within_90d"],
+      "origin": "page",
+      "lookup": { "line_type": "mobile" },
+      "submission": {
+        "brand_id": "smc",
+        "is_synthetic": true,
+        "submitted_at": "2026-10-30T19:20:00+02:00",
+        "first_name": "Lerato",
+        "mobile": "0027 60 000 0101",
+        "language": "en",
+        "quiz": { "age_band": "35_44", "has_bond": true, "has_dependants": true, "has_work_cover": true, "budget_band": "750_1250" },
+        "consent": {
+          "checked": true,
+          "version": "CONSENT-NAMED-v1+CONSENT-ADS-v1",
+          "text": "I agree that Lead Velocity may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
+          "includes_ads_sentence": true,
+          "at": "2026-10-30T19:20:00+02:00",
+          "page_url": "https://sortmycover.co.za/work-cover",
+          "source": "page"
+        },
+        "context": { "event_id": "5b0f7a2e-0009-4c1a-9a51-000000000009", "fbclid": "IwAR_TEST_L09", "utm_content": "ad_test_009", "ad_id": "ad_test_009", "client_ip": "192.0.2.19", "client_user_agent": "SyntheticTest/1.0" },
+        "honeypot": ""
+      },
+      "expected": {
+        "W01": { "http_status": 200, "status": "duplicate", "duplicate_of": "lead_test_L01", "new_lead_row": false, "new_whatsapp": false, "capi_lead": false, "activity_logged": "duplicate_submission" }
+      }
+    },
+
+    {
+      "fixture_id": "L10",
+      "lead_id": "lead_test_L10",
+      "branches": ["stop_mid_sequence"],
+      "origin": "page",
+      "lookup": { "line_type": "mobile" },
+      "submission": {
+        "brand_id": "smc",
+        "is_synthetic": true,
+        "submitted_at": "2026-10-19T10:00:00+02:00",
+        "first_name": "Zanele",
+        "mobile": "060-000-0110",
+        "language": "en",
+        "quiz": { "age_band": "45_50", "has_bond": true, "has_dependants": true, "has_work_cover": true, "budget_band": "1250_plus" },
+        "consent": {
+          "checked": true,
+          "version": "CONSENT-NAMED-v1+CONSENT-ADS-v1",
+          "text": "I agree that Lead Velocity may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
+          "includes_ads_sentence": true,
+          "at": "2026-10-19T10:00:00+02:00",
+          "page_url": "https://sortmycover.co.za/bond-gap",
+          "source": "page"
+        },
+        "context": { "event_id": "5b0f7a2e-0010-4c1a-9a51-000000000010", "fbclid": "IwAR_TEST_L10", "utm_content": "ad_test_001", "ad_id": "ad_test_001", "client_ip": "192.0.2.20", "client_user_agent": "SyntheticTest/1.0" },
+        "honeypot": ""
+      },
+      "booking_request": {
+        "idempotency_key": "book_L10_1",
+        "requested_at": "2026-10-19T10:00:30+02:00",
+        "slot_start": "2026-10-22T15:00:00+02:00",
+        "method": "phone",
+        "booked_via": "page",
+        "context": { "event_id": "5b0f7a2e-0010-4c1a-9a51-000000000110" }
+      },
+      "stop_message": { "at": "2026-10-21T15:07:00+02:00", "text": "Stop" },
+      "timeline": [
+        { "at": "2026-10-19T10:00:00+02:00", "actor": "lead", "event": "POST /lead" },
+        { "at": "2026-10-19T10:00:30+02:00", "actor": "lead", "event": "POST /book", "data": { "slot": "2026-10-22T15:00:00+02:00", "method": "phone" } },
+        { "at": "2026-10-21T15:00:00+02:00", "actor": "system", "event": "reminder_24h + prep_nudge sent" },
+        { "at": "2026-10-21T15:07:00+02:00", "actor": "lead", "event": "text 'Stop'" }
+      ],
+      "expected": {
+        "W01": { "http_status": 200, "status": "accepted", "mobile": "+27600000110", "broker_id": "brk_test_mark" },
+        "W06": { "template": "broker_intro_booked", "trigger": "booking", "send_at": "2026-10-19T10:00:30+02:00", "deadline": "2026-10-19T10:01:00+02:00" },
+        "W09": {
+          "compressed": false,
+          "schedule": [
+            { "touch": "what_to_expect", "at": "2026-10-19T10:10:30+02:00" },
+            { "touch": "intro_media", "at": "2026-10-20T15:00:00+02:00" },
+            { "touch": "reminder_24h", "at": "2026-10-21T15:00:00+02:00" },
+            { "touch": "prep_nudge", "at": "2026-10-21T15:00:00+02:00" },
+            { "touch": "reminder_2h", "at": "2026-10-22T13:00:00+02:00" },
+            { "touch": "reminder_10m", "at": "2026-10-22T14:50:00+02:00" }
+          ]
+        },
+        "W15": {
+          "opted_out": true,
+          "opted_out_at": "2026-10-21T15:07:00+02:00",
+          "cancelled": ["reminder_2h", "reminder_10m", "broker_outcome_check", "reach_check"],
+          "booking_status": "cancelled",
+          "graph_event_deleted": true,
+          "broker_notified": true,
+          "broker_notification_names_lead_as": "Zanele",
+          "suppression": { "source": "stop", "brand_id": null, "mobile_hash_of": "+27600000110" },
+          "messages_to_lead_after_stop": ["opt_out_confirmation"],
+          "later_intake_whatsapp": false
+        }
+      }
+    }
+  ]
+}

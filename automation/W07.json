@@ -1,0 +1,3297 @@
+{
+  "id": "smc-w07",
+  "name": "W07 Conversation agent (Thandi)",
+  "nodes": [
+    {
+      "id": "n01",
+      "name": "Sticky: read me",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "width": 760,
+        "height": 360,
+        "content": "W07 Conversation agent. Owns POST /whatsapp (Cloud API webhook) for every inbound WhatsApp + status receipts.\nOrder (conversation/prompts/guardrail.md): verify X-Hub-Signature-256 -> 200 -> webhook_events idempotency (wamid) -> deterministic router (automation/lib/w07.mjs routeInbound: STOP->W15, CTWA/unknown->W03, taps->W04/W05/W08/W09/W10/W12/W28/W29/W35, broker numbers->W12/W29 (broker video, or audio while pre-live -> W23 sub-call, I-37d), ops numbers approve:/later: taps -> W32 decision sub-call (I-37e), handoff->paused; loop guard: a W03 hand-back (origin 'w03', via the sub-call trigger) is never routed to W03 again) -> store redacted inbound + verified_at (3.3) -> prefilter + redactForLLM -> intent-slot LLM (Haiku, prompts/intent-slot.md) -> decide() (logic.mjs) -> planActions (fixed lines, delegations, escalations incl. kind 'sensitive' stored as human_handoff/red per I-25, lead_activities 'lead_theme' rows per I-22) -> reply LLM only for actions that need words (prompts/reply.md) -> outputGate -> guardrail classifier on classifierInput() (I-27) -> toneCheck -> assemble -> send -> store outbound + conv_state.\nFails closed: classifier error/timeout = block -> fixed fallback (+ DEFER if the question was advice-shaped). Self-harm/bereavement: nothing automated is sent; Jonathan + KG alerted together, reminders paused.\nCode nodes import repo modules from $env.REPO_DIR (same pattern as W30/W31); needs NODE_FUNCTION_ALLOW_BUILTIN=crypto,url,fs. Env: META_APP_SECRET, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, ANTHROPIC_API_KEY, ANTHROPIC_MODEL_FAST, ANTHROPIC_MODEL_STRONG, TWILIO_*, OPS_WHATSAPP_JONATHAN, OPS_WHATSAPP_KG, DRY_RUN_SENDS. Synthetic tests: automation/tests/W07.test.mjs.\nw07-alignment (I-35e): W04/W10 delegations carry the turn's fixed lines (delegate.lead_lines / delegate.body, one message; W07 sends nothing itself); outputGate runs before the classifier (trip = no classifier call); a classifier pass < 0.8 = block; reply facts = approved FAQ answer + KNOWN + booking time; greet/booking_status -> BOOKING_STATUS or W04; disclosed set only when a disclosure went out; W35 pulse line -> W35."
+      }
+    },
+    {
+      "id": "n02",
+      "name": "WhatsApp webhook (POST)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "webhookId": "w07-whatsapp-post"
+    },
+    {
+      "id": "n03",
+      "name": "Verify signature + normalise",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const V = require('lv-automation').verifyWebhooks;\nconst L = require('lv-automation').w07;\nconst it = $input.first();\nconst raw = it.binary && it.binary.data ? Buffer.from(it.binary.data.data, 'base64').toString('utf8') : JSON.stringify(it.json.body || {});\nconst sig = (it.json.headers || {})['x-hub-signature-256'];\nconst vr = V.verifyMetaSignature(raw, sig, $env.META_APP_SECRET); // returns { ok, reason }: the object itself is always truthy\nif (!vr || vr.ok !== true) return [{ json: { valid: false, reason: (vr && vr.reason) || 'unverified' } }];\nconst body = JSON.parse(raw);\nconst crypto = require('crypto');\nconst out = [];\nfor (const m of L.normaliseInbound(body)) out.push({ json: { valid: true, kind: 'message', msg: m, payload_hash: crypto.createHash('sha256').update(JSON.stringify(m)).digest('hex') } });\nfor (const e of body.entry || []) for (const ch of e.changes || []) for (const s of (ch.value && ch.value.statuses) || []) out.push({ json: { valid: true, kind: 'status', wamid: s.id, status: s.status, ts: Number(s.timestamp || 0), error: (s.errors && s.errors[0] && (s.errors[0].code + ' ' + (s.errors[0].title || ''))) || null } });\nreturn out.length ? out : [{ json: { valid: true, kind: 'empty' } }];"
+      }
+    },
+    {
+      "id": "n04",
+      "name": "Respond 200 / 401",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.valid ? \"ok\" : \"bad signature\" }}",
+        "options": {
+          "responseCode": "={{ $json.valid ? 200 : 401 }}"
+        }
+      }
+    },
+    {
+      "id": "n05",
+      "name": "Message or status?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "message",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s0",
+                    "leftValue": "={{ $json.valid ? $json.kind : \"invalid\" }}",
+                    "rightValue": "message",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "status",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s1",
+                    "leftValue": "={{ $json.valid ? $json.kind : \"invalid\" }}",
+                    "rightValue": "status",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      }
+    },
+    {
+      "id": "n06",
+      "name": "Status receipt -> communications + disclosure evidence",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- delivery receipts: sent / delivered / read / failed (W06 disclosure evidence uses the same rows).\n-- I-45d: the row says whether the message was a W06 card, so W06 { op:'status' } gets delivered/failed (SMS fallback).\nWITH c AS (\n  UPDATE public.communications\n     SET status = $2,\n         delivered_at = CASE WHEN $2 IN ('delivered','read') THEN COALESCE(delivered_at, to_timestamp($3)) ELSE delivered_at END,\n         read_at = CASE WHEN $2 = 'read' THEN COALESCE(read_at, to_timestamp($3)) ELSE read_at END,\n         failed_reason = CASE WHEN $2 = 'failed' THEN $4 ELSE failed_reason END,\n         updated_at = now()\n   WHERE channel = 'whatsapp' AND external_id = $1 AND brand_id IS NOT NULL\n  RETURNING lead_id, workflow),\nu AS (\n  UPDATE public.leads l\n     SET wa_delivered_at = COALESCE(l.wa_delivered_at, to_timestamp($3)),\n         disclosure_delivered_at = CASE WHEN l.disclosure_msg_id = $1 THEN COALESCE(l.disclosure_delivered_at, to_timestamp($3)) ELSE l.disclosure_delivered_at END\n    FROM c\n   WHERE l.id = c.lead_id AND $2 IN ('delivered','read')\n  RETURNING l.id)\nSELECT $1 AS wamid, $2 AS status, to_timestamp($3) AS at, $4 AS error,\n       EXISTS (SELECT 1 FROM c WHERE c.workflow = 'W06') AS w06_card,\n       (SELECT count(*) FROM u)::int AS leads_stamped;",
+        "options": {
+          "queryReplacement": "={{ [$json.wamid, $json.status, $json.ts, $json.error] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n07",
+      "name": "Idempotency: claim wamid",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.webhook_events (source, external_id, signature_ok, payload_hash)\nVALUES ('whatsapp', $1, true, $2)\nON CONFLICT (source, external_id) DO UPDATE SET attempts = public.webhook_events.attempts + 1\nRETURNING id, (xmax = 0) AS first_delivery;",
+        "options": {
+          "queryReplacement": "={{ [$json.msg.wamid, $json.payload_hash] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n08",
+      "name": "First delivery?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.first_delivery === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n09",
+      "name": "Load context (lead, broker, live booking, window)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT p.phone AS from_phone,\n       l.id, l.first_name, l.last_name, l.phone, l.line_type, l.brand_id, l.broker_id, l.cycle_id, l.stage, l.conv_state,\n       l.opted_out_at, l.language, l.origin, l.first_message_at, l.verified_at,\n       l.age_band, l.budget_band, l.method_pref, l.email, l.call_number, l.best_time,\n       b.contact_person, b.firm_name, b.whatsapp_number,\n       a.id AS booking_id, a.appointment_date, a.ends_at, a.method, a.status AS booking_status, a.graph_event_id, a.reschedule_count,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'inbound') AS last_inbound_at,\n       (SELECT bb.id FROM public.brokers bb WHERE bb.whatsapp_number = p.phone AND bb.brand_id IS NOT NULL LIMIT 1) AS from_broker_id,\n       (SELECT bb.brand_id FROM public.brokers bb WHERE bb.whatsapp_number = p.phone AND bb.brand_id IS NOT NULL LIMIT 1) AS from_broker_brand_id,\n       (SELECT bb.status FROM public.brokers bb WHERE bb.whatsapp_number = p.phone AND bb.brand_id IS NOT NULL LIMIT 1) AS from_broker_status,\n       EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(p.phone)) AS suppressed\n  FROM (SELECT $1::text AS phone) p\n  LEFT JOIN public.leads l ON l.phone = p.phone AND l.brand_id IS NOT NULL AND l.duplicate_of IS NULL\n  LEFT JOIN public.brokers b ON b.id = l.broker_id\n  LEFT JOIN LATERAL (SELECT x.id, x.appointment_date, x.ends_at, x.method, x.status, x.graph_event_id, x.reschedule_count\n                       FROM public.appointments x\n                      WHERE x.client_id = l.id AND x.brand_id IS NOT NULL AND x.status IN ('booked','confirmed')\n                      ORDER BY x.appointment_date LIMIT 1) a ON true\n ORDER BY l.created_at DESC NULLS LAST\n LIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ [ ($json.msg && $json.msg.origin === 'w03') ? $json.msg.from : $('Verify signature + normalise').item.json.msg.from ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n10",
+      "name": "Route (deterministic) + prefilter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w07;\nlet msg; try { msg = $('Verify signature + normalise').item.json.msg; } catch (e) { msg = $('W03 forward: loop guard (origin w03)').item.json.msg; } // I-37e: W03 hand-back carries origin 'w03'\nconst c = $json;\nconst lead = c.id ? { id: c.id, first_name: c.first_name, last_name: c.last_name, phone: c.phone, line_type: c.line_type, brand_id: c.brand_id, broker_id: c.broker_id, cycle_id: c.cycle_id, stage: c.stage, conv_state: c.conv_state || {}, opted_out_at: c.opted_out_at, language: c.language, origin: c.origin, age_band: c.age_band, budget_band: c.budget_band, method_pref: c.method_pref, email: c.email, call_number: c.call_number, best_time: c.best_time } : null;\nconst brokerNumbers = new Set(c.from_broker_id ? [msg.from] : []);\nconst opsNumbers = new Set([$env.OPS_WHATSAPP_JONATHAN, $env.OPS_WHATSAPP_KG].filter(Boolean).map((x) => '+' + String(x).replace(/\\D/g, '')));\nconst r = L.routeInbound(msg, { lead, broker_numbers: brokerNumbers, ops_numbers: opsNumbers, broker_status: c.from_broker_status, has_live_booking: !!c.booking_id, suppressed: c.suppressed });\nconst pre = L.preStep(msg, lead || {}, { contact_person: c.contact_person });\nconst booking = c.booking_id ? { id: c.booking_id, appointment_date: c.appointment_date, method: c.method, status: c.booking_status, graph_event_id: c.graph_event_id } : null;\nreturn { json: { route: r.route, reason: r.reason, msg, lead, booking, broker: { id: c.broker_id || c.from_broker_id, contact_person: c.contact_person, firm_name: c.firm_name }, from_broker_id: c.from_broker_id, brand_id: (lead && lead.brand_id) || c.from_broker_brand_id || null, last_inbound_at: c.last_inbound_at, pre: pre.pre, text_llm: pre.text_llm, text_store: pre.text_store, adviser_first: pre.adviser_first, skip_llm: pre.skip_llm } };"
+      }
+    },
+    {
+      "id": "n11",
+      "name": "Known lead or broker? (store)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$json.brand_id) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n12",
+      "name": "Store inbound (redacted) + verified_at (3.3)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH ins AS (\n  INSERT INTO public.communications (brand_id, channel, direction, sender_type, sender_id, recipient_type, recipient_contact, content, status, external_id, lead_id, broker_id, author, workflow, redacted, metadata)\n  VALUES ($1::uuid, 'whatsapp', 'inbound', $2, NULL, 'system', $3, $4, 'received', $5, $6::uuid, $7::uuid, $8, 'W07', $9::boolean, $10::jsonb)\n  ON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING\n  RETURNING id)\nUPDATE public.leads\n   SET verified_at = COALESCE(verified_at, CASE WHEN first_message_at IS NOT NULL AND now() <= first_message_at + interval '72 hours' THEN now() END),\n       stage = CASE WHEN verified_at IS NULL AND stage IN ('new','disclosed') AND first_message_at IS NOT NULL AND now() <= first_message_at + interval '72 hours' THEN 'verified' ELSE stage END,\n       last_contact_at = now()\n WHERE id = $6::uuid AND EXISTS (SELECT 1 FROM ins)\nRETURNING id, verified_at;",
+        "options": {
+          "queryReplacement": "={{ [$json.brand_id, $json.from_broker_id ? 'broker' : 'client', $env.PHONE_NUMBER_ID, $json.text_store, $json.msg.wamid, $json.lead ? $json.lead.id : null, $json.from_broker_id || ($json.lead ? $json.lead.broker_id : null), $json.from_broker_id ? 'broker' : 'lead', $json.text_store !== ($json.msg.text || ''), JSON.stringify({ type: $json.msg.type, payload: $json.msg.payload, list_id: $json.msg.list_id, media: $json.msg.media, route: $json.route })] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n13",
+      "name": "Carry routed item",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { json: $('Route (deterministic) + prefilter').item.json };"
+      }
+    },
+    {
+      "id": "n14",
+      "name": "Route",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1100,
+        200
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "W15",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s0",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "W15",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "W03",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s1",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "W03",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "W05",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s2",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "W05",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "W09",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s3",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "W09",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "W10",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s4",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "W10",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "W12",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s5",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "W12",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "W29",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s6",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "W29",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "W35",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s7",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "W35",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "W04_list",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s8",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "W04_list",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "W08",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s9",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "W08",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "W07_contact",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s10",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "W07_contact",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "paused",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s11",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "paused",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "ignore_opted_out",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s12",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "ignore_opted_out",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "nlu",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s13",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "nlu",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "W32_decision",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s14",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "W32_decision",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "W23",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s15",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "W23",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "ignore_loop",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s16",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "ignore_loop",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      }
+    },
+    {
+      "id": "n15",
+      "name": "-> W15",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1320,
+        200
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w15",
+          "cachedResultName": "W15 Opt-out"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Called with { source: 'W07', route, msg, lead, booking }. Sub-workflow owns its reply."
+    },
+    {
+      "id": "n16",
+      "name": "-> W03",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1540,
+        200
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w03",
+          "cachedResultName": "W03 Lead intake (Click-to-WhatsApp)"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Called with { source: 'W07', route, msg, lead, booking }. Sub-workflow owns its reply."
+    },
+    {
+      "id": "n17",
+      "name": "-> W05",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        400
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w05",
+          "cachedResultName": "W05 Book"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Called with { source: 'W07', route, msg, lead, booking }. Sub-workflow owns its reply."
+    },
+    {
+      "id": "n18",
+      "name": "-> W09",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        400
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w09",
+          "cachedResultName": "W09 Reminder sequence"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Called with { source: 'W07', route, msg, lead, booking }. Sub-workflow owns its reply."
+    },
+    {
+      "id": "n19",
+      "name": "-> W10",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        400
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w10",
+          "cachedResultName": "W10 Reschedule / cancel"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Called with { source: 'W07', route, msg, lead, booking }. Sub-workflow owns its reply."
+    },
+    {
+      "id": "n20",
+      "name": "-> W12",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        660,
+        400
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w12",
+          "cachedResultName": "W12 Outcome, disposition & feedback"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Called with { source: 'W07', route, msg, lead, booking }. Sub-workflow owns its reply."
+    },
+    {
+      "id": "n21",
+      "name": "-> W29",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        400
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w29",
+          "cachedResultName": "W29 Feedback loop"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Called with { source: 'W07', route, msg, lead, booking }. Sub-workflow owns its reply."
+    },
+    {
+      "id": "n22",
+      "name": "-> W35",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        400
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w35",
+          "cachedResultName": "W35 Lead pulse"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Called with { source: 'W07', route, msg, lead, booking }. Sub-workflow owns its reply."
+    },
+    {
+      "id": "n23",
+      "name": "-> W04_list",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1320,
+        400
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w04",
+          "cachedResultName": "W04 Slots API"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Called with { source: 'W07', route, msg, lead, booking }. Sub-workflow owns its reply."
+    },
+    {
+      "id": "n24",
+      "name": "-> W08",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1540,
+        400
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w08",
+          "cachedResultName": "W08 Unbooked nurture"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Called with { source: 'W07', route, msg, lead, booking }. Sub-workflow owns its reply."
+    },
+    {
+      "id": "n26",
+      "name": "Paused / opted out: log only",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        220,
+        600
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "n27",
+      "name": "Contact step (call number / alt / best time)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w07;\nconst j = $json;\nconst step = L.contactStep(j.lead, j.msg, null);\nreturn { json: { ...j, step } };"
+      }
+    },
+    {
+      "id": "n28",
+      "name": "Typed number needs Lookup?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        600
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$json.step.lookup_needed) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n29",
+      "name": "Twilio Lookup v2 (line type)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        600
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://lookups.twilio.com/v2/PhoneNumbers/{{ encodeURIComponent($json.step.lookup_needed) }}?Fields=line_type_intelligence",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Basic {{ Buffer.from($env.TWILIO_API_KEY_SID + ':' + $env.TWILIO_API_KEY_SECRET).toString('base64') }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 3000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n30",
+      "name": "Contact step with Lookup result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w07;\nconst j = $('Contact step (call number / alt / best time)').item.json;\nconst t = ($json.line_type_intelligence && $json.line_type_intelligence.type) || 'unknown';\nconst line = t === 'mobile' ? 'mobile' : (t === 'landline' || t === 'fixedVoip' || t === 'nonFixedVoip') ? (t === 'landline' ? 'landline' : 'voip') : 'unknown';\nreturn { json: { ...j, step: L.contactStep(j.lead, j.msg, { line_type: line }) } };"
+      }
+    },
+    {
+      "id": "n31",
+      "name": "Save contact data (leads + live booking)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1320,
+        600
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH u AS (\n  UPDATE public.leads\n     SET call_number = COALESCE($2, call_number),\n         call_number_line_type = COALESCE($3, call_number_line_type),\n         alt_number = COALESCE($4, alt_number),\n         alt_purpose = COALESCE($5, alt_purpose),\n         best_time = COALESCE($6, best_time),\n         conv_state = COALESCE(conv_state, '{}'::jsonb) || $7::jsonb,\n         updated_at = now()\n   WHERE id = $1::uuid\n  RETURNING id)\nUPDATE public.appointments a\n   SET call_number = $2, updated_at = now()\n  FROM u\n WHERE a.client_id = u.id AND a.brand_id IS NOT NULL AND a.status IN ('booked','confirmed') AND $2 IS NOT NULL;",
+        "options": {
+          "queryReplacement": "={{ [$json.lead.id, $json.step.update.call_number || null, $json.step.update.call_number_line_type || null, $json.step.update.alt_number || null, $json.step.update.alt_purpose || null, $json.step.update.best_time || null, JSON.stringify($json.step.conv_state)] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n32",
+      "name": "Build contact reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const j = $('Contact step (call number / alt / best time)').item.json;\nlet s = j.step; try { const k = $('Contact step with Lookup result').item; if (k) s = k.json.step; } catch (e) {}\nconst r = s.reply; if (!r) return { json: { skip: true } };\nconst body = (r.pre ? r.pre + ' ' : '') + r.body;\nlet m;\nif (r.type === 'buttons') m = { type: 'interactive', interactive: { type: 'button', body: { text: body }, action: { buttons: r.buttons.map(([id, t]) => ({ type: 'reply', reply: { id, title: t } })) } } };\nelse if (r.type === 'list') m = { type: 'interactive', interactive: { type: 'list', body: { text: body }, action: { button: 'Choose', sections: [{ title: 'Best time', rows: r.rows.map(([id, t]) => ({ id, title: t })) }] } } };\nelse m = { type: 'text', text: { body } };\nreturn { json: { skip: false, send: true, brand_id: j.brand_id, msg: j.msg, wa: { messaging_product: 'whatsapp', to: j.msg.from, ...m }, text: body, lead: j.lead, intent: 'contact', model: null, latency_ms: null, trip: false, rule: null, handoff: false } };"
+      }
+    },
+    {
+      "id": "n33",
+      "name": "Media only? (never sent to a model)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        0,
+        800
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.skip_llm === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n34",
+      "name": "Build intent-slot request (Haiku)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        800
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nconst fs = require('fs');\nconst md = fs.readFileSync(REPO + '/conversation/prompts/intent-slot.md', 'utf8');\nconst system = (md.split('\\u0060\\u0060\\u0060prompt')[1] || '').split('\\u0060\\u0060\\u0060')[0].trim();\nconst j = $json;\nconst state = (j.lead && j.lead.conv_state && j.lead.conv_state.state) || (j.booking ? 'booked' : 'unbooked');\nconst known = j.lead ? ['age_band', 'budget_band', 'bond', 'dependants', 'method_pref', 'email', 'call_number', 'best_time'].filter((k) => j.lead[k] != null) : [];\nconst user = L.intentUserTurn({ state, booking: j.booking ? { day: '', date: j.booking.appointment_date, time: '', method: j.booking.method } : null, now_ms: Date.now(), known, text_llm: j.text_llm });\nreturn { json: { ...j, state, t0: Date.now(), intent_body: { model: $env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5-20251001', max_tokens: 400, temperature: 0, system, messages: [{ role: 'user', content: user }] } } };"
+      }
+    },
+    {
+      "id": "n35",
+      "name": "Intent-slot LLM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        800
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.intent_body) }}",
+        "options": {
+          "timeout": 8000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1500,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "n36",
+      "name": "Parse NLU -> decide() -> plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        800
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nconst D = require('lv-automation').logic;\nconst j = $('Build intent-slot request (Haiku)').item.json;\nconst raw = ($json.content && $json.content[0] && $json.content[0].text) || '';\nconst nlu = L.parseNlu(raw);\nconst fs = require('fs');\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst lang = ((j.lead && j.lead.language) || nlu.language) === 'af' ? 'af' : 'en';\nconst cs = (j.lead && j.lead.conv_state) || {};\nconst decision = D.decide(j.state, nlu, j.pre, { booking: j.booking, unanswered: cs.unanswered || 0 });\nconst plan = L.planActions(decision, { lead: j.lead, booking: L.bookingView(j.booking, lang), faq, pre: j.pre, nlu, now_ms: Date.now(), lang, state: j.state, wamid: j.msg.wamid, disclosed: !!cs.disclosed, adviser_first: j.adviser_first, unanswered: cs.unanswered || 0, text_store: j.text_store });\nreturn { json: { ...j, nlu, decision, plan, latency_ms: Date.now() - j.t0 } };"
+      }
+    },
+    {
+      "id": "n37",
+      "name": "lead_activities: lead_theme rows (I-22)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        880,
+        800
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT $1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W07', 'lead', 'lead_theme', t.p, now(), 'w07:theme:' || $5 || ':' || (t.p->>'theme')\n  FROM jsonb_array_elements($6::jsonb) AS t(p)\n WHERE $1::uuid IS NOT NULL\nON CONFLICT (idempotency_key) DO NOTHING;",
+        "options": {
+          "queryReplacement": "={{ [$json.lead ? $json.lead.id : null, $json.brand_id, $json.lead ? $json.lead.broker_id : null, $json.lead ? $json.lead.cycle_id : null, $json.msg.wamid, JSON.stringify($json.plan.themes)] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n38",
+      "name": "Carry plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        800
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { json: $('Parse NLU -> decide() -> plan').item.json };"
+      }
+    },
+    {
+      "id": "n39",
+      "name": "Escalation?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        800
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$json.plan.escalation) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n40",
+      "name": "Insert escalation (sensitive -> human_handoff/red, I-25)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1540,
+        800
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.escalations (brand_id, kind, severity, ref_table, ref_id, lead_id, broker_id, raised_at, deep_link, note)\nVALUES ($1::uuid, $2, $3, 'communications', $4, $5::uuid, $6::uuid, now(), $7, $8)\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$json.brand_id, $json.plan.escalation.kind, $json.plan.escalation.severity, $json.plan.escalation.ref_id, $json.plan.escalation.lead_id, $json.plan.escalation.broker_id, $json.plan.escalation.deep_link, $json.plan.escalation.note] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n41",
+      "name": "Alert ops (first name + initial, redacted)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1000
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const j = $('Carry plan').item.json;\nconst e = j.plan.escalation;\nconst who = j.lead ? (j.lead.first_name || '') + ' ' + String(j.lead.last_name || '').slice(0, 1) : 'unknown';\nconst to = e.notify.map((n) => n === 'KG' ? $env.OPS_WHATSAPP_KG : $env.OPS_WHATSAPP_JONATHAN).filter(Boolean);\nconst base = ($env.CONSOLE_URL || '');\nreturn to.map((t) => ({ json: { wa: { messaging_product: 'whatsapp', to: t, type: 'template', template: { name: 'ops_alert', language: { code: 'en' }, components: [{ type: 'body', parameters: [{ type: 'text', text: 'Chat handoff (' + e.note.replace('esc_kind=', '') + '): ' + who.trim() }, { type: 'text', text: 'now' }, { type: 'text', text: e.severity === 'red' ? 'Red: reply personally, nothing automated was sent' : 'Lead is waiting for a person' }, { type: 'text', text: 'Open the conversation in the console' }] }, { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: (e.deep_link || '').replace(/^\\//, '') }] }] } } } }));"
+      }
+    },
+    {
+      "id": "n42",
+      "name": "Live send? (alert)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        220,
+        1000
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($env.DRY_RUN_SENDS !== 'true') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n43",
+      "name": "Send ops alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        1000
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION }}/{{ $env.PHONE_NUMBER_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.META_SYSTEM_USER_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.wa) }}",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "n44",
+      "name": "Pause reminders? (sensitive)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        1000
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.plan.pause_reminders === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n45",
+      "name": "-> W09 pause",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        1000
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w09",
+          "cachedResultName": "W09 Reminder sequence"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Called with { op: 'pause', lead_id, reason: 'sensitive' } (handoff.md trigger 6)."
+    },
+    {
+      "id": "n46",
+      "name": "Explode delegations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        1000
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-46b: all-items mode; an empty plan.delegate returns [] (branch ends), every item is { json: {...} }.\nconst L = require(\"lv-automation\").w07;\nreturn L.explodeDelegations($input.all());"
+      }
+    },
+    {
+      "id": "n47",
+      "name": "Delegate to",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1320,
+        1000
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "W15",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s0",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "W15",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "W03",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s1",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "W03",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "W04",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s2",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "W04",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "W10",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s3",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "W10",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "W08",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s4",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "W08",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "W07_contact",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s5",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "W07_contact",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "hop_limit",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s_hop",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "hop_limit",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      }
+    },
+    {
+      "id": "n48",
+      "name": "Needs reply LLM?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        1000
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.plan.send && $json.plan.reply_actions.length > 0) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n49",
+      "name": "Build reply request (Haiku)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1200
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nconst fs = require('fs');\nconst md = fs.readFileSync(REPO + '/conversation/prompts/reply.md', 'utf8');\nconst system = (md.split('\\u0060\\u0060\\u0060prompt')[1] || '').split('\\u0060\\u0060\\u0060')[0].trim();\nconst j = $json;\n// w07-alignment #6: approved FAQ answer(s) in the lead's language, KNOWN slots, booking with day/date/time/method\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst facts = L.replyFacts({ plan: j.plan, adviser_first: j.adviser_first, booking: L.bookingView(j.booking, j.plan.lang), faq, lead: j.lead || {} });\nconst user = 'DECISION: ' + JSON.stringify({ actions: j.plan.reply_actions, defer: j.plan.actions.includes('defer'), facts }) + '\\nKNOWN: ' + facts.known.join(', ') + '\\nFIRST_NAME: ' + (j.plan.vars.first_name || '') + '\\nLANGUAGE: ' + j.plan.lang + '\\nLEAD_USED_EMOJI: ' + j.pre.lead_used_emoji + '\\nTHEIR MESSAGE: \"\"\"' + j.text_llm.replace(/\"{3,}/g, '\"').slice(0, 1200) + '\"\"\"';\nreturn { json: { ...j, reply_body: { model: $env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5-20251001', max_tokens: 220, temperature: 0.4, system, messages: [{ role: 'user', content: user }] } } };"
+      }
+    },
+    {
+      "id": "n50",
+      "name": "Reply LLM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        1200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.reply_body) }}",
+        "options": {
+          "timeout": 8000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1500,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "n51",
+      "name": "outputGate + classifierInput (I-27)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        1200
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nconst fs = require('fs');\nconst j = $('Build reply request (Haiku)').item.json;\nconst draft = (($json.content && $json.content[0] && $json.content[0].text) || '').trim();\nconst md = fs.readFileSync(REPO + '/conversation/prompts/guardrail.md', 'utf8');\nconst system = (md.split('\\u0060\\u0060\\u0060prompt')[1] || '').split('\\u0060\\u0060\\u0060')[0].trim();\nconst question = $('Route (deterministic) + prefilter').item.json.msg.text || '';\n// w07-alignment #3: outputGate FIRST; a trip skips the paid classifier call (verdict = block, same result)\nconst g = L.preClassifierGate(j.plan, draft, question);\n// the classifier sees the lead's (redacted) question + the draft, surface whatsapp (G-1)\nconst user = L.classifierTurn(draft, question, j.plan.lang);\nreturn { json: { ...j, draft, gate_ok: g.pass, pre_verdict: g.verdict, classifier_body: { model: $env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5-20251001', max_tokens: 200, temperature: 0, system, messages: [{ role: 'user', content: user }] } } };"
+      }
+    },
+    {
+      "id": "n52",
+      "name": "Guardrail classifier LLM (fails closed)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        1200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.classifier_body) }}",
+        "options": {
+          "timeout": 5000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1500,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "n53",
+      "name": "Assemble (verdict + toneCheck + fallbacks)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        1200
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nlet j; let draft = ''; let verdict = null;\ntry { j = $('outputGate + classifierInput (I-27)').item.json; draft = j.draft; if (j.pre_verdict) verdict = j.pre_verdict;\n  else {\n    const pv = $('Parse verdict + re-check needed? (I-39h)').item.json; // first (Haiku) verdict\n    verdict = pv.first_verdict;\n    if (pv.needs_recheck) { // I-39h: Sonnet re-check ran on this item; $json is its response (neverError: no text = block)\n      verdict = L.resolveRecheck(pv.first_verdict, ($json.content && $json.content[0] && $json.content[0].text) || '');\n    }\n  } }\ncatch (e) { j = $json; }\nconst msgText = $('Route (deterministic) + prefilter').item.json.msg.text || '';\n// w07-alignment #7: real HH:MM and the approved FAQ map, so a blocked answer:FAQ-xx draft falls back to the verbatim answer\nconst fs = require('fs');\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst fb = (j.plan.reply_actions || []).map((a) => L.replyFallback(a, { lang: j.plan.lang, adviser_first: j.adviser_first, booking: L.bookingView(j.booking, j.plan.lang), faq })).filter(Boolean).join(' ');\nconst out = L.gateAndAssemble(j.plan, { draft, verdict, question: msgText, lead_used_emoji: j.pre.lead_used_emoji, fallback: fb });\nconst send = j.plan.send && !!out.text;\nconst disclosed_after = L.disclosedAfter(!!(j.lead && j.lead.conv_state && j.lead.conv_state.disclosed), j.plan, send); // #14\nreturn { json: { ...j, disclosed_after, text: out.text, trip: out.guardrail_trip, rule: out.guardrail_rule, used: out.used, send, wa: { messaging_product: 'whatsapp', to: j.msg.from, type: 'text', text: { body: out.text } }, intent: j.nlu.intent, model: out.used === 'llm' ? ($env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5-20251001') : null, handoff: j.plan.next_state === 'handoff' } };"
+      }
+    },
+    {
+      "id": "n54",
+      "name": "Guardrail trip?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        1200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.trip === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n55",
+      "name": "Log guardrail trip",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1320,
+        1200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.escalations (brand_id, kind, severity, ref_table, ref_id, lead_id, broker_id, raised_at, note)\nVALUES ($1::uuid, 'guardrail_trip', 'normal', 'communications', $2, $3::uuid, $4::uuid, now(), $5);",
+        "options": {
+          "queryReplacement": "={{ [$json.brand_id, $json.msg.wamid, $json.lead ? $json.lead.id : null, $json.lead ? $json.lead.broker_id : null, 'esc_kind=guardrail_trip; ' + $json.rule] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n56",
+      "name": "Anything to send?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        1200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.send === true && !$json.skip) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n57",
+      "name": "Live send? (reply)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($env.DRY_RUN_SENDS !== 'true') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n58",
+      "name": "Send WhatsApp (session, in 24-h window)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        1400
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION }}/{{ $env.PHONE_NUMBER_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.META_SYSTEM_USER_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.wa) }}",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "n59",
+      "name": "Store outbound",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        440,
+        1400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, broker_id, author, workflow, template_category, intent, llm_model, latency_ms, guardrail_trip, guardrail_rule, handoff, metadata)\nVALUES ($1::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, $3, 'sent', $4, $5::uuid, $6::uuid, 'bot', 'W07', 'service', $7, $8, $9, $10::boolean, $11, $12::boolean, '{}'::jsonb)\nON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING;",
+        "options": {
+          "queryReplacement": "={{ (() => { const s = $('Anything to send?').item.json; return [s.brand_id, s.msg.from, s.text, ($json.messages && $json.messages[0] && $json.messages[0].id) || ('dry:' + s.msg.wamid), s.lead ? s.lead.id : null, s.lead ? s.lead.broker_id : null, s.intent || null, s.model, s.latency_ms || null, !!s.trip, s.rule || null, !!s.handoff]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n60",
+      "name": "Save conv_state / language / stage / health_flag",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        1400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.leads\n   SET conv_state = COALESCE(conv_state, '{}'::jsonb) || $2::jsonb,\n       language = COALESCE($3, language),\n       stage = COALESCE($4, stage),\n       health_flag = health_flag OR $5::boolean,\n       last_contact_at = now(),\n       updated_at = now()\n WHERE id = $1::uuid;",
+        "options": {
+          "queryReplacement": "={{ (() => { const s = $('Assemble (verdict + toneCheck + fallbacks)').item.json; return [s.lead ? s.lead.id : null, JSON.stringify((() => { const p = { unanswered: s.plan.unanswered, disclosed: s.disclosed_after === true, prev_deferred: s.plan.actions.includes('defer'), last_turn_at: new Date().toISOString() }; if (!(s.plan.delegate || []).some((d) => d && d.to === 'W03')) p.state = s.plan.next_state; return p; })()), s.plan.lead_updates.language || null, s.plan.lead_updates.stage || null, !!s.pre.health]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "notes": "I-48k: on a turn handed to W03 the state key is left out (W03 writes leads.conv_state.state itself; same rule as lib/w07.mjs convStatePatch)."
+    },
+    {
+      "id": "n61",
+      "name": "Plan without LLM (media only)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        1400
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w07;\nconst D = require('lv-automation').logic;\nconst j = $json; const cs = (j.lead && j.lead.conv_state) || {};\nconst state = cs.state || (j.booking ? 'booked' : 'unbooked');\nconst nlu = { intent: 'other', topics: [], slots: {}, confidence: 1 };\nconst decision = D.decide(state, nlu, j.pre, { booking: j.booking });\nconst plan = L.planActions(decision, { lead: j.lead, booking: L.bookingView(j.booking, (j.lead && j.lead.language) === 'af' ? 'af' : 'en'), pre: j.pre, nlu, now_ms: Date.now(), lang: (j.lead && j.lead.language) || 'en', state, wamid: j.msg.wamid, disclosed: !!cs.disclosed, adviser_first: j.adviser_first, text_store: j.text_store });\nreturn { json: { ...j, state, nlu, decision, plan } };"
+      }
+    },
+    {
+      "id": "n62",
+      "name": "Execute Workflow Trigger (W05: post-booking contact confirm)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        1400
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "n63",
+      "name": "Contact start (call methods only)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        1400
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w07;\nconst j = $json; const q = L.contactStart(j.booking, j.broker || {}, (j.lead && j.lead.language) || 'en');\nif (!q) return { json: { skip: true } };\nreturn { json: { skip: false, send: true, brand_id: j.lead.brand_id, msg: { from: j.lead.phone, wamid: 'w05:' + j.booking.id }, lead: j.lead, text: q.body, wa: { messaging_product: 'whatsapp', to: j.lead.phone, type: 'interactive', interactive: { type: 'button', body: { text: q.body }, action: { buttons: q.buttons.map(([id, t]) => ({ type: 'reply', reply: { id, title: t } })) } } }, intent: 'contact', model: null, trip: false, rule: null, handoff: false } };"
+      }
+    },
+    {
+      "id": "n_fw4_63",
+      "name": "W32 tap -> decision item",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w07;\nreturn { json: L.w32DecisionItem($json.msg) };"
+      }
+    },
+    {
+      "id": "n_fw4_64",
+      "name": "-> W32 decision",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        600
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w32",
+          "cachedResultName": "W32 Optimisation pulse, memo, retro, events, approvals"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "I-37e: enters W32 at 'Console decision (sub-call)' -> 'Validate decision' (parses payload approve:<id> | later:<id>). Only OPS_WHATSAPP_JONATHAN / OPS_WHATSAPP_KG taps reach here."
+    },
+    {
+      "id": "n_fw4_65",
+      "name": "W23 media -> trigger item",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        740
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w07;\nreturn { json: L.w23MediaItem($json.msg) };"
+      }
+    },
+    {
+      "id": "n_fw4_66",
+      "name": "-> W23 media",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        740
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w23",
+          "cachedResultName": "W23 Media processing (intro video and voice)"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "I-37d: W23 has no WhatsApp Trigger of its own; broker video (any status) and broker audio while pre-live arrive here."
+    },
+    {
+      "id": "n_fw4_67",
+      "name": "Sub-call from? (W03 forward / W05)",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1320,
+        1240
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "w03_forward",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "f0",
+                    "leftValue": "={{ String($json.origin || '') }}",
+                    "rightValue": "w03",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      }
+    },
+    {
+      "id": "n_fw4_68",
+      "name": "W03 forward: loop guard (origin w03)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        1240
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// I-37e: W03 found an open lead and handed the message back. Re-enter at Load context with origin 'w03' kept on msg,\n// so routeInbound can never route it to W03 again (loop guard). No wamid re-claim: W07 already claimed it.\nconst j = $json;\nreturn { json: { msg: { ...(j.msg || {}), origin: 'w03' }, forwarded: { lead_id: j.lead_id || null, reason: j.reason || null } } };"
+      }
+    },
+    {
+      "id": "n_aln_gate",
+      "name": "outputGate passed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        550,
+        1360
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.gate_ok === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "i48Reply",
+      "name": "Reply claim (w07:reply:{wamid})",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -220,
+        1400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- I-48b: one inbound message -> at most one lead-facing reply. Claim key w07:reply:{wamid} in the same idempotency\n-- table as the wamid claim (webhook_events); W03 takes the same key. Already claimed -> 0 rows -> this branch ends (no send,\n-- no outbound row). Turns with no inbound wamid (W05 post-booking contact start) get a one-off key.\nWITH c AS (\n  INSERT INTO public.webhook_events (source, external_id, brand_id, signature_ok)\n  VALUES ('whatsapp', 'w07:reply:' || coalesce(nullif($1, ''), 'none:' || gen_random_uuid()::text), nullif($2, '')::uuid, true)\n  ON CONFLICT (source, external_id) DO NOTHING\n  RETURNING id)\nSELECT c.id AS reply_claim_id, $3::jsonb AS wa FROM c;",
+        "options": {
+          "queryReplacement": "={{ [ ($json.msg && $json.msg.wamid) || '', $json.brand_id || '', JSON.stringify($json.wa || {}) ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "i48Logho",
+      "name": "Log hop limit (W07)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2000,
+        1700
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- I-48b: more than 3 W03/W05/W07 hand-offs for one inbound message: logged once per wamid, nothing more is sent.\nINSERT INTO public.webhook_events (source, external_id, brand_id, signature_ok, processed_at, error)\nVALUES ('whatsapp', 'hop_limit:' || $1, nullif($2, '')::uuid, true, now(), 'hop limit exceeded at ' || $3 || ' (hops ' || $4 || ')')\nON CONFLICT (source, external_id) DO UPDATE SET attempts = public.webhook_events.attempts + 1\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [ ($json.msg && $json.msg.wamid) || '', $json.brand_id || '', 'W07 -> ' + (($json.hop_limit && $json.hop_limit.to) || $json.route || '?'), String(($json.hop_limit && $json.hop_limit.hops) || ($json.msg && $json.msg.hops) || '') ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "i48Hopli",
+      "name": "Hop limit ok? (W03 forward, I-48b)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        1240
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(Number(($json.msg && $json.msg.hops) || 0) <= 3) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "notes": "3 = lib/w07.mjs MAX_HOPS (I-48b)."
+    },
+    {
+      "id": "n469",
+      "name": "W06 card receipt? (w07.w06StatusItem)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w07;\nconst out = [];\nfor (const it of $input.all()) { const s = L.w06StatusItem(it.json || {}); if (s) out.push({ json: s }); }\nreturn out;"
+      }
+    },
+    {
+      "id": "n470",
+      "name": "-> W06 status receipt",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1540,
+        0
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w06",
+          "cachedResultName": "W06 First touch"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "I-45d / CONTRACTS W06: { op: 'status', wamid, status, at, errors } for delivered/read/failed receipts of W06 cards. W06 stamps disclosure evidence and sends the SMS fallback once (w06:sms:{wamid})."
+    },
+    {
+      "id": "n_i39h_code",
+      "name": "Parse verdict + re-check needed? (I-39h)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        1200
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w07;\nconst j = $('outputGate + classifierInput (I-27)').item.json;\nconst first = L.parseVerdict(($json.content && $json.content[0] && $json.content[0].text) || '');\n// I-39h: only a pass with confidence < 0.8 goes to Sonnet (ANTHROPIC_MODEL_STRONG); a block is never appealed\nconst recheck = L.needsRecheck(first);\nreturn { json: { first_verdict: first, needs_recheck: recheck, recheck_body: recheck ? L.recheckBody(j.classifier_body, { model: $env.ANTHROPIC_MODEL_STRONG || undefined }) : null } };"
+      }
+    },
+    {
+      "id": "n_i39h_if",
+      "name": "Low-confidence pass? (I-39h)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        990,
+        1200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.needs_recheck === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n_i39h_http",
+      "name": "Guardrail re-check LLM (Sonnet, I-39h)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        1200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.recheck_body) }}",
+        "options": {
+          "timeout": 8000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1500,
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "WhatsApp webhook (POST)": {
+      "main": [
+        [
+          {
+            "node": "Verify signature + normalise",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify signature + normalise": {
+      "main": [
+        [
+          {
+            "node": "Respond 200 / 401",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Message or status?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message or status?": {
+      "main": [
+        [
+          {
+            "node": "Idempotency: claim wamid",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Status receipt -> communications + disclosure evidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Idempotency: claim wamid": {
+      "main": [
+        [
+          {
+            "node": "First delivery?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "First delivery?": {
+      "main": [
+        [
+          {
+            "node": "Load context (lead, broker, live booking, window)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load context (lead, broker, live booking, window)": {
+      "main": [
+        [
+          {
+            "node": "Route (deterministic) + prefilter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route (deterministic) + prefilter": {
+      "main": [
+        [
+          {
+            "node": "Known lead or broker? (store)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Known lead or broker? (store)": {
+      "main": [
+        [
+          {
+            "node": "Store inbound (redacted) + verified_at (3.3)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Carry routed item",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store inbound (redacted) + verified_at (3.3)": {
+      "main": [
+        [
+          {
+            "node": "Carry routed item",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Carry routed item": {
+      "main": [
+        [
+          {
+            "node": "Route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route": {
+      "main": [
+        [
+          {
+            "node": "-> W15",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> W03",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> W05",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> W09",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> W10",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> W12",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> W29",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> W35",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> W04_list",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> W08",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Contact step (call number / alt / best time)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Paused / opted out: log only",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Paused / opted out: log only",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Media only? (never sent to a model)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "W32 tap -> decision item",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "W23 media -> trigger item",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Paused / opted out: log only",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Paused / opted out: log only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contact step (call number / alt / best time)": {
+      "main": [
+        [
+          {
+            "node": "Typed number needs Lookup?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Typed number needs Lookup?": {
+      "main": [
+        [
+          {
+            "node": "Twilio Lookup v2 (line type)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save contact data (leads + live booking)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twilio Lookup v2 (line type)": {
+      "main": [
+        [
+          {
+            "node": "Contact step with Lookup result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contact step with Lookup result": {
+      "main": [
+        [
+          {
+            "node": "Save contact data (leads + live booking)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save contact data (leads + live booking)": {
+      "main": [
+        [
+          {
+            "node": "Build contact reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build contact reply": {
+      "main": [
+        [
+          {
+            "node": "Anything to send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Media only? (never sent to a model)": {
+      "main": [
+        [
+          {
+            "node": "Plan without LLM (media only)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build intent-slot request (Haiku)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan without LLM (media only)": {
+      "main": [
+        [
+          {
+            "node": "Assemble (verdict + toneCheck + fallbacks)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build intent-slot request (Haiku)": {
+      "main": [
+        [
+          {
+            "node": "Intent-slot LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Intent-slot LLM": {
+      "main": [
+        [
+          {
+            "node": "Parse NLU -> decide() -> plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse NLU -> decide() -> plan": {
+      "main": [
+        [
+          {
+            "node": "lead_activities: lead_theme rows (I-22)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "lead_activities: lead_theme rows (I-22)": {
+      "main": [
+        [
+          {
+            "node": "Carry plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Carry plan": {
+      "main": [
+        [
+          {
+            "node": "Escalation?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Explode delegations",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Needs reply LLM?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Escalation?": {
+      "main": [
+        [
+          {
+            "node": "Insert escalation (sensitive -> human_handoff/red, I-25)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Pause reminders? (sensitive)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert escalation (sensitive -> human_handoff/red, I-25)": {
+      "main": [
+        [
+          {
+            "node": "Alert ops (first name + initial, redacted)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert ops (first name + initial, redacted)": {
+      "main": [
+        [
+          {
+            "node": "Live send? (alert)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Live send? (alert)": {
+      "main": [
+        [
+          {
+            "node": "Send ops alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pause reminders? (sensitive)": {
+      "main": [
+        [
+          {
+            "node": "-> W09 pause",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Explode delegations": {
+      "main": [
+        [
+          {
+            "node": "Delegate to",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delegate to": {
+      "main": [
+        [
+          {
+            "node": "-> W15",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> W03",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> W04_list",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> W10",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> W08",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Contact step (call number / alt / best time)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log hop limit (W07)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs reply LLM?": {
+      "main": [
+        [
+          {
+            "node": "Build reply request (Haiku)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Assemble (verdict + toneCheck + fallbacks)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build reply request (Haiku)": {
+      "main": [
+        [
+          {
+            "node": "Reply LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply LLM": {
+      "main": [
+        [
+          {
+            "node": "outputGate + classifierInput (I-27)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "outputGate + classifierInput (I-27)": {
+      "main": [
+        [
+          {
+            "node": "outputGate passed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardrail classifier LLM (fails closed)": {
+      "main": [
+        [
+          {
+            "node": "Parse verdict + re-check needed? (I-39h)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assemble (verdict + toneCheck + fallbacks)": {
+      "main": [
+        [
+          {
+            "node": "Guardrail trip?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Anything to send?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save conv_state / language / stage / health_flag",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardrail trip?": {
+      "main": [
+        [
+          {
+            "node": "Log guardrail trip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anything to send?": {
+      "main": [
+        [
+          {
+            "node": "Reply claim (w07:reply:{wamid})",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Live send? (reply)": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp (session, in 24-h window)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Store outbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp (session, in 24-h window)": {
+      "main": [
+        [
+          {
+            "node": "Store outbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Workflow Trigger (W05: post-booking contact confirm)": {
+      "main": [
+        [
+          {
+            "node": "Sub-call from? (W03 forward / W05)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contact start (call methods only)": {
+      "main": [
+        [
+          {
+            "node": "Anything to send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W32 tap -> decision item": {
+      "main": [
+        [
+          {
+            "node": "-> W32 decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W23 media -> trigger item": {
+      "main": [
+        [
+          {
+            "node": "-> W23 media",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sub-call from? (W03 forward / W05)": {
+      "main": [
+        [
+          {
+            "node": "W03 forward: loop guard (origin w03)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Contact start (call methods only)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W03 forward: loop guard (origin w03)": {
+      "main": [
+        [
+          {
+            "node": "Hop limit ok? (W03 forward, I-48b)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "outputGate passed?": {
+      "main": [
+        [
+          {
+            "node": "Guardrail classifier LLM (fails closed)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Assemble (verdict + toneCheck + fallbacks)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply claim (w07:reply:{wamid})": {
+      "main": [
+        [
+          {
+            "node": "Live send? (reply)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hop limit ok? (W03 forward, I-48b)": {
+      "main": [
+        [
+          {
+            "node": "Load context (lead, broker, live booking, window)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log hop limit (W07)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status receipt -> communications + disclosure evidence": {
+      "main": [
+        [
+          {
+            "node": "W06 card receipt? (w07.w06StatusItem)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W06 card receipt? (w07.w06StatusItem)": {
+      "main": [
+        [
+          {
+            "node": "-> W06 status receipt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse verdict + re-check needed? (I-39h)": {
+      "main": [
+        [
+          {
+            "node": "Low-confidence pass? (I-39h)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Low-confidence pass? (I-39h)": {
+      "main": [
+        [
+          {
+            "node": "Guardrail re-check LLM (Sonnet, I-39h)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Assemble (verdict + toneCheck + fallbacks)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardrail re-check LLM (Sonnet, I-39h)": {
+      "main": [
+        [
+          {
+            "node": "Assemble (verdict + toneCheck + fallbacks)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "saveManualExecutions": true,
+    "errorWorkflow": "smc-w22"
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "conversation"
+    },
+    {
+      "name": "whatsapp"
+    },
+    {
+      "name": "core"
+    }
+  ],
+  "meta": {
+    "notes": "automation-engineer. W07 conversation agent; logic in automation/lib/w07.mjs + conversation/*.mjs; tests automation/tests/W07.test.mjs."
+  }
+}

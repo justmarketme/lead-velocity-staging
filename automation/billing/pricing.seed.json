@@ -1,0 +1,9 @@
+{
+  "_comment": "THE pricing seed: the only place in the repo where a SortMyCover price is typed (3.6). Loaded into the Postgres `pricing` table by `node automation/billing/pricing.js --sql`. Every other surface reads the table. Values from MASTER-PROMPT 3.5. active_from stays null until Jonathan approves the ladder (Section 8 Q5); W25 renders unapproved rows only in staging. media_share_zar = the 3.5 'Media @ R200 CPL (incl. VAT)' column as written, matching media-buyer's campaign-spec; whether Meta's budget should be that figure or that figure / 1.15 (Meta adds VAT on top) is needs_human NH-BA-03. ref_code is the one-letter tier token used in payment references (needs_human NH-BA-02).",
+  "currency": "ZAR",
+  "rows": [
+    { "tier_code": "SMC_BRONZE", "name": "Bronze", "ref_code": "B", "price_zar": 16500, "committed_leads": 20, "replacement_cap_cycle": 4, "media_share_zar": 8492, "paystack_page_code": null, "paystack_plan_code": null, "active_from": null, "active_to": null, "vat_rate": null, "sort": 1 },
+    { "tier_code": "SMC_SILVER", "name": "Silver", "ref_code": "S", "price_zar": 24500, "committed_leads": 30, "replacement_cap_cycle": 6, "media_share_zar": 12738, "paystack_page_code": null, "paystack_plan_code": null, "active_from": null, "active_to": null, "vat_rate": null, "sort": 2 },
+    { "tier_code": "SMC_GOLD", "name": "Gold", "ref_code": "G", "price_zar": 35500, "committed_leads": 45, "replacement_cap_cycle": 9, "media_share_zar": 19108, "paystack_page_code": null, "paystack_plan_code": null, "active_from": null, "active_to": null, "vat_rate": null, "sort": 3 }
+  ]
+}

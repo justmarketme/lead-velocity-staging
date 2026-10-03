@@ -1,0 +1,523 @@
+{
+  "version": "7.0",
+  "data_api_version": "3.0",
+  "routing_model": {
+    "METHOD": [
+      "DATE"
+    ],
+    "DATE": [
+      "SLOTS"
+    ],
+    "SLOTS": [
+      "EMAIL",
+      "SUMMARY"
+    ],
+    "EMAIL": [
+      "SUMMARY"
+    ],
+    "SUMMARY": []
+  },
+  "screens": [
+    {
+      "id": "METHOD",
+      "title": "Book your call",
+      "data": {
+        "broker_id": {
+          "type": "string",
+          "__example__": "brk_mark"
+        },
+        "lead_id": {
+          "type": "string",
+          "__example__": "ld_51c9"
+        },
+        "adviser_name": {
+          "type": "string",
+          "__example__": "Mark"
+        },
+        "heading": {
+          "type": "string",
+          "__example__": "How would you like to meet Mark?"
+        },
+        "methods": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "teams",
+              "title": "Microsoft Teams video call",
+              "description": "We email you the Teams link"
+            },
+            {
+              "id": "whatsapp_call",
+              "title": "WhatsApp call",
+              "description": "Mark calls you on WhatsApp"
+            },
+            {
+              "id": "phone",
+              "title": "Phone call",
+              "description": "Mark calls your mobile"
+            }
+          ]
+        },
+        "min_date": {
+          "type": "string",
+          "__example__": "2026-10-02"
+        },
+        "max_date": {
+          "type": "string",
+          "__example__": "2026-10-16"
+        },
+        "include_days": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "__example__": [
+            "Mon",
+            "Tue",
+            "Wed",
+            "Thu",
+            "Fri"
+          ]
+        },
+        "unavailable_dates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "__example__": [
+            "2026-10-06",
+            "2026-10-09"
+          ]
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextSubheading",
+            "text": "${data.heading}"
+          },
+          {
+            "type": "RadioButtonsGroup",
+            "name": "method",
+            "label": "Contact method",
+            "required": true,
+            "data-source": "${data.methods}"
+          },
+          {
+            "type": "Footer",
+            "label": "Continue",
+            "on-click-action": {
+              "name": "navigate",
+              "next": {
+                "type": "screen",
+                "name": "DATE"
+              },
+              "payload": {
+                "broker_id": "${data.broker_id}",
+                "lead_id": "${data.lead_id}",
+                "adviser_name": "${data.adviser_name}",
+                "method": "${form.method}",
+                "min_date": "${data.min_date}",
+                "max_date": "${data.max_date}",
+                "include_days": "${data.include_days}",
+                "unavailable_dates": "${data.unavailable_dates}"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "DATE",
+      "title": "Pick a day",
+      "data": {
+        "broker_id": {
+          "type": "string",
+          "__example__": "brk_mark"
+        },
+        "lead_id": {
+          "type": "string",
+          "__example__": "ld_51c9"
+        },
+        "adviser_name": {
+          "type": "string",
+          "__example__": "Mark"
+        },
+        "method": {
+          "type": "string",
+          "__example__": "teams"
+        },
+        "min_date": {
+          "type": "string",
+          "__example__": "2026-10-02"
+        },
+        "max_date": {
+          "type": "string",
+          "__example__": "2026-10-16"
+        },
+        "include_days": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "__example__": [
+            "Mon",
+            "Tue",
+            "Wed",
+            "Thu",
+            "Fri"
+          ]
+        },
+        "unavailable_dates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "__example__": [
+            "2026-10-06",
+            "2026-10-09"
+          ]
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextBody",
+            "text": "Days that are greyed out are full or unavailable."
+          },
+          {
+            "type": "CalendarPicker",
+            "name": "date",
+            "label": "Day",
+            "mode": "single",
+            "required": true,
+            "min-date": "${data.min_date}",
+            "max-date": "${data.max_date}",
+            "include-days": "${data.include_days}",
+            "unavailable-dates": "${data.unavailable_dates}",
+            "on-select-action": {
+              "name": "data_exchange",
+              "payload": {
+                "action_type": "date_selected",
+                "date": "${form.date}",
+                "method": "${data.method}",
+                "broker_id": "${data.broker_id}",
+                "lead_id": "${data.lead_id}",
+                "adviser_name": "${data.adviser_name}"
+              }
+            }
+          },
+          {
+            "type": "Footer",
+            "label": "See times",
+            "on-click-action": {
+              "name": "data_exchange",
+              "payload": {
+                "action_type": "date_selected",
+                "date": "${form.date}",
+                "method": "${data.method}",
+                "broker_id": "${data.broker_id}",
+                "lead_id": "${data.lead_id}",
+                "adviser_name": "${data.adviser_name}"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "SLOTS",
+      "title": "Pick a time",
+      "data": {
+        "broker_id": {
+          "type": "string",
+          "__example__": "brk_mark"
+        },
+        "lead_id": {
+          "type": "string",
+          "__example__": "ld_51c9"
+        },
+        "adviser_name": {
+          "type": "string",
+          "__example__": "Mark"
+        },
+        "method": {
+          "type": "string",
+          "__example__": "teams"
+        },
+        "date": {
+          "type": "string",
+          "__example__": "2026-10-07"
+        },
+        "date_label": {
+          "type": "string",
+          "__example__": "Tuesday 7 October (South African time)"
+        },
+        "slots": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "2026-10-07T09:00:00+02:00",
+              "title": "09:00"
+            },
+            {
+              "id": "2026-10-07T10:00:00+02:00",
+              "title": "10:00"
+            },
+            {
+              "id": "2026-10-07T14:30:00+02:00",
+              "title": "14:30"
+            }
+          ]
+        },
+        "show_error": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "error_message": {
+          "type": "string",
+          "__example__": "That time was just taken. Here are the next free times."
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextSubheading",
+            "text": "${data.date_label}"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.error_message}",
+            "visible": "${data.show_error}"
+          },
+          {
+            "type": "RadioButtonsGroup",
+            "name": "slot",
+            "label": "Time",
+            "required": true,
+            "data-source": "${data.slots}"
+          },
+          {
+            "type": "Footer",
+            "label": "Continue",
+            "on-click-action": {
+              "name": "data_exchange",
+              "payload": {
+                "action_type": "slot_selected",
+                "slot": "${form.slot}",
+                "date": "${data.date}",
+                "method": "${data.method}",
+                "broker_id": "${data.broker_id}",
+                "lead_id": "${data.lead_id}",
+                "adviser_name": "${data.adviser_name}"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "EMAIL",
+      "title": "Your invite",
+      "data": {
+        "broker_id": {
+          "type": "string",
+          "__example__": "brk_mark"
+        },
+        "lead_id": {
+          "type": "string",
+          "__example__": "ld_51c9"
+        },
+        "adviser_name": {
+          "type": "string",
+          "__example__": "Mark"
+        },
+        "method": {
+          "type": "string",
+          "__example__": "teams"
+        },
+        "date": {
+          "type": "string",
+          "__example__": "2026-10-07"
+        },
+        "slot": {
+          "type": "string",
+          "__example__": "2026-10-07T10:00:00+02:00"
+        },
+        "prompt": {
+          "type": "string",
+          "__example__": "Where should we send the Teams invite?"
+        },
+        "init_email": {
+          "type": "string",
+          "__example__": ""
+        },
+        "show_suggestion": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "suggestion_text": {
+          "type": "string",
+          "__example__": "Did you mean lerato.m@gmail.com? Tap Continue to use it, or edit the address."
+        },
+        "show_error": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "error_message": {
+          "type": "string",
+          "__example__": "That address does not look right. Please check it."
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextSubheading",
+            "text": "${data.prompt}"
+          },
+          {
+            "type": "TextInput",
+            "name": "email",
+            "label": "Email address",
+            "input-type": "email",
+            "required": true,
+            "init-value": "${data.init_email}"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.suggestion_text}",
+            "visible": "${data.show_suggestion}"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.error_message}",
+            "visible": "${data.show_error}"
+          },
+          {
+            "type": "TextCaption",
+            "text": "We only use this address to send your meeting invite."
+          },
+          {
+            "type": "Footer",
+            "label": "Continue",
+            "on-click-action": {
+              "name": "data_exchange",
+              "payload": {
+                "action_type": "email_entered",
+                "email": "${form.email}",
+                "slot": "${data.slot}",
+                "date": "${data.date}",
+                "method": "${data.method}",
+                "broker_id": "${data.broker_id}",
+                "lead_id": "${data.lead_id}",
+                "adviser_name": "${data.adviser_name}"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "SUMMARY",
+      "title": "Check your booking",
+      "terminal": true,
+      "success": true,
+      "data": {
+        "broker_id": {
+          "type": "string",
+          "__example__": "brk_mark"
+        },
+        "lead_id": {
+          "type": "string",
+          "__example__": "ld_51c9"
+        },
+        "adviser_name": {
+          "type": "string",
+          "__example__": "Mark"
+        },
+        "method": {
+          "type": "string",
+          "__example__": "teams"
+        },
+        "date": {
+          "type": "string",
+          "__example__": "2026-10-07"
+        },
+        "slot": {
+          "type": "string",
+          "__example__": "2026-10-07T10:00:00+02:00"
+        },
+        "email": {
+          "type": "string",
+          "__example__": "lerato.m@gmail.com"
+        },
+        "summary_text": {
+          "type": "string",
+          "__example__": "Your 30-minute call with Mark: Tue 7 Oct at 10:00, by Microsoft Teams. Invite to lerato.m@gmail.com."
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextBody",
+            "text": "${data.summary_text}"
+          },
+          {
+            "type": "TextCaption",
+            "text": "Tap Confirm and we will send your confirmation here on WhatsApp straight away."
+          },
+          {
+            "type": "Footer",
+            "label": "Confirm booking",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {
+                "flow_kind": "book",
+                "broker_id": "${data.broker_id}",
+                "lead_id": "${data.lead_id}",
+                "adviser_name": "${data.adviser_name}",
+                "method": "${data.method}",
+                "date": "${data.date}",
+                "slot": "${data.slot}",
+                "email": "${data.email}"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

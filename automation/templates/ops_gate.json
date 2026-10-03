@@ -1,0 +1,42 @@
+{
+  "name": "ops_gate",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "Gate waiting"
+    },
+    {
+      "type": "BODY",
+      "text": "Gate waiting: *{{1}}*. {{2}} Default if nothing is done: {{3}}. Tap below to review.",
+      "example": {
+        "body_text": [
+          [
+            "Publish booking Flow",
+            "Flow passed all checks, including 3 test bookings.",
+            "the 10-slot list stays live"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "Lead Velocity ops"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Review gate",
+          "url": "https://app.leadvelocity.co.za/{{1}}",
+          "example": [
+            "https://app.leadvelocity.co.za/gates/flow_publish"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en-ZA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Checkout · Lead Velocity</title>
+<!-- B2B surface: Lead Velocity branding (NH-27 d). The existing CSS/tokens stay for now; Lead Velocity brand tokens and wordmark are to be supplied by visual-producer. -->
+<link rel="stylesheet" href="../../brand/tokens.css">
+<link rel="stylesheet" href="checkout.css">
+</head>
+<!--
+  Static checkout (6.1 step 0, 6.5). No price is typed in this file: W25 replaces the
+  data-pricing-json placeholder with rows from the `pricing` table at deploy (3.6 consumer 2).
+  No bank account details live in this build (NH-61): payment is by EFT, in advance, per 30-day cycle, and the account
+  details are on Jonathan's own invoice. The Paystack options (Instant EFT, card) stay built but are shown only when
+  PAYSTACK_ENABLED=true at deploy (default off).
+  URL: /billing/checkout/?tier=SMC_BRONZE&ref=LV-0007-B-202610
+-->
+<body class="sm-font"
+  data-pricing-json='{{PRICING_JSON}}'
+  data-api-base="{{BILLING_API_BASE}}"
+  data-paystack-enabled="{{PAYSTACK_ENABLED}}">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-head">
+  <p class="brand"><strong>Lead Velocity</strong> <span>Leads for licensed advisers</span></p>
+</header>
+
+<main id="main">
+  <h1>Pay for your next cycle</h1>
+  <p class="lede"><strong>One payment = one 30-day cycle.</strong> No lock-in, no minimum term. No notice period. If you don't renew, the cycle simply ends.</p>
+
+  <section class="plan" aria-labelledby="plan-h">
+    <h2 id="plan-h">Your plan</h2>
+    <div id="tiers" class="tiers" role="radiogroup" aria-label="Choose a plan"></div>
+    <p id="pricing-error" class="error" hidden>We couldn't load the plans. Please pay by EFT using your invoice, or WhatsApp us.</p>
+    <p class="under-cards"><strong>Month to month. No lock-in, no minimum term. Pay for a month, get your leads, decide again next month.</strong> Payment by EFT, in advance, per 30-day cycle; renew (or not) before your next cycle.</p>
+    <p class="vat-line" id="vat-line"></p>
+  </section>
+
+  <form id="pay" class="pay" novalidate>
+    <fieldset>
+      <legend><h2>How would you like to pay?</h2></legend>
+
+      <label class="method needs-paystack" for="m-eft" hidden>
+        <input type="radio" name="method" id="m-eft" value="instant_eft">
+        <span class="method-body">
+          <span class="method-title">Instant EFT <span class="tag">Default</span></span>
+          <span class="method-text">Pay from your bank app through Paystack (Instant EFT or Capitec Pay). It confirms at once, so your onboarding starts straight away.</span>
+        </span>
+      </label>
+
+      <label class="method" for="m-manual">
+        <input type="radio" name="method" id="m-manual" value="manual_eft" checked>
+        <span class="method-body">
+          <span class="method-title">Payment by EFT <span class="tag tag-quiet">No fees</span></span>
+          <span class="method-text">Payment by EFT, in advance, per 30-day cycle. Pay from your own banking using the reference below so we recognise it. The account details are on your invoice.</span>
+        </span>
+      </label>
+
+      <div id="manual-details" class="manual" hidden>
+        <p>Use this reference when you pay. It is how we recognise the payment is yours:</p>
+        <p class="reference"><strong id="reference">Reference on your invoice</strong>
+          <button type="button" id="copy-ref" class="btn-secondary">Copy reference</button></p>
+        <p id="copy-status" class="copy-status" aria-live="polite"></p>
+        <dl class="bank">
+          <dt>Amount</dt><dd id="manual-amount"></dd>
+        </dl>
+        <p class="small">Paid without the reference? WhatsApp us your proof of payment and we'll match it. We confirm your payment by hand, usually the same working day.</p>
+      </div>
+
+      <label class="method needs-paystack" for="m-card" hidden>
+        <input type="radio" name="method" id="m-card" value="card">
+        <span class="method-body">
+          <span class="method-title">Card <span class="tag tag-quiet">Optional</span></span>
+          <span class="method-text">Pay this cycle by card through Paystack. We never see or keep your card number.</span>
+        </span>
+      </label>
+
+      <div id="card-details" class="card-opt" hidden>
+        <label class="check" for="autorenew">
+          <input type="checkbox" id="autorenew" name="autorenew">
+          <span><strong>Optional: renew automatically by card.</strong> We charge this card at the start of each new cycle, for the plan you're on, until you switch it off. Switch it off any time in your portal; the next cycle is then not charged. You don't need this to use Lead Velocity.</span>
+        </label>
+      </div>
+    </fieldset>
+
+    <p class="total" id="total" aria-live="polite"></p>
+    <button type="submit" id="pay-btn" class="btn-primary">Continue</button>
+    <p id="pay-status" class="pay-status" role="status" aria-live="polite"></p>
+  </form>
+
+  <section class="next" aria-labelledby="next-h">
+    <h2 id="next-h">What happens next</h2>
+    <ol>
+      <li><strong>We confirm your payment.</strong> We check your EFT and confirm it by hand, usually the same working day.</li>
+      <li><strong>You get a sign-in link</strong> to your portal by WhatsApp and email.</li>
+      <li><strong>Onboarding (about 30 minutes):</strong> FSP check, connect your calendar, sign the agreement.</li>
+      <li><strong>Your 30-day cycle starts</strong> the day your leads are switched on.</li>
+      <li><strong>Seven days before it ends</strong> you get your results and a link to renew, change plan, or stop. Nothing renews unless you pay.</li>
+    </ol>
+  </section>
+</main>
+
+<footer class="site-foot">
+  <p>Lead Velocity (Pty) Ltd. We don't give financial advice, compare products or quote premiums. Questions: howzit@leadvelocity.co.za</p>
+</footer>
+<noscript><p class="error">To pay, use the account details and the reference on your invoice (payment by EFT, in advance, per 30-day cycle).</p></noscript>
+<script src="checkout.js" defer></script>
+</body>
+</html>

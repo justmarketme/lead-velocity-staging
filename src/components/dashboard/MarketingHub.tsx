@@ -214,7 +214,6 @@ const MarketingHub = () => {
                     }
                 },
                 headers: {
-                    'x-gemini-key': import.meta.env.VITE_GEMINI_API_KEY,
                     'x-tavily-key': import.meta.env.VITE_TAVILY_API_KEY,
                     'x-exa-key': import.meta.env.VITE_EXA_API_KEY
                 }
@@ -330,7 +329,6 @@ const MarketingHub = () => {
             const { data, error } = await supabase.functions.invoke('marketing-ai', {
                 body: { action: 'ad-architect', payload: { prompt: "insurance broker south africa", platform: 'google-search' } },
                 headers: {
-                    'x-gemini-key': import.meta.env.VITE_GEMINI_API_KEY
                 }
             });
 
@@ -355,7 +353,6 @@ const MarketingHub = () => {
             const { data, error } = await supabase.functions.invoke('marketing-ai', {
                 body: { action: 'platform-blueprint', payload: { platform } },
                 headers: {
-                    'x-gemini-key': import.meta.env.VITE_GEMINI_API_KEY
                 }
             });
 
@@ -389,7 +386,6 @@ const MarketingHub = () => {
                     }
                 },
                 headers: {
-                    'x-gemini-key': import.meta.env.VITE_GEMINI_API_KEY
                 }
             });
 
@@ -428,7 +424,6 @@ const MarketingHub = () => {
                     }
                 },
                 headers: {
-                    'x-gemini-key': import.meta.env.VITE_GEMINI_API_KEY
                 }
             });
 
@@ -561,7 +556,6 @@ const MarketingHub = () => {
             const { data, error } = await supabase.functions.invoke('einstein-ai', {
                 body: { query: chatInput, history: messages },
                 headers: {
-                    'x-gemini-key': import.meta.env.VITE_GEMINI_API_KEY
                 }
             });
 
@@ -589,7 +583,6 @@ const MarketingHub = () => {
             const { data, error } = await supabase.functions.invoke('marketing-ai', {
                 body: { action: 'ad-architect', payload: { prompt: fbAdPrompt, platform: 'facebook' } },
                 headers: {
-                    'x-gemini-key': import.meta.env.VITE_GEMINI_API_KEY
                 }
             });
 

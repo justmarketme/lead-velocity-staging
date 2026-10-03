@@ -1,0 +1,42 @@
+{
+  "name": "broker_daily_digest",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "Your day"
+    },
+    {
+      "type": "BODY",
+      "text": "Good morning {{1}}. You have {{2}} SortMyCover calls today: {{3}}. You will get a short brief 15 minutes before each one.",
+      "example": {
+        "body_text": [
+          [
+            "Mark",
+            "3",
+            "09:00 Lerato M. (Teams); 11:30 Sipho N. (phone); 15:00 Anika V. (WhatsApp call)"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover by Lead Velocity"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Open today",
+          "url": "https://app.leadvelocity.co.za/{{1}}",
+          "example": [
+            "https://app.leadvelocity.co.za/today"
+          ]
+        }
+      ]
+    }
+  ]
+}

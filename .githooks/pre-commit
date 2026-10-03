@@ -1,0 +1,18 @@
+#!/bin/sh
+# Blocks commits that add secret files or secret-looking values (0.3 #10).
+# Enable once per clone: git config core.hooksPath .githooks
+fail=0
+files=$(git diff --cached --name-only --diff-filter=ACM)
+for f in $files; do
+  case "$f" in
+    .env.example|*/.env.example) ;;
+    .env|.env.*|*/.env|*/.env.*|*.pem|*.key|credentials*|*/credentials*)
+      echo "pre-commit: refusing to commit secret file: $f"; fail=1 ;;
+  esac
+done
+patterns='sk-ant-[A-Za-z0-9_-]{20,}|sk_(live|test)_[A-Za-z0-9]{20,}|pk_live_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{40,}|xox[abp]-[A-Za-z0-9-]{10,}|EAA[A-Za-z0-9]{100,}|AC[0-9a-f]{32}|sb_secret_[A-Za-z0-9_-]{20,}|SERVICE_ROLE_KEY[[:space:]]*[:=][[:space:]]*["'"'"']?eyJ'
+hits=$(git diff --cached -U0 --diff-filter=ACM | grep '^+' | grep -v '^+++' | grep -En "$patterns")
+if [ -n "$hits" ]; then
+  echo "pre-commit: possible secret in staged changes:"; echo "$hits" | cut -c1-120; fail=1
+fi
+[ $fail -eq 0 ] || { echo "Move the value to .env (git-ignored). If this is a false positive, fix the pattern in .githooks/pre-commit."; exit 1; }

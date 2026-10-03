@@ -1,0 +1,46 @@
+# app.leadvelocity.co.za: React console + broker portal (static build), Hostinger web hosting (LiteSpeed/Apache).
+# Default hosting path for app. (deliverables/devops-security/static-hosting.md section 2). Deploy: `npm run build`,
+# copy this file to dist/.htaccess, replace {{SUPABASE_ORIGIN}} and {{API_ORIGIN}} (see static-hosting.md section 2a),
+# upload dist/ to public_html (GATE-PUBLISH). No secrets in this file.
+Options -Indexes
+DirectoryIndex index.html
+
+<IfModule mod_rewrite.c>
+RewriteEngine On
+# 1. HTTP -> HTTPS, path and query preserved
+RewriteCond %{HTTPS} !=on
+RewriteCond %{HTTP:X-Forwarded-Proto} !https
+RewriteRule ^(.*)$ https://app.leadvelocity.co.za/$1 [R=301,L]
+# 2. Static sub-apps and media are never sent to the SPA (a missing file there is a real 404)
+RewriteRule ^(media|checkout|portal/intro-media)(/|$) - [L]
+# 3. Real files and folders are served as they are (assets/, favicon, robots.txt)
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+# 4. SPA history fallback. Explicit for the WhatsApp template short links /s/* (I-37j: /s/calendar?day=..., /s/billing;
+#    the query string is kept) and for the portal /broker/*; then every other client route.
+RewriteRule ^s(/.*)?$ /index.html [L]
+RewriteRule ^broker(/.*)?$ /index.html [L]
+RewriteRule ^ /index.html [L]
+</IfModule>
+
+SetEnvIf Request_URI "^/media/" LV_MEDIA
+SetEnvIf Request_URI "^/assets/" LV_ASSETS
+<IfModule mod_headers.c>
+Header always set Strict-Transport-Security "max-age=31536000"
+Header always set X-Content-Type-Options "nosniff"
+Header always set X-Frame-Options "DENY"
+Header always set Referrer-Policy "strict-origin-when-cross-origin"
+Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+# Console and portal are never indexed
+Header always set X-Robots-Tag "noindex, nofollow"
+# ASVS L1 V14. Report-Only until one clean staging run with the real bundle, then rename to Content-Security-Policy.
+Header always set Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: {{SUPABASE_ORIGIN}}; media-src 'self' blob: {{SUPABASE_ORIGIN}}; connect-src 'self' {{SUPABASE_ORIGIN}} {{SUPABASE_WSS}} {{API_ORIGIN}}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+Header set Cache-Control "public, max-age=604800" env=LV_MEDIA
+Header set Cache-Control "public, max-age=31536000, immutable" env=LV_ASSETS
+<FilesMatch "\.html$">
+Header set Cache-Control "no-cache"
+</FilesMatch>
+</IfModule>
+AddType text/vtt .vtt
+AddType video/mp4 .mp4

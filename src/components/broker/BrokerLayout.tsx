@@ -9,16 +9,25 @@ import NotificationBell from "@/components/notifications/NotificationBell";
 import { EinsteinLiveVoice } from "@/components/voice/EinsteinLiveVoice";
 import SEO from "@/components/SEO";
 
-interface BrokerLayoutProps {
-  children: React.ReactNode;
+export interface BrokerMenuItem {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ size?: number | string }>;
+  path: string;
 }
 
-const BrokerLayout = ({ children }: BrokerLayoutProps) => {
+interface BrokerLayoutProps {
+  children: React.ReactNode;
+  /** Optional nav override (SortMyCover portal, VITE_SMC_ENABLED). Omitted = the legacy menu, unchanged. */
+  menuItems?: BrokerMenuItem[];
+}
+
+const BrokerLayout = ({ children, menuItems: menuOverride }: BrokerLayoutProps) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const menuItems = [
+  const menuItems: BrokerMenuItem[] = menuOverride ?? [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/broker/dashboard" },
     { id: "leads", label: "My Leads", icon: Database, path: "/broker/leads" },
     { id: "referrals", label: "Referrals", icon: UserPlus, path: "/broker/referrals" },

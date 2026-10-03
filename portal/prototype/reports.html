@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Reports | SortMyCover broker portal (prototype)</title>
+<link rel="stylesheet" href="portal.css">
+</head><body>
+<div class="app wide">
+<header class="top"><div class="who">Mark Williams Financial Planning &middot; FSP 00000 (example data)</div><h1>Reports &middot; Week 2 of your October cycle</h1></header>
+<main class="main">
+
+<div class="one" id="s1">7 of 20 leads delivered, 5 booked, 4 showed up, 3 you rated a good fit. On track for the cycle.<small>Week 2 of 4 &middot; <a href="#s8" style="color:inherit">cycle ends Wed 28 Oct, renewal offer Wed 21 Oct, Bronze</a></small></div>
+
+<section class="card" id="s2" aria-labelledby="h2">
+  <h3 id="h2">2 &middot; Progress (value &middot; target &middot; last week)</h3>
+  <div style="display:flex;justify-content:space-between;font-size:14px"><span>Delivered <b>7</b> of 20 committed</span><span class="muted">day 14 of 30</span></div>
+  <div class="prog"><i style="width:35%"></i></div>
+  <div class="kpis">
+    <div class="kpi"><b>7</b><span>delivered (verified)</span><div class="tg">target 10 by now &middot; last week 4</div></div>
+    <div class="kpi"><b>5</b><span>booked</span><div class="tg">71% of delivered &middot; target 60% &middot; last week 60%</div></div>
+    <div class="kpi"><b>4</b><span>attended</span><div class="tg">show rate <i class="tl-g">80% &#9679; on target</i> &middot; target 65% &middot; last week 75%</div></div>
+    <div class="kpi"><b>0 of 4</b><span>replacements used</span><div class="tg"><i class="tl-g">&#9679; none needed</i> &middot; last week 0</div></div>
+  </div>
+  <p class="small" style="margin:8px 0 0">Cycle extension: none needed. Days left: 16.</p>
+</section>
+
+<section class="card" id="s3" aria-labelledby="h3">
+  <h3 id="h3">3 &middot; Your meetings</h3>
+  <table class="tbl">
+    <tr><th>Last week</th><th>How</th><th>Outcome</th><th>Your rating</th></tr>
+    <tr><td>Lerato Mokoena &middot; Thu 11:00</td><td>Teams</td><td><span class="st ok">Attended</span></td><td>Good fit &ndash; follow-up &middot; 4 of 5</td></tr>
+    <tr><td>Sipho Dlamini &middot; Thu 14:30</td><td>WhatsApp call</td><td><span class="st w">Unconfirmed</span></td><td><a class="tap" href="leads.html#mark">Mark now</a></td></tr>
+    <tr><td>An&eacute;l v.d. Merwe &middot; Fri 09:30</td><td>Teams</td><td><span class="st ok">Attended</span></td><td>Good fit &ndash; proceeding &middot; 5 of 5</td></tr>
+    <tr><td>Thabo Nkosi &middot; Fri 11:00</td><td>Teams</td><td><span class="st w">Unconfirmed</span></td><td><a class="tap" href="leads.html#mark">Mark now</a></td></tr>
+  </table>
+  <p class="small">Unconfirmed means we counted it as attended after 24 hours. Tap to confirm what really happened.</p>
+  <div class="two" style="margin-top:12px">
+    <div><b style="font-size:13px">This week: 4 booked calls</b>
+      <table class="tbl"><tr><td>Tue 10:00 &middot; Pieter B.</td><td>Teams</td></tr><tr><td>Wed 11:00 &middot; Zanele M.</td><td>WhatsApp call</td></tr><tr><td>Thu 09:30 &middot; Kabelo S.</td><td>Teams</td></tr><tr><td>Fri 14:00 &middot; Riaan v.R.</td><td>Phone</td></tr></table></div>
+    <div><b style="font-size:13px">Your to-dos</b>
+      <table class="tbl"><tr><td>Mark 2 outcomes (Sipho, Thabo)</td><td><a class="tap" href="leads.html#mark">Do</a></td></tr>
+      <tr><td>Follow-up due Thu: Lerato M. (you flagged it)</td><td><a class="tap g" href="#">Remind me</a></td></tr></table>
+      <p class="small" style="margin:6px 0 0">Anyone who said you did not reach them would show here. None this week.</p></div>
+  </div>
+</section>
+
+<div class="two">
+  <section class="card" id="s4" aria-labelledby="h4">
+    <h3 id="h4">4 &middot; Quality, in your words</h3>
+    <p style="margin:0 0 6px;font-size:14px">Your average rating this cycle: <b>4.1</b> of 5 &middot; target 4.0 &middot; last week 3.8</p>
+    <div class="bars">
+      <div><span>Good fit &ndash; proceeding</span><i><b style="width:33%"></b></i><span>1</span></div>
+      <div><span>Good fit &ndash; follow-up</span><i><b style="width:66%"></b></i><span>2</span></div>
+      <div><span>Not a fit &ndash; budget</span><i><b style="width:0"></b></i><span>0</span></div>
+      <div><span>Not a fit &ndash; well covered</span><i><b style="width:0"></b></i><span>0</span></div>
+      <div><span>Not a fit &ndash; criteria</span><i><b style="width:0"></b></i><span>0</span></div>
+      <div><span>Unreachable/wrong number</span><i><b style="width:0"></b></i><span>0</span></div>
+    </div>
+    <p class="small" style="margin:6px 0">Ratings given on 3 of 4 attended this cycle: 75% &middot; target 90% &middot; last week 100%</p>
+    <b style="font-size:13px">What leads asked before the call</b>
+    <ol style="margin:4px 0 0;padding-left:18px;font-size:14px"><li>"Is my work cover enough?" (4 of 7)</li><li>"Will you try to sell me something?" (3 of 7)</li><li>"How does the bond get paid if..." (2 of 7)</li></ol>
+  </section>
+  <div style="display:flex;flex-direction:column;gap:14px">
+  <section class="card" id="s5" aria-labelledby="h5">
+    <h3 id="h5">5 &middot; What you will notice this week</h3>
+    <ul style="margin:6px 0 0;padding-left:18px;font-size:14px"><li>A new ad about bond cover went live Friday. Expect more leads mentioning a bond.</li><li>Leads can now book from inside WhatsApp. Nothing changes for you.</li><li>No public holidays this week.</li></ul>
+  </section>
+  <section class="card roi" id="s6" aria-labelledby="h6">
+    <h3 id="h6">6 &middot; Your ROI view <span class="pill info">optional &middot; only you see this</span></h3>
+    <form onsubmit="return false" style="font-size:14px">
+      <label for="cr" style="margin-top:6px">Your close rate (% of meetings that become a policy)</label>
+      <input id="cr" type="number" inputmode="numeric" min="0" max="100" value="30"> %
+      <label for="pw">Policies written this cycle (your number)</label>
+      <input id="pw" type="number" inputmode="numeric" min="0" value="1">
+      <label for="ac">Average commission per policy (optional)</label>
+      <input id="ac" type="text" inputmode="numeric" placeholder="R">
+      <div style="height:10px"></div>
+      <button class="tap" id="savecr">Save</button>
+    </form>
+    <p style="margin:10px 0 0;font-size:14px">At 30%, with 4 attended so far and 20 leads committed, this cycle is tracking to about <b>3 policies</b>.</p>
+    <p class="small" style="margin:4px 0 0">How we worked it out: 4 attended &times; (20 committed &divide; 7 delivered) &asymp; 11 meetings &times; 30%. Meetings to policies so far: 1 of 4 &middot; last week 0 of 3. This is your number only. It is never used in any fee.</p>
+  </section>
+  </div>
+</div>
+
+<section class="ask" id="s7" aria-labelledby="h7">
+  <div><b id="h7">7 &middot; One thing to do this week</b><br><span style="font-size:14px">Mark Thursday's two outcomes. It keeps your replacements accurate and your pre-call briefs sharp.</span></div>
+  <a class="go" href="leads.html#mark">Mark outcomes (2)</a>
+</section>
+
+<section class="card" id="s8" aria-labelledby="h8">
+  <h3 id="h8">8 &middot; Your cycle</h3>
+  <p style="margin:4px 0 0;font-size:14px">Cycle 1 (Bronze, <span data-pricing="price_zar" data-tier="SMC_BRONZE">[price from pricing]</span> excl. VAT): ends Wed 28 Oct. Your renewal offer arrives Wed 21 Oct. No lock-in, pick again each cycle.</p>
+</section>
+
+<div class="hist no-print"><span>History: Week 1 &middot; <b>Week 2</b> &middot; <a href="#">Cycle 1 summary (after 28 Oct)</a></span><span>&middot;</span>
+  <a href="/api/broker/reports/rp_2026w41.pdf" download>Download PDF</a><span>&middot;</span>
+  <span>Sent on WhatsApp 07:00 &middot; email 07:00 &middot; opened here 07:12</span></div>
+
+</main>
+</div>
+<nav class="tabs" aria-label="Portal"><div><a href="start.html">Start</a><a href="leads.html">My leads</a><a href="calendar.html">Calendar</a><a href="reports.html" class=cur>Reports</a><a href="help.html">Help</a></div></nav>
+<script>
+
+// Prototype only. Real behaviour: GET /api/broker/reports?week=2026-W41 returns reports.payload_json (see automation/W14-broker.md);
+// POST /api/broker/roi {close_rate, policies_written_reported, avg_commission} writes brokers.close_rate / avg_commission and cycles.policies_written_reported.
+document.getElementById("savecr").addEventListener("click",function(){this.textContent="Saved";});
+
+</script>
+</body></html>

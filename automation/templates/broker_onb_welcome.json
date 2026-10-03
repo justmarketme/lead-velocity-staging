@@ -1,0 +1,48 @@
+{
+  "name": "broker_onb_welcome",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "Welcome to SortMyCover"
+    },
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, welcome to SortMyCover. Your account is ready. Setup takes about 12 minutes, and the 3-minute video shows every step. Tap Open my portal, then watch the video first.",
+      "example": {
+        "body_text": [
+          [
+            "Mark"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover by Lead Velocity"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Open my portal",
+          "url": "https://app.leadvelocity.co.za/m/{{1}}",
+          "example": [
+            "https://app.leadvelocity.co.za/m/mk_7f3a9c"
+          ]
+        },
+        {
+          "type": "URL",
+          "text": "3-minute video",
+          "url": "https://app.leadvelocity.co.za/v/{{1}}",
+          "example": [
+            "https://app.leadvelocity.co.za/v/start"
+          ]
+        }
+      ]
+    }
+  ]
+}

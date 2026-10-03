@@ -1,0 +1,22 @@
+<!doctype html><html lang="en-ZA"><meta charset="utf8"><title>Reminder card</title>
+<link rel="stylesheet" href="_base.css">
+<style>
+body{width:1080px;height:1080px}
+.logo{left:72px;top:64px}.logo img{height:60px;display:block}
+h1{position:absolute;left:72px;right:72px;top:210px;font-size:104px}
+.when{position:absolute;left:72px;top:520px;font-size:72px;padding:28px 56px}
+.det{position:absolute;left:72px;right:72px;top:722px;font-size:48px;line-height:1.25}
+.det small{display:block;font-size:38px;color:var(--sm-off-white);margin-top:12px;opacity:1}
+.co{left:72px;right:72px;bottom:64px;font-size:36px;font-weight:800}.co img{height:56px;margin-right:22px}
+body.wide{width:1200px;height:628px}
+.wide .logo{left:56px;top:34px}.wide .logo img{height:44px}.wide h1{left:56px;top:96px;font-size:72px;right:56px}
+.wide .when{left:56px;top:262px;font-size:52px;padding:18px 40px}.wide .det{left:56px;top:402px;font-size:38px}.wide .det small{font-size:33px}.wide .co{left:56px;bottom:34px;font-size:33px}.wide .co img{height:44px}
+</style>
+<body class="dark">
+<div class="abs logo"><img src="../logo/wordmark-offwhite.svg" alt="SortMyCover"></div>
+<h1 class="hd" data-bh="title"></h1>
+<div class="abs when pill" data-b="when"></div>
+<div class="abs det"><span data-b="detail"></span><small data-b="small"></small></div>
+<div class="abs co cobrand"><img src="../logo/tick-mark.svg" alt=""><span><span data-b="practice"></span> &middot; FSP <span data-b="fsp"></span></span></div>
+<script>window.SM_DEFAULTS={title:"Your call with Mark is **tomorrow**",when:"Wed 7 Oct · 10:30",detail:"30-min Teams call. No obligation.",small:"Need a different time? Reply here.",practice:"Mark Smith Financial Services",fsp:"00000 (SAMPLE: fictional adviser)"}</script>
+<script src="_t.js"></script>

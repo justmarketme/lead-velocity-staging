@@ -1,0 +1,40 @@
+{
+  "name": "broker_autorenew_off",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "Card auto-renew is off"
+    },
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, card auto-renew is now off, so we will not charge your card again. Your current cycle carries on as normal. To keep leads coming after it ends, pay for the next cycle from your renewal offer by Instant EFT, or by manual EFT with your payment reference (no fees). No lock-in: if you don't renew, the cycle simply ends and your delivered leads stay yours.",
+      "example": {
+        "body_text": [
+          [
+            "Mark"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover by Lead Velocity"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Open billing",
+          "url": "https://app.leadvelocity.co.za/s/{{1}}",
+          "example": [
+            "https://app.leadvelocity.co.za/s/billing"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+invite_email_bounced (UTILITY, en)
+
+Hi Lerato, the Teams invite for your call with Mark Smith didn't reach your inbox, so when you have a moment, please reply with the email address you'd like us to use. Reply STOP to opt out.
+[footer] SortMyCover
