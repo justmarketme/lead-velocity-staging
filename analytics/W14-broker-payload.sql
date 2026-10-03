@@ -210,6 +210,10 @@ begin
     'wa', wa);
 end $$;
 comment on function facts.w14_broker_report(uuid, date, text) is 'W14 broker report payload in the broker_report/1 shape (automation/W14-broker.md). One payload feeds WhatsApp, portal, email and PDF.';
+-- I-50d: CREATE OR REPLACE resets SECURITY DEFINER / search_path; re-pin here so re-running this file never opens the function. Same statements as migration 20261002_smc_13_pass7.sql (its closing pin block), one function per file.
+ALTER FUNCTION facts.w14_broker_report(uuid, date, text) SECURITY DEFINER SET search_path = public, facts, pg_temp;
+REVOKE ALL ON FUNCTION facts.w14_broker_report(uuid, date, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION facts.w14_broker_report(uuid, date, text) TO n8n_app;
 
 -- Reconcile-and-hold (R01-R05, R09, R11 of the W33 report rubric that SQL can check). Any false row = hold the report and alert (W14 failure path).
 create or replace function facts.w14_reconcile(p_broker uuid, p_payload jsonb default null)
