@@ -69,7 +69,7 @@ export async function postWebhook<T = unknown>(path: string, body: unknown, meth
 const TZ = "Africa/Johannesburg";
 export function fmtZar(v: number | null | undefined, dp = 0): string {
   if (v === null || v === undefined || Number.isNaN(Number(v))) return "n/a";
-  // en-US grouping on purpose: the brand writes R16,500 (en-ZA would give "R16 500,00").
+  // en-US grouping on purpose: the brand writes thousands with a comma (en-ZA would use a space and a decimal comma).
   return "R" + Number(v).toLocaleString("en-US", { minimumFractionDigits: dp, maximumFractionDigits: dp });
 }
 export function fmtPct(v: number | null | undefined, dp = 0): string {

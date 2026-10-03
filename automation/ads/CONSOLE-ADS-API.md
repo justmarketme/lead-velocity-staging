@@ -34,7 +34,7 @@ Returns campaign -> ad set -> ad with metrics summed over the window.
 
 ### `GET /ads-guardrails?brand_id=`
 `{ daily_cap_zar, monthly_cap_zar, month_spend_zar, projected_month_spend_zar, pct_of_cap, alert_80: bool, day_spend_over_1_5x: bool, last_budget_change_at, min_daily_budget_zar }`
-- `monthly_cap_zar` = sum of `pricing.media_share_zar` over brokers with `status='active'` for the cycle (cycle 1 default R10,500 pending needs_human 2 in the media-buyer SUMMARY). `daily_cap_zar` = per-campaign cap set by admin (default = monthly cap / 30 x 1.2).
+- `monthly_cap_zar` = sum of `pricing.media_share_zar` over brokers with `status='active'` for the cycle (cycle 1 default: see needs_human 2 in the media-buyer SUMMARY; the value comes from the table, never typed here). `daily_cap_zar` = per-campaign cap set by admin (default = monthly cap / 30 x 1.2).
 
 ### `GET /ads-health?brand_id=`
 The `brands` health fields written by W27: `page_status, ig_status, bv_status, ad_account_status, waba_quality, template_status, emq, health_alerts[], health_checked_at`. Plus token-health from W22.

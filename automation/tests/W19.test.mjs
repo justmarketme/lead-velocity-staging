@@ -6,6 +6,8 @@ test("W19 via billing.test.js", () => { const r = spawnSync(process.execPath, ["
 
 // I-48g: every smc-whatsapp-send / smc-ads-budget call in W19 gets the LOCAL-STAGING.md §7 input (mapping nodes on fixture rows).
 import { readFileSync } from "node:fs";
+// Fixture prices come from the pricing seed (W25: no typed price outside it).
+const BRONZE = JSON.parse(readFileSync(new URL("../billing/pricing.seed.json", import.meta.url), "utf8")).rows.find((r) => r.tier_code === "SMC_BRONZE");
 import { codeNode, nodeRequire, runCode, templateCounts } from "./_n8ncode.mjs";
 const WF19 = JSON.parse(readFileSync(new URL("../W19.json", import.meta.url), "utf8"));
 // I-54c: send nodes sit behind a generated "Live send? (X)" DRY_RUN gate; topology assertions look through it to X.
@@ -51,7 +53,7 @@ test("I-48g W19: T-3 reminder -> broker_renewal_reminder payload (6 body vars, P
   assert.equal(mail.type, "n8n-nodes-base.microsoftOutlook"); assert.ok(next19("Reminder text (reference in bold)").includes(mail.name));
 });
 
-const CTX = { broker_id: "b-1", cycle_id: "c-1", action: "cycle_end", reference: "LV-1042-B-202611", total_cents: "1650000", tier_code: "SMC_BRONZE", attempts: 0, authorization_code: null, media_share_zar: "4950.00" };
+const CTX = { broker_id: "b-1", cycle_id: "c-1", action: "cycle_end", reference: "LV-1042-B-202611", total_cents: String(BRONZE.price_zar * 100), tier_code: "SMC_BRONZE", attempts: 0, authorization_code: null, media_share_zar: "4950.00" };
 test("I-48g W19: routing off -> ads lower { op, broker_id, cycle_id, amount_zar: 0, reason } from the cycle-end context", async () => {
   assert.deepEqual(next19("Routing off, cycle not renewed (no grace)"), ["Routing off: map ads lower input"]);
   assert.deepEqual(next19("Routing off: map ads lower input"), ["Ads module: lower budget by media_share_zar"]);
