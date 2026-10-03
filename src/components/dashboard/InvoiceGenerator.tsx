@@ -114,10 +114,8 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
             { description: "Platform Setup & Configuration", quantity: 1, price: 0 }
         ],
         notes: "Terms: Paid monthly in advance. Should the Client breach material terms (non-payment or commission violations), lead delivery will be suspended until re-activated. No refunds are provided for premature cancellation within an active 30-day cycle, as allocations cover digital inventory costs.",
-        bankName: "First National Bank",
-        accountName: "Lead Velocity Pty Ltd",
-        accountNumber: "63174286724", // Updated to match requested banking details
-        branchCode: "250655",
+        // NH-61: no bank account details in the build. Payment is by EFT, in advance, per 30-day cycle; Jonathan adds the account details on his own invoice.
+        paymentWording: "Payment by EFT, in advance, per 30-day cycle.",
         reference: "INV-2024-001",
         companyAddressLine1: "100 West Street, Sandton",
         companyAddressLine2: "Johannesburg, 2196",
@@ -953,25 +951,10 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
                                         <div className="bg-slate-50 p-6 rounded-xl border border-slate-100">
                                             <h4 className="font-black text-slate-900 text-[10px] uppercase tracking-widest mb-4 flex items-center gap-2">
                                                 <span className="h-2 w-2 rounded-full bg-green-500" />
-                                                EFT Payment Details
+                                                Payment by EFT
                                             </h4>
                                             <div className="space-y-2 text-xs text-slate-600 leading-tight">
-                                                <div className="flex justify-between">
-                                                    <span className="text-slate-400 font-bold uppercase text-[9px]">Bank</span>
-                                                    <Editable tag="span" className="font-bold text-slate-900" value={invoiceData.bankName} onChange={(val) => updateField('bankName', val)} />
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <span className="text-slate-400 font-bold uppercase text-[9px]">Account</span>
-                                                    <Editable tag="span" className="font-bold text-slate-900" value={invoiceData.accountName} onChange={(val) => updateField('accountName', val)} />
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <span className="text-slate-400 font-bold uppercase text-[9px]">Acc #</span>
-                                                    <Editable tag="span" className="font-bold text-slate-900" value={invoiceData.accountNumber} onChange={(val) => updateField('accountNumber', val)} />
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <span className="text-slate-400 font-bold uppercase text-[9px]">Branch</span>
-                                                    <Editable tag="span" className="font-bold text-slate-900" value={invoiceData.branchCode} onChange={(val) => updateField('branchCode', val)} />
-                                                </div>
+                                                <Editable tag="p" className="font-bold text-slate-900" value={invoiceData.paymentWording} onChange={(val) => updateField('paymentWording', val)} />
                                                 <div className="flex justify-between pt-2 border-t border-slate-200">
                                                     <span className="text-slate-400 font-bold uppercase text-[9px]">Ref</span>
                                                     <Editable tag="span" className="font-black text-green-600" value={invoiceData.reference} onChange={(val) => updateField('reference', val)} />

@@ -54,10 +54,9 @@ Lead Velocity runs the consumer brand **SortMyCover** (sortmycover.co.za). Consu
 
 4.3 **When a cycle starts.** Your first cycle starts on the day we switch your lead routing on after your payment clears. Each later cycle starts the day after the one before ends, if you have paid for it.
 
-4.4 **How to pay.** You can pay by:
-- Instant EFT through our payment page (the default);
-- manual EFT to our bank account, using the reference on your invoice (no fees); or
-- card, with automatic renewal **only if you switch it on**. You can switch it off in the portal at any time, and the next cycle will not be charged.
+4.4 **How to pay.** Payment is by EFT, in advance, per 30-day cycle. Our payment details and the reference to use are on your invoice. There are no payment fees from us.
+
+If we later offer Instant EFT or card on our payment page, we will tell you. Card renewal would happen **only if you switch it on**. You could switch it off in the portal at any time, and the next cycle would not be charged.
 
 4.5 **No contract term. No notice period. No grace period.** You buy one cycle at a time. There is no minimum number of cycles. You do not have to tell us you are stopping. If you do not pay for the next cycle by the time the current one ends, new leads simply stop at the end of that cycle. Nothing more is owed. Leads already delivered stay yours.
 
@@ -223,7 +222,7 @@ People show up more often when they have seen and heard you. But this is optiona
 | What is never charged | Setup fee, per-lead extras inside the committed number, per-policy fee, share of premium or commission |
 | Area or language rights | {{exclusivity_terms | default: "None. Leads are shared between brokers by the rules in clause 8.2."}} |
 | Payment reference | {{payment_reference}} |
-| Payment methods | Instant EFT (default) · manual EFT · card auto-renew (only if you switch it on) |
+| Payment | EFT, in advance, per 30-day cycle (payment details and reference are on your invoice) |
 | Optional add-ons | Only by a separate written order at a flat price, never linked to policies |
 
 **Why the price is flat (the rule behind this Schedule).** The price is fixed per cycle, paid in advance, and never depends on whether any policy is sold. This keeps Lead Velocity a marketing service and keeps all financial services with you, the licensed FSP.

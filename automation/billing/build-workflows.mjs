@@ -20,6 +20,7 @@ const FILES = {
   money: 'money.js', pricing: 'pricing.js', reference: 'reference.js', events: 'events.js', paystack: 'paystack.js',
   incontact: 'incontact.js', reconcile: 'reconcile.js', statement: 'statement.js', invoice: 'invoice.js', render: 'render.js',
   'verify-webhooks': '../security/verify-webhooks.js', autorenew: 'autorenew.js', 'lead-token': '../security/lead-token.js',
+  flags: 'flags.js', 'manual-paid': 'manual-paid.js',
 };
 const src = (k) => readFileSync(join(here, FILES[k]), 'utf8');
 const deps = (k) => [...src(k).matchAll(/require\('(?:\.\.\/security\/|\.\/)([a-z-]+)'\)/g)].map((m) => m[1]);
@@ -155,6 +156,7 @@ const item = $input.first();
 const headers = item.json.headers || {};
 const bin = item.binary && item.binary.data ? Buffer.from(item.binary.data.data, 'base64') : null;
 const raw = bin || (typeof item.json.body === 'string' ? item.json.body : null);
+if (!BILLING.flags.paystackEnabled($env)) return [{ json: { ok: false, reason: 'paystack_off' } }]; // NH-61: Paystack is built, switched off
 const v = BILLING.paystack.verifyWebhook(raw, headers, $env.PAYSTACK_SECRET_KEY);
 if (!v.ok) return [{ json: { ok: false, reason: v.reason } }];
 const payload = JSON.parse(Buffer.isBuffer(raw) ? raw.toString('utf8') : raw);
@@ -162,7 +164,7 @@ const pricingRows = ($getWorkflowStaticData('global').pricingRows) || undefined;
 const ev = BILLING.paystack.mapWebhookEvent(payload, { pricingRows });
 const VW = __req('verify-webhooks');
 return [{ json: { ok: true, ev, external_id: VW.extractEventIds('paystack', payload, raw)[0], payload_hash: VW.payloadHash(raw) } }];
-`, ['paystack']), { v: 2, row: 0, col: 1 });
+`, ['paystack', 'flags']), { v: 2, row: 0, col: 1 });
   const okIf = w.add('n8n-nodes-base.if', 'Signature ok?', ifTrue('={{ $json.ok }}'), { v: 2, row: 0, col: 2 });
   const r200 = w.add('n8n-nodes-base.respondToWebhook', 'Respond 200', { respondWith: 'text', responseBody: 'ok', options: { responseCode: 200 } }, { v: 1.1, row: 0, col: 3 });
   const r401 = w.add('n8n-nodes-base.respondToWebhook', 'Respond 401 (log reason only)', { respondWith: 'text', responseBody: 'invalid signature', options: { responseCode: 401 } }, { v: 1.1, row: 1, col: 3 });
@@ -292,7 +294,8 @@ from ${T.BR} b where b.paystack_customer_code = $1 and i.broker_id = b.id and i.
 const body = $('Checkout: POST /billing/checkout').first().json.body || {};
 const { invoice, pricing, taken } = $input.first().json.ctx;
 if (!invoice || invoice.status !== 'issued') return [{ json: { respond: 404, message: 'This payment link is no longer open. WhatsApp us for a new one.' } }];
-const method = ['instant_eft', 'manual_eft', 'card'].includes(body.method) ? body.method : 'instant_eft';
+// NH-61: PAYSTACK_ENABLED off (default) -> every checkout is manual EFT; Paystack is never called.
+const method = BILLING.flags.resolveCheckoutMethod(body.method, $env);
 let inv = { ...invoice, total_cents: Number(invoice.total_cents) };
 let reissue = null;
 if (body.tier_code && body.tier_code !== invoice.tier_code) {
@@ -305,7 +308,7 @@ if (body.tier_code && body.tier_code !== invoice.tier_code) {
 const spec = method === 'manual_eft' ? null : BILLING.paystack.build.initialize({ invoice: inv, email: invoice.email, method, attempt: Number(invoice.attempts) + 1,
   callbackUrl: 'https://app.leadvelocity.co.za/billing/checkout/thanks', autorenewOptIn: method === 'card' && body.autorenew_opt_in === true, env: $env });
 return [{ json: { respond: 200, method, reference: inv.reference, old_reference: invoice.reference, reissue, spec } }];
-`, ['pricing', 'invoice', 'paystack']), { v: 2, row: 8, col: 2 });
+`, ['pricing', 'invoice', 'paystack', 'flags']), { v: 2, row: 8, col: 2 });
   const coReissue = w.add('n8n-nodes-base.postgres', 'Checkout: void + re-issue (only if tier changed)', sql(`${AUDIT("'checkout tier change: void + re-issue'")}-- invoice_no and brand_id are filled by smc_invoices_fill. total_zar is written and the trigger rejects it unless it equals
 -- amount_excl_vat + vat_zar: invoice.js derives all three from the same integer cents, so a mismatch means a bug, not rounding.
 with v as (update ${T.INV} set status = 'void' where reference = $1 and status = 'issued' and $2::jsonb is not null returning broker_id)
@@ -321,11 +324,46 @@ on conflict (reference) do nothing;`, '={{ [$json.old_reference, $json.reissue ?
   const coRespRef = w.add('n8n-nodes-base.respondToWebhook', 'Respond: manual EFT reference', { respondWith: 'json', responseBody: '={{ JSON.stringify({ reference: $("Checkout: re-issue if tier changed, build Paystack request").first().json.reference, message: $("Checkout: re-issue if tier changed, build Paystack request").first().json.message }) }}', options: { responseCode: '={{ $("Checkout: re-issue if tier changed, build Paystack request").first().json.respond }}' } }, { v: 1.1, row: 9, col: 5 });
   const note = w.add('n8n-nodes-base.stickyNote', 'Note', { content: '## W16 Payment received\nTwo rails, one event: Paystack webhook (A) or a bank credit from W17/W18/console (B) -> **Mark invoice paid + create cycle** (C).\n- Signature verified on the raw body before parsing; webhook_events gives idempotency.\n- Paystack payments are re-verified via the API and compared with the invoice (+/-R1) before marking paid.\n- Unmatched, partial, overpaid, duplicate and already-paid credits never mark paid: console queue (W22).\n- Card token stored only on opt-in, only in Vault.\n- First cycle starts when routing goes on (NH-CD-14), so starts_at stays null here.\n- Never creates the brokers row: it and the auth user exist from invoice issue (NH-27 c); payment moves invited/prospect -> onboarding.\n- No manual audit_log insert: the smc_audit trigger logs every write; SET LOCAL smc.source/smc.reason (idempotency key, console assigner) give it the context.\n- Checkout (E): starts Paystack for an invoice; a tier change voids and re-issues the unpaid invoice.\nSee automation/billing/RUNBOOK.md.', height: 360, width: 520 }, { row: 6, col: 9 });
 
+  // --- F. NH-61 cycle-1 path: Jonathan's one-tap "Payment received" in the console (Bearer Supabase JWT, admin only).
+  // One bank_credits row (source 'manual', amount = invoice total), then the SAME chain as every other rail: Match credit ->
+  // Normalise payment.received -> Mark invoice paid + create cycle. No new table, column or function.
+  const tapHook = w.add('n8n-nodes-base.webhook', 'Console: POST /billing/payment-received', { httpMethod: 'POST', path: 'billing/payment-received', responseMode: 'responseNode', options: { allowedOrigins: 'https://app.leadvelocity.co.za' } }, { v: 2, row: 10, col: 0, webhookId: 'smc-billing-payment-received' });
+  const tapAuth = w.add('n8n-nodes-base.code', 'Tap: verify admin JWT + body', code(`
+const r = BILLING['manual-paid'].parsePaymentReceivedRequest({ headers: $json.headers || {}, body: $json.body || {} }, { jwtSecret: $env.SUPABASE_JWT_SECRET });
+return [{ json: r }];
+`, ['manual-paid']), { v: 2, row: 10, col: 1 });
+  const tapOk = w.add('n8n-nodes-base.if', 'Tap: caller ok?', ifTrue('={{ $json.ok === true }}'), { v: 2, row: 10, col: 2 });
+  const tapBad = w.add('n8n-nodes-base.respondToWebhook', 'Tap: respond error (reason only)', { respondWith: 'json', responseBody: '={{ JSON.stringify({ ok: false, message: $json.reason }) }}', options: { responseCode: '={{ $json.status }}' } }, { v: 1.1, row: 11, col: 3 });
+  const tapLoad = w.add('n8n-nodes-base.postgres', 'Tap: is admin + load open invoice', sql(`select exists (select 1 from public.user_roles r where r.user_id = $1::uuid and r.role::text = 'admin') as is_admin,
+  (select row_to_json(i) from (select id, reference, status, tier_code, round(total_zar*100)::bigint as total_cents from ${T.INV} where reference = $2) i) as invoice;`,
+    '={{ [$json.user_id, $json.invoice_reference] }}'), { v: 2.5, row: 10, col: 3, credentials: PG });
+  const tapPlan = w.add('n8n-nodes-base.code', 'Tap: plan (admin, open invoice, credit row)', code(`
+const user = $('Tap: verify admin JWT + body').first().json.user_id;
+return [{ json: BILLING['manual-paid'].planTap($input.first().json, { userId: user }) }];
+`, ['manual-paid']), { v: 2, row: 10, col: 4 });
+  const tapPlanOk = w.add('n8n-nodes-base.if', 'Tap: allowed?', ifTrue('={{ $json.respond === 200 }}'), { v: 2, row: 10, col: 5 });
+  const tapNo = w.add('n8n-nodes-base.respondToWebhook', 'Tap: respond refusal', { respondWith: 'json', responseBody: '={{ JSON.stringify({ ok: false, message: $json.message }) }}', options: { responseCode: '={{ $json.respond }}' } }, { v: 1.1, row: 11, col: 6 });
+  const tapInsert = w.add('n8n-nodes-base.postgres', 'Tap: write the manual bank credit (idempotent)', sql(`${AUDIT("'W16 console one-tap payment received'")}-- One credit per invoice (external_id manual:<invoice id>): a double tap is one credit. The amount is the invoice total,
+-- so the +/-R1 check in Mark invoice paid always passes; the audit trigger logs who/when/why.
+insert into ${T.BC} (received_at, amount_zar, reference_raw, parsed_reference, source, external_id, note)
+values ($1::timestamptz, $2::bigint / 100.0, $3, $3, 'manual', $4, $5)
+on conflict (external_id) do update set updated_at = now() returning id;`,
+    '={{ [$json.credit.received_at, $json.credit.amount_cents, $json.credit.reference, $json.credit.external_id, $json.credit.note] }}'), { v: 2.5, row: 10, col: 6, credentials: PG });
+  const tapRespond = w.add('n8n-nodes-base.respondToWebhook', 'Tap: respond ok', { respondWith: 'json', responseBody: '={{ JSON.stringify({ ok: true, message: "Marked paid. Onboarding starts now." }) }}', options: { responseCode: 200 } }, { v: 1.1, row: 10, col: 7 });
+  const tapItem = w.add('n8n-nodes-base.code', 'Tap: same input as a bank credit', code(`
+// Same shape the W17/W18 sub-call sends: Match credit to invoice treats invoice_id + assigned_by as Jonathan's decision.
+const plan = $('Tap: plan (admin, open invoice, credit row)').first().json;
+return [{ json: { bank_credit_id: $input.first().json.id, invoice_id: plan.assign.invoice_id, assigned_by: plan.assign.assigned_by } }];
+`), { v: 2, row: 11, col: 7 });
+
   w.chain(hook, verify, okIf); w.link(okIf, r200, 0); w.link(okIf, r401, 1);
   w.chain(r200, idem, isNew); w.link(isNew, restore, 0); w.link(restore, sw);
   w.link(sw, verTx, 0); w.link(sw, failed, 1); w.link(sw, autoOn, 2); w.link(sw, autoOff, 3);
   w.chain(verTx, loadInv, checkTx, okTx); w.link(okTx, norm, 0); w.link(okTx, notFlipped, 1);
   w.chain(sub, loadCtx, match, act);
+  w.chain(tapHook, tapAuth, tapOk); w.link(tapOk, tapLoad, 0); w.link(tapOk, tapBad, 1);
+  w.chain(tapLoad, tapPlan, tapPlanOk); w.link(tapPlanOk, tapInsert, 0); w.link(tapPlanOk, tapNo, 1);
+  w.link(tapInsert, tapRespond); w.link(tapInsert, tapItem); w.link(tapItem, loadCtx);
   w.link(act, norm, 0); w.link(act, queueQ, 1); w.link(act, dupQ, 2); w.link(act, settleQ, 3);
   w.link(queueQ, queueAlert);
   w.chain(norm, markPaid, flipped); w.link(flipped, saveAuth, 0); w.link(flipped, creditBack, 1); w.link(creditBack, notFlipped);
@@ -398,7 +436,9 @@ return out;
 `), { v: 2, row: 4, col: 3 });
   const w05 = w.add('n8n-nodes-base.executeWorkflow', 'W05: invite_bounced', execWf('smc-w05', 'payload: { op: invite_bounced, recipient, booking_id }'), { v: 1.2, row: 4, col: 4 });
   const note = w.add('n8n-nodes-base.stickyNote', 'Note', { content: '## W17 inContact parser\nGraph poll of howzit@ every 2 min (target: 100% of payments matched within 15 min).\nFilter: FNB sender domain + credit/payment subject; DMARC/DKIM/SPF fail -> rejected.\nRecognised credit -> bank_credits (unique graph_message_id) -> W16.\nUnreadable FNB alert -> alert; new wording -> warning (fingerprints in static data).\nASSUMPTION: FNB wording and sender; validate on 20 real alerts at GATE-INCONTACT.\nInvite NDRs (Undeliverable: Your call with ...) -> W05 invite_bounced (recipient only; I-49b).', height: 260, width: 440 }, { row: 3, col: 1 });
-  w.chain(sched, win); w.link(man, win); w.chain(win, get, parse, sw);
+  // NH-61: built and tested, switched off by default. The schedule only runs when INCONTACT_ENABLED=true; the manual run (fixtures / R1 test) is unaffected.
+  const gate = w.add('n8n-nodes-base.code', 'Flag: INCONTACT_ENABLED (off by default, NH-61)', code(`return BILLING.flags.incontactEnabled($env) ? $input.all() : [];`, ['flags']), { v: 2, row: 0, col: 0.5 });
+  w.chain(sched, gate, win); w.link(man, win); w.chain(win, get, parse, sw);
   w.chain(win, getNdr, ndr, w05); // I-49b: invite bounces -> W05
   w.link(sw, ins, 0); w.link(ins, isNewC); w.link(isNewC, w16, 0); w.link(isNewC, done, 0);  // already-stored alert: {success:true}, nothing to do
   w.link(sw, alert, 1); w.link(sw, warn, 2); w.link(sw, done, 3); w.link(sw, done, 4);
@@ -462,7 +502,9 @@ return [{ json: r }];
   const isAlert = w.add('n8n-nodes-base.if', 'Gaps or missing statement?', ifTrue('={{ $("Daily reconciliation report").first().json.alert }}'), { v: 2, row: 0, col: 9 });
   const alert = w.add('n8n-nodes-base.executeWorkflow', 'W22: reconciliation gaps (alert)', execWf('smc-w22', 'kind=billing_reconciliation_gap'), { v: 1.2, row: 0, col: 10 });
   const pulse = w.add('n8n-nodes-base.executeWorkflow', 'W22: daily billing line for the pulse', execWf('smc-w22', 'kind=billing_daily (dedupe per day)'), { v: 1.2, row: 1, col: 10 });
-  w.chain(sched, read); w.link(man, read); w.chain(read, parse, load, recon, confirm, loadRep, report, save, isAlert);
+  // NH-61: built and tested, switched off by default. The schedule only runs when STATEMENT_IMPORT_ENABLED=true; manual run unaffected.
+  const gate = w.add('n8n-nodes-base.code', 'Flag: STATEMENT_IMPORT_ENABLED (off by default, NH-61)', code(`return BILLING.flags.statementImportEnabled($env) ? $input.all() : [];`, ['flags']), { v: 2, row: 0, col: 0.5 });
+  w.chain(sched, gate, read); w.link(man, read); w.chain(read, parse, load, recon, confirm, loadRep, report, save, isAlert);
   w.link(recon, split); w.chain(split, ins, isNewS); w.link(isNewS, w16, 0);
   w.link(isAlert, alert, 0); w.link(isAlert, pulse, 1);
 });
@@ -545,7 +587,7 @@ const email = { subject: 'Your SortMyCover renewal: reference ' + inv.reference,
   html: '<p>Your cycle ends on ' + endDay + '. If card auto-renew is off, pay for the next cycle before then to keep leads coming with no gap.</p>' +
     '<p>Plan: ' + v.plan + '<br>Amount: <strong>' + v.total + '</strong> (' + v.vat + ')' + (v.credit ? '<br>Shortfall credit applied: ' + v.credit : '') + '</p>' +
     '<p>Payment reference: <strong style="font-size:20px">' + inv.reference + '</strong></p>' +
-    '<p><a href="' + links[tier.tier_code] + '">Pay by Instant EFT or card</a> (same plan selected). Change plan: ' +
+    '<p><a href="' + links[tier.tier_code] + '">Your payment page (EFT in advance, per 30-day cycle)</a> (same plan selected). Change plan: ' +
     Object.entries(links).filter(([k]) => k !== tier.tier_code).map(([k, u]) => '<a href="' + u + '">' + k.replace('SMC_', '') + '</a>').join(' · ') + '</p>' +
     '<p>Manual EFT has no fees: use the reference above exactly. No lock-in: if you don\\'t renew, the cycle simply ends and your delivered leads stay yours.</p>' };
 return [{ json: { row, invoice: inv, links, template, email } }];
@@ -576,7 +618,7 @@ return $input.all().map((i) => i.json).filter((r) => r && r.template && clean(r.
 `), { v: 2, row: 2, col: 6 });
   const remSend = w.add('n8n-nodes-base.executeWorkflow', 'WhatsApp + email: renewal reminder', execWf('smc-whatsapp-send', 'Template broker_renewal_reminder (params from renewalReminderTemplate: 6 body vars, Pay now = reference, Manage auto-renew = /s/billing). Not submitted yet (NH-BA-08): until approved, session text inside the 24-h window. The email leg is "Email: renewal reminder from howzit@" (W19 sends email, the sender WhatsApp only).'), { v: 1.2, row: 2, col: 7 });
   const remMail = w.add('n8n-nodes-base.microsoftOutlook', 'Email: renewal reminder from howzit@', { resource: 'message', operation: 'send', toRecipients: '={{ $json.email }}', subject: '={{ "Your SortMyCover cycle ends in " + $json.reminder.days + " day" + ($json.reminder.days > 1 ? "s" : "") + ": reference " + ($json.reminder.reference || "on your invoice") }}',
-    bodyContent: '={{ ' + W19_MAIL_HTML('$json.reminder.text').slice(4, -3) + ' + "<p><a href=\\"" + $json.reminder.link + "\\">Pay by Instant EFT or card</a>. Manual EFT has no fees: use the reference exactly.</p>" }}', additionalFields: { bodyContentType: 'html' } }, { v: 2, row: 3, col: 7, credentials: OUTLOOK });
+    bodyContent: '={{ ' + W19_MAIL_HTML('$json.reminder.text').slice(4, -3) + ' + "<p><a href=\\"" + $json.reminder.link + "\\">Your payment page (EFT in advance, per 30-day cycle)</a>. Manual EFT has no fees: use the reference exactly.</p>" }}', additionalFields: { bodyContentType: 'html' } }, { v: 2, row: 3, col: 7, credentials: OUTLOOK });
 
   // cycle end
   // Always exactly one row (even with no open invoice), so routing still goes off at cycle end.
@@ -654,7 +696,7 @@ return $input.all().map((i) => i.json).filter((r) => r && r.action === 'come_bac
   const backMail = w.add('n8n-nodes-base.microsoftOutlook', "Email: 'come back any time' from howzit@", { resource: 'message', operation: 'send', toRecipients: W19_MAIL_TO, subject: 'SortMyCover: start again any time', bodyContent: W19_MAIL_HTML('$json.text'), additionalFields: { bodyContentType: 'html' } }, { v: 2, row: 7, col: 6, credentials: OUTLOOK });
 
   // --- I-30e: portal "Switch off" card auto-renew (Bearer Supabase JWT; off only; opt-in happens at checkout)
-  const arHook = w.add('n8n-nodes-base.webhook', 'Portal: POST /billing-autorenew', { httpMethod: 'POST', path: 'billing-autorenew', responseMode: 'responseNode', options: { allowedOrigins: 'https://app.leadvelocity.co.za' } }, { v: 2, row: 8, col: 0, webhookId: 'smc-billing-autorenew' });
+  const arHook = w.add('n8n-nodes-base.webhook', 'Portal: POST /billing-autorenew', { httpMethod: 'POST', path: 'billing-autorenew', responseMode: 'responseNode', options: { allowedOrigins: "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://app.leadvelocity.co.za' }}" } }, { v: 2, row: 8, col: 0, webhookId: 'smc-billing-autorenew' });
   const arAuth = w.add('n8n-nodes-base.code', 'Autorenew: verify broker JWT + body', code(`
 const r = BILLING.autorenew.parseAutorenewRequest({ headers: $json.headers || {}, body: $json.body || {} }, { jwtSecret: $env.SUPABASE_JWT_SECRET });
 return [{ json: r }];
@@ -727,8 +769,8 @@ const cards = BILLING.render.renderTierCards(rows, { ...opts, checkoutUrl: 'http
 const tplHtml = Buffer.from($input.first().binary.data.data, 'base64').toString('utf8');
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/'/g, '&#39;');
 const checkout = tplHtml.replace("'{{PRICING_JSON}}'", "'" + esc(BILLING.render.checkoutPricingJson(rows, opts)) + "'")
-  .replace('{{BILLING_API_BASE}}', $env.BILLING_API_BASE || '').replace('{{BANK_NAME}}', $env.BANK_NAME || '').replace('{{BANK_ACCOUNT_NAME}}', $env.BANK_ACCOUNT_NAME || '')
-  .replace('{{BANK_ACCOUNT_NUMBER}}', $env.BANK_ACCOUNT_NUMBER || '').replace('{{BANK_BRANCH_CODE}}', $env.BANK_BRANCH_CODE || '').replace('{{BANK_ACCOUNT_TYPE}}', $env.BANK_ACCOUNT_TYPE || '')
+  .replace('{{BILLING_API_BASE}}', $env.BILLING_API_BASE || '')
+  .replace('{{PAYSTACK_ENABLED}}', BILLING.flags.paystackEnabled($env) ? 'true' : 'false')
   .replace('../../brand/tokens.css', 'tokens.css');
 const templates = Object.fromEntries(live.map((r) => [r.tier_code, { proposal_block: BILLING.render.proposalTierBlock(r), schedule_a: BILLING.render.scheduleAVars(r) }]));
 const files = [
@@ -740,7 +782,7 @@ const files = [
 const paystack = live.flatMap((r) => [{ tier_code: r.tier_code, kind: 'page', spec: BILLING.paystack.build.paymentPage(r, { redirectUrl: 'https://app.leadvelocity.co.za/billing/checkout/thanks' }) },
   { tier_code: r.tier_code, kind: 'plan', spec: BILLING.paystack.build.plan(r) }]);
 return [{ json: { staging, files, paystack } }];
-`, ['pricing', 'render', 'paystack']), { v: 2, row: 0, col: 3 });
+`, ['pricing', 'render', 'paystack', 'flags']), { v: 2, row: 0, col: 3 });
   const diff = w.add('n8n-nodes-base.executeCommand', 'Diff check: no hard-coded price in the repo', { command: "={{ 'cd ' + ($env.REPO_DIR || '/home/node/repo') + ' && git pull --ff-only -q && node automation/billing/price-diff.mjs --json' }}" }, { v: 1, row: 0, col: 4, onError: 'continueRegularOutput' });
   const diffOk = w.add('n8n-nodes-base.if', 'Repo diff clean?', ifTrue('={{ $json.exitCode === 0 }}'), { v: 2, row: 0, col: 5 });
   const fail = w.add('n8n-nodes-base.executeWorkflow', 'W22: diff found hard-coded price -> build failed', execWf('smc-w22', 'kind=pricing_diff_failed; payload = price-diff JSON (failing_files, legacy_locations). Nothing is deployed or sent to Paystack.'), { v: 1.2, row: 1, col: 6 });
@@ -749,7 +791,7 @@ return [{ json: { staging, files, paystack } }];
   const write = w.add('n8n-nodes-base.readWriteFile', 'Write build output', { operation: 'write', fileName: "={{ ($env.W25_OUT_DIR || '/home/node/billing/site') + '/' + $json.path }}", options: {} }, { v: 1, row: 0, col: 7 });
   const ftp = w.add('n8n-nodes-base.ftp', 'Deploy static files (staging dir unless W25_TARGET=production)', { protocol: 'sftp', operation: 'upload', path: "={{ ($env.W25_TARGET === 'production' ? $env.W25_REMOTE_ROOT : $env.W25_REMOTE_STAGING_ROOT) + '/' + $json.path }}", options: {} }, { v: 1, row: 0, col: 8, credentials: { sftp: { name: 'Hostinger SFTP (static sites)' } } });
   const psItems = w.add('n8n-nodes-base.code', 'Paystack page/plan requests', code(`
-if (String($env.PAYSTACK_ENABLED || 'false') !== 'true') return []; // no Paystack account yet (GATE-PAYSTACK-KYC)
+if (String($env.PAYSTACK_ENABLED || 'false') !== 'true') return []; // NH-61: Paystack built, switched off (default)
 return $('Render tier cards, checkout, templates').first().json.paystack.map((p) => ({ json: p }));
 `), { v: 2, row: 1, col: 8 });
   const ps = w.add('n8n-nodes-base.httpRequest', 'Paystack create/update page or plan', httpSpec(), { v: 4.2, row: 1, col: 9, credentials: PAYSTACK });

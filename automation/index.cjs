@@ -41,6 +41,7 @@ const MODULES = {
   subCapiSend: './lib/sub-capi-send.mjs',
   subW26: './lib/sub-w26.mjs',
   subAdsBudget: './lib/sub-ads-budget.mjs',
+  subVisitBeacon: './lib/sub-visit-beacon.mjs', // I-32b first-party visit beacon
   // conversation (ESM, repo root)
   logic: '../conversation/logic.mjs',
   lines: '../conversation/lines.mjs',

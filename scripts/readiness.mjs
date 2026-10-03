@@ -24,6 +24,11 @@
 //           line is purely external and not yet evidenced. S7-26 is special per Section 7: pre-payment it is amber
 //           "ready to provision" when its build half passes.
 // `missing` means not there yet; `fail` means it is there and broken. A fail always makes the line red.
+//   post-launch (NH-61, confirmed 2026-10-03) = the line is built and tested but switched off until after launch
+//           (S7-23 Paystack, S7-24 FNB inContact / statement import). It is reported as "post-launch (NH-61)", never
+//           blocks Go live, and still goes red if its own suites FAIL (built code must stay working). If its live half is
+//           ever evidenced it turns green. Cycle 1 is paid by EFT in advance and marked paid with one tap: that is
+//           checked by the S7-NH61 line instead.
 //
 // Evidence logs (the live half). One append-only JSON-lines file per line: build/evidence/S7-xx.jsonl.
 // Each row is {"at": ISO-8601, "by": "<agent|jonathan|kg|workflow id>", "<key>": <value>, ...}; rows are merged in
@@ -111,7 +116,7 @@ const SUITES = [
   'automation/tests/W20.test.mjs', 'automation/tests/W22.test.mjs', 'automation/tests/W24.test.mjs',
   'automation/tests/W25.test.mjs', 'automation/tests/W26.test.mjs', 'automation/tests/W32.test.mjs',
   'automation/tests/W34.test.mjs', 'automation/tests/W35.test.mjs', 'automation/tests/generators.test.mjs',
-  'automation/billing/billing.test.js', 'automation/billing/autorenew.test.js', 'automation/capi/capi.test.js',
+  'automation/billing/billing.test.js', 'automation/billing/autorenew.test.js', 'automation/billing/manual-eft.test.js', 'automation/capi/capi.test.js',
   'automation/ads/meta-ads.test.js', 'automation/media/media.test.js', 'automation/media/w23-auth.test.js',
   'automation/security/verify-webhooks.test.js', 'optimisation/spc.test.js', 'optimisation/workflows.test.js',
   'scripts/build-broker-report-email.test.mjs',
@@ -810,7 +815,7 @@ const LINES = [
   // GREEN when: PAYSTACK_SECRET_KEY starts sk_live_ and PAYSTACK_PUBLIC_KEY starts pk_live_ (prefix only is read);
   // GATE-PAYSTACK-KYC + GATE-R1-LIVE green; S7-23.jsonl (the R1 transaction log) has plans_per_tier listing bronze, silver,
   // gold, r1_reference (non-empty), r1_webhook_verified=true and r1_refunded=true. (billing suites shown as prep.)
-  { id: 'S7-23', amber: false, checks: () => [
+  { id: 'S7-23', amber: false, postLaunch: 'NH-61', checks: () => [
     suite('build', 'automation/billing/billing.test.js'),
     suite('build', 'automation/billing/autorenew.test.js'),
     suite('build', 'automation/tests/W16.test.mjs'),
@@ -832,7 +837,7 @@ const LINES = [
   // Purely external: red until green.
   // GREEN when: GATE-INCONTACT green; HOWZIT_MAILBOX and FNB_INCONTACT_SENDER (or FNB_SENDER_ADDRESSES) set;
   // S7-24.jsonl has incontact_alerts_arriving, r1_eft_parsed and statement_import_scheduled true. (W17/W18 shown as prep.)
-  { id: 'S7-24', amber: false, checks: () => [
+  { id: 'S7-24', amber: false, postLaunch: 'NH-61', checks: () => [
     suite('build', 'automation/tests/W17.test.mjs'),
     suite('build', 'automation/tests/W18.test.mjs'),
     workflow('build', 'W17'),
@@ -946,6 +951,26 @@ const LINES = [
     ev('live', 'S7-28', 'w24_scheduled', 'true: W24 cleanse on its schedule'),
     gate('info', 'GATE-OPINION'),
   ] },
+
+  // S7-NH61 Platform & money — cycle-1 payment path (NH-61): EFT in advance per 30-day cycle, Jonathan taps "Payment received".
+  // Replaces S7-23/S7-24 on the launch path (those are post-launch). Build-only: nothing external is needed.
+  // GREEN when: automation/billing/manual-eft.test.js passes (the one-tap fires the same W16 payment.received event as an
+  // automated match, the console page and the W16 /billing/payment-received webhook exist, the checkout shows manual EFT only with
+  // PAYSTACK_ENABLED off, W17/W18 schedules are off by default); no bank account details in checkout/templates/invoice/contract
+  // generators; W16 is built.
+  { id: 'S7-NH61', title: 'Cycle-1 payment: EFT in advance per 30-day cycle, one-tap "Payment received" (NH-61)', amber: false, checks: () => [
+    suite('build', 'automation/billing/manual-eft.test.js'),
+    workflow('build', 'W16'),
+    grep('build', 'automation/W16.json', /billing\/payment-received/, 'W16 has the one-tap webhook'),
+    files('build', ['src/pages/smc/Payments.tsx'], 'console Payments page (Payment received button)'),
+    grep('build', 'src/pages/smc/Payments.tsx', /Payment received/, 'button reads "Payment received"'),
+    custom('build', 'no bank account details in the build', () => {
+      const targets = ['billing/checkout/index.html', 'billing/checkout/checkout.js', 'src/components/dashboard/InvoiceGenerator.tsx', 'src/components/dashboard/ContractGenerator.tsx',
+        'src/utils/contractToDocx.ts', 'automation/.env.example'];
+      const bad = targets.filter((t) => exists(t) && /\b(account number|account #|branch code|BANK_ACCOUNT|BANK_BRANCH|data-bank|First National)/i.test(read(t)));
+      return [bad.length ? FAIL : PASS, bad.length ? `bank details found in: ${bad.join(', ')}` : `${targets.length} files clean`];
+    }),
+  ] },
 ];
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -955,6 +980,7 @@ function statusOf(line, checks) {
   const gating = checks.filter((c) => c.half !== 'info');
   if (gating.some((c) => c.state === FAIL)) return 'red';
   if (gating.every((c) => c.state === PASS)) return 'green';
+  if (line.postLaunch) return 'post-launch';
   const build = gating.filter((c) => c.half === 'build');
   const buildDone = build.length > 0 && build.every((c) => c.state === PASS);
   if (line.amber === true && buildDone) return 'amber';
@@ -979,9 +1005,10 @@ function evaluate() {
     out.push({
       id: line.id,
       section: node ? String(node.section || '').replace(/^7 \/ /, '') : '',
-      title: node ? (node.note || node.title) : '(node missing in build/tasks.json)',
+      title: node ? (node.note || node.title) : (line.title || '(node missing in build/tasks.json)'),
       status,
       ...(note ? { note } : {}),
+      ...(status === 'post-launch' ? { note: `post-launch (${line.postLaunch})` } : {}),
       build_done: checks.filter((c) => c.half === 'build').every((c) => c.state === PASS),
       evidence,
       missing,
@@ -998,7 +1025,7 @@ function gitSha() {
 
 await runAll();
 const { lines, exceptions } = evaluate();
-const counts = { green: 0, amber: 0, red: 0 };
+const counts = { green: 0, amber: 0, red: 0, 'post-launch': 0 };
 for (const l of lines) counts[l.status]++;
 const report = {
   schema: 'lv.readiness.v1',
@@ -1007,7 +1034,7 @@ const report = {
   env_file_present: existsSync(ENV_FILE),
   evidence_dir: EVIDENCE_DIR.startsWith(ROOT) ? EVIDENCE_DIR.slice(ROOT.length + 1) : EVIDENCE_DIR,
   counts,
-  go_live_ready: counts.red === 0 && counts.amber === 0,
+  go_live_ready: counts.red === 0 && counts.amber === 0, // post-launch lines (NH-61) never block
   lines,
   exceptions,
 };
@@ -1022,9 +1049,9 @@ if (JSON_OUT) {
     const allN = l.checks.filter((c) => c.half !== 'info').length;
     const ev = `${passN}/${allN} checks${l.evidence.length ? ': ' + l.evidence.slice(0, 3).map((e) => sq(e.split(':')[0])).join('; ') + (l.evidence.length > 3 ? '; …' : '') : ''}`;
     const miss = l.missing.length ? l.missing.map(sq).join('; ') : '—';
-    console.log(`${l.id} | ${l.status}${l.note ? ` (${l.note})` : ''} | ${ev} | ${miss}`);
+    console.log(`${l.id} | ${l.status === 'post-launch' ? l.note : l.status + (l.note ? ` (${l.note})` : '')} | ${ev} | ${miss}`);
   }
-  console.log(`\ngreen ${counts.green} · amber ${counts.amber} · red ${counts.red}${exceptions.length ? ` · ${exceptions.length} exception(s)` : ''} · Go live ${report.go_live_ready ? 'available' : 'blocked'}`);
+  console.log(`\ngreen ${counts.green} · amber ${counts.amber} · red ${counts.red} · post-launch ${counts['post-launch']}${exceptions.length ? ` · ${exceptions.length} exception(s)` : ''} · Go live ${report.go_live_ready ? 'available' : 'blocked'}`);
   for (const e of exceptions) console.log(`exception ${e.id}: ${e.error}`);
 }
 process.exitCode = counts.red > 0 || exceptions.length ? 1 : 0;

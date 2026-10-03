@@ -132,7 +132,7 @@ Evidence notes: file:line is the first line proving the item. Migrations are dra
 | I-22 | Add brokers.media_share_pct and verify pulse_daily sources (quiz_step_dropoff_max, branded_search_wow, serp_ownership) exist; none found in migrations | platform-architect + devops-security |
 | I-25 | Same W02 raw-body feed-comment forward as I-16 (schema half done in smc_08_pass3.sql:143) | ads-api-engineer |
 | I-31b | Register community_escalation/comment_sentiment/hostile_thread/webhook_signature_invalid (+kind_requested, dm_handoff, dm_after_link) in W22 PRODUCER_SIGNALS; none present, would be amber unknown_signal | devops-security |
-| I-32b | Build first-party visit beacon (landing page.js to n8n) feeding ops.page_day.visits; ops_feeders.mjs leaves visits 0 | landing-page-builder + analytics-reporter |
+| I-32b ✅ | Build first-party visit beacon (landing page.js to n8n) feeding ops.page_day.visits; ops_feeders.mjs leaves visits 0 | landing-page-builder + analytics-reporter |
 | I-32c | Move VITE_GEMINI_API_KEY use in src/components/voice/EinsteinLiveVoice.tsx:10 behind an edge function; drop from .env.example | platform-architect |
 | I-34g | Replace placeholder automation/flows/flow-crypto.js with Meta published decryptRequest/encryptResponse, rerun build-w03-w28.mjs | automation-engineer |
 | I-36c | Add W14 consumer step that runs build-broker-report-email.mjs --pdf, attaches, sends via Graph from howzit@ (DRY_RUN); W14 only queues the row today | automation-engineer |

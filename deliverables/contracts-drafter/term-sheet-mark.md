@@ -15,7 +15,7 @@
 | **If we fall short** | The cycle extends by up to 14 days at no cost until you have 20. Still short? Each missing lead is credited at R825 (R16,500 ÷ 20) on your next cycle, or refunded if you don't renew. Our liability is capped at the cycle price. |
 | **Term** | Month to month. **No contract term, no notice period, no grace period.** Don't pay for the next cycle and new leads stop at the end of this one. Delivered leads stay yours. |
 | **Payment date** | First cycle: pay by **{{first_payment_date}}**. The cycle starts the day we switch your routing on. Next cycles: pay before your current cycle ends (we send the link 7 days before). |
-| **How to pay** | Instant EFT on our payment page (default) · manual EFT, reference **{{payment_reference}}** (no fees) · card auto-renew **only if you choose it** (switch off any time). |
+| **How to pay** | EFT, in advance, per 30-day cycle. Payment details are on your invoice. Reference: **{{payment_reference}}**. No fees from us. |
 | **Leads are yours** | Each lead goes to you only and is never sold or shared. We keep the brand, ads, pages and anonymised performance data. |
 | **Advice** | We never give advice, compare products or quote premiums. You are the FSP and give your own FAIS disclosures on every call. |
 

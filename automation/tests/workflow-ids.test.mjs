@@ -14,7 +14,7 @@ const AUTOMATION = join(dirname(fileURLToPath(import.meta.url)), '..');
 const FILES = readdirSync(AUTOMATION).filter((f) => /^(W\d\d|SUB-[a-z0-9-]+)\.json$/.test(f)).sort();
 const WF = Object.fromEntries(FILES.map((f) => [f.replace(/\.json$/, ''), JSON.parse(readFileSync(join(AUTOMATION, f), 'utf8'))]));
 // W01.json -> smc-w01; SUB-<slug>.json carries the id its callers already use (I-48f).
-const SUB_IDS = { 'SUB-whatsapp-send': 'smc-whatsapp-send', 'SUB-capi-send': 'smc-capi-send', 'SUB-w26-runner': 'smc-w26', 'SUB-ads-budget': 'smc-ads-budget' };
+const SUB_IDS = { 'SUB-whatsapp-send': 'smc-whatsapp-send', 'SUB-capi-send': 'smc-capi-send', 'SUB-w26-runner': 'smc-w26', 'SUB-ads-budget': 'smc-ads-budget', 'SUB-w20-ms-token': 'smc-w20-ms-token', 'SUB-visit-beacon': 'smc-visit-beacon' };
 const expectedId = (w) => SUB_IDS[w] || `smc-${w.toLowerCase()}`;
 const COMMITTED = new Set(Object.keys(WF).map(expectedId));
 

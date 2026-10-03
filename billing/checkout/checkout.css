@@ -44,3 +44,5 @@ fieldset{border:0;padding:0;margin:0}
 .error{color:var(--sm-amber-dark,#8a4b00);font-weight:var(--sm-weight-headline,800)}
 .site-foot{color:var(--sm-text-muted,#555);font-size:var(--sm-text-sm,14px);border-top:1px solid var(--sm-border,#ccc)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+[hidden] { display: none !important; }

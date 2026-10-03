@@ -28,3 +28,6 @@ Run with `landing/lighthouse.sh <slug>` against `http-server dist`. Budget: perf
 | what-the-call | 100 | 100 | 1,395 ms | 0.043 | 0 ms |
 
 Notes: fonts self-hosted, pixel inert (no pixel id before GATE-PIXEL), consent_mode=named with [PLACEHOLDER] practice until the broker row is verified. turned-40 CLS 0.069 is the highest (hero image height reserve — within budget, watch after the real headshot lands). Re-run on the public URL after GATE-DOMAINS + hosting (S7-15 wants ≥ 90 on `go.`/`sortmycover.co.za`). Reports in `landing/reports/` (git-ignored). Quiz suite 9/9 the same run.
+
+## I-32b first-party visit beacon — 2026-10-03
+Lighthouse mobile new-bond: perf 100, a11y 100, LCP 1,473 ms, CLS 0.043. quiz.spec.ts 13/13 (2 new: beacon payload and steps, DNT/GPC/opt-out silent). automation/tests/visit-beacon.test.mjs 6/6, SUB + loader 33/33, egress-dryrun 44/44.

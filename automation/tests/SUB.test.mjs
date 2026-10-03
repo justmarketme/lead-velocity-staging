@@ -11,7 +11,7 @@ import { workflowSql, checkSql } from './_sqlcheck.mjs';
 
 const A = join(dirname(fileURLToPath(import.meta.url)), '..');
 const load = (f) => JSON.parse(readFileSync(join(A, f), 'utf8'));
-const FILES = { 'SUB-whatsapp-send.json': 'smc-whatsapp-send', 'SUB-capi-send.json': 'smc-capi-send', 'SUB-w26-runner.json': 'smc-w26', 'SUB-ads-budget.json': 'smc-ads-budget' };
+const FILES = { 'SUB-whatsapp-send.json': 'smc-whatsapp-send', 'SUB-capi-send.json': 'smc-capi-send', 'SUB-w26-runner.json': 'smc-w26', 'SUB-ads-budget.json': 'smc-ads-budget', 'SUB-visit-beacon.json': 'smc-visit-beacon' };
 const NOW = Date.parse('2026-10-03T10:00:00Z');
 
 for (const [f, id] of Object.entries(FILES)) {
@@ -22,7 +22,7 @@ for (const [f, id] of Object.entries(FILES)) {
     const pgCreds = new Set(wf.nodes.filter((n) => n.type === 'n8n-nodes-base.postgres').map((n) => n.credentials?.postgres?.name));
     assert.deepEqual([...pgCreds], [PG_CRED]);
     assert.deepEqual(checkSql(workflowSql(wf)), []);
-    for (const n of wf.nodes.filter((x) => x.type === 'n8n-nodes-base.code' && !/W22 signal/.test(x.name))) assert.match(n.parameters.jsCode, /require\('lv-automation'\)\.sub(WhatsappSend|CapiSend|W26|AdsBudget)\b/, `${n.name} loads its lib`);
+    for (const n of wf.nodes.filter((x) => x.type === 'n8n-nodes-base.code' && !/W22 signal/.test(x.name))) assert.match(n.parameters.jsCode, /require\('lv-automation'\)\.sub(WhatsappSend|CapiSend|W26|AdsBudget|VisitBeacon)\b/, `${n.name} loads its lib`);
     assert.ok(wf.nodes.some((n) => n.type === 'n8n-nodes-base.executeWorkflowTrigger' || n.type === 'n8n-nodes-base.webhook'), 'has an entry point');
   });
 }

@@ -30,8 +30,37 @@
     try { if (window.smc && window.smc.track) return window.smc.track(name, params); } catch (e) {}
     return { event_id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random(), event_name: name, utm: {}, fbclid: null, fbp: null, fbc: null, page_url: location.origin + location.pathname, user_agent: navigator.userAgent, ts: Math.floor(Date.now() / 1000) };
   }
+  /* ---------- first-party visit beacon (I-32b) ----------
+     Counts page views and quiz steps reached, per angle. No cookie, no IP, no fingerprint: an anonymous random id lives in
+     sessionStorage only (gone when the tab closes). Off when DNT / Global Privacy Control / the privacy-page opt-out is set,
+     or when no beacon URL is configured. Never sends answers, name, phone or email. Never breaks the page. */
+  var BEACON = API ? API + '/beacon' : '';
+  var beaconSent = {};
+  function beaconOff() {
+    try {
+      if (navigator.doNotTrack === '1' || window.doNotTrack === '1' || navigator.msDoNotTrack === '1' || navigator.globalPrivacyControl === true) return true;
+      if (window.SMC_CONSENT_ANALYTICS === false) return true;
+      if ((window.localStorage.getItem('smc_ads_off') || window.sessionStorage.getItem('smc_ads_off')) === '1') return true;
+    } catch (e) {}
+    return false;
+  }
+  function beacon(ev, st) {
+    try {
+      var key = ev + (st || '');
+      if (!BEACON || !ANGLE || beaconSent[key] || beaconOff() || !navigator.sendBeacon) return;
+      beaconSent[key] = 1;
+      var sid = null;
+      try { sid = sessionStorage.getItem('smc_sid'); if (!sid) { sid = uuid(); sessionStorage.setItem('smc_sid', sid); } } catch (e) {}
+      if (!sid) sid = uuid();
+      var body = { v: 1, sid: sid, a: ANGLE, e: ev };
+      if (ev === 'step') body.s = st;
+      navigator.sendBeacon(BEACON, new Blob([JSON.stringify(body)], { type: 'text/plain;charset=UTF-8' }));
+    } catch (e) {}
+  }
+
   function startQuiz() {
     if (started) return; started = true;
+    beacon('step', 1);
     track('ViewContent', { content_name: 'quiz_start' });
     loadTurnstile();
   }
@@ -74,6 +103,7 @@
   function show(n, opts) {
     opts = opts || {};
     step = n;
+    if (n >= 2 && n <= 8) beacon('step', n);
     Array.prototype.forEach.call(card.querySelectorAll('.q'), function (q) { q.classList.toggle('on', +q.getAttribute('data-step') === n); });
     var fill = Math.min(n, TOTAL);
     Array.prototype.forEach.call(prog.querySelectorAll('i'), function (i, idx) { i.classList.toggle('on', idx < fill); });
@@ -336,4 +366,5 @@
   }
 
   show(1, { noScroll: true });
+  beacon('view');
 })();

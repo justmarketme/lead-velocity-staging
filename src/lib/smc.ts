@@ -11,6 +11,8 @@ import type { SmcBroker, SmcDispositionCode, SmcMethod, SmcStepKey, SmcOnboardin
 const env = import.meta.env;
 
 export const SMC_ENABLED: boolean = env.VITE_SMC_ENABLED === "true";
+/** NH-61: Instant EFT and card (Paystack) are built but off. Default off; the portal then offers payment by EFT, in advance, per 30-day cycle only. */
+export const PAYSTACK_ENABLED: boolean = env.VITE_PAYSTACK_ENABLED === "true";
 /** n8n webhook base, e.g. https://n8n.example/webhook (no trailing slash). Empty = actions show "not connected yet". */
 export const N8N_BASE: string = String(env.VITE_N8N_WEBHOOK_BASE || "").replace(/\/+$/, "");
 /** Deprecated (I-41a): the portal now calls W20 {N8N_BASE}/ms/connect with the broker JWT; kept only so old .env files still parse. */

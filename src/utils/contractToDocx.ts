@@ -394,31 +394,17 @@ export async function buildContractDocx(
     children.push(sectionHeading("20", "Relationship of Parties"));
     children.push(body(d("relationshipText")));
 
-    if (d("bankName") || d("accountHolder")) {
+    if (d("paymentWording")) {
+        // NH-61: wording only, no bank account details anywhere in the build.
         const paymentColor = "e2e8f0";
         children.push(
             new Paragraph({
-                children: [run("Payment Details", { bold: true, size: 26, color: "ffffff" })],
+                children: [run("Payment", { bold: true, size: 26, color: "ffffff" })],
                 shading: { fill: "0f172a", type: ShadingType.CLEAR },
                 spacing: { before: 320, after: 120 },
             }),
             new Paragraph({
-                children: [run(`Bank: ${d("bankName")}`, { color: paymentColor })],
-                shading: { fill: "0f172a", type: ShadingType.CLEAR },
-                spacing: { after: 80 },
-            }),
-            new Paragraph({
-                children: [run(`Account Holder: ${d("accountHolder")}`, { color: paymentColor })],
-                shading: { fill: "0f172a", type: ShadingType.CLEAR },
-                spacing: { after: 80 },
-            }),
-            new Paragraph({
-                children: [run(`Account #: ${d("accountNumber")}`, { color: paymentColor })],
-                shading: { fill: "0f172a", type: ShadingType.CLEAR },
-                spacing: { after: 80 },
-            }),
-            new Paragraph({
-                children: [run(`Branch Code: ${d("branchCode")}`, { color: paymentColor })],
+                children: [run(d("paymentWording"), { color: paymentColor })],
                 shading: { fill: "0f172a", type: ShadingType.CLEAR },
                 spacing: { after: 120 },
             })

@@ -11,6 +11,7 @@ const NAV = [
   { to: "/console", label: "Today", end: true },
   { to: "/console/ads", label: "Ads", end: false },
   { to: "/console/ask", label: "Ask", end: false },
+  { to: "/console/payments", label: "Payments", end: false },
 ];
 
 export default function ConsoleLayout({ children }: { children: ReactNode }) {

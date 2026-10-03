@@ -57,7 +57,7 @@ test('I-30e: W19 has POST /billing-autorenew with a responder on every branch', 
   assert.equal(hook.parameters.path, 'billing-autorenew');
   assert.equal(hook.parameters.httpMethod, 'POST');
   assert.equal(hook.parameters.responseMode, 'responseNode');
-  assert.equal(hook.parameters.options.allowedOrigins, 'https://app.leadvelocity.co.za');
+  assert.equal(hook.parameters.options.allowedOrigins, "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://app.leadvelocity.co.za' }}", 'I-37b: env-driven');
   assert.deepEqual(next(w, hook.name), ['Autorenew: verify broker JWT + body']);
   assert.deepEqual(next(w, 'Autorenew: verify broker JWT + body'), ['Autorenew: caller ok?']);
   assert.deepEqual(next(w, 'Autorenew: caller ok?', 0), ['Autorenew off as n8n_app + timeline row']);

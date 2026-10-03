@@ -1,6 +1,6 @@
 /* Checkout behaviour. No price is typed here: tiers come from body[data-pricing-json] (W25 fills it
  * from the `pricing` table). The reference comes from ?ref= (issued by W16/W19/console).
- * Paying by Instant EFT or card calls the billing API (n8n W16 "checkout" webhook), which starts a
+ * With Paystack switched on, paying by Instant EFT or card calls the billing API (n8n W16 "checkout" webhook), which starts a
  * Paystack transaction for the invoice and returns Paystack's hosted page URL. Card data never touches this page. */
 (function () {
   'use strict';
@@ -70,10 +70,11 @@
     $('pay-btn').textContent = method === 'manual_eft' ? (changed ? 'Get my new reference' : 'I will pay by EFT') : 'Continue to secure payment';
   }
 
-  [['bank-name', 'data-bank-name'], ['bank-account-name', 'data-bank-account-name'], ['bank-account-number', 'data-bank-account-number'],
-   ['bank-branch-code', 'data-bank-branch-code'], ['bank-account-type', 'data-bank-account-type']].forEach(function (p) {
-    var v = body.getAttribute(p[1]); text(p[0], placeholder(v) ? 'On your invoice' : v);
-  });
+  // NH-61: Paystack options (Instant EFT, card) are shown only when the deploy sets PAYSTACK_ENABLED=true. Unset, or the
+  // placeholder left unfilled, means off: manual EFT only. No bank details are rendered here; they are on the invoice.
+  var paystackOn = body.getAttribute('data-paystack-enabled') === 'true';
+  Array.prototype.forEach.call(document.querySelectorAll('.needs-paystack'), function (el) { el.hidden = !paystackOn; });
+  if (!paystackOn) { var mm = $('m-manual'); if (mm) mm.checked = true; }
 
   $('copy-ref').addEventListener('click', function () {
     var done = function () { text('copy-status', 'Reference copied. Paste it in the reference field of your payment.'); };

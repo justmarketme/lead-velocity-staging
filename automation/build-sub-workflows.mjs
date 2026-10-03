@@ -226,7 +226,33 @@ RETURNING proposal_id::text AS proposal_id;`,
   return b.done();
 }
 
-const BUILDERS = { 'SUB-whatsapp-send.json': whatsappSend, 'SUB-capi-send.json': capiSend, 'SUB-w26-runner.json': w26Runner, 'SUB-ads-budget.json': adsBudget };
+// ---------------------------------------------------------------- smc-visit-beacon (I-32b)
+export function visitBeacon() {
+  const b = wfBuilder('smc-visit-beacon', 'Visit beacon (first-party page-view counters, I-32b)');
+  const WH = b.add({ name: 'POST /beacon (landing page sendBeacon)', type: 'n8n-nodes-base.webhook', typeVersion: 2, webhookId: 'smc-visit-beacon', parameters: { httpMethod: 'POST', path: 'beacon', authentication: 'none', responseMode: 'responseNode', options: { rawBody: false } } });
+  const N = b.add(code('Validate, DNT, rate limit, count', "// No IP, UA, referrer or session id leaves this node. The session id keys an in-memory 60-s rate window only.\nconst L = require('lv-automation').subVisitBeacon;\nconst it = $input.first().json;\nconst ev = L.normalise({ body: it.body, headers: it.headers || {}, env: $env });\nif (!ev.ok) return { json: { accept: false, reason: ev.reason } };\nconst sd = $getWorkflowStaticData('global');\nconst r = L.rateLimit(sd.rate, ev.sid, Date.now());\nsd.rate = r.state;\nif (!r.allowed) return { json: { accept: false, reason: r.reason } };\nreturn { json: { accept: true, inc: L.increment(ev, Date.now(), $env.BRAND_ID) } };"));
+  const R = b.add({ name: 'Respond 204', type: 'n8n-nodes-base.respondToWebhook', typeVersion: 1.1, parameters: { respondWith: 'noData', options: { responseCode: 204 } } });
+  const OK = b.add(iff('Counted?', '$json.accept === true'));
+  const U = b.add(pg('Upsert ops.page_day counters (no raw event stored)',
+`INSERT INTO ops.page_day (day, brand_id, page_path, visits, quiz_starts, quiz_steps, source)
+VALUES ($1::date, $2::uuid, $3, $4::int, CASE WHEN $5::int > 0 THEN $5::int END,
+        CASE WHEN $6 = '' THEN NULL ELSE jsonb_build_object($6::text, jsonb_build_object('views', 1, 'abandons', 0)) END, 'first_party_beacon')
+ON CONFLICT (day, brand_id, page_path) DO UPDATE SET
+  visits = ops.page_day.visits + EXCLUDED.visits,
+  quiz_starts = CASE WHEN $5::int > 0 OR ops.page_day.quiz_starts IS NOT NULL THEN COALESCE(ops.page_day.quiz_starts, 0) + $5::int END,
+  quiz_steps = CASE WHEN $6 = '' THEN ops.page_day.quiz_steps
+                    ELSE jsonb_set(COALESCE(ops.page_day.quiz_steps, '{}'::jsonb), ARRAY[$6::text],
+                         jsonb_build_object('views', COALESCE((ops.page_day.quiz_steps -> $6 ->> 'views')::int, 0) + 1,
+                                            'abandons', COALESCE((ops.page_day.quiz_steps -> $6 ->> 'abandons')::int, 0))) END,
+  source = COALESCE(ops.page_day.source, EXCLUDED.source)
+RETURNING visits;`,
+    "={{ [ $json.inc.day, $json.inc.brand_id, $json.inc.page_path, $json.inc.visits, $json.inc.quiz_starts, $json.inc.step_key ] }}"));
+  b.chain(WH, N, R, OK); b.link(OK, U, 0);
+  b.add(sticky('Note: smc-visit-beacon (I-32b)', '## smc-visit-beacon\nPOST `<api_base>/beacon`, text/plain JSON `{ v:1, sid, a, e:view|step, s? }` from landing `page.js` (`navigator.sendBeacon`, no cookies). Always answers 204. DNT / Sec-GPC and rate-limited (20 per session, 1,200 total per minute) beacons are dropped. Writes daily counters only to `ops.page_day` (`visits`, `quiz_starts`, `quiz_steps.sN.views`). No IP, user agent, referrer or session id is stored. Needs `BRAND_ID` (uuid); optional `BEACON_ANGLE_SLUGS`, `PUBLIC_ALLOWED_ORIGINS`. Not a lead event: no Pixel, no CAPI, no send.', [0, 0]));
+  return b.done();
+}
+
+const BUILDERS = { 'SUB-whatsapp-send.json': whatsappSend, 'SUB-capi-send.json': capiSend, 'SUB-w26-runner.json': w26Runner, 'SUB-ads-budget.json': adsBudget, 'SUB-visit-beacon.json': visitBeacon };
 export { BUILDERS };
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   for (const [f, fn] of Object.entries(BUILDERS)) { write(f, fn()); console.log('wrote', f); }

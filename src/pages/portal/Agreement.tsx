@@ -7,7 +7,7 @@
  */
 import { useEffect, useState } from "react";
 import PortalShell, { StepClip, usePortal } from "./PortalShell";
-import { CHECKOUT_URL, CLIPS_BASE, errText, fmtDay, fmtDayTime, fmtZar, portalEvent, postWebhook, sha256Hex, smcDb } from "@/lib/smc";
+import { CHECKOUT_URL, CLIPS_BASE, PAYSTACK_ENABLED, errText, fmtDay, fmtDayTime, fmtZar, portalEvent, postWebhook, sha256Hex, smcDb } from "@/lib/smc";
 import type { SmcAdminDocument, SmcAgreementAcceptances, SmcCycle, SmcInvoice, SmcPricing, SmcSignDocumentArgs } from "@/integrations/supabase/smc-types";
 
 const DOC_BUCKET = "admin-documents"; // INV-08; must be private (NH-15 S3)
@@ -191,12 +191,12 @@ function Body() {
             </tbody></table>
           </>
         )}
-        <h3 style={{ marginTop: 12 }}>Next cycle: pick how you want to pay</h3>
-        <p className="muted" style={{ margin: "0 0 8px" }}>Same price. No lock-in. You pick again each cycle. We show the renewal offer 7 days before your cycle ends. Your next cycle starts when you pay.</p>
-        <a className="btn" href={payUrl("instant_eft")}>Pay by Instant EFT (recommended)</a>
-        <a className="btn ghost" href={payUrl("manual_eft")}>Pay by EFT with a reference (no fee)</a>
-        <a className="btn ghost" href={payUrl("card_autorenew")}>Pay by card and renew automatically (optional)</a>
-        <p className="hint">Card renewal is a choice, not a requirement.</p>
+        <h3 style={{ marginTop: 12 }}>{PAYSTACK_ENABLED ? "Next cycle: pick how you want to pay" : "Next cycle: payment by EFT, in advance"}</h3>
+        <p className="muted" style={{ margin: "0 0 8px" }}>Same price. No lock-in. Payment is by EFT, in advance, per 30-day cycle. The payment details are on your invoice. We show the renewal offer 7 days before your cycle ends. Your next cycle starts when you pay.</p>
+        {PAYSTACK_ENABLED && <a className="btn" href={payUrl("instant_eft")}>Pay by Instant EFT (recommended)</a>}
+        <a className={PAYSTACK_ENABLED ? "btn ghost" : "btn"} href={payUrl("manual_eft")}>Pay by EFT with a reference (no fee)</a>
+        {PAYSTACK_ENABLED && <a className="btn ghost" href={payUrl("card_autorenew")}>Pay by card and renew automatically (optional)</a>}
+        {PAYSTACK_ENABLED && <p className="hint">Card renewal is a choice, not a requirement.</p>}
         {broker.card_autorenew && (
           <div className="row" style={{ marginTop: 8 }}><span className="pill ok">Renew by card each cycle: On</span><button className="tap g" type="button" onClick={autorenewOff}>Switch off</button></div>
         )}
@@ -205,7 +205,7 @@ function Body() {
             <h3 style={{ marginTop: 12 }}>Change tier for the next cycle</h3>
             <div className="row">
               {tiers.filter((t) => t.tier_code !== (cur?.tier_code || broker.tier_code)).map((t) => (
-                <a key={t.tier_code} className="tap g" href={payUrl("instant_eft", t.tier_code)}>Move to {t.name}: {t.committed_leads} leads, {fmtZar(t.price_zar)}{vatLine(t)}</a>
+                <a key={t.tier_code} className="tap g" href={payUrl(PAYSTACK_ENABLED ? "instant_eft" : "manual_eft", t.tier_code)}>Move to {t.name}: {t.committed_leads} leads, {fmtZar(t.price_zar)}{vatLine(t)}</a>
               ))}
             </div>
           </>

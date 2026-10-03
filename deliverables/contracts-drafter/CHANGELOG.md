@@ -67,3 +67,7 @@ All documents are **DRAFT — for practitioner review**. Markdown only; PDF rend
 - §1.6: the same sentence added to both Click-to-WhatsApp consent messages.
 - Processor table: Meta row now names the unhashed IP address / browser type and the adviser's 1–5 rating sent for measurement.
 - `SUMMARY.md` for this folder was not written by the drafter (its write was refused by the harness); the orchestrator's session report carries the summary.
+
+## 2026-10-03 — billing-automation, NH-61 (wording only)
+- `broker-services-agreement.md` clause 4.4 and Schedule A "Payment", and `term-sheet-mark.md` "How to pay": now "payment by EFT, in advance, per 30-day cycle; payment details and the reference are on your invoice". No bank account details anywhere. Instant EFT and card are no longer promised at launch (card renewal stays opt-in only if it is ever offered).
+- `needs-human.md` NH-CD-06 notes the supersession. No clause numbers changed.

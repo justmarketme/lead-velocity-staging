@@ -47,11 +47,13 @@ async function newPage(opts: { js?: boolean } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, javaScriptEnabled: opts.js !== false, reducedMotion: 'reduce' });
   const page = await ctx.newPage();
   const calls: { method: string; url: string; body: any; token?: string }[] = [];
+  const beacons: any[] = []; /* I-32b: first-party visit beacons are kept apart from the lead-path calls */
   const state = { bookCount: 0, bookFirst409: true, bookSeq: [] as number[], methods: ['teams', 'phone'] as string[], slots: slotsFor(7) as any[] };
   await page.addInitScript(STUB);
   await page.route('**/connect.facebook.net/**', (r: any) => r.abort());
   await page.route(`${API}/**`, async (route: any) => {
     const req = route.request(); const u = new URL(req.url());
+    if (u.pathname.endsWith('/beacon')) { let b: any = null; try { b = JSON.parse(req.postData() || ''); } catch { b = req.postData(); } beacons.push({ method: req.method(), body: b, ct: req.headers()['content-type'], cookie: req.headers()['cookie'] }); return route.fulfill({ status: 204 }); }
     let body: any = null; try { body = req.postDataJSON(); } catch { body = req.postData(); }
     calls.push({ method: req.method(), url: u.pathname + u.search, body, token: req.headers()['x-lead-token'] });
     const json = (status: number, o: any) => route.fulfill({ status, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(o) });
@@ -67,7 +69,7 @@ async function newPage(opts: { js?: boolean } = {}) {
     }
     return json(404, {});
   });
-  return { ctx, page, calls, state };
+  return { ctx, page, calls, state, beacons };
 }
 const tap = async (page: any, name: string, value: string) => { await page.locator(`input[name="${name}"][value="${value}"]`).click(); };
 async function quiz(page: any, a: Record<string, string>) {
@@ -335,7 +337,7 @@ test('no-JS: capture step is a real POST form with every field named', async () 
 test('layout rules: no horizontal scroll, 44px targets, no third-party requests, one CTA wording, no nav, no phone number', async () => {
   const { ctx, page } = await newPage();
   const reqs: string[] = [];
-  page.on('request', (r: any) => { const u = new URL(r.url()); if (!u.hostname.match(/^(127\.0\.0\.1|REPLACE-N8N-HOST|sortmycover\.co\.za)$/)) reqs.push(u.hostname); });
+  page.on('request', (r: any) => { const u = new URL(r.url()); if (!u.hostname.match(/^(127\.0\.0\.1|REPLACE-N8N-HOST|sortmycover\.co\.za)$/i)) reqs.push(u.hostname); });
   await page.goto(PAGE());
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
   const small = await page.evaluate(() => Array.from(document.querySelectorAll('.opt,.btn,.slot,.method,.link,input:not([type=hidden]):not([type=radio]),summary,footer a')).filter((e: any) => e.offsetParent !== null && !e.closest('.hp')).map((e: any) => { const r = e.getBoundingClientRect(); return { cls: e.className || e.tagName, w: r.width, h: r.height }; }).filter((r) => r.h < 44 || r.w < 44));
@@ -346,4 +348,47 @@ test('layout rules: no horizontal scroll, 44px targets, no third-party requests,
   assert.equal(await page.locator('nav:not(footer nav)').count(), 0, 'no nav above the footer');
   assert.equal(await page.locator('a[href^="tel:"]').count(), 0, 'no phone number');
   await ctx.close();
+});
+
+/* ---------- I-32b: first-party visit beacon ---------- */
+test('I-32b beacon: view on load, step 1 on first tap, then steps reached; payload is anonymous and cookie-less', async () => {
+  const { ctx, page, beacons, calls } = await newPage();
+  await page.goto(PAGE('new-bond'));
+  await page.waitForTimeout(150);
+  assert.equal(beacons.length, 1);
+  assert.deepEqual(Object.keys(beacons[0].body).sort(), ['a', 'e', 'sid', 'v']);
+  assert.equal(beacons[0].body.v, 1); assert.equal(beacons[0].body.a, 'new-bond'); assert.equal(beacons[0].body.e, 'view');
+  assert.match(beacons[0].body.sid, /^[A-Za-z0-9-]{8,64}$/);
+  assert.match(beacons[0].ct, /^text\/plain/); /* simple request: no CORS preflight */
+  assert.ok(!beacons[0].cookie, 'no cookie sent');
+  await tap(page, 'age_band', '35_44'); await page.locator('.q.on[data-step="2"]').waitFor();
+  await tap(page, 'bond', 'yes'); await page.locator('.q.on[data-step="3"]').waitFor();
+  await page.waitForTimeout(150);
+  const steps = beacons.filter((b) => b.body.e === 'step').map((b) => b.body.s);
+  assert.deepEqual(steps, [1, 2, 3]);
+  assert.equal(new Set(beacons.map((b) => b.body.sid)).size, 1, 'one anonymous session id');
+  const raw = JSON.stringify(beacons.map((b) => b.body));
+  assert.doesNotMatch(raw, /35_44|"yes"|name|phone|email|mobile/i, 'no answers or contact data');
+  assert.equal(calls.length, 0, 'the beacon is not a lead-path call');
+  const store = await page.evaluate(() => ({ s: Object.keys(sessionStorage), l: Object.keys(localStorage), c: document.cookie }));
+  assert.ok(store.s.includes('smc_sid')); assert.ok(!store.l.includes('smc_sid')); assert.equal(store.c, '');
+  /* going back does not count a step twice */
+  await page.locator('.q.on [data-back]').click(); await page.locator('.q.on[data-step="2"]').waitFor();
+  await tap(page, 'bond', 'yes'); await page.locator('.q.on[data-step="3"]').waitFor(); await page.waitForTimeout(100);
+  assert.equal(beacons.filter((b) => b.body.e === 'step' && b.body.s === 3).length, 1);
+  await ctx.close();
+});
+
+test('I-32b beacon: Do Not Track, Global Privacy Control and the smc_ads_off opt-out send nothing', async () => {
+  for (const mode of ['dnt', 'gpc', 'optout']) {
+    const { ctx, page, beacons } = await newPage();
+    if (mode === 'dnt') await page.addInitScript(() => Object.defineProperty(navigator, 'doNotTrack', { get: () => '1' }));
+    if (mode === 'gpc') await page.addInitScript(() => Object.defineProperty(navigator, 'globalPrivacyControl', { get: () => true }));
+    if (mode === 'optout') await page.addInitScript(() => localStorage.setItem('smc_ads_off', '1'));
+    await page.goto(PAGE());
+    await tap(page, 'age_band', '35_44'); await page.locator('.q.on[data-step="2"]').waitFor();
+    await page.waitForTimeout(200);
+    assert.equal(beacons.length, 0, `${mode}: no beacon`);
+    await ctx.close();
+  }
 });

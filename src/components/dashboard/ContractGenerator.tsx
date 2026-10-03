@@ -121,10 +121,8 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
         serviceFee: "R8,500 (p/m)",
         leadTarget: "± 17 Qualified Leads per Month",
         commissionText: "",
-        bankName: "First National Bank",
-        accountHolder: "Lead Velocity",
-        accountNumber: "63174286724",
-        branchCode: "250655",
+        // NH-61: no bank account details in the build; the invoice carries them.
+        paymentWording: "Payment by EFT, in advance, per 30-day cycle. Account details are on your invoice.",
         title: "Service Level Agreement",
         subtitle: "Bronze: Growth Starter",
         scopeText: "Lead Velocity shall provide qualified lead tokens as specified in the selected tier. Allocation is paid monthly in advance. Additional leads can be Top-Ups (min 5 tokens) at R500 each.",
@@ -1112,13 +1110,8 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                         </section>
 
                                         <section className="bg-slate-900 text-white p-6 rounded-xl">
-                                            <h3 className="font-bold mb-2">Payment Details</h3>
-                                            <div className="grid grid-cols-2 gap-4 text-sm">
-                                                <div><span className="text-slate-400">Bank:</span> <Editable tag="span" className="font-bold" value={contractData.bankName} onChange={(val) => updateField('bankName', val)} /></div>
-                                                <div><span className="text-slate-400">Account Holder:</span> <Editable tag="span" className="font-bold" value={contractData.accountHolder} onChange={(val) => updateField('accountHolder', val)} /></div>
-                                                <div><span className="text-slate-400">Account #:</span> <Editable tag="span" className="font-bold" value={contractData.accountNumber} onChange={(val) => updateField('accountNumber', val)} /></div>
-                                                <div><span className="text-slate-400">Branch Code:</span> <Editable tag="span" className="font-bold" value={contractData.branchCode} onChange={(val) => updateField('branchCode', val)} /></div>
-                                            </div>
+                                            <h3 className="font-bold mb-2">Payment</h3>
+                                            <Editable tag="p" className="text-sm" value={contractData.paymentWording} onChange={(val) => updateField('paymentWording', val)} />
                                         </section>
 
                                         <section className="grid grid-cols-2 gap-12 pt-8 mt-8 border-t-2">
