@@ -78,17 +78,22 @@ test('backup: encryption round trip (selftest) and fail-closed without config', 
   assert.match(c, /--consent/);
 });
 
-test('Code-node runtime (I-35b/I-36e): repo mounted read-only at /repo, same builtins in local and VPS compose, no external modules', () => {
+test('Code-node runtime (I-35b/I-36e/I-46d): repo mounted read-only at /repo, same builtins in local and VPS compose, only lv-automation external', () => {
   const base = readFileSync(join(A, 'docker-compose.yml'), 'utf8');
   const vps = readFileSync(join(A, 'vps/traefik/docker-compose.traefik.yml'), 'utf8');
   assert.match(base, /^\s+- \.\.:\/repo:ro$/m, 'repo root mounted read-only');
   for (const y of [base, vps]) {
     assert.match(y, /^\s+REPO_DIR: \/repo$/m);
     assert.match(y, /^\s+NODE_FUNCTION_ALLOW_BUILTIN: crypto,dns,url,fs,path$/m);
-    assert.match(y, /^\s+NODE_FUNCTION_ALLOW_EXTERNAL: ""$/m);
+    assert.match(y, /^\s+NODE_FUNCTION_ALLOW_EXTERNAL: lv-automation$/m, 'the one allowed module is the repo loader (automation/index.cjs)');
+    assert.ok(y.includes('ln -sfn /repo/automation /home/node/.node_modules/lv-automation'), 'entrypoint links the loader from the repo mount');
   }
   const s = readFileSync(join(A, 'vps/provision.sh'), 'utf8');
   assert.match(s, /SHIP_DIRS=\(automation conversation knowledge/, 'step 4 ships what the mount needs');
+  assert.match(s, /SHIP_DIRS=\([^)]*\blanding\/config\b[^)]*\bdata\b/, 'step 4 ships landing/config (w01 consent) and data (w04 holidays), reached through index.cjs');
+  const s7 = s.slice(s.indexOf('s7() {'), s.indexOf('\n}', s.indexOf('s7() {')));
+  assert.ok(s7.indexOf('check-credentials.mjs') > s7.lastIndexOf('pg_restore') && s7.indexOf('$DC start n8n') > s7.indexOf('check-credentials.mjs'),
+    'step 7 (I-44f): restore, then verify every referenced credential exists, then start n8n (activation)');
   assert.match(s, /ANALYTICS_DB_URL\|/, 'step 5 strips the DDL URL from the VPS .env');
 });
 

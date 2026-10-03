@@ -75,10 +75,12 @@ s3() { # docker compose down every compose project except lv (volumes kept), fre
     for c in $(docker ps --format "{{.ID}} {{.Ports}}" | grep -E ":(80|443)->" | grep -v -- "-lv-\|lv-traefik" | cut -d" " -f1); do docker stop "$c"; done'
 }
 # 4. Ship code (no git credentials on the VPS: tar of committed HEAD over SSH)
-# Runtime dirs only: n8n mounts $REMOTE_DIR read-only at /repo (REPO_DIR) and Code nodes import()/read from these
-# (I-35b): conversation/ (guardrail, lines, logic, prompts), knowledge/ (FAQ), community/, billing/ (checkout page),
-# analytics/ (step 12 SQL). supabase/ is shipped for the migration files only; the VPS never holds a service-role key.
-SHIP_DIRS=(automation conversation knowledge community billing analytics supabase/migrations)
+# Runtime dirs only: n8n mounts $REMOTE_DIR read-only at /repo (REPO_DIR) and Code nodes require('lv-automation')
+# (= /repo/automation/index.cjs via the compose link step, I-46d) or read from these (I-35b): conversation/ (guardrail,
+# lines, logic, pulse), knowledge/ (FAQ), community/, billing/ (checkout page), analytics/ (step 12 SQL),
+# landing/config/ (consent.json, read by lib/w01.mjs), data/ (za-public-holidays.json, read by W04 via index.cjs).
+# supabase/ is shipped for the migration files only; the VPS never holds a service-role key.
+SHIP_DIRS=(automation conversation knowledge community billing analytics landing/config data supabase/migrations)
 s4() { # git archive HEAD of the runtime dirs | ssh tar -x into /opt/lead-velocity (mounted read-only into n8n at /repo)
   remote "mkdir -p $REMOTE_DIR"
   local present=(); for p in "${SHIP_DIRS[@]}"; do git -C "$REPO" cat-file -e "HEAD:$p" 2>/dev/null && present+=("$p"); done
@@ -100,7 +102,7 @@ s6() { # docker compose up -d (pinned images), wait for n8n /healthz on the VPS 
   poll 300 remote 'curl -fsS http://127.0.0.1:5678/healthz'
 }
 # 7. Restore n8n state (workflows, credentials encrypted by the same N8N_ENCRYPTION_KEY, users, API keys)
-s7() { # stream local n8n DB (or a decrypted backup) into the VPS n8n Postgres; guarded against overwriting production
+s7() { # stream local n8n DB (or a decrypted backup) into the VPS n8n Postgres, guarded against overwriting production; then check every credential the W*.json reference exists (name + type) BEFORE n8n starts and activates workflows
   if [[ -z "$FORCE7" ]] && remote 'test -f /var/lib/lv/provision/07.done'; then say "already restored once; skipping (use --force-n8n-restore)"; return 0; fi
   remote "$DC stop n8n"
   if [[ -n "${N8N_BACKUP_FILE:-}" ]]; then
@@ -110,6 +112,10 @@ s7() { # stream local n8n DB (or a decrypted backup) into the VPS n8n Postgres; 
     "${LOCAL_DC[@]}" exec -T postgres sh -c 'pg_dump --format=custom -U "$POSTGRES_USER" "$POSTGRES_DB"' \
       | remote "$DC exec -T postgres sh -c 'pg_restore --clean --if-exists --no-owner -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\"'"
   fi
+  # I-44f: one missing credential blocks a whole workflow at activation. Names + types only (never the data column);
+  # n8n stays stopped on a miss, so nothing half-activates. Fix in the laptop n8n UI (CREDENTIALS.md), then --from 7 (no 07.done marker was written).
+  remote "$DC exec -T postgres sh -c 'psql -At -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -c \"select name || chr(9) || type from credentials_entity\"'" \
+    | node "$REPO/automation/vps/check-credentials.mjs"
   remote "$DC start n8n"
   poll 180 remote 'curl -fsS http://127.0.0.1:5678/healthz'
 }

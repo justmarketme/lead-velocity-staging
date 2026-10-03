@@ -47,14 +47,22 @@ services:
       EXECUTIONS_DATA_PRUNE: "true"
       EXECUTIONS_DATA_MAX_AGE: 168
       EXECUTIONS_DATA_PRUNE_MAX_COUNT: 5000
-      # Same three values as automation/docker-compose.yml (I-35b / I-36e); repeated so an overlay edit cannot narrow them.
+      # Same values as automation/docker-compose.yml (I-35b / I-36e / I-46d); repeated so an overlay edit cannot narrow them.
       REPO_DIR: /repo
       AUTOMATION_DIR: /repo/automation
       NODE_FUNCTION_ALLOW_BUILTIN: crypto,dns,url,fs,path
-      NODE_FUNCTION_ALLOW_EXTERNAL: ""
+      NODE_FUNCTION_ALLOW_EXTERNAL: lv-automation
       N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
       GENERIC_TIMEZONE: Africa/Johannesburg
       TZ: Africa/Johannesburg
+    # lv-automation link step (I-46d), identical to automation/docker-compose.yml; repeated so the overlay cannot drop it.
+    # /repo here is /opt/lead-velocity (provision.sh step 4), mounted read-only by the base file.
+    init: true
+    entrypoint:
+      - /bin/sh
+      - -c
+      - mkdir -p /home/node/.node_modules && ln -sfn /repo/automation /home/node/.node_modules/lv-automation && exec /docker-entrypoint.sh "$$@"
+      - lv-link
     labels:
       - traefik.enable=true
       - traefik.http.services.n8n.loadbalancer.server.port=5678
