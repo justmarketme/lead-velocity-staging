@@ -99,7 +99,7 @@ EMQ: you only read it. No email is ever sent to Meta, so EMQ may read lower than
 |---|---|
 | `automation/templates/submit.sh --submit --only reminder_24h` (then `reminder_2h`, `missed_you`, `booking_confirmed`) | Day-0 core items that are clear now |
 | `--submit --only broker_intro_booked` / `broker_intro_slots` | Only after: intro-card PNG shows **FSP 00000 (SAMPLE)** (confirmed in review 5) **and** your NH-19a answer on the AI sentence (default if silent: yes, added first) |
-| `automation/templates/submit.sh --submit` | Everything else (lead-facing 13 → broker 24 → ops 7) once the PNG and video sample checks pass; `unbooked_nudge_2h`/`_72h` go with the **new** text |
+| `automation/templates/submit.sh --submit` | Everything else (lead-facing 14 → broker 26 → ops 7) once the PNG and video sample checks pass; `unbooked_nudge_2h`/`_72h` go with the **new** text |
 | Category: accept what Meta decides | Logged by the agent; never a reason to stop the build |
 
 `.env` used: `WABA_ID`, `META_SYSTEM_USER_TOKEN`, `META_APP_ID`, `META_GRAPH_VERSION`.

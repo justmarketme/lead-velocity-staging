@@ -1,7 +1,7 @@
 # SortMyCover: WhatsApp template submission and Flow publish runbook
 
 Owner: meta-operator. Revised 2026-10-02 (rev 2). Gates: **GATE-TEMPLATES ★** (Jonathan submits) and **GATE-FLOW-PUBLISH ★** (Jonathan taps publish).
-Inputs: `automation/templates/*.json` (**52** bodies, all `category: UTILITY`, `language: en`), `automation/templates/README.md` (index), `automation/templates/submit.sh`, `automation/templates/samples/`, `automation/flows/*`, `deliverables/compliance-qa/phase4-review-4.md`, `build/gates-batch.md` (GATE-TEMPLATES, NH-19, NH-38, NH-45), MASTER-PROMPT 0.3 #1 and #3, 4.6, W28.
+Inputs: `automation/templates/*.json` (**55** bodies, all `category: UTILITY`, `language: en`), `automation/templates/README.md` (index), `automation/templates/submit.sh`, `automation/templates/samples/`, `automation/flows/*`, `deliverables/compliance-qa/phase4-review-4.md`, `build/gates-batch.md` (GATE-TEMPLATES, NH-19, NH-38, NH-45), MASTER-PROMPT 0.3 #1 and #3, 4.6, W28.
 Status: **nothing submitted. No WABA exists yet (GATE-WABA).** This file is a runbook only; the agent never submits.
 One-page click list for Jonathan: `jonathan-clicks.md` (gate T and gate F).
 
@@ -15,8 +15,8 @@ One-page click list for Jonathan: `jonathan-clicks.md` (gate T and gate F).
 |---|---|---|
 | 1 | WABA and the primary number exist | `setup-checklist.md` G4 done; display name submitted (pending is fine) |
 | 2 | `.env` names present (script route) | `WABA_ID`, `META_SYSTEM_USER_TOKEN`, `META_APP_ID`, `META_GRAPH_VERSION`. Check names only (`grep -c '^WABA_ID=' .env`), never print values |
-| 3 | Generator checks clean | `node automation/templates/check.mjs`: **52 templates, 0 errors** (review-4 ran it at 50; the two counts differ because 2 were added after that review). Button-count notes are expected |
-| 4 | Dry run clean | `automation/templates/submit.sh` (dry run is the default): `count=52`; no `FAIL ... resolve error`; `DRYRUN_HANDLE_FOR_intro_card_sample.png` on the IMAGE templates; the two `_v2` show `SKIP ... flow id not set` |
+| 3 | Generator checks clean | `node automation/templates/check.mjs`: **55 templates, 0 errors** (review-4 ran it at 50; 5 were added after that review, the last two being I-49d `broker_cycle_ended` and `broker_come_back`). Button-count notes are expected |
+| 4 | Dry run clean | `automation/templates/submit.sh` (dry run is the default): `count=55`; no `FAIL ... resolve error`; `DRYRUN_HANDLE_FOR_intro_card_sample.png` on the IMAGE templates; the two `_v2` show `SKIP ... flow id not set` |
 | 5 | **Sample FSP rule (below) holds on every sample Meta will see** | Body examples and header media both. **Currently FAILS for the image header: see §1a** |
 | 6 | **NH-19a answered** (AI sentence in `broker_intro_*`) | See §1b. Until then hold the three `broker_intro_*` templates only |
 | 7 | **The two re-worded nudges carry the new text** | See §1c. `cat automation/templates/samples/unbooked_nudge_2h.txt` and `..._72h.txt` match the JSON (check.mjs fails if not) |
@@ -53,7 +53,7 @@ Same variables and buttons as before, so W08 needs no code change. The submitted
 
 ---
 
-## 2. Day-0 submission order (all 52, grouped)
+## 2. Day-0 submission order (all 55, grouped)
 
 `submit.sh` already holds this order (CORE, then REST in the order below). Batches are logged separately in §5.
 
@@ -70,13 +70,13 @@ Same variables and buttons as before, so W08 needs no code change. The submitted
 
 Run the go items one by one: `automation/templates/submit.sh --submit --only reminder_24h` (then `reminder_2h`, `missed_you`, `booking_confirmed`). Run `--submit --core` only when all six are clear; the duplicates already submitted are rejected by Meta and skipped (idempotent).
 
-### Batch 2: lead-facing (13). Every one ends "Reply STOP to opt out."
+### Batch 2: lead-facing (14). Every one ends "Reply STOP to opt out."
 
-`reminder_10m` · `what_to_expect` (URL button, §1 #8; review sample `samples/what_to_expect.txt`) · `reschedule_offer` · `attended_thanks` · `prep_nudge` · `intro_media` (VIDEO, §1a video check) · `intro_media_voice` · **`unbooked_nudge_2h` (new text, §1c)** · `unbooked_nudge_24h` (VIDEO, §1a video check) · `unbooked_nudge_24h_text` · **`unbooked_nudge_72h` (new text, §1c)** · `reach_check` · `lead_pulse`
+`reminder_10m` · `what_to_expect` (URL button, §1 #8; review sample `samples/what_to_expect.txt`) · `reschedule_offer` · `attended_thanks` · `prep_nudge` · `intro_media` (VIDEO, §1a video check) · `intro_media_voice` · **`unbooked_nudge_2h` (new text, §1c)** · `unbooked_nudge_24h` (VIDEO, §1a video check) · `unbooked_nudge_24h_text` · **`unbooked_nudge_72h` (new text, §1c)** · `reach_check` · `lead_pulse` · `invite_email_bounced`
 
-### Batch 3: broker (24). First name + initial only for leads; no STOP line
+### Batch 3: broker (26). First name + initial only for leads; no STOP line
 
-Delivery and feedback (16): `broker_new_booking` · `broker_outcome_check` · `broker_disposition` (6 buttons, out-of-window fallback only; if Meta rejects the button count, drop it, W12 uses the in-window list) · `broker_quality` · `broker_feedback_thanks` · `broker_fit_followup` · `broker_daily_digest` · `precall_brief` · `broker_weekly` · `broker_weekly_noask` · `broker_midcycle` · `broker_cycle_end` · `broker_renewal_reminder` · **`broker_booking_changed`** (new) · **`broker_autorenew_off`** (new) · **`broker_dsr_erase`** (new)
+Delivery and feedback (18): `broker_new_booking` · `broker_outcome_check` · `broker_disposition` (6 buttons, out-of-window fallback only; if Meta rejects the button count, drop it, W12 uses the in-window list) · `broker_quality` · `broker_feedback_thanks` · `broker_fit_followup` · `broker_daily_digest` · `precall_brief` · `broker_weekly` · `broker_weekly_noask` · `broker_midcycle` · `broker_cycle_end` · `broker_renewal_reminder` · **`broker_booking_changed`** (new) · **`broker_autorenew_off`** (new) · **`broker_dsr_erase`** (new) · **`broker_cycle_ended`** (new, I-49d) · **`broker_come_back`** (new, I-49d)
 
 Onboarding (8): `broker_onb_welcome` · `broker_onb_next` · `broker_onb_calendar_ok` · `broker_onb_ready` · `broker_onb_nudge_24h` · `broker_onb_nudge_72h` · `broker_onb_issue` · `broker_onb_live`
 
@@ -88,9 +88,9 @@ Onboarding (8): `broker_onb_welcome` · `broker_onb_next` · `broker_onb_calenda
 
 `broker_intro_slots_v2` (IMAGE: same §1a PNG and §1b NH-19a holds apply) · `reschedule_offer_v2`. `submit.sh` skips both while `BOOKING_FLOW_ID` / `RESCHEDULE_FLOW_ID` are unset.
 
-**Count check:** 6 + 13 + 24 + 7 + 2 = **52** = the README index = `submit.sh` CORE + REST.
+**Count check:** 6 + 14 + 26 + 7 + 2 = **55** = the README index = `submit.sh` CORE + REST.
 
-**Review samples (text)** for the reviewer notes field, never uploaded: `samples/{broker_booking_changed, broker_autorenew_off, broker_dsr_erase, ops_action_confirmed, unbooked_nudge_2h, unbooked_nudge_72h, what_to_expect}.txt`.
+**Review samples (text)** for the reviewer notes field, never uploaded: `samples/{broker_booking_changed, broker_autorenew_off, broker_dsr_erase, broker_cycle_ended, broker_come_back, ops_action_confirmed, unbooked_nudge_2h, unbooked_nudge_72h, what_to_expect}.txt`.
 
 ---
 

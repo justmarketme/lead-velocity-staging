@@ -1,0 +1,7 @@
+broker_cycle_ended (UTILITY, en)
+
+[header] Your cycle has ended
+Hi Mark, your SortMyCover cycle was not renewed because the card payment was declined. It ended on Fri 13 Nov, so lead routing is paused for now, and the leads you already received stay yours. To start again, pay any time with reference *LV-1042-B-202611*, or update your card under Manage billing. Manual EFT has no fees if you use the reference exactly. No lock-in: if you would rather stop here, there is nothing you need to do.
+[footer] SortMyCover by Lead Velocity
+[button] Pay now -> https://app.leadvelocity.co.za/billing/checkout/?ref=LV-1042-B-202611
+[button] Manage billing -> https://app.leadvelocity.co.za/s/billing

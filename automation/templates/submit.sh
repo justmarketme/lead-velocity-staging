@@ -60,7 +60,7 @@ REST=(
   unbooked_nudge_2h unbooked_nudge_24h unbooked_nudge_24h_text unbooked_nudge_72h reach_check lead_pulse invite_email_bounced
   broker_new_booking broker_outcome_check broker_disposition broker_quality broker_feedback_thanks broker_fit_followup
   broker_daily_digest precall_brief broker_weekly broker_weekly_noask broker_midcycle broker_cycle_end broker_renewal_reminder
-  broker_booking_changed broker_autorenew_off broker_dsr_erase
+  broker_booking_changed broker_autorenew_off broker_dsr_erase broker_cycle_ended broker_come_back
   broker_onb_welcome broker_onb_next broker_onb_calendar_ok broker_onb_ready broker_onb_nudge_24h broker_onb_nudge_72h
   broker_onb_issue broker_onb_live
   ops_pulse ops_pulse_quiet ops_action ops_action_confirmed ops_alert ops_weekly ops_gate
