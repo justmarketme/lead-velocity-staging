@@ -129,9 +129,13 @@ SELECT br.id AS brand_uuid,
   n.push(code('Guard (w01.guard) + Lookup needed?', pos(6, 0), prelude('w01.mjs') +
 `const s = $('Screen passed?').first().json;
 const ctx = $('Context: counters, prior lead, suppression, brokers').first().json;
-const ran = $('Turnstile check needed? (page, secret set, not a test hook)').first().json && $input.first().json && $input.first().json.success !== undefined;
+// I-53l: never read the IF node here. When it takes its false branch (no secret / test hook / not the page) its
+// output 0 is empty, so reading that IF node's first() item gave undefined and .json threw (500 on every page lead).
+// The same condition is recomputed from the Screen item; when it holds, this node's input is the siteverify reply.
+const needed = s.from === 'page' && !!$env.TURNSTILE_SECRET_KEY && !s.test_hooks;
 const allowed = String($env.PUBLIC_ALLOWED_ORIGINS || '').split(',').map((x) => x.replace(/^https?:\\/\\//, '').trim()).filter(Boolean);
-const turnstile = s.from !== 'page' || !$env.TURNSTILE_SECRET_KEY || s.test_hooks ? { skipped: true } : L.turnstileVerdict(ran ? $input.first().json : null, { allowed_hosts: allowed, action: 'lead' });
+const tin = needed ? ($input.first() || {}).json : null;
+const turnstile = !needed ? { skipped: true } : L.turnstileVerdict(tin && tin.success !== undefined ? tin : null, { allowed_hosts: allowed, action: 'lead' });
 const g = L.guard(s.scr, { channel: s.sub.channel, ip_hits: ctx.ip_hits, number_hits: ctx.number_hits, turnstile, test_hooks: s.test_hooks,
   limits: { ip: Number($env.RATE_LIMIT_PER_IP_PER_HOUR) || L.IP_LIMIT_PER_HOUR, number: Number($env.RATE_LIMIT_PER_NUMBER_PER_DAY) || L.NUMBER_LIMIT_PER_DAY }, fail_mode: $env.TURNSTILE_FAIL_MODE || 'open' });
 const need_lookup = g.ok && !s.lookup_override && $env.TWILIO_LOOKUP_ENABLED === 'true' && L.lookupNeeded(ctx.prior, s.now);
@@ -423,7 +427,7 @@ return c ? [{ json: { l: j.l, booking_id: j.l.booking.id, template: c.template, 
   INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id,
                                      lead_id, broker_id, author, workflow, template_name, template_category, metadata)
   SELECT $1::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, 'template:booking_confirmed', 'sent', $3, $4::uuid, $5::uuid, 'system', 'W06',
-         'booking_confirmed', 'UTILITY', jsonb_build_object('booking_id', $6::text, 'dry_run', $3 LIKE 'dry:%')
+         'booking_confirmed', 'utility', jsonb_build_object('booking_id', $6::text, 'dry_run', $3 LIKE 'dry:%')
    WHERE $3 <> ''
   ON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING
   RETURNING id)
@@ -468,7 +472,7 @@ return [{ json: { ...p, wamid, comm, upd, sms, slow: upd ? !upd.within_60s : fal
   INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id,
                                      lead_id, broker_id, author, workflow, template_name, template_category, latency_ms, failed_reason, metadata)
   SELECT $1::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, $3, CASE WHEN $4 <> '' THEN 'sent' ELSE 'failed' END, NULLIF($4, ''),
-         $5::uuid, $6::uuid, 'system', 'W06', $7, 'UTILITY', $8::int, NULLIF($9, ''), $10::jsonb
+         $5::uuid, $6::uuid, 'system', 'W06', $7, 'utility', $8::int, NULLIF($9, ''), $10::jsonb
   ON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING
   RETURNING id),
 u AS (

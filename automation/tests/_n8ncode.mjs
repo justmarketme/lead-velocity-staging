@@ -15,6 +15,25 @@ const LV_INDEX = join(REPO, 'automation', 'index.cjs');
 export const nodeRequire = (id) => (id === 'lv-automation' ? require(LV_INDEX) : require(id));
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
 
+/** Marker for refs: that node ran but its output 0 is empty (an IF that took its false branch). */
+export const NOT_RUN = Symbol('n8n-output0-empty');
+
+/**
+ * Evaluates an IF node (v2, one string-equals condition as the generators emit) for one item: true -> output 0,
+ * false -> output 1. Lets a test walk the real node sequence and pass NOT_RUN for the IF when it went false.
+ */
+export function ifBranch(wf, name, { json = {}, env = {}, refs = {} } = {}) {
+  const n = wf.nodes.find((x) => x.name === name);
+  if (!n || n.type !== 'n8n-nodes-base.if') throw new Error(`no IF node "${name}"`);
+  const conds = n.parameters.conditions.conditions;
+  const $ = (k) => { const r = refs[k]; if (r === undefined) throw new Error(`$('${k}') not provided to the test`); return { item: { json: r }, first: () => ({ json: r }), all: () => [{ json: r }] }; };
+  return conds.every((c) => {
+    const m = /^=\{\{([\s\S]*)\}\}$/.exec(String(c.leftValue).trim());
+    const v = m ? new Function('$json', '$env', '$', `return (${m[1]});`)(json, env, $) : c.leftValue;
+    return String(v) === String(c.rightValue);
+  });
+}
+
 export const codeNode = (wf, name) => {
   const n = wf.nodes.find((x) => x.name === name);
   if (!n || n.type !== 'n8n-nodes-base.code') throw new Error(`no Code node "${name}"`);
@@ -28,6 +47,9 @@ export async function runCode(wf, name, { json = {}, items, env = {}, refs = {} 
   const $ = (k) => {
     if (!(k in refs)) throw new Error(`$('${k}') not provided to the test`);
     const r = refs[k];
+    // I-53l: an IF/Switch node whose output 0 stayed empty (it took another branch) -> n8n's $('<IF>').first() is
+    // undefined and .item has no paired data. Tests pass NOT_RUN for such a node so the real failure reproduces.
+    if (r === NOT_RUN) return { get item() { throw new Error(`Paired item data for '${k}' unavailable (output 0 empty)`); }, first: () => undefined, itemMatching: () => undefined, all: () => [] };
     // .all(): every item of that node (refs value is the json of its single item, as for .item / .first()).
     return { item: { json: r }, first: () => ({ json: r }), itemMatching: () => ({ json: r }), all: () => [{ json: r }] };
   };

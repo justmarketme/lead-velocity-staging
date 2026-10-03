@@ -332,3 +332,33 @@ test('F9 (REHEARSAL-L01 execs 42-50) time-shifted schedule (x-test-now): what_to
   const prod = (await runCode(WF, 'Plan (w09.planFromRow)', { json: planRow(fx), refs: { 'Classify + validate (w09.classifyOp)': c09({ synthetic_only: false }) } })).json;
   assert.deepEqual(prod.rows.map((r) => ({ touch: r.touch, at: r.at })), fx.expected.W09.schedule);
 });
+
+// I-53k: W05 forwards the test clock it captured (x-test-now on a synthetic lead) to W09 schedule, so what_to_expect
+// (T0+10 min) is planned from the shifted booking time, not the wall-clock appointments.booked_at.
+test('I-53k: W05 finish -> W09 schedule carries {now, is_synthetic} on a shifted clock; Classify + Plan put what_to_expect at shifted T0+10 min', async () => {
+  const W5 = await import('../lib/w05.mjs');
+  const fx = lead('L01');
+  const shifted = ms(fx.booking_request.requested_at);
+  const wall = Date.parse('2026-10-03T08:00:00+02:00');
+  const ctx = { lane: 'http', req: { lead_id: fx.lead_id }, lead: { id: fx.lead_id, phone: '+27600000001', first_name: 'Lerato', language: 'en', is_synthetic: true }, broker: B, now: shifted, test_clock: true };
+  const p = { method: 'phone', start: fx.booking_request.slot_start, booked_via: 'page' };
+  const booking = { id: 'bkg_L01', broker_id: B.broker_id, method: 'phone', booked_at: new Date(wall).toISOString(), appointment_date: fx.booking_request.slot_start, ends_at: iso(ms(fx.booking_request.slot_start) + 30 * MIN) };
+  const f = W5.finish(ctx, p, booking, { ok: true, graph_event_id: 'AAMk1' });
+  assert.equal(f.w09.op, 'schedule');
+  assert.equal(f.w09.is_synthetic, true);
+  assert.equal(ms(f.w09.now), shifted);
+  // production: no test clock -> nothing extra forwarded
+  const prod = W5.finish({ ...ctx, test_clock: false }, p, booking, { ok: true, graph_event_id: 'AAMk1' });
+  assert.equal(prod.w09.now, undefined); assert.equal(prod.w09.is_synthetic, undefined);
+  // W09 Classify (the real node) with TEST_HOOKS_ENABLED honours it; Plan then anchors T0 on the shifted clock.
+  const env = { TEST_HOOKS_ENABLED: 'true' };
+  const c = (await runCode(WF, 'Classify + validate (w09.classifyOp)', { json: { kind: 'w09', ...f.w09 }, env })).json;
+  assert.equal(c.op, 'schedule'); assert.equal(c.synthetic_only, true); assert.equal(ms(c.now_iso), shifted);
+  const out = (await runCode(WF, 'Plan (w09.planFromRow)', { json: planRow(fx, { booked_at: booking.booked_at }), refs: { 'Classify + validate (w09.classifyOp)': c } })).json;
+  const wte = out.rows.find((r) => r.touch === 'what_to_expect');
+  assert.ok(wte, 'what_to_expect planned');
+  assert.equal(ms(wte.at) >= shifted + 10 * MIN && ms(wte.at) < ms(fx.booking_request.slot_start), true, wte.at);
+  // and the W05 Decide node really sets ctx.test_clock from the same clock
+  const W05WF = JSON.parse(readFileSync(new URL('../W05.json', import.meta.url), 'utf8'));
+  assert.match(W05WF.nodes.find((n) => n.name === 'Decide (w05.decide + MX)').parameters.jsCode, /test_clock: now !== wall/);
+});

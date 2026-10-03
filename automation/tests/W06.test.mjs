@@ -391,3 +391,17 @@ test('F4 (REHEARSAL-L01 exec 21/40) DRY_RUN_SENDS: the dry branch of both "Send 
     assert.match(q, /NOT LIKE 'dry:%'/, `${name}: last_contact_at guarded for dry ids`);
   }
 });
+
+// Round 3 F12 (REHEARSAL-L01): communications_smc_checks allows template_category utility | marketing |
+// authentication | service (lower case). W06's dry first-touch log wrote 'UTILITY' and every first touch failed at
+// the INSERT on a real database. No workflow SQL may write an upper-case category literal.
+test('F12: no workflow writes an upper-case template_category literal (communications_smc_checks is lower case)', async () => {
+  const { allWorkflows } = await import('./_n8ncode.mjs');
+  const bad = [];
+  for (const { file, wf } of allWorkflows())
+    for (const n of wf.nodes) {
+      const q = n.parameters && n.parameters.query;
+      if (typeof q === 'string' && /'(UTILITY|MARKETING|AUTHENTICATION|SERVICE)'/.test(q) && /communications/.test(q)) bad.push(`${file}: ${n.name}`);
+    }
+  assert.deepEqual(bad, []);
+});

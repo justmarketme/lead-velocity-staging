@@ -19,7 +19,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { FIX, MODE, lead, broker, cycle, clone, ms, iso, D, H, MIN, sha256, online } from './_harness.mjs';
-import { runCode, PG_CRED } from './_n8ncode.mjs';
+import { runCode, PG_CRED, NOT_RUN, ifBranch } from './_n8ncode.mjs';
 import { checkSql, workflowSql } from './_sqlcheck.mjs';
 import * as W01 from '../lib/w01.mjs';
 
@@ -81,11 +81,16 @@ function offlineSystem() {
     };
   }
 
+  const opts_turnstile = () => ({ success: true, hostname: 'sortmycover.co.za', action: 'lead' }); // siteverify reply (offline)
   /** Screen output (or Lead ad output) -> Context -> Guard -> [Twilio Lookup] -> Decide -> Kind -> writes. */
   async function pipeline(s, { env, brand, lookupResponse }) {
     if (!s.scr.ok) return { http: s.http, decision: null };
     const ctx = context(s, brand);
-    const [g] = await runCode(RUN, N.guard, { json: s, env, refs: { [N.screenIf]: s, [N.context]: ctx, [N.turnstileIf]: s } });
+    // Real node sequence (I-53l): the Turnstile IF is evaluated; on its false branch Guard's input is the Context item
+    // and the IF's output 0 is empty (NOT_RUN), exactly as n8n presents it.
+    const tsNeeded = ifBranch(RUN, N.turnstileIf, { json: ctx, env, refs: { [N.screenIf]: s } });
+    const gIn = tsNeeded ? opts_turnstile(s) : ctx;
+    const [g] = await runCode(RUN, N.guard, { json: gIn, items: [gIn], env, refs: { [N.screenIf]: s, [N.context]: ctx, [N.turnstileIf]: tsNeeded ? ctx : NOT_RUN } });
     if (!g.json.g.ok) return { http: g.json.http, decision: null };
     const input = g.json.need_lookup ? lookupResponse ?? { error: { message: 'twilio 503' } } : g.json;
     const [d] = await runCode(RUN, N.decide, { json: input, env, refs: { [N.guardIf]: g.json } });
@@ -699,4 +704,26 @@ test('I-52b fixture lead numbers never collide with the seed (leads +27600000001
     assert.ok(e, `${fx.fixture_id}: has a number`);
     assert.ok(!seedNums.has(e), `${fx.fixture_id}: ${e} collides with the seed`);
   }
+});
+
+// ============================================================================================
+// I-53l: the Guard node on the real page-lead node sequence (Turnstile IF false branch -> output 0 empty).
+// ============================================================================================
+test('I-53l: page lead with no TURNSTILE_SECRET_KEY / test hook: Guard runs with the Turnstile IF output 0 empty (no 500)', async () => {
+  const fx = FIX.leads.find((l) => l.id === 'L01') || FIX.leads[0];
+  const headers = { origin: 'https://sortmycover.co.za', 'x-test-token': TOKEN };
+  for (const env of [ENV, { ...ENV, TEST_HOOKS_ENABLED: 'false' }, { ...ENV, TURNSTILE_SECRET_KEY: 'sk', TEST_HOOKS_ENABLED: 'false' }]) {
+    const [s] = await runCode(RUN, N.screen, { json: { headers, body: fx.submission }, env: { PUBLIC_ALLOWED_ORIGINS: 'https://sortmycover.co.za', ...env } });
+    if (!s.json.scr.ok) continue;
+    const ctx = { brand_uuid: ENV.BRAND_ID, ip_hits: 0, number_hits: 0, prior: null, suppressed: false, brokers: [] };
+    const needed = ifBranch(RUN, N.turnstileIf, { json: ctx, env, refs: { [N.screenIf]: s.json } });
+    assert.equal(needed, !!env.TURNSTILE_SECRET_KEY && !s.json.test_hooks && s.json.from === 'page');
+    const input = needed ? { success: true, hostname: 'sortmycover.co.za', action: 'lead' } : ctx;
+    const [g] = await runCode(RUN, N.guard, { json: input, items: [input], env, refs: { [N.screenIf]: s.json, [N.context]: ctx, [N.turnstileIf]: needed ? ctx : NOT_RUN } });
+    assert.equal(g.json.g.ok, true, JSON.stringify(g.json.g));
+    assert.equal(g.json.g.bot_check, needed ? 'passed' : 'skipped');
+  }
+  // The Guard code must not read the IF at all (its false branch is the common path).
+  const js = RUN.nodes.find((n) => n.name === N.guard).parameters.jsCode;
+  assert.doesNotMatch(js, /\$\('Turnstile check needed\?/);
 });
