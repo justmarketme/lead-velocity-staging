@@ -1,5 +1,5 @@
 // automation/lib/w05.mjs  -  W05 Book (POST /book + sub-calls book / update_method / invite_bounced).
-// Imported by the Code nodes of automation/W05.json (from $env.REPO_DIR, same pattern as W07/W10) and by
+// Imported by the Code nodes of automation/W05.json (require('lv-automation').w05, I-46c) and by
 // automation/tests/W05.test.mjs, so the workflow and its acceptance test run the same code. Pure logic: no network,
 // no database, no DNS, no file reads. Time is passed in (ms). The slot re-check is W04's engine (lib/w04.mjs
 // respond() with op is_free), never a copy.

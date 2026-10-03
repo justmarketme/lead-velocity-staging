@@ -1,4 +1,5 @@
 {
+  "id": "smc-w04",
   "name": "W04 Slots API (DRAFT pending GATE-TEST-W04)",
   "nodes": [
     {
@@ -44,7 +45,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w04.mjs').href);\nconst j = $input.first().json;\nconst h = j.headers || {};\nconst req = L.resolveCaller(h, j.query || {}, $env, Date.now());\nreturn [{ json: { lane: 'http', req, hdr: { 'x-test-token': h['x-test-token'] || '', 'x-test-now': h['x-test-now'] || '' } } }];"
+        "jsCode": "const L = require('lv-automation').w04;\nconst j = $input.first().json;\nconst h = j.headers || {};\nconst req = L.resolveCaller(h, j.query || {}, $env, Date.now());\nreturn [{ json: { lane: 'http', req, hdr: { 'x-test-token': h['x-test-token'] || '', 'x-test-now': h['x-test-now'] || '' } } }];"
       }
     },
     {
@@ -89,7 +90,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w04.mjs').href);\nconst r = $json.req;\nreturn [{ json: { lane: 'http', status: r.status || 401, body: { error: r.error || 'try_again' } } }];"
+        "jsCode": "const L = require('lv-automation').w04;\nconst r = $json.req;\nreturn [{ json: { lane: 'http', status: r.status || 401, body: { error: r.error || 'try_again' } } }];"
       }
     },
     {
@@ -127,7 +128,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w04.mjs').href);\nconst c = $('Resolve caller (lead token | broker JWT)').first().json;\nconst r = $input.first().json;\nreturn [{ json: { lane: 'http', req: c.req, hdr: c.hdr, lead: r.lead || null, broker: r.broker || null, bookings: r.bookings || [] } }];"
+        "jsCode": "const L = require('lv-automation').w04;\nconst c = $('Resolve caller (lead token | broker JWT)').first().json;\nconst r = $input.first().json;\nreturn [{ json: { lane: 'http', req: c.req, hdr: c.hdr, lead: r.lead || null, broker: r.broker || null, bookings: r.bookings || [] } }];"
       }
     },
     {
@@ -154,7 +155,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w04.mjs').href);\nreturn $input.all().map((it) => ({ json: { lane: 'sub', req: L.subcallInput(it.json || {}), raw_delegate: (it.json && it.json.delegate) || null } }));"
+        "jsCode": "const L = require('lv-automation').w04;\nreturn $input.all().map((it) => ({ json: { lane: 'sub', req: L.subcallInput(it.json || {}), raw_delegate: (it.json && it.json.delegate) || null } }));"
       }
     },
     {
@@ -274,7 +275,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w04.mjs').href);\nreturn [{ json: { slots: [], fallback: 'whatsapp', free: false, next_slots: [], error: 'subcall_rejected' } }];"
+        "jsCode": "const L = require('lv-automation').w04;\nreturn [{ json: { slots: [], fallback: 'whatsapp', free: false, next_slots: [], error: 'subcall_rejected' } }];"
       }
     },
     {
@@ -288,7 +289,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w04.mjs').href);\nreturn $input.all().map((it) => ({ json: { op: 'send_list', lead_id: it.json.req.lead_id, reason: it.json.req.reason, delegate: it.json.raw_delegate } }));"
+        "jsCode": "const L = require('lv-automation').w04;\nreturn $input.all().map((it) => ({ json: { op: 'send_list', lead_id: it.json.req.lead_id, reason: it.json.req.reason, delegate: it.json.raw_delegate } }));"
       }
     },
     {
@@ -304,8 +305,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w28",
           "cachedResultName": "W28 Booking Flow endpoint"
         },
         "options": {
@@ -348,7 +349,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w04.mjs').href);\nconst c = $('Normalise sub-call (w04.subcallInput)').first().json;\nconst r = $input.first().json;\nreturn [{ json: { lane: 'sub', req: c.req, hdr: {}, lead: null, broker: r.broker || null, bookings: r.bookings || [] } }];"
+        "jsCode": "const L = require('lv-automation').w04;\nconst c = $('Normalise sub-call (w04.subcallInput)').first().json;\nconst r = $input.first().json;\nreturn [{ json: { lane: 'sub', req: c.req, hdr: {}, lead: null, broker: r.broker || null, bookings: r.bookings || [] } }];"
       }
     },
     {
@@ -362,7 +363,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w04.mjs').href);\nconst x = $input.first().json;\nconst now = L.clockFor(x.hdr || {}, $env, !!(x.lead && x.lead.is_synthetic));\nconst plan = L.planRequest(x);\nconst b = L.brokerConfig(x.broker || {});\nconst gs = plan.next === 'graph' ? L.getScheduleRequest(b, now, { fresh: !!x.req.fresh }) : null;\nconst tk = plan.next === 'graph' ? L.tokenRefreshForm({ clientId: $env.MS_GRAPH_CLIENT_ID, tenant: b.ms_tenant_id || $env.MS_GRAPH_TENANT }) : null;\nconst stale = !b.calendar_status_at || now - Date.parse(b.calendar_status_at) > 86400000;\nreturn [{ json: { ...x, now, plan, gs, tk, stale, token_only: !!plan.token_only, busy: plan.route === 'shared' ? [] : null } }];"
+        "jsCode": "const L = require('lv-automation').w04;\nconst x = $input.first().json;\nconst now = L.clockFor(x.hdr || {}, $env, !!(x.lead && x.lead.is_synthetic));\nconst plan = L.planRequest(x);\nconst b = L.brokerConfig(x.broker || {});\nconst gs = plan.next === 'graph' ? L.getScheduleRequest(b, now, { fresh: !!x.req.fresh }) : null;\nconst tk = plan.next === 'graph' ? L.tokenRefreshForm({ clientId: $env.MS_GRAPH_CLIENT_ID, tenant: b.ms_tenant_id || $env.MS_GRAPH_TENANT }) : null;\nconst stale = !b.calendar_status_at || now - Date.parse(b.calendar_status_at) > 86400000;\nreturn [{ json: { ...x, now, plan, gs, tk, stale, token_only: !!plan.token_only, busy: plan.route === 'shared' ? [] : null } }];"
       }
     },
     {
@@ -458,7 +459,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w04.mjs').href);\nconst x = $input.first().json;\nconst hit = !x.token_only && !x.req.fresh ? L.cacheGet($getWorkflowStaticData('global').w04_busy, L.brokerConfig(x.broker).broker_id, x.now) : null;\nreturn [{ json: { ...x, busy: hit, cached: !!hit } }];"
+        "jsCode": "const L = require('lv-automation').w04;\nconst x = $input.first().json;\nconst hit = !x.token_only && !x.req.fresh ? L.cacheGet($getWorkflowStaticData('global').w04_busy, L.brokerConfig(x.broker).broker_id, x.now) : null;\nreturn [{ json: { ...x, busy: hit, cached: !!hit } }];"
       }
     },
     {
@@ -583,7 +584,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w04.mjs').href);\nconst x = $('Plan (w04.planRequest)').first().json;\nconst tok = L.planToken($input.first().json, x.now);\nreturn [{ json: { ...x, tok } }];"
+        "jsCode": "const L = require('lv-automation').w04;\nconst x = $('Plan (w04.planRequest)').first().json;\nconst tok = L.planToken($input.first().json, x.now);\nreturn [{ json: { ...x, tok } }];"
       }
     },
     {
@@ -652,7 +653,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w04.mjs').href);\nconst x = $('Token plan (w04.planToken)').first().json;\nreturn [{ json: { ...x, busy: null } }];"
+        "jsCode": "const L = require('lv-automation').w04;\nconst x = $('Token plan (w04.planToken)').first().json;\nreturn [{ json: { ...x, busy: null } }];"
       }
     },
     {
@@ -763,7 +764,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w04.mjs').href);\nconst x = $('Token plan (w04.planToken)').first().json;\nconst busy = L.parseGetSchedule($input.first().json);\nconst sd = $getWorkflowStaticData('global'); sd.w04_busy = sd.w04_busy || {};\nif (busy) L.cachePut(sd.w04_busy, L.brokerConfig(x.broker).broker_id, busy, x.now);\nconst { tok, ...rest } = x;\nreturn [{ json: { ...rest, busy } }];"
+        "jsCode": "const L = require('lv-automation').w04;\nconst x = $('Token plan (w04.planToken)').first().json;\nconst busy = L.parseGetSchedule($input.first().json);\nconst sd = $getWorkflowStaticData('global'); sd.w04_busy = sd.w04_busy || {};\nif (busy) L.cachePut(sd.w04_busy, L.brokerConfig(x.broker).broker_id, busy, x.now);\nconst { tok, ...rest } = x;\nreturn [{ json: { ...rest, busy } }];"
       }
     },
     {
@@ -777,7 +778,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w04.mjs').href);\nconst HOL = new Set(JSON.parse(require('fs').readFileSync(REPO + '/data/za-public-holidays.json', 'utf8')).holidays.map((h) => h.date));\nlet x = $input.first().json;\nif (!x.plan) x = $('Token plan (w04.planToken)').first().json;\nlet out;\nif (x.plan.next === 'respond') out = x.plan.result;\nelse if (x.token_only) out = x.tok && x.tok.ok ? { access_token: x.tok.access_token, expires_at: x.tok.expires_at } : { error: 'refresh_failed' };\nelse out = L.respond({ lane: x.lane, req: x.req, broker: x.broker, bookings: x.bookings, busy: x.busy, route: x.plan.route, now: x.now, holidays: HOL });\nreturn [{ json: x.lane === 'http' ? { lane: 'http', status: out.status, body: out.body } : { lane: 'sub', body: out } }];"
+        "jsCode": "const L = require('lv-automation').w04;\nconst HOL = new Set(require('lv-automation').holidays.holidays.map((h) => h.date));\nlet x = $input.first().json;\nif (!x.plan) x = $('Token plan (w04.planToken)').first().json;\nlet out;\nif (x.plan.next === 'respond') out = x.plan.result;\nelse if (x.token_only) out = x.tok && x.tok.ok ? { access_token: x.tok.access_token, expires_at: x.tok.expires_at } : { error: 'refresh_failed' };\nelse out = L.respond({ lane: x.lane, req: x.req, broker: x.broker, bookings: x.bookings, busy: x.busy, route: x.plan.route, now: x.now, holidays: HOL });\nreturn [{ json: x.lane === 'http' ? { lane: 'http', status: out.status, body: out.body } : { lane: 'sub', body: out } }];"
       }
     },
     {
@@ -847,7 +848,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w04.mjs').href);\nreturn [{ json: $input.first().json.body }];"
+        "jsCode": "const L = require('lv-automation').w04;\nreturn [{ json: $input.first().json.body }];"
       }
     }
   ],
@@ -1241,7 +1242,7 @@
     "timezone": "Africa/Johannesburg",
     "saveManualExecutions": false,
     "saveDataSuccessExecution": "none",
-    "errorWorkflow": "W22 Alerts"
+    "errorWorkflow": "smc-w22"
   },
   "pinData": {},
   "tags": [
@@ -1256,6 +1257,6 @@
     }
   ],
   "meta": {
-    "notes": "automation-engineer. W04 slots; logic automation/lib/w04.mjs; tests automation/tests/W04.test.mjs. Callers bind by cachedResultName \"W04 Slots API\": rename (drop the DRAFT suffix) when GATE-TEST-W04 is approved."
+    "notes": "automation-engineer. W04 slots; logic automation/lib/w04.mjs; tests automation/tests/W04.test.mjs. Callers bind by id smc-w04 (name kept as cachedResultName only)."
   }
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Generates automation/W01.json, automation/W06.json and automation/W15.json (DRAFTS pending GATE-TEST-W01/W06/W15).
 // The logic lives in automation/lib/w01.mjs, w06.mjs, w15.mjs (pure, no I/O); every Code node loads it with
-// require('lv-automation/lib/w0x.mjs') (I-44a: one allowlisted package `lv-automation` = automation/, Node require(esm);
+// require('lv-automation').w0x (I-44a/I-46c: n8n's runner allow-lists the exact name `lv-automation` = automation/index.cjs, Node require(esm);
 // n8n needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation), so automation/tests/W01/W06/W15.test.mjs exercise the running code.
 // Every workflow has a stable top-level id (smc-w01 / smc-w06 / smc-w15, I-44b); Execute Workflow nodes and
 // settings.errorWorkflow reference other workflows by that id (smc-wNN), the name is kept as cachedResultName only.
@@ -22,7 +22,7 @@ let seq = 0;
 let col = 0;
 const pos = (x, y) => [x * 220, y * 200];
 const node = (name, type, typeVersion, position, parameters, extra = {}) => ({ id: `n${String(++seq).padStart(2, '0')}`, name, type: `n8n-nodes-base.${type}`, typeVersion, position, parameters, ...extra });
-const prelude = (lib) => `const L = require('lv-automation/lib/${lib}');\n`;
+const prelude = (lib) => `const L = require('lv-automation').${lib.replace(/\.mjs$/, '')};\n`;
 const code = (name, p, jsCode, mode = 'runOnceForAllItems') => node(name, 'code', 2, p, { mode, jsCode });
 const pg = (name, p, query, replacement, extra = {}) => node(name, 'postgres', 2.5, p, { operation: 'executeQuery', query, options: replacement ? { queryReplacement: replacement } : {} }, { credentials: PG, alwaysOutputData: true, ...RETRY, ...extra });
 // Callee name -> stable workflow id (I-44b). "W06 First touch" -> smc-w06; "CAPI Send" (no W number, no file yet) -> smc-capi-send.
@@ -143,7 +143,7 @@ return [{ json: { ...s, ctx, g, need_lookup, http: g.ok ? null : { http_status: 
     options: { timeout: 1500, response: { response: { neverError: true } } },
   }, { credentials: TWILIO, onError: 'continueRegularOutput' }));
   n.push(code('Decide (w01.decide) + lead_token', pos(10, 0), prelude('w01.mjs') +
-`const LT = require('lv-automation/security/lead-token.js');
+`const LT = require('lv-automation').leadToken;
 const s = $('Guard passed?').first().json;
 const resp = s.need_lookup ? $input.first().json : null;
 const line_type = s.lookup_override ? L.lineTypeOf(s.lookup_override) : resp ? L.lineTypeFromLookup(resp) : (s.ctx.prior && s.ctx.prior.line_type) || 'unknown';
@@ -217,7 +217,7 @@ return $input.all().map((i) => { const c = i.json.capi; return { json: { event_n
   // ---- entry 2: POST /lead/skip
   n.push(node('POST /lead/skip (I\'ll pick on WhatsApp)', 'webhook', 2, pos(0, 4), { httpMethod: 'POST', path: 'lead/skip', responseMode: 'responseNode', options: {} }, { webhookId: 'w01-lead-skip' }));
   n.push(code('Verify X-Lead-Token', pos(1, 4),
-`const LT = require('lv-automation/security/lead-token.js');
+`const LT = require('lv-automation').leadToken;
 const h =$input.first().json.headers || {};
 const v = LT.verifyLeadToken(h['x-lead-token'] || '', { secret: $env.LEAD_TOKEN_SECRET, previousSecret: $env.LEAD_TOKEN_SECRET_PREVIOUS || undefined });
 return [{ json: { ok: !!v.ok, lead_id: v.ok ? v.lead_id : null, http: v.ok ? { http_status: 202, body: { ok: true } } : { http_status: 401, body: { error: 'try_again' } } } }];`));
@@ -387,7 +387,7 @@ return [{ json: { ...j, ev, claimed, need_slots, broker_id: j.l.broker_id, limit
   n.push(ifTrue('List card needs slots?', pos(11, 0), '$json.need_slots'));
   n.push(sub('W04 Slots API (list, limit 10)', pos(12, -1), 'W04 Slots API', true, 'Called with { broker_id, limit: 10 }; waits -> { slots: [{start,end}], fallback? }. Same rules as GET /slots.'));
   n.push(code('Plan card (w06.planFirstTouch + toCloudApi)', pos(13, 0), prelude('w06.mjs') +
-`const LT = require('lv-automation/security/lead-token.js');
+`const LT = require('lv-automation').leadToken;
 const j = $('Claimed? -> need W04 slots?').first().json;
 const slots = j.need_slots ? (($input.first().json || {}).slots || []) : [];
 const now = Date.now();
@@ -530,7 +530,7 @@ function buildW15() {
   n.push(node('Called by W07 / console / W34 (STOP or opt-out)', 'executeWorkflowTrigger', 1.1, pos(0, 0), { inputSource: 'passthrough' }));
   n.push(node('POST /sms-inbound (Twilio)', 'webhook', 2, pos(0, 2), { httpMethod: 'POST', path: 'sms-inbound', responseMode: 'responseNode', options: { rawBody: true } }, { webhookId: 'w15-sms-inbound' }));
   n.push(code('Verify Twilio signature', pos(1, 2),
-`const V = require('lv-automation/security/verify-webhooks.js');
+`const V = require('lv-automation').verifyWebhooks;
 const it = $input.first().json; const h = it.headers || {};
 const params = it.body || {};
 const base = String($env.WEBHOOK_URL || '').replace(/\\/$/, '');

@@ -161,6 +161,7 @@ test(`W04 [${MODE}] bookings paused -> no slots; Graph auth error -> fallback "p
 import { readFileSync } from 'node:fs';
 import * as W4 from '../lib/w04.mjs';
 import { checkSql, workflowSql } from './_sqlcheck.mjs';
+import { lvViolations } from './_n8ncode.mjs';
 const WF4 = JSON.parse(readFileSync(new URL('../W04.json', import.meta.url), 'utf8'));
 
 test('W04 lib: calendar route (0.3 #4) + fail-closed is_free + token plan never returns the refresh token', () => {
@@ -184,14 +185,15 @@ test('W04 lib: lead path ignores broker ids, defaults 09-17 / 3 a day when the b
   assert.equal(W4.planRequest({ lane: 'http', req: { mode: 'lead' }, lead: { id: 'l', broker_id: null }, broker: null }).result.body.fallback, 'whatsapp');
 });
 
-test('W04.json: draft name, inactive, one Postgres credential, physical columns only, vault RPC + lib import', () => {
+test('W04.json: draft name, inactive, one Postgres credential, physical columns only, vault RPC + require(\'lv-automation\').w04, id smc-w04', () => {
   assert.equal(WF4.name, 'W04 Slots API (DRAFT pending GATE-TEST-W04)');
   assert.equal(WF4.active, false);
   const pgs = WF4.nodes.filter((n) => n.type === 'n8n-nodes-base.postgres');
   assert.ok(pgs.length > 0 && pgs.every((n) => n.credentials.postgres.name === 'LV Supabase - n8n_app (least privilege)'));
   assert.deepEqual(checkSql(workflowSql(WF4)), []);
   const all = JSON.stringify(WF4);
-  for (const needle of ['smc_vault_ms_refresh', 'smc_set_calendar_status', 'calendar.refresh_failed', "automation/lib/w04.mjs"]) assert.ok(all.includes(needle), needle);
+  for (const needle of ['smc_vault_ms_refresh', 'smc_set_calendar_status', 'calendar.refresh_failed', "require('lv-automation').w04;", "require('lv-automation').holidays"]) assert.ok(all.includes(needle), needle);
+  assert.deepEqual(lvViolations(WF4, 'smc-w04'), [], 'I-46c exact-name require + I-44b ids');
   assert.ok(WF4.nodes.some((n) => n.type === 'n8n-nodes-base.webhook' && n.parameters.path === 'slots' && n.parameters.httpMethod === 'GET'));
   const names = new Set(WF4.nodes.map((n) => n.name));
   for (const [k, v] of Object.entries(WF4.connections)) { assert.ok(names.has(k), k); for (const o of v.main) for (const e of o) assert.ok(names.has(e.node), e.node); }

@@ -60,7 +60,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const V = require('lv-automation/security/verify-webhooks.js');\nconst it = $input.first().json; const h = it.headers || {};\nconst params = it.body || {};\nconst base = String($env.WEBHOOK_URL || '').replace(/\\/$/, '');\nconst ok = !!V.verifyTwilioSignature({ url: base + '/webhook/sms-inbound', params, signatureHeader: h['x-twilio-signature'], authToken: $env.TWILIO_AUTH_TOKEN }).ok;\nreturn [{ json: { ok, item: { source: 'twilio_sms', From: params.From, Body: params.Body } } }];"
+        "jsCode": "const V = require('lv-automation').verifyWebhooks;\nconst it = $input.first().json; const h = it.headers || {};\nconst params = it.body || {};\nconst base = String($env.WEBHOOK_URL || '').replace(/\\/$/, '');\nconst ok = !!V.verifyTwilioSignature({ url: base + '/webhook/sms-inbound', params, signatureHeader: h['x-twilio-signature'], authToken: $env.TWILIO_AUTH_TOKEN }).ok;\nreturn [{ json: { ok, item: { source: 'twilio_sms', From: params.From, Body: params.Body } } }];"
       }
     },
     {
@@ -145,7 +145,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation/lib/w15.mjs');\nreturn $input.all().map((i) => { const e = L.entryFrom(i.json); return { json: { ...e, stop: e.force || L.isStop(e.text), lead_id: e.lead_id || (i.json.lead && i.json.lead.id) || null, now: Date.now() } }; });"
+        "jsCode": "const L = require('lv-automation').w15;\nreturn $input.all().map((i) => { const e = L.entryFrom(i.json); return { json: { ...e, stop: e.force || L.isStop(e.text), lead_id: e.lead_id || (i.json.lead && i.json.lead.id) || null, now: Date.now() } }; });"
       }
     },
     {
@@ -218,7 +218,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation/lib/w15.mjs');\nconst e = $('STOP? (else nothing: W07 owns every other message)').first().json;\nconst ctx = $input.first().json;\nconst language = (ctx.leads || []).map((l) => l.language).find(Boolean) || e.language || 'en';\nconst plan = L.planOptOut({ mobile: e.mobile || ctx.mobile, text: e.text, channel: e.channel, force: e.force, now: e.now, language,\n  leads: ctx.leads || [], bookings: ctx.bookings || [], brokers: ctx.brokers || [], already_suppressed: ctx.already_suppressed, booking_mode: $env.W15_STOP_BOOKING_MODE });\nreturn [{ json: { e, ctx, plan } }];"
+        "jsCode": "const L = require('lv-automation').w15;\nconst e = $('STOP? (else nothing: W07 owns every other message)').first().json;\nconst ctx = $input.first().json;\nconst language = (ctx.leads || []).map((l) => l.language).find(Boolean) || e.language || 'en';\nconst plan = L.planOptOut({ mobile: e.mobile || ctx.mobile, text: e.text, channel: e.channel, force: e.force, now: e.now, language,\n  leads: ctx.leads || [], bookings: ctx.bookings || [], brokers: ctx.brokers || [], already_suppressed: ctx.already_suppressed, booking_mode: $env.W15_STOP_BOOKING_MODE });\nreturn [{ json: { e, ctx, plan } }];"
       }
     },
     {
@@ -302,7 +302,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation/lib/w15.mjs');\nif (!$input.first().json.claimed) return []; // lost a race with a parallel STOP: the winner does everything\nconst p = $('Plan opt-out (w15.planOptOut)').first().json;\nconst out = [];\nfor (const w of p.plan.w09) out.push({ json: { kind: 'w09', ...w } });\nconst brokers = new Map((p.ctx.brokers || []).map((b) => [String(b.id), b]));\nfor (const b of p.plan.booking_cancels) if (b.graph_event_id) out.push({ json: { kind: 'graph_delete', broker_id: b.broker_id, op: 'graph_token', graph_event_id: b.graph_event_id, calendar_email: (brokers.get(String(b.broker_id)) || {}).calendar_email || null } });\nfor (const nt of p.plan.broker_notices) {\n  if (nt.channel === 'email') { if (nt.to) out.push({ json: { kind: 'broker_email', to: nt.to, subject: nt.subject, text: nt.text, lead_id: nt.lead_id } }); continue; }\n  if (!nt.to || nt.mode === 'held_no_template') { out.push({ json: { kind: 'broker_held', lead_id: nt.lead_id, broker_id: nt.broker_id } }); continue; }\n  out.push({ json: { kind: 'broker_wa', lead_id: nt.lead_id, wa: nt.mode === 'session' ? L.waText(nt.to, nt.text) : L.brokerTemplate(nt.to, nt) } });\n}\nconst cf = p.plan.confirmation;\nif (cf) out.push({ json: { kind: cf.channel === 'sms' ? 'confirm_sms' : 'confirm_wa', lead_id: cf.lead_id, wa: L.waText(cf.to, cf.text), sms: { to: cf.to, text: cf.text }, text: cf.text, to: cf.to } });\nreturn out;"
+        "jsCode": "const L = require('lv-automation').w15;\nif (!$input.first().json.claimed) return []; // lost a race with a parallel STOP: the winner does everything\nconst p = $('Plan opt-out (w15.planOptOut)').first().json;\nconst out = [];\nfor (const w of p.plan.w09) out.push({ json: { kind: 'w09', ...w } });\nconst brokers = new Map((p.ctx.brokers || []).map((b) => [String(b.id), b]));\nfor (const b of p.plan.booking_cancels) if (b.graph_event_id) out.push({ json: { kind: 'graph_delete', broker_id: b.broker_id, op: 'graph_token', graph_event_id: b.graph_event_id, calendar_email: (brokers.get(String(b.broker_id)) || {}).calendar_email || null } });\nfor (const nt of p.plan.broker_notices) {\n  if (nt.channel === 'email') { if (nt.to) out.push({ json: { kind: 'broker_email', to: nt.to, subject: nt.subject, text: nt.text, lead_id: nt.lead_id } }); continue; }\n  if (!nt.to || nt.mode === 'held_no_template') { out.push({ json: { kind: 'broker_held', lead_id: nt.lead_id, broker_id: nt.broker_id } }); continue; }\n  out.push({ json: { kind: 'broker_wa', lead_id: nt.lead_id, wa: nt.mode === 'session' ? L.waText(nt.to, nt.text) : L.brokerTemplate(nt.to, nt) } });\n}\nconst cf = p.plan.confirmation;\nif (cf) out.push({ json: { kind: cf.channel === 'sms' ? 'confirm_sms' : 'confirm_wa', lead_id: cf.lead_id, wa: L.waText(cf.to, cf.text), sms: { to: cf.to, text: cf.text }, text: cf.text, to: cf.to } });\nreturn out;"
       }
     },
     {

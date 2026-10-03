@@ -24,14 +24,12 @@ const NOT_YET_COMMITTED = {
   'smc-ads-budget': 'ads budget sub-workflow around automation/ads/meta-ads.js (ads-api-engineer)',
   'smc-whatsapp-send': 'shared template sender sub-workflow (automation-engineer)',
 };
-// Drafts owned by the core-path agent (being edited concurrently). Their failures are reported as TODO, not hidden.
-const CORE_PATH = new Set(['W01', 'W04', 'W05', 'W06', 'W09', 'W12', 'W13', 'W15']);
-const opts = (w) => (CORE_PATH.has(w) ? { todo: `core-path draft ${w}: adopt id ${expectedId(w)} and id references (I-44b)` } : {});
+// The core-path drafts (W01 W04 W05 W06 W09 W12 W13 W15) adopted ids and id references in I-46c: no exemptions remain.
 
 const refsOf = (wf) => wf.nodes.filter((n) => n.type === 'n8n-nodes-base.executeWorkflow').map((n) => ({ node: n.name, p: n.parameters }));
 
 for (const w of Object.keys(WF)) {
-  test(`${w}.json: top-level id ${expectedId(w)}, sub-workflow references by id, errorWorkflow by id`, opts(w), () => {
+  test(`${w}.json: top-level id ${expectedId(w)}, sub-workflow references by id, errorWorkflow by id`, () => {
     const wf = WF[w];
     assert.equal(wf.id, expectedId(w), 'top-level id = smc-<file name>');
     assert.equal(Object.keys(wf)[0], 'id', 'id is the first key (readable diffs, same in every generator)');
@@ -63,9 +61,8 @@ test('every node name is unique within its workflow (n8n import rejects duplicat
   }
 });
 
-test('no placeholder or blank workflow references remain in my workflows', () => {
+test('no placeholder or blank workflow references remain in any workflow', () => {
   for (const [w, wf] of Object.entries(WF)) {
-    if (CORE_PATH.has(w)) continue;
     const text = JSON.stringify(wf);
     assert.ok(!/REPLACE_WITH_\w+_WORKFLOW_ID/.test(text), `${w}: REPLACE_WITH_* placeholder`);
     for (const { node, p } of refsOf(wf)) assert.notEqual(p.workflowId.value, '', `${w} / ${node}: blank workflowId`);

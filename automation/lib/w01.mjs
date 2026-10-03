@@ -1,6 +1,6 @@
 // automation/lib/w01.mjs  -  W01 Lead intake (web) + "W01 Lead core" (the shared tail W02 and W03 call).
 // Owner: automation-engineer. Loaded by the n8n Code nodes in automation/W01.json
-// (require('lv-automation/lib/w01.mjs'), I-44a) and by automation/tests/W01.test.mjs,
+// (require('lv-automation').w01, I-44a/I-46c) and by automation/tests/W01.test.mjs,
 // so the workflow and its acceptance test run the same code. Node 18+, zero dependencies. No network, no database:
 // every input a decision needs (counters, prior lead, suppression, brokers, Lookup result) is passed in by the caller.
 //

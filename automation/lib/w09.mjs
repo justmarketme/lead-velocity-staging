@@ -1,5 +1,5 @@
 // automation/lib/w09.mjs  -  W09 reminder sequence (client). 4.6 item 6 (minimum set), 4.12 (canonical sequence).
-// Imported by automation/W09.json (Code nodes, via $env.REPO_DIR) and automation/tests/W09.test.mjs. Pure, no I/O.
+// Imported by automation/W09.json (Code nodes, require('lv-automation').w09) and automation/tests/W09.test.mjs. Pure, no I/O.
 //
 // The sequence, planned from the booking event (W05 `schedule`, W10/W05 `rebuild`):
 //   T0 + 10 min  what_to_expect

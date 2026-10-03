@@ -1,4 +1,5 @@
 {
+  "id": "smc-w12",
   "name": "W12 Outcome, disposition & feedback (DRAFT pending GATE-TEST-W12)",
   "nodes": [
     {
@@ -13,7 +14,7 @@
       "parameters": {
         "width": 900,
         "height": 380,
-        "content": "W12 Outcome, disposition & feedback (two-sided), 4.6 W12 row + 4.12a + Schedule C/D + 0.1 broker feedback rule. DRAFT pending GATE-TEST-W12.\nLogic: automation/lib/w12.mjs (pure), imported by every Code node from $env.REPO_DIR.\nBroker side: broker_outcome_check at slot end + 15 min (Attended / No-show / Rescheduled), ONE nudge 3 h later. Attended -> one-tap disposition list at once (session; the tap opened his window; 4.12a codes; template broker_disposition only out of window) -> W29 takes the reply, asks quality 1-5 and the optional voice note. Unmarked at 24 h -> attended + auto_marked + unconfirmed (flagged in the console; two in a cycle -> Jonathan calls the broker). W11 keeps its 24-h backstop (ON CONFLICT (booking_id) DO NOTHING on both sides).\nLead side: reach_check at slot end + 30 min. Broker \"No-show\" counts only after the lead stays silent for the 2-h reach window; lead \"No, not yet\" = BROKER no-show (Schedule D: apology, W10 rebook at our cost, KG alerted, never a replacement). Sides disagree -> console queue, nothing guessed.\nWrites: outcomes (one row per booking, first writer wins), appointments.status, leads.stage, lead_activities timeline (w12:mark / w12:reach rows, last tap wins per CONTRACTS). Calls: W29 outcome_recorded (every outcome; pulse/facts, quality index), CAPI Send Attended, W13 no_show (missed_you + 48-h clock), W10 rebook. Voice note (op voice_note): only the WhatsApp media reference is stored (outcomes.voice_note_url = whatsapp-media:{id}).\nEnv: REPO_DIR, DRY_RUN_SENDS, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TEST_HOOKS_ENABLED."
+        "content": "W12 Outcome, disposition & feedback (two-sided), 4.6 W12 row + 4.12a + Schedule C/D + 0.1 broker feedback rule. DRAFT pending GATE-TEST-W12.\nLogic: automation/lib/w12.mjs (pure), loaded by every Code node through the lv-automation loader (index.cjs).\nBroker side: broker_outcome_check at slot end + 15 min (Attended / No-show / Rescheduled), ONE nudge 3 h later. Attended -> one-tap disposition list at once (session; the tap opened his window; 4.12a codes; template broker_disposition only out of window) -> W29 takes the reply, asks quality 1-5 and the optional voice note. Unmarked at 24 h -> attended + auto_marked + unconfirmed (flagged in the console; two in a cycle -> Jonathan calls the broker). W11 keeps its 24-h backstop (ON CONFLICT (booking_id) DO NOTHING on both sides).\nLead side: reach_check at slot end + 30 min. Broker \"No-show\" counts only after the lead stays silent for the 2-h reach window; lead \"No, not yet\" = BROKER no-show (Schedule D: apology, W10 rebook at our cost, KG alerted, never a replacement). Sides disagree -> console queue, nothing guessed.\nWrites: outcomes (one row per booking, first writer wins), appointments.status, leads.stage, lead_activities timeline (w12:mark / w12:reach rows, last tap wins per CONTRACTS). Calls: W29 outcome_recorded (every outcome; pulse/facts, quality index), CAPI Send Attended, W13 no_show (missed_you + 48-h clock), W10 rebook. Voice note (op voice_note): only the WhatsApp media reference is stored (outcomes.voice_note_url = whatsapp-media:{id}).\nNeeds NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation. Env: DRY_RUN_SENDS, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TEST_HOOKS_ENABLED."
       }
     },
     {
@@ -74,7 +75,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w12.mjs').href);\nconst j = $json;\nconst op = L.classifyOp(j);\nconst v = L.validateInput(op, j);\nconst wall = Date.now();\nconst now = L.nowFrom(j, $env, wall);\nconst tap = L.parseTap(j.msg || {});\nreturn { json: { ...j, op: v.ok ? op : 'reject', asked_op: op, missing: v.ok ? [] : v.missing, tap, booking_id: (tap && tap.booking_id) || j.booking_id || null, now_iso: L.iso(now), synthetic_only: now !== wall } };"
+        "jsCode": "const L = require('lv-automation').w12;\nconst j = $json;\nconst op = L.classifyOp(j);\nconst v = L.validateInput(op, j);\nconst wall = Date.now();\nconst now = L.nowFrom(j, $env, wall);\nconst tap = L.parseTap(j.msg || {});\nreturn { json: { ...j, op: v.ok ? op : 'reject', asked_op: op, missing: v.ok ? [] : v.missing, tap, booking_id: (tap && tap.booking_id) || j.booking_id || null, now_iso: L.iso(now), synthetic_only: now !== wall } };"
       }
     },
     {
@@ -333,7 +334,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w12.mjs').href);\nconst c = $('Classify + validate (w12.classifyOp)').first().json;\nconst now = Date.parse(c.now_iso);\nconst out = [];\nfor (const it of $input.all()) if (it.json.booking_id) for (const x of L.sweepItems(it.json, now)) out.push({ json: x });\nreturn out;"
+        "jsCode": "const L = require('lv-automation').w12;\nconst c = $('Classify + validate (w12.classifyOp)').first().json;\nconst now = Date.parse(c.now_iso);\nconst out = [];\nfor (const it of $input.all()) if (it.json.booking_id) for (const x of L.sweepItems(it.json, now)) out.push({ json: x });\nreturn out;"
       }
     },
     {
@@ -546,7 +547,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w12.mjs').href);\nconst out = [];\n$input.all().forEach((it, i) => {\n  // inserted rows carry outcome_id (first writer only); the false branch of the If is the disputed item itself\n  const src = it.json.outcome_id ? $('Write outcome? (not pending, not disputed)').itemMatching(i).json : it.json;\n  for (const x of L.followUps(src.r, src.row, it.json.outcome_id || null)) out.push({ json: x });\n});\nreturn out;"
+        "jsCode": "const L = require('lv-automation').w12;\nconst out = [];\n$input.all().forEach((it, i) => {\n  // inserted rows carry outcome_id (first writer only); the false branch of the If is the disputed item itself\n  const src = it.json.outcome_id ? $('Write outcome? (not pending, not disputed)').itemMatching(i).json : it.json;\n  for (const x of L.followUps(src.r, src.row, it.json.outcome_id || null)) out.push({ json: x });\n});\nreturn out;"
       }
     },
     {
@@ -584,7 +585,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w12.mjs').href);\nconst out = [];\nfor (const it of $input.all()) {\n  const row = it.json; if (!row.outcome_id) continue;\n  const r = L.resolveOutcome({ slotEnd: row.slot_end, brokerMark: null, reach: row.reach === 'yes' ? 'yes' : null, optedOut: Boolean(row.opted_out_at), leadId: row.lead_id }, Date.parse(row.slot_end) + L.AUTO_ATTEND_AFTER_END);\n  for (const x of L.followUps(r, row, row.outcome_id)) out.push({ json: x });\n}\nreturn out;"
+        "jsCode": "const L = require('lv-automation').w12;\nconst out = [];\nfor (const it of $input.all()) {\n  const row = it.json; if (!row.outcome_id) continue;\n  const r = L.resolveOutcome({ slotEnd: row.slot_end, brokerMark: null, reach: row.reach === 'yes' ? 'yes' : null, optedOut: Boolean(row.opted_out_at), leadId: row.lead_id }, Date.parse(row.slot_end) + L.AUTO_ATTEND_AFTER_END);\n  for (const x of L.followUps(r, row, row.outcome_id)) out.push({ json: x });\n}\nreturn out;"
       }
     },
     {
@@ -751,8 +752,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-capi-send",
           "cachedResultName": "CAPI Send"
         },
         "options": {
@@ -773,8 +774,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w29",
           "cachedResultName": "W29 Feedback loop"
         },
         "options": {
@@ -795,8 +796,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w13",
           "cachedResultName": "W13 No-show & replacement"
         },
         "options": {
@@ -817,8 +818,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w10",
           "cachedResultName": "W10 Reschedule / cancel"
         },
         "options": {
@@ -915,7 +916,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w12.mjs').href);\nconst c = $('Classify + validate (w12.classifyOp)').first().json;\nconst out = [];\nfor (const it of $input.all()) {\n  const r = it.json;\n  if (!r.booking_id || r.already_dispositioned) continue;\n  // an Attended tap opened the broker's 24-h window (the list); a portal/console 'feedback' op uses his last inbound\n  const last = c.op === 'broker_tap' ? Date.parse(c.now_iso) : (r.broker_last_inbound_at ? Date.parse(r.broker_last_inbound_at) : NaN);\n  out.push({ json: L.dispositionItem(r, Date.parse(c.now_iso), last) });\n}\nreturn out;"
+        "jsCode": "const L = require('lv-automation').w12;\nconst c = $('Classify + validate (w12.classifyOp)').first().json;\nconst out = [];\nfor (const it of $input.all()) {\n  const r = it.json;\n  if (!r.booking_id || r.already_dispositioned) continue;\n  // an Attended tap opened the broker's 24-h window (the list); a portal/console 'feedback' op uses his last inbound\n  const last = c.op === 'broker_tap' ? Date.parse(c.now_iso) : (r.broker_last_inbound_at ? Date.parse(r.broker_last_inbound_at) : NaN);\n  out.push({ json: L.dispositionItem(r, Date.parse(c.now_iso), last) });\n}\nreturn out;"
       }
     },
     {
@@ -929,7 +930,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w12.mjs').href);\nconst m = $json.msg || { media: 'audio', media_id: $json.media_id };\nconst ref = L.voiceNoteRef(m);\nreturn { json: { ...$json, ref, from: (m && m.from) || $json.from || null } };"
+        "jsCode": "const L = require('lv-automation').w12;\nconst m = $json.msg || { media: 'audio', media_id: $json.media_id };\nconst ref = L.voiceNoteRef(m);\nreturn { json: { ...$json, ref, from: (m && m.from) || $json.from || null } };"
       }
     },
     {
@@ -1572,7 +1573,7 @@
     "executionOrder": "v1",
     "timezone": "Africa/Johannesburg",
     "saveManualExecutions": true,
-    "errorWorkflow": "W22 Alerts"
+    "errorWorkflow": "smc-w22"
   },
   "pinData": {},
   "tags": [

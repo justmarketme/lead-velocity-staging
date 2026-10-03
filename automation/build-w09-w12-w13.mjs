@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 // Generates automation/W09.json, automation/W12.json and automation/W13.json (DRAFTS pending GATE-TEST-W09/W12/W13).
-// The logic lives in automation/lib/w09.mjs, w12.mjs, w13.mjs (pure, no I/O); every Code node imports it from
-// $env.REPO_DIR exactly like W07/W08/W10, so automation/tests/W09/W12/W13.test.mjs exercise the running code.
+// The logic lives in automation/lib/w09.mjs, w12.mjs, w13.mjs (pure, no I/O); every Code node loads it with
+// require('lv-automation').w09 / .w12 / .w13 (I-46c: n8n's runner allow-lists the exact name `lv-automation` =
+// automation/index.cjs; NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation), so automation/tests/W09/W12/W13.test.mjs exercise
+// the running code. Every workflow has a stable top-level id (smc-w09 / smc-w12 / smc-w13, I-44b); Execute Workflow
+// nodes and settings.errorWorkflow reference other workflows by id (smc-wNN), the name is kept as cachedResultName.
 //   node automation/build-w09-w12-w13.mjs
 // Credentials by name only (id ''), every secret via $env, workflows inactive, sends behind DRY_RUN_SENDS.
 // Zero dependencies.
@@ -12,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const PG_CRED = 'LV Supabase - n8n_app (least privilege)';
 const PG = { postgres: { id: '', name: PG_CRED } };
-const SETTINGS = { executionOrder: 'v1', timezone: 'Africa/Johannesburg', saveManualExecutions: true, errorWorkflow: 'W22 Alerts' };
+const SETTINGS = { executionOrder: 'v1', timezone: 'Africa/Johannesburg', saveManualExecutions: true, errorWorkflow: 'smc-w22' };
 
 let seq = 0;
 let NODES = [];
@@ -22,7 +25,9 @@ const add = (x) => { NODES.push(x); return x.name; };
 const node = (name, type, typeVersion, pos, parameters, extra = {}) => add({ id: `n${String(++seq).padStart(2, '0')}`, name, type: `n8n-nodes-base.${type}`, typeVersion, position: P(...pos), parameters, ...extra });
 const code = (name, pos, jsCode, mode = 'runOnceForEachItem') => node(name, 'code', 2, pos, { mode, jsCode });
 const pg = (name, pos, query, replacement, extra = {}) => node(name, 'postgres', 2.5, pos, { operation: 'executeQuery', query, options: replacement ? { queryReplacement: replacement } : {} }, { credentials: PG, alwaysOutputData: false, ...extra });
-const sub = (name, pos, target, wait = false) => node(name, 'executeWorkflow', 1.1, pos, { source: 'database', workflowId: { __rl: true, mode: 'list', value: '', cachedResultName: target }, options: { waitForSubWorkflow: wait } });
+// Callee name -> stable workflow id (I-44b). "W04 Slots API" -> smc-w04; "CAPI Send" (no W number) -> smc-capi-send.
+const workflowIdOf = (target) => { const m = /^W(\d\d)\b/.exec(target); return m ? `smc-w${m[1]}` : `smc-${target.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`; };
+const sub = (name, pos, target, wait = false) => node(name, 'executeWorkflow', 1.1, pos, { source: 'database', workflowId: { __rl: true, mode: 'id', value: workflowIdOf(target), cachedResultName: target }, options: { waitForSubWorkflow: wait } });
 const trigger = (name, pos) => node(name, 'executeWorkflowTrigger', 1.1, pos, { inputSource: 'passthrough' });
 const cron = (name, pos, expression) => node(name, 'scheduleTrigger', 1.2, pos, { rule: { interval: [{ field: 'cronExpression', expression }] } });
 const sticky = (content) => node('Sticky: read me', 'stickyNote', 1, [0, -2], { width: 900, height: 380, content });
@@ -36,7 +41,7 @@ const link = (from, to, out = 0) => {
   while (CONN[from].main.length <= out) CONN[from].main.push([]);
   CONN[from].main[out].push({ node: to, type: 'main', index: 0 });
 };
-const IMPORT = (mod) => `const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/${mod}.mjs').href);\n`;
+const IMPORT = (mod) => `const L = require('lv-automation').${mod};\n`;
 const ACTIVITY_COLS = 'lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key';
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -89,8 +94,8 @@ SELECT x.lead_id, x.brand_id, x.broker_id, NULL, '${wf}', 'system', 'subcall_rej
  WHERE x.lead_id IS NOT NULL OR x.broker_id IS NOT NULL;`,
   `={{ [${idExpr}.lead_id || null, ${idExpr}.booking_id || null, JSON.stringify({ missing: $json.missing, asked_op: $json.asked_op || null, source: $json.source || null })] }}`);
 
-const finish = (name, notes, tags) => {
-  const wf = { name, nodes: NODES, connections: CONN, active: false, settings: SETTINGS, pinData: {}, tags: tags.map((t) => ({ name: t })), meta: { notes } };
+const finish = (id, name, notes, tags) => {
+  const wf = { id, name, nodes: NODES, connections: CONN, active: false, settings: SETTINGS, pinData: {}, tags: tags.map((t) => ({ name: t })), meta: { notes } };
   NODES = []; CONN = {}; seq = 0;
   return wf;
 };
@@ -98,10 +103,10 @@ const finish = (name, notes, tags) => {
 // =============================================================================================================== W09
 function buildW09() {
   sticky('W09 Reminder sequence (client), 4.6 item 6 + 4.12. DRAFT pending GATE-TEST-W09 (nodes stay "in progress" until Jonathan approves automation/tests/W09.test.mjs).\n' +
-    'Logic: automation/lib/w09.mjs (pure), imported by every Code node from $env.REPO_DIR. Jobs are lead_activities rows (activity_type reminder_job, idempotency_key w09:{booking}:{touch}:{at}); a job is finished by ONE append-only reminder_done row (key w09done:{job key}: sent / skipped / cancelled), so each touch is sent at most once even if two ticks overlap (ON CONFLICT DO NOTHING is the claim; no retry storm).\n' +
+    'Logic: automation/lib/w09.mjs (pure), loaded by every Code node through the lv-automation loader (index.cjs). Jobs are lead_activities rows (activity_type reminder_job, idempotency_key w09:{booking}:{touch}:{at}); a job is finished by ONE append-only reminder_done row (key w09done:{job key}: sent / skipped / cancelled), so each touch is sent at most once even if two ticks overlap (ON CONFLICT DO NOTHING is the claim; no retry storm).\n' +
     'Entries (CONTRACTS.md "Sub-workflow interfaces"): schedule {booking_id} (W05) · rebuild {booking_id} (W10, W05 previous_booking_id) · cancel_all {booking_id|lead_id} (W10, W13, W15) · pause {lead_id, reason} (W07, W15) · resume {lead_id} (console) · taps confirm:{bk} / play_voice_note:{bk} / looking_forward:{bk} (W07) · tick (every 5 min; staging test hook passes {op:"tick", now, is_synthetic:true}, honoured only with TEST_HOOKS_ENABLED=true and only for synthetic leads).\n' +
     'Sequence: what_to_expect T0+10 min · intro_media(_voice) T-48 h if booked >= 3 days out else T0+15 min (once per lead) · reminder_24h + prep_nudge T-24 h (skipped < 24 h ahead) · reminder_2h · reminder_10m. Quiet hours 20:00-08:00 SAST (reminder_10m exempt). Stops at send time on STOP, suppression, pause, booking moved/not live, meeting started, 12-message budget (reminders are essential).\n' +
-    'Every lead send Meta accepts touches leads.last_contact_at (I-38d). Env: REPO_DIR, DRY_RUN_SENDS, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TEST_HOOKS_ENABLED.');
+    'Every lead send Meta accepts touches leads.last_contact_at (I-38d). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation. Env: DRY_RUN_SENDS, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TEST_HOOKS_ENABLED.');
 
   const tSub = trigger('Called by W05 / W07 / W10 / W13 / W15 / console', [0, 0]);
   const tCron = cron('Every 5 minutes (due reminders)', [0, 1], '*/5 * * * *');
@@ -307,7 +312,7 @@ VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W09', 'lead', $5, jsonb_build_o
   const live = sendChain('W09', 10, 4);
   link(pass, live); link(confirmReply, live); link(hasVoice, live, 0);
 
-  return finish('W09 Reminder sequence (DRAFT pending GATE-TEST-W09)',
+  return finish('smc-w09', 'W09 Reminder sequence (DRAFT pending GATE-TEST-W09)',
     'automation-engineer. W09 reminder sequence (4.6 item 6, 4.12); logic automation/lib/w09.mjs; tests automation/tests/W09.test.mjs (GATE-TEST-W09). Generated by automation/build-w09-w12-w13.mjs.',
     ['reminders', 'whatsapp', 'draft']);
 }
@@ -315,11 +320,11 @@ VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W09', 'lead', $5, jsonb_build_o
 // =============================================================================================================== W12
 function buildW12() {
   sticky('W12 Outcome, disposition & feedback (two-sided), 4.6 W12 row + 4.12a + Schedule C/D + 0.1 broker feedback rule. DRAFT pending GATE-TEST-W12.\n' +
-    'Logic: automation/lib/w12.mjs (pure), imported by every Code node from $env.REPO_DIR.\n' +
+    'Logic: automation/lib/w12.mjs (pure), loaded by every Code node through the lv-automation loader (index.cjs).\n' +
     'Broker side: broker_outcome_check at slot end + 15 min (Attended / No-show / Rescheduled), ONE nudge 3 h later. Attended -> one-tap disposition list at once (session; the tap opened his window; 4.12a codes; template broker_disposition only out of window) -> W29 takes the reply, asks quality 1-5 and the optional voice note. Unmarked at 24 h -> attended + auto_marked + unconfirmed (flagged in the console; two in a cycle -> Jonathan calls the broker). W11 keeps its 24-h backstop (ON CONFLICT (booking_id) DO NOTHING on both sides).\n' +
     'Lead side: reach_check at slot end + 30 min. Broker "No-show" counts only after the lead stays silent for the 2-h reach window; lead "No, not yet" = BROKER no-show (Schedule D: apology, W10 rebook at our cost, KG alerted, never a replacement). Sides disagree -> console queue, nothing guessed.\n' +
     'Writes: outcomes (one row per booking, first writer wins), appointments.status, leads.stage, lead_activities timeline (w12:mark / w12:reach rows, last tap wins per CONTRACTS). Calls: W29 outcome_recorded (every outcome; pulse/facts, quality index), CAPI Send Attended, W13 no_show (missed_you + 48-h clock), W10 rebook. Voice note (op voice_note): only the WhatsApp media reference is stored (outcomes.voice_note_url = whatsapp-media:{id}).\n' +
-    'Env: REPO_DIR, DRY_RUN_SENDS, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TEST_HOOKS_ENABLED.');
+    'Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation. Env: DRY_RUN_SENDS, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TEST_HOOKS_ENABLED.');
 
   const tSub = trigger('Called by W07 / W11 / portal', [0, 0]);
   const tCron = cron('Every 5 minutes (post-call sweep)', [0, 1], '*/5 * * * *');
@@ -529,7 +534,7 @@ RETURNING o.id, o.lead_id;`,
   const live = sendChain('W12', 13, 0);
   link(claimedItem, live); link(fuSw, live, 0);
 
-  return finish('W12 Outcome, disposition & feedback (DRAFT pending GATE-TEST-W12)',
+  return finish('smc-w12', 'W12 Outcome, disposition & feedback (DRAFT pending GATE-TEST-W12)',
     'automation-engineer. W12 outcome, disposition & feedback, two-sided (4.6, 4.12a, Schedule C/D); logic automation/lib/w12.mjs; tests automation/tests/W12.test.mjs (GATE-TEST-W12). Generated by automation/build-w09-w12-w13.mjs.',
     ['outcomes', 'whatsapp', 'draft']);
 }
@@ -537,11 +542,11 @@ RETURNING o.id, o.lead_id;`,
 // =============================================================================================================== W13
 function buildW13() {
   sticky('W13 No-show & replacement, 0.1 (per-cycle cap, "committed", shortfall) + 4.6 item 11 + 4.12a + Schedule C (C1A from W10) / D. DRAFT pending GATE-TEST-W13.\n' +
-    'Logic: automation/lib/w13.mjs (pure), imported by every Code node from $env.REPO_DIR.\n' +
+    'Logic: automation/lib/w13.mjs (pure), loaded by every Code node through the lv-automation loader (index.cjs).\n' +
     'ONE counter, ONE writer: public.replacements. Rows not "rejected" count against cycles.replacement_cap (snapshotted from pricing.replacement_cap_cycle: Bronze 4 / Silver 6 / Gold 9, no weekly cap). W10 (C1A claims), W29 (unreachable / nofit_criteria, withdraw on correction) and W12 (lead no-show) all CALL this workflow; none of them writes replacements. Claims are serialised per cycle with pg_advisory_xact_lock and counted after the lock; the smc_replacements_cap trigger stamps cap_position / over_cap; one replacement per lead (replacements_one_per_lead + a withdrawn claim frees the lead).\n' +
     'No-show: W12 confirms it (both sides) -> missed_you with 3 new times (ONE offer) -> 48 h without a rebook or a reply -> replacement_due (second no-show: at once) -> 48-h dispute window -> approved. Never for a broker no-show, never for "didn\'t buy". Over the cap -> claim recorded as rejected (cap_reached), Jonathan alerted; the committed number is unchanged.\n' +
     'Shortfall / extension / pro-rata credit are W19\'s: W13 only emits lead_activities replacement_approved rows (key w13:approved:{id}).\n' +
-    'Env: REPO_DIR, DRY_RUN_SENDS, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TEST_HOOKS_ENABLED.');
+    'Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation. Env: DRY_RUN_SENDS, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TEST_HOOKS_ENABLED.');
 
   const tSub = trigger('Called by W12 / W29 / W10 / console', [0, 0]);
   const tCron = cron('Hourly (48-h clocks: rebook wait + dispute window)', [0, 1], '7 * * * *');
@@ -772,7 +777,7 @@ ON CONFLICT (idempotency_key) DO NOTHING;`,
   const live = sendChain('W13', 13, 3);
   link(mySend, live);
 
-  return finish('W13 No-show & replacement (DRAFT pending GATE-TEST-W13)',
+  return finish('smc-w13', 'W13 No-show & replacement (DRAFT pending GATE-TEST-W13)',
     'automation-engineer. W13 no-show & replacement (0.1, 4.6 item 11, 4.12a, Schedule C/D); the ONE replacement counter (W10/W12/W29 call it); logic automation/lib/w13.mjs; tests automation/tests/W13.test.mjs (GATE-TEST-W13). Generated by automation/build-w09-w12-w13.mjs.',
     ['replacements', 'whatsapp', 'draft']);
 }

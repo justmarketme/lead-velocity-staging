@@ -10,7 +10,7 @@
 //
 // What runs offline: the Code nodes of automation/W01.json (Screen -> Guard -> Decide -> Inserted?, Lead ad ->
 // submission, Route) executed through _n8ncode.mjs, which load automation/lib/w01.mjs exactly as n8n does
-// (require('lv-automation/lib/w01.mjs')). Only the Postgres / HTTP / Execute Workflow nodes are emulated by a small
+// (require('lv-automation').w01). Only the Postgres / HTTP / Execute Workflow nodes are emulated by a small
 // in-memory store below (same columns, same digits-only smc_hash_contact rule). W03's conversation is
 // automation/ctwa/w03.js (the module W03.json inlines). No stand-in model of the rules remains in this file.
 import test from 'node:test';
@@ -29,12 +29,8 @@ const LT = require('../security/lead-token.js');
 const W3 = require('../ctwa/w03.js');
 const WF = JSON.parse(readFileSync(new URL('../W01.json', import.meta.url), 'utf8'));
 
-// The Code nodes require('lv-automation/...') (I-44a). Where this checkout has no `lv-automation` package link yet,
-// the specifier is pointed at automation/ for the run; the structure test below asserts the real text.
-const AUTOMATION = fileURLToPath(new URL('..', import.meta.url));
-const resolvesPkg = (() => { try { require.resolve('lv-automation/lib/w01.mjs'); return true; } catch { return false; } })();
-const runnable = (wf) => (resolvesPkg ? wf : JSON.parse(JSON.stringify(wf).split("require('lv-automation/").join(`require('${AUTOMATION}`)));
-const RUN = runnable(WF);
+// Code nodes require('lv-automation') (I-46c); _n8ncode.mjs resolves that exact name to automation/index.cjs offline.
+const RUN = WF;
 
 const TOKEN = 'test-hooks-token-w01';
 const SECRET = 'w01-test-lead-token-secret-0123456789abcdef';
@@ -251,10 +247,11 @@ test('W01 structure: id smc-w01, inactive, nodes present, every connection resol
 test('W01 structure: Code nodes load lib/w01.mjs via lv-automation (no REPO_DIR import), sub-workflows referenced by id', () => {
   const codes = WF.nodes.filter((n) => n.type === 'n8n-nodes-base.code');
   for (const name of [N.screen, N.guard, N.decide, N.leadAd, N.route])
-    assert.match(codes.find((n) => n.name === name).parameters.jsCode, /require\('lv-automation\/lib\/w01\.mjs'\)/, name);
+    assert.match(codes.find((n) => n.name === name).parameters.jsCode, /require\('lv-automation'\)\.w01;/, name);
   for (const n of codes) {
     assert.doesNotMatch(n.parameters.jsCode, /REPO_DIR|await import\(|pathToFileURL/, n.name);
-    for (const m of n.parameters.jsCode.matchAll(/require\('([^']+)'\)/g)) assert.match(m[1], /^lv-automation\//, `${n.name}: ${m[1]}`);
+    for (const m of n.parameters.jsCode.matchAll(/require\('([^']+)'\)/g)) assert.equal(m[1], 'lv-automation', `${n.name}: exact allowlisted name only (I-46c), got ${m[1]}`);
+    assert.doesNotMatch(n.parameters.jsCode, /lv-automation\//, `${n.name}: no subpath require`);
   }
   const subs = WF.nodes.filter((n) => n.type === 'n8n-nodes-base.executeWorkflow');
   assert.ok(subs.length >= 4);

@@ -1,5 +1,5 @@
 // automation/lib/w12.mjs  -  W12 outcome, disposition & feedback (two-sided). 4.6 W12 row, 4.12a, Schedule C/D, 0.1.
-// Imported by automation/W12.json (Code nodes, via $env.REPO_DIR) and automation/tests/W12.test.mjs. Pure, no I/O.
+// Imported by automation/W12.json (Code nodes, require('lv-automation').w12) and automation/tests/W12.test.mjs. Pure, no I/O.
 //
 // Every meeting is closed from BOTH sides:
 //  - Broker: broker_outcome_check at slot end + 15 min (Attended / No-show / Rescheduled), ONE nudge 3 h later.

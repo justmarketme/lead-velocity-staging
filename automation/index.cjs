@@ -47,6 +47,8 @@ const MODULES = {
   leadToken: './security/lead-token.js',
   redact: './security/redact.js',
   metaAds: './ads/meta-ads.js',
+  // data (JSON, repo root): SA public holidays for W04 slot generation (I-46c; was an fs read off $env.REPO_DIR)
+  holidays: '../data/za-public-holidays.json',
 };
 
 for (const [name, path] of Object.entries(MODULES)) {

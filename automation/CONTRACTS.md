@@ -123,7 +123,7 @@ UPDATE ops.notifications SET status = 'acked', acked_at = now(), acked_by = 'w32
 
 ## Sub-workflow interfaces (I-35c)
 
-Every call is an n8n **Execute Workflow** by name (`cachedResultName`), fire-and-forget (`waitForSubWorkflow: false`) unless the row says **waits**. The callee owns its own messages, rows and retries. Every write is keyed by the `idempotency_key` given (or the one named here), so a re-run sends nothing twice. A missing required field is logged as `lead_activities.activity_type = 'subcall_rejected'` and stops; it is never guessed. The core-path builds (W04, W05, W09, W12, W13) honour these rows after GATE-TEST-*; callers already send them (W07, W10, W11, W28, W29, W03).
+Every call is an n8n **Execute Workflow** by stable id (`mode: 'id'`, `smc-wNN`, I-44b; the name stays as `cachedResultName` for readers), fire-and-forget (`waitForSubWorkflow: false`) unless the row says **waits**. The callee owns its own messages, rows and retries. Every write is keyed by the `idempotency_key` given (or the one named here), so a re-run sends nothing twice. A missing required field is logged as `lead_activities.activity_type = 'subcall_rejected'` and stops; it is never guessed. The core-path builds (W04, W05, W09, W12, W13) honour these rows after GATE-TEST-*; callers already send them (W07, W10, W11, W28, W29, W03).
 
 | Callee (name) | Input | Returns (if **waits**) | Callers | Rules |
 |---|---|---|---|---|
@@ -193,7 +193,7 @@ W10 sends `W13 No-show & replacement` `{ op: 'claim', lead_id, booking_id, outco
 
 ## W09 / W12 / W13 interfaces (drafts pending GATE-TEST-W09/W12/W13, 2026-10-03)
 
-Built by `automation/build-w09-w12-w13.mjs` from `automation/lib/w09.mjs`, `w12.mjs`, `w13.mjs` (imported by the Code nodes from `$env.REPO_DIR`). Workflow names carry `(DRAFT pending GATE-TEST-Wxx)` until Jonathan approves the tests; **callers reference the plain names** (`W09 Reminder sequence`, `W12 Outcome, disposition & feedback`, `W13 No-show & replacement`), so the suffix is dropped on import after the gate. All three take the virtual clock `{ now, is_synthetic: true }` only when `TEST_HOOKS_ENABLED=true` (`wa.mjs nowFrom`); production uses the wall clock.
+Built by `automation/build-w09-w12-w13.mjs` from `automation/lib/w09.mjs`, `w12.mjs`, `w13.mjs` (loaded by the Code nodes with `require('lv-automation').w09` / `.w12` / `.w13`, I-46c). Workflow names carry `(DRAFT pending GATE-TEST-Wxx)` until Jonathan approves the tests; **callers reference the stable ids** (`smc-w09`, `smc-w12`, `smc-w13`, I-44b; the plain name is kept as `cachedResultName` only), so a rename never breaks a caller. All three take the virtual clock `{ now, is_synthetic: true }` only when `TEST_HOOKS_ENABLED=true` (`wa.mjs nowFrom`); production uses the wall clock.
 
 | Callee | Input | Callers | Rules |
 |---|---|---|---|
@@ -212,3 +212,44 @@ Built by `automation/build-w09-w12-w13.mjs` from `automation/lib/w09.mjs`, `w12.
 
 Open (needs_human, owner W29): W29's `-> W13 claim / withdraw replacement` node is fed by the `Save disposition` query output (`{ lead_id }`), so W13 receives no `op` and logs `subcall_rejected`. W29 needs a Code node before the call that sends `{ op, outcome_id, reason, reason_code, idempotency_key }` from `$('Apply disposition').item.json.d.w13` (W13 also accepts `{ d: { w13 }, o }`). W07 routes a live broker's audio to W29 (transcribe); W12's `voice_note` op (reference only, P17/Q22) is unused until the practitioner/privacy-notice decision picks one owner.
 
+## W04 `GET /slots` and W05 `POST /book` — request / response (I-45b, 2026-10-03)
+
+Logic: `automation/lib/w04.mjs` (`resolveCaller`, `planRequest`, `respond`) and `automation/lib/w05.mjs` (`parseHttp`, `decide`, `afterCheck`, `taken`, `finish`); workflows `smc-w04` / `smc-w05` (Code nodes `require('lv-automation').w04` / `.w05`). Tests: `automation/tests/W04.test.mjs`, `W05.test.mjs` (the offline booking adapter runs these lib steps, I-45a). Caller rules are the "lead_token" and "/slots broker-authenticated path" sections above; nothing here changes them. All times are ISO 8601 with `+02:00` (Africa/Johannesburg). Every response carries `Cache-Control: no-store`.
+
+### `GET {API_HOST}/slots`
+| | Lead path (page) | Broker path (portal tile) |
+|---|---|---|
+| Auth | `X-Lead-Token: lt1....` (broker = `leads.broker_id`; any `broker`/`broker_id`/`brk` query param ignored) | `Authorization: Bearer <Supabase access token>` (broker = `brokers.user_id = sub`) |
+| Query | one of `date=YYYY-MM-DD` (that day, ≤ 20 slots, Flow/day view) · `days=1..14` (every slot on the next N days that have one) · `offer=1..20` (spread offers, default 3) | `limit=1..3` (default 1) |
+| 200 | `{ slots: [{start, end}], tz: 'Africa/Johannesburg', methods: [...], adviser_first_name }` (`methods` = `methods_supported`, `meet` only for Google-calendar brokers). Never lead or broker ids. | `{ slots, next_free_slot_at, more_this_week, calendar: 'graph'\|'shared'\|'none', capacity: { fill_7d, taken_7d, capacity_7d, hold, release } }` |
+| 200 fallback | `{ slots: [], fallback: 'whatsapp' }` — lead not routed, or calendar unreadable (refresh failed, `needs_reconnect`). A paused or inactive broker answers 200 with `slots: []` and no `fallback`. The page shows "we'll send times on WhatsApp"; W06 sends them. | same body |
+| 400 | `{ error: 'ambiguous_caller' }` (both credentials) | same |
+| 401 | `{ error: 'try_again' }` — no / bad / expired token, unknown or opted-out lead (reason logged only) | bad JWT |
+| 403 | `{ error: 'try_again' }` — Origin not in `PUBLIC_ALLOWED_ORIGINS` | `{ error: 'not_a_broker' }` |
+| 503 | `{ error: 'try_again' }` — secrets not configured | same |
+
+Rules applied by the engine (both paths, and the `list` / `is_free` sub-calls): broker meeting hours, 30-min slots, 15-min buffer around Outlook busy blocks and our live `appointments`, 2-h notice, 14-day horizon, day cap (3) and week cap (12, Mon–Sun), SA public holidays (`data/za-public-holidays.json` via `require('lv-automation').holidays`), offers spread across days. Calendar route: `calendar_status = ok` → Graph `getSchedule` (busy cached 60 s per broker, `is_free` always fresh); `blocked_admin_consent` / `calendar_mode = shared_fallback` → shared calendar (hours minus our appointments, 0.3 #4); anything else → fallback.
+
+### `POST {API_HOST}/book`
+Header `X-Lead-Token` (lead path) or `Authorization: Bearer` (broker path; the lead must be his: else `403 not_your_lead`). Body:
+```json
+{ "slot_start": "2026-10-15T10:00:00+02:00", "method": "teams|zoom|meet|whatsapp_call|phone",
+  "email": "only for teams|zoom|meet", "email_confirmed": false,
+  "request_id": "8-64 [A-Za-z0-9-]", "idempotency_key": "optional, [A-Za-z0-9:._+-]{1,160}",
+  "context": { "event_id": "browser CAPI event id (8-64 [A-Za-z0-9-])" }, "lead_id": "optional echo; must equal the token's" }
+```
+`slot` is accepted for `slot_start`; `google_meet` for `meet`. Idempotency key = `idempotency_key`, else `page:{lead_id}:{request_id}`, else `book:{lead_id}:{slot_start}`. Email for a call method is dropped before anything reads it (0.1).
+
+| Status | Body | When |
+|---|---|---|
+| 201 | `{ booked: true, booking_id, start, end, method, join_url, ics_url }` | Booked; also the replay of the same idempotency key, and a repeat for the lead's live booking at the same time (no second event, no second CAPI `Schedule`). `join_url` is set for Teams when Graph returns it; `ics_url` = `https://sortmycover.co.za/c/{booking_id}`. |
+| 200 | `{ booked: false, fallback: 'whatsapp' }` | Lead not routed (no broker). |
+| 400 | `{ error_code: 'bad_slot' \| 'lead_required' }` · `{ error: 'ambiguous_caller' }` | Slot not ISO; broker path without `lead_id`; both credentials. |
+| 401 / 403 / 503 | `{ error: 'try_again' }` · `{ error: 'not_a_broker' \| 'not_your_lead' }` | As for `/slots` (lead-token mismatch with the body `lead_id` is 401). |
+| 404 | `{ error_code: 'unknown_lead' }` | Broker path, lead id not found. |
+| 409 | `{ error_code: 'slot_taken', next: [{start,end}]×≤3, slots: (same) }` | The `is_free` re-check (Outlook + our appointments + buffer, fail closed on calendar error) or the INSERT's own overlap+buffer re-check lost the slot; also any slot that breaks the rules (notice, hours, weekend, holiday, caps). `slots` duplicates `next` for `landing/template/page.js`. |
+| 409 | `{ error_code: 'opted_out' }` · `{ error_code: 'already_booked', booking: { start, method } }` | Lead STOPped; lead already has a different live booking (moves go through W10). |
+| 422 | `{ error_code: 'method_not_supported', methods: [...] }` | Method not in the broker's `methods_supported`. |
+| 422 | `{ error_code: 'email_required' }` · `{ error_code: 'email_syntax' \| 'email_typo' \| 'email_disposable' \| 'email_no_mx', suggestion? }` | Teams/Zoom/Meet without a usable email. `email_typo` carries the suggestion; re-post with `email_confirmed: true` to keep the typed address (it still needs MX). |
+
+After a 201 (fan-out, not part of the response): appointment row (`appointments_smc_no_overlap` is the last line of defence), Graph event (`transactionId` from the idempotency key; failure keeps the booking and raises W22 `calendar_event_create_failed`), invite from howzit@ with `.ics` (invite methods only), `broker_new_booking` (first name only), W06 `{ op: 'booking' }` (first booking) or `booking_confirmed` (rebooking), W09 `schedule` / `rebuild`, W07 contact confirm (call methods), CAPI `Schedule` once (ids only, never email). Sub-call inputs and the chat / Flow lanes are in "Sub-workflow interfaces" above.

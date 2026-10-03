@@ -1,5 +1,5 @@
 // automation/lib/w04.mjs  -  W04 Slots API (GET /slots + sub-call ops list / is_free / graph_token).
-// Imported by the Code nodes of automation/W04.json (from $env.REPO_DIR, same pattern as W07/W10) and by
+// Imported by the Code nodes of automation/W04.json (require('lv-automation').w04, I-46c) and by
 // automation/tests/W04.test.mjs, W05 (re-check) and tests/_slots.mjs (the shared slot rule lives HERE once).
 // Pure logic: no network, no database, no file reads. Time is passed in (now, ms); holidays are passed in
 // (the Code node reads data/za-public-holidays.json). Node 18+, zero dependencies besides security/lead-token.js

@@ -184,13 +184,22 @@ const mrow = (fx, over = {}) => ({ booking_id: `bkg_${fx.fixture_id}`, lead_id: 
 const sweep = async (row, now) => (await runCode(WF, 'Decide (w12.sweepItems)', { items: [row], refs: { 'Classify + validate (w12.classifyOp)': { now_iso: now } } })).map((x) => x.json);
 const follow = async (item, outcomeId) => (await runCode(WF, 'Follow-ups (w12.followUps)', { items: [outcomeId ? { outcome_id: outcomeId } : item], refs: { 'Write outcome? (not pending, not disputed)': item } })).map((x) => x.json);
 
-test('W12.json: DRAFT name, inactive, one Postgres credential, physical columns only, Code nodes import lib/w12.mjs', () => {
+test('W12.json: DRAFT name, inactive, one Postgres credential, physical columns only, Code nodes require(\'lv-automation\').w12, id smc-w12', () => {
   assert.equal(WF.name, 'W12 Outcome, disposition & feedback (DRAFT pending GATE-TEST-W12)');
   assert.equal(WF.active, false);
   const pgs = WF.nodes.filter((n) => n.type === 'n8n-nodes-base.postgres');
   assert.ok(pgs.every((n) => n.credentials.postgres.name === PG_CRED && n.credentials.postgres.id === ''));
   assert.deepEqual(checkSql(workflowSql(WF)), []);
-  for (const n of WF.nodes.filter((x) => x.type === 'n8n-nodes-base.code' && /\(w12\./.test(x.name))) assert.match(n.parameters.jsCode, /\$env\.REPO_DIR[\s\S]*\/automation\/lib\/w12\.mjs/, n.name);
+  for (const n of WF.nodes.filter((x) => x.type === 'n8n-nodes-base.code' && /\(w12\./.test(x.name))) assert.match(n.parameters.jsCode, /require\('lv-automation'\)\.w12;/, n.name);
+  for (const n of WF.nodes.filter((x) => x.type === 'n8n-nodes-base.code')) {
+    for (const m of n.parameters.jsCode.matchAll(/require\('([^']+)'\)/g)) assert.equal(m[1], 'lv-automation', `${n.name}: exact allowlisted name only (I-46c), got ${m[1]}`);
+    assert.doesNotMatch(n.parameters.jsCode, /REPO_DIR|await import\(|pathToFileURL|lv-automation\//, n.name);
+  }
+  assert.equal(Object.keys(WF)[0], 'id'); assert.equal(WF.id, 'smc-w12'); assert.equal(WF.settings.errorWorkflow, 'smc-w22');
+  for (const n of WF.nodes.filter((x) => x.type === 'n8n-nodes-base.executeWorkflow')) {
+    const r = n.parameters.workflowId; const m = /^W(\d\d)\b/.exec(r.cachedResultName);
+    assert.equal(r.mode, 'id', n.name); assert.equal(r.value, m ? `smc-w${m[1]}` : `smc-${r.cachedResultName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, n.name);
+  }
   const execs = WF.nodes.filter((n) => n.type === 'n8n-nodes-base.executeWorkflow').map((n) => n.parameters.workflowId.cachedResultName);
   for (const t of ['CAPI Send', 'W29 Feedback loop', 'W13 No-show & replacement', 'W10 Reschedule / cancel']) assert.ok(execs.includes(t), t);
   const ops = node('Op').parameters.rules.values.map((v) => v.outputKey);

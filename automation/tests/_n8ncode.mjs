@@ -2,12 +2,17 @@
 // $input, require), so the tests exercise the code the workflow actually runs. Not a test file (leading underscore).
 // Shared by W09/W12/W13 tests. `refs` maps a node name to the json that $('<name>') returns (.item / .first() /
 // .itemMatching()). REPO_DIR defaults to this repo, as on the VPS.
+// require('lv-automation') (the only repo module a Code node may load, I-46c) resolves to automation/index.cjs, the same
+// file n8n's runner reaches through the lv-automation link, so offline runs need no package link.
 import { createRequire } from 'node:module';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const require = createRequire(import.meta.url);
+const LV_INDEX = join(REPO, 'automation', 'index.cjs');
+/** The require() a Code node sees: exact name 'lv-automation' -> automation/index.cjs; anything else as usual. */
+export const nodeRequire = (id) => (id === 'lv-automation' ? require(LV_INDEX) : require(id));
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
 
 export const codeNode = (wf, name) => {
@@ -26,7 +31,7 @@ export async function runCode(wf, name, { json = {}, items, env = {}, refs = {} 
     return { item: { json: r }, first: () => ({ json: r }), itemMatching: () => ({ json: r }) };
   };
   const all = (items || [json]).map((j) => ({ json: j }));
-  return fn(json, { REPO_DIR: REPO, ...env }, $, { all: () => all, first: () => all[0] }, require);
+  return fn(json, { REPO_DIR: REPO, ...env }, $, { all: () => all, first: () => all[0] }, nodeRequire);
 }
 
 /** Parameter counts a submitted template expects (automation/templates/<name>.json), same shape as wa.mjs paramCounts(). */
@@ -48,3 +53,27 @@ export function templateCounts(name) {
 import { readdirSync } from 'node:fs';
 export const allWorkflows = () => readdirSync(join(REPO, 'automation')).filter((f) => /^W\d\d\.json$/.test(f)).map((f) => ({ file: f, wf: JSON.parse(readFileSync(join(REPO, 'automation', f), 'utf8')) }));
 export const PG_CRED = 'LV Supabase - n8n_app (least privilege)';
+
+/**
+ * I-46c / I-44b structure rules for a generated workflow, as a list of problems (empty = ok):
+ * top-level id first and = expectId; errorWorkflow smc-w22; every Code node's require() is the exact name
+ * 'lv-automation' (or a Node builtin in `builtins`), never a subpath / REPO_DIR / dynamic import; every Execute
+ * Workflow node mode 'id' with smc-wNN (or smc-<slug>) derived from its cachedResultName.
+ */
+export function lvViolations(wf, expectId, { builtins = [] } = {}) {
+  const out = [];
+  if (Object.keys(wf)[0] !== 'id' || wf.id !== expectId) out.push(`top-level id ${wf.id} (first key ${Object.keys(wf)[0]})`);
+  if (!wf.settings || wf.settings.errorWorkflow !== 'smc-w22') out.push(`errorWorkflow ${wf.settings && wf.settings.errorWorkflow}`);
+  for (const n of wf.nodes.filter((x) => x.type === 'n8n-nodes-base.code')) {
+    const js = n.parameters.jsCode;
+    for (const m of js.matchAll(/require\('([^']+)'\)/g)) if (m[1] !== 'lv-automation' && !builtins.includes(m[1])) out.push(`${n.name}: require('${m[1]}')`);
+    if (/REPO_DIR|await import\(|pathToFileURL|lv-automation\//.test(js)) out.push(`${n.name}: REPO_DIR / import() / subpath`);
+  }
+  for (const n of wf.nodes.filter((x) => x.type === 'n8n-nodes-base.executeWorkflow')) {
+    const r = n.parameters.workflowId || {};
+    const m = /^W(\d\d)\b/.exec(r.cachedResultName || '');
+    const want = m ? `smc-w${m[1]}` : `smc-${String(r.cachedResultName || '').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+    if (r.mode !== 'id' || r.value !== want) out.push(`${n.name}: workflowId ${r.mode}/${r.value} (want id/${want})`);
+  }
+  return out;
+}

@@ -1,4 +1,5 @@
 {
+  "id": "smc-w13",
   "name": "W13 No-show & replacement (DRAFT pending GATE-TEST-W13)",
   "nodes": [
     {
@@ -13,7 +14,7 @@
       "parameters": {
         "width": 900,
         "height": 380,
-        "content": "W13 No-show & replacement, 0.1 (per-cycle cap, \"committed\", shortfall) + 4.6 item 11 + 4.12a + Schedule C (C1A from W10) / D. DRAFT pending GATE-TEST-W13.\nLogic: automation/lib/w13.mjs (pure), imported by every Code node from $env.REPO_DIR.\nONE counter, ONE writer: public.replacements. Rows not \"rejected\" count against cycles.replacement_cap (snapshotted from pricing.replacement_cap_cycle: Bronze 4 / Silver 6 / Gold 9, no weekly cap). W10 (C1A claims), W29 (unreachable / nofit_criteria, withdraw on correction) and W12 (lead no-show) all CALL this workflow; none of them writes replacements. Claims are serialised per cycle with pg_advisory_xact_lock and counted after the lock; the smc_replacements_cap trigger stamps cap_position / over_cap; one replacement per lead (replacements_one_per_lead + a withdrawn claim frees the lead).\nNo-show: W12 confirms it (both sides) -> missed_you with 3 new times (ONE offer) -> 48 h without a rebook or a reply -> replacement_due (second no-show: at once) -> 48-h dispute window -> approved. Never for a broker no-show, never for \"didn't buy\". Over the cap -> claim recorded as rejected (cap_reached), Jonathan alerted; the committed number is unchanged.\nShortfall / extension / pro-rata credit are W19's: W13 only emits lead_activities replacement_approved rows (key w13:approved:{id}).\nEnv: REPO_DIR, DRY_RUN_SENDS, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TEST_HOOKS_ENABLED."
+        "content": "W13 No-show & replacement, 0.1 (per-cycle cap, \"committed\", shortfall) + 4.6 item 11 + 4.12a + Schedule C (C1A from W10) / D. DRAFT pending GATE-TEST-W13.\nLogic: automation/lib/w13.mjs (pure), loaded by every Code node through the lv-automation loader (index.cjs).\nONE counter, ONE writer: public.replacements. Rows not \"rejected\" count against cycles.replacement_cap (snapshotted from pricing.replacement_cap_cycle: Bronze 4 / Silver 6 / Gold 9, no weekly cap). W10 (C1A claims), W29 (unreachable / nofit_criteria, withdraw on correction) and W12 (lead no-show) all CALL this workflow; none of them writes replacements. Claims are serialised per cycle with pg_advisory_xact_lock and counted after the lock; the smc_replacements_cap trigger stamps cap_position / over_cap; one replacement per lead (replacements_one_per_lead + a withdrawn claim frees the lead).\nNo-show: W12 confirms it (both sides) -> missed_you with 3 new times (ONE offer) -> 48 h without a rebook or a reply -> replacement_due (second no-show: at once) -> 48-h dispute window -> approved. Never for a broker no-show, never for \"didn't buy\". Over the cap -> claim recorded as rejected (cap_reached), Jonathan alerted; the committed number is unchanged.\nShortfall / extension / pro-rata credit are W19's: W13 only emits lead_activities replacement_approved rows (key w13:approved:{id}).\nNeeds NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation. Env: DRY_RUN_SENDS, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TEST_HOOKS_ENABLED."
       }
     },
     {
@@ -74,7 +75,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w13.mjs').href);\nconst j = $json;\nconst wall = Date.now();\nconst now = L.nowFrom(j, $env, wall);\nif (j.op === 'tick') return { json: { op: 'tick', now_iso: L.iso(now), synthetic_only: now !== wall } };\nconst n = L.normaliseInput(j, now);\nconst v = L.validateInput(n);\nreturn { json: { ...n, second_no_show: j.second_no_show === true, op: v.ok ? n.op : 'reject', asked_op: n.op || null, missing: v.ok ? [] : v.missing, now_iso: L.iso(now), synthetic_only: now !== wall } };"
+        "jsCode": "const L = require('lv-automation').w13;\nconst j = $json;\nconst wall = Date.now();\nconst now = L.nowFrom(j, $env, wall);\nif (j.op === 'tick') return { json: { op: 'tick', now_iso: L.iso(now), synthetic_only: now !== wall } };\nconst n = L.normaliseInput(j, now);\nconst v = L.validateInput(n);\nreturn { json: { ...n, second_no_show: j.second_no_show === true, op: v.ok ? n.op : 'reject', asked_op: n.op || null, missing: v.ok ? [] : v.missing, now_iso: L.iso(now), synthetic_only: now !== wall } };"
       }
     },
     {
@@ -299,7 +300,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w13.mjs').href);\nconst src = $('Claim input').item.json; // W10 / W29 / system claim, or the no-show path (carries trig)\nconst row = $json;\nconst d = L.claimDecision(src, row);\nreturn { json: { ...row, source: src.source || null, booking_id: src.booking_id || null, idempotency_key: src.idempotency_key || null, claim: d.claim, why: d.why || null, trig: d.trig || null } };"
+        "jsCode": "const L = require('lv-automation').w13;\nconst src = $('Claim input').item.json; // W10 / W29 / system claim, or the no-show path (carries trig)\nconst row = $json;\nconst d = L.claimDecision(src, row);\nreturn { json: { ...row, source: src.source || null, booking_id: src.booking_id || null, idempotency_key: src.idempotency_key || null, claim: d.claim, why: d.why || null, trig: d.trig || null } };"
       }
     },
     {
@@ -391,7 +392,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w13.mjs').href);\nconst c = $('Decide claim (w13.claimDecision)').item.json; const r = $json;\nconst capReached = r.status === 'rejected' && r.note === 'cap_reached';\nconst text = L.alertNote(capReached ? 'cap_reached' : 'due', { lead: { first_name: c.first_name, last_name: c.last_name }, used: r.cap_position, cap: r.cap, reason_code: r.reason_code, window_ends_at: r.dispute_window_ends_at ? L.iso(r.dispute_window_ends_at) : null });\nreturn { json: { ...r, brand_id: c.brand_id, broker_id: c.broker_id, cap_reached: capReached, note_text: text, esc_kind: capReached ? 'other' : 'replacement_dispute', severity: capReached ? 'urgent' : 'normal', activity: capReached ? 'replacement_cap_reached' : 'replacement_due' } };"
+        "jsCode": "const L = require('lv-automation').w13;\nconst c = $('Decide claim (w13.claimDecision)').item.json; const r = $json;\nconst capReached = r.status === 'rejected' && r.note === 'cap_reached';\nconst text = L.alertNote(capReached ? 'cap_reached' : 'due', { lead: { first_name: c.first_name, last_name: c.last_name }, used: r.cap_position, cap: r.cap, reason_code: r.reason_code, window_ends_at: r.dispute_window_ends_at ? L.iso(r.dispute_window_ends_at) : null });\nreturn { json: { ...r, brand_id: c.brand_id, broker_id: c.broker_id, cap_reached: capReached, note_text: text, esc_kind: capReached ? 'other' : 'replacement_dispute', severity: capReached ? 'urgent' : 'normal', activity: capReached ? 'replacement_cap_reached' : 'replacement_due' } };"
       }
     },
     {
@@ -475,8 +476,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w09",
           "cachedResultName": "W09 Reminder sequence"
         },
         "options": {
@@ -603,7 +604,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w13.mjs').href);\n// One node, two entries: a second no-show (claim at once) and the hourly 48-h clock rows.\nconst c = $('Normalise + validate (w13.normaliseInput)').first().json;\nconst r = $json;\nconst trig = r.second_no_show === true && !r.confirmed_at_row\n  ? L.replacementTrigger({ kind: 'no_show', confirmed_at: c.confirmed_at || c.now_iso, second_no_show: true })\n  : L.noShowClock(r);\nreturn { json: { op: 'claim', lead_id: r.lead_id, outcome_id: r.outcome_id || c.outcome_id || null, cycle_id: r.cycle_id || null, booking_id: r.booking_id, source: 'W13 no_show', trig, decided_key: 'w13:no_show_decided:' + r.booking_id } };"
+        "jsCode": "const L = require('lv-automation').w13;\n// One node, two entries: a second no-show (claim at once) and the hourly 48-h clock rows.\nconst c = $('Normalise + validate (w13.normaliseInput)').first().json;\nconst r = $json;\nconst trig = r.second_no_show === true && !r.confirmed_at_row\n  ? L.replacementTrigger({ kind: 'no_show', confirmed_at: c.confirmed_at || c.now_iso, second_no_show: true })\n  : L.noShowClock(r);\nreturn { json: { op: 'claim', lead_id: r.lead_id, outcome_id: r.outcome_id || c.outcome_id || null, cycle_id: r.cycle_id || null, booking_id: r.booking_id, source: 'W13 no_show', trig, decided_key: 'w13:no_show_decided:' + r.booking_id } };"
       }
     },
     {
@@ -701,8 +702,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w04",
           "cachedResultName": "W04 Slots API"
         },
         "options": {
@@ -721,7 +722,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w13.mjs').href);\nconst r = $('No-show context + 48-h clock (w13:no_show:{booking})').item.json;\nif (r.opted_out_at) return { json: { send: null, why: 'opted_out' } };\nconst m = L.missedYouItem(r, ($json.slots || []));\nreturn { json: { ...m, booking_id: r.booking_id, lead_id: r.lead_id, brand_id: r.brand_id, broker_id: r.broker_id } };"
+        "jsCode": "const L = require('lv-automation').w13;\nconst r = $('No-show context + 48-h clock (w13:no_show:{booking})').item.json;\nif (r.opted_out_at) return { json: { send: null, why: 'opted_out' } };\nconst m = L.missedYouItem(r, ($json.slots || []));\nreturn { json: { ...m, booking_id: r.booking_id, lead_id: r.lead_id, brand_id: r.brand_id, broker_id: r.broker_id } };"
       }
     },
     {
@@ -1513,7 +1514,7 @@
     "executionOrder": "v1",
     "timezone": "Africa/Johannesburg",
     "saveManualExecutions": true,
-    "errorWorkflow": "W22 Alerts"
+    "errorWorkflow": "smc-w22"
   },
   "pinData": {},
   "tags": [

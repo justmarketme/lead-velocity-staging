@@ -8,7 +8,7 @@
 //
 // Run:  node --test automation/tests/W15.test.mjs     (offline)  ·  set N8N_PUBLIC_URL for online.
 // Offline runs the Code nodes of automation/W15.json (Entry -> Plan opt-out -> Fan out) through _n8ncode.mjs; they
-// load automation/lib/w15.mjs as n8n does (require('lv-automation/lib/w15.mjs')). Only the Postgres statements and the
+// load automation/lib/w15.mjs as n8n does (require('lv-automation').w15). Only the Postgres statements and the
 // send / Graph / sub-workflow nodes are emulated in memory (same claim rule: the suppression insert).
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -24,9 +24,8 @@ import { hashContact } from '../lib/w01.mjs';
 const { isStop, hashMobile } = W15;
 const require = createRequire(import.meta.url);
 const WF = JSON.parse(readFileSync(new URL('../W15.json', import.meta.url), 'utf8'));
-const AUTOMATION = fileURLToPath(new URL('..', import.meta.url));
-const resolvesPkg = (() => { try { require.resolve('lv-automation/lib/w15.mjs'); return true; } catch { return false; } })();
-const RUN = resolvesPkg ? WF : JSON.parse(JSON.stringify(WF).split("require('lv-automation/").join(`require('${AUTOMATION}`));
+// Code nodes require('lv-automation') (I-46c); _n8ncode.mjs resolves that exact name to automation/index.cjs offline.
+const RUN = WF;
 const N = {
   trigger: 'Called by W07 / console / W34 (STOP or opt-out)',
   entry: 'Entry (w15.entryFrom + isStop)',
@@ -178,10 +177,11 @@ test('W15 structure: id smc-w15, inactive, nodes present, every connection resol
 
 test('W15 structure: Code nodes load lib/w15.mjs via lv-automation, sub-workflows referenced by id', () => {
   const codes = WF.nodes.filter((n) => n.type === 'n8n-nodes-base.code');
-  for (const name of [N.entry, N.plan, N.fan]) assert.match(codes.find((n) => n.name === name).parameters.jsCode, /require\('lv-automation\/lib\/w15\.mjs'\)/, name);
+  for (const name of [N.entry, N.plan, N.fan]) assert.match(codes.find((n) => n.name === name).parameters.jsCode, /require\('lv-automation'\)\.w15;/, name);
   for (const n of codes) {
     assert.doesNotMatch(n.parameters.jsCode, /REPO_DIR|await import\(|pathToFileURL/, n.name);
-    for (const m of n.parameters.jsCode.matchAll(/require\('([^']+)'\)/g)) assert.match(m[1], /^lv-automation\//, `${n.name}: ${m[1]}`);
+    for (const m of n.parameters.jsCode.matchAll(/require\('([^']+)'\)/g)) assert.equal(m[1], 'lv-automation', `${n.name}: exact allowlisted name only (I-46c), got ${m[1]}`);
+    assert.doesNotMatch(n.parameters.jsCode, /lv-automation\//, `${n.name}: no subpath require`);
   }
   const subs = WF.nodes.filter((n) => n.type === 'n8n-nodes-base.executeWorkflow');
   for (const n of subs) assert.equal(n.parameters.workflowId.mode, 'id', n.name);

@@ -14,106 +14,93 @@ import { generateSlots, offerSlots } from './_slots.mjs';
 import * as W5 from '../lib/w05.mjs';
 import { readFileSync } from 'node:fs';
 import { checkSql, workflowSql } from './_sqlcheck.mjs';
+import { lvViolations } from './_n8ncode.mjs';
 
 // ============================================================================================
-// Reference implementation
+// Offline booking adapter (I-45a): the RUNNING code. book() walks the same lib/w05.mjs steps the W05.json Code nodes
+// call (parseHttp | parseSub -> decide -> W04 is_free via lib/w04.mjs respond -> afterCheck -> the INSERT's re-check
+// twin insertBlocked -> graphEvent / afterEvent -> finish) and emulates only what n8n does around them: the Postgres
+// rows, the Graph create response, the sends. No reference copy of the booking rules lives in this file any more.
 // ============================================================================================
-const VIDEO = new Set(['teams', 'zoom', 'meet']);
-const TITLE_LABEL = { teams: 'Teams', zoom: 'Zoom', meet: 'Google Meet', whatsapp_call: 'WhatsApp call', phone: 'Phone' };
-const INVITE_FROM = 'howzit@leadvelocity.co.za';
-const KNOWN_DOMAINS = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'icloud.com', 'webmail.co.za', 'mweb.co.za', 'telkomsa.net', 'vodamail.co.za', 'leadvelocity.co.za'];
-const DISPOSABLE = new Set(['mailinator.com', 'yopmail.com', 'guerrillamail.com', '10minutemail.com', 'tempmail.com']);
-// Offline MX stub. Online runs use real DNS (n8n DNS lookup) — these domains all have MX in real life except the typos.
-const MX_STUB = new Set([...KNOWN_DOMAINS, ...DISPOSABLE]);
-
-function lev(a, b) {
-  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
-  for (let j = 1; j <= b.length; j++) d[0][j] = j;
-  for (let i = 1; i <= a.length; i++)
-    for (let j = 1; j <= b.length; j++)
-      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-  return d[a.length][b.length];
-}
+import { createRequire } from 'node:module';
+import * as W4 from '../lib/w04.mjs';
+import { HOLIDAYS } from './_harness.mjs';
+const LT5 = createRequire(import.meta.url)('../security/lead-token.js');
+const OFFLINE_SECRET = 'w05-offline-lead-token-secret-0123456789abcdef';
 
 // Email layers: the RUNNING code (lib/w05.mjs), re-exported so this file's assertions exercise it.
 export const checkEmail = W5.checkEmail;
 
 export function newBookState() {
-  return { broker: clone(broker()), leads: new Map(), bookings: [], events: new Map(), capi: [], invites: [], notifications: [], messages: [], idem: new Map(), seq: 0 };
+  return { broker: clone(broker()), leads: new Map(), bookings: [], events: new Map(), capi: [], invites: [], notifications: [], messages: [], seq: 0 };
 }
 
-export function book(st, req, now) {
-  if (st.idem.has(req.idempotency_key)) return st.idem.get(req.idempotency_key); // retries never double-book
-  const b = st.broker;
-  const l = st.leads.get(req.lead_id);
-  if (!l) return { http_status: 404, body: { error_code: 'unknown_lead' } };
-  if (l.opted_out_at) return { http_status: 409, body: { error_code: 'opted_out' } };
-  if (!b.methods_supported.includes(req.method)) return { http_status: 422, body: { error_code: 'method_not_supported', methods: b.methods_supported } };
-  let email = null;
-  if (VIDEO.has(req.method)) {
-    if (!req.email) return { http_status: 422, body: { error_code: 'email_required' } };
-    const chk = checkEmail(req.email, { acceptTypo: !!req.email_confirmed });
-    if (!chk.ok) return { http_status: 422, body: { error_code: `email_${chk.reason}`, suggestion: chk.suggestion } };
-    email = chk.email;
+const asHttp = (status, body) => ({ http_status: status, body });
+
+export async function book(st, req, now) {
+  // Caller parse: the page posts with X-Lead-Token (http lane); list / chat / Flow picks arrive as a sub-call.
+  const env = { LEAD_TOKEN_SECRET: OFFLINE_SECRET };
+  let c;
+  if (req.booked_via === 'page') {
+    const { token } = LT5.mintLeadToken(req.lead_id, { secret: OFFLINE_SECRET, nowMs: now });
+    c = W5.parseHttp({ [LT5.HEADER]: token }, req, env, now);
+    if (!c.ok) return asHttp(c.status, c.body);
+  } else {
+    const r = W5.parseSub(req, env, now);
+    if (r.op !== 'book') return asHttp(400, { error_code: r.reason || r.op });
+    c = { lane: 'sub', mode: null, req: r };
   }
-  // ---- transaction: re-check free/busy NOW, then insert (W05 "Re-check getSchedule") ----
-  const free = generateSlots(b, b.calendar_busy, st.bookings, now).slots;
-  if (!free.some((s) => ms(s.start) === ms(req.slot_start)))
-    return { http_status: 409, body: { error_code: 'slot_taken', next: offerSlots(free, 3) } };
-  const start = ms(req.slot_start);
-  const end = start + b.slot_minutes * MIN;
-  const label = TITLE_LABEL[req.method];
-  const bodyLines = [
-    `${l.first_name} · ${l.mobile}`,
-    `Age band ${l.age_band} · budget band ${l.budget_band}`,
-    `Method: ${label}`,
-    req.method === 'phone' ? `Call ${l.first_name} on ${l.call_number ?? l.mobile}` : null,
-    req.method === 'whatsapp_call' ? `WhatsApp-call ${l.first_name} on ${l.call_number ?? l.mobile}` : null,
-    `Consent ref: ${l.id}/${l.consent_text_version} at ${l.consent_at}`,
-    `Source: ${l.origin}${l.ad_id ? ' · ' + l.ad_id : ''}`,
-    `Pre-call brief: https://app.leadvelocity.co.za/l/${l.id}`,
-  ].filter(Boolean);
-  const graphId = `AAMkTEST_${++st.seq}`;
-  const event = {
-    id: graphId,
-    transactionId: req.idempotency_key, // Graph's own idempotency for event creation
-    subject: `Life cover call – ${l.first_name} – ${label}`,
-    start: { dateTime: iso(start).slice(0, 19), timeZone: 'Africa/Johannesburg' },
-    end: { dateTime: iso(end).slice(0, 19), timeZone: 'Africa/Johannesburg' },
-    categories: ['SortMyCover'],
-    isOnlineMeeting: req.method === 'teams',
-    onlineMeetingProvider: req.method === 'teams' ? 'teamsForBusiness' : undefined,
-    attendees: b.add_client_as_attendee && email ? [{ emailAddress: { address: email }, type: 'required' }] : [],
-    body: { contentType: 'text', content: bodyLines.join('\n') },
-    onlineMeeting: req.method === 'teams' ? { joinUrl: `https://teams.microsoft.com/l/meetup-join/TEST_${graphId}` } : undefined,
+  // "Load lead, broker, replay, live booking" (Postgres). The lead was routed by W01 (leads.broker_id); the broker's
+  // calendar is connected (calendar_status ok -> Graph route; busy = his Outlook getSchedule blocks).
+  const brokerRow = { ...st.broker, calendar_status: 'ok' };
+  const row0 = st.leads.get(c.req.lead_id);
+  const ctx = {
+    lane: c.lane, mode: c.mode, req: c.req, now,
+    lead: row0 ? { ...row0, broker_id: row0.broker_id || brokerRow.broker_id } : null, broker: brokerRow,
+    existing: st.bookings.find((x) => x.idempotency_key === c.req.idempotency_key) || null,
+    live: st.bookings.find((x) => x.lead_id === c.req.lead_id && W5.LIVE.has(x.status)) || null,
+    mx: {},
   };
-  st.events.set(graphId, event);
-  const booking = {
-    id: `bkg_${st.seq}`, lead_id: l.id, broker_id: b.broker_id, cycle_id: b.current_cycle_id, start: iso(start), end: iso(end),
-    method: req.method, status: 'booked', graph_event_id: graphId, booked_via: req.booked_via, idempotency_key: req.idempotency_key,
-    created_at: iso(now), reschedule_count: 0,
-  };
+  const dec = W5.decide(ctx);
+  if (dec.action === 'respond') return asHttp(dec.status, dec.body);
+  if (dec.action === 'replay') return asHttp(201, W5.publicBody(dec.booking));
+  if (dec.action !== 'check') return asHttp(dec.action === 'message' ? 422 : 409, { error_code: dec.kind || dec.reason || dec.action });
+  // "W04 is_free (re-check, waits)": W04's engine against Outlook busy + our live appointments.
+  const w04 = (r) => W4.respond({ lane: 'sub', req: r, broker: brokerRow, bookings: st.bookings, busy: st.broker.calendar_busy, route: dec.plan.route, now, holidays: HOLIDAYS });
+  const free = w04(dec.is_free);
+  await null; // n8n awaits the sub-workflow: a concurrent request can pass its own re-check here (the race test)
+  const after = W5.afterCheck(ctx, dec, free);
+  if (after.action === 'taken') return asHttp(after.status, after.body);
+  // "Insert appointment (re-check overlap + buffer, idempotent)": ON CONFLICT / overlap -> nothing inserted -> taken.
+  const replay = st.bookings.find((x) => x.idempotency_key === after.row.idempotency_key);
+  if (replay) return asHttp(201, W5.publicBody(replay));
+  if (W5.insertBlocked(st.bookings, after.row, W4.brokerConfig(brokerRow).buffer_minutes)) {
+    const t = W5.taken(ctx, dec.plan, w04({ op: 'list', limit: 3 }).slots);
+    return asHttp(t.status, t.body);
+  }
+  const booking = { ...after.row, id: `bkg_${++st.seq}` };
   st.bookings.push(booking);
-  Object.assign(l, { stage: 'booked', broker_id: b.broker_id, cycle_id: b.current_cycle_id });
-  if (email) Object.assign(l, { email, email_status: 'mx_ok', email_purpose: 'meeting_invite' });
-  if (email) st.invites.push({ from: INVITE_FROM, to: email, join_url: event.onlineMeeting?.joinUrl, ics: true, lead_id: l.id });
-  st.notifications.push({ to: b.adviser_whatsapp, template: 'broker_new_booking', vars: [b.adviser_first_name, l.first_name, booking.start] });
-  // CAPI Schedule (event-spec): CTWA leads -> business_messaging only; others -> browser id or evt_<id>_schedule
-  if (l.origin === 'ctwa') st.capi.push({ event_name: 'Schedule', event_id: `evt_${l.id}_ctwa_schedule`, action_source: 'business_messaging', lead_id: l.id });
-  else if (l.consent_ads_at) st.capi.push({ event_name: 'Schedule', event_id: req.context?.event_id || `evt_${l.id}_schedule`, action_source: req.booked_via === 'page' ? 'website' : 'system_generated', lead_id: l.id });
-  booking.schedule_event_id = st.capi.at(-1)?.lead_id === l.id ? st.capi.at(-1).event_id : null;
-  const res = { http_status: 201, body: { booking_id: booking.id, graph_event_id: graphId, start: booking.start, end: booking.end, method: req.method, join_url: event.onlineMeeting?.joinUrl ?? null } };
-  st.idem.set(req.idempotency_key, res);
-  return res;
+  // Graph create (emulated response) -> afterEvent -> finish.
+  const ev = W5.graphEvent(ctx, dec.plan);
+  const graphId = `AAMkTEST_${st.seq}`;
+  const created = { ...ev, id: graphId, ...(ev.isOnlineMeeting ? { onlineMeeting: { joinUrl: `https://teams.microsoft.com/l/meetup-join/TEST_${graphId}` } } : {}) };
+  st.events.set(graphId, created);
+  const evRes = W5.afterEvent({ statusCode: 201, body: created });
+  const fin = W5.finish(ctx, dec.plan, booking, evRes);
+  Object.assign(booking, fin.appointment_update, { start: booking.appointment_date, end: booking.ends_at });
+  Object.assign(st.leads.get(row0.id), fin.lead_update);
+  if (fin.invite) st.invites.push({ from: W5.INVITE_FROM, to: fin.invite.to, join_url: evRes.join_url, ics: fin.invite.message.attachments.some((x) => x.contentType === 'text/calendar'), lead_id: row0.id });
+  st.notifications.push({ to: fin.broker.to, template: fin.broker.template, vars: fin.broker.vars });
+  if (fin.capi) st.capi.push(fin.capi);
+  return asHttp(fin.response.status, fin.response.body);
 }
 
-/** Graph mail webhook on howzit@ reports an NDR for the invite. */
+/** Graph mail webhook on howzit@ reports an NDR for the invite (W17 -> W05 invite_bounced -> lib bounceEffect). */
 export function onInviteBounce(st, leadId, now) {
   const l = st.leads.get(leadId);
-  l.email_status = 'bounced';
-  const domain = l.email.split('@')[1];
-  const near = KNOWN_DOMAINS.find((k) => k !== domain && lev(domain, k) <= 2);
-  st.messages.push({ to: l.mobile, at: iso(now), kind: 'email_bounced_prompt', text: `The invite to ${l.email} bounced — can you check the address?`, suggestion: near ? l.email.replace(/@.*/, '@' + near) : null });
+  const eff = W5.bounceEffect({ ...l, phone: l.mobile }, { now });
+  Object.assign(l, eff.lead_update);
+  st.messages.push({ to: l.mobile, at: iso(now), ...eff.message });
 }
 
 // ============================================================================================
@@ -375,7 +362,8 @@ test('W05.json: draft name, inactive, one Postgres credential, physical columns 
   const ins = pgs.find((n) => n.name.startsWith('Insert appointment')).parameters.query;
   assert.match(ins, /NOT EXISTS/); assert.match(ins, /make_interval\(mins/); assert.match(ins, /ON CONFLICT DO NOTHING/);
   const all = JSON.stringify(WF5);
-  for (const needle of ['automation/lib/w05.mjs', 'W04 Slots API', 'CAPI Send', 'W09 Reminder sequence', 'W06 First touch', 'last_contact_at', 'teamsForBusiness'].slice(0, 6)) assert.ok(all.includes(needle), needle);
+  for (const needle of ["require('lv-automation').w05;", 'W04 Slots API', 'CAPI Send', 'W09 Reminder sequence', 'W06 First touch', 'last_contact_at', 'teamsForBusiness'].slice(0, 6)) assert.ok(all.includes(needle), needle);
+  assert.deepEqual(lvViolations(WF5, 'smc-w05', { builtins: ['dns'] }), [], 'I-46c exact-name require + I-44b ids');
   const names = new Set(WF5.nodes.map((n) => n.name));
   for (const [k, v] of Object.entries(WF5.connections)) { assert.ok(names.has(k), k); for (const o of v.main) for (const e of o) assert.ok(names.has(e.node), e.node); }
 });

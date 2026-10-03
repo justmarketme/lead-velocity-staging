@@ -192,7 +192,7 @@ import { runCode, templateCounts, PG_CRED } from './_n8ncode.mjs';
 import { paramCounts, inQuiet } from '../lib/wa.mjs';
 const node = (name) => WF.nodes.find((n) => n.name === name);
 
-test('W09.json: DRAFT name, inactive, one Postgres credential, physical columns only, Code nodes import lib/w09.mjs', () => {
+test('W09.json: DRAFT name, inactive, one Postgres credential, physical columns only, Code nodes require(\'lv-automation\').w09, id smc-w09', () => {
   assert.equal(WF.name, 'W09 Reminder sequence (DRAFT pending GATE-TEST-W09)');
   assert.equal(WF.active, false);
   const pgs = WF.nodes.filter((n) => n.type === 'n8n-nodes-base.postgres');
@@ -201,7 +201,16 @@ test('W09.json: DRAFT name, inactive, one Postgres credential, physical columns 
   assert.deepEqual(checkSql(workflowSql(WF)), []);
   const codes = WF.nodes.filter((n) => n.type === 'n8n-nodes-base.code' && /\(w09\./.test(n.name));
   assert.ok(codes.length >= 5);
-  for (const n of codes) assert.match(n.parameters.jsCode, /\$env\.REPO_DIR[\s\S]*\/automation\/lib\/w09\.mjs/, n.name);
+  for (const n of codes) assert.match(n.parameters.jsCode, /require\('lv-automation'\)\.w09;/, n.name);
+  for (const n of WF.nodes.filter((x) => x.type === 'n8n-nodes-base.code')) {
+    for (const m of n.parameters.jsCode.matchAll(/require\('([^']+)'\)/g)) assert.equal(m[1], 'lv-automation', `${n.name}: exact allowlisted name only (I-46c), got ${m[1]}`);
+    assert.doesNotMatch(n.parameters.jsCode, /REPO_DIR|await import\(|pathToFileURL|lv-automation\//, n.name);
+  }
+  assert.equal(Object.keys(WF)[0], 'id'); assert.equal(WF.id, 'smc-w09'); assert.equal(WF.settings.errorWorkflow, 'smc-w22');
+  for (const n of WF.nodes.filter((x) => x.type === 'n8n-nodes-base.executeWorkflow')) {
+    const r = n.parameters.workflowId; const m = /^W(\d\d)\b/.exec(r.cachedResultName);
+    assert.equal(r.mode, 'id', n.name); assert.equal(r.value, m ? `smc-w${m[1]}` : `smc-${r.cachedResultName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, n.name);
+  }
   assert.ok(!/sk-|EAAG|Bearer [A-Za-z0-9]{20}/.test(JSON.stringify(WF)), 'no secrets inline');
 });
 

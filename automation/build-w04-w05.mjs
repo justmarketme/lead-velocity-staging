@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 // Generates automation/W04.json (Slots API) and automation/W05.json (Book) as DRAFTS pending GATE-TEST-W04/W05.
-// Code nodes import the tested pure logic from $env.REPO_DIR (lib/w04.mjs, lib/w05.mjs), same pattern as W07/W10.
+// Code nodes load the tested pure logic with require('lv-automation').w04 / .w05 (I-46c: n8n's runner allow-lists the
+// exact name `lv-automation` = automation/index.cjs; NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation); SA public holidays
+// come from require('lv-automation').holidays (data/za-public-holidays.json). Stable top-level ids smc-w04 / smc-w05
+// (I-44b); Execute Workflow nodes and settings.errorWorkflow reference other workflows by id, name kept as cachedResultName.
 // Credentials by name only (id ''), secrets via $env, workflows inactive. Run: node automation/build-w04-w05.mjs
 import { writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -12,23 +15,25 @@ const PG = { postgres: { id: '', name: 'LV Supabase - n8n_app (least privilege)'
 const MS_SECRET = { httpCustomAuth: { id: '', name: 'Microsoft Graph broker-connect client secret (W20)' } };
 const HOWZIT_MAIL = { microsoftOutlookOAuth2Api: { id: '', name: 'Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send)' } };
 const HOWZIT_CAL = { microsoftOutlookOAuth2Api: { id: '', name: 'Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)' } };
-const SETTINGS = { executionOrder: 'v1', timezone: 'Africa/Johannesburg', saveManualExecutions: false, saveDataSuccessExecution: 'none', errorWorkflow: 'W22 Alerts' };
-const PRE = (lib) => `const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/${lib}').href);\n`;
-const HOL = `const HOL = new Set(JSON.parse(require('fs').readFileSync(REPO + '/data/za-public-holidays.json', 'utf8')).holidays.map((h) => h.date));\n`;
+const SETTINGS = { executionOrder: 'v1', timezone: 'Africa/Johannesburg', saveManualExecutions: false, saveDataSuccessExecution: 'none', errorWorkflow: 'smc-w22' };
+const PRE = (lib) => `const L = require('lv-automation').${lib.replace(/\.mjs$/, '')};\n`;
+const HOL = `const HOL = new Set(require('lv-automation').holidays.holidays.map((h) => h.date));\n`;
 
 let seq = 0; let X = 0;
 const pos = () => [((X++) % 8) * 240, Math.floor((X - 1) / 8) * 200];
 const node = (name, type, tv, parameters, extra = {}) => ({ id: `n${String(++seq).padStart(2, '0')}`, name, type: `n8n-nodes-base.${type}`, typeVersion: tv, position: pos(), parameters, ...extra });
 const code = (name, lib, body) => node(name, 'code', 2, { mode: 'runOnceForAllItems', jsCode: PRE(lib) + body });
 const pg = (name, query, repl, extra = {}) => node(name, 'postgres', 2.5, { operation: 'executeQuery', query, options: repl ? { queryReplacement: repl } : {} }, { credentials: PG, alwaysOutputData: true, ...extra });
-const sub = (name, target, wait = false) => node(name, 'executeWorkflow', 1.1, { source: 'database', workflowId: { __rl: true, mode: 'list', value: '', cachedResultName: target }, options: { waitForSubWorkflow: wait } });
+// Callee name -> stable workflow id (I-44b). "W04 Slots API" -> smc-w04; "CAPI Send" (no W number) -> smc-capi-send.
+const workflowIdOf = (target) => { const m = /^W(\d\d)\b/.exec(target); return m ? `smc-w${m[1]}` : `smc-${target.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`; };
+const sub = (name, target, wait = false) => node(name, 'executeWorkflow', 1.1, { source: 'database', workflowId: { __rl: true, mode: 'id', value: workflowIdOf(target), cachedResultName: target }, options: { waitForSubWorkflow: wait } });
 const ifTrue = (name, expr) => node(name, 'if', 2, { conditions: { options: { caseSensitive: true, typeValidation: 'strict' }, combinator: 'and', conditions: [{ id: 'c1', leftValue: `={{ String(${expr}) }}`, rightValue: 'true', operator: { type: 'string', operation: 'equals' } }] }, options: {} });
 const sw = (name, expr, keys) => node(name, 'switch', 3, { rules: { values: keys.map((k) => ({ conditions: { options: { caseSensitive: true, typeValidation: 'strict' }, combinator: 'and', conditions: [{ leftValue: expr, rightValue: k, operator: { type: 'string', operation: 'equals' } }] }, renameOutput: true, outputKey: k })) }, options: { fallbackOutput: 'none' } });
 const respond = (name) => node(name, 'respondToWebhook', 1.1, { respondWith: 'json', responseBody: '={{ JSON.stringify($json.body) }}', options: { responseCode: '={{ $json.status }}', responseHeaders: { entries: [{ name: 'Cache-Control', value: 'no-store' }] } } });
 const http = (name, method, urlExpr, opts = {}) => node(name, 'httpRequest', 4.2, { method, url: urlExpr, ...opts.params, options: { timeout: opts.timeout || 8000, response: { response: { fullResponse: true, neverError: true } } } }, { ...(opts.cred ? { credentials: opts.cred } : {}), retryOnFail: true, maxTries: 2, waitBetweenTries: 2000 });
 const link = (c, from, to, out = 0) => { c[from] ??= { main: [] }; while (c[from].main.length <= out) c[from].main.push([]); c[from].main[out].push({ node: to, type: 'main', index: 0 }); };
 const chain = (c, ...names) => { for (let i = 0; i + 1 < names.length; i++) link(c, names[i], names[i + 1]); };
-const wf = (name, notes, nodes, connections, tags) => ({ name, nodes, connections, active: false, settings: SETTINGS, pinData: {}, tags: tags.map((t) => ({ name: t })), meta: { notes } });
+const wf = (id, name, notes, nodes, connections, tags) => ({ id, name, nodes, connections, active: false, settings: SETTINGS, pinData: {}, tags: tags.map((t) => ({ name: t })), meta: { notes } });
 
 const BROKER_COLS = `b.id, b.brand_id, b.status, b.adviser_name, b.contact_person, b.practice_name, b.firm_name, b.fsp_number, b.adviser_whatsapp, b.whatsapp_number, b.email,
          b.methods_supported, b.meeting_hours, b.slot_minutes, b.buffer_minutes, b.min_notice_hours, b.horizon_days, b.max_meetings_per_day,
@@ -118,7 +123,7 @@ SELECT CASE WHEN $2 <> '' AND $3::boolean THEN public.smc_vault_store_ms_refresh
   // the token-only Compute needs tok: Token only? true carries the vault output, so Compute re-reads it
   n.find((x) => x.name === 'Compute (w04.respond)').parameters.jsCode = n.find((x) => x.name === 'Compute (w04.respond)').parameters.jsCode.replace("const x = $input.first().json;", "let x = $input.first().json;\nif (!x.plan) x = $('Token plan (w04.planToken)').first().json;");
   n.find((x) => x.name === 'Refresh failed -> fail closed').parameters.jsCode = PRE('w04.mjs') + `const x = $('Token plan (w04.planToken)').first().json;\nreturn [{ json: { ...x, busy: null } }];`;
-  return wf('W04 Slots API (DRAFT pending GATE-TEST-W04)', 'automation-engineer. W04 slots; logic automation/lib/w04.mjs; tests automation/tests/W04.test.mjs. Callers bind by cachedResultName "W04 Slots API": rename (drop the DRAFT suffix) when GATE-TEST-W04 is approved.', n, c, ['booking', 'core', 'draft']);
+  return wf('smc-w04', 'W04 Slots API (DRAFT pending GATE-TEST-W04)', 'automation-engineer. W04 slots; logic automation/lib/w04.mjs; tests automation/tests/W04.test.mjs. Callers bind by id smc-w04 (name kept as cachedResultName only).', n, c, ['booking', 'core', 'draft']);
 }
 
 // =========================================================================================== W05
@@ -262,7 +267,7 @@ SELECT l.id, l.email, l.phone, l.language,
   chain(c, 'graph_token input (method)', 'W04 graph_token (method, waits)', 'Graph PATCH event (method, ASSUMPTION)', 'Save method', 'Method invite?', 'Email from howzit@ (Graph sendMail)');
   chain(c, 'ask_email input (method)', '-> W28 ask_email');
   chain(c, 'Mark invite bounced', 'Bounce prompt (w05.bounceEffect)', 'Live send?');
-  return wf('W05 Book (DRAFT pending GATE-TEST-W05)', 'automation-engineer. W05 book; logic automation/lib/w05.mjs (+ lib/w04.mjs via the W04 sub-workflow); tests automation/tests/W05.test.mjs. Callers bind by cachedResultName "W05 Book": rename (drop the DRAFT suffix) when GATE-TEST-W05 is approved.', n, c, ['booking', 'core', 'draft']);
+  return wf('smc-w05', 'W05 Book (DRAFT pending GATE-TEST-W05)', 'automation-engineer. W05 book; logic automation/lib/w05.mjs (+ lib/w04.mjs via the W04 sub-workflow); tests automation/tests/W05.test.mjs. Callers bind by id smc-w05 (name kept as cachedResultName only).', n, c, ['booking', 'core', 'draft']);
 }
 
 writeFileSync(join(HERE, 'W04.json'), JSON.stringify(buildW04(), null, 2) + '\n');

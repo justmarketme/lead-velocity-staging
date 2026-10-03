@@ -158,22 +158,31 @@ const c1a = (reason_code) => {
   return W10.c1aDecision({ lead, booking, cancelled_by: 'lead', rebooked: false, rebook_offered: true, inbound_after_cancel: [], already_claimed: false, now_ms: ms('2026-10-12T10:00:00+02:00') + W10.C1A_SEQUENCE_MS + 60_000 }).w13;
 };
 
-test('W13.json: DRAFT name, inactive, one Postgres credential, physical columns only, Code nodes import lib/w13.mjs', () => {
+test('W13.json: DRAFT name, inactive, one Postgres credential, physical columns only, Code nodes require(\'lv-automation\').w13, id smc-w13', () => {
   assert.equal(WF.name, 'W13 No-show & replacement (DRAFT pending GATE-TEST-W13)');
   assert.equal(WF.active, false);
   assert.ok(WF.nodes.filter((n) => n.type === 'n8n-nodes-base.postgres').every((n) => n.credentials.postgres.name === PG_CRED && n.credentials.postgres.id === ''));
   assert.deepEqual(checkSql(workflowSql(WF)), []);
-  for (const n of WF.nodes.filter((x) => x.type === 'n8n-nodes-base.code' && /\(w13\./.test(x.name))) assert.match(n.parameters.jsCode, /\$env\.REPO_DIR[\s\S]*\/automation\/lib\/w13\.mjs/, n.name);
+  for (const n of WF.nodes.filter((x) => x.type === 'n8n-nodes-base.code' && /\(w13\./.test(x.name))) assert.match(n.parameters.jsCode, /require\('lv-automation'\)\.w13;/, n.name);
+  for (const n of WF.nodes.filter((x) => x.type === 'n8n-nodes-base.code')) {
+    for (const m of n.parameters.jsCode.matchAll(/require\('([^']+)'\)/g)) assert.equal(m[1], 'lv-automation', `${n.name}: exact allowlisted name only (I-46c), got ${m[1]}`);
+    assert.doesNotMatch(n.parameters.jsCode, /REPO_DIR|await import\(|pathToFileURL|lv-automation\//, n.name);
+  }
+  assert.equal(Object.keys(WF)[0], 'id'); assert.equal(WF.id, 'smc-w13'); assert.equal(WF.settings.errorWorkflow, 'smc-w22');
+  for (const n of WF.nodes.filter((x) => x.type === 'n8n-nodes-base.executeWorkflow')) {
+    const r = n.parameters.workflowId; const m = /^W(\d\d)\b/.exec(r.cachedResultName);
+    assert.equal(r.mode, 'id', n.name); assert.equal(r.value, m ? `smc-w${m[1]}` : `smc-${r.cachedResultName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, n.name);
+  }
   const ops = node('Op').parameters.rules.values.map((v) => v.outputKey);
   for (const op of ['claim', 'withdraw', 'no_show', 'dispute', 'decide', 'tick', 'reject']) assert.ok(ops.includes(op), op);
 });
 
-test('ONE counter: W13.json is the only workflow that writes public.replacements; W10 / W12 / W29 call W13 by name', () => {
+test('ONE counter: W13.json is the only workflow that writes public.replacements; W10 / W12 / W29 call W13 by id smc-w13', () => {
   const writers = allWorkflows().filter(({ wf }) => /INSERT INTO public\.replacements|UPDATE public\.replacements/.test(JSON.stringify(wf))).map((x) => x.file);
   assert.deepEqual(writers, ['W13.json']);
   for (const f of ['W10.json', 'W12.json', 'W29.json']) {
     const wf = allWorkflows().find((x) => x.file === f).wf;
-    assert.ok(wf.nodes.some((n) => n.type === 'n8n-nodes-base.executeWorkflow' && n.parameters.workflowId.cachedResultName === 'W13 No-show & replacement'), f);
+    assert.ok(wf.nodes.some((n) => n.type === 'n8n-nodes-base.executeWorkflow' && n.parameters.workflowId.cachedResultName === 'W13 No-show & replacement' && n.parameters.workflowId.value === 'smc-w13'), f);
   }
   const q = node('Claim replacement (per-cycle lock, cap, one per lead)').parameters.query;
   assert.match(q, /pg_advisory_xact_lock\(hashtext\('w13:cycle:' \|\| \$4::text\)\);/, 'claims serialised per cycle');

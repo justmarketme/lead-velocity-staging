@@ -1,4 +1,5 @@
 {
+  "id": "smc-w09",
   "name": "W09 Reminder sequence (DRAFT pending GATE-TEST-W09)",
   "nodes": [
     {
@@ -13,7 +14,7 @@
       "parameters": {
         "width": 900,
         "height": 380,
-        "content": "W09 Reminder sequence (client), 4.6 item 6 + 4.12. DRAFT pending GATE-TEST-W09 (nodes stay \"in progress\" until Jonathan approves automation/tests/W09.test.mjs).\nLogic: automation/lib/w09.mjs (pure), imported by every Code node from $env.REPO_DIR. Jobs are lead_activities rows (activity_type reminder_job, idempotency_key w09:{booking}:{touch}:{at}); a job is finished by ONE append-only reminder_done row (key w09done:{job key}: sent / skipped / cancelled), so each touch is sent at most once even if two ticks overlap (ON CONFLICT DO NOTHING is the claim; no retry storm).\nEntries (CONTRACTS.md \"Sub-workflow interfaces\"): schedule {booking_id} (W05) · rebuild {booking_id} (W10, W05 previous_booking_id) · cancel_all {booking_id|lead_id} (W10, W13, W15) · pause {lead_id, reason} (W07, W15) · resume {lead_id} (console) · taps confirm:{bk} / play_voice_note:{bk} / looking_forward:{bk} (W07) · tick (every 5 min; staging test hook passes {op:\"tick\", now, is_synthetic:true}, honoured only with TEST_HOOKS_ENABLED=true and only for synthetic leads).\nSequence: what_to_expect T0+10 min · intro_media(_voice) T-48 h if booked >= 3 days out else T0+15 min (once per lead) · reminder_24h + prep_nudge T-24 h (skipped < 24 h ahead) · reminder_2h · reminder_10m. Quiet hours 20:00-08:00 SAST (reminder_10m exempt). Stops at send time on STOP, suppression, pause, booking moved/not live, meeting started, 12-message budget (reminders are essential).\nEvery lead send Meta accepts touches leads.last_contact_at (I-38d). Env: REPO_DIR, DRY_RUN_SENDS, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TEST_HOOKS_ENABLED."
+        "content": "W09 Reminder sequence (client), 4.6 item 6 + 4.12. DRAFT pending GATE-TEST-W09 (nodes stay \"in progress\" until Jonathan approves automation/tests/W09.test.mjs).\nLogic: automation/lib/w09.mjs (pure), loaded by every Code node through the lv-automation loader (index.cjs). Jobs are lead_activities rows (activity_type reminder_job, idempotency_key w09:{booking}:{touch}:{at}); a job is finished by ONE append-only reminder_done row (key w09done:{job key}: sent / skipped / cancelled), so each touch is sent at most once even if two ticks overlap (ON CONFLICT DO NOTHING is the claim; no retry storm).\nEntries (CONTRACTS.md \"Sub-workflow interfaces\"): schedule {booking_id} (W05) · rebuild {booking_id} (W10, W05 previous_booking_id) · cancel_all {booking_id|lead_id} (W10, W13, W15) · pause {lead_id, reason} (W07, W15) · resume {lead_id} (console) · taps confirm:{bk} / play_voice_note:{bk} / looking_forward:{bk} (W07) · tick (every 5 min; staging test hook passes {op:\"tick\", now, is_synthetic:true}, honoured only with TEST_HOOKS_ENABLED=true and only for synthetic leads).\nSequence: what_to_expect T0+10 min · intro_media(_voice) T-48 h if booked >= 3 days out else T0+15 min (once per lead) · reminder_24h + prep_nudge T-24 h (skipped < 24 h ahead) · reminder_2h · reminder_10m. Quiet hours 20:00-08:00 SAST (reminder_10m exempt). Stops at send time on STOP, suppression, pause, booking moved/not live, meeting started, 12-message budget (reminders are essential).\nEvery lead send Meta accepts touches leads.last_contact_at (I-38d). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation. Env: DRY_RUN_SENDS, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TEST_HOOKS_ENABLED."
       }
     },
     {
@@ -74,7 +75,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w09.mjs').href);\nconst j = $json;\nconst op = L.classifyOp(j);\nconst v = L.validateInput(op, j);\nconst wall = Date.now();\nconst now = L.nowFrom(j, $env, wall);\nconst booking_id = j.booking_id || (j.msg ? L.tapBookingId(j.msg) : null) || null;\nreturn { json: { ...j, op: v.ok ? op : 'reject', asked_op: op, missing: v.ok ? [] : v.missing, booking_id, lead_id: j.lead_id || (j.lead && j.lead.id) || null, now_iso: L.iso(now), synthetic_only: now !== wall } };"
+        "jsCode": "const L = require('lv-automation').w09;\nconst j = $json;\nconst op = L.classifyOp(j);\nconst v = L.validateInput(op, j);\nconst wall = Date.now();\nconst now = L.nowFrom(j, $env, wall);\nconst booking_id = j.booking_id || (j.msg ? L.tapBookingId(j.msg) : null) || null;\nreturn { json: { ...j, op: v.ok ? op : 'reject', asked_op: op, missing: v.ok ? [] : v.missing, booking_id, lead_id: j.lead_id || (j.lead && j.lead.id) || null, now_iso: L.iso(now), synthetic_only: now !== wall } };"
       }
     },
     {
@@ -329,7 +330,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w09.mjs').href);\nconst c = $('Classify + validate (w09.classifyOp)').item.json;\nconst r = $json;\nif (!r.booking_id) return { json: { skip: true } };\nconst p = L.planFromRow(r, c.op, Date.parse(c.now_iso));\nreturn { json: { ...r, op: c.op, start: p.start, compressed: p.plan.compressed, rows: p.rows } };"
+        "jsCode": "const L = require('lv-automation').w09;\nconst c = $('Classify + validate (w09.classifyOp)').item.json;\nconst r = $json;\nif (!r.booking_id) return { json: { skip: true } };\nconst p = L.planFromRow(r, c.op, Date.parse(c.now_iso));\nreturn { json: { ...r, op: c.op, start: p.start, compressed: p.plan.compressed, rows: p.rows } };"
       }
     },
     {
@@ -487,7 +488,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w09.mjs').href);\nconst c = $('Classify + validate (w09.classifyOp)').first().json;\nconst d = L.dueFromRow($json, Date.parse(c.now_iso));\nreturn { json: { key: $json.key, lead_id: $json.lead_id, brand_id: $json.brand_id, broker_id: $json.broker_id, cycle_id: $json.cycle_id, touch: d.job.touch, action: d.decision.action, reason: d.decision.reason || null, send: d.send } };"
+        "jsCode": "const L = require('lv-automation').w09;\nconst c = $('Classify + validate (w09.classifyOp)').first().json;\nconst d = L.dueFromRow($json, Date.parse(c.now_iso));\nreturn { json: { key: $json.key, lead_id: $json.lead_id, brand_id: $json.brand_id, broker_id: $json.broker_id, cycle_id: $json.cycle_id, touch: d.job.touch, action: d.decision.action, reason: d.decision.reason || null, send: d.send } };"
       }
     },
     {
@@ -710,7 +711,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w09.mjs').href);\nconst r = $json; const c = $('Classify + validate (w09.classifyOp)').item.json;\nconst m = L.confirmReply({ first_name: r.first_name, phone: r.phone, language: r.language }, { appointment_date: r.appointment_date }, { adviser_name: r.adviser_name, contact_person: r.contact_person }, Date.parse(c.now_iso));\nreturn { json: { send: { to: 'lead', wa: m.wa, lead_id: r.lead_id, brand_id: r.brand_id, broker_id: r.broker_id, template: null, category: 'service', key: 'w09:confirm_reply:' + r.booking_id, workflow: 'W09' } } };"
+        "jsCode": "const L = require('lv-automation').w09;\nconst r = $json; const c = $('Classify + validate (w09.classifyOp)').item.json;\nconst m = L.confirmReply({ first_name: r.first_name, phone: r.phone, language: r.language }, { appointment_date: r.appointment_date }, { adviser_name: r.adviser_name, contact_person: r.contact_person }, Date.parse(c.now_iso));\nreturn { json: { send: { to: 'lead', wa: m.wa, lead_id: r.lead_id, brand_id: r.brand_id, broker_id: r.broker_id, template: null, category: 'service', key: 'w09:confirm_reply:' + r.booking_id, workflow: 'W09' } } };"
       }
     },
     {
@@ -748,7 +749,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w09.mjs').href);\nconst r = $json; const c = $('Classify + validate (w09.classifyOp)').item.json;\nconst m = L.mediaTapReply(c.msg || {}, { phone: r.phone, language: r.language }, { intro_voice_url: r.intro_voice_url || {} });\nreturn { json: { ...r, activity: m.activity, send: m.wa ? { to: 'lead', wa: m.wa, lead_id: r.lead_id, brand_id: r.brand_id, broker_id: r.broker_id, template: null, category: 'service', key: 'w09:voice_played:' + r.booking_id + ':' + ((c.msg && c.msg.wamid) || c.now_iso), workflow: 'W09' } : null } };"
+        "jsCode": "const L = require('lv-automation').w09;\nconst r = $json; const c = $('Classify + validate (w09.classifyOp)').item.json;\nconst m = L.mediaTapReply(c.msg || {}, { phone: r.phone, language: r.language }, { intro_voice_url: r.intro_voice_url || {} });\nreturn { json: { ...r, activity: m.activity, send: m.wa ? { to: 'lead', wa: m.wa, lead_id: r.lead_id, brand_id: r.brand_id, broker_id: r.broker_id, template: null, category: 'service', key: 'w09:voice_played:' + r.booking_id + ':' + ((c.msg && c.msg.wamid) || c.now_iso), workflow: 'W09' } : null } };"
       }
     },
     {
@@ -1349,7 +1350,7 @@
     "executionOrder": "v1",
     "timezone": "Africa/Johannesburg",
     "saveManualExecutions": true,
-    "errorWorkflow": "W22 Alerts"
+    "errorWorkflow": "smc-w22"
   },
   "pinData": {},
   "tags": [

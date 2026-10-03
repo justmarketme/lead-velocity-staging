@@ -156,7 +156,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation/lib/w06.mjs');\nconst ev = $('Called by W01 / W05 / W07 (op routed | skip | booking | status)').first().json;\nconst l = $input.first().json;\nif (!l || !l.id) return [{ json: { blocked: 'no_lead', lead_id: ev.lead_id, hold_s: 0 } }];\nconst block = L.blockReason(l);\nreturn [{ json: { ev, l, blocked: block, hold_s: block ? 0 : L.holdSeconds(l, ev.op) } }];"
+        "jsCode": "const L = require('lv-automation').w06;\nconst ev = $('Called by W01 / W05 / W07 (op routed | skip | booking | status)').first().json;\nconst l = $input.first().json;\nif (!l || !l.id) return [{ json: { blocked: 'no_lead', lead_id: ev.lead_id, hold_s: 0 } }];\nconst block = L.blockReason(l);\nreturn [{ json: { ev, l, blocked: block, hold_s: block ? 0 : L.holdSeconds(l, ev.op) } }];"
       }
     },
     {
@@ -429,7 +429,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation/lib/w06.mjs');\nconst LT = require('lv-automation/security/lead-token.js');\nconst j = $('Claimed? -> need W04 slots?').first().json;\nconst slots = j.need_slots ? (($input.first().json || {}).slots || []) : [];\nconst now = Date.now();\nconst l = { ...j.l, mobile: j.l.phone };\nconst b = { id: j.l.broker_id, practice_name: j.l.practice_name, fsp_number: j.l.fsp_number, adviser_name: j.l.adviser_name, intro_card_url: j.l.intro_card_url };\nconst ctx = L.ctxFromEvent({ op: j.ev.op, booking: j.l.booking, booking_ui: j.l.booking_ui, slots }, now);\n// The 60-s clock runs from routed_at (CONTRACTS.md W06). hold -> trigger 'hold'; skip / booking -> that event; lead-ad / CTWA -> 'routed'.\nlet plan = L.planFirstTouch(l, b, ctx);\nif (plan && plan.blocked === 'not_enough_slots') {\n  // Fewer than 3 free slots in 14 days: the Flow card still discloses and lets the lead pick any day; W22 is told.\n  plan = { ...L.planFirstTouch(l, b, { ...ctx, bookingUi: 'flow' }), fallback_from: 'not_enough_slots' };\n}\nconst flow_token = plan && plan.template === 'broker_intro_slots_v2' ? LT.mintFlowToken(l.id, 'book', null, { secret: $env.LEAD_TOKEN_SECRET }) : null;\nconst wa = plan ? L.toCloudApi(plan, { to: l.phone, flow_token, lang: 'en' }) : null;\nreturn [{ json: { ...j, plan, wa, flow_token: flow_token ? 'minted' : null, dry: $env.DRY_RUN_SENDS === 'true', planned_at: now } }];"
+        "jsCode": "const L = require('lv-automation').w06;\nconst LT = require('lv-automation').leadToken;\nconst j = $('Claimed? -> need W04 slots?').first().json;\nconst slots = j.need_slots ? (($input.first().json || {}).slots || []) : [];\nconst now = Date.now();\nconst l = { ...j.l, mobile: j.l.phone };\nconst b = { id: j.l.broker_id, practice_name: j.l.practice_name, fsp_number: j.l.fsp_number, adviser_name: j.l.adviser_name, intro_card_url: j.l.intro_card_url };\nconst ctx = L.ctxFromEvent({ op: j.ev.op, booking: j.l.booking, booking_ui: j.l.booking_ui, slots }, now);\n// The 60-s clock runs from routed_at (CONTRACTS.md W06). hold -> trigger 'hold'; skip / booking -> that event; lead-ad / CTWA -> 'routed'.\nlet plan = L.planFirstTouch(l, b, ctx);\nif (plan && plan.blocked === 'not_enough_slots') {\n  // Fewer than 3 free slots in 14 days: the Flow card still discloses and lets the lead pick any day; W22 is told.\n  plan = { ...L.planFirstTouch(l, b, { ...ctx, bookingUi: 'flow' }), fallback_from: 'not_enough_slots' };\n}\nconst flow_token = plan && plan.template === 'broker_intro_slots_v2' ? LT.mintFlowToken(l.id, 'book', null, { secret: $env.LEAD_TOKEN_SECRET }) : null;\nconst wa = plan ? L.toCloudApi(plan, { to: l.phone, flow_token, lang: 'en' }) : null;\nreturn [{ json: { ...j, plan, wa, flow_token: flow_token ? 'minted' : null, dry: $env.DRY_RUN_SENDS === 'true', planned_at: now } }];"
       }
     },
     {
@@ -516,7 +516,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation/lib/w06.mjs');\nconst p = $('Plan card (w06.planFirstTouch + toCloudApi)').first().json;\nconst wamid = L.wamidOf($input.first().json);\nconst sentAt = Date.now();\nconst b = { id: p.l.broker_id };\nconst comm = L.communicationRow(p.plan, { ...p.l }, b, wamid, sentAt);\nconst upd = wamid ? L.sentUpdate(p.l, p.plan, wamid, sentAt) : null;\nconst sms = wamid ? null : { to: p.l.phone, text: L.smsText(p.plan.template, p.plan.variables) };\nreturn [{ json: { ...p, wamid, comm, upd, sms, slow: upd ? !upd.within_60s : false, error: wamid ? null : JSON.stringify($input.first().json.error || $input.first().json).slice(0, 500) } }];"
+        "jsCode": "const L = require('lv-automation').w06;\nconst p = $('Plan card (w06.planFirstTouch + toCloudApi)').first().json;\nconst wamid = L.wamidOf($input.first().json);\nconst sentAt = Date.now();\nconst b = { id: p.l.broker_id };\nconst comm = L.communicationRow(p.plan, { ...p.l }, b, wamid, sentAt);\nconst upd = wamid ? L.sentUpdate(p.l, p.plan, wamid, sentAt) : null;\nconst sms = wamid ? null : { to: p.l.phone, text: L.smsText(p.plan.template, p.plan.variables) };\nreturn [{ json: { ...p, wamid, comm, upd, sms, slow: upd ? !upd.within_60s : false, error: wamid ? null : JSON.stringify($input.first().json.error || $input.first().json).slice(0, 500) } }];"
       }
     },
     {
@@ -762,7 +762,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation/lib/w06.mjs');\nconst ev = $('Called by W01 / W05 / W07 (op routed | skip | booking | status)').first().json;\nconst m = $input.first().json;\nif (!m || !m.comm_id) return [{ json: { skip: true } }];\nconst msg = { wamid: ev.wamid, template: m.template_name, variables: (m.metadata || {}).variables || [], is_disclosure: !!(m.metadata || {}).is_disclosure };\nconst e = L.statusEffect(msg, { status: ev.status, at: ev.at || new Date().toISOString() });\nreturn [{ json: { skip: false, ev, m, e, sms: e.sms ? { to: m.recipient_contact, text: e.sms.text } : null, l: { id: m.lead_id, brand_id: m.brand_id, broker_id: m.broker_id, phone: m.recipient_contact }, wamid: ev.wamid } }];"
+        "jsCode": "const L = require('lv-automation').w06;\nconst ev = $('Called by W01 / W05 / W07 (op routed | skip | booking | status)').first().json;\nconst m = $input.first().json;\nif (!m || !m.comm_id) return [{ json: { skip: true } }];\nconst msg = { wamid: ev.wamid, template: m.template_name, variables: (m.metadata || {}).variables || [], is_disclosure: !!(m.metadata || {}).is_disclosure };\nconst e = L.statusEffect(msg, { status: ev.status, at: ev.at || new Date().toISOString() });\nreturn [{ json: { skip: false, ev, m, e, sms: e.sms ? { to: m.recipient_contact, text: e.sms.text } : null, l: { id: m.lead_id, brand_id: m.brand_id, broker_id: m.broker_id, phone: m.recipient_contact }, wamid: ev.wamid } }];"
       }
     },
     {
