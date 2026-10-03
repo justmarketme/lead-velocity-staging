@@ -33,7 +33,7 @@ A merged duplicate (90-day dedupe) gets a fresh token for the **existing** lead 
 
 ### How it is sent
 - `GET /slots` and `POST /book` carry the request header **`X-Lead-Token: lt1....`**. It is a header, not a query parameter or body field, so it stays out of access logs, the Referer and caches. CORS on `API_HOST` must list `X-Lead-Token` in `Access-Control-Allow-Headers` (devops-security, Traefik `headers` middleware).
-- `/book` also keeps its existing body (`request_id`, `slot`, `method`, `email?`, Turnstile token). It **may** echo `lead_id` for logs, but the server uses the token's lead id, and a mismatch returns `401`.
+- `/book` also keeps its existing body (`request_id`, `slot`, `method`, `email?`, Turnstile token). **I-45h guard (page / lead-token calls only):** body `turnstile_token` (Turnstile `action=book`, single-use, re-executed per booking) is verified server-side; missing/invalid/wrong host or action -> `400 try_again`; siteverify unreachable -> **`503 try_again` (fails closed, NH-32; `TURNSTILE_FAIL_MODE` is `/lead`'s switch only)**; per-IP (`RATE_LIMIT_PER_IP_PER_HOUR`, 10) or per-lead-token (`RATE_LIMIT_PER_NUMBER_PER_DAY`, 5) over the limit -> `429 rate_limited`. Broker-JWT console calls and sub-calls (W07/W10/W28) skip the guard. It **may** echo `lead_id` for logs, but the server uses the token's lead id, and a mismatch returns `401`.
 
 ### What the server does (W04 `/slots`, W05 `/book`)
 1. `resolveSlotsCaller()` / `verifyLeadToken()`. Failure returns `401 {"error":"try_again"}`. The reason (`missing|malformed|bad_signature|expired|exp_too_far`) is logged, never returned.

@@ -22,6 +22,7 @@
 import { createRequire } from 'node:module';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { LINES, fill } from '../../conversation/lines.mjs';
+import { ipKey, turnstileVerdict } from './w01.mjs';
 import { brokerConfig, calendarRoute, clockFor, ms, iso, MIN, D, TZ } from './w04.mjs';
 export { clockFor };
 
@@ -125,8 +126,18 @@ export function parseHttp(headers = {}, body = {}, env = {}, nowMs = Date.now())
   const rid = typeof b.request_id === 'string' && /^[A-Za-z0-9-]{8,64}$/.test(b.request_id) ? b.request_id : null;
   const idem = keyOk(b.idempotency_key) ? b.idempotency_key : rid ? `page:${leadId}:${rid}` : `book:${leadId}:${iso(ms(slot))}`;
   const ev = b.context && typeof b.context.event_id === 'string' && /^[A-Za-z0-9-]{8,64}$/.test(b.context.event_id) ? b.context.event_id : null;
+  // I-45h: page-origin (lead-token) calls carry the bot guard; broker-JWT console calls never do. Test hooks are the same
+  // four-part gate as W01 (TEST_HOOKS_ENABLED + token + synthetic body) and bypass counters + Turnstile.
+  const hv = (n) => { const k = Object.keys(headers || {}).find((x) => x.toLowerCase() === n); return k ? String(headers[k]) : ''; };
+  const testHooks = String(env.TEST_HOOKS_ENABLED) === 'true' && !!env.TEST_HOOKS_TOKEN && hv('x-test-token') === env.TEST_HOOKS_TOKEN && b.is_synthetic === true;
+  const ip = hv('cf-connecting-ip') || hv('x-forwarded-for').split(',')[0].trim() || null;
+  const guard = c.mode === 'lead' ? {
+    applies: !testHooks, test_hooks: testHooks,
+    turnstile_needed: !testHooks && !!env.TURNSTILE_SECRET_KEY, turnstile_token: typeof b.turnstile_token === 'string' ? b.turnstile_token : '',
+    ip, keys: bookRateKeys({ ip, lead_id: leadId, request_id: rid, salt: env.RATE_LIMIT_IP_SALT, now: nowMs }),
+  } : { applies: false, test_hooks: false, turnstile_needed: false, turnstile_token: '', ip: null, keys: bookRateKeys({}) };
   return {
-    ok: true, lane: 'http', mode: c.mode, user_id: c.user_id || null,
+    ok: true, lane: 'http', mode: c.mode, user_id: c.user_id || null, guard,
     req: {
       op: 'book', lead_id: leadId, slot_start: iso(ms(slot)), method,
       email: INVITE_METHODS.has(method) && b.email ? String(b.email) : null, // 0.1: dropped for call methods, never stored
@@ -134,6 +145,43 @@ export function parseHttp(headers = {}, body = {}, env = {}, nowMs = Date.now())
       idempotency_key: idem, previous_booking_id: null, context: { event_id: ev },
     },
   };
+}
+
+// ---------------------------------------------------------------------------------------------- I-45h /book bot guard
+export const BOOK_IP_LIMIT_PER_HOUR = 10; // RATE_LIMIT_PER_IP_PER_HOUR (shared with W01, W03-notes B.3 #4)
+export const BOOK_LEAD_LIMIT_PER_DAY = 5; // B.3 #7: per lead token, 5 /book attempts per 24 h (RATE_LIMIT_PER_NUMBER_PER_DAY)
+
+/** Counter keys, same shape as W01 (public.webhook_events; no DDL: reuses the allowed sources w01_ip / w01_num with distinct bk_ip: / bk_lead: key prefixes). Raw IP is never stored (HMAC). */
+export function bookRateKeys({ ip, lead_id, request_id, salt, now = Date.now() } = {}) {
+  const rid = request_id || `t${now}`;
+  const k = ipKey(ip, salt);
+  return {
+    ip_prefix: k ? `bk_ip:${k}:` : null, ip_external_id: k ? `bk_ip:${k}:${rid}` : null,
+    lead_prefix: lead_id ? `bk_lead:${lead_id}:` : null, lead_external_id: lead_id ? `bk_lead:${lead_id}:${rid}` : null,
+  };
+}
+
+/**
+ * bookGuard(guard, ctx, env) -> { ok:true, bot_check } | { ok:false, status, body, reason }.
+ * guard = parseHttp().guard; ctx = { ip_hits, lead_hits, turnstile: raw siteverify reply | null }; page lane only.
+ * NH-32: /book FAILS CLOSED (503 try_again) when siteverify is unreachable, whatever TURNSTILE_FAIL_MODE says (that
+ * switch is /lead's). No token / bad token / wrong hostname or action -> 400 try_again. Over a limit -> 429 rate_limited.
+ * When TURNSTILE_SECRET_KEY is unset (offline tests, local) the check is skipped, like W01.
+ */
+export function bookGuard(guard = {}, ctx = {}, env = {}) {
+  if (!guard.applies) return { ok: true, bot_check: guard.test_hooks ? 'test_hook' : 'n/a' };
+  const reject = (status, error, reason, extra = {}) => ({ ok: false, status, reason, body: { error, error_code: error, ...extra } });
+  const ipLimit = Number(env.RATE_LIMIT_PER_IP_PER_HOUR) || BOOK_IP_LIMIT_PER_HOUR;
+  const leadLimit = Number(env.RATE_LIMIT_PER_NUMBER_PER_DAY) || BOOK_LEAD_LIMIT_PER_DAY;
+  if ((ctx.ip_hits ?? 0) >= ipLimit) return reject(429, 'rate_limited', 'ip_rate', { retry_after_s: 3600 });
+  if ((ctx.lead_hits ?? 0) >= leadLimit) return reject(429, 'rate_limited', 'lead_rate', { retry_after_s: 86400 });
+  if (!guard.turnstile_needed) return { ok: true, bot_check: 'skipped' };
+  if (!guard.turnstile_token) return reject(400, 'try_again', 'turnstile_missing');
+  const allowed = String(env.PUBLIC_ALLOWED_ORIGINS || '').split(',').map((x) => x.replace(/^https?:\/\//, '').trim()).filter(Boolean);
+  const v = turnstileVerdict(ctx.turnstile ?? null, { allowed_hosts: allowed, action: 'book' });
+  if (v.reachable === false) return reject(503, 'try_again', 'turnstile_unreachable', { retry_after_s: 30 });
+  if (!(v.success && v.hostname_ok !== false && v.action_ok !== false)) return reject(400, 'try_again', 'turnstile_failed');
+  return { ok: true, bot_check: 'passed' };
 }
 
 /** "slot_<ISO>" or "slot_<ISO>:m:<method>" (METHOD_NOT_OFFERED buttons). Reschedule picks (":resched:") are W10's. */

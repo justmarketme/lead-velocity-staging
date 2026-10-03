@@ -536,3 +536,72 @@ test('I-45j W05.json: GET c/:booking_id webhook -> verify -> load (no lead PII c
   assert.equal(c['Build .ics (w05.icsResponse)'].main[0][0].node, 'Respond (.ics)');
   assert.equal(c['.ics caller ok?'].main[1][0].node, '.ics not found (404)');
 });
+
+// ============================================================================================
+// I-45h: /book bot guard (Turnstile action=book, fails CLOSED per NH-32; per-IP + per-lead rate limits; internal bypass)
+// ============================================================================================
+const GUARD_ENV = { LEAD_TOKEN_SECRET: OFFLINE_SECRET, TURNSTILE_SECRET_KEY: 'x', PUBLIC_ALLOWED_ORIGINS: 'https://sortmycover.co.za', TEST_HOOKS_ENABLED: 'true', TEST_HOOKS_TOKEN: 'tt' };
+const gBody = { slot_start: '2026-10-13T10:30:00+02:00', method: 'phone', request_id: 'req-12345678', turnstile_token: 'tok' };
+const pageGuard = (over = {}, hdr = {}, env = GUARD_ENV) => {
+  const now = Date.now();
+  const { token } = LT5.mintLeadToken('lead_g1', { secret: OFFLINE_SECRET, nowMs: now });
+  return W5.parseHttp({ [LT5.HEADER]: token, 'cf-connecting-ip': '41.0.0.1', ...hdr }, { ...gBody, ...over }, env, now);
+};
+const ts = (o) => ({ success: true, hostname: 'sortmycover.co.za', action: 'book', ...o });
+
+test('I-45h: /book without a Turnstile token -> 400 try_again; invalid / wrong action / wrong host -> 400; valid -> ok', () => {
+  const g = (over, t) => W5.bookGuard(pageGuard(over).guard, { ip_hits: 0, lead_hits: 0, turnstile: t }, GUARD_ENV);
+  const missing = g({ turnstile_token: undefined }, null);
+  assert.equal(missing.status, 400); assert.equal(missing.body.error_code, 'try_again'); assert.equal(missing.reason, 'turnstile_missing');
+  assert.equal(g({}, ts({ success: false })).status, 400);
+  assert.equal(g({}, ts({ action: 'lead' })).status, 400);
+  assert.equal(g({}, ts({ hostname: 'evil.example' })).status, 400);
+  const okv = g({}, ts({})); assert.equal(okv.ok, true); assert.equal(okv.bot_check, 'passed');
+  assert.equal(pageGuard().req.turnstile_token, undefined); // the token never reaches the booking request
+});
+
+test('I-45h: siteverify down -> 503 try_again, FAILS CLOSED (NH-32), even with TURNSTILE_FAIL_MODE=open', () => {
+  const env = { ...GUARD_ENV, TURNSTILE_FAIL_MODE: 'open' };
+  for (const down of [null, { error: 'timeout' }, { 'error-codes': ['x'] }]) {
+    const r = W5.bookGuard(pageGuard({}, {}, env).guard, { ip_hits: 0, lead_hits: 0, turnstile: down }, env);
+    assert.equal(r.ok, false); assert.equal(r.status, 503); assert.equal(r.body.error_code, 'try_again'); assert.equal(r.reason, 'turnstile_unreachable');
+  }
+});
+
+test('I-45h: per-IP (10/h) and per-lead (5/day) rate limits trip with 429 rate_limited; below the limit passes', () => {
+  const g = pageGuard().guard;
+  assert.equal(W5.bookGuard(g, { ip_hits: 9, lead_hits: 4, turnstile: ts({}) }, GUARD_ENV).ok, true);
+  const ip = W5.bookGuard(g, { ip_hits: 10, lead_hits: 0, turnstile: ts({}) }, GUARD_ENV);
+  assert.equal(ip.status, 429); assert.equal(ip.body.error_code, 'rate_limited'); assert.equal(ip.reason, 'ip_rate');
+  const ld = W5.bookGuard(g, { ip_hits: 0, lead_hits: 5, turnstile: ts({}) }, GUARD_ENV);
+  assert.equal(ld.status, 429); assert.equal(ld.reason, 'lead_rate');
+  assert.equal(W5.bookGuard(g, { ip_hits: 3, lead_hits: 0, turnstile: ts({}) }, { ...GUARD_ENV, RATE_LIMIT_PER_IP_PER_HOUR: '3' }).status, 429);
+  assert.match(g.keys.ip_external_id, /^bk_ip:[0-9a-f]{32}:req-12345678$/); assert.ok(!JSON.stringify(g.keys).includes('41.0.0.1'));
+  assert.equal(g.keys.lead_prefix, 'bk_lead:lead_g1:');
+});
+
+test('I-45h: internal ops bypass: broker JWT, sub-calls (W07/W10/W28), test hooks, and no secret configured', () => {
+  const jwt = createRequire(import.meta.url)('../security/lead-token.js');
+  assert.equal(W5.bookGuard({ applies: false }, { turnstile: null }, GUARD_ENV).ok, true);
+  assert.equal(W5.bookGuard(undefined, {}, GUARD_ENV).ok, true); // sub-call lane never builds a guard
+  const hook = pageGuard({ is_synthetic: true }, { 'x-test-token': 'tt' });
+  assert.equal(hook.guard.applies, false);
+  assert.equal(W5.bookGuard(hook.guard, { ip_hits: 99, lead_hits: 99, turnstile: null }, GUARD_ENV).ok, true);
+  assert.equal(pageGuard({ is_synthetic: true }, { 'x-test-token': 'wrong' }).guard.applies, true);
+  assert.equal(pageGuard({ is_synthetic: false }, { 'x-test-token': 'tt' }).guard.applies, true);
+  const noSecret = { ...GUARD_ENV, TURNSTILE_SECRET_KEY: '' };
+  assert.equal(W5.bookGuard(pageGuard({ turnstile_token: undefined }, {}, noSecret).guard, { ip_hits: 0, lead_hits: 0 }, noSecret).ok, true);
+  assert.ok(jwt); // broker-JWT callers get guard.applies=false in parseHttp (mode !== 'lead'), covered by the structural check below
+  assert.equal(W5.parseSub({ lead_id: 'l1', slot_start: '2026-10-13T10:30:00+02:00', method: 'phone', booked_via: 'chat', idempotency_key: 'chat:k1:abcdefgh' }, {}, Date.now()).guard, undefined);
+});
+
+test('I-45h: W05.json wires the guard before any lookup/insert on the /book path only', () => {
+  const names = WF5.nodes.map((n) => n.name);
+  for (const nm of ['Guard counters (bk_ip / bk_lead)', 'Turnstile siteverify (book)', 'Guard (w05.bookGuard)', 'Guard passed?']) assert.ok(names.includes(nm), nm);
+  const nxt = (a, i = 0) => (WF5.connections[a]?.main[i] || []).map((x) => x.node);
+  assert.deepEqual(nxt('Caller ok?', 0), ['Guard counters (bk_ip / bk_lead)']);
+  assert.deepEqual(nxt('Guard passed?', 0), ['Load lead, broker, replay, live booking']);
+  assert.deepEqual(nxt('Guard passed?', 1), ['Answer']);
+  assert.ok(!Object.values(WF5.connections['Called by W07/W10/W17/W28'].main).flat().some((x) => /Guard/.test(x.node))); // sub-calls skip it
+  assert.match(JSON.stringify(WF5.nodes.find((n) => n.name === 'Turnstile siteverify (book)')), /siteverify/);
+});

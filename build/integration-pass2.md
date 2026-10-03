@@ -224,7 +224,7 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-45e ✅ | W10: W04 is_free / graph_token sub-calls must wait (`waitForSubWorkflow: true` per CONTRACTS) | automation-engineer (W10) |
 | I-45f ✅ | W06 accepts `{event:'booking'}` from W05 and chooses broker_intro_booked vs booking_confirmed; W05 calls W06 `op:'booking'` for a page booking inside the hold | automation-engineer |
 | I-45g | Drop the "(DRAFT pending …)" name suffix on each workflow at gate approval (callers bind by name) | orchestrator at GATE-TEST-* |
-| I-45h | /book and /lead Turnstile + rate limits need the Public guard (W03-notes B.3); `ops.rate_counters` table (today W01 counts in webhook_events) | automation-engineer + platform-architect |
+| I-45h ✅ | /book and /lead Turnstile + rate limits need the Public guard (W03-notes B.3); `ops.rate_counters` table (today W01 counts in webhook_events) | automation-engineer + platform-architect |
 | I-45i ✅ | lines.mjs EMAIL_BOUNCED (EN/AF) + a utility template for the bounce prompt outside 24 h; W17 forwards bounce notices to W05 `invite_bounced` | conversation-designer + billing-automation (W17) |
 | I-45j ✅ (/c/{id} .ics served; Zoom/Meet creation stays needs_human) | Serve `/c/{booking_id}` for the .ics link; Zoom meeting creation and Google Meet path not built (Teams + phone + WhatsApp-call are) | automation-engineer, Phase 5 |
 | I-45k ✅ | W29 → W13 call sends only `{lead_id}`; add a Code node sending `{op, outcome_id, reason, reason_code, idempotency_key}` | automation-engineer (W29) |
@@ -362,7 +362,9 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 ### I-56 · 2026-10-03 (session 2 wave 5 — Section 7 readiness items that can be closed offline; scripts/readiness.mjs: green 0 · amber 15 · red 13)
 | ID | Item | Owner |
 |---|---|---|
-| I-45h | W05 /book Turnstile + rate limit (S7-05 / R6-08); fails closed when the verify service is down (NH-32) | automation-engineer — dispatched |
-| I-56a | S7-10: community/hide-words.txt + rules DRAFT (live only after GATE-HIDE-WORDS) | community-response-lead — dispatched |
+| I-45h ✅ | W05 /book Turnstile + rate limit (S7-05 / R6-08); fails closed when the verify service is down (NH-32) | automation-engineer — dispatched |
+| I-56a ✅ | S7-10: community/hide-words.txt + rules DRAFT (live only after GATE-HIDE-WORDS) | community-response-lead — dispatched |
 | I-56b | S7-15: local Lighthouse mobile reports into landing/reports/ | landing-page-builder — dispatched |
-| I-56c | S7-25: 52 typed prices in 15 files — move SortMyCover hits to the pricing table/template vars, document exclusions (signed docs, seed, legacy B2B per NH-14) | billing-automation — dispatched |
+| I-56c ✅ | S7-25: 52 typed prices in 15 files — move SortMyCover hits to the pricing table/template vars, document exclusions (signed docs, seed, legacy B2B per NH-14) | billing-automation — dispatched |
+| I-56d | landing/ booking widget must send `turnstile_token` (action=book, re-executed per booking) in the /book body (I-45h) | landing-page-builder — next |
+| I-56e | webhook_events.source has no w05_* value; /book rate keys reuse w01_ip/w01_num with bk_ip:/bk_lead: prefixes — a dedicated source needs a migration (stub only until NH-15/NH-11) | platform-architect — backlog |

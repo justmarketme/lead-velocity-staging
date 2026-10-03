@@ -14,7 +14,7 @@
       "parameters": {
         "width": 760,
         "height": 380,
-        "content": "W05 Book (DRAFT pending GATE-TEST-W05; automation-engineer). POST /book (X-Lead-Token or broker JWT, CONTRACTS.md) and sub-calls: book (W07 slot taps + Flow nfm_reply, W10, W28), update_method (W10), invite_bounced (W17 NDR). Logic automation/lib/w05.mjs (tests automation/tests/W05.test.mjs). Zero double-bookings: W04 is_free (fresh getSchedule + our appointments + buffer) -> INSERT with the overlap+buffer re-check in the same statement, ON CONFLICT DO NOTHING (gist exclusion + unique indexes), re-select = replay or taken (next 3). Outlook event via Graph (Teams: isOnlineMeeting, teamsForBusiness; ASSUMPTION shapes) in the broker calendar (W04 graph_token) or the howzit@ shared calendar (0.3 #4). Email only for Teams/Zoom/Meet (0.1); invite from howzit@ with .ics. Then: broker_new_booking + email, W06 booking event (first confirmation is W06's), W09 schedule/rebuild, W07 contact confirm (call methods), CAPI Send Schedule (no email). Lead sends touch last_contact_at (I-38d)."
+        "content": "W05 Book (DRAFT pending GATE-TEST-W05; automation-engineer). POST /book (X-Lead-Token or broker JWT, CONTRACTS.md; I-45h page calls also pass the bot guard: per-IP + per-lead counters, Turnstile action=book, FAILS CLOSED 503 when siteverify is down (NH-32); broker-JWT and sub-calls skip it; env TURNSTILE_SECRET_KEY, RATE_LIMIT_PER_IP_PER_HOUR, RATE_LIMIT_PER_NUMBER_PER_DAY, RATE_LIMIT_IP_SALT, PUBLIC_ALLOWED_ORIGINS, TEST_HOOKS_*) and sub-calls: book (W07 slot taps + Flow nfm_reply, W10, W28), update_method (W10), invite_bounced (W17 NDR). Logic automation/lib/w05.mjs (tests automation/tests/W05.test.mjs). Zero double-bookings: W04 is_free (fresh getSchedule + our appointments + buffer) -> INSERT with the overlap+buffer re-check in the same statement, ON CONFLICT DO NOTHING (gist exclusion + unique indexes), re-select = replay or taken (next 3). Outlook event via Graph (Teams: isOnlineMeeting, teamsForBusiness; ASSUMPTION shapes) in the broker calendar (W04 graph_token) or the howzit@ shared calendar (0.3 #4). Email only for Teams/Zoom/Meet (0.1); invite from howzit@ with .ics. Then: broker_new_booking + email, W06 booking event (first confirmation is W06's), W09 schedule/rebuild, W07 contact confirm (call methods), CAPI Send Schedule (no email). Lead sends touch last_contact_at (I-38d)."
       }
     },
     {
@@ -81,25 +81,166 @@
     },
     {
       "id": "n05",
+      "name": "Guard counters (bk_ip / bk_lead)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        960,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Same pattern as W01 Context: one webhook_events row per counted /book (HMAC key, no raw IP); counts are \"before this request\".\nWITH ipc AS (\n  INSERT INTO public.webhook_events (source, external_id, received_at, signature_ok)\n  SELECT 'w01_ip', $1, now(), true WHERE $1 <> '' ON CONFLICT DO NOTHING RETURNING id),\nlc AS (\n  INSERT INTO public.webhook_events (source, external_id, received_at, signature_ok)\n  SELECT 'w01_num', $2, now(), true WHERE $2 <> '' ON CONFLICT DO NOTHING RETURNING id)\nSELECT (SELECT count(*) FROM public.webhook_events w WHERE w.source = 'w01_ip' AND $3 <> '' AND w.external_id LIKE $3 || '%' AND w.received_at > now() - interval '1 hour')::int AS ip_hits,\n       (SELECT count(*) FROM public.webhook_events v WHERE v.source = 'w01_num' AND $4 <> '' AND v.external_id LIKE $4 || '%' AND v.received_at > now() - interval '24 hours')::int AS lead_hits;",
+        "options": {
+          "queryReplacement": "={{ (() => { const g = $json.guard.applies ? $json.guard.keys : {}; return [g.ip_external_id || '', g.lead_external_id || '', g.ip_prefix || '', g.lead_prefix || '']; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n06",
+      "name": "Turnstile needed? (page, secret set, not a test hook)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($('Parse + verify caller (w05.parseHttp)').first().json.guard.turnstile_needed === true && !!$('Parse + verify caller (w05.parseHttp)').first().json.guard.turnstile_token) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n07",
+      "name": "Turnstile siteverify (book)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1440,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "secret",
+              "value": "={{ $env.TURNSTILE_SECRET_KEY }}"
+            },
+            {
+              "name": "response",
+              "value": "={{ $('Parse + verify caller (w05.parseHttp)').first().json.guard.turnstile_token }}"
+            },
+            {
+              "name": "remoteip",
+              "value": "={{ $('Parse + verify caller (w05.parseHttp)').first().json.guard.ip || '' }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 1500,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "n08",
+      "name": "Guard (w05.bookGuard)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nconst p = $('Parse + verify caller (w05.parseHttp)').first().json;\nconst cnt = $('Guard counters (bk_ip / bk_lead)').first().json;\nconst ran = $('Turnstile siteverify (book)').isExecuted;\nconst tin = ran ? ($('Turnstile siteverify (book)').first() || {}).json : null;\nconst g = L.bookGuard(p.guard, { ip_hits: cnt.ip_hits, lead_hits: cnt.lead_hits, turnstile: tin && tin.success !== undefined ? tin : null }, $env);\nreturn [{ json: g.ok ? { ...p, bot_check: g.bot_check } : { lane: 'http', ok: false, status: g.status, body: g.body, reason: g.reason } }];"
+      }
+    },
+    {
+      "id": "n09",
+      "name": "Guard passed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.ok === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n10",
       "name": "Called by W07/W10/W17/W28",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
       "position": [
-        960,
-        0
+        240,
+        200
       ],
       "parameters": {
         "inputSource": "passthrough"
       }
     },
     {
-      "id": "n06",
+      "id": "n11",
       "name": "Normalise sub-call (w05.parseSub)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1200,
-        0
+        480,
+        200
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -107,13 +248,13 @@
       }
     },
     {
-      "id": "n07",
+      "id": "n12",
       "name": "Sub op?",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
       "position": [
-        1440,
-        0
+        720,
+        200
       ],
       "parameters": {
         "rules": {
@@ -231,13 +372,13 @@
       }
     },
     {
-      "id": "n08",
+      "id": "n13",
       "name": "Log subcall_rejected",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        1680,
-        0
+        960,
+        200
       ],
       "parameters": {
         "operation": "executeQuery",
@@ -255,12 +396,12 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n09",
+      "id": "n14",
       "name": "W10 pick payload",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        0,
+        1200,
         200
       ],
       "parameters": {
@@ -269,12 +410,12 @@
       }
     },
     {
-      "id": "n10",
+      "id": "n15",
       "name": "-> W10 reschedule pick",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        240,
+        1440,
         200
       ],
       "parameters": {
@@ -291,12 +432,12 @@
       }
     },
     {
-      "id": "n11",
+      "id": "n16",
       "name": "Load lead, broker, replay, live booking",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        480,
+        1680,
         200
       ],
       "parameters": {
@@ -315,13 +456,13 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n12",
+      "id": "n17",
       "name": "Decide (w05.decide + MX)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        720,
-        200
+        0,
+        400
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -329,13 +470,13 @@
       }
     },
     {
-      "id": "n13",
+      "id": "n18",
       "name": "Decision?",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
       "position": [
-        960,
-        200
+        240,
+        400
       ],
       "parameters": {
         "rules": {
@@ -474,13 +615,13 @@
       }
     },
     {
-      "id": "n14",
+      "id": "n19",
       "name": "is_free input",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1200,
-        200
+        480,
+        400
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -488,13 +629,13 @@
       }
     },
     {
-      "id": "n15",
+      "id": "n20",
       "name": "W04 is_free (re-check, waits)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        1440,
-        200
+        720,
+        400
       ],
       "parameters": {
         "source": "database",
@@ -510,13 +651,13 @@
       }
     },
     {
-      "id": "n16",
+      "id": "n21",
       "name": "After re-check (w05.afterCheck)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1680,
-        200
+        960,
+        400
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -524,12 +665,12 @@
       }
     },
     {
-      "id": "n17",
+      "id": "n22",
       "name": "Free?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        0,
+        1200,
         400
       ],
       "parameters": {
@@ -555,12 +696,12 @@
       }
     },
     {
-      "id": "n18",
+      "id": "n23",
       "name": "Insert appointment (re-check overlap + buffer, idempotent)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        240,
+        1440,
         400
       ],
       "parameters": {
@@ -580,12 +721,12 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "n19",
+      "id": "n24",
       "name": "Inserted?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        480,
+        1680,
         400
       ],
       "parameters": {
@@ -611,13 +752,13 @@
       }
     },
     {
-      "id": "n20",
+      "id": "n25",
       "name": "Re-select by idempotency key",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        720,
-        400
+        0,
+        600
       ],
       "parameters": {
         "operation": "executeQuery",
@@ -635,13 +776,13 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n21",
+      "id": "n26",
       "name": "Lost the race: replay or next 3",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        960,
-        400
+        240,
+        600
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -649,13 +790,13 @@
       }
     },
     {
-      "id": "n22",
+      "id": "n27",
       "name": "Broker calendar (graph)?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1200,
-        400
+        480,
+        600
       ],
       "parameters": {
         "conditions": {
@@ -680,13 +821,13 @@
       }
     },
     {
-      "id": "n23",
+      "id": "n28",
       "name": "graph_token input",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1440,
-        400
+        720,
+        600
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -694,13 +835,13 @@
       }
     },
     {
-      "id": "n24",
+      "id": "n29",
       "name": "W04 graph_token (waits)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        1680,
-        400
+        960,
+        600
       ],
       "parameters": {
         "source": "database",
@@ -716,12 +857,12 @@
       }
     },
     {
-      "id": "n25",
+      "id": "n30",
       "name": "Event body",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        0,
+        1200,
         600
       ],
       "parameters": {
@@ -730,12 +871,12 @@
       }
     },
     {
-      "id": "n26",
+      "id": "n31",
       "name": "Graph create event (broker calendar, ASSUMPTION)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        240,
+        1440,
         600
       ],
       "parameters": {
@@ -772,12 +913,12 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n27",
+      "id": "n32",
       "name": "Event body (shared)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        480,
+        1680,
         600
       ],
       "parameters": {
@@ -786,13 +927,13 @@
       }
     },
     {
-      "id": "n28",
+      "id": "n33",
       "name": "Shared calendar id?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        720,
-        600
+        0,
+        800
       ],
       "parameters": {
         "conditions": {
@@ -817,13 +958,13 @@
       }
     },
     {
-      "id": "n29",
+      "id": "n34",
       "name": "Graph create event (howzit@ shared calendar, ASSUMPTION)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        960,
-        600
+        240,
+        800
       ],
       "parameters": {
         "method": "POST",
@@ -854,13 +995,13 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n30",
+      "id": "n35",
       "name": "After event (w05.finish)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1200,
-        600
+        480,
+        800
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -868,13 +1009,13 @@
       }
     },
     {
-      "id": "n31",
+      "id": "n36",
       "name": "Save event ids + lead (stage, broker, cycle, invite email)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        1440,
-        600
+        720,
+        800
       ],
       "parameters": {
         "operation": "executeQuery",
@@ -892,13 +1033,13 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n32",
+      "id": "n37",
       "name": "Timeline: booked",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        1680,
-        600
+        960,
+        800
       ],
       "parameters": {
         "operation": "executeQuery",
@@ -916,12 +1057,12 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n33",
+      "id": "n38",
       "name": "Answer",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        0,
+        1200,
         800
       ],
       "parameters": {
@@ -930,12 +1071,12 @@
       }
     },
     {
-      "id": "n34",
+      "id": "n39",
       "name": "HTTP lane?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        240,
+        1440,
         800
       ],
       "parameters": {
@@ -961,12 +1102,12 @@
       }
     },
     {
-      "id": "n35",
+      "id": "n40",
       "name": "Respond (book JSON)",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        480,
+        1680,
         800
       ],
       "parameters": {
@@ -986,13 +1127,13 @@
       }
     },
     {
-      "id": "n36",
+      "id": "n41",
       "name": "Fan out effects",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        720,
-        800
+        0,
+        1000
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -1000,13 +1141,13 @@
       }
     },
     {
-      "id": "n37",
+      "id": "n42",
       "name": "Effect?",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
       "position": [
-        960,
-        800
+        240,
+        1000
       ],
       "parameters": {
         "rules": {
@@ -1187,13 +1328,13 @@
       }
     },
     {
-      "id": "n38",
+      "id": "n43",
       "name": "Live send?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1200,
-        800
+        480,
+        1000
       ],
       "parameters": {
         "conditions": {
@@ -1218,13 +1359,13 @@
       }
     },
     {
-      "id": "n39",
+      "id": "n44",
       "name": "Send WhatsApp",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1440,
-        800
+        720,
+        1000
       ],
       "parameters": {
         "method": "POST",
@@ -1256,13 +1397,13 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n40",
+      "id": "n45",
       "name": "Touch leads.last_contact_at (lead sends)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        1680,
-        800
+        960,
+        1000
       ],
       "parameters": {
         "operation": "executeQuery",
@@ -1280,12 +1421,12 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n41",
+      "id": "n46",
       "name": "Email from howzit@ (Graph sendMail)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        0,
+        1200,
         1000
       ],
       "parameters": {
@@ -1317,12 +1458,12 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n42",
+      "id": "n47",
       "name": "-> W06 First touch (booking event)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        240,
+        1440,
         1000
       ],
       "parameters": {
@@ -1339,12 +1480,12 @@
       }
     },
     {
-      "id": "n43",
+      "id": "n48",
       "name": "-> W09 Reminder sequence (schedule / rebuild)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        480,
+        1680,
         1000
       ],
       "parameters": {
@@ -1361,13 +1502,13 @@
       }
     },
     {
-      "id": "n44",
+      "id": "n49",
       "name": "-> W07 post-booking contact confirm",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        720,
-        1000
+        0,
+        1200
       ],
       "parameters": {
         "source": "database",
@@ -1383,13 +1524,13 @@
       }
     },
     {
-      "id": "n45",
+      "id": "n50",
       "name": "-> CAPI Send (Schedule, no email)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        960,
-        1000
+        240,
+        1200
       ],
       "parameters": {
         "source": "database",
@@ -1405,13 +1546,13 @@
       }
     },
     {
-      "id": "n46",
+      "id": "n51",
       "name": "-> W28 ask_email",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        1200,
-        1000
+        480,
+        1200
       ],
       "parameters": {
         "source": "database",
@@ -1427,13 +1568,13 @@
       }
     },
     {
-      "id": "n47",
+      "id": "n52",
       "name": "-> W22 Alerts",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        1440,
-        1000
+        720,
+        1200
       ],
       "parameters": {
         "source": "database",
@@ -1449,13 +1590,13 @@
       }
     },
     {
-      "id": "n48",
+      "id": "n53",
       "name": "GET /c/:booking_id (.ics)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        1680,
-        1000
+        960,
+        1200
       ],
       "parameters": {
         "httpMethod": "GET",
@@ -1466,12 +1607,12 @@
       "webhookId": "w05-ics-get"
     },
     {
-      "id": "n49",
+      "id": "n54",
       "name": "Verify .ics caller (w05.parseIcsRequest)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        0,
+        1200,
         1200
       ],
       "parameters": {
@@ -1480,12 +1621,12 @@
       }
     },
     {
-      "id": "n50",
+      "id": "n55",
       "name": ".ics caller ok?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        240,
+        1440,
         1200
       ],
       "parameters": {
@@ -1511,12 +1652,12 @@
       }
     },
     {
-      "id": "n51",
+      "id": "n56",
       "name": "Load booking for .ics (id only, no lead PII)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        480,
+        1680,
         1200
       ],
       "parameters": {
@@ -1535,13 +1676,13 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n52",
+      "id": "n57",
       "name": "Build .ics (w05.icsResponse)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        720,
-        1200
+        0,
+        1400
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -1549,13 +1690,13 @@
       }
     },
     {
-      "id": "n53",
+      "id": "n58",
       "name": ".ics not found (404)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        960,
-        1200
+        240,
+        1400
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -1563,13 +1704,13 @@
       }
     },
     {
-      "id": "n54",
+      "id": "n59",
       "name": "Respond (.ics)",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        1200,
-        1200
+        480,
+        1400
       ],
       "parameters": {
         "respondWith": "text",
@@ -1596,13 +1737,13 @@
       }
     },
     {
-      "id": "n55",
+      "id": "n60",
       "name": "Load booking for method change",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        1440,
-        1200
+        720,
+        1400
       ],
       "parameters": {
         "operation": "executeQuery",
@@ -1620,13 +1761,13 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n56",
+      "id": "n61",
       "name": "Plan method change (w05.planUpdateMethod)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1680,
-        1200
+        960,
+        1400
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -1634,12 +1775,12 @@
       }
     },
     {
-      "id": "n57",
+      "id": "n62",
       "name": "Method plan?",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
       "position": [
-        0,
+        1200,
         1400
       ],
       "parameters": {
@@ -1716,12 +1857,12 @@
       }
     },
     {
-      "id": "n58",
+      "id": "n63",
       "name": "Method calendar target (w05.graphEventTarget)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        240,
+        1440,
         1400
       ],
       "parameters": {
@@ -1730,12 +1871,12 @@
       }
     },
     {
-      "id": "n59",
+      "id": "n64",
       "name": "Method event calendar?",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
       "position": [
-        480,
+        1680,
         1400
       ],
       "parameters": {
@@ -1812,13 +1953,13 @@
       }
     },
     {
-      "id": "n60",
+      "id": "n65",
       "name": "Graph PATCH event (method, howzit@ shared calendar)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        720,
-        1400
+        0,
+        1600
       ],
       "parameters": {
         "method": "PATCH",
@@ -1849,13 +1990,13 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n61",
+      "id": "n66",
       "name": "graph_token input (method)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        960,
-        1400
+        240,
+        1600
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -1863,13 +2004,13 @@
       }
     },
     {
-      "id": "n62",
+      "id": "n67",
       "name": "W04 graph_token (method, waits)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        1200,
-        1400
+        480,
+        1600
       ],
       "parameters": {
         "source": "database",
@@ -1885,13 +2026,13 @@
       }
     },
     {
-      "id": "n63",
+      "id": "n68",
       "name": "Graph PATCH event (method, ASSUMPTION)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1440,
-        1400
+        720,
+        1600
       ],
       "parameters": {
         "method": "PATCH",
@@ -1923,13 +2064,13 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n64",
+      "id": "n69",
       "name": "Save method",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        1680,
-        1400
+        960,
+        1600
       ],
       "parameters": {
         "operation": "executeQuery",
@@ -1947,12 +2088,12 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n65",
+      "id": "n70",
       "name": "Method invite?",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        0,
+        1200,
         1600
       ],
       "parameters": {
@@ -1961,12 +2102,12 @@
       }
     },
     {
-      "id": "n66",
+      "id": "n71",
       "name": "ask_email input (method)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        240,
+        1440,
         1600
       ],
       "parameters": {
@@ -1975,12 +2116,12 @@
       }
     },
     {
-      "id": "n67",
+      "id": "n72",
       "name": "Mark invite bounced",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        480,
+        1680,
         1600
       ],
       "parameters": {
@@ -1999,13 +2140,13 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n68",
+      "id": "n73",
       "name": "Bounce prompt (w05.bounceEffect)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        720,
-        1600
+        0,
+        1800
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -2013,13 +2154,13 @@
       }
     },
     {
-      "id": "n69",
+      "id": "n74",
       "name": "-> WhatsApp Send (invite bounce)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        960,
-        1600
+        240,
+        1800
       ],
       "parameters": {
         "source": "database",
@@ -2040,7 +2181,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        -200,
+        1000,
         1000
       ],
       "parameters": {
@@ -2073,7 +2214,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        0,
+        1200,
         1160
       ],
       "parameters": {
@@ -2106,6 +2247,75 @@
       ]
     },
     "Caller ok?": {
+      "main": [
+        [
+          {
+            "node": "Guard counters (bk_ip / bk_lead)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guard counters (bk_ip / bk_lead)": {
+      "main": [
+        [
+          {
+            "node": "Turnstile needed? (page, secret set, not a test hook)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Turnstile needed? (page, secret set, not a test hook)": {
+      "main": [
+        [
+          {
+            "node": "Turnstile siteverify (book)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Guard (w05.bookGuard)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Turnstile siteverify (book)": {
+      "main": [
+        [
+          {
+            "node": "Guard (w05.bookGuard)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guard (w05.bookGuard)": {
+      "main": [
+        [
+          {
+            "node": "Guard passed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guard passed?": {
       "main": [
         [
           {
