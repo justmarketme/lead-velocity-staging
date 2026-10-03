@@ -14,7 +14,7 @@
       "parameters": {
         "width": 700,
         "height": 320,
-        "content": "W02 Lead Ads webhook (leadgen). Verify X-Hub-Signature-256 over the raw body -> 200 immediately -> fetch lead via Graph (retry x3 in meta-ads.js) -> idempotency on leadgen_id -> backstop qualification (bands + consent; form conditional logic is not trusted) -> same path as W01 via the sub-workflow \"W01 Lead core\": dedupe 90 d, Twilio line-type, route to broker, store, CAPI Lead, first WhatsApp < 60 s. Out-of-band / no-consent leads are NOT stored and never enter the automation (2.1.7); only an anonymous counter row is written. CONTRACT ASSUMPTION: automation/tests/W01.test.mjs does not exist yet; payload below follows crm-gap leads columns and must be reconciled by automation-engineer. Needs env META_APP_SECRET, META_WEBHOOK_VERIFY_TOKEN, META_SYSTEM_USER_TOKEN."
+        "content": "W02 Lead Ads webhook (leadgen). Verify X-Hub-Signature-256 over the raw body -> 200 immediately -> fetch lead via Graph (retry x3 in meta-ads.js) -> idempotency on leadgen_id -> backstop qualification (bands + consent; form conditional logic is not trusted) -> same path as W01 via the sub-workflow \"W01 Lead core\": dedupe 90 d, Twilio line-type, route to broker, store, CAPI Lead, first WhatsApp < 60 s. Out-of-band / no-consent leads are NOT stored and never enter the automation (2.1.7); only an anonymous counter row is written. CONTRACT ASSUMPTION: automation/tests/W01.test.mjs does not exist yet; payload below follows crm-gap leads columns and must be reconciled by automation-engineer. Needs env META_APP_SECRET, META_WEBHOOK_VERIFY_TOKEN, META_SYSTEM_USER_TOKEN.\n\nPage ingress (I-16/I-25): this callback is the Meta `page` object. leadgen changes take the path above; `feed` comments are forwarded to W30 and Messenger DMs to W31 (Execute Workflow, no wait) with the raw body (base64 of the received bytes) and the original X-Hub-Signature-256, so they verify it themselves."
       }
     },
     {
@@ -47,7 +47,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const M = require('lv-automation').metaAds;\nconst it = $input.first();\nconst raw = it.binary && it.binary.data ? Buffer.from(it.binary.data.data, 'base64').toString('utf8') : (it.json.rawBody || JSON.stringify(it.json.body));\nconst sig = (it.json.headers || {})['x-hub-signature-256'];\nif (!M.verifyWebhookSignature(raw, sig, $env.META_APP_SECRET)) return [{ json: { valid: false } }];\nconst events = M.parseLeadgenWebhook(JSON.parse(raw));\nif (!events.length) return [{ json: { valid: true, empty: true } }];\nreturn events.map((e) => ({ json: { valid: true, ...e } }));"
+        "jsCode": "const M = require('lv-automation').metaAds;\nconst it = $input.first();\n// Raw bytes exactly as received (binary), kept for the byte-for-byte forward to W30 / W31 (I-16, I-25).\nconst buf = it.binary && it.binary.data ? Buffer.from(it.binary.data.data, 'base64') : Buffer.from(it.json.rawBody || JSON.stringify(it.json.body), 'utf8');\nconst raw = buf.toString('utf8');\nconst sig = (it.json.headers || {})['x-hub-signature-256'];\nif (!M.verifyWebhookSignature(raw, sig, $env.META_APP_SECRET)) return [{ json: { valid: false } }];\nconst body = JSON.parse(raw);\nconst events = M.parseLeadgenWebhook(body);\nconst out = events.map((e) => ({ json: { valid: true, ...e } }));\n// Page object: feed comments -> W30, Messenger DMs -> W31. Forward the ORIGINAL body (base64 of the received bytes) + the\n// original signature header; the callee verifies it itself. Nothing is re-serialised, nothing is trusted because W02 checked it.\nif (body && body.object === 'page') {\n  const entries = Array.isArray(body.entry) ? body.entry : [];\n  const hasComment = entries.some((e) => (e.changes || []).some((c) => c && c.field === 'feed' && c.value && c.value.item === 'comment'));\n  const hasDm = entries.some((e) => Array.isArray(e.messaging) && e.messaging.length > 0);\n  const fwd = (route) => ({ json: { valid: true, route, raw_body_b64: buf.toString('base64'), signature: sig } });\n  if (hasComment) out.push(fwd('w30'));\n  if (hasDm) out.push(fwd('w31'));\n}\nif (!out.length) return [{ json: { valid: true, empty: true } }];\nreturn out;"
       }
     },
     {
@@ -86,7 +86,7 @@
           "conditions": [
             {
               "id": "c1",
-              "leftValue": "={{ String($json.valid && !$json.empty) }}",
+              "leftValue": "={{ String($json.valid && !$json.empty && !$json.route) }}",
               "rightValue": "true",
               "operator": {
                 "type": "string",
@@ -326,6 +326,114 @@
           "responseCode": "={{ $json.ok ? 200 : 403 }}"
         }
       }
+    },
+    {
+      "id": "n20",
+      "name": "Page forward route?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        440,
+        260
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "w30",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "r1",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "w30",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "w31",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "r2",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "w31",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "notes": "I-16 / I-25: W02 is the `page` ingress. feed comment -> W30, Messenger DM -> W31. Leadgen items never match (they take \"Valid and has a lead?\")."
+    },
+    {
+      "id": "n21",
+      "name": "W30 Comment handler (forward raw body + signature)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        700,
+        200
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w30",
+          "cachedResultName": "W30 Comment handler"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Input { raw_body_b64, signature, route }: the received bytes and X-Hub-Signature-256, unchanged. CONTRACTS.md \"Sub-workflow interfaces\"."
+    },
+    {
+      "id": "n22",
+      "name": "W31 DM handler (forward raw body + signature)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        700,
+        320
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w31",
+          "cachedResultName": "W31 DM handler"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Same input as the W30 forward."
     }
   ],
   "connections": {
@@ -350,6 +458,11 @@
           },
           {
             "node": "Valid and has a lead?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Page forward route?",
             "type": "main",
             "index": 0
           }
@@ -430,6 +543,24 @@
         [
           {
             "node": "Respond hub.challenge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Page forward route?": {
+      "main": [
+        [
+          {
+            "node": "W30 Comment handler (forward raw body + signature)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "W31 DM handler (forward raw body + signature)",
             "type": "main",
             "index": 0
           }

@@ -1657,6 +1657,34 @@
         "mode": "runOnceForAllItems",
         "jsCode": "// DRY_RUN_SENDS=true: nothing leaves the box (messenger). Pass the input on with a fake 2xx so downstream logging still runs.\nreturn $input.all().map((i, n) => ({ json: { ...i.json, dry_run: true, statusCode: 200, body: { messages: [{ id: 'dry:' + n }] } } }));"
       }
+    },
+    {
+      "id": "w30-n90",
+      "name": "Called by W02 (page forward)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        240
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "notes": "I-16 / I-25: W02 forwards the Meta page callback { raw_body_b64, signature }. Rebuilt into the same raw-body + header shape as the POST webhook so Verify signature runs unchanged."
+    },
+    {
+      "id": "w30-n91",
+      "name": "Rebuild raw body + signature header (from W02)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        360
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const out = [];\nfor (const it of $input.all()) {\n  const b64 = String(it.json.raw_body_b64 || '');\n  const buf = Buffer.from(b64, 'base64');\n  let body = {};\n  try { body = JSON.parse(buf.toString('utf8')); } catch (e) { body = {}; }\n  const binary = { data: await this.helpers.prepareBinaryData(buf, 'raw.json', 'application/json') };\n  out.push({ json: { headers: { 'x-hub-signature-256': String(it.json.signature || '') }, body }, binary });\n}\nreturn out;"
+      }
     }
   ],
   "connections": {
@@ -2515,6 +2543,28 @@
         [
           {
             "node": "Collect results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Called by W02 (page forward)": {
+      "main": [
+        [
+          {
+            "node": "Rebuild raw body + signature header (from W02)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rebuild raw body + signature header (from W02)": {
+      "main": [
+        [
+          {
+            "node": "Verify signature",
             "type": "main",
             "index": 0
           }
