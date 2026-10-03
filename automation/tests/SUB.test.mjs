@@ -262,7 +262,7 @@ test('ads-budget: every raise / lower becomes a proposal (faculty media, source 
   assert.equal(p.proposal.faculty, 'media'); assert.equal(p.proposal.source, 'ads_budget'); assert.equal(p.proposal.cost_zar, 4500);
   assert.deepEqual({ ...p.notification, payload: undefined }, { kind: 'approval', recipient: 'jonathan', channel: 'console', source: 'ads_budget', status: 'queued', ref_table: 'proposals', dedupe_key: 'ads_budget:b1:c1:raise', payload: undefined });
   assert.notEqual(p.notification.source, 'console', 'W32 consumes only source=console rows as decisions');
-  assert.equal(p.notification.payload.daily_budget_zar, 150);
+  assert.equal(p.notification.payload.daily_budget_zar, 130.43);
   // §7 shape (W16/W19 today) is accepted too
   const s7 = (await runCode(AB, 'Normalise input', { json: { action: 'lower', broker_id: 'b1', media_share_zar: 3000 } })).json;
   assert.equal(s7.valid, true); assert.equal(s7.op, 'lower'); assert.equal(s7.amount_zar, 3000);
@@ -275,12 +275,24 @@ test('ads-budget: every raise / lower becomes a proposal (faculty media, source 
   const w19 = (await runCode(AB, 'Normalise input', { json: { op: 'lower', action: 'lower', broker_id: 'b1', cycle_id: 'c1', amount_zar: 0, media_share_zar: 3000, reason: 'cycle_not_renewed' } })).json;
   assert.equal(w19.valid, true); assert.equal(w19.amount_zar, 3000); assert.equal(w19.target_zar, 0); assert.equal(w19.mode, 'pause');
   const pause = (await runCode(AB, 'Build proposal + approval row', { json: w19 })).json;
-  assert.match(pause.proposal.title, /^Pause the Meta spend for broker b1: remove its R3000 media share \(about R100\/day\), target R0/);
+  assert.match(pause.proposal.title, /^Pause the Meta spend for broker b1: remove its R3000 media share \(about R86\.96\/day entered in Meta, excl\. VAT\), target R0/);
   assert.equal(pause.proposal.cost_zar, 0); assert.equal(pause.notification.payload.target_zar, 0); assert.equal(pause.notification.payload.mode, 'pause');
   assert.equal(pause.notification.dedupe_key, 'ads_budget:b1:c1:lower');
   // a lower with its own amount is a plain reduction; raise keeps mode 'raise'
   assert.equal((await runCode(AB, 'Normalise input', { json: { op: 'lower', broker_id: 'b1', amount_zar: 1000, media_share_zar: 3000 } })).json.mode, 'reduce');
   assert.equal(n.mode, 'raise'); assert.equal(n.target_zar, null);
+});
+
+test('ads-budget: media share is VAT-inclusive, daily budget = share / 1.15 / 30 (NH-22a)', async () => {
+  const { VAT_RATE, dailyBudgetExVat } = await import('../lib/sub-ads-budget.mjs');
+  assert.equal(VAT_RATE, 0.15);
+  assert.equal(dailyBudgetExVat(8492), 246.14);
+  const raise = (await runCode(AB, 'Build proposal + approval row', { json: (await runCode(AB, 'Normalise input', { json: { op: 'raise', broker_id: 'b1', cycle_id: 'c1', amount_zar: 8492 } })).json })).json;
+  assert.equal(raise.notification.payload.daily_budget_zar, 246.14);
+  assert.match(raise.proposal.title, /about R246\.14\/day entered in Meta, excl\. VAT/);
+  const lower = (await runCode(AB, 'Build proposal + approval row', { json: (await runCode(AB, 'Normalise input', { json: { op: 'lower', broker_id: 'b1', amount_zar: 1150 } })).json })).json;
+  assert.equal(lower.notification.payload.daily_budget_zar, 33.33); assert.equal(lower.notification.payload.mode, 'reduce');
+  assert.match(lower.proposal.title, /^Lower the Meta budget.*excl\. VAT\)$/);
 });
 
 test('ads-budget: never calls the Meta write path; the sticky note documents alternative (b)', () => {

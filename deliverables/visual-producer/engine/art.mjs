@@ -21,7 +21,7 @@ export const ART = {
     rows: [{ on: ['New baby.|pram@.5', 'New bond.|house@.7', 'Same **old** cover?'], beats: [0, .2, .4] }, { on: ['Same ~~old~~ cover?', 'Check it.'], beats: [0, .5], strikeAt: .15 }, { on: ['Who depends on the income?'] }, W30, CH, DEC], still: { row: 1, lt: 1.5, on: ['New baby.|pram', 'New bond.|house', 'Same ~~old~~ cover?', '**Check it.**'], noVis: true } }],
   C05: [{ vid: 'C05', hid: 'H5', hook: 'Cover set up at 28. Life at 40.', tabs: 0, status: 'rendered',
     tl: { t: [0, 2, 4.5, 7, 10, 12, 14], cap: ['', 'Life got bigger.', '', '', '', 'A licensed adviser looks at what still fits. 30 minutes.', 'Video, WhatsApp or phone. Free.'], E: 17, dur: 20 },
-    rows: [{ on: ['Cover set up', 'at **28**.', 'Life at 40.'] }, { on: ['A bond.', 'Kids. School.'] }, { on: ['The cover did not grow with it.'] }, { on: ['Nobody sends a reminder to check.'] }, W30, W30, CH], still: { row: 2, lt: 1, onRow: 0 } }],
+    rows: [{ on: ['Cover set up', 'at **28**.', 'Life at 40.'] }, { on: ['A bond.', 'Kids. School.'] }, { on: ['The cover did not grow with it.'] }, { on: ['Cover can be left as it was set up.'] }, W30, W30, CH], still: { row: 2, lt: 1, onRow: 0 } }],
   C06: [{ vid: 'C06', hid: 'H9', hook: 'Many families carry more than one household.', tabs: 0, status: 'rendered',
     rows: [{ on: ['Many families carry more than one household.'] }, { on: [] }, { on: ['Often all on one income.'] }, { on: ['Cover set up for one roof.'] }, { on: ['30 minutes.'] }, CH, DEC], still: { row: 2, lt: 1, onRow: 0 } }],
   C07: [{ vid: 'C07', hid: 'H13', hook: "Parents, kids, a sister's fees. One payslip.", tabs: 0, status: 'rendered',

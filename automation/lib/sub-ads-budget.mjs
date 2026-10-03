@@ -9,6 +9,12 @@
 // broker's share (pause spend), media_share_zar is the amount removed. normalise() therefore returns
 // { amount_zar: media_share_zar, target_zar: 0, mode: 'pause' } for that call; a lower with its own amount_zar > 0 is a
 // plain reduction ({ target_zar: null, mode: 'reduce' }). Raise is unchanged ({ mode: 'raise' }).
+// NH-22(a), confirmed 2026-10-03: media_share_zar is VAT-inclusive; Meta bills ex-VAT. The only place this rate lives.
+export const VAT_RATE = 0.15;
+const r2c = (x) => Math.round((x + Number.EPSILON) * 100) / 100;
+/** Daily budget ENTERED in Meta (ex-VAT) for a VAT-inclusive media share: share / (1 + VAT_RATE) / 30. */
+export function dailyBudgetExVat(shareZar) { return r2c(Number(shareZar) / (1 + VAT_RATE) / 30); }
+
 export function normalise(input = {}) {
   const i = input || {};
   const op = i.op || i.action || null;
@@ -28,11 +34,11 @@ export function normalise(input = {}) {
 
 /** The proposal + approval-outbox rows (W32-outbox shape; source is never 'console', so W32 never reads it as a decision). */
 export function proposal(n) {
-  const daily = Math.round((n.amount_zar / 30) * 100) / 100;
+  const daily = dailyBudgetExVat(n.amount_zar);
   const verb = n.op === 'raise' ? 'Raise' : 'Lower';
   const title = n.mode === 'pause'
-    ? `Pause the Meta spend for broker ${n.broker_id}: remove its R${n.amount_zar} media share (about R${daily}/day), target R0 until a new cycle is paid`
-    : `${verb} the Meta budget for broker ${n.broker_id} by R${n.amount_zar} media share (about R${daily}/day)`;
+    ? `Pause the Meta spend for broker ${n.broker_id}: remove its R${n.amount_zar} media share (about R${daily}/day entered in Meta, excl. VAT), target R0 until a new cycle is paid`
+    : `${verb} the Meta budget for broker ${n.broker_id} by R${n.amount_zar} media share (about R${daily}/day entered in Meta, excl. VAT)`;
   return {
     proposal: {
       source: 'ads_budget',
@@ -48,7 +54,7 @@ export function proposal(n) {
     notification: {
       kind: 'approval', recipient: 'jonathan', channel: 'console', source: 'ads_budget', status: 'queued', ref_table: 'proposals',
       dedupe_key: `ads_budget:${n.broker_id}:${n.cycle_id || '-'}:${n.op}`,
-      payload: { op: n.op, mode: n.mode || null, broker_id: n.broker_id, cycle_id: n.cycle_id, amount_zar: n.amount_zar, target_zar: n.target_zar ?? null, daily_budget_zar: daily, reason: n.reason, via: 'ads_budget' },
+      payload: { op: n.op, mode: n.mode || null, broker_id: n.broker_id, cycle_id: n.cycle_id, amount_zar: n.amount_zar, target_zar: n.target_zar ?? null, daily_budget_zar: daily, daily_budget_basis: 'ex_vat', vat_rate: VAT_RATE, reason: n.reason, via: 'ads_budget' },
     },
   };
 }

@@ -128,12 +128,12 @@
 | Field | Copy |
 |---|---|
 | Hook (8) | Cover set up at 28. Life at 40. |
-| Primary text (62) | Cover set up at 28. Life at 40. A bond. Kids in school. Maybe parents to help. That cover was built for a smaller life. Nobody sends a reminder to check it. A licensed adviser can look at what still fits, in 30 minutes. On video, WhatsApp or phone. Free to check, and you decide after. Tap to check your cover. |
+| Primary text (62) | Cover set up at 28. Life at 40. A bond. Kids in school. Maybe parents to help. That cover was built for a smaller life. Cover can be left as it was set up. A licensed adviser can look at what still fits, in 30 minutes. On video, WhatsApp or phone. Free to check, and you decide after. Tap to check your cover. |
 | Headline | At 40, check what still fits |
 | CTA | Check my cover (LEARN_MORE) |
 | Visual brief | **Style G (growth).** A small amber box labelled "Cover at 28" sits inside a frame labelled "Life at 40". **Motion 0.3 s:** the outer frame grows in steps labelled "bond", "kids", "school", "parents", while the amber box stays the same size. **Caption:** the hook. **End card:** the line + "Tap to check your cover". |
 | Variants | **9:16** full. **4:5** same, with the steps stacked. **1:1** static: the final state (small amber box in a big frame) + hook. |
-| Video (20 s) | 0.0 Hook on screen. The frame starts growing · 2.0 cut: labels "Bond. Kids. School." step in. CAP "Life got bigger." · 4.5 cut: amber box "Cover at 28" stays small. CAP "The cover did not grow with it." **(payoff by 5 s)** · 7.0 cut: CAP "Nobody sends a reminder to check." · 10.0 cut: CAP "A licensed adviser looks at what still fits. 30 minutes." · 14.0 cut: CAP "Video, WhatsApp or phone. Free." · 17.0 end card. |
+| Video (20 s) | 0.0 Hook on screen. The frame starts growing · 2.0 cut: labels "Bond. Kids. School." step in. CAP "Life got bigger." · 4.5 cut: amber box "Cover at 28" stays small. CAP "The cover did not grow with it." **(payoff by 5 s)** · 7.0 cut: CAP "Cover can be left as it was set up." · 10.0 cut: CAP "A licensed adviser looks at what still fits. 30 minutes." · 14.0 cut: CAP "Video, WhatsApp or phone. Free." · 17.0 end card. |
 | Reading grade | 11 / 62 / 82 → **FK 2.2** |
 | Compliance self-check | **PASS.** Ages appear as life stages, not "you are 40". No figures beyond the ages. "The cover did not grow" is generic, not a claim about the viewer. |
 

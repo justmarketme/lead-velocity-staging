@@ -32,3 +32,10 @@ Date 2026-10-03 · compliance-qa · QA flag list, not legal advice. Checked agai
 POPIA: the quiz and consent are unchanged (named consent line from `consent.json`). No new data field. Meta: no special-ad-category breach found (no targeting by debt or age implied in copy; targeting must remain within the Special Ad Category limits, which is for meta-operator). C05 (not reviewed here) still contains the same "Nobody sends a reminder" line: apply the C17 replacement there too.
 
 Next: re-run `fk_check.py` and the concepts.csv parse; then I will re-check the rendered frames before any move out of `_draft/`.
+
+## Addendum 2026-10-03: C05 "Nobody sends a reminder to check it"
+- **Verdict: not acceptable in C05.** Same fault as C17 H3: an absolute, unsourced claim about what happens to the viewer's cover. The turned-40 context does not change that. No source in `verified-facts.md`.
+- **Replacement (C17 rule):** "Cover can be left as it was set up." (video caption at 7.0 and primary text; 62-word text shrinks, FK stays <= 3).
+- **Applied:** `creative-strategist/concepts.md` (primary text, 20 s video line) and `concepts.csv` (4:5 and 1:1 rows). `landing/angles/turned-40.json` does not contain the line; its hedged "may not fit" sub is fine, no change.
+- **Re-render needed (visual-producer):** `C05_trigger-turned-40_9x16_20261002.mp4`, `C05_trigger-turned-40_4x5_20261002.mp4` and `C05_trigger-turned-40_9x16_20261002.srt` (row 4 in `engine/art.mjs`; stills and 1x1 PNG show the hook only, no re-render). Update `manifest.json` hashes.
+- **Other owners:** `performance-creative-director/creative-briefs/C05.md` (line 19), `media-buyer/first-batch.csv` row 7 and `campaign-spec.md` line 209 (open flag now resolved). C05 must not upload until the re-render is checked by me.
