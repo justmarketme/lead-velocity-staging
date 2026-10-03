@@ -26,6 +26,7 @@ node --test automation/tests/W0{1,4,5,6,9}.test.mjs automation/tests/W1{2,3,5}.t
 - `fixtures/time-shift.md`: how timing is tested without waiting.
 - `_harness.mjs`: loads the fixtures and holidays, has the SAST time helpers, the online client, and renders real template bodies.
 - `_slots.mjs`: the shared slot rules (owned by W04; reused by W05/W06).
+- W09, W12, W13 no longer carry a reference implementation: they import the real logic (`automation/lib/w09.mjs`, `w12.mjs`, `w13.mjs`) and run the Code nodes of the real `automation/W09.json`, `W12.json`, `W13.json` (`_n8ncode.mjs` executes a node's `jsCode` the way n8n does). Every original assertion and fixture is unchanged. Regenerate the workflows with `node automation/build-w09-w12-w13.mjs`.
 
 ## What each test protects (plain English)
 | Test | The money rule it protects | It passes when |

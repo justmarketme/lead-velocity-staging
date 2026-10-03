@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { MODE, lead, broker, clone, ms, iso, sast, at, D, H, MIN, HOLIDAYS, online } from './_harness.mjs';
 
 // ============================================================================================
-// Reference implementation: automation/tests/_slots.mjs (shared with W05/W06/W13; the rule lives there once)
+// Running implementation: automation/lib/w04.mjs (the W04 Code nodes import it; _slots.mjs is a thin wrapper)
 // ============================================================================================
 export { generateSlots, offerSlots, dayView, unavailableDates } from './_slots.mjs';
 import { generateSlots, offerSlots, dayView, unavailableDates } from './_slots.mjs';
@@ -153,4 +153,46 @@ test(`W04 [${MODE}] bookings paused -> no slots; Graph auth error -> fallback "p
   const r = await sys.slots({ busy: null, now: at('2026-10-12', '08:00') });
   assert.equal(r.fallback, 'whatsapp');
   assert.equal(r.slots.length, 0);
+});
+
+// ============================================================================================
+// Build checks: the real module and the real automation/W04.json
+// ============================================================================================
+import { readFileSync } from 'node:fs';
+import * as W4 from '../lib/w04.mjs';
+import { checkSql, workflowSql } from './_sqlcheck.mjs';
+const WF4 = JSON.parse(readFileSync(new URL('../W04.json', import.meta.url), 'utf8'));
+
+test('W04 lib: calendar route (0.3 #4) + fail-closed is_free + token plan never returns the refresh token', () => {
+  assert.equal(W4.calendarRoute({ calendar_status: 'ok' }), 'graph');
+  assert.equal(W4.calendarRoute({ calendar_status: 'blocked_admin_consent' }), 'shared');
+  assert.equal(W4.calendarRoute({ calendar_status: 'needs_reconnect' }), 'none');
+  const now = at('2026-10-12', '08:00');
+  const shared = W4.respond({ lane: 'sub', req: { op: 'list', limit: 3 }, broker: { ...clone(B), calendar_status: 'blocked_admin_consent' }, bookings: [], busy: null, route: 'shared', now, holidays: HOLIDAYS });
+  assert.equal(shared.calendar, 'shared'); assert.equal(shared.slots.length, 3);
+  const f = W4.respond({ lane: 'sub', req: { op: 'is_free', start: '2026-10-15T10:00:00+02:00' }, broker: B, bookings: [], busy: null, route: 'graph', now, holidays: HOLIDAYS });
+  assert.equal(f.free, false, 'calendar error -> free:false');
+  const t = W4.planToken({ statusCode: 200, body: { access_token: 'a', refresh_token: 'r', expires_in: 3600 } }, now);
+  assert.equal(t.ok, true); assert.ok(!JSON.stringify(t).includes('"r"'));
+  assert.equal(W4.parseGetSchedule({ statusCode: 401, body: { error: {} } }), null);
+});
+
+test('W04 lib: lead path ignores broker ids, defaults 09-17 / 3 a day when the broker row is empty', () => {
+  assert.equal(W4.resolveCaller({}, {}, { LEAD_TOKEN_SECRET: 'x'.repeat(32) }).status, 401);
+  const c = W4.brokerConfig({ id: 'b1' });
+  assert.equal(c.max_meetings_per_day, 3); assert.deepEqual(c.meeting_hours.mon, [['09:00', '17:00']]);
+  assert.equal(W4.planRequest({ lane: 'http', req: { mode: 'lead' }, lead: { id: 'l', broker_id: null }, broker: null }).result.body.fallback, 'whatsapp');
+});
+
+test('W04.json: draft name, inactive, one Postgres credential, physical columns only, vault RPC + lib import', () => {
+  assert.equal(WF4.name, 'W04 Slots API (DRAFT pending GATE-TEST-W04)');
+  assert.equal(WF4.active, false);
+  const pgs = WF4.nodes.filter((n) => n.type === 'n8n-nodes-base.postgres');
+  assert.ok(pgs.length > 0 && pgs.every((n) => n.credentials.postgres.name === 'LV Supabase - n8n_app (least privilege)'));
+  assert.deepEqual(checkSql(workflowSql(WF4)), []);
+  const all = JSON.stringify(WF4);
+  for (const needle of ['smc_vault_ms_refresh', 'smc_set_calendar_status', 'calendar.refresh_failed', "automation/lib/w04.mjs"]) assert.ok(all.includes(needle), needle);
+  assert.ok(WF4.nodes.some((n) => n.type === 'n8n-nodes-base.webhook' && n.parameters.path === 'slots' && n.parameters.httpMethod === 'GET'));
+  const names = new Set(WF4.nodes.map((n) => n.name));
+  for (const [k, v] of Object.entries(WF4.connections)) { assert.ok(names.has(k), k); for (const o of v.main) for (const e of o) assert.ok(names.has(e.node), e.node); }
 });

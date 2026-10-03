@@ -8,80 +8,21 @@
 // to 14 days; anything still short is credited pro rata, capped at the cycle price.
 //
 // Run:  node --test automation/tests/W13.test.mjs     (offline)  ·  set N8N_PUBLIC_URL for online.
+// Loads the real logic (automation/lib/w13.mjs) and the real workflow (automation/W13.json) for the structure checks.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FIX, MODE, lead, cycle, pricing, clone, ms, iso, H, D, online } from './_harness.mjs';
 
 // ============================================================================================
-// Reference implementation
+// The real module (automation/lib/w13.mjs, imported by the Code nodes of automation/W13.json)
 // ============================================================================================
-export const REBOOK_WAIT = 48 * H; // missed_you -> no reply in 48 h -> replacement_due (4.6 item 11)
-export const DISPUTE_WINDOW = 48 * H; // Schedule C
-export const MAX_EXTENSION = 14 * D; // 0.1 shortfall
-const COUNTED = new Set(['due', 'disputed', 'approved', 'fulfilled']); // 'rejected' frees the slot
+import { readFileSync } from 'node:fs';
+import { checkSql, workflowSql } from './_sqlcheck.mjs';
+import * as R from '../lib/w13.mjs';
+const { REBOOK_WAIT, DISPUTE_WINDOW, MAX_EXTENSION, replacementTrigger, claim, dispute, settle, decide, cycleState } = R;
+const WF = JSON.parse(readFileSync(new URL('../W13.json', import.meta.url), 'utf8'));
 // SYNTHETIC cycle price for the shortfall maths only. NOT a tier price (W25 forbids hard-coded prices).
 export const SYNTHETIC_PRICE = 10000;
-
-/** Does this event open a replacement? Returns {due:false, why} or {due:true, reason, reason_code, due_at}. */
-export function replacementTrigger(ev) {
-  switch (ev.kind) {
-    case 'no_show': // lead no-show, already confirmed by W12 (both sides)
-      if (ev.second_no_show) return { due: true, reason: 'no_show', reason_code: 'second_no_show', due_at: ev.confirmed_at };
-      if (ev.rebooked_at && ms(ev.rebooked_at) < ms(ev.confirmed_at) + REBOOK_WAIT) return { due: false, why: 'rebooked' };
-      if (ev.replied_at && ms(ev.replied_at) < ms(ev.confirmed_at) + REBOOK_WAIT) return { due: false, why: 'engaged_in_chat' };
-      return { due: true, reason: 'no_show', reason_code: 'no_show', due_at: iso(ms(ev.confirmed_at) + REBOOK_WAIT) };
-    case 'disposition':
-      if (ev.code === 'unreachable') return { due: true, reason: 'uncontactable', reason_code: 'unreachable', due_at: ev.at };
-      if (ev.code === 'nofit_criteria') return { due: true, reason: 'disqualified', reason_code: 'nofit_criteria', due_at: ev.at };
-      return { due: false, why: 'counts_as_delivered' };
-    case 'uncontactable': // system-determined: verified, then silent through the full W08 sequence
-      return ev.verified ? { due: true, reason: 'uncontactable', reason_code: 'system_uncontactable', due_at: ev.at } : { due: false, why: 'never_verified_never_counted' };
-    case 'broker_no_show':
-      return { due: false, why: 'schedule_d_broker_no_show' };
-    default:
-      return { due: false, why: 'not_a_trigger' };
-  }
-}
-
-/** Open the replacement row (idempotent per lead), enforcing the per-cycle cap. */
-export function claim(cyc, rows, leadId, trig) {
-  const existing = rows.find((r) => r.lead_id === leadId);
-  if (existing) return { row: existing, alerts: [] };
-  const used = rows.filter((r) => r.cycle_id === cyc.cycle_id && COUNTED.has(r.status)).length;
-  const base = { lead_id: leadId, cycle_id: cyc.cycle_id, broker_id: cyc.broker_id, reason: trig.reason, reason_code: trig.reason_code, claimed_at: trig.due_at };
-  if (used >= cyc.replacement_cap) {
-    const row = { ...base, status: 'rejected', note: 'cap_reached', decided_by: 'system' };
-    rows.push(row);
-    return { row, alerts: ['Jonathan: replacement cap reached'] };
-  }
-  const row = { ...base, status: 'due', dispute_window_ends_at: iso(ms(trig.due_at) + DISPUTE_WINDOW) };
-  rows.push(row);
-  return { row, alerts: ['Jonathan: replacement_due'] };
-}
-
-export function dispute(row, now) {
-  if (row.status !== 'due') throw new Error(`cannot dispute a ${row.status} row`);
-  if (now > ms(row.dispute_window_ends_at)) throw new Error('dispute window closed');
-  row.status = 'disputed';
-}
-export function settle(row, now) {
-  if (row.status === 'due' && now >= ms(row.dispute_window_ends_at)) row.status = 'approved';
-  return row.status;
-}
-export const decide = (row, lvUpheld) => { row.status = lvUpheld ? 'rejected' : 'approved'; return row.status; };
-
-/** Cycle close / extension / credit (0.1 Shortfall). effective = verified qualified - approved replacements outstanding. */
-export function cycleState(cyc, { verified, approvedReplacements }, now, price) {
-  const effective = verified - approvedReplacements;
-  const ends = ms(cyc.ends_at);
-  const extendedUntil = ends + MAX_EXTENSION;
-  if (now < ends) return { status: 'active', effective };
-  if (effective >= cyc.committed_leads) return { status: 'closed', effective, shortfall: 0, credit_zar: 0 };
-  if (now < extendedUntil) return { status: 'extended', effective, extended_until: iso(extendedUntil) };
-  const shortfall = cyc.committed_leads - effective;
-  const credit = Math.min(price, Math.round((price * shortfall * 100) / cyc.committed_leads) / 100);
-  return { status: 'closed', effective, shortfall, credit_zar: credit, credit_as: cyc.renewing ? 'credit_next_cycle' : 'refund' };
-}
 
 /** New cycle snapshots its cap from the pricing row (3.6 single source). */
 export const newCycle = (tier, id = `cyc_${tier}`) => ({ ...clone(cycle()), cycle_id: id, tier_code: tier, committed_leads: pricing(tier).committed_leads, replacement_cap: pricing(tier).replacement_cap_cycle });
@@ -201,4 +142,118 @@ test(`W13 [${MODE}] shortfall: cycle extends up to 14 days; closes early once de
   const nothing = cycleState(cyc, { verified: 0, approvedReplacements: 3 }, end + 14 * D, SYNTHETIC_PRICE);
   assert.equal(nothing.credit_zar, SYNTHETIC_PRICE, 'liability capped at the cycle price');
   assert.equal(cycleState(cyc, { verified: 20, approvedReplacements: 0 }, end, SYNTHETIC_PRICE).status, 'closed', 'on target: no extension');
+});
+
+// ============================================================================================
+// Workflow checks: automation/W13.json runs automation/lib/w13.mjs; ONE replacement counter shared with W10/W12/W29
+// ============================================================================================
+import { runCode, templateCounts, allWorkflows, PG_CRED } from './_n8ncode.mjs';
+import { paramCounts } from '../lib/wa.mjs';
+import * as W10 from '../lib/w10.mjs';
+const node = (name) => WF.nodes.find((n) => n.name === name);
+const W10WF = JSON.parse(readFileSync(new URL('../W10.json', import.meta.url), 'utf8'));
+const c1a = (reason_code) => {
+  const lead = { id: 'lead_c1a', verified_at: '2026-10-08T09:05:00+02:00', first_message_at: '2026-10-08T09:00:40+02:00', conv_state: { rebook_offered: true, ...(reason_code === 'no_call' ? { declined_call: true } : {}) } };
+  const booking = { id: 'bk_c1a', status: 'cancelled', cancelled_at: '2026-10-12T10:00:00+02:00', brand_id: 'brand_smc', broker_id: 'brk_test_mark', cycle_id: cycle().cycle_id };
+  return W10.c1aDecision({ lead, booking, cancelled_by: 'lead', rebooked: false, rebook_offered: true, inbound_after_cancel: [], already_claimed: false, now_ms: ms('2026-10-12T10:00:00+02:00') + W10.C1A_SEQUENCE_MS + 60_000 }).w13;
+};
+
+test('W13.json: DRAFT name, inactive, one Postgres credential, physical columns only, Code nodes import lib/w13.mjs', () => {
+  assert.equal(WF.name, 'W13 No-show & replacement (DRAFT pending GATE-TEST-W13)');
+  assert.equal(WF.active, false);
+  assert.ok(WF.nodes.filter((n) => n.type === 'n8n-nodes-base.postgres').every((n) => n.credentials.postgres.name === PG_CRED && n.credentials.postgres.id === ''));
+  assert.deepEqual(checkSql(workflowSql(WF)), []);
+  for (const n of WF.nodes.filter((x) => x.type === 'n8n-nodes-base.code' && /\(w13\./.test(x.name))) assert.match(n.parameters.jsCode, /\$env\.REPO_DIR[\s\S]*\/automation\/lib\/w13\.mjs/, n.name);
+  const ops = node('Op').parameters.rules.values.map((v) => v.outputKey);
+  for (const op of ['claim', 'withdraw', 'no_show', 'dispute', 'decide', 'tick', 'reject']) assert.ok(ops.includes(op), op);
+});
+
+test('ONE counter: W13.json is the only workflow that writes public.replacements; W10 / W12 / W29 call W13 by name', () => {
+  const writers = allWorkflows().filter(({ wf }) => /INSERT INTO public\.replacements|UPDATE public\.replacements/.test(JSON.stringify(wf))).map((x) => x.file);
+  assert.deepEqual(writers, ['W13.json']);
+  for (const f of ['W10.json', 'W12.json', 'W29.json']) {
+    const wf = allWorkflows().find((x) => x.file === f).wf;
+    assert.ok(wf.nodes.some((n) => n.type === 'n8n-nodes-base.executeWorkflow' && n.parameters.workflowId.cachedResultName === 'W13 No-show & replacement'), f);
+  }
+  const q = node('Claim replacement (per-cycle lock, cap, one per lead)').parameters.query;
+  assert.match(q, /pg_advisory_xact_lock\(hashtext\('w13:cycle:' \|\| \$4::text\)\);/, 'claims serialised per cycle');
+  assert.match(q, /r\.cycle_id = \$4::uuid AND r\.status <> 'rejected'/, 'counted exactly like smc_replacements_cap / COUNTED');
+  assert.match(q, /FROM public\.cycles cy WHERE cy\.id = \$4::uuid/, 'cap from the cycle row (snapshotted from pricing)');
+  assert.match(q, /NOT \(x\.status = 'rejected' AND COALESCE\(x\.note, ''\) = 'withdrawn'\)/, 'one per lead; a withdrawn claim frees it');
+  assert.match(q, /'cap_reached'/);
+  assert.ok(!/replacement_cap\s*[:=]\s*[0-9]|\b(4|6|9)\s*AS cap\b/.test(JSON.stringify(WF)), 'no hard-coded caps');
+  assert.deepEqual(R.COUNTED, new Set(['due', 'disputed', 'approved', 'fulfilled']));
+});
+
+test('W10 C1A claims and W12/W29 claims hit the same counter: same cycle cap, never two rows for one lead', () => {
+  const cyc = newCycle('SMC_BRONZE');
+  const rows = [];
+  const viaW10 = R.normaliseInput(c1a('cancel_no_rebook'));
+  assert.equal(viaW10.op, 'claim'); assert.equal(viaW10.outcome_id, null, 'C1A: no outcomes row'); assert.ok(R.validateInput(viaW10).ok);
+  const t10 = R.claimDecision(viaW10, { cycle_id: cyc.cycle_id });
+  assert.deepEqual([t10.trig.reason, t10.trig.reason_code], ['uncontactable', 'cancel_no_rebook']);
+  assert.equal(claim(cyc, rows, viaW10.lead_id, t10.trig).row.status, 'due');
+  // the same lead later no-shows a rebooked call: still ONE replacement for that lead
+  assert.equal(claim(cyc, rows, viaW10.lead_id, replacementTrigger({ kind: 'no_show', confirmed_at: '2026-10-20T17:00:00+02:00', second_no_show: true })).row, rows[0]);
+  const viaW29 = R.normaliseInput({ op: 'claim', outcome_id: 'out_9', reason: 'disqualified', reason_code: 'nofit_criteria' });
+  claim(cyc, rows, 'lead_w29', R.claimDecision(viaW29, { cycle_id: cyc.cycle_id }).trig);
+  claim(cyc, rows, 'lead_w12a', replacementTrigger({ kind: 'no_show', confirmed_at: '2026-10-15T17:00:00+02:00' }));
+  claim(cyc, rows, 'lead_w12b', replacementTrigger({ kind: 'no_show', confirmed_at: '2026-10-15T17:00:00+02:00' }));
+  const fifth = claim(cyc, rows, 'lead_c1a_2', R.claimDecision(R.normaliseInput({ ...c1a('no_call'), lead_id: 'lead_c1a_2' }), { cycle_id: cyc.cycle_id }).trig);
+  assert.equal(fifth.row.status, 'rejected', 'Bronze 4: the 5th claim from ANY caller is over the cap');
+  assert.equal(rows.filter((r) => R.COUNTED.has(r.status)).length, pricing('SMC_BRONZE').replacement_cap_cycle);
+  // W10's own JSON sends the C1A claim with the contract key
+  assert.match(W10WF.nodes.find((n) => n.name === 'C1A decision row (idempotency + evidence)').parameters.query, /ON CONFLICT \(idempotency_key\) DO NOTHING/);
+});
+
+test('W13.json "Decide claim" node: C1A / W29 / system shapes; unverified uncontactable and non-trigger codes are logged, not claimed', async () => {
+  const dec = async (input, row) => (await runCode(WF, 'Decide claim (w13.claimDecision)', { json: row, refs: { 'Claim input': input } })).json;
+  const ctx = { lead_id: 'lead_c1a', cycle_id: cycle().cycle_id, replacement_cap: 4, verified_at: '2026-10-08T09:05:00+02:00', brand_id: 'brand_smc', broker_id: 'brk_test_mark' };
+  const n = (await runCode(WF, 'Normalise + validate (w13.normaliseInput)', { json: c1a('no_call') })).json;
+  const d = await dec(n, ctx);
+  assert.equal(d.claim, true); assert.deepEqual([d.trig.reason, d.trig.reason_code], ['disqualified', 'no_call']);
+  const budget = (await runCode(WF, 'Normalise + validate (w13.normaliseInput)', { json: { op: 'claim', outcome_id: 'o1', reason: 'disqualified', reason_code: 'nofit_budget' } })).json;
+  assert.equal((await dec(budget, ctx)).why, 'counts_as_delivered');
+  const sys = (await runCode(WF, 'Normalise + validate (w13.normaliseInput)', { json: { op: 'claim', kind: 'uncontactable', lead_id: 'lead_x' } })).json;
+  assert.equal((await dec(sys, { ...ctx, verified_at: null })).why, 'never_verified_never_counted');
+  assert.equal((await dec(sys, ctx)).claim, true);
+  assert.equal((await dec(n, { ...ctx, cycle_id: null })).why, 'no_cycle');
+  const bad = (await runCode(WF, 'Normalise + validate (w13.normaliseInput)', { json: { op: 'decide', replacement_id: 'r1' } })).json;
+  assert.equal(bad.op, 'reject'); assert.deepEqual(bad.missing, ['upheld']);
+});
+
+test('W13.json no-show path (L04): one missed_you offer with 3 times, 48-h clock, rebook/reply inside 48 h stops it, second no-show claims at once', async () => {
+  const fx = lead('L04');
+  const confirmed = fx.expected.W12.no_show_confirmed_at;
+  const clk = async (over) => (await runCode(WF, 'No-show clock decision', { json: { lead_id: fx.lead_id, booking_id: 'bkg_L04', cycle_id: 'cyc_1', outcome_id: 'out_L04', confirmed_at: confirmed, confirmed_at_row: true, ...over }, refs: { 'Normalise + validate (w13.normaliseInput)': { op: 'tick' } } })).json;
+  const due = await clk({});
+  assert.deepEqual([due.trig.due, due.trig.due_at, due.trig.reason, due.decided_key], [true, fx.expected.W13.replacement_due_at, fx.expected.W13.reason, 'w13:no_show_decided:bkg_L04']);
+  assert.equal((await clk({ rebooked_at: '2026-10-16T09:00:00+02:00' })).trig.why, 'rebooked');
+  assert.equal((await clk({ rebooked_activity_at: '2026-10-16T09:00:00+02:00' })).trig.why, 'rebooked', 'W10 rebooked_after_no_show row stops the clock');
+  assert.equal((await clk({ replied_at: '2026-10-16T12:00:00+02:00' })).trig.why, 'engaged_in_chat');
+  const second = (await runCode(WF, 'No-show clock decision', { json: { lead_id: fx.lead_id, booking_id: 'bkg_L04b', cycle_id: 'cyc_1', second_no_show: true }, refs: { 'Normalise + validate (w13.normaliseInput)': { op: 'no_show', confirmed_at: confirmed, outcome_id: 'out_L04b' } } })).json;
+  assert.deepEqual([second.trig.due, second.trig.reason_code, second.trig.due_at, second.outcome_id], [true, 'second_no_show', confirmed, 'out_L04b']);
+  const slots = [0, 1, 2, 3].map((d) => ({ start: iso(ms('2026-10-16T10:00:00+02:00') + d * D), end: iso(ms('2026-10-16T10:30:00+02:00') + d * D) }));
+  const ctxRow = { booking_id: 'bkg_L04', lead_id: fx.lead_id, brand_id: 'brand_smc', broker_id: 'brk_test_mark', first_name: 'Pieter', phone: '+27600000004', adviser_name: 'Mark Smith', opted_out_at: null };
+  const my = (await runCode(WF, 'missed_you (w13.missedYouItem)', { json: { slots }, refs: { 'No-show context + 48-h clock (w13:no_show:{booking})': ctxRow } })).json;
+  assert.deepEqual([my.send.to, my.send.template, my.send.key], ['lead', 'missed_you', 'w13:missed_you:bkg_L04']);
+  assert.deepEqual(paramCounts(my.send.wa), templateCounts('missed_you'));
+  assert.ok(my.send.wa.template.components.filter((c) => c.sub_type === 'quick_reply').slice(0, 3).every((c) => /^slot_.+:resched:bkg_L04$/.test(c.parameters[0].payload)), 'W07 routes these to W10');
+  assert.equal((await runCode(WF, 'missed_you (w13.missedYouItem)', { json: { slots: slots.slice(0, 2) }, refs: { 'No-show context + 48-h clock (w13:no_show:{booking})': ctxRow } })).json.send, null);
+  assert.equal((await runCode(WF, 'missed_you (w13.missedYouItem)', { json: { slots }, refs: { 'No-show context + 48-h clock (w13:no_show:{booking})': { ...ctxRow, opted_out_at: '2026-10-15T18:00:00+02:00' } } })).json.why, 'opted_out');
+  assert.match(node('No-show context + 48-h clock (w13:no_show:{booking})').parameters.query, /'w13:no_show:' \|\| ctx\.booking_id::text/);
+  assert.match(node('Claim missed_you (sent once)').parameters.query, /ON CONFLICT \(idempotency_key\) DO NOTHING/);
+});
+
+test('W13.json: shortfall is W19\'s (emit replacement_approved only, never touch cycles); wording "committed", never "guaranteed"; W09 cancel_all on due', () => {
+  const s = JSON.stringify(WF);
+  assert.ok(!/UPDATE public\.cycles|INSERT INTO public\.cycles|shortfall_credit_zar|extended_until/.test(s), 'W13 never writes cycles / credits');
+  assert.match(node('Settle: window closed -> approved (emit for W19)').parameters.query, /'replacement_approved'[\s\S]*'w13:approved:' \|\| s\.id::text/);
+  assert.match(node('Withdraw (W29 correction, inside the window only)').parameters.query, /r\.status = 'due' AND r\.dispute_window_ends_at > \$3::timestamptz/);
+  assert.match(node('Dispute (Lead Velocity, inside the 48-h window)').parameters.query, /status = 'due' AND dispute_window_ends_at > \$2::timestamptz/);
+  for (const text of [s, readFileSync(new URL('../lib/w13.mjs', import.meta.url), 'utf8')]) assert.ok(!/guarantee/i.test(text), 'never "guaranteed" (0.1)');
+  assert.match(R.alertNote('cap_reached', { lead: { first_name: 'Pieter', last_name: 'V' }, cap: 4, reason_code: 'no_show' }), /the committed number is unchanged/);
+  assert.equal(WF.nodes.find((n) => n.name === 'W09 cancel_all (lead)').parameters.workflowId.cachedResultName, 'W09 Reminder sequence');
+  assert.match(node('Send WhatsApp').parameters.url, /PHONE_NUMBER_ID/);
+  assert.ok(WF.connections['Send WhatsApp'].main[0].some((c) => c.node === 'Touch leads.last_contact_at (lead outbound)'));
 });

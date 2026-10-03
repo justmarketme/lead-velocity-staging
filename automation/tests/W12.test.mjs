@@ -7,89 +7,21 @@
 // become "attended" at 24 h, flagged "unconfirmed", so nothing sits in limbo.
 //
 // Run:  node --test automation/tests/W12.test.mjs     (offline)  ·  set N8N_PUBLIC_URL for online.
+// Loads the real logic (automation/lib/w12.mjs) and the real workflow (automation/W12.json) for the structure checks.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FIX, MODE, lead, broker, clone, ms, iso, MIN, H, D, template, online } from './_harness.mjs';
 
 // ============================================================================================
-// Reference implementation
+// The real module (automation/lib/w12.mjs, imported by the Code nodes of automation/W12.json)
 // ============================================================================================
-export const OUTCOME_CHECK_AFTER_END = 15 * MIN; // broker
-export const REACH_CHECK_AFTER_END = 30 * MIN; // lead (ASSUMPTION: anchored on slot end, like the broker's)
-export const BROKER_NUDGE_AFTER = 3 * H; // one nudge
-export const AUTO_ATTEND_AFTER_END = 24 * H;
-export const REACH_WINDOW = 2 * H; // ASSUMPTION (fixtures _meta)
-export const FIT_FOLLOWUP_AFTER = 7 * D;
+import { readFileSync } from 'node:fs';
+import { checkSql, workflowSql } from './_sqlcheck.mjs';
+import * as R from '../lib/w12.mjs';
+const { OUTCOME_CHECK_AFTER_END, REACH_CHECK_AFTER_END, BROKER_NUDGE_AFTER, AUTO_ATTEND_AFTER_END, REACH_WINDOW, FIT_FOLLOWUP_AFTER, REPLACEMENT_CODES, BUTTON_TO_CODE, postCallPlan, resolveOutcome, recordDisposition, unconfirmedAlert } = R;
+const WF = JSON.parse(readFileSync(new URL('../W12.json', import.meta.url), 'utf8'));
+// 4.12a codes: the module's list is the fixture list (same order as broker_disposition.json).
 export const CODES = FIX._meta.disposition_codes;
-export const REPLACEMENT_CODES = new Set(['unreachable', 'nofit_criteria']); // 4.12a: "nothing else does"
-// Template button text (<= 25 chars, see templates README) -> code. Same order as broker_disposition.json.
-export const BUTTON_TO_CODE = {
-  'Good fit – proceeding': 'fit_proceeding',
-  'Good fit – follow-up': 'fit_followup',
-  'Not a fit – budget': 'nofit_budget',
-  'Not a fit – well covered': 'nofit_covered',
-  'Not a fit – criteria': 'nofit_criteria',
-  'Unreachable/wrong number': 'unreachable',
-};
-
-export function postCallPlan(slotEnd) {
-  const e = ms(slotEnd);
-  return {
-    outcome_check_at: iso(e + OUTCOME_CHECK_AFTER_END),
-    broker_nudge_at: iso(e + OUTCOME_CHECK_AFTER_END + BROKER_NUDGE_AFTER),
-    reach_check_at: iso(e + REACH_CHECK_AFTER_END),
-    auto_attend_at: iso(e + AUTO_ATTEND_AFTER_END),
-  };
-}
-
-/**
- * Resolve the outcome from both sides at time `now`.
- * @param m { slotEnd, brokerMark: 'attended'|'no_show'|'rescheduled'|null, reach: 'yes'|'no'|null, consentAds, optedOut, leadId }
- */
-export function resolveOutcome(m, now) {
-  const p = postCallPlan(m.slotEnd);
-  const r = { outcome: 'pending', auto_marked: false, unconfirmed: false, lead_reach_check: m.reach ?? 'none', dispute_status: null, lead_message: null, capi: [], alerts: [], next: null };
-  const attended = (extra = {}) => {
-    Object.assign(r, { outcome: 'attended', ...extra });
-    if (!m.optedOut) r.lead_message = 'attended_thanks';
-    if (m.consentAds !== false) r.capi.push({ event_name: 'Attended', event_id: `evt_${m.leadId}_attended` });
-    r.next = 'W12_disposition';
-    return r;
-  };
-  if (m.brokerMark === 'rescheduled') return Object.assign(r, { outcome: 'rescheduled', next: 'W10' });
-  if (m.reach === 'no') {
-    if (m.brokerMark === 'attended') return attended({ dispute_status: 'open', next: 'console_queue' }); // two sides disagree
-    Object.assign(r, { outcome: 'broker_no_show', lead_message: m.optedOut ? null : 'broker_no_show_apology', next: 'rebook_at_our_cost' });
-    r.alerts.push('KG');
-    return r;
-  }
-  if (m.brokerMark === 'attended') return attended();
-  if (m.brokerMark === 'no_show') {
-    if (m.reach === 'yes') return Object.assign(r, { outcome: 'disputed', dispute_status: 'open', next: 'console_queue' });
-    const confirmAt = ms(p.reach_check_at) + REACH_WINDOW;
-    if (now >= confirmAt) return Object.assign(r, { outcome: 'no_show', no_show_confirmed_at: iso(confirmAt), lead_message: m.optedOut ? null : 'missed_you', next: 'W13' });
-    return r; // waiting for the lead's side
-  }
-  if (now >= ms(p.auto_attend_at)) return attended({ auto_marked: true, unconfirmed: true });
-  return r;
-}
-
-/** Broker's disposition + quality (only after attended). */
-export function recordDisposition(outcome, { code, quality, at }) {
-  if (outcome.outcome !== 'attended') throw new Error('disposition only after attended');
-  if (!CODES.includes(code)) throw new Error(`unknown code ${code}`);
-  if (quality !== undefined && !(Number.isInteger(quality) && quality >= 1 && quality <= 5)) throw new Error('quality must be 1-5');
-  return {
-    disposition_code: code,
-    quality_score: quality ?? null,
-    counts_as_delivered: true,
-    replacement_eligible: REPLACEMENT_CODES.has(code),
-    broker_fit_followup_at: code === 'fit_followup' ? iso(ms(at) + FIT_FOLLOWUP_AFTER) : null,
-  };
-}
-
-/** 4.12a friction rule: two unconfirmed in a cycle -> Jonathan calls the broker. */
-export const unconfirmedAlert = (outcomesInCycle) => (outcomesInCycle.filter((o) => o.unconfirmed).length >= 2 ? ['Jonathan: call broker'] : []);
 
 // ============================================================================================
 // Adapters
@@ -239,4 +171,136 @@ test(`W12 [${MODE}] quality must be 1-5; no disposition on a no-show`, () => {
 test(`W12 [${MODE}] two unconfirmed outcomes in one cycle -> Jonathan calls the broker`, () => {
   assert.deepEqual(unconfirmedAlert([{ unconfirmed: true }]), []);
   assert.deepEqual(unconfirmedAlert([{ unconfirmed: true }, { unconfirmed: false }, { unconfirmed: true }]), ['Jonathan: call broker']);
+});
+
+// ============================================================================================
+// Workflow checks: automation/W12.json runs automation/lib/w12.mjs (Code nodes executed here as n8n does)
+// ============================================================================================
+import { runCode, templateCounts, allWorkflows, PG_CRED } from './_n8ncode.mjs';
+import { paramCounts } from '../lib/wa.mjs';
+const node = (name) => WF.nodes.find((n) => n.name === name);
+const BK = broker();
+const mrow = (fx, over = {}) => ({ booking_id: `bkg_${fx.fixture_id}`, lead_id: fx.lead_id, brand_id: 'brand_smc', broker_id: BK.broker_id, cycle_id: 'cyc_1', appointment_date: fx.reschedule_request?.new_slot_start ?? fx.booking_request.slot_start, slot_end: endOf(fx), status: 'booked', first_name: 'Pieter', last_name: 'V', phone: '+27600000004', language: 'en', opted_out_at: null, adviser_name: BK.adviser_name, contact_person: BK.adviser_name, adviser_whatsapp: BK.adviser_whatsapp, whatsapp_number: BK.adviser_whatsapp, broker_mark: null, reach: null, sent_outcome_check: false, sent_broker_nudge: false, sent_reach_check: false, outcome_exists: false, ...over });
+const sweep = async (row, now) => (await runCode(WF, 'Decide (w12.sweepItems)', { items: [row], refs: { 'Classify + validate (w12.classifyOp)': { now_iso: now } } })).map((x) => x.json);
+const follow = async (item, outcomeId) => (await runCode(WF, 'Follow-ups (w12.followUps)', { items: [outcomeId ? { outcome_id: outcomeId } : item], refs: { 'Write outcome? (not pending, not disputed)': item } })).map((x) => x.json);
+
+test('W12.json: DRAFT name, inactive, one Postgres credential, physical columns only, Code nodes import lib/w12.mjs', () => {
+  assert.equal(WF.name, 'W12 Outcome, disposition & feedback (DRAFT pending GATE-TEST-W12)');
+  assert.equal(WF.active, false);
+  const pgs = WF.nodes.filter((n) => n.type === 'n8n-nodes-base.postgres');
+  assert.ok(pgs.every((n) => n.credentials.postgres.name === PG_CRED && n.credentials.postgres.id === ''));
+  assert.deepEqual(checkSql(workflowSql(WF)), []);
+  for (const n of WF.nodes.filter((x) => x.type === 'n8n-nodes-base.code' && /\(w12\./.test(x.name))) assert.match(n.parameters.jsCode, /\$env\.REPO_DIR[\s\S]*\/automation\/lib\/w12\.mjs/, n.name);
+  const execs = WF.nodes.filter((n) => n.type === 'n8n-nodes-base.executeWorkflow').map((n) => n.parameters.workflowId.cachedResultName);
+  for (const t of ['CAPI Send', 'W29 Feedback loop', 'W13 No-show & replacement', 'W10 Reschedule / cancel']) assert.ok(execs.includes(t), t);
+  const ops = node('Op').parameters.rules.values.map((v) => v.outputKey);
+  for (const op of ['tick', 'broker_tap', 'reach', 'auto_attended', 'voice_note', 'feedback', 'reject']) assert.ok(ops.includes(op), op);
+});
+
+test('W12.json writes: one outcome per booking (first writer, same as W11 backstop), appointments.outcome status + stage + timeline; taps last-win per CONTRACTS; never replacements', () => {
+  const ins = node('Insert outcome + appointment + stage + timeline').parameters.query;
+  assert.match(ins, /INSERT INTO public\.outcomes[\s\S]*ON CONFLICT \(booking_id\) DO NOTHING/);
+  assert.match(ins, /UPDATE public\.appointments SET status = \$13/);
+  assert.match(ins, /UPDATE public\.leads SET stage = COALESCE\(\$14, stage\)/);
+  assert.match(ins, /'outcome_recorded'/);
+  assert.match(ins, /esc_kind=two_unconfirmed/);
+  assert.match(node('Record reach answer (w12:reach, last tap wins)').parameters.query, /'reach_check'[\s\S]*'w12:reach:' \|\| a\.id::text[\s\S]*DO UPDATE SET payload = EXCLUDED\.payload/);
+  assert.match(node('Record broker mark (w12:mark, last tap wins)').parameters.query, /'w12:mark:' \|\| a\.id::text/);
+  assert.ok(!JSON.stringify(WF).includes('INSERT INTO public.replacements'), 'W13 owns replacements');
+  assert.match(node('Claim message (w12 key, sent once)').parameters.query, /ON CONFLICT \(idempotency_key\) DO NOTHING\s+RETURNING id/);
+  assert.ok(WF.connections['Send WhatsApp'].main[0].some((c) => c.node === 'Touch leads.last_contact_at (lead outbound)'));
+  assert.match(JSON.stringify(node('Live send?').parameters), /DRY_RUN_SENDS/);
+});
+
+test('W12.json sweep (L04): broker check at end + 15, reach check at end + 30, nudge once at + 3 h 15, lead no-show only after the 2-h reach window', async () => {
+  const fx = lead('L04');
+  const r0 = mrow(fx);
+  assert.deepEqual(await sweep(r0, '2026-10-15T14:44:00+02:00'), []);
+  const a = await sweep(r0, fx.expected.W12.outcome_check_at);
+  assert.deepEqual(a.map((x) => [x.fu, x.send.to, x.send.template, x.send.key]), [['send', 'broker', 'broker_outcome_check', 'w12:outcome_check:bkg_L04']]);
+  assert.deepEqual(a[0].send.wa.template.components.at(-1).parameters[0].payload, 'rescheduled:bkg_L04');
+  const b = await sweep({ ...r0, sent_outcome_check: true }, fx.expected.W12.reach_check_at);
+  assert.deepEqual(b.map((x) => [x.send.to, x.send.template]), [['lead', 'reach_check']]);
+  const nudge = await sweep({ ...r0, sent_outcome_check: true, sent_reach_check: true }, iso(ms(endOf(fx)) + 15 * MIN + 3 * H));
+  assert.deepEqual(nudge.map((x) => x.send.key), ['w12:broker_nudge:bkg_L04']);
+  assert.deepEqual(await sweep({ ...r0, sent_outcome_check: true, sent_reach_check: true, sent_broker_nudge: true }, iso(ms(endOf(fx)) + 5 * H)), [], 'one nudge only');
+  const marked = { ...r0, broker_mark: 'no_show', sent_outcome_check: true, sent_reach_check: true };
+  assert.deepEqual(await sweep(marked, '2026-10-15T16:59:00+02:00'), [], 'pending while the lead can answer');
+  const [res] = await sweep(marked, '2026-10-15T17:00:00+02:00');
+  assert.equal(res.fu, 'resolve'); assert.equal(res.r.outcome, 'no_show');
+  assert.deepEqual([res.o.outcome, res.o.marked_at, res.o.appointment_status, res.o.lead_stage, res.o.lead_reach_check], ['no_show', fx.expected.W12.no_show_confirmed_at, 'no_show', 'no_show', 'none']);
+  const fu = await follow({ ...res, row: marked }, 'out_L04');
+  const w13 = fu.find((x) => x.fu === 'w13');
+  assert.deepEqual([w13.op, w13.outcome_id, w13.booking_id, w13.confirmed_at, w13.idempotency_key], ['no_show', 'out_L04', 'bkg_L04', fx.expected.W12.no_show_confirmed_at, 'w12:no_show:bkg_L04']);
+  assert.ok(!fu.some((x) => x.fu === 'send'), 'missed_you is W13\'s message, not W12\'s');
+  assert.ok(fu.some((x) => x.fu === 'w29' && x.event === 'outcome_recorded'), 'pulse facts / quality fed for every outcome');
+});
+
+test('W12.json L01 two-sided attended: thank-you to the lead, CAPI Attended, W29; Attended tap asks the disposition at once (4.12a list, in window)', async () => {
+  const fx = lead('L01');
+  const row = mrow(fx, { first_name: 'Lerato', last_name: 'M', phone: '+27600000001', broker_mark: 'attended', reach: 'yes', sent_outcome_check: true, sent_reach_check: true });
+  const [res] = await sweep(row, '2026-10-15T11:05:00+02:00');
+  assert.deepEqual([res.o.outcome, res.o.auto_marked, res.o.unconfirmed, res.o.marked_via, res.o.lead_reach_check], ['attended', false, false, 'whatsapp', 'yes']);
+  const fu = await follow({ ...res, row }, 'out_L01');
+  const thanks = fu.find((x) => x.fu === 'send');
+  assert.deepEqual([thanks.send.to, thanks.send.template, thanks.send.wa.to], ['lead', 'attended_thanks', '+27600000001']);
+  assert.equal(fu.find((x) => x.fu === 'capi').event_id, fx.expected.W12.capi_attended_event_id);
+  const ask = (await runCode(WF, 'Disposition ask (w12.dispositionItem)', { items: [row], refs: { 'Classify + validate (w12.classifyOp)': { op: 'broker_tap', now_iso: '2026-10-15T10:46:00+02:00' } } }))[0].json;
+  assert.equal(ask.send.to, 'broker'); assert.equal(ask.send.wa.type, 'interactive'); assert.equal(ask.send.wa.to, BK.adviser_whatsapp);
+  const session = JSON.parse(readFileSync(new URL('../templates/session/broker_disposition_list.json', import.meta.url), 'utf8'));
+  assert.deepEqual(ask.send.wa.interactive.action.sections, session.interactive.action.sections, 'same rows/ids as the session file (4.12a codes)');
+  assert.equal(ask.send.wa.interactive.body.text, 'Thanks. Which best describes Lerato M. after the call? Pick the closest one.');
+  const late = (await runCode(WF, 'Disposition ask (w12.dispositionItem)', { items: [{ ...row, broker_last_inbound_at: '2026-10-10T09:00:00+02:00' }], refs: { 'Classify + validate (w12.classifyOp)': { op: 'feedback', now_iso: '2026-10-15T12:00:00+02:00' } } }))[0].json;
+  assert.equal(late.send.template, 'broker_disposition', 'out of window: the 6-button template');
+  assert.deepEqual(await runCode(WF, 'Disposition ask (w12.dispositionItem)', { items: [{ ...row, already_dispositioned: true }], refs: { 'Classify + validate (w12.classifyOp)': { op: 'broker_tap', now_iso: '2026-10-15T10:46:00+02:00' } } }), []);
+});
+
+test('W12.json L02 broker no-show (lead "No, not yet"): apology (session) + W10 rebook at our cost + KG alert; never W13', async () => {
+  const fx = lead('L02');
+  const row = mrow(fx, { broker_mark: 'no_show', reach: 'no', sent_outcome_check: true, sent_reach_check: true });
+  const [res] = await sweep(row, '2026-10-13T11:45:00+02:00');
+  assert.equal(res.o.outcome, 'broker_no_show'); assert.equal(res.o.lead_stage, null, 'lead stage unchanged: the lead did nothing wrong');
+  const fu = await follow({ ...res, row }, 'out_L02');
+  assert.deepEqual(fu.map((x) => x.fu).sort(), ['alert', 'send', 'w10', 'w29']);
+  assert.equal(fu.find((x) => x.fu === 'w10').schedule_d, true);
+  assert.equal(fu.find((x) => x.fu === 'send').send.wa.type, 'text');
+  assert.match(fu.find((x) => x.fu === 'alert').note, /^esc_kind=broker_no_show; .*no replacement/);
+});
+
+test('W12.json unmarked at 24 h: attended + auto_marked + unconfirmed (marked_via auto, flagged); disputed sides -> console alert, no row', async () => {
+  const fx = lead('L01');
+  const row = mrow(fx, { sent_outcome_check: true, sent_reach_check: true, sent_broker_nudge: true });
+  assert.deepEqual(await sweep(row, iso(ms(endOf(fx)) + 24 * H - MIN)), []);
+  const [res] = await sweep(row, iso(ms(endOf(fx)) + 24 * H));
+  assert.deepEqual([res.o.outcome, res.o.auto_marked, res.o.unconfirmed, res.o.marked_via], ['attended', true, true, 'auto']);
+  const [d] = await sweep({ ...row, broker_mark: 'no_show', reach: 'yes' }, iso(ms(endOf(fx)) + H));
+  assert.equal(d.o, null);
+  const fu = await follow({ ...d, row: { ...row, broker_mark: 'no_show', reach: 'yes' } });
+  assert.deepEqual(fu.map((x) => [x.fu, x.kind]), [['alert', 'outcome_unmarked']]);
+  // W11 backstop entry: the attended path only (no broker re-ask)
+  const auto = (await runCode(WF, 'Auto-attended follow-ups (w12.resolveOutcome at 24 h)', { items: [{ ...row, outcome_id: 'out_auto', reach: 'none' }] })).map((x) => x.json);
+  assert.deepEqual(auto.map((x) => x.fu).sort(), ['capi', 'send', 'w29']);
+});
+
+test('W12 voice note: only the WhatsApp media reference is stored (no download, no transcript in W12)', async () => {
+  const v = (await runCode(WF, 'Voice note reference (w12.voiceNoteRef)', { json: { op: 'voice_note', msg: { media: 'audio', media_id: 'MEDIA123', from: BK.adviser_whatsapp } } })).json;
+  assert.deepEqual(v.ref, { voice_note_url: 'whatsapp-media:MEDIA123', media_id: 'MEDIA123' });
+  assert.match(node('Store voice note reference (no audio, no transcript here)').parameters.query, /SET voice_note_url = \$2, updated_at = now\(\)/);
+  assert.ok(!WF.nodes.some((n) => n.type === 'n8n-nodes-base.httpRequest' && n.name !== 'Send WhatsApp'), 'no media fetch / transcription call');
+  assert.equal(R.voiceNoteRef({ media: 'image', media_id: 'x' }), null);
+});
+
+test('W12 sends match the submitted templates (variable counts)', () => {
+  const bk = { id: 'bk1', appointment_date: '2026-10-15T10:00:00+02:00' };
+  const ld = { first_name: 'Lerato', last_name: 'M', phone: '+27600000001' };
+  const br = { adviser_name: 'Mark Smith', adviser_whatsapp: '+27600000090' };
+  assert.deepEqual(paramCounts(R.outcomeCheckMessage(bk, ld, br).wa), templateCounts('broker_outcome_check'));
+  assert.deepEqual(paramCounts(R.reachCheckMessage(bk, ld, br).wa), templateCounts('reach_check'));
+  assert.deepEqual(paramCounts(R.attendedThanksMessage(ld, br).wa), templateCounts('attended_thanks'));
+  assert.deepEqual(paramCounts(R.dispositionTemplateMessage(bk, ld, br).wa), templateCounts('broker_disposition'));
+  assert.deepEqual(R.CODES, CODES, '4.12a codes = fixture codes');
+  // W07 routes the broker's outcome taps here and the lead's reach taps here
+  assert.deepEqual(R.parseTap({ payload: 'no_show:bk1' }), { side: 'broker', mark: 'no_show', booking_id: 'bk1' });
+  assert.deepEqual(R.parseTap({ payload: 'reach_no:bk1' }), { side: 'lead', answer: 'no', booking_id: 'bk1' });
+  assert.ok(allWorkflows().every(({ file, wf }) => file === 'W12.json' || !JSON.stringify(wf).includes("'w12:mark:'")), 'only W12 writes the broker mark rows');
 });

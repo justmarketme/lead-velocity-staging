@@ -1,0 +1,1369 @@
+{
+  "name": "W09 Reminder sequence (DRAFT pending GATE-TEST-W09)",
+  "nodes": [
+    {
+      "id": "n01",
+      "name": "Sticky: read me",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -400
+      ],
+      "parameters": {
+        "width": 900,
+        "height": 380,
+        "content": "W09 Reminder sequence (client), 4.6 item 6 + 4.12. DRAFT pending GATE-TEST-W09 (nodes stay \"in progress\" until Jonathan approves automation/tests/W09.test.mjs).\nLogic: automation/lib/w09.mjs (pure), imported by every Code node from $env.REPO_DIR. Jobs are lead_activities rows (activity_type reminder_job, idempotency_key w09:{booking}:{touch}:{at}); a job is finished by ONE append-only reminder_done row (key w09done:{job key}: sent / skipped / cancelled), so each touch is sent at most once even if two ticks overlap (ON CONFLICT DO NOTHING is the claim; no retry storm).\nEntries (CONTRACTS.md \"Sub-workflow interfaces\"): schedule {booking_id} (W05) · rebuild {booking_id} (W10, W05 previous_booking_id) · cancel_all {booking_id|lead_id} (W10, W13, W15) · pause {lead_id, reason} (W07, W15) · resume {lead_id} (console) · taps confirm:{bk} / play_voice_note:{bk} / looking_forward:{bk} (W07) · tick (every 5 min; staging test hook passes {op:\"tick\", now, is_synthetic:true}, honoured only with TEST_HOOKS_ENABLED=true and only for synthetic leads).\nSequence: what_to_expect T0+10 min · intro_media(_voice) T-48 h if booked >= 3 days out else T0+15 min (once per lead) · reminder_24h + prep_nudge T-24 h (skipped < 24 h ahead) · reminder_2h · reminder_10m. Quiet hours 20:00-08:00 SAST (reminder_10m exempt). Stops at send time on STOP, suppression, pause, booking moved/not live, meeting started, 12-message budget (reminders are essential).\nEvery lead send Meta accepts touches leads.last_contact_at (I-38d). Env: REPO_DIR, DRY_RUN_SENDS, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TEST_HOOKS_ENABLED."
+      }
+    },
+    {
+      "id": "n02",
+      "name": "Called by W05 / W07 / W10 / W13 / W15 / console",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "n03",
+      "name": "Every 5 minutes (due reminders)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/5 * * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n04",
+      "name": "Tick input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { json: { op: 'tick' } };"
+      }
+    },
+    {
+      "id": "n05",
+      "name": "Classify + validate (w09.classifyOp)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w09.mjs').href);\nconst j = $json;\nconst op = L.classifyOp(j);\nconst v = L.validateInput(op, j);\nconst wall = Date.now();\nconst now = L.nowFrom(j, $env, wall);\nconst booking_id = j.booking_id || (j.msg ? L.tapBookingId(j.msg) : null) || null;\nreturn { json: { ...j, op: v.ok ? op : 'reject', asked_op: op, missing: v.ok ? [] : v.missing, booking_id, lead_id: j.lead_id || (j.lead && j.lead.id) || null, now_iso: L.iso(now), synthetic_only: now !== wall } };"
+      }
+    },
+    {
+      "id": "n06",
+      "name": "Op",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "schedule",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s0",
+                    "leftValue": "={{ $json.op }}",
+                    "rightValue": "schedule",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "rebuild",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s1",
+                    "leftValue": "={{ $json.op }}",
+                    "rightValue": "rebuild",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "cancel_all",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s2",
+                    "leftValue": "={{ $json.op }}",
+                    "rightValue": "cancel_all",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "pause",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s3",
+                    "leftValue": "={{ $json.op }}",
+                    "rightValue": "pause",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "resume",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s4",
+                    "leftValue": "={{ $json.op }}",
+                    "rightValue": "resume",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "tick",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s5",
+                    "leftValue": "={{ $json.op }}",
+                    "rightValue": "tick",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "confirm",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s6",
+                    "leftValue": "={{ $json.op }}",
+                    "rightValue": "confirm",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "media_tap",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s7",
+                    "leftValue": "={{ $json.op }}",
+                    "rightValue": "media_tap",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "reject",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s8",
+                    "leftValue": "={{ $json.op }}",
+                    "rightValue": "reject",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      }
+    },
+    {
+      "id": "n07",
+      "name": "Load booking, lead, broker (plan)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        960,
+        -200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT a.id AS booking_id, a.client_id AS lead_id, a.brand_id, a.broker_id, a.cycle_id, a.appointment_date, a.status,\n       COALESCE(a.booked_at, a.created_at) AS booked_at,\n       l.language, l.opted_out_at, l.is_synthetic,\n       b.intro_video_url, b.intro_voice_url, b.intro_media_pref,\n       -- once per lead lineage: what_to_expect / intro media already sent for ANY booking of this lead\n       COALESCE((SELECT jsonb_agg(DISTINCT d.payload->>'touch') FROM public.lead_activities d\n                  WHERE d.lead_id = a.client_id AND d.activity_type = 'reminder_done' AND d.payload->>'status' = 'sent'), '[]'::jsonb) AS lineage_sent\n  FROM public.appointments a\n  JOIN public.leads l ON l.id = a.client_id\n  JOIN public.brokers b ON b.id = a.broker_id\n WHERE a.id = $1::uuid AND a.brand_id IS NOT NULL;",
+        "options": {
+          "queryReplacement": "={{ [$json.booking_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "id": "n08",
+      "name": "Plan (w09.planFromRow)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        -200
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w09.mjs').href);\nconst c = $('Classify + validate (w09.classifyOp)').item.json;\nconst r = $json;\nif (!r.booking_id) return { json: { skip: true } };\nconst p = L.planFromRow(r, c.op, Date.parse(c.now_iso));\nreturn { json: { ...r, op: c.op, start: p.start, compressed: p.plan.compressed, rows: p.rows } };"
+      }
+    },
+    {
+      "id": "n09",
+      "name": "Cancel unsent jobs for an older time (rebuild)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1440,
+        -200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- W10 move / W05 rebook: unsent jobs planned for another start time are finished as 'cancelled' (append-only).\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT j.lead_id, j.brand_id, j.broker_id, j.cycle_id, 'W09', 'system', 'reminder_done',\n       jsonb_build_object('key', j.idempotency_key, 'touch', j.payload->>'touch', 'status', 'cancelled', 'why', 'booking_moved'), now(), 'w09done:' || j.idempotency_key\n  FROM public.lead_activities j\n WHERE j.activity_type = 'reminder_job' AND j.payload->>'booking_id' = $1::text AND j.payload->>'start' <> $2::text\n   AND NOT EXISTS (SELECT 1 FROM public.lead_activities d WHERE d.idempotency_key = 'w09done:' || j.idempotency_key)\nON CONFLICT (idempotency_key) DO NOTHING;",
+        "options": {
+          "queryReplacement": "={{ [$json.booking_id, $json.start] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n10",
+      "name": "Insert jobs (one row per key)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1680,
+        -200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT $1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W09', 'system', 'reminder_job',\n       jsonb_build_object('booking_id', $5::text, 'touch', r.touch, 'template', r.template, 'at', r.at, 'start', r.start, 'compressed', r.compressed),\n       now(), r.key\n  FROM jsonb_to_recordset($6::jsonb) AS r(key text, touch text, template text, at text, start text, compressed boolean)\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING idempotency_key;",
+        "options": {
+          "queryReplacement": "={{ (() => { const p = $('Plan (w09.planFromRow)').item.json; return [p.lead_id, p.brand_id, p.broker_id, p.cycle_id, p.booking_id, JSON.stringify(p.rows || [])]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "id": "n11",
+      "name": "Cancel all unsent jobs (booking or lead)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        960,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT j.lead_id, j.brand_id, j.broker_id, j.cycle_id, 'W09', 'system', 'reminder_done',\n       jsonb_build_object('key', j.idempotency_key, 'touch', j.payload->>'touch', 'status', 'cancelled', 'why', $3::text), now(), 'w09done:' || j.idempotency_key\n  FROM public.lead_activities j\n WHERE j.activity_type = 'reminder_job'\n   AND (j.payload->>'booking_id' = $1::text OR j.lead_id = $2::uuid)\n   AND NOT EXISTS (SELECT 1 FROM public.lead_activities d WHERE d.idempotency_key = 'w09done:' || j.idempotency_key)\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING idempotency_key;",
+        "options": {
+          "queryReplacement": "={{ [$json.booking_id || null, $json.lead_id || null, $json.reason || $json.source || 'cancel_all'] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "id": "n12",
+      "name": "Pause reminders (lead)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        960,
+        200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT l.id, l.brand_id, l.broker_id, l.cycle_id, 'W09', 'system', $2, jsonb_build_object('reason', $3::text, 'by', $4::text), now(), NULL\n  FROM public.leads l WHERE l.id = $1::uuid;",
+        "options": {
+          "queryReplacement": "={{ [$json.lead_id, 'reminder_paused', $json.reason, $json.source || null] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "id": "n13",
+      "name": "Resume reminders (console, a human)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        960,
+        400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT l.id, l.brand_id, l.broker_id, l.cycle_id, 'W09', 'admin', $2, jsonb_build_object('by', $3::text), now(), NULL\n  FROM public.leads l WHERE l.id = $1::uuid;",
+        "options": {
+          "queryReplacement": "={{ [$json.lead_id, 'reminder_resumed', $json.decided_by || 'console'] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "id": "n14",
+      "name": "Due jobs (pending, at <= now)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        960,
+        600
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT j.idempotency_key AS key, j.lead_id, j.brand_id, j.broker_id, j.cycle_id,\n       j.payload->>'booking_id' AS booking_id, j.payload->>'touch' AS touch, j.payload->>'template' AS template,\n       j.payload->>'at' AS at, j.payload->>'start' AS start,\n       a.status AS booking_status, a.appointment_date, a.method, a.call_number AS booking_call_number,\n       l.first_name, l.phone, l.language, l.opted_out_at, l.call_number AS lead_call_number,\n       b.adviser_name, b.contact_person, b.phone_number AS broker_phone, b.whatsapp_number AS broker_whatsapp, b.intro_video_url, b.intro_voice_url,\n       br.domain,\n       EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone)) AS suppressed,\n       COALESCE((SELECT p.activity_type = 'reminder_paused' FROM public.lead_activities p\n                  WHERE p.lead_id = j.lead_id AND p.activity_type IN ('reminder_paused','reminder_resumed')\n                  ORDER BY p.occurred_at DESC LIMIT 1), false) AS paused,\n       (SELECT count(*) FROM public.communications c WHERE c.lead_id = j.lead_id AND c.direction = 'outbound') AS outbound_count\n  FROM public.lead_activities j\n  JOIN public.appointments a ON a.id = (j.payload->>'booking_id')::uuid\n  JOIN public.leads l ON l.id = j.lead_id\n  JOIN public.brokers b ON b.id = a.broker_id\n  LEFT JOIN public.brands br ON br.id = a.brand_id\n WHERE j.activity_type = 'reminder_job'\n   AND (j.payload->>'at')::timestamptz <= $1::timestamptz\n   AND (j.payload->>'at')::timestamptz > $1::timestamptz - interval '2 days'\n   AND NOT EXISTS (SELECT 1 FROM public.lead_activities d WHERE d.idempotency_key = 'w09done:' || j.idempotency_key)\n   AND (NOT $2::boolean OR l.is_synthetic)\n ORDER BY (j.payload->>'at')::timestamptz\n LIMIT 200;",
+        "options": {
+          "queryReplacement": "={{ [$json.now_iso, $json.synthetic_only] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "id": "n15",
+      "name": "Decide (w09.dueFromRow)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w09.mjs').href);\nconst c = $('Classify + validate (w09.classifyOp)').first().json;\nconst d = L.dueFromRow($json, Date.parse(c.now_iso));\nreturn { json: { key: $json.key, lead_id: $json.lead_id, brand_id: $json.brand_id, broker_id: $json.broker_id, cycle_id: $json.cycle_id, touch: d.job.touch, action: d.decision.action, reason: d.decision.reason || null, send: d.send } };"
+      }
+    },
+    {
+      "id": "n16",
+      "name": "Due action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1440,
+        600
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "send",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s0",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "send",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "skip",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s1",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "skip",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      }
+    },
+    {
+      "id": "n17",
+      "name": "Claim send (w09done key, first tick wins)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1680,
+        600
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W09', 'system', 'reminder_done', jsonb_build_object('key', $5::text, 'touch', $6::text, 'status', 'sent', 'dry_run', $7::boolean), now(), 'w09done:' || $5)\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$json.lead_id, $json.brand_id, $json.broker_id, $json.cycle_id, $json.key, $json.touch, $env.DRY_RUN_SENDS === 'true'] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "id": "n18",
+      "name": "Finish as skipped (opt-out, moved, paused, budget, quiet)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1680,
+        800
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W09', 'system', 'reminder_done', jsonb_build_object('key', $5::text, 'touch', $6::text, 'status', 'skipped', 'why', $7::text), now(), 'w09done:' || $5)\nON CONFLICT (idempotency_key) DO NOTHING;",
+        "options": {
+          "queryReplacement": "={{ [$json.lead_id, $json.brand_id, $json.broker_id, $json.cycle_id, $json.key, $json.touch, $json.reason] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "id": "n19",
+      "name": "Claimed? (send once)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        600
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$json.id) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n20",
+      "name": "Send item (job)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { json: { send: $('Decide (w09.dueFromRow)').item.json.send } };"
+      }
+    },
+    {
+      "id": "n21",
+      "name": "Confirm booking (T-24 h Confirm tap)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        960,
+        1000
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH c AS (\n  UPDATE public.appointments\n     SET status = 'confirmed', confirmed_at = COALESCE(confirmed_at, $2::timestamptz), updated_at = now()\n   WHERE id = $1::uuid AND status IN ('booked','confirmed')\n  RETURNING id, client_id, brand_id, broker_id, cycle_id, appointment_date),\nt AS (\n  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\n  SELECT c.client_id, c.brand_id, c.broker_id, c.cycle_id, 'W09', 'lead', 'booking_confirmed', jsonb_build_object('booking_id', c.id::text), now(), 'w09:confirm:' || c.id::text\n    FROM c\n  ON CONFLICT (idempotency_key) DO NOTHING\n  RETURNING id),\ns AS (\n  UPDATE public.leads l SET stage = 'confirmed', updated_at = now()\n    FROM c WHERE l.id = c.client_id AND l.stage = 'booked'\n  RETURNING l.id)\nSELECT c.id AS booking_id, c.client_id AS lead_id, c.brand_id, c.broker_id, c.appointment_date,\n       l.first_name, l.phone, l.language, b.adviser_name, b.contact_person,\n       (SELECT count(*) FROM t) > 0 AS first_tap\n  FROM c\n  JOIN public.leads l ON l.id = c.client_id\n  JOIN public.brokers b ON b.id = c.broker_id;",
+        "options": {
+          "queryReplacement": "={{ [$json.booking_id, $json.now_iso] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "id": "n22",
+      "name": "First Confirm tap? (reply once)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        1000
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.first_tap === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n23",
+      "name": "Confirm reply (w09.confirmReply)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        1000
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w09.mjs').href);\nconst r = $json; const c = $('Classify + validate (w09.classifyOp)').item.json;\nconst m = L.confirmReply({ first_name: r.first_name, phone: r.phone, language: r.language }, { appointment_date: r.appointment_date }, { adviser_name: r.adviser_name, contact_person: r.contact_person }, Date.parse(c.now_iso));\nreturn { json: { send: { to: 'lead', wa: m.wa, lead_id: r.lead_id, brand_id: r.brand_id, broker_id: r.broker_id, template: null, category: 'service', key: 'w09:confirm_reply:' + r.booking_id, workflow: 'W09' } } };"
+      }
+    },
+    {
+      "id": "n24",
+      "name": "Load booking (intro media tap)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        960,
+        1200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH t AS (\n  UPDATE public.appointments SET intro_played_at = COALESCE(intro_played_at, now()), updated_at = now()\n   WHERE id = $1::uuid AND $2 = 'play_voice_note'\n  RETURNING id)\nSELECT a.id AS booking_id, a.client_id AS lead_id, a.brand_id, a.broker_id, a.cycle_id,\n       l.phone, l.language, b.intro_voice_url\n  FROM public.appointments a\n  JOIN public.leads l ON l.id = a.client_id\n  JOIN public.brokers b ON b.id = a.broker_id\n WHERE a.id = $1::uuid;",
+        "options": {
+          "queryReplacement": "={{ [$json.booking_id, String(($json.msg && $json.msg.payload) || '').split(':')[0]] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "id": "n25",
+      "name": "Intro media tap (w09.mediaTapReply)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        1200
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w09.mjs').href);\nconst r = $json; const c = $('Classify + validate (w09.classifyOp)').item.json;\nconst m = L.mediaTapReply(c.msg || {}, { phone: r.phone, language: r.language }, { intro_voice_url: r.intro_voice_url || {} });\nreturn { json: { ...r, activity: m.activity, send: m.wa ? { to: 'lead', wa: m.wa, lead_id: r.lead_id, brand_id: r.brand_id, broker_id: r.broker_id, template: null, category: 'service', key: 'w09:voice_played:' + r.booking_id + ':' + ((c.msg && c.msg.wamid) || c.now_iso), workflow: 'W09' } : null } };"
+      }
+    },
+    {
+      "id": "n26",
+      "name": "Timeline: intro media tap",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1440,
+        1200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W09', 'lead', $5, jsonb_build_object('booking_id', $6::text), now(), NULL);",
+        "options": {
+          "queryReplacement": "={{ [$json.lead_id, $json.brand_id, $json.broker_id, $json.cycle_id, $json.activity, $json.booking_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "id": "n27",
+      "name": "Voice note to send?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        1400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$('Intro media tap (w09.mediaTapReply)').item.json.send) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n28",
+      "name": "Log subcall_rejected (CONTRACTS: never guessed)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        960,
+        1600
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT x.lead_id, x.brand_id, x.broker_id, NULL, 'W09', 'system', 'subcall_rejected', $3::jsonb, now(), NULL\n  FROM (SELECT COALESCE($1::uuid, a.client_id) AS lead_id, a.brand_id, a.broker_id\n          FROM (SELECT 1) one\n          LEFT JOIN public.appointments a ON a.id = $2::uuid) x\n WHERE x.lead_id IS NOT NULL OR x.broker_id IS NOT NULL;",
+        "options": {
+          "queryReplacement": "={{ [$json.lead_id || null, $json.booking_id || null, JSON.stringify({ missing: $json.missing, asked_op: $json.asked_op || null, source: $json.source || null })] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "id": "n29",
+      "name": "Live send?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        800
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($env.DRY_RUN_SENDS !== 'true') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n30",
+      "name": "Send WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        800
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION }}/{{ $env.PHONE_NUMBER_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.META_SYSTEM_USER_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.send.wa) }}",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "n31",
+      "name": "Store outbound",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2880,
+        600
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, broker_id, author, workflow, template_name, template_category, metadata)\nVALUES ($1::uuid, 'whatsapp', 'outbound', 'system', $2, $3, $4, $5, $6, $7::uuid, $8::uuid, 'system', 'W09', $9, $10, $11::jsonb)\nON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING;",
+        "options": {
+          "queryReplacement": "={{ (() => { const s = $('Live send?').item.json.send; const id = ($json.messages && $json.messages[0] && $json.messages[0].id) || null; return [s.brand_id, s.to === 'lead' ? 'client' : 'broker', s.wa.to, s.template || (s.wa.type === 'interactive' ? 'interactive' : 'text'), id || $env.DRY_RUN_SENDS === 'true' ? 'sent' : 'failed', id || (($env.DRY_RUN_SENDS === 'true' ? 'dry:' : 'failed:') + s.key), s.lead_id, s.broker_id, s.template || null, s.template ? 'utility' : 'service', JSON.stringify({ key: s.key, to: s.to, dry_run: $env.DRY_RUN_SENDS === 'true' })]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n32",
+      "name": "Touch leads.last_contact_at (lead outbound)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2880,
+        800
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- CONTRACTS.md I-38d: every lead-facing send Meta accepted (wamid) updates last_contact_at (W34 retention clock).\n-- Broker messages, dry runs and rejected sends do not.\nUPDATE public.leads SET last_contact_at = now()\n WHERE id = $1::uuid AND $2 = 'lead' AND $3 <> ''\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ (() => { const s = $('Live send?').item.json.send; return [s.lead_id, s.to, ($json.messages && $json.messages[0] && $json.messages[0].id) || '']; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "id": "n33",
+      "name": "Accepted by Meta? (wamid)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2880,
+        1000
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!($json.messages && $json.messages[0] && $json.messages[0].id)) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n34",
+      "name": "Log send failed (once; W22 reads it)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        3120,
+        1000
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT $1::uuid, $2::uuid, $3::uuid, NULL, 'W09', 'system', 'send_failed', $4::jsonb, now(), 'send_failed:' || $5\n WHERE $1::uuid IS NOT NULL OR $3::uuid IS NOT NULL\nON CONFLICT (idempotency_key) DO NOTHING;",
+        "options": {
+          "queryReplacement": "={{ (() => { const s = $('Live send?').item.json.send; return [s.lead_id, s.brand_id, s.broker_id, JSON.stringify({ key: s.key, template: s.template, error: ($json.error && ($json.error.message || $json.error.code)) || 'no wamid' }), s.key]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false
+    }
+  ],
+  "connections": {
+    "Called by W05 / W07 / W10 / W13 / W15 / console": {
+      "main": [
+        [
+          {
+            "node": "Classify + validate (w09.classifyOp)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every 5 minutes (due reminders)": {
+      "main": [
+        [
+          {
+            "node": "Tick input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tick input": {
+      "main": [
+        [
+          {
+            "node": "Classify + validate (w09.classifyOp)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify + validate (w09.classifyOp)": {
+      "main": [
+        [
+          {
+            "node": "Op",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Op": {
+      "main": [
+        [
+          {
+            "node": "Load booking, lead, broker (plan)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Load booking, lead, broker (plan)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cancel all unsent jobs (booking or lead)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pause reminders (lead)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resume reminders (console, a human)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Due jobs (pending, at <= now)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Confirm booking (T-24 h Confirm tap)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Load booking (intro media tap)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log subcall_rejected (CONTRACTS: never guessed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load booking, lead, broker (plan)": {
+      "main": [
+        [
+          {
+            "node": "Plan (w09.planFromRow)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan (w09.planFromRow)": {
+      "main": [
+        [
+          {
+            "node": "Cancel unsent jobs for an older time (rebuild)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cancel unsent jobs for an older time (rebuild)": {
+      "main": [
+        [
+          {
+            "node": "Insert jobs (one row per key)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Due jobs (pending, at <= now)": {
+      "main": [
+        [
+          {
+            "node": "Decide (w09.dueFromRow)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide (w09.dueFromRow)": {
+      "main": [
+        [
+          {
+            "node": "Due action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Due action": {
+      "main": [
+        [
+          {
+            "node": "Claim send (w09done key, first tick wins)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Finish as skipped (opt-out, moved, paused, budget, quiet)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim send (w09done key, first tick wins)": {
+      "main": [
+        [
+          {
+            "node": "Claimed? (send once)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claimed? (send once)": {
+      "main": [
+        [
+          {
+            "node": "Send item (job)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirm booking (T-24 h Confirm tap)": {
+      "main": [
+        [
+          {
+            "node": "First Confirm tap? (reply once)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "First Confirm tap? (reply once)": {
+      "main": [
+        [
+          {
+            "node": "Confirm reply (w09.confirmReply)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load booking (intro media tap)": {
+      "main": [
+        [
+          {
+            "node": "Intro media tap (w09.mediaTapReply)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Intro media tap (w09.mediaTapReply)": {
+      "main": [
+        [
+          {
+            "node": "Timeline: intro media tap",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Voice note to send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Live send?": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Store outbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Store outbound",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Touch leads.last_contact_at (lead outbound)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Accepted by Meta? (wamid)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Accepted by Meta? (wamid)": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Log send failed (once; W22 reads it)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send item (job)": {
+      "main": [
+        [
+          {
+            "node": "Live send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirm reply (w09.confirmReply)": {
+      "main": [
+        [
+          {
+            "node": "Live send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Voice note to send?": {
+      "main": [
+        [
+          {
+            "node": "Live send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "saveManualExecutions": true,
+    "errorWorkflow": "W22 Alerts"
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "reminders"
+    },
+    {
+      "name": "whatsapp"
+    },
+    {
+      "name": "draft"
+    }
+  ],
+  "meta": {
+    "notes": "automation-engineer. W09 reminder sequence (4.6 item 6, 4.12); logic automation/lib/w09.mjs; tests automation/tests/W09.test.mjs (GATE-TEST-W09). Generated by automation/build-w09-w12-w13.mjs."
+  }
+}

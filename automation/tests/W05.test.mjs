@@ -11,6 +11,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FIX, MODE, lead, broker, cycle, clone, ms, iso, at, MIN, H, online } from './_harness.mjs';
 import { generateSlots, offerSlots } from './_slots.mjs';
+import * as W5 from '../lib/w05.mjs';
+import { readFileSync } from 'node:fs';
+import { checkSql, workflowSql } from './_sqlcheck.mjs';
 
 // ============================================================================================
 // Reference implementation
@@ -32,20 +35,8 @@ function lev(a, b) {
   return d[a.length][b.length];
 }
 
-/** Syntax -> typo suggestion -> disposable -> MX. Returns {ok,status} or {ok:false, reason, suggestion?}. */
-export function checkEmail(raw, { acceptTypo = false, hasMx = (d) => MX_STUB.has(d) } = {}) {
-  const email = String(raw ?? '').trim().toLowerCase();
-  const m = /^[^\s@]+@([a-z0-9-]+(\.[a-z0-9-]+)+)$/.exec(email);
-  if (!m) return { ok: false, reason: 'syntax' };
-  const domain = m[1];
-  if (!acceptTypo && !KNOWN_DOMAINS.includes(domain)) {
-    const near = KNOWN_DOMAINS.find((k) => lev(domain, k) <= 2);
-    if (near) return { ok: false, reason: 'typo', suggestion: email.replace(/@.*/, '@' + near) };
-  }
-  if (DISPOSABLE.has(domain)) return { ok: false, reason: 'disposable' };
-  if (!hasMx(domain)) return { ok: false, reason: 'no_mx' };
-  return { ok: true, email, status: 'mx_ok' };
-}
+// Email layers: the RUNNING code (lib/w05.mjs), re-exported so this file's assertions exercise it.
+export const checkEmail = W5.checkEmail;
 
 export function newBookState() {
   return { broker: clone(broker()), leads: new Map(), bookings: [], events: new Map(), capi: [], invites: [], notifications: [], messages: [], idem: new Map(), seq: 0 };
@@ -344,4 +335,47 @@ test(`W05 [${MODE}] lead row carries broker_id and cycle_id after booking (W05 "
   assert.equal(s.lead.broker_id, broker().broker_id);
   assert.equal(s.lead.cycle_id, cycle().cycle_id);
   assert.equal(s.lead.stage, 'booked');
+});
+
+// ============================================================================================
+// Build checks: the real module and the real automation/W05.json
+// ============================================================================================
+const WF5 = JSON.parse(readFileSync(new URL('../W05.json', import.meta.url), 'utf8'));
+const ctx5 = (over = {}) => ({ lane: 'http', mode: 'lead', lead: { id: 'lead_test_L02', broker_id: broker().broker_id, first_name: 'Sipho', phone: '+27600000002', origin: 'page', consent_ads_at: '2026-10-12T09:00:00+02:00' }, broker: broker(), now: ms('2026-10-12T11:40:00+02:00'), ...over });
+
+test('W05 lib: call methods never carry email; invite methods need one; unsupported method -> 422 with methods', () => {
+  const r = W5.parseHttp({}, {}, {});
+  assert.equal(r.ok, false);
+  const d = W5.decide(ctx5({ req: { slot_start: '2026-10-13T10:30:00+02:00', method: 'phone', email: null, booked_via: 'page', idempotency_key: 'k1' } }));
+  assert.equal(d.action, 'check'); assert.equal(d.plan.email, null); assert.equal(d.is_free.op, 'is_free');
+  assert.equal(W5.decide(ctx5({ req: { slot_start: '2026-10-13T10:30:00+02:00', method: 'teams', booked_via: 'page', idempotency_key: 'k2' } })).body.error_code, 'email_required');
+  const z = W5.decide(ctx5({ req: { slot_start: '2026-10-13T10:30:00+02:00', method: 'zoom', booked_via: 'page', idempotency_key: 'k3' } }));
+  assert.equal(z.status, 422); assert.deepEqual(z.body.methods, broker().methods_supported);
+  const chat = W5.decide(ctx5({ lane: 'sub', req: { slot_start: '2026-10-13T10:30:00+02:00', method: 'zoom', booked_via: 'chat', idempotency_key: 'k4' } }));
+  assert.equal(chat.action, 'message'); assert.match(chat.wa.interactive.body.text, /doesn't offer that way/);
+});
+
+test('W05 lib: taken -> 409 with next 3 under both keys; SLOT_TAKEN line in chat; Graph event + CAPI without email', () => {
+  const next = ['2026-10-14T09:00:00+02:00', '2026-10-15T09:00:00+02:00', '2026-10-16T09:00:00+02:00'].map((s) => ({ start: s, end: iso(ms(s) + 30 * MIN) }));
+  const t = W5.taken(ctx5({ lane: 'sub' }), { method: 'phone' }, next);
+  assert.equal(t.status, 409); assert.equal(t.body.next.length, 3); assert.deepEqual(t.body.slots, t.body.next); assert.match(t.wa.interactive.body.text, /just taken/);
+  const p = { start: '2026-10-13T10:30:00+02:00', end: '2026-10-13T11:00:00+02:00', method: 'teams', email: 'x@gmail.com', idempotency_key: 'k', booked_via: 'page', context: {} };
+  const ev = W5.graphEvent(ctx5(), p);
+  assert.equal(ev.isOnlineMeeting, true); assert.equal(ev.onlineMeetingProvider, 'teamsForBusiness'); assert.equal(ev.attendees.length, 0);
+  assert.ok(!JSON.stringify(W5.capiSchedule(ctx5().lead, p)).includes('@'));
+  assert.equal(W5.capiSchedule({ id: 'x', origin: 'ctwa' }, p).action_source, 'business_messaging');
+});
+
+test('W05.json: draft name, inactive, one Postgres credential, physical columns only, insert re-checks overlap + buffer', () => {
+  assert.equal(WF5.name, 'W05 Book (DRAFT pending GATE-TEST-W05)');
+  assert.equal(WF5.active, false);
+  const pgs = WF5.nodes.filter((n) => n.type === 'n8n-nodes-base.postgres');
+  assert.ok(pgs.every((n) => n.credentials.postgres.name === 'LV Supabase - n8n_app (least privilege)'));
+  assert.deepEqual(checkSql(workflowSql(WF5)), []);
+  const ins = pgs.find((n) => n.name.startsWith('Insert appointment')).parameters.query;
+  assert.match(ins, /NOT EXISTS/); assert.match(ins, /make_interval\(mins/); assert.match(ins, /ON CONFLICT DO NOTHING/);
+  const all = JSON.stringify(WF5);
+  for (const needle of ['automation/lib/w05.mjs', 'W04 Slots API', 'CAPI Send', 'W09 Reminder sequence', 'W06 First touch', 'last_contact_at', 'teamsForBusiness'].slice(0, 6)) assert.ok(all.includes(needle), needle);
+  const names = new Set(WF5.nodes.map((n) => n.name));
+  for (const [k, v] of Object.entries(WF5.connections)) { assert.ok(names.has(k), k); for (const o of v.main) for (const e of o) assert.ok(names.has(e.node), e.node); }
 });

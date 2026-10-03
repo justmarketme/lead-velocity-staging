@@ -1,0 +1,2396 @@
+{
+  "name": "W05 Book (DRAFT pending GATE-TEST-W05)",
+  "nodes": [
+    {
+      "id": "n01",
+      "name": "Sticky: read me",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "width": 760,
+        "height": 380,
+        "content": "W05 Book (DRAFT pending GATE-TEST-W05; automation-engineer). POST /book (X-Lead-Token or broker JWT, CONTRACTS.md) and sub-calls: book (W07 slot taps + Flow nfm_reply, W10, W28), update_method (W10), invite_bounced (W17 NDR). Logic automation/lib/w05.mjs (tests automation/tests/W05.test.mjs). Zero double-bookings: W04 is_free (fresh getSchedule + our appointments + buffer) -> INSERT with the overlap+buffer re-check in the same statement, ON CONFLICT DO NOTHING (gist exclusion + unique indexes), re-select = replay or taken (next 3). Outlook event via Graph (Teams: isOnlineMeeting, teamsForBusiness; ASSUMPTION shapes) in the broker calendar (W04 graph_token) or the howzit@ shared calendar (0.3 #4). Email only for Teams/Zoom/Meet (0.1); invite from howzit@ with .ics. Then: broker_new_booking + email, W06 booking event (first confirmation is W06's), W09 schedule/rebuild, W07 contact confirm (call methods), CAPI Send Schedule (no email). Lead sends touch last_contact_at (I-38d)."
+      }
+    },
+    {
+      "id": "n02",
+      "name": "POST /book",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "book",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "w05-book-post"
+    },
+    {
+      "id": "n03",
+      "name": "Parse + verify caller (w05.parseHttp)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w05.mjs').href);\nconst j = $input.first().json;\nconst h = j.headers || {};\nconst p = L.parseHttp(h, j.body || {}, $env, Date.now());\nreturn [{ json: { lane: 'http', ...p, hdr: { 'x-test-token': h['x-test-token'] || '', 'x-test-now': h['x-test-now'] || '' } } }];"
+      }
+    },
+    {
+      "id": "n04",
+      "name": "Caller ok?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.ok === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n05",
+      "name": "Called by W07/W10/W17/W28",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        0
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "n06",
+      "name": "Normalise sub-call (w05.parseSub)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w05.mjs').href);\nreturn $input.all().map((it) => ({ json: { lane: 'sub', ok: true, req: L.parseSub(it.json || {}, $env, Date.now()), hdr: {} } }));"
+      }
+    },
+    {
+      "id": "n07",
+      "name": "Sub op?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1440,
+        0
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.req.op }}",
+                    "rightValue": "book",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "book"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.req.op }}",
+                    "rightValue": "update_method",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "update_method"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.req.op }}",
+                    "rightValue": "invite_bounced",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "invite_bounced"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.req.op }}",
+                    "rightValue": "to_w10",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "to_w10"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.req.op }}",
+                    "rightValue": "reject",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "reject"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "n08",
+      "name": "Log subcall_rejected",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1680,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, workflow, actor_type, activity_type, payload, occurred_at)\nVALUES (NULLIF($1, '')::uuid, 'W05', 'system', $3, jsonb_build_object('reason', $2::text), now()) RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$json.req.lead_id || '', $json.req.reason || 'unknown', $json.req.security ? 'flow_security_event' : 'subcall_rejected'] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n09",
+      "name": "W10 pick payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w05.mjs').href);\nreturn $input.all().map((it) => ({ json: it.json.req ? (it.json.req.w10 || it.json.w10) : it.json.w10 }));"
+      }
+    },
+    {
+      "id": "n10",
+      "name": "-> W10 reschedule pick",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        200
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "",
+          "cachedResultName": "W10 Reschedule / cancel"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    },
+    {
+      "id": "n11",
+      "name": "Load lead, broker, replay, live booking",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        480,
+        200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- lead + its broker + idempotent replay + the lead's live booking (one round trip)\nWITH ld AS (\n  SELECT l.id, l.brand_id, l.broker_id, l.cycle_id, l.first_name, l.phone, l.email, l.email_status, l.email_purpose, l.age_band, l.budget_band,\n         l.consent_text_version, l.consent_at, l.consent_ads_at, l.origin, l.ad_id, l.ctwa_clid, l.call_number, l.method_pref, l.language,\n         l.conv_state, l.opted_out_at, l.is_synthetic\n    FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL\n), bk AS (\n  SELECT b.id, b.brand_id, b.status, b.adviser_name, b.contact_person, b.practice_name, b.firm_name, b.fsp_number, b.adviser_whatsapp, b.whatsapp_number, b.email,\n         b.methods_supported, b.meeting_hours, b.slot_minutes, b.buffer_minutes, b.min_notice_hours, b.horizon_days, b.max_meetings_per_day,\n         b.max_meetings_per_week, b.bookings_paused, b.add_client_as_attendee, b.calendar_provider, b.calendar_status, b.calendar_mode,\n         b.calendar_email, b.ms_tenant_id, b.calendar_status_at, b.calendar_status_detail, b.current_cycle_id FROM public.brokers b WHERE b.brand_id IS NOT NULL AND b.id = (SELECT ld.broker_id FROM ld)\n), byuser AS (\n  SELECT b.id FROM public.brokers b WHERE $3 <> '' AND b.user_id::text = $3 AND b.brand_id IS NOT NULL LIMIT 1\n)\nSELECT (SELECT to_jsonb(ld) FROM ld) AS lead, (SELECT to_jsonb(bk) FROM bk) AS broker, (SELECT to_jsonb(byuser) FROM byuser) AS broker_by_user,\n       (SELECT to_jsonb(e) FROM (SELECT a.id, a.appointment_date, a.ends_at, a.method, a.status, a.join_url, a.ics_url FROM public.appointments a WHERE a.idempotency_key = $2 LIMIT 1) e) AS existing,\n       (SELECT to_jsonb(v) FROM (SELECT a.id, a.appointment_date, a.ends_at, a.method, a.status FROM public.appointments a\n                                  WHERE a.client_id::text = $1 AND a.brand_id IS NOT NULL AND a.status IN ('booked','confirmed') AND a.ends_at > now()\n                                  ORDER BY a.appointment_date LIMIT 1) v) AS live;",
+        "options": {
+          "queryReplacement": "={{ [$json.req.lead_id || '', $json.req.idempotency_key || '', $json.mode === 'broker' ? ($json.user_id || '') : ''] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n12",
+      "name": "Decide (w05.decide + MX)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w05.mjs').href);\nconst dns = require('dns').promises;\nconst x = $('Load lead, broker, replay, live booking').first().json;\nconst c = $input.first().json.req ? $input.first().json : ($('Parse + verify caller (w05.parseHttp)').isExecuted ? $('Parse + verify caller (w05.parseHttp)').first().json : $('Normalise sub-call (w05.parseSub)').first().json);\nconst now = L.clockFor(c.hdr || {}, $env, !!(x.lead && x.lead.is_synthetic));\nconst mx = {};\nconst d = L.emailDomain(c.req.email || (x.lead && x.lead.email) || '');\nif (d) { try { const r = await Promise.race([dns.resolveMx(d), new Promise((_, rj) => setTimeout(() => rj(new Error('t')), 300))]); mx[d] = Array.isArray(r) && r.length > 0; } catch (e) { mx[d] = false; } }\nconst ctx = { lane: c.lane, mode: c.mode, req: c.req, lead: x.lead, broker: x.broker, broker_by_user: x.broker_by_user, existing: x.existing, live: x.live, mx, now };\nconst dec = L.decide(ctx);\nreturn [{ json: { ctx, dec, action: dec.action, lane: c.lane, status: dec.status, body: dec.body, wa: dec.wa || null, to: 'lead', lead_id: x.lead ? x.lead.id : null, w10: dec.w10 || null } }];"
+      }
+    },
+    {
+      "id": "n13",
+      "name": "Decision?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        960,
+        200
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "respond",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "respond"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "replay",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "replay"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "message",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "message"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "to_w10",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "to_w10"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "stop",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "stop"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "check",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "check"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "n14",
+      "name": "is_free input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w05.mjs').href);\nreturn [{ json: $input.first().json.dec.is_free }];"
+      }
+    },
+    {
+      "id": "n15",
+      "name": "W04 is_free (re-check, waits)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        1440,
+        200
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "",
+          "cachedResultName": "W04 Slots API"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "n16",
+      "name": "After re-check (w05.afterCheck)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w05.mjs').href);\nconst d = $('Decide (w05.decide + MX)').first().json;\nconst r = L.afterCheck(d.ctx, d.dec, $input.first().json);\nreturn [{ json: { ...d, check: r, action: r.action, status: r.status, body: r.body, wa: r.wa || null, row: r.row || null } }];"
+      }
+    },
+    {
+      "id": "n17",
+      "name": "Free?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        0,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.action === 'insert') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n18",
+      "name": "Insert appointment (re-check overlap + buffer, idempotent)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        240,
+        400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Zero double-bookings: the overlap+buffer re-check and the insert are ONE statement. appointments_smc_no_overlap (gist),\n-- appointments_smc_no_double_booking and appointments_smc_idem_uidx are the last line of defence: ON CONFLICT DO NOTHING\n-- turns any of them into \"no row\", and the re-select below decides replay (same key) or taken (next 3).\nINSERT INTO public.appointments (client_id, lead_id, broker_id, brand_id, cycle_id, appointment_date, ends_at, method, status, calendar_provider, booked_via, booked_at, idempotency_key, previous_booking_id, call_number, invite_email_status, schedule_event_id)\nSELECT $1::uuid, $1::uuid, $2::uuid, $3::uuid, NULLIF($4, '')::uuid, $5::timestamptz, $6::timestamptz, $7, 'booked', $8, $9, now(), $10, NULLIF($11, '')::uuid, NULLIF($12, ''), NULLIF($13, ''), NULLIF($14, '')\n WHERE NOT EXISTS (\n   SELECT 1 FROM public.appointments x\n    WHERE x.broker_id = $2::uuid AND x.brand_id IS NOT NULL AND x.status IN ('booked','confirmed')\n      AND tstzrange(x.appointment_date - make_interval(mins => $15::int), x.ends_at + make_interval(mins => $15::int), '[)')\n          && tstzrange($5::timestamptz, $6::timestamptz, '[)'))\nON CONFLICT DO NOTHING\nRETURNING id, client_id, broker_id, cycle_id, appointment_date, ends_at, method, status, booked_at, booked_via, idempotency_key;",
+        "options": {
+          "queryReplacement": "={{ (() => { const r = $json.row; const b = $json.ctx.broker || {}; return [r.client_id, r.broker_id, r.brand_id, r.cycle_id || '', r.appointment_date, r.ends_at, r.method, r.calendar_provider, r.booked_via, r.idempotency_key, r.previous_booking_id || '', r.call_number || '', r.invite_email_status || '', r.schedule_event_id || '', b.buffer_minutes == null ? 15 : b.buffer_minutes]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "n19",
+      "name": "Inserted?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        480,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$json.id) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n20",
+      "name": "Re-select by idempotency key",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        720,
+        400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT (SELECT to_jsonb(e) FROM (SELECT a.id, a.appointment_date, a.ends_at, a.method, a.status, a.join_url, a.ics_url FROM public.appointments a WHERE a.idempotency_key = $1 LIMIT 1) e) AS existing;",
+        "options": {
+          "queryReplacement": "={{ [$('After re-check (w05.afterCheck)').first().json.row.idempotency_key] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n21",
+      "name": "Lost the race: replay or next 3",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w05.mjs').href);\nconst d = $('After re-check (w05.afterCheck)').first().json;\nconst ex = $input.first().json.existing;\nif (ex) return [{ json: { ...d, action: 'replay', status: 201, body: L.publicBody(ex), wa: null } }];\nconst t = L.taken(d.ctx, d.dec.plan, []);\nreturn [{ json: { ...d, action: 'taken', status: 409, body: t.body, wa: t.wa || null } }];"
+      }
+    },
+    {
+      "id": "n22",
+      "name": "Broker calendar (graph)?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($('Decide (w05.decide + MX)').first().json.dec.plan.route === 'graph') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n23",
+      "name": "graph_token input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w05.mjs').href);\nreturn [{ json: { op: 'graph_token', broker_id: $('Decide (w05.decide + MX)').first().json.dec.plan.broker_id } }];"
+      }
+    },
+    {
+      "id": "n24",
+      "name": "W04 graph_token (waits)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        1680,
+        400
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "",
+          "cachedResultName": "W04 Slots API"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "n25",
+      "name": "Event body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w05.mjs').href);\nconst d = $('Decide (w05.decide + MX)').first().json;\nreturn [{ json: { access_token: $input.first().json.access_token || '', event: L.graphEvent(d.ctx, d.dec.plan, { portalUrl: $env.PORTAL_URL }) } }];"
+      }
+    },
+    {
+      "id": "n26",
+      "name": "Graph create event (broker calendar, ASSUMPTION)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        600
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.microsoft.com/v1.0/me/events",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            },
+            {
+              "name": "Prefer",
+              "value": "outlook.timezone=\"Africa/Johannesburg\""
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Event body').first().json.event) }}",
+        "options": {
+          "timeout": 8000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n27",
+      "name": "Event body (shared)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w05.mjs').href);\nconst d = $('Decide (w05.decide + MX)').first().json;\nconst det = (d.ctx.broker && d.ctx.broker.calendar_status_detail) || {};\nreturn [{ json: { url: L.graphEventUrl('shared', { howzit: $env.HOWZIT_MAILBOX || L.INVITE_FROM, sharedCalendarId: det.shared_calendar_id || $env.SMC_SHARED_CALENDAR_ID || '' }), event: L.graphEvent(d.ctx, d.dec.plan, { portalUrl: $env.PORTAL_URL }) } }];"
+      }
+    },
+    {
+      "id": "n28",
+      "name": "Graph create event (howzit@ shared calendar, ASSUMPTION)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        600
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "microsoftOutlookOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.event) }}",
+        "options": {
+          "timeout": 8000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "",
+          "name": "Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n29",
+      "name": "After event (w05.finish)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w05.mjs').href);\nconst d = $('Decide (w05.decide + MX)').first().json;\nconst row = $('Insert appointment (re-check overlap + buffer, idempotent)').first().json;\nconst ev = L.afterEvent($input.first().json);\nconst f = L.finish(d.ctx, d.dec.plan, row, ev, { site: $env.SITE_URL });\nreturn [{ json: { ...d, booking: row, ev, f, lane: d.lane, status: f.response.status, body: f.response.body } }];"
+      }
+    },
+    {
+      "id": "n30",
+      "name": "Save event ids + lead (stage, broker, cycle, invite email)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1200,
+        600
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH a AS (\n  UPDATE public.appointments\n     SET graph_event_id = NULLIF($2, ''), ical_uid = NULLIF($3, ''), join_url = NULLIF($4, ''), ics_url = $5,\n         invite_email_status = NULLIF($6, ''), schedule_event_id = NULLIF($7, ''), updated_at = now()\n   WHERE id = $1::uuid\n  RETURNING client_id)\nUPDATE public.leads l\n   SET stage = 'booked', stage_entered_at = now(), broker_id = $8::uuid, cycle_id = NULLIF($9, '')::uuid,\n       email = CASE WHEN $10 <> '' THEN $10 ELSE l.email END,\n       email_status = CASE WHEN $10 <> '' THEN $11 ELSE l.email_status END,\n       email_purpose = CASE WHEN $10 <> '' THEN 'meeting_invite' ELSE l.email_purpose END,\n       updated_at = now()\n  FROM a WHERE l.id = a.client_id\nRETURNING l.id;",
+        "options": {
+          "queryReplacement": "={{ (() => { const f = $json.f; const u = f.appointment_update; const lu = f.lead_update; return [$json.booking.id, u.graph_event_id || '', u.ical_uid || '', u.join_url || '', u.ics_url, u.invite_email_status || '', u.schedule_event_id || '', lu.broker_id, lu.cycle_id || '', lu.email || '', lu.email_status || '']; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n31",
+      "name": "Timeline: booked",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1440,
+        600
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, NULLIF($2, '')::uuid, $3::uuid, NULLIF($4, '')::uuid, 'W05', 'lead', 'booking_created', jsonb_build_object('booking_id', $5::text, 'start', $6::text, 'method', $7::text, 'booked_via', $8::text, 'graph_event', $9::boolean), now(), 'w05:booked:' || $5)\nON CONFLICT (idempotency_key) DO NOTHING RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ (() => { const d = $('After event (w05.finish)').first().json; const p = d.dec.plan; return [p.lead_id, (d.ctx.lead || {}).brand_id || '', p.broker_id, d.booking.cycle_id || '', d.booking.id, p.start, p.method, p.booked_via, !!d.ev.ok]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n32",
+      "name": "Answer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w05.mjs').href);\nconst j = $input.first().json;\nconst src = j.f ? j : ($('After event (w05.finish)').isExecuted ? $('After event (w05.finish)').first().json : j);\nreturn [{ json: { lane: src.lane, status: src.status || 200, body: src.body || {}, wa: src.wa || null, to: 'lead', lead_id: src.lead_id || (src.ctx && src.ctx.lead && src.ctx.lead.id) || null, f: src.f || null } }];"
+      }
+    },
+    {
+      "id": "n33",
+      "name": "HTTP lane?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        0,
+        800
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.lane === 'http') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n34",
+      "name": "Respond (book JSON)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        800
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "responseCode": "={{ $json.status }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "n35",
+      "name": "Fan out effects",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w05.mjs').href);\nconst j = $input.first().json;\nconst out = [];\nif (j.wa) out.push({ kind: 'wa', to: 'lead', lead_id: j.lead_id, wa: j.wa });\nconst f = j.f; if (!f) return out.map((x) => ({ json: x }));\nif (f.invite) out.push({ kind: 'mail', mail: { message: f.invite.message, saveToSentItems: true } });\nif (f.broker.email) out.push({ kind: 'mail', mail: { message: { subject: f.broker.email.subject, body: { contentType: 'Text', content: f.broker.email.body }, toRecipients: [{ emailAddress: { address: f.broker.email.to } }] }, saveToSentItems: true } });\nif (f.broker.wa) out.push({ kind: 'wa', to: 'broker', lead_id: j.lead_id, wa: f.broker.wa });\nif (f.lead_wa) out.push({ kind: 'wa', to: 'lead', lead_id: j.lead_id, wa: f.lead_wa });\nfor (const k of ['w06', 'w09', 'w07', 'capi', 'ask_email', 'alert']) if (f[k]) out.push({ kind: k, ...f[k] });\nreturn out.map((x) => ({ json: x }));"
+      }
+    },
+    {
+      "id": "n36",
+      "name": "Effect?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        720,
+        800
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "wa",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "wa"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "mail",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "mail"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "w06",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "w06"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "w09",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "w09"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "w07",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "w07"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "capi",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "capi"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "ask_email",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "ask_email"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "alert",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "alert"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "n37",
+      "name": "Live send?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        960,
+        800
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$json.wa && $env.DRY_RUN_SENDS !== 'true') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n38",
+      "name": "Send WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        800
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION }}/{{ $env.PHONE_NUMBER_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.META_SYSTEM_USER_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.wa) }}",
+        "options": {
+          "timeout": 8000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n39",
+      "name": "Touch leads.last_contact_at (lead sends)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1440,
+        800
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- I-38d: every lead-facing send Meta accepted (wamid) updates last_contact_at; broker sends never.\nUPDATE public.leads SET last_contact_at = now() WHERE id = $1::uuid AND $2 = 'lead' AND $3 <> '' RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$('Live send?').item.json.lead_id, $('Live send?').item.json.to, (($json.body || {}).messages || [{}])[0].id || ''] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n40",
+      "name": "Email from howzit@ (Graph sendMail)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        800
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.microsoft.com/v1.0/users/{{ encodeURIComponent($env.HOWZIT_MAILBOX) }}/sendMail",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "microsoftOutlookOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.mail) }}",
+        "options": {
+          "timeout": 8000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "",
+          "name": "Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n41",
+      "name": "-> W06 First touch (booking event)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        1000
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "",
+          "cachedResultName": "W06 First touch"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    },
+    {
+      "id": "n42",
+      "name": "-> W09 Reminder sequence (schedule / rebuild)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        1000
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "",
+          "cachedResultName": "W09 Reminder sequence"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    },
+    {
+      "id": "n43",
+      "name": "-> W07 post-booking contact confirm",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        1000
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "",
+          "cachedResultName": "W07 Conversation agent (Thandi)"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    },
+    {
+      "id": "n44",
+      "name": "-> CAPI Send (Schedule, no email)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        1000
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "",
+          "cachedResultName": "CAPI Send"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    },
+    {
+      "id": "n45",
+      "name": "-> W28 ask_email",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        1000
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "",
+          "cachedResultName": "W28 Booking Flow endpoint"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    },
+    {
+      "id": "n46",
+      "name": "-> W22 Alerts",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        1000
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "",
+          "cachedResultName": "W22 Alerts"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    },
+    {
+      "id": "n47",
+      "name": "Load booking for method change",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1440,
+        1000
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT (SELECT to_jsonb(k) FROM (SELECT a.id, a.client_id, a.broker_id, a.appointment_date, a.ends_at, a.method, a.status, a.graph_event_id, a.idempotency_key, a.booked_via FROM public.appointments a WHERE a.id::text = $1) k) AS booking,\n       (SELECT to_jsonb(q) FROM (SELECT l.id, l.first_name, l.phone, l.email, l.email_status, l.email_purpose, l.age_band, l.budget_band, l.consent_text_version, l.consent_at, l.origin, l.ad_id, l.call_number, l.language, l.brand_id FROM public.leads l JOIN public.appointments a ON a.client_id = l.id WHERE a.id::text = $1) q) AS lead,\n       (SELECT to_jsonb(r) FROM (SELECT b.id, b.brand_id, b.status, b.adviser_name, b.contact_person, b.practice_name, b.firm_name, b.fsp_number, b.adviser_whatsapp, b.whatsapp_number, b.email,\n         b.methods_supported, b.meeting_hours, b.slot_minutes, b.buffer_minutes, b.min_notice_hours, b.horizon_days, b.max_meetings_per_day,\n         b.max_meetings_per_week, b.bookings_paused, b.add_client_as_attendee, b.calendar_provider, b.calendar_status, b.calendar_mode,\n         b.calendar_email, b.ms_tenant_id, b.calendar_status_at, b.calendar_status_detail, b.current_cycle_id FROM public.brokers b JOIN public.appointments a ON a.broker_id = b.id WHERE a.id::text = $1) r) AS broker;",
+        "options": {
+          "queryReplacement": "={{ [$json.req.booking_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n48",
+      "name": "Plan method change (w05.planUpdateMethod)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        1000
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w05.mjs').href);\nconst x = $input.first().json;\nconst req = $('Normalise sub-call (w05.parseSub)').first().json.req;\nconst p = L.planUpdateMethod({ req, booking: x.booking, lead: x.lead, broker: x.broker, now: Date.now() });\nconst invite = p.action === 'patch' ? L.inviteMail({ lead: x.lead, broker: x.broker }, p.plan, x.booking, {}) : null;\nreturn [{ json: { ...p, booking: x.booking, ask: p.ask_email || null, mail: invite ? { message: invite.message, saveToSentItems: true } : null, kind: p.action } }];"
+      }
+    },
+    {
+      "id": "n49",
+      "name": "Method plan?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        0,
+        1200
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "patch",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "patch"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "ask_email",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "ask_email"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "reject",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "reject"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "n50",
+      "name": "graph_token input (method)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        1200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w05.mjs').href);\nreturn [{ json: { op: 'graph_token', broker_id: $json.booking.broker_id } }];"
+      }
+    },
+    {
+      "id": "n51",
+      "name": "W04 graph_token (method, waits)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        1200
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "",
+          "cachedResultName": "W04 Slots API"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "n52",
+      "name": "Graph PATCH event (method, ASSUMPTION)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        1200
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://graph.microsoft.com/v1.0/me/events/{{ $('Plan method change (w05.planUpdateMethod)').first().json.booking.graph_event_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Plan method change (w05.planUpdateMethod)').first().json.graph_patch) }}",
+        "options": {
+          "timeout": 8000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n53",
+      "name": "Save method",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        960,
+        1200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.appointments SET method = $2, call_number = NULLIF($3, ''), invite_email_status = $4, updated_at = now() WHERE id = $1::uuid RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ (() => { const p = $('Plan method change (w05.planUpdateMethod)').first().json; return [p.booking.id, p.appointment_update.method, p.appointment_update.call_number || '', p.appointment_update.invite_email_status]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n54",
+      "name": "Method invite?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        1200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w05.mjs').href);\nconst p = $('Plan method change (w05.planUpdateMethod)').first().json;\nreturn p.mail ? [{ json: { kind: 'mail', mail: p.mail } }] : [];"
+      }
+    },
+    {
+      "id": "n55",
+      "name": "ask_email input (method)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        1200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w05.mjs').href);\nreturn [{ json: $json.ask }];"
+      }
+    },
+    {
+      "id": "n56",
+      "name": "Mark invite bounced",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1680,
+        1200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH l AS (\n  UPDATE public.leads SET email_status = 'bounced', updated_at = now()\n   WHERE lower(email) = $1 AND email_purpose = 'meeting_invite' AND brand_id IS NOT NULL\n  RETURNING id, email, phone, language)\nSELECT l.id, l.email, l.phone, l.language,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'inbound') AS last_inbound_at\n  FROM l;",
+        "options": {
+          "queryReplacement": "={{ [$json.req.recipient || ''] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n57",
+      "name": "Bounce prompt (w05.bounceEffect)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w05.mjs').href);\nreturn $input.all().filter((it) => it.json.id).map((it) => { const e = L.bounceEffect(it.json, { now: Date.now(), last_inbound_ms: Date.parse(it.json.last_inbound_at || '') }); return { json: { kind: 'wa', to: 'lead', lead_id: it.json.id, wa: e.wa, message: e.message } }; });"
+      }
+    }
+  ],
+  "connections": {
+    "POST /book": {
+      "main": [
+        [
+          {
+            "node": "Parse + verify caller (w05.parseHttp)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse + verify caller (w05.parseHttp)": {
+      "main": [
+        [
+          {
+            "node": "Caller ok?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Caller ok?": {
+      "main": [
+        [
+          {
+            "node": "Load lead, broker, replay, live booking",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Called by W07/W10/W17/W28": {
+      "main": [
+        [
+          {
+            "node": "Normalise sub-call (w05.parseSub)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise sub-call (w05.parseSub)": {
+      "main": [
+        [
+          {
+            "node": "Sub op?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sub op?": {
+      "main": [
+        [
+          {
+            "node": "Load lead, broker, replay, live booking",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Load booking for method change",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark invite bounced",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "W10 pick payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log subcall_rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W10 pick payload": {
+      "main": [
+        [
+          {
+            "node": "-> W10 reschedule pick",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load lead, broker, replay, live booking": {
+      "main": [
+        [
+          {
+            "node": "Decide (w05.decide + MX)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide (w05.decide + MX)": {
+      "main": [
+        [
+          {
+            "node": "Decision?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decision?": {
+      "main": [
+        [
+          {
+            "node": "Answer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Answer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Answer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "W10 pick payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log subcall_rejected",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "is_free input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "is_free input": {
+      "main": [
+        [
+          {
+            "node": "W04 is_free (re-check, waits)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W04 is_free (re-check, waits)": {
+      "main": [
+        [
+          {
+            "node": "After re-check (w05.afterCheck)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "After re-check (w05.afterCheck)": {
+      "main": [
+        [
+          {
+            "node": "Free?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Free?": {
+      "main": [
+        [
+          {
+            "node": "Insert appointment (re-check overlap + buffer, idempotent)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert appointment (re-check overlap + buffer, idempotent)": {
+      "main": [
+        [
+          {
+            "node": "Inserted?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inserted?": {
+      "main": [
+        [
+          {
+            "node": "Broker calendar (graph)?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Re-select by idempotency key",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-select by idempotency key": {
+      "main": [
+        [
+          {
+            "node": "Lost the race: replay or next 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lost the race: replay or next 3": {
+      "main": [
+        [
+          {
+            "node": "Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Broker calendar (graph)?": {
+      "main": [
+        [
+          {
+            "node": "graph_token input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Event body (shared)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "graph_token input": {
+      "main": [
+        [
+          {
+            "node": "W04 graph_token (waits)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W04 graph_token (waits)": {
+      "main": [
+        [
+          {
+            "node": "Event body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Event body": {
+      "main": [
+        [
+          {
+            "node": "Graph create event (broker calendar, ASSUMPTION)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graph create event (broker calendar, ASSUMPTION)": {
+      "main": [
+        [
+          {
+            "node": "After event (w05.finish)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Event body (shared)": {
+      "main": [
+        [
+          {
+            "node": "Graph create event (howzit@ shared calendar, ASSUMPTION)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graph create event (howzit@ shared calendar, ASSUMPTION)": {
+      "main": [
+        [
+          {
+            "node": "After event (w05.finish)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "After event (w05.finish)": {
+      "main": [
+        [
+          {
+            "node": "Save event ids + lead (stage, broker, cycle, invite email)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save event ids + lead (stage, broker, cycle, invite email)": {
+      "main": [
+        [
+          {
+            "node": "Timeline: booked",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Timeline: booked": {
+      "main": [
+        [
+          {
+            "node": "Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Answer": {
+      "main": [
+        [
+          {
+            "node": "HTTP lane?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP lane?": {
+      "main": [
+        [
+          {
+            "node": "Respond (book JSON)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fan out effects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond (book JSON)": {
+      "main": [
+        [
+          {
+            "node": "Fan out effects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fan out effects": {
+      "main": [
+        [
+          {
+            "node": "Effect?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Effect?": {
+      "main": [
+        [
+          {
+            "node": "Live send?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Email from howzit@ (Graph sendMail)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> W06 First touch (booking event)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> W09 Reminder sequence (schedule / rebuild)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> W07 post-booking contact confirm",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> CAPI Send (Schedule, no email)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> W28 ask_email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> W22 Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Live send?": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Touch leads.last_contact_at (lead sends)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load booking for method change": {
+      "main": [
+        [
+          {
+            "node": "Plan method change (w05.planUpdateMethod)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan method change (w05.planUpdateMethod)": {
+      "main": [
+        [
+          {
+            "node": "Method plan?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Method plan?": {
+      "main": [
+        [
+          {
+            "node": "graph_token input (method)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ask_email input (method)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log subcall_rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "graph_token input (method)": {
+      "main": [
+        [
+          {
+            "node": "W04 graph_token (method, waits)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W04 graph_token (method, waits)": {
+      "main": [
+        [
+          {
+            "node": "Graph PATCH event (method, ASSUMPTION)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graph PATCH event (method, ASSUMPTION)": {
+      "main": [
+        [
+          {
+            "node": "Save method",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save method": {
+      "main": [
+        [
+          {
+            "node": "Method invite?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Method invite?": {
+      "main": [
+        [
+          {
+            "node": "Email from howzit@ (Graph sendMail)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ask_email input (method)": {
+      "main": [
+        [
+          {
+            "node": "-> W28 ask_email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark invite bounced": {
+      "main": [
+        [
+          {
+            "node": "Bounce prompt (w05.bounceEffect)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bounce prompt (w05.bounceEffect)": {
+      "main": [
+        [
+          {
+            "node": "Live send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "saveManualExecutions": false,
+    "saveDataSuccessExecution": "none",
+    "errorWorkflow": "W22 Alerts"
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "booking"
+    },
+    {
+      "name": "core"
+    },
+    {
+      "name": "draft"
+    }
+  ],
+  "meta": {
+    "notes": "automation-engineer. W05 book; logic automation/lib/w05.mjs (+ lib/w04.mjs via the W04 sub-workflow); tests automation/tests/W05.test.mjs. Callers bind by cachedResultName \"W05 Book\": rename (drop the DRAFT suffix) when GATE-TEST-W05 is approved."
+  }
+}

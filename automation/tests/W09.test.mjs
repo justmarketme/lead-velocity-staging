@@ -11,64 +11,19 @@
 //   Booked < 24 h ahead -> compressed: no T-24 h touches.
 //
 // Run:  node --test automation/tests/W09.test.mjs     (offline)  ·  set N8N_PUBLIC_URL for online.
+// Loads the real logic (automation/lib/w09.mjs) and the real workflow (automation/W09.json) for the structure checks.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FIX, MODE, lead, broker, clone, ms, iso, MIN, H, D, renderBody, template, online } from './_harness.mjs';
 
 // ============================================================================================
-// Reference implementation
+// The real module (automation/lib/w09.mjs, imported by the Code nodes of automation/W09.json)
 // ============================================================================================
-const ONCE_PER_LINEAGE = new Set(['what_to_expect', 'intro_media', 'intro_media_voice']);
-export const MAX_LEAD_MESSAGES = 12; // 4.6 cost design: ~12 messages per lead
-
-/** @returns {compressed, jobs:[{touch, template, at, key}]} */
-export function reminderPlan({ bookingId, start, bookedAt, lead: l, broker: b, alreadySent = [] }) {
-  if (l.opted_out_at) return { compressed: false, jobs: [] };
-  const T0 = ms(bookedAt);
-  const M = ms(start);
-  const lt = M - T0;
-  const lang = l.language ?? 'en';
-  const mediaTpl = b.intro_video_url?.[lang] ? 'intro_media' : b.intro_voice_url?.[lang] ? 'intro_media_voice' : null;
-  const raw = [
-    ['what_to_expect', 'what_to_expect', T0 + 10 * MIN],
-    mediaTpl ? ['intro_media', mediaTpl, lt >= 72 * H ? M - 48 * H : T0 + 15 * MIN] : null,
-    lt >= 24 * H ? ['reminder_24h', 'reminder_24h', M - 24 * H] : null,
-    lt >= 24 * H ? ['prep_nudge', 'prep_nudge', M - 24 * H] : null,
-    ['reminder_2h', 'reminder_2h', M - 2 * H],
-    ['reminder_10m', 'reminder_10m', M - 10 * MIN],
-  ].filter(Boolean);
-  const jobs = raw
-    .filter(([touch, , t]) => t > T0 && t < M)
-    .filter(([touch, , t]) => !(touch === 'reminder_2h' && t <= T0 + 15 * MIN)) // booked ~2 h ahead: the confirmation is the reminder
-    .filter(([touch]) => !(ONCE_PER_LINEAGE.has(touch) && alreadySent.includes(touch)))
-    .map(([touch, tpl, t]) => ({ touch, template: tpl, at: iso(t), key: `${bookingId}:${touch}:${iso(t)}` }))
-    .sort((a, b) => ms(a.at) - ms(b.at));
-  return { compressed: lt < 24 * H, jobs };
-}
-
-/** Minimal scheduler: one row per job, unique key, sent at most once, cancellable. */
-export class Scheduler {
-  constructor() { this.rows = new Map(); this.sent = []; }
-  add(leadId, bookingId, jobs) { for (const j of jobs) if (!this.rows.has(j.key)) this.rows.set(j.key, { ...j, lead_id: leadId, booking_id: bookingId, status: 'pending' }); }
-  cancel(pred) { const out = []; for (const r of this.rows.values()) if (r.status === 'pending' && pred(r)) { r.status = 'cancelled'; out.push(r); } return out; }
-  tick(now) {
-    const due = [...this.rows.values()].filter((r) => r.status === 'pending' && ms(r.at) <= now);
-    for (const r of due) { r.status = 'sent'; this.sent.push({ key: r.key, touch: r.touch, template: r.template, lead_id: r.lead_id, at: r.at }); }
-    return due.length;
-  }
-  pending(leadId) { return [...this.rows.values()].filter((r) => r.lead_id === leadId && r.status === 'pending'); }
-}
-
-export function onConfirmTap(bk, now) { bk.status = 'confirmed'; bk.confirmed_at = iso(now); }
-
-export function onReschedule(sched, bk, l, b, newStart, now) {
-  const lineage = sched.sent.filter((s) => s.lead_id === l.id).map((s) => s.touch);
-  const cancelled = sched.cancel((r) => r.booking_id === bk.id);
-  Object.assign(bk, { start: newStart, reschedule_count: (bk.reschedule_count ?? 0) + 1, status: 'booked' }); // same row, same Graph event (moved, not duplicated)
-  const plan = reminderPlan({ bookingId: bk.id, start: newStart, bookedAt: iso(now), lead: l, broker: b, alreadySent: lineage });
-  sched.add(l.id, bk.id, plan.jobs);
-  return { cancelled, plan };
-}
+import { readFileSync } from 'node:fs';
+import { checkSql, workflowSql } from './_sqlcheck.mjs';
+import * as R from '../lib/w09.mjs';
+const { reminderPlan, Scheduler, onConfirmTap, onReschedule, MAX_LEAD_MESSAGES } = R;
+const WF = JSON.parse(readFileSync(new URL('../W09.json', import.meta.url), 'utf8'));
 
 // ============================================================================================
 // Adapters
@@ -228,4 +183,126 @@ test(`W09 [${MODE}] reminder copy comes from the real templates (positive norm, 
   assert.deepEqual(btns, ['Confirm', 'Reschedule']);
   for (const name of ['what_to_expect', 'reminder_2h', 'reminder_10m', 'prep_nudge', 'intro_media', 'intro_media_voice'])
     assert.equal(template(name).category, 'UTILITY', name);
+});
+
+// ============================================================================================
+// Workflow checks: automation/W09.json runs automation/lib/w09.mjs (Code nodes executed here as n8n does)
+// ============================================================================================
+import { runCode, templateCounts, PG_CRED } from './_n8ncode.mjs';
+import { paramCounts, inQuiet } from '../lib/wa.mjs';
+const node = (name) => WF.nodes.find((n) => n.name === name);
+
+test('W09.json: DRAFT name, inactive, one Postgres credential, physical columns only, Code nodes import lib/w09.mjs', () => {
+  assert.equal(WF.name, 'W09 Reminder sequence (DRAFT pending GATE-TEST-W09)');
+  assert.equal(WF.active, false);
+  const pgs = WF.nodes.filter((n) => n.type === 'n8n-nodes-base.postgres');
+  assert.ok(pgs.length >= 8);
+  assert.ok(pgs.every((n) => n.credentials.postgres.name === PG_CRED && n.credentials.postgres.id === ''), 'credential by name only');
+  assert.deepEqual(checkSql(workflowSql(WF)), []);
+  const codes = WF.nodes.filter((n) => n.type === 'n8n-nodes-base.code' && /\(w09\./.test(n.name));
+  assert.ok(codes.length >= 5);
+  for (const n of codes) assert.match(n.parameters.jsCode, /\$env\.REPO_DIR[\s\S]*\/automation\/lib\/w09\.mjs/, n.name);
+  assert.ok(!/sk-|EAAG|Bearer [A-Za-z0-9]{20}/.test(JSON.stringify(WF)), 'no secrets inline');
+});
+
+test('W09.json: CONTRACTS entries (schedule, rebuild, cancel_all, pause, resume) + taps + tick are switch outputs wired to their nodes', () => {
+  const ops = node('Op').parameters.rules.values.map((v) => v.outputKey);
+  for (const op of ['schedule', 'rebuild', 'cancel_all', 'pause', 'resume', 'tick', 'confirm', 'media_tap', 'reject']) assert.ok(ops.includes(op), op);
+  const to = (op) => WF.connections.Op.main[ops.indexOf(op)].map((c) => c.node);
+  assert.deepEqual(to('schedule'), ['Load booking, lead, broker (plan)']);
+  assert.deepEqual(to('rebuild'), ['Load booking, lead, broker (plan)']);
+  assert.deepEqual(to('cancel_all'), ['Cancel all unsent jobs (booking or lead)']);
+  assert.deepEqual(to('pause'), ['Pause reminders (lead)']);
+  assert.deepEqual(to('reject'), ['Log subcall_rejected (CONTRACTS: never guessed)']);
+  assert.ok(WF.nodes.some((n) => n.type === 'n8n-nodes-base.executeWorkflowTrigger'));
+  assert.equal(node('Every 5 minutes (due reminders)').parameters.rule.interval[0].expression, '*/5 * * * *');
+});
+
+test('W09.json: idempotent per appointment + step (job key, one done row per key), append-only cancels, DRY_RUN guard, last_contact_at after Meta accepts', () => {
+  assert.match(node('Insert jobs (one row per key)').parameters.query, /ON CONFLICT \(idempotency_key\) DO NOTHING/);
+  assert.match(node('Claim send (w09done key, first tick wins)').parameters.query, /'w09done:' \|\| \$5\)\s+ON CONFLICT \(idempotency_key\) DO NOTHING\s+RETURNING id/);
+  assert.match(node('Cancel all unsent jobs (booking or lead)').parameters.query, /'cancelled'/);
+  assert.ok(!workflowSql(WF).some((q) => /UPDATE public\.lead_activities|DELETE FROM public\.lead_activities/i.test(q.sql)), 'the timeline stays append-only');
+  assert.equal(WF.connections['Claimed? (send once)'].main[0][0].node, 'Send item (job)');
+  assert.match(node('Live send?').parameters.conditions.conditions[0].leftValue, /DRY_RUN_SENDS/);
+  assert.ok(WF.connections['Send WhatsApp'].main[0].some((c) => c.node === 'Touch leads.last_contact_at (lead outbound)'));
+  assert.match(node('Touch leads.last_contact_at (lead outbound)').parameters.query, /SET last_contact_at = now\(\)[\s\S]*\$2 = 'lead' AND \$3 <> ''/);
+  assert.equal(R.jobKey('bk1', 'reminder_2h', ms('2026-10-15T08:00:00+02:00')), 'w09:bk1:reminder_2h:2026-10-15T08:00:00+02:00');
+});
+
+const c09 = (over = {}) => ({ op: 'schedule', now_iso: '2026-10-12T08:14:41+02:00', ...over });
+const planRow = (fx, over = {}) => ({ booking_id: `bkg_${fx.fixture_id}`, lead_id: fx.lead_id, brand_id: 'brand_smc', broker_id: B.broker_id, cycle_id: 'cyc_1', appointment_date: fx.booking_request.slot_start, status: 'booked', booked_at: fx.booking_request.requested_at, language: 'en', opted_out_at: null, intro_video_url: B.intro_video_url, intro_voice_url: B.intro_voice_url, lineage_sent: [], ...over });
+
+test('W09.json "Plan" node (schedule from the booking event): the job rows are the hand-computed fixture schedules', async () => {
+  for (const id of ['L01', 'L02', 'L03', 'L04', 'L10']) {
+    const fx = lead(id);
+    const out = (await runCode(WF, 'Plan (w09.planFromRow)', { json: planRow(fx), refs: { 'Classify + validate (w09.classifyOp)': c09() } })).json;
+    assert.deepEqual(out.rows.map((r) => ({ touch: r.touch, at: r.at })), fx.expected.W09.schedule, id);
+    assert.ok(out.rows.every((r) => r.key.startsWith(`w09:bkg_${id}:`) && r.start === fx.booking_request.slot_start));
+  }
+  // rebuild (W10 move): planned from "now", intro not repeated once sent in the lineage, nothing for a booking no longer live
+  const fx = lead('L03');
+  const now = fx.reschedule_request.requested_at;
+  const re = (await runCode(WF, 'Plan (w09.planFromRow)', { json: planRow(fx, { appointment_date: fx.reschedule_request.new_slot_start, lineage_sent: ['what_to_expect', 'intro_media'] }), refs: { 'Classify + validate (w09.classifyOp)': c09({ op: 'rebuild', now_iso: now }) } })).json;
+  assert.deepEqual(re.rows.map((r) => ({ touch: r.touch, at: r.at })), fx.expected.W09.after_reschedule.schedule);
+  const gone = (await runCode(WF, 'Plan (w09.planFromRow)', { json: planRow(fx, { status: 'cancelled' }), refs: { 'Classify + validate (w09.classifyOp)': c09() } })).json;
+  assert.deepEqual(gone.rows, []);
+});
+
+const dueRow = (over = {}) => ({ key: 'w09:bkg_L01:reminder_2h:2026-10-15T08:00:00+02:00', lead_id: 'lead_test_L01', brand_id: 'brand_smc', broker_id: B.broker_id, cycle_id: 'cyc_1', booking_id: 'bkg_L01', touch: 'reminder_2h', template: 'reminder_2h', at: '2026-10-15T08:00:00+02:00', start: '2026-10-15T10:00:00+02:00', booking_status: 'confirmed', appointment_date: '2026-10-15T10:00:00+02:00', method: 'teams', first_name: 'Lerato', phone: '+27600000001', language: 'en', opted_out_at: null, adviser_name: 'Mark Smith', contact_person: 'Mark Smith', broker_phone: '+27600000090', broker_whatsapp: '+27600000090', intro_video_url: B.intro_video_url, intro_voice_url: B.intro_voice_url, domain: 'sortmycover.co.za', suppressed: false, paused: false, outbound_count: 4, ...over });
+const due = async (row, now) => (await runCode(WF, 'Decide (w09.dueFromRow)', { json: row, refs: { 'Classify + validate (w09.classifyOp)': { now_iso: now } } })).json;
+
+test('W09.json "Decide" node at send time: sends the right template; stops on STOP, suppression, pause, moved or cancelled booking, meeting started', async () => {
+  const ok = await due(dueRow(), '2026-10-15T08:00:00+02:00');
+  assert.equal(ok.action, 'send');
+  assert.equal(ok.send.to, 'lead'); assert.equal(ok.send.template, 'reminder_2h'); assert.equal(ok.send.wa.to, '+27600000001');
+  assert.match(ok.send.wa.template.components[0].parameters[3].text, /^Join on Teams: https:\/\/sortmycover\.co\.za\/j\/bkg_L01$/);
+  const why = async (over, now = '2026-10-15T08:00:00+02:00') => (await due(dueRow(over), now)).reason;
+  assert.equal(await why({ opted_out_at: '2026-10-14T09:00:00+02:00' }), 'opted_out');
+  assert.equal(await why({ suppressed: true }), 'opted_out');
+  assert.equal(await why({ paused: true }), 'paused');
+  assert.equal(await why({ booking_status: 'cancelled' }), 'booking_not_live');
+  assert.equal(await why({ appointment_date: '2026-10-16T10:00:00+02:00' }), 'booking_moved');
+  assert.equal(await why({}, '2026-10-15T10:00:00+02:00'), 'meeting_started');
+});
+
+test('W09 quiet hours 20:00-08:00 SAST: a touch due at night waits to 08:00 (or is dropped if that is too close to the call); T-10 min is exempt', async () => {
+  const late = await due(dueRow({ touch: 'what_to_expect', template: 'what_to_expect', at: '2026-10-12T21:00:00+02:00' }), '2026-10-12T21:00:00+02:00');
+  assert.equal(late.action, 'defer'); // nothing written: the 08:00 tick sends it
+  const t10 = await due(dueRow({ touch: 'reminder_10m', template: 'reminder_10m', appointment_date: '2026-10-15T20:30:00+02:00', start: '2026-10-15T20:30:00+02:00' }), '2026-10-15T20:20:00+02:00');
+  assert.equal(t10.action, 'send');
+  const p = reminderPlan({ bookingId: 'b', start: '2026-10-15T09:00:00+02:00', bookedAt: '2026-10-12T19:55:00+02:00', lead: { language: 'en' }, broker: B });
+  const wte = p.jobs.find((j) => j.touch === 'what_to_expect');
+  assert.equal(wte.at, '2026-10-13T08:00:00+02:00', 'booked at 19:55: what_to_expect moves from 20:05 to 08:00');
+  assert.ok(p.jobs.every((j) => R.QUIET_EXEMPT.has(j.touch) || !inQuiet(j.at)), 'no planned touch inside quiet hours');
+});
+
+test('W09 sends match the submitted templates: variable counts per template (header, body, quick replies, URL)', () => {
+  const ctx = { lead: { first_name: 'Lerato', phone: '+27600000001', language: 'en' }, booking: { id: 'bk1', appointment_date: '2026-10-15T10:00:00+02:00', method: 'teams' }, broker: { ...B, adviser_name: 'Mark Smith' }, brand: {} };
+  for (const t of R.TEMPLATES) {
+    const m = R.buildMessage({ touch: t, template: t }, ctx);
+    assert.deepEqual(paramCounts(m.wa), templateCounts(t), t);
+  }
+});
+
+test('W09 virtual clock (synthetic run): "now" is honoured only with TEST_HOOKS_ENABLED=true AND a synthetic item; production uses the wall clock', async () => {
+  const cls = (json, env) => runCode(WF, 'Classify + validate (w09.classifyOp)', { json, env });
+  const t = '2026-10-15T07:55:00+02:00';
+  const a = (await cls({ op: 'tick', now: t, is_synthetic: true }, { TEST_HOOKS_ENABLED: 'true' })).json;
+  assert.equal(a.now_iso, t); assert.equal(a.synthetic_only, true);
+  const b = (await cls({ op: 'tick', now: t, is_synthetic: true }, {})).json;
+  assert.notEqual(b.now_iso, t); assert.equal(b.synthetic_only, false);
+  const c = (await cls({ op: 'tick', now: t }, { TEST_HOOKS_ENABLED: 'true' })).json;
+  assert.notEqual(c.now_iso, t, 'never for a real lead');
+  const bad = (await cls({ op: 'pause', lead_id: 'x', reason: 'bored' }, {})).json;
+  assert.equal(bad.op, 'reject'); assert.ok(bad.missing.length);
+  assert.equal((await cls({ op: 'cancel_all' }, {})).json.op, 'reject', 'cancel_all needs booking_id or lead_id');
+  assert.equal((await cls({ msg: { payload: 'confirm:bkg_L01' } }, {})).json.booking_id, 'bkg_L01');
+});
+
+test('W09 last_contact_at rule (I-38d): only lead sends Meta accepted', () => {
+  assert.equal(R.touchesLastContact('lead', 'wamid.X'), true);
+  assert.equal(R.touchesLastContact('lead', ''), false);
+  assert.equal(R.touchesLastContact('lead', 'dry:w09:x'), false);
+  assert.equal(R.touchesLastContact('broker', 'wamid.X'), false);
 });
