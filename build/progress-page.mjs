@@ -66,6 +66,7 @@ const TODAY = [
   'The eight core-path workflows (lead intake, first touch, slots, book, reminders, outcome and broker feedback, no-show and replacement counter, opt-out) exist as inactive drafts against their drafted tests; they turn green when you approve the tests.',
   'n8n runs for real in the sandbox: all committed workflows import, and a synthetic WhatsApp message now runs end to end through the assistant in dry-run (rows in the database, reply drafted, nothing sent), and the run caught a real loop that would have made 55 paid AI calls per message in production. Fixed.',
   'Section 7 readiness checker, make check, WCAG AA pass, portal explainer clip, consumer terms page.',
+  'Compliance review 6 (33 pass, 4 medium items being fixed) and a real security bug caught before it mattered: inbound WhatsApp signatures were not actually being checked. Fixed and tested.',
   'Microsoft connect hardening: refresh token never lands in an error log; expired app secret raises a red alert; FSCA check records the verified FSP on the broker row.',
   'Template review samples signed off (FSP 00000, SAMPLE tag from frame 0).',
   'Creative: the full disclosure line now sits on every video end card (31 re-rendered); wide intro card layout fixed; brokers can no longer read any lead-pulse row.',
