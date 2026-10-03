@@ -472,3 +472,67 @@ test('I-54a F13 W05 -> W04: the is_free re-check carries {now, is_synthetic} onl
   assert.equal(run(W4.subClockFor(W4.subcallInput(off.is_free), { TEST_HOOKS_ENABLED: 'true' })).free, false, 'non-synthetic stays on the wall clock');
   assert.ok(JSON.parse(readFileSync(new URL('../W04.json', import.meta.url), 'utf8')).nodes.find((n) => n.name === 'Plan (w04.planRequest)').parameters.jsCode.includes('subClockFor'));
 });
+
+// ---- I-45j: GET /c/{booking_id} (.ics) -------------------------------------------------------------------------
+const ICS_ID = '3f2a9c1e-0000-4000-8000-0000000000aa';
+const icsRow = (o = {}) => ({ id: ICS_ID, client_id: 'lead_A', appointment_date: '2026-10-08T07:30:00Z', ends_at: '2026-10-08T08:00:00Z', method: 'teams', status: 'booked', join_url: 'https://teams.example.test/j/1', booked_at: '2026-10-05T10:00:00Z', ...o });
+const icsEnv = { LEAD_TOKEN_SECRET: OFFLINE_SECRET };
+
+test('I-45j .ics auth: signed ?k= or the owning lead\'s X-Lead-Token; everything else is the same 404', () => {
+  const k = W5.icsSig(OFFLINE_SECRET, ICS_ID);
+  const url = W5.icsUrl(ICS_ID, W5.SITE, OFFLINE_SECRET);
+  assert.equal(url, `${W5.SITE}/c/${ICS_ID}?k=${k}`);
+  assert.equal(W5.icsUrl(ICS_ID), `${W5.SITE}/c/${ICS_ID}`, 'no secret -> the plain form (tests only)');
+  assert.deepEqual(W5.parseIcsRequest({ params: { booking_id: ICS_ID }, query: { k } }, icsEnv), { ok: true, booking_id: ICS_ID, via: 'sig' });
+  // wrong / other booking's signature, none, malformed id
+  for (const q of [{ k: W5.icsSig(OFFLINE_SECRET, '3f2a9c1e-0000-4000-8000-0000000000bb') }, { k: 'x'.repeat(43) }, {}]) {
+    assert.equal(W5.parseIcsRequest({ params: { booking_id: ICS_ID }, query: q }, icsEnv).status, 404);
+  }
+  assert.equal(W5.parseIcsRequest({ params: { booking_id: '../etc/passwd' }, query: { k } }, icsEnv).status, 404);
+  // a signature made with a different secret is rejected; the previous secret still verifies (rotation)
+  assert.equal(W5.parseIcsRequest({ params: { booking_id: ICS_ID }, query: { k: W5.icsSig('another-secret-another-secret-0123456789', ICS_ID) } }, icsEnv).ok, false);
+  assert.equal(W5.parseIcsRequest({ params: { booking_id: ICS_ID }, query: { k: W5.icsSig('previous-secret-previous-secret-0123456', ICS_ID) } }, { ...icsEnv, LEAD_TOKEN_SECRET_PREVIOUS: 'previous-secret-previous-secret-0123456' }).ok, true);
+  // lead token path: ok only after the owner check
+  const { token } = LT5.mintLeadToken('lead_A', { secret: OFFLINE_SECRET });
+  const t = W5.parseIcsRequest({ headers: { [LT5.HEADER]: token }, params: { booking_id: ICS_ID } }, icsEnv);
+  assert.deepEqual([t.ok, t.via, t.lead_id], [true, 'token', 'lead_A']);
+  assert.equal(W5.icsResponse(icsRow(), { adviser: 'Mark Smith', caller: t }).status, 200);
+  assert.equal(W5.icsResponse(icsRow({ client_id: 'lead_B' }), { adviser: 'Mark Smith', caller: t }).status, 404, 'another lead\'s booking never leaks');
+  assert.equal(W5.icsResponse(null).status, 404);
+  assert.equal(W5.parseIcsRequest({ params: { booking_id: ICS_ID }, query: {} }, {}).status, 404, 'no secret configured -> 404, not a crash');
+});
+
+test('I-45j .ics format: UTC DTSTART/DTEND, UID from the booking id, METHOD:PUBLISH, no lead PII; cancelled -> STATUS:CANCELLED', () => {
+  const r = W5.icsResponse(icsRow(), { adviser: 'Mark Smith' });
+  assert.equal(r.headers['Content-Type'], 'text/calendar; charset=utf-8');
+  assert.match(r.body, /^BEGIN:VCALENDAR\r\nVERSION:2\.0\r\n/);
+  for (const line of ['METHOD:PUBLISH', `UID:${ICS_ID}@sortmycover.co.za`, 'DTSTART:20261008T073000Z', 'DTEND:20261008T080000Z', 'DTSTAMP:20261005T100000Z', 'STATUS:CONFIRMED', 'SUMMARY:Life cover call with Mark', 'DESCRIPTION:Join: https://teams.example.test/j/1']) assert.ok(r.body.split('\r\n').includes(line.replace(/[,;]/g, (m) => '\\' + m)) || r.body.includes(line.replace(/[,;]/g, (m) => '\\' + m)), line);
+  assert.ok(!/lerato|\+?27\d{9}|@(?!sortmycover)/i.test(r.body.replace(/https?:\/\/\S+/g, '')), 'no lead name, number or email');
+  const phone = W5.icsResponse(icsRow({ method: 'phone', join_url: 'https://stale.example.test' }), { adviser: 'Mark Smith' });
+  assert.match(phone.body, /DESCRIPTION:Mark will call you/);
+  assert.ok(!phone.body.includes('stale.example.test'), 'call methods never carry a join link');
+  const gone = W5.icsResponse(icsRow({ status: 'cancelled' }), { adviser: 'Mark Smith' });
+  assert.equal(gone.status, 200);
+  assert.match(gone.body, /STATUS:CANCELLED/);
+  assert.match(gone.body, /SEQUENCE:1/);
+  assert.match(gone.body, /SUMMARY:Cancelled: Life cover call with Mark/);
+  assert.match(W5.icsResponse(icsRow({ status: 'rescheduled' }), { adviser: 'Mark' }).body, /STATUS:CANCELLED/);
+  // same UID as the invite's .ics so the calendar updates one event
+  assert.match(W5.icsFile({ uid: `${ICS_ID}@sortmycover.co.za`, start: '2026-10-08T07:30:00Z', end: '2026-10-08T08:00:00Z', summary: 's' }), new RegExp(`UID:${ICS_ID}@sortmycover.co.za`));
+});
+
+test('I-45j W05.json: GET c/:booking_id webhook -> verify -> load (no lead PII columns) -> build -> text respond; finish() signs the stored ics_url', () => {
+  const wf = JSON.parse(readFileSync(new URL('../W05.json', import.meta.url), 'utf8'));
+  const hook = wf.nodes.find((x) => x.name === 'GET /c/:booking_id (.ics)');
+  assert.deepEqual([hook.parameters.httpMethod, hook.parameters.path, hook.parameters.responseMode], ['GET', 'c/:booking_id', 'responseNode']);
+  assert.ok(hook.webhookId);
+  const load = wf.nodes.find((x) => x.name === 'Load booking for .ics (id only, no lead PII)').parameters.query;
+  assert.ok(!/first_name|phone|email|mobile/i.test(load));
+  assert.equal(wf.nodes.find((x) => x.name === 'Respond (.ics)').parameters.respondWith, 'text');
+  const fin = wf.nodes.find((x) => x.name === 'After event (w05.finish)').parameters.jsCode;
+  assert.match(fin, /ics_secret: \$env\.LEAD_TOKEN_SECRET/);
+  const c = wf.connections;
+  assert.equal(c['GET /c/:booking_id (.ics)'].main[0][0].node, 'Verify .ics caller (w05.parseIcsRequest)');
+  assert.equal(c['Build .ics (w05.icsResponse)'].main[0][0].node, 'Respond (.ics)');
+  assert.equal(c['.ics caller ok?'].main[1][0].node, '.ics not found (404)');
+});

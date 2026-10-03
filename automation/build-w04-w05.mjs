@@ -192,7 +192,7 @@ RETURNING id, client_id, broker_id, cycle_id, appointment_date, ends_at, method,
   n.push(code('Event body (shared)', 'w05.mjs', `const d = $('Decide (w05.decide + MX)').first().json;\nreturn [{ json: L.sharedEventItem(d.ctx, d.dec.plan, { HOWZIT_MAILBOX: $env.HOWZIT_MAILBOX, SMC_SHARED_CALENDAR_ID: $env.SMC_SHARED_CALENDAR_ID }, { portalUrl: $env.PORTAL_URL }) }];`));
   n.push(ifTrue('Shared calendar id?', '!$json.error && !!$json.url'));
   n.push(http('Graph create event (howzit@ shared calendar, ASSUMPTION)', 'POST', '={{ $json.url }}', { cred: HOWZIT_CAL, params: { authentication: 'predefinedCredentialType', nodeCredentialType: 'microsoftOutlookOAuth2Api', sendBody: true, specifyBody: 'json', jsonBody: "={{ JSON.stringify($json.event) }}" } }));
-  n.push(code('After event (w05.finish)', 'w05.mjs', `const d = $('Decide (w05.decide + MX)').first().json;\nconst row = $('Insert appointment (re-check overlap + buffer, idempotent)').first().json;\nconst ev = L.afterEvent($input.first().json);\nconst f = L.finish(d.ctx, d.dec.plan, row, ev, { site: $env.SITE_URL });\nreturn [{ json: { ...d, booking: row, ev, f, lane: d.lane, status: f.response.status, body: f.response.body } }];`));
+  n.push(code('After event (w05.finish)', 'w05.mjs', `const d = $('Decide (w05.decide + MX)').first().json;\nconst row = $('Insert appointment (re-check overlap + buffer, idempotent)').first().json;\nconst ev = L.afterEvent($input.first().json);\nconst f = L.finish(d.ctx, d.dec.plan, row, ev, { site: $env.SITE_URL, ics_secret: $env.LEAD_TOKEN_SECRET });\nreturn [{ json: { ...d, booking: row, ev, f, lane: d.lane, status: f.response.status, body: f.response.body } }];`));
   n.push(pg('Save event ids + lead (stage, broker, cycle, invite email)', `WITH a AS (
   UPDATE public.appointments
      SET graph_event_id = NULLIF($2, ''), ical_uid = NULLIF($3, ''), join_url = NULLIF($4, ''), ics_url = $5,
@@ -226,6 +226,16 @@ UPDATE public.leads SET last_contact_at = now() WHERE id = $1::uuid AND $2 = 'le
   n.push(sub('-> CAPI Send (Schedule, no email)', 'CAPI Send'));
   n.push(sub('-> W28 ask_email', 'W28 Booking Flow endpoint'));
   n.push(sub('-> W22 Alerts', 'W22 Alerts'));
+  // I-45j: GET /c/{booking_id} -> the booking's .ics. Auth = signed ?k= (the link in the invite / WhatsApp) or X-Lead-Token of the owning lead; every failure is one 404.
+  n.push(node('GET /c/:booking_id (.ics)', 'webhook', 2, { httpMethod: 'GET', path: 'c/:booking_id', responseMode: 'responseNode', options: {} }, { webhookId: 'w05-ics-get' }));
+  n.push(code('Verify .ics caller (w05.parseIcsRequest)', 'w05.mjs', `const j = $input.first().json;\nconst r = L.parseIcsRequest({ headers: j.headers || {}, params: j.params || {}, query: j.query || {} }, $env, Date.now());\nreturn [{ json: r }];`));
+  n.push(ifTrue('.ics caller ok?', '$json.ok === true'));
+  n.push(pg('Load booking for .ics (id only, no lead PII)', `-- I-45j: only the columns the invite already carries; nothing from the leads table is selected.
+SELECT (SELECT to_jsonb(k) FROM (SELECT a.id, a.client_id, a.appointment_date, a.ends_at, a.method, a.status, a.join_url, a.booked_at FROM public.appointments a WHERE a.id::text = $1 AND a.brand_id IS NOT NULL) k) AS booking,
+       (SELECT COALESCE(b.adviser_name, b.contact_person) FROM public.brokers b JOIN public.appointments a ON a.broker_id = b.id WHERE a.id::text = $1) AS adviser;`, "={{ [$json.booking_id] }}"));
+  n.push(code('Build .ics (w05.icsResponse)', 'w05.mjs', `const c = $('Verify .ics caller (w05.parseIcsRequest)').first().json;\nconst x = $input.first().json;\nreturn [{ json: L.icsResponse(x.booking, { adviser: x.adviser || '', caller: c }) }];`));
+  n.push(code('.ics not found (404)', 'w05.mjs', `return [{ json: { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }, body: 'not found' } }];`));
+  n.push(node('Respond (.ics)', 'respondToWebhook', 1.1, { respondWith: 'text', responseBody: '={{ $json.body }}', options: { responseCode: '={{ $json.status }}', responseHeaders: { entries: [{ name: 'Content-Type', value: '={{ $json.headers["Content-Type"] }}' }, { name: 'Cache-Control', value: 'no-store' }, { name: 'Content-Disposition', value: '={{ $json.headers["Content-Disposition"] || "inline" }}' }] } } }));
   // update_method (W10)
   n.push(pg('Load booking for method change', `SELECT (SELECT to_jsonb(k) FROM (SELECT a.id, a.client_id, a.broker_id, a.appointment_date, a.ends_at, a.method, a.status, a.graph_event_id, a.calendar_provider, a.idempotency_key, a.booked_via FROM public.appointments a WHERE a.id::text = $1) k) AS booking,
        (SELECT to_jsonb(q) FROM (SELECT l.id, l.first_name, l.phone, l.email, l.email_status, l.email_purpose, l.age_band, l.budget_band, l.consent_text_version, l.consent_at, l.origin, l.ad_id, l.call_number, l.language, l.brand_id FROM public.leads l JOIN public.appointments a ON a.client_id = l.id WHERE a.id::text = $1) q) AS lead,
@@ -290,6 +300,10 @@ SELECT l.id, l.email, l.phone, l.language, l.first_name, bk.method, bk.adviser_n
   chain(c, 'Graph PATCH event (method, howzit@ shared calendar)', 'Save method');
   chain(c, 'graph_token input (method)', 'W04 graph_token (method, waits)', 'Graph PATCH event (method, ASSUMPTION)', 'Save method', 'Method invite?', 'Email from howzit@ (Graph sendMail)');
   chain(c, 'ask_email input (method)', '-> W28 ask_email');
+  chain(c, 'GET /c/:booking_id (.ics)', 'Verify .ics caller (w05.parseIcsRequest)', '.ics caller ok?');
+  link(c, '.ics caller ok?', 'Load booking for .ics (id only, no lead PII)', 0); link(c, '.ics caller ok?', '.ics not found (404)', 1);
+  chain(c, 'Load booking for .ics (id only, no lead PII)', 'Build .ics (w05.icsResponse)', 'Respond (.ics)');
+  chain(c, '.ics not found (404)', 'Respond (.ics)');
   chain(c, 'Mark invite bounced', 'Bounce prompt (w05.bounceEffect)', '-> WhatsApp Send (invite bounce)');
   return wf('smc-w05', 'W05 Book (DRAFT pending GATE-TEST-W05)', 'automation-engineer. W05 book; logic automation/lib/w05.mjs (+ lib/w04.mjs via the W04 sub-workflow); tests automation/tests/W05.test.mjs. Callers bind by id smc-w05 (name kept as cachedResultName only).', n, c, ['booking', 'core', 'draft']);
 }

@@ -20,7 +20,7 @@
 //  - Client NOT an attendee by default (add_client_as_attendee per broker); the invite goes from howzit@.
 //  - CAPI Schedule once per booking, never with email (capi/event-spec.md).
 import { createRequire } from 'node:module';
-import { createHash } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { LINES, fill } from '../../conversation/lines.mjs';
 import { brokerConfig, calendarRoute, clockFor, ms, iso, MIN, D, TZ } from './w04.mjs';
 export { clockFor };
@@ -280,7 +280,55 @@ export function publicBody(bk = {}) {
   const start = bk.appointment_date ?? bk.start;
   return { booked: true, booking_id: bk.id, start: iso(ms(start)), end: iso(ms(bk.ends_at ?? bk.end)), method: bk.method, join_url: bk.join_url ?? null, ics_url: bk.ics_url ?? icsUrl(bk.id) };
 }
-export const icsUrl = (id, site = SITE) => (id ? `${site}/c/${id}` : null);
+/** I-45j: `.../c/{booking_id}?k={sig}` when a secret is given (the link lives in an invite / a WhatsApp, so it cannot carry a header); unsigned only without a secret (tests). */
+export const icsUrl = (id, site = SITE, secret = null) => (id ? (secret ? `${site}/c/${id}?k=${icsSig(secret, id)}` : `${site}/c/${id}`) : null);
+const ICS_MIN_SECRET = 32;
+const BOOKING_ID_RE = /^[0-9a-fA-F-]{36}$/;
+/** HMAC-SHA256(LEAD_TOKEN_SECRET, 'ics1|' + booking_id), base64url. Domain-separated from lt1 tokens, no expiry (a calendar link must keep working). */
+export function icsSig(secret, bookingId) {
+  if (typeof secret !== 'string' || secret.length < ICS_MIN_SECRET) throw new Error('LEAD_TOKEN_SECRET missing or shorter than 32 chars');
+  return createHmac('sha256', secret).update(`ics1|${String(bookingId).toLowerCase()}`).digest('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+/**
+ * GET /c/{booking_id} caller check. Either ?k= (the signed link) or X-Lead-Token (the lead who owns it; checked against
+ * appointments.client_id after the load). Every failure is the same 404 (never says whether the booking exists).
+ * @returns {{ok:true, booking_id, via:'sig'|'token', lead_id?}|{ok:false,status:404}}
+ */
+export function parseIcsRequest({ headers = {}, params = {}, query = {} } = {}, env = {}, nowMs = Date.now()) {
+  const no = { ok: false, status: 404, body: 'not found' };
+  const id = String(params.booking_id || '');
+  if (!BOOKING_ID_RE.test(id)) return no;
+  const k = typeof query.k === 'string' ? query.k : '';
+  if (k && typeof env.LEAD_TOKEN_SECRET === 'string') {
+    for (const sec of [env.LEAD_TOKEN_SECRET, env.LEAD_TOKEN_SECRET_PREVIOUS]) {
+      if (typeof sec !== 'string' || sec.length < ICS_MIN_SECRET) continue;
+      const a = Buffer.from(icsSig(sec, id)); const b = Buffer.from(k);
+      if (a.length === b.length && timingSafeEqual(a, b)) return { ok: true, booking_id: id.toLowerCase(), via: 'sig' };
+    }
+  }
+  let c = null;
+  try { c = LT.resolveSlotsCaller({ headers, query: {} }, { leadSecret: env.LEAD_TOKEN_SECRET, leadPreviousSecret: env.LEAD_TOKEN_SECRET_PREVIOUS, jwtSecret: env.SUPABASE_JWT_SECRET, nowMs }); } catch { return no; }
+  if (c && c.ok && c.mode === 'lead') return { ok: true, booking_id: id.toLowerCase(), via: 'token', lead_id: c.lead_id };
+  return no;
+}
+/**
+ * The .ics for a booking row { id, client_id, appointment_date, ends_at, method, status, join_url, booked_at } + broker
+ * adviser name. Same fields the invite already carries (adviser first name, method, join link); no lead name, number or
+ * email. UID matches the invite's .ics so a calendar updates the same event. cancelled/rescheduled -> STATUS:CANCELLED.
+ * @returns {{status:number, headers:object, body:string}}
+ */
+export function icsResponse(a, { adviser = '', caller = null } = {}) {
+  const gone = { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }, body: 'not found' };
+  if (!a || !a.id) return gone;
+  if (caller && caller.via === 'token' && String(a.client_id) !== String(caller.lead_id)) return gone; // another lead's booking: same 404
+  const cancelled = a.status === 'cancelled' || a.status === 'rescheduled';
+  const word = METHOD_LABEL[a.method] || 'phone';
+  const first = firstName(adviser) || 'your adviser';
+  const link = INVITE_METHODS.has(a.method) ? a.join_url || null : null;
+  const description = link ? `Join: ${link}` : CALL_METHODS.has(a.method) ? `${first} will ${a.method === 'whatsapp_call' ? 'WhatsApp-call' : 'call'} you` : `${word} call`;
+  const body = icsFile({ uid: `${a.id}@sortmycover.co.za`, start: a.appointment_date, end: a.ends_at, stamp: a.booked_at || a.appointment_date, summary: `${cancelled ? 'Cancelled: ' : ''}Life cover call with ${first}`, description, url: link || '', status: cancelled ? 'CANCELLED' : 'CONFIRMED', sequence: cancelled ? 1 : 0 });
+  return { status: 200, headers: { 'Content-Type': 'text/calendar; charset=utf-8', 'Content-Disposition': 'attachment; filename="sortmycover-call.ics"', 'Cache-Control': 'no-store' }, body };
+}
 
 // ---------------------------------------------------------------- after the W04 is_free re-check
 /**
@@ -458,10 +506,10 @@ export function leadUpdate(ctx, p) {
 }
 
 /** RFC 5545 .ics for the invite (client copy). Times in UTC; no attendees (broker mailbox stays private). */
-export function icsFile({ uid, start, end, summary, description = '', url = '' }) {
+export function icsFile({ uid, start, end, summary, description = '', url = '', stamp = null, status = null, sequence = null }) {
   const z = (t) => new Date(ms(t)).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
   const esc = (s) => String(s).replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/[,;]/g, (m) => '\\' + m);
-  return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//SortMyCover//W05//EN', 'METHOD:PUBLISH', 'BEGIN:VEVENT', `UID:${uid}`, `DTSTAMP:${z(start)}`, `DTSTART:${z(start)}`, `DTEND:${z(end)}`, `SUMMARY:${esc(summary)}`, `DESCRIPTION:${esc(description)}`, url ? `URL:${url}` : null, 'END:VEVENT', 'END:VCALENDAR'].filter(Boolean).join('\r\n');
+  return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//SortMyCover//W05//EN', 'METHOD:PUBLISH', 'BEGIN:VEVENT', `UID:${uid}`, `DTSTAMP:${z(stamp || start)}`, `DTSTART:${z(start)}`, `DTEND:${z(end)}`, `SUMMARY:${esc(summary)}`, `DESCRIPTION:${esc(description)}`, url ? `URL:${url}` : null, status ? `STATUS:${status}` : null, sequence != null ? `SEQUENCE:${sequence}` : null, 'END:VEVENT', 'END:VCALENDAR'].filter(Boolean).join('\r\n');
 }
 
 /**
@@ -551,7 +599,7 @@ export function methodNotOfferedMessage(lead, b, method, slotStart) {
 export function finish(ctx, p, booking, ev = { ok: false }, opts = {}) {
   const lead = leadView(ctx.lead);
   const joinUrl = INVITE_METHODS.has(p.method) ? (ev.join_url || null) : null; // I-54j: call methods never store a join link
-  const bk = { ...booking, join_url: joinUrl, ics_url: icsUrl(booking.id, opts.site) };
+  const bk = { ...booking, join_url: joinUrl, ics_url: icsUrl(booking.id, opts.site, opts.ics_secret) };
   const invite = inviteMail(ctx, p, bk, ev);
   const capi = capiSchedule(lead, p);
   const rebook = !!p.previous_booking_id;

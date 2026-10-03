@@ -1119,7 +1119,7 @@
     },
     {
       "id": "n37",
-      "name": "Log broker notice held (no template yet; email carries it)",
+      "name": "Log broker notice held (keep mode; email carries it)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
@@ -1128,7 +1128,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.lead_activities (lead_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, 'W15', 'system', 'broker_notice_held', jsonb_build_object('reason', 'outside the broker window and no booking: broker_lead_opted_out template pending (needs_human)'), now(), 'w15:held:' || $1::text)\nON CONFLICT (idempotency_key) DO NOTHING;",
+        "query": "INSERT INTO public.lead_activities (lead_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, 'W15', 'system', 'broker_notice_held', jsonb_build_object('reason', 'keep mode, outside the broker window: no WhatsApp template applies (the booking stands); the email carries the notice'), now(), 'w15:held:' || $1::text)\nON CONFLICT (idempotency_key) DO NOTHING;",
         "options": {
           "queryReplacement": "={{ [$json.lead_id, $json.broker_id] }}"
         }
@@ -1342,7 +1342,7 @@
         ],
         [
           {
-            "node": "Log broker notice held (no template yet; email carries it)",
+            "node": "Log broker notice held (keep mode; email carries it)",
             "type": "main",
             "index": 0
           }

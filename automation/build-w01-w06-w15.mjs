@@ -739,9 +739,9 @@ UPDATE public.leads SET last_contact_at = now() WHERE id = $1::uuid AND $4 <> ''
     "={{ (() => { const f = $('Fan-out kind?').item.json; return [f.lead_id, f.to, f.text, ($json.messages && $json.messages[0] && $json.messages[0].id) || '']; })() }}"));
   n.push(ifTrue('Live send? (SMS confirmation)', pos(9, 3), "$env.DRY_RUN_SENDS !== 'true'"));
   n.push(smsSend('Twilio SMS (the one confirmation)', pos(10, 3)));
-  n.push(pg('Log broker notice held (no template yet; email carries it)', pos(9, 4),
+  n.push(pg('Log broker notice held (keep mode; email carries it)', pos(9, 4),
 `INSERT INTO public.lead_activities (lead_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
-VALUES ($1::uuid, $2::uuid, 'W15', 'system', 'broker_notice_held', jsonb_build_object('reason', 'outside the broker window and no booking: broker_lead_opted_out template pending (needs_human)'), now(), 'w15:held:' || $1::text)
+VALUES ($1::uuid, $2::uuid, 'W15', 'system', 'broker_notice_held', jsonb_build_object('reason', 'keep mode, outside the broker window: no WhatsApp template applies (the booking stands); the email carries the notice'), now(), 'w15:held:' || $1::text)
 ON CONFLICT (idempotency_key) DO NOTHING;`,
     '={{ [$json.lead_id, $json.broker_id] }}'));
 
@@ -760,7 +760,7 @@ ON CONFLICT (idempotency_key) DO NOTHING;`,
   link(c, 'Fan-out kind?', 'Live send? (broker email)', 3);
   link(c, 'Fan-out kind?', 'Live send? (confirmation)', 4);
   link(c, 'Fan-out kind?', 'Live send? (SMS confirmation)', 5);
-  link(c, 'Fan-out kind?', 'Log broker notice held (no template yet; email carries it)', 6);
+  link(c, 'Fan-out kind?', 'Log broker notice held (keep mode; email carries it)', 6);
   link(c, 'Graph calendar? (shared howzit@ vs broker)', 'Graph DELETE event (howzit@ shared calendar)', 0); link(c, 'Graph calendar? (shared howzit@ vs broker)', 'W04 graph_token', 1); link(c, 'Graph calendar? (shared howzit@ vs broker)', 'Graph delete skipped (no shared calendar id; W22 shared_calendar_id_missing)', 2);
   chain(c, 'W04 graph_token', 'Graph DELETE event');
   link(c, 'Live send? (broker WhatsApp)', 'Send WhatsApp (broker notice)', 0);

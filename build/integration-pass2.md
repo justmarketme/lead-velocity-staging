@@ -226,7 +226,7 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-45g | Drop the "(DRAFT pending …)" name suffix on each workflow at gate approval (callers bind by name) | orchestrator at GATE-TEST-* |
 | I-45h | /book and /lead Turnstile + rate limits need the Public guard (W03-notes B.3); `ops.rate_counters` table (today W01 counts in webhook_events) | automation-engineer + platform-architect |
 | I-45i ✅ | lines.mjs EMAIL_BOUNCED (EN/AF) + a utility template for the bounce prompt outside 24 h; W17 forwards bounce notices to W05 `invite_bounced` | conversation-designer + billing-automation (W17) |
-| I-45j | Serve `/c/{booking_id}` for the .ics link; Zoom meeting creation and Google Meet path not built (Teams + phone + WhatsApp-call are) | automation-engineer, Phase 5 |
+| I-45j ✅ (/c/{id} .ics served; Zoom/Meet creation stays needs_human) | Serve `/c/{booking_id}` for the .ics link; Zoom meeting creation and Google Meet path not built (Teams + phone + WhatsApp-call are) | automation-engineer, Phase 5 |
 | I-45k ✅ | W29 → W13 call sends only `{lead_id}`; add a Code node sending `{op, outcome_id, reason, reason_code, idempotency_key}` | automation-engineer (W29) |
 | I-45l | Voice-note owner: W29 transcribes today, W12 stores `whatsapp-media:{id}` only; pick one (P17/Q22) | conversation-designer + compliance-qa |
 | I-45m | W13 claim query must run as one transaction (two statements, batching `single`) — confirm on staging | compliance-qa, Phase 5 |
@@ -346,14 +346,15 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-54e ✅ (round 4: stages 1-8 pass, 0 sends reached the stub) | Round 4: stage 8 (STOP with a live booking → STOP_ACK_CANCELLED) + re-run 1–7 after I-54a–c; needs the local n8n + Postgres stub rebuilt in this container | automation-engineer — next wave |
 | I-54f ✅ | W05 howzit@ sendMail (booking + W10 method-change invites) behind the DRY_RUN gate; KNOWN_UNGATED empty | automation-engineer (session 2, wave 2) |
 | I-54g | After KG decides `not_attended` on an Attended-vs-"No" conflict, what happens to the `outcomes` row and the delivered/verified count? (I-51b closed only the CAPI side) | needs_human (default proposal: outcome → no_show, replacement_eligible within the cycle cap, delivered count unchanged) |
-| I-54h | F15: W15 (and likely W10) delete a shared-fallback calendar event from the broker's own calendar; live, the cancelled meeting stays in the howzit@ shared calendar Mark subscribes to — needs the howzit@ credential branch (as W05 creates it) | automation-engineer — dispatched (session 2, wave 3) |
+| I-54h ✅ | F15: W15 (and likely W10) delete a shared-fallback calendar event from the broker's own calendar; live, the cancelled meeting stays in the howzit@ shared calendar Mark subscribes to — needs the howzit@ credential branch (as W05 creates it) | automation-engineer — dispatched (session 2, wave 3) |
 | I-54i | F16: once the broker marks an outcome, the lead's reach_check never goes out, so CAPI Attended always waits for the lead window to close — intended? | needs_human (default: keep; Attended releases at window close as designed in I-51b) |
-| I-54j | Minor: negative first-touch latency under the test clock (W06 metric reads wall clock); W05 stores a Teams join URL on phone bookings | automation-engineer — dispatched (session 2, wave 3) |
+| I-54j ✅ | Minor: negative first-touch latency under the test clock (W06 metric reads wall clock); W05 stores a Teams join URL on phone bookings | automation-engineer — dispatched (session 2, wave 3) |
 
 ### I-55 · 2026-10-03 (orchestrator session, parallel to session 2 round 4)
 | ID | Item | Owner |
 |---|---|---|
-| I-55a | Wire `broker_lead_opted_out` into W15 (cancel mode, window closed; variable order in conversation/state-machine.md STOP step 1) | automation-engineer, after session 2 wave 3 |
+| I-55a ✅ | Wire `broker_lead_opted_out` into W15 (cancel mode, window closed; variable order in conversation/state-machine.md STOP step 1) | automation-engineer, after session 2 wave 3 |
 | I-55b | Supabase Storage S3 key pair for "MinIO intro media" + choose TRANSCRIBE_URL endpoint (W23 media path stays off until both) | [Jonathan] login gate (GATE-W23-STORAGE) |
 | I-55c | Portal Leads page should read `?lead=<id>` from the /s/leads short link and open/highlight that lead | broker-success |
 | I-55d | Legacy CRM pages fail `tsc --noEmit` (17 files, pre-existing, none SMC); decide whether the SMC build gate type-checks the whole app or only src/pages/portal + console | platform-architect (default: SMC files only) |
+| I-55e | Traefik/VPS routing: `/c/*` must reach the W05 `c/:booking_id` webhook (I-45j) | devops-security (other session owns automation/vps/) |

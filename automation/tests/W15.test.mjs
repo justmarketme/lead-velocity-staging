@@ -280,8 +280,10 @@ test(`W15 [${MODE}] STOP anywhere: mid-CTWA quiz (not yet routed) and mid-nurtur
   assert.equal(st.brokerNotifications.filter((n) => n.lead_id === quiz.id).length, 0, 'no broker for an unrouted lead');
   assert.equal(st.brokerNotifications.filter((n) => n.lead_id === nurture.id).length, 2);
   assert.ok(st.jobs.every((j) => j.status === 'cancelled'));
-  // Outside the broker's 24-h window with no booking: the WhatsApp notice is held (no template yet), the email carries it.
-  assert.ok(st.fanout.some((f) => f.kind === 'broker_held' && f.lead_id === nurture.id));
+  // Outside the broker's 24-h window with no booking (cancel mode): the broker_lead_opted_out template (I-55a); the email still goes too.
+  const wa = st.fanout.find((f) => f.kind === 'broker_wa' && f.lead_id === nurture.id);
+  assert.equal(wa.wa.type, 'template');
+  assert.equal(wa.wa.template.name, 'broker_lead_opted_out');
   assert.ok(st.fanout.some((f) => f.kind === 'broker_email' && f.lead_id === nurture.id));
 });
 
@@ -401,3 +403,26 @@ function evalExpr(expr, json, refs) {
   const $ = (k) => ({ item: { json: refs[k] } });
   return new Function('$json', '$', `return (${m[1]});`)(json, $);
 }
+
+test('I-55a broker_lead_opted_out: cancel mode, window closed, no booking -> template with {{1}} adviser first, {{2}} lead first, URL suffix leads?lead=<id>; never the number', () => {
+  const base = { mobile: '+27820000001', text: 'STOP', now: Date.parse('2026-10-05T08:00:00Z'), leads: [{ id: 'L1', first_name: 'Lerato Mokoena', phone: '+27820000001', broker_id: 'b1' }], bookings: [] };
+  const brokers = [{ id: 'b1', contact_person: 'Mark Smith', adviser_whatsapp: '+27830000009', email: 'm@example.test', last_inbound_at: '2026-10-03T08:00:00Z' }];
+  const r = W15.planOptOut({ ...base, brokers, booking_mode: 'cancel' });
+  const wa = r.broker_notices.find((n) => n.channel === 'whatsapp');
+  assert.equal(wa.mode, 'template');
+  assert.equal(wa.template, 'broker_lead_opted_out');
+  assert.deepEqual(wa.vars, ['Mark', 'Lerato']);
+  assert.equal(wa.url_suffix, 'leads?lead=L1');
+  assert.ok(!JSON.stringify(wa.vars).includes('27820000001'));
+  const body = W15.brokerTemplate(wa.to, wa);
+  assert.equal(body.template.name, 'broker_lead_opted_out');
+  assert.deepEqual(body.template.components[0].parameters.map((x) => x.text), ['Mark', 'Lerato']);
+  assert.equal(body.template.components[1].parameters[0].text, 'leads?lead=L1');
+  assert.ok(r.broker_notices.some((n) => n.channel === 'email'), 'the email leg is unchanged');
+  // inside the window: session text, no template; keep mode: held (the booking stands, nothing from this template); a cancelled booking still uses broker_booking_changed.
+  const inWin = W15.planOptOut({ ...base, now: Date.parse('2026-10-03T09:00:00Z'), brokers, booking_mode: 'cancel' });
+  assert.equal(inWin.broker_notices.find((n) => n.channel === 'whatsapp').mode, 'session');
+  assert.equal(W15.planOptOut({ ...base, brokers, booking_mode: 'keep' }).broker_notices.find((n) => n.channel === 'whatsapp').mode, 'held_no_template');
+  const withBk = W15.planOptOut({ ...base, brokers, booking_mode: 'cancel', bookings: [{ id: 'k1', lead_id: 'L1', broker_id: 'b1', status: 'booked', start: '2026-10-07T07:30:00Z', method: 'phone' }] });
+  assert.equal(withBk.broker_notices.find((n) => n.channel === 'whatsapp').template, 'broker_booking_changed');
+});

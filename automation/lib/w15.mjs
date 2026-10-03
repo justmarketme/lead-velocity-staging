@@ -92,12 +92,14 @@ export function planOptOut(input = {}) {
     const inWindow = br.last_inbound_at && now - msOf(br.last_inbound_at) < 24 * H;
     const cancelled = mode === 'cancel' ? mine[0] : null;
     // WhatsApp: a session text inside the broker's 24-h window; outside it the approved broker_booking_changed template
-    // when a booking was removed; otherwise held for the broker_lead_opted_out template (needs_human) and the email carries it.
+    // when a booking was removed; otherwise (cancel mode, no booking) the broker_lead_opted_out template; keep mode is held and the email carries it.
     const wa = inWindow ? { mode: 'session' }
       : cancelled ? { mode: 'template', template: 'broker_booking_changed',
         vars: [firstName(br.contact_person || br.adviser_name || br.adviser_first_name), firstName(l.first_name), METHOD_LABEL[cancelled.method] || cancelled.method || 'call', `${dateLabel(cancelled.start)}, ${timeLabel(cancelled.start)}`, 'Cancelled: opted out, do not call'],
         url_suffix: `calendar?day=${isoSast(cancelled.start).slice(0, 10)}` }
-        : { mode: 'held_no_template' };
+        : mode === 'cancel' ? { mode: 'template', template: 'broker_lead_opted_out', // I-55a / state-machine.md STOP step 1: no booking existed; 2 body vars (never the number) + URL suffix
+          vars: [firstName(br.contact_person || br.adviser_name || br.adviser_first_name), firstName(l.first_name)], url_suffix: `leads?lead=${l.id}` }
+          : { mode: 'held_no_template' }; // keep mode: the call stands, the email carries the notice, nothing from this template
     out.broker_notices.push({ broker_id: l.broker_id, lead_id: l.id, channel: 'whatsapp', to: br.adviser_whatsapp || br.whatsapp_number || null, text, ...wa });
     out.broker_notices.push({ broker_id: l.broker_id, lead_id: l.id, channel: 'email', to: br.email || null, subject: `${firstName(l.first_name)} opted out: do not contact`, text, mode: 'email' });
   }
