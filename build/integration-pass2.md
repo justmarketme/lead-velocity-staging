@@ -311,7 +311,9 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 ### I-52 · 2026-10-03 (rehearsal L01 findings)
 | # | Item | Owner |
 |---|---|---|
-| I-52a | F2: `webhook_events.source` CHECK (migration 02/06) rejects w01_ip / w01_num and other workflow literals — migration 13 §7 extends the list from a scan of every workflow; test that every literal is allowed; stub rebuilt (constraint restored) | platform-architect — dispatched |
-| I-52b | F3: L01 fixture consent version `named-v1-DRAFT` / practice text unknown to the registry → render from landing/config/consent.json with the seeded broker; BRAND_ID non-uuid fails fast (F1); fixture numbers must not collide with the seed broker | automation-engineer — dispatched |
+| I-52a ✅ | F2: `webhook_events.source` CHECK (migration 02/06) rejects w01_ip / w01_num and other workflow literals — migration 13 §7 extends the list from a scan of every workflow; test that every literal is allowed; stub rebuilt (constraint restored) | platform-architect — dispatched |
+| I-52b ✅ | F3: L01 fixture consent version `named-v1-DRAFT` / practice text unknown to the registry → render from landing/config/consent.json with the seeded broker; BRAND_ID non-uuid fails fast (F1); fixture numbers must not collide with the seed broker | automation-engineer — dispatched |
 | I-52c | F0: n8n 2.x refuses to call an unpublished sub-workflow — W26 restore publishes every Execute Workflow target (their cron triggers start too); CREDENTIALS/W26.md note | devops-security |
-| I-52d | Re-run the rehearsal stages 1–8 after I-52a/b land (harness + env under the scratchpad `rh/`); only stub-local DDL allowed is the chain rebuild | automation-engineer, next |
+| I-52d (re-run dispatched) | Re-run the rehearsal stages 1–8 after I-52a/b land (harness + env under the scratchpad `rh/`); only stub-local DDL allowed is the chain rebuild | automation-engineer, next |
+| I-52e | GATE-TEST-W01 note: the approved fixture changed — consent version/text rendered from the registry, practice/FSP = the seed's synthetic values, lead numbers +27600000101..110, named routing now also requires the FSP | orchestrator at GATE-TEST-W01 (recorded in needs-human-log) |
+| I-52f | W20 wrote webhook_events.source 'w20' (same CHECK bug as F2) — fixed by migration 13 §7; no workflow change | — (closed) |
