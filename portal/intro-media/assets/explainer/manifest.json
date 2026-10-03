@@ -121,6 +121,6 @@
     "Burned-in captions: headline = storyboard on-screen caption for the row; lower lane = VO transcript cues (row 1 first cue omitted, identical to the headline).",
     "Optional line \"or skip for now. Nothing is held up while you wait.\" not added (would exceed 45 s).",
     "Screens are drawn from the brand system, labelled SAMPLE; adviser is the fictional Sam Example, FSP 00000 (SAMPLE). Not a recording of the live portal.",
-    "Storyboard says 16:9 1280x720; this build follows the task (1080x1920 phone, 1080x1080 web view). The portal slot is 16:9 with object-fit:cover, so 1x1 is cropped top and bottom: see needs_human."
+    "Storyboard says 16:9 1280x720; this build follows the task (1080x1920 phone, 1080x1080 web view). The portal slot is square (.clip.square, object-fit: contain), so nothing is cropped; the 9:16 file plays on fullscreen. Format change for sign-off: NH-51."
   ]
 }

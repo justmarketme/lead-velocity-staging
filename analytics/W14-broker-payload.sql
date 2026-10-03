@@ -42,9 +42,9 @@ begin
   select * into n from facts.cycle_counts(c.id, d);
   select * into w from facts.cycle_counts(c.id, d - 7);
   -- I-43c: broker-facing pulse = per cycle, hidden under 5 answers, held until 5 new answers; never n.pulse_* (live) and never a week-on-week figure.
-  -- p_prev_n = the answer count behind the last pulse figure this broker was sent this cycle (reports before this week, not held/failed).
+  -- p_prev_n = the answer count behind the last pulse figure this broker was sent this cycle (any earlier edition up to today, incl. midcycle/cycle-end; not held/failed). R6-01: never skip a report 1-3 days old.
   select * into pu from facts.broker_pulse(c.id, d, (select (rh.report_data #>> '{s4_quality,lead_pulse,n}')::int from public.report_history rh
-      where rh.broker_id = p_broker and rh.cycle_id = c.id and rh.brand_id is not null and rh.status in ('sent','partial','generated') and rh.week < d - 3
+      where rh.broker_id = p_broker and rh.cycle_id = c.id and rh.brand_id is not null and rh.status in ('sent','partial','generated') and rh.week <= d
         and (rh.report_data #>> '{s4_quality,lead_pulse,n}') is not null order by rh.week desc limit 1));
   start_d := facts.sa_date(c.starts_at); end_d := facts.sa_date(c.ends_at) - 1;   -- ends_at is the exclusive boundary (as in facts.fact_broker_day); end_d = the cycle's last day
   elapsed := d - start_d + 1; cycle_len := end_d - start_d + 1;

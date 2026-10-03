@@ -403,6 +403,12 @@ const LINES = [
       const hit = ci || mk;
       return [hit ? PASS : MISSING, hit ? (mk ? 'make check runs evals/run.mjs (NH-06 Makefile default)' : 'CI job runs evals/run.mjs') : 'neither Makefile `check` nor a .github/workflows job runs evals/run.mjs (NH-06)'];
     }),
+    custom('build', '/book + /lead guard (Turnstile + rate limit)', () => {
+      const w05 = exists('automation/W05.json') ? read('automation/W05.json') : '';
+      const w01 = exists('automation/W01.json') ? read('automation/W01.json') : '';
+      const ok = /turnstile/i.test(w05) && /turnstile/i.test(w01);
+      return [ok ? PASS : MISSING, ok ? 'Turnstile referenced in W01 and W05' : 'W05 /book has no Turnstile/rate-limit guard yet (I-45h, R6-08)'];
+    }),
     suite('build', 'automation/tests/W35.test.mjs'),
     workflow('build', 'W35'),
     file('build', 'automation/templates/lead_pulse.json', 'lead_pulse template'),
@@ -698,7 +704,8 @@ const LINES = [
     }),
     custom('live', 'compliance-qa red-team sign-off', () => {
       const s = exists('evals/red-team.json') ? String(readJson('evals/red-team.json').signoff || '') : '';
-      return [s && !/PENDING/i.test(s) ? PASS : MISSING, s ? `signoff: ${s.slice(0, 60)}` : 'no signoff field'];
+      const ok = /^(PASS|SIGNED)\b/i.test(s) && /compliance-qa/i.test(s); // R6-06: explicit PASS/SIGNED by compliance-qa, not merely non-PENDING
+      return [ok ? PASS : MISSING, s ? `signoff: ${s.slice(0, 60)}` : 'no signoff field'];
     }),
     ev('live', 'S7-17', 'guardrail_gate_on', 'true: guardrail gate enabled in production W07'),
     ev('live', 'S7-17', 'handoff_tested_jonathan', "true: human handoff reached Jonathan's number"),
@@ -876,6 +883,13 @@ const LINES = [
     suite('build', 'automation/security/verify-webhooks.test.js'),
     gate('live', 'GATE-VPS'),
     env('live', ['VPS_HOST', 'BACKUP_S3_BUCKET'], 'VPS + off-server backup target set'),
+    custom('build', 'ANTHROPIC_BASE_URL unset or default in .env', () => {
+      const e = exists('.env') ? read('.env') : (exists('automation/.env') ? read('automation/.env') : '');
+      const m = e.match(/^ANTHROPIC_BASE_URL=(.*)$/m);
+      const v = m ? m[1].trim() : '';
+      const ok = !v || v === 'https://api.anthropic.com';
+      return [ok ? PASS : FAIL, ok ? 'unset/default' : 'non-default value present (local egress stub must never reach production, R6-09)'];
+    }),
     ev('live', 'S7-26', 'vps_provisioned', 'true: W26 step 1 done'),
     ev('live', 'S7-26', 'nightly_pgdump_offsite_ok', 'true: last nightly pg_dump copied off-server'),
     ev('live', 'S7-26', 'backups_on', 'true'),
@@ -907,7 +921,10 @@ const LINES = [
   // built and its suite passes; GATE-INFO-OFFICER + GATE-NCC green; S7-28.jsonl has paia_published,
   // privacy_notice_published and w24_scheduled true. GATE-OPINION is shown as info and never blocks.
   { id: 'S7-28', amber: true, checks: () => [
-    files('build', ['deliverables/contracts-drafter/paia-manual.md', 'landing/holding/privacy.html', 'deliverables/contracts-drafter/information-officer-pack.md', 'deliverables/contracts-drafter/ncc-direct-marketer-pack.md'], 'PAIA manual + privacy notice + IO/NCC packs'),
+    files('build', ['deliverables/contracts-drafter/paia-manual.md', 'landing/holding/privacy.html', 'landing/holding/terms.html', 'deliverables/contracts-drafter/information-officer-pack.md', 'deliverables/contracts-drafter/ncc-direct-marketer-pack.md'], 'PAIA manual + privacy + terms pages + IO/NCC packs'),
+    ev('live', 'S7-28', 'w24_monthly_evidence', 'true: first W24 monthly cleanse evidence file present (R6-07)'),
+    ev('live', 'S7-28', 'ncc_renewal_date', 'non-empty: dated NCC registration renewal (C1)'),
+    ev('live', 'S7-28', 'breach_drill_done', 'true: P14 breach drill run (R6-07)'),
     custom('build', 'obligations register populated', () => {
       const rel = 'deliverables/contracts-drafter/compliance-register.md';
       if (!exists(rel)) return [MISSING, `${rel} not found`];
