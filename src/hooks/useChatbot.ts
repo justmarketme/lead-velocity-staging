@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 export interface Message {
     id: string;
@@ -131,7 +130,6 @@ export function useChatbot() {
             const { data, error } = await supabase.functions.invoke('einstein-ai', {
                 body: { query: content, history: currentHistory },
                 headers: {
-                    'x-gemini-key': import.meta.env.VITE_GEMINI_API_KEY,
                     'x-openrouter-key': import.meta.env.VITE_OPENROUTER_API_KEY
                 }
             });

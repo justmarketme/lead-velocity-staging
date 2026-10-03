@@ -26,7 +26,7 @@ export function edgeFunctionsPlugin(): Plugin {
                         }
                         
                         const parsedBody = body ? JSON.parse(body) : {};
-                        const GEMINI_API_KEY = env.VITE_GEMINI_API_KEY || env.GEMINI_API_KEY;
+                        const GEMINI_API_KEY = env.GEMINI_API_KEY;
                         const TAVILY_API_KEY = env.VITE_TAVILY_API_KEY || env.TAVILY_API_KEY;
                         const OPENROUTER_API_KEY = env.VITE_OPENROUTER_API_KEY || env.OPENROUTER_API_KEY;
                         const ULTRAVOX_API_KEY = env.ULTRAVOX_API_KEY;

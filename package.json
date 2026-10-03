@@ -8,6 +8,7 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
+    "typecheck:smc": "tsc -p tsconfig.smc.json --noEmit",
     "preview": "vite preview",
     "prepare": "git config core.hooksPath .githooks || true",
     "tasks:validate": "node build/validate-tasks.mjs"
