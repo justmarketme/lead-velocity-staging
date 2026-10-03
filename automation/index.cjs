@@ -5,7 +5,7 @@
 // require() request (allowList.has(request)), and its vm sandbox has no dynamic-import callback. So a Code node can
 // neither import() an .mjs file nor require('lv-automation/lib/w07.mjs'). It can require('lv-automation') when that
 // exact name is allowlisted, and Node 24's require(esm) loads the .mjs libs behind it (none uses top-level await;
-// automation/tests/lv-automation.test.mjs proves every name below loads that way).
+// automation/tests/loader.test.mjs proves every name below loads that way).
 //
 // Code node form (the only one):   const L = require('lv-automation').w07;
 //

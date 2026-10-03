@@ -226,6 +226,12 @@
         "options": {
           "queryReplacement": "={{ [$('Fetch insights (back-off aware)').item.json.brand_id, $('Fetch insights (back-off aware)').item.json.fetched_at] }}"
         }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
       }
     },
     {
@@ -242,6 +248,12 @@
         "query": "WITH up AS (\nINSERT INTO public.ad_objects (id, level, brand_id, campaign_id, adset_id, name, status, effective_status, daily_budget_zar, lifetime_budget_zar, spend_cap_zar, creative_id, effective_object_story_id, ig_media_id, launched_at, fetched_at)\nSELECT x.id, x.level, x.brand_id, x.campaign_id, x.adset_id, x.name, x.status, x.effective_status, x.daily_budget_zar, x.lifetime_budget_zar, x.spend_cap_zar, x.creative_id, x.effective_object_story_id, x.ig_media_id, x.launched_at, now()\nFROM jsonb_to_recordset($1::jsonb) AS x(id text, level text, brand_id uuid, campaign_id text, adset_id text, name text, status text, effective_status text, daily_budget_zar numeric, lifetime_budget_zar numeric, spend_cap_zar numeric, creative_id text, effective_object_story_id text, ig_media_id text, launched_at timestamptz)\nON CONFLICT (id) DO UPDATE SET level = EXCLUDED.level, campaign_id = EXCLUDED.campaign_id, adset_id = EXCLUDED.adset_id, name = EXCLUDED.name, status = EXCLUDED.status, effective_status = EXCLUDED.effective_status,\n  daily_budget_zar = EXCLUDED.daily_budget_zar, lifetime_budget_zar = EXCLUDED.lifetime_budget_zar, spend_cap_zar = EXCLUDED.spend_cap_zar, creative_id = EXCLUDED.creative_id,\n  effective_object_story_id = coalesce(EXCLUDED.effective_object_story_id, public.ad_objects.effective_object_story_id), ig_media_id = coalesce(EXCLUDED.ig_media_id, public.ad_objects.ig_media_id),\n  launched_at = coalesce(public.ad_objects.launched_at, EXCLUDED.launched_at), fetched_at = now()\n-- last_budget_change_at is owned by the confirm-to-apply write path (console), never by this read-only sync.\nRETURNING 1)\nSELECT count(*)::int AS cached FROM up;",
         "options": {
           "queryReplacement": "={{ JSON.stringify($('Fetch insights (back-off aware)').item.json.objects || []) }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
         }
       }
     }

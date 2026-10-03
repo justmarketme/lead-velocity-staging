@@ -4,7 +4,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## W31 DM handler (community-response-lead, 4.14)\n\nTrigger: Messenger and Instagram `messages` webhook (path /webhook/meta-dm). Flow: signature check (automation/security/verify-webhooks.js) -> load rules/corpus/prompt -> fetch first name -> upsert conversation -> route (STOP, human handoff, paused, age answer, classify) -> Haiku classify (strict JSON, fail closed to human) -> disclose + FAQ answer (Haiku draft, FAIS lint, shared guardrail) -> ONE age-band question (quick replies) -> CTWA link -> stop. The person typing person, human or manager hands off to Jonathan/KG and pauses the bot. STOP is honoured silently (suppression, no further message).\n\nWe only ever reply inside the 24-hour window after the person's last message (RESPONSE messaging type). Replies 07:00-22:00 SAST; overnight replies are written to dm_queue and sent from 07:15 if the window is still open (otherwise marked expired and nothing is sent). Nobody is DMed unless they commented (private reply) or messaged first. No reply from the person means nothing further.\n\nCredentials by name: `LV Supabase - n8n_app (least privilege)`, `Meta Page Token`, `Anthropic API`, `W22 Internal Webhook`. Env: REPO_DIR, AUTOMATION_DIR, META_APP_SECRET, META_VERIFY_TOKEN, META_GRAPH_VERSION, CTWA_BASE_URL, CONSOLE_URL, N8N_INTERNAL_URL. Tables: dm_threads (channel, external_id, state, paused, opted_out, last_user_message_at; `conversations` is a per-message view, never written), dm_queue, escalations (assigned_agent text) (supabase/migrations/20261002_smc_06_pass2.sql). Ingress: Page `messaging` events forwarded from W02's page ingress and IG messages; forward the raw body with the original X-Hub-Signature-256 header.\n\nDM text is never stored: only the conversation state (step, counts, age band) and the last message id are saved. Success runs are not saved.\n\n## Env + runtime dependencies (I-31c)\n`ESC_REAL_KINDS` (name only in automation/.env.example): unset or false = escalation kinds are mapped to the old constraint (`sensitive` -> `human_handoff`; `dm_handoff` and `dm_after_link` -> `dm`) and the real kind is kept in `kind_requested`; set `ESC_REAL_KINDS=true` once migration 08 (escalations_kind_check with sensitive, dm_handoff, dm_after_link) is applied on the target database. No workflow change needed.\n`conversation/guardrail.mjs` is loaded in the guardrail Code nodes with `require('lv-automation').guardrail` (I-44a: the one allowlisted package, `NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation`, linked to the read-only repo mount; automation/index.cjs). If it cannot load, the gate fails closed (`classifier_input_unavailable` -> fixed template), so a broken mount silences replies rather than sending unchecked text.",
+        "content": "## W31 DM handler (community-response-lead, 4.14)\n\nTrigger: Messenger and Instagram `messages` webhook (path /webhook/meta-dm). Flow: signature check (automation/security/verify-webhooks.js) -> load rules/corpus/prompt -> fetch first name -> upsert conversation -> route (STOP, human handoff, paused, age answer, classify) -> Haiku classify (strict JSON, fail closed to human) -> disclose + FAQ answer (Haiku draft, FAIS lint, shared guardrail) -> ONE age-band question (quick replies) -> CTWA link -> stop. The person typing person, human or manager hands off to Jonathan/KG and pauses the bot. STOP is honoured silently (suppression, no further message).\n\nWe only ever reply inside the 24-hour window after the person's last message (RESPONSE messaging type). Replies 07:00-22:00 SAST; overnight replies are written to dm_queue and sent from 07:15 if the window is still open (otherwise marked expired and nothing is sent). Nobody is DMed unless they commented (private reply) or messaged first. No reply from the person means nothing further.\n\nCredentials by name: `LV Supabase - n8n_app (least privilege)`, `Meta Page Token`, `Anthropic API`. Alerts go to W22 by Execute Workflow smc-w22 (I-47g). Env: REPO_DIR, AUTOMATION_DIR, META_APP_SECRET, META_VERIFY_TOKEN, META_GRAPH_VERSION, CTWA_BASE_URL, CONSOLE_URL, N8N_INTERNAL_URL. Tables: dm_threads (channel, external_id, state, paused, opted_out, last_user_message_at; `conversations` is a per-message view, never written), dm_queue, escalations (assigned_agent text) (supabase/migrations/20261002_smc_06_pass2.sql). Ingress: Page `messaging` events forwarded from W02's page ingress and IG messages; forward the raw body with the original X-Hub-Signature-256 header.\n\nDM text is never stored: only the conversation state (step, counts, age band) and the last message id are saved. Success runs are not saved.\n\n## Env + runtime dependencies (I-31c)\n`ESC_REAL_KINDS` (name only in automation/.env.example): unset or false = escalation kinds are mapped to the old constraint (`sensitive` -> `human_handoff`; `dm_handoff` and `dm_after_link` -> `dm`) and the real kind is kept in `kind_requested`; set `ESC_REAL_KINDS=true` once migration 08 (escalations_kind_check with sensitive, dm_handoff, dm_after_link) is applied on the target database. No workflow change needed.\n`conversation/guardrail.mjs` is loaded in the guardrail Code nodes with `require('lv-automation').guardrail` (I-44a: the one allowlisted package, `NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation`, linked to the read-only repo mount; automation/index.cjs). If it cannot load, the gate fails closed (`classifier_input_unavailable` -> fixed template), so a broken mount silences replies rather than sending unchecked text.",
         "height": 480,
         "width": 620
       },
@@ -47,16 +47,12 @@
       "id": "w31-n07", "name": "Signature ok?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [440, 0]
     },
     {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $env.N8N_INTERNAL_URL + '/webhook/w22-alert' }}",
-        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
-        "sendBody": true, "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ severity: 'red', kind: 'webhook_signature_invalid', to: ['Jonathan', 'KG'], text: 'W31 rejected a Meta messages webhook: ' + $json.reason, source: 'W31' }) }}",
-        "options": { "response": { "response": { "neverError": true } } }
-      },
-      "id": "w31-n08", "name": "Alert bad signature", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [660, 120],
-      "credentials": { "httpHeaderAuth": { "name": "W22 Internal Webhook" } }
+      "parameters": {"mode":"runOnceForEachItem","jsCode":"// I-47g: W22 producer contract (automation/W22.md section 3). Handed to W22 by Execute Workflow smc-w22 (CONTRACTS.md\n// \"Sub-workflow interfaces\": every call is Execute Workflow by id); no internal alert webhook.\nreturn { json: { signal_key: 'webhook_signature_invalid', scope: 'webhook:W31', severity: 'red', what: 'W31 rejected a Meta messages webhook: ' + String($json.reason || 'unknown'), impact: 'A DM webhook call was refused; if Meta itself is misconfigured, real DMs are being missed', first_action: 'Check META_APP_SECRET and the messages subscription in the Meta app', source: 'W31' } };"},
+      "id": "w31-n08-sig", "name": "Alert bad signature: W22 signal", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [640, 280]
+    },
+    {
+      "parameters": {"source":"database","workflowId":{"__rl":true,"mode":"id","value":"smc-w22","cachedResultName":"W22 Alerts"},"options":{"waitForSubWorkflow":false}},
+      "id": "w31-n08", "name": "Alert bad signature", "type": "n8n-nodes-base.executeWorkflow", "typeVersion": 1.1, "position": [660, 120]
     },
     {
       "parameters": { "operation": "read", "fileSelector": "={{ $env.REPO_DIR + '/community/*' }}", "options": {} },
@@ -247,17 +243,12 @@
       "credentials": { "postgres": { "name": "LV Supabase - n8n_app (least privilege)" } }
     },
     {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $env.N8N_INTERNAL_URL + '/webhook/w22-alert' }}",
-        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
-        "sendBody": true, "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ severity: 'amber', kind: $('Finalise DM').item.json.esc.kind, kind_requested: $('Finalise DM').item.json.esc.kind_requested || $('Finalise DM').item.json.esc.kind, to: $('Finalise DM').item.json.esc.to, text: 'Community DM on ' + $('Finalise DM').item.json.channel + ': ' + $('Finalise DM').item.json.esc.kind + '. The bot is paused. First human touch due within 30 minutes.', deep_link: $env.CONSOLE_URL + '/community/escalations/' + $json.id, source: 'W31' }) }}",
-        "options": { "response": { "response": { "neverError": true } } }
-      },
-      "id": "w31-n36", "name": "Alert W22 (escalation)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [5720, -100],
-      "retryOnFail": true, "maxTries": 3, "waitBetweenTries": 2000, "onError": "continueRegularOutput",
-      "credentials": { "httpHeaderAuth": { "name": "W22 Internal Webhook" } }
+      "parameters": {"mode":"runOnceForEachItem","jsCode":"// I-47g: W22 producer contract (automation/W22.md section 3). Handed to W22 by Execute Workflow smc-w22 (CONTRACTS.md\n// \"Sub-workflow interfaces\": every call is Execute Workflow by id); no internal alert webhook.\nconst f = $('Finalise DM').item.json; const esc = f.esc || {};\nconst link = ($env.CONSOLE_URL || '') + '/community/escalations/' + $json.id;\nreturn { json: { signal_key: 'community_escalation', scope: 'escalation:' + String($json.id || 'unknown'), severity: 'amber', what: 'Community DM on ' + f.channel + ': ' + esc.kind + '. The bot is paused. First human touch due within 30 minutes.', impact: 'A person is waiting in a DM; the bot is paused', first_action: 'Open ' + link, deep_link: link, esc_kind: esc.kind, kind_requested: esc.kind_requested || esc.kind, recipients_hint: esc.to, source: 'W31' } };"},
+      "id": "w31-n36-sig", "name": "Alert W22 (escalation): W22 signal", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [5700, 60]
+    },
+    {
+      "parameters": {"source":"database","workflowId":{"__rl":true,"mode":"id","value":"smc-w22","cachedResultName":"W22 Alerts"},"options":{"waitForSubWorkflow":false}},
+      "id": "w31-n36", "name": "Alert W22 (escalation)", "type": "n8n-nodes-base.executeWorkflow", "typeVersion": 1.1, "position": [5720, -100], "onError": "continueRegularOutput"
     },
     {
       "parameters": { "conditions": { "boolean": [ { "value1": "={{ !!$('Finalise DM').item.json.reply_text }}", "value2": true } ] } },
@@ -346,12 +337,14 @@
     }
   ],
   "connections": {
+    "Alert bad signature: W22 signal": { "main": [ [ { "node": "Alert bad signature", "type": "main", "index": 0 } ] ] },
+    "Alert W22 (escalation): W22 signal": { "main": [ [ { "node": "Alert W22 (escalation)", "type": "main", "index": 0 } ] ] },
     "Meta Verify (GET)": { "main": [ [ { "node": "Handshake (security module)", "type": "main", "index": 0 } ] ] },
     "Handshake (security module)": { "main": [ [ { "node": "Token ok?", "type": "main", "index": 0 } ] ] },
     "Token ok?": { "main": [ [ { "node": "Respond challenge", "type": "main", "index": 0 } ], [ { "node": "Respond 403", "type": "main", "index": 0 } ] ] },
     "Meta Events (POST)": { "main": [ [ { "node": "Verify signature", "type": "main", "index": 0 } ] ] },
     "Verify signature": { "main": [ [ { "node": "Signature ok?", "type": "main", "index": 0 } ] ] },
-    "Signature ok?": { "main": [ [ { "node": "Read community files", "type": "main", "index": 0 }, { "node": "Read faq", "type": "main", "index": 0 }, { "node": "Read guardrail", "type": "main", "index": 0 } ], [ { "node": "Alert bad signature", "type": "main", "index": 0 } ] ] },
+    "Signature ok?": { "main": [ [ { "node": "Read community files", "type": "main", "index": 0 }, { "node": "Read faq", "type": "main", "index": 0 }, { "node": "Read guardrail", "type": "main", "index": 0 } ], [ { "node": "Alert bad signature: W22 signal", "type": "main", "index": 0 } ] ] },
     "Read community files": { "main": [ [ { "node": "Merge config", "type": "main", "index": 0 } ] ] },
     "Read faq": { "main": [ [ { "node": "Merge config", "type": "main", "index": 1 } ] ] },
     "Read guardrail": { "main": [ [ { "node": "Merge config", "type": "main", "index": 2 } ] ] },
@@ -377,7 +370,7 @@
     "Finalise DM": { "main": [ [ { "node": "Update conversation", "type": "main", "index": 0 } ] ] },
     "Update conversation": { "main": [ [ { "node": "Escalate?", "type": "main", "index": 0 } ] ] },
     "Escalate?": { "main": [ [ { "node": "Insert escalation", "type": "main", "index": 0 } ], [ { "node": "Reply needed?", "type": "main", "index": 0 } ] ] },
-    "Insert escalation": { "main": [ [ { "node": "Alert W22 (escalation)", "type": "main", "index": 0 } ] ] },
+    "Insert escalation": { "main": [ [ { "node": "Alert W22 (escalation): W22 signal", "type": "main", "index": 0 } ] ] },
     "Alert W22 (escalation)": { "main": [ [ { "node": "Reply needed?", "type": "main", "index": 0 } ] ] },
     "Reply needed?": { "main": [ [ { "node": "Queue?", "type": "main", "index": 0 } ], [] ] },
     "Queue?": { "main": [ [ { "node": "Queue DM", "type": "main", "index": 0 } ], [ { "node": "Send ctx", "type": "main", "index": 0 } ] ] },

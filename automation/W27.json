@@ -318,6 +318,12 @@
         "options": {
           "queryReplacement": "={{ (() => { const h = $('Pull health (one batch per brand) + diff').item.json; const a = h.new_alerts || []; return [h.brand_id, 'w27:' + h.brand_id + ':' + a.map((x) => x.code).sort().join(','), !!h.urgent, JSON.stringify(a)]; })() }}"
         }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
       }
     },
     {

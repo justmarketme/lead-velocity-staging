@@ -512,3 +512,33 @@ test('SQL: stuck approvals re-queue once per sweep, attempts + 1, max 3 then sen
   assert.deepEqual(psql(q), [`${stuck}|send_failed|3`], 'after 3 re-queues: send_failed, attempts stay at 3');
   assert.deepEqual(psql(q), []);
 });
+
+// I-47g: nothing serves /webhook/w22-alert, so W30/W31/W23 hand alerts to W22 by Execute Workflow smc-w22 (CONTRACTS.md
+// "Sub-workflow interfaces"). Each "<name>: W22 signal" Code node is run for real and its item fed to Normalise inbound signal.
+test('I-47g: W30/W31/W23 alerts reach W22 by Execute Workflow smc-w22 with a readable own-shape signal (never unknown_signal)', async () => {
+  const { runCode: runN8n } = await import('./_n8ncode.mjs');
+  const refs = { 'Action ctx': { esc: { kind: 'human_handoff', to: ['Jonathan'] }, platform: 'facebook' }, 'Parse sentiment': { ad_id: '120200000000001', sentiment: 'negative', flag_media_buyer: true },
+    'Finalise DM': { esc: { kind: 'dm_handoff', to: ['Jonathan'] }, channel: 'messenger' }, 'Compose rejection': { broker_id: 'b1', reject_code: 'too_long', take_id: 't1' },
+    'Verify broker JWT (approve)': { sub: 'b1', body: { take_id: 't1' } } };
+  const json = { reason: 'signature_mismatch', id: 'esc-1', ref_id: '120200000000001', execution: { lastNodeExecuted: 'X', error: { message: 'boom' } } };
+  let seen = 0;
+  for (const f of ['W30', 'W31', 'W23']) {
+    const w = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', `${f}.json`), 'utf8'));
+    const raw = JSON.stringify(w);
+    assert.doesNotMatch(raw, /w22-alert|OPS_ALERT_WEBHOOK|W22 Internal Webhook/, `${f}: no alert webhook left`);
+    for (const sig of w.nodes.filter((n) => / W22 signal$/.test(n.name))) {
+      const target = sig.name.replace(/: W22 signal$/, '');
+      const ex = w.nodes.find((n) => n.name === target);
+      assert.equal(ex.type, 'n8n-nodes-base.executeWorkflow', `${f} ${target}`);
+      assert.equal(ex.parameters.workflowId.value, 'smc-w22'); assert.equal(ex.parameters.workflowId.mode, 'id');
+      assert.deepEqual(w.connections[sig.name].main[0].map((l) => l.node), [target]);
+      const item = (await runN8n(w, sig.name, { json, refs, env: { CONSOLE_URL: 'https://console.example' } })).json;
+      assert.ok(!('kind' in item), `${f} ${sig.name}: no 'kind' (W22 reads it as ack / W34 shape)`);
+      const out = runCode('Normalise inbound signal', { input: [item] });
+      assert.equal(out.length, 1); assert.equal(out[0].signal_key, item.signal_key, `${f} ${sig.name}`);
+      assert.notEqual(out[0].signal_key, 'unknown_signal'); assert.ok(['red', 'amber'].includes(out[0].severity)); assert.equal(out[0].source, f);
+      seen++;
+    }
+  }
+  assert.equal(seen, 10, 'W30 x4, W31 x2, W23 x4');
+});

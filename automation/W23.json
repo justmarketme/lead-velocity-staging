@@ -1094,36 +1094,71 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "={{ $env.OPS_ALERT_WEBHOOK }}",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ source: 'W23', severity: 'warning', text: 'Intro media failed: ' + ($('Compose rejection').first().json.reject_code || 'unknown') + ' broker ' + ($('Compose rejection').first().json.broker_id || '?') + ' take ' + ($('Compose rejection').first().json.take_id || '?') }) }}",
-        "options": {}
+        "mode": "runOnceForEachItem",
+        "jsCode": "// I-47g: W22 producer contract (automation/W22.md section 3). Handed to W22 by Execute Workflow smc-w22 (CONTRACTS.md\n// \"Sub-workflow interfaces\": every call is Execute Workflow by id); no internal alert webhook.\nconst c = $('Compose rejection').first().json;\nreturn { json: { signal_key: 'intro_media_failed', scope: 'broker:' + String(c.broker_id || 'unknown'), severity: 'amber', what: 'Intro media failed: ' + (c.reject_code || 'unknown') + ' take ' + (c.take_id || '?'), impact: 'The broker intro media is not ready', first_action: 'Open the broker media take in the console', source: 'W23' } };"
       },
-      "id": "w23-46",
-      "name": "Alert ops",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "id": "w23-46-sig",
+      "name": "Alert ops: W22 signal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
-        6000,
-        400
-      ],
-      "continueOnFail": true
+        5980,
+        560
+      ]
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "={{ $env.OPS_ALERT_WEBHOOK }}",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ source: 'W23', severity: 'critical', text: 'W23 execution failed at ' + ($json.execution?.lastNodeExecuted || '?') + ': ' + ($json.execution?.error?.message || '') }) }}",
-        "options": {}
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w22",
+          "cachedResultName": "W22 Alerts"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "id": "w23-46",
+      "name": "Alert ops",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        6000,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// I-47g: W22 producer contract (automation/W22.md section 3). Handed to W22 by Execute Workflow smc-w22 (CONTRACTS.md\n// \"Sub-workflow interfaces\": every call is Execute Workflow by id); no internal alert webhook.\nconst e = ($json.execution || {});\nreturn { json: { signal_key: 'workflow_failed', scope: 'workflow:W23', severity: 'amber', what: 'W23 execution failed at ' + (e.lastNodeExecuted || '?') + ': ' + String((e.error && e.error.message) || ''), impact: 'A support workflow is failing', first_action: 'Open the failed execution in n8n', source: 'W23' } };"
+      },
+      "id": "w23-47-sig",
+      "name": "Alert ops (workflow error): W22 signal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        1960
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w22",
+          "cachedResultName": "W22 Alerts"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
       },
       "id": "w23-47",
       "name": "Alert ops (workflow error)",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
       "position": [
         240,
         1800
@@ -1213,17 +1248,35 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "={{ $env.OPS_ALERT_WEBHOOK }}",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ source: 'W23', severity: 'info', text: 'First intro media approved for broker ' + $('Verify broker JWT (approve)').item.json.sub + ': compliance-qa spot-check due (set broker_media.compliance_checked_by).' }) }}",
-        "options": {}
+        "mode": "runOnceForEachItem",
+        "jsCode": "// I-47g: W22 producer contract (automation/W22.md section 3). Handed to W22 by Execute Workflow smc-w22 (CONTRACTS.md\n// \"Sub-workflow interfaces\": every call is Execute Workflow by id); no internal alert webhook.\nconst v = $('Verify broker JWT (approve)').item.json;\nreturn { json: { signal_key: 'intro_media_spotcheck', scope: 'broker:' + String(v.sub || 'unknown'), severity: 'amber', info: true, what: 'First intro media approved for broker ' + v.sub + ': compliance-qa spot-check due (set broker_media.compliance_checked_by).', impact: 'First approved intro for this broker', first_action: 'compliance-qa spot-check', source: 'W23' } };"
+      },
+      "id": "w23-51-sig",
+      "name": "Alert compliance-qa to spot-check: W22 signal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1140,
+        1540
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w22",
+          "cachedResultName": "W22 Alerts"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
       },
       "id": "w23-51",
       "name": "Alert compliance-qa to spot-check",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
       "position": [
         1160,
         1380
@@ -1231,17 +1284,35 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "={{ $env.OPS_ALERT_WEBHOOK }}",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ source: 'W23', severity: 'warning', text: 'Approve called but no ready take found: broker ' + $('Verify broker JWT (approve)').item.json.sub + ' take ' + $('Verify broker JWT (approve)').item.json.body.take_id }) }}",
-        "options": {}
+        "mode": "runOnceForEachItem",
+        "jsCode": "// I-47g: W22 producer contract (automation/W22.md section 3). Handed to W22 by Execute Workflow smc-w22 (CONTRACTS.md\n// \"Sub-workflow interfaces\": every call is Execute Workflow by id); no internal alert webhook.\nconst v = $('Verify broker JWT (approve)').item.json;\nreturn { json: { signal_key: 'intro_media_approve_empty', scope: 'broker:' + String(v.sub || 'unknown'), severity: 'amber', what: 'Approve called but no ready take found: broker ' + v.sub + ' take ' + ((v.body && v.body.take_id) || '?'), impact: 'A broker approval did nothing', first_action: 'Check the broker media takes in the console', source: 'W23' } };"
+      },
+      "id": "w23-52-sig",
+      "name": "Alert ops (approve found nothing): W22 signal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        840,
+        1760
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w22",
+          "cachedResultName": "W22 Alerts"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
       },
       "id": "w23-52",
       "name": "Alert ops (approve found nothing)",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
       "position": [
         860,
         1600
@@ -3551,6 +3622,50 @@
     }
   ],
   "connections": {
+    "Alert ops: W22 signal": {
+      "main": [
+        [
+          {
+            "node": "Alert ops",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert ops (workflow error): W22 signal": {
+      "main": [
+        [
+          {
+            "node": "Alert ops (workflow error)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert compliance-qa to spot-check: W22 signal": {
+      "main": [
+        [
+          {
+            "node": "Alert compliance-qa to spot-check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert ops (approve found nothing): W22 signal": {
+      "main": [
+        [
+          {
+            "node": "Alert ops (approve found nothing)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Load broker (portal)": {
       "main": [
         [
@@ -4025,7 +4140,7 @@
       "main": [
         [
           {
-            "node": "Alert ops",
+            "node": "Alert ops: W22 signal",
             "type": "main",
             "index": 0
           }
@@ -4059,7 +4174,7 @@
         ],
         [
           {
-            "node": "Alert ops (approve found nothing)",
+            "node": "Alert ops (approve found nothing): W22 signal",
             "type": "main",
             "index": 0
           },
@@ -4075,7 +4190,7 @@
       "main": [
         [
           {
-            "node": "Alert compliance-qa to spot-check",
+            "node": "Alert compliance-qa to spot-check: W22 signal",
             "type": "main",
             "index": 0
           }
@@ -4086,7 +4201,7 @@
       "main": [
         [
           {
-            "node": "Alert ops (workflow error)",
+            "node": "Alert ops (workflow error): W22 signal",
             "type": "main",
             "index": 0
           }

@@ -4,7 +4,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## W30 Comment handler (community-response-lead, 4.14)\n\nTriggers: Page `feed` and Instagram `comments` webhooks (ad comments live on the ad's effective_object_story_id). Plus three schedules: queue drain (07:15 SAST then every 5 min until 22:00), daily sentiment 21:30, hostile-thread check every 15 min.\n\nFlow: signature check (automation/security/verify-webhooks.js) -> load rules/corpus/hide-words/prompt from disk -> dedupe insert -> context (ad, prior exchanges) -> fetch comment + parent -> regex/keyword pre-check -> Haiku classify (Sonnet retry on invalid JSON, then fail closed) -> rules -> optional Haiku draft + FAIS lint + shared guardrail (Sonnet redraft for objections only) -> hide / block / escalate / public reply / like / private reply -> log.\n\nCredentials by name (create in n8n): `LV Supabase - n8n_app (least privilege)` (postgres), `Meta Page Token` (httpHeaderAuth, Authorization: Bearer <system-user page token>), `Anthropic API` (httpHeaderAuth, header x-api-key), `W22 Internal Webhook` (httpHeaderAuth).\n\nEnv (never in this file): REPO_DIR, AUTOMATION_DIR, META_APP_SECRET, META_VERIFY_TOKEN, META_GRAPH_VERSION, COMMENT_HASH_SALT, CTWA_BASE_URL, CONSOLE_URL, N8N_INTERNAL_URL. n8n must allow env access in nodes (N8N_BLOCK_ENV_ACCESS_IN_NODE=false) and builtin crypto.\n\nDependencies: community/rules.json, reply-corpus.md, hide-words.txt, classifier-prompt.md; knowledge/faq.md and conversation/prompts/guardrail.md (optional at build time, both fail closed to fixed templates); community/comments-schema-additions.sql; W22 webhook /webhook/w22-alert.\n\nExecution data: success runs are not saved (comment text is personal data). Hides run 24/7; replies only 07:00-22:00 SAST.\n\n## Env + runtime dependencies (I-31c)\n`ESC_REAL_KINDS` (name only in automation/.env.example): unset or false = escalation kinds are mapped to the old constraint (`sensitive` -> `human_handoff`) and the real kind is kept in `kind_requested`; set `ESC_REAL_KINDS=true` once migration 08 (escalations_kind_check with sensitive, dm_handoff, dm_after_link) is applied on the target database. No workflow change needed.\n`conversation/guardrail.mjs` is loaded in the guardrail Code nodes with `require('lv-automation').guardrail` (I-44a: the one allowlisted package, `NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation`, linked to the read-only repo mount; automation/index.cjs). If it cannot load, the gate fails closed (`classifier_input_unavailable` -> fixed template), so a broken mount silences replies rather than sending unchecked text.",
+        "content": "## W30 Comment handler (community-response-lead, 4.14)\n\nTriggers: Page `feed` and Instagram `comments` webhooks (ad comments live on the ad's effective_object_story_id). Plus three schedules: queue drain (07:15 SAST then every 5 min until 22:00), daily sentiment 21:30, hostile-thread check every 15 min.\n\nFlow: signature check (automation/security/verify-webhooks.js) -> load rules/corpus/hide-words/prompt from disk -> dedupe insert -> context (ad, prior exchanges) -> fetch comment + parent -> regex/keyword pre-check -> Haiku classify (Sonnet retry on invalid JSON, then fail closed) -> rules -> optional Haiku draft + FAIS lint + shared guardrail (Sonnet redraft for objections only) -> hide / block / escalate / public reply / like / private reply -> log.\n\nCredentials by name (create in n8n): `LV Supabase - n8n_app (least privilege)` (postgres), `Meta Page Token` (httpHeaderAuth, Authorization: Bearer <system-user page token>), `Anthropic API` (httpHeaderAuth, header x-api-key). Alerts go to W22 by Execute Workflow smc-w22 (I-47g), no credential.\n\nEnv (never in this file): REPO_DIR, AUTOMATION_DIR, META_APP_SECRET, META_VERIFY_TOKEN, META_GRAPH_VERSION, COMMENT_HASH_SALT, CTWA_BASE_URL, CONSOLE_URL, N8N_INTERNAL_URL. n8n must allow env access in nodes (N8N_BLOCK_ENV_ACCESS_IN_NODE=false) and builtin crypto.\n\nDependencies: community/rules.json, reply-corpus.md, hide-words.txt, classifier-prompt.md; knowledge/faq.md and conversation/prompts/guardrail.md (optional at build time, both fail closed to fixed templates); community/comments-schema-additions.sql; W22 alerts by Execute Workflow smc-w22 (I-47g).\n\nExecution data: success runs are not saved (comment text is personal data). Hides run 24/7; replies only 07:00-22:00 SAST.\n\n## Env + runtime dependencies (I-31c)\n`ESC_REAL_KINDS` (name only in automation/.env.example): unset or false = escalation kinds are mapped to the old constraint (`sensitive` -> `human_handoff`) and the real kind is kept in `kind_requested`; set `ESC_REAL_KINDS=true` once migration 08 (escalations_kind_check with sensitive, dm_handoff, dm_after_link) is applied on the target database. No workflow change needed.\n`conversation/guardrail.mjs` is loaded in the guardrail Code nodes with `require('lv-automation').guardrail` (I-44a: the one allowlisted package, `NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation`, linked to the read-only repo mount; automation/index.cjs). If it cannot load, the gate fails closed (`classifier_input_unavailable` -> fixed template), so a broken mount silences replies rather than sending unchecked text.",
         "height": 520,
         "width": 620
       },
@@ -57,16 +57,12 @@
       "id": "w30-n07", "name": "Signature ok?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [440, 0]
     },
     {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $env.N8N_INTERNAL_URL + '/webhook/w22-alert' }}",
-        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
-        "sendBody": true, "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ severity: 'red', kind: 'webhook_signature_invalid', to: ['Jonathan', 'KG'], text: 'W30 rejected a Meta comment webhook: ' + $json.reason, source: 'W30' }) }}",
-        "options": { "response": { "response": { "neverError": true } } }
-      },
-      "id": "w30-n08", "name": "Alert bad signature", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [660, 120],
-      "credentials": { "httpHeaderAuth": { "name": "W22 Internal Webhook" } }
+      "parameters": {"mode":"runOnceForEachItem","jsCode":"// I-47g: W22 producer contract (automation/W22.md section 3). Handed to W22 by Execute Workflow smc-w22 (CONTRACTS.md\n// \"Sub-workflow interfaces\": every call is Execute Workflow by id); no internal alert webhook.\nreturn { json: { signal_key: 'webhook_signature_invalid', scope: 'webhook:W30', severity: 'red', what: 'W30 rejected a Meta comment webhook: ' + String($json.reason || 'unknown'), impact: 'A comment webhook call was refused; if Meta itself is misconfigured, real comments are being missed', first_action: 'Check META_APP_SECRET and the Page feed subscription in the Meta app', source: 'W30' } };"},
+      "id": "w30-n08-sig", "name": "Alert bad signature: W22 signal", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [640, 280]
+    },
+    {
+      "parameters": {"source":"database","workflowId":{"__rl":true,"mode":"id","value":"smc-w22","cachedResultName":"W22 Alerts"},"options":{"waitForSubWorkflow":false}},
+      "id": "w30-n08", "name": "Alert bad signature", "type": "n8n-nodes-base.executeWorkflow", "typeVersion": 1.1, "position": [660, 120]
     },
     {
       "parameters": { "operation": "read", "fileSelector": "={{ $env.REPO_DIR + '/community/*' }}", "options": {} },
@@ -342,17 +338,12 @@
       "credentials": { "postgres": { "name": "LV Supabase - n8n_app (least privilege)" } }
     },
     {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $env.N8N_INTERNAL_URL + '/webhook/w22-alert' }}",
-        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
-        "sendBody": true, "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ severity: 'amber', kind: $('Action ctx').item.json.esc.kind, kind_requested: $('Action ctx').item.json.esc.kind_requested || $('Action ctx').item.json.esc.kind, to: $('Action ctx').item.json.esc.to, text: 'Community: ' + $('Action ctx').item.json.esc.kind + ' on a ' + $('Action ctx').item.json.platform + ' comment. First human touch due within 30 minutes.', deep_link: $env.CONSOLE_URL + '/community/escalations/' + $json.id, source: 'W30' }) }}",
-        "options": { "response": { "response": { "neverError": true } } }
-      },
-      "id": "w30-n47", "name": "Alert W22 (escalation)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [8140, 100],
-      "retryOnFail": true, "maxTries": 3, "waitBetweenTries": 2000, "onError": "continueRegularOutput",
-      "credentials": { "httpHeaderAuth": { "name": "W22 Internal Webhook" } }
+      "parameters": {"mode":"runOnceForEachItem","jsCode":"// I-47g: W22 producer contract (automation/W22.md section 3). Handed to W22 by Execute Workflow smc-w22 (CONTRACTS.md\n// \"Sub-workflow interfaces\": every call is Execute Workflow by id); no internal alert webhook.\nconst a = $('Action ctx').item.json; const esc = a.esc || {};\nconst link = ($env.CONSOLE_URL || '') + '/community/escalations/' + $json.id;\nreturn { json: { signal_key: 'community_escalation', scope: 'escalation:' + String($json.id || 'unknown'), severity: 'amber', what: 'Community: ' + esc.kind + ' on a ' + a.platform + ' comment. First human touch due within 30 minutes.', impact: 'A commenter is waiting for a person', first_action: 'Open ' + link, deep_link: link, esc_kind: esc.kind, kind_requested: esc.kind_requested || esc.kind, recipients_hint: esc.to, source: 'W30' } };"},
+      "id": "w30-n47-sig", "name": "Alert W22 (escalation): W22 signal", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [8120, 260]
+    },
+    {
+      "parameters": {"source":"database","workflowId":{"__rl":true,"mode":"id","value":"smc-w22","cachedResultName":"W22 Alerts"},"options":{"waitForSubWorkflow":false}},
+      "id": "w30-n47", "name": "Alert W22 (escalation)", "type": "n8n-nodes-base.executeWorkflow", "typeVersion": 1.1, "position": [8140, 100], "onError": "continueRegularOutput"
     },
     {
       "parameters": { "conditions": { "boolean": [ { "value1": "={{ !!$('Action ctx').item.json.public_text && !$('Action ctx').item.json.public_done }}", "value2": true } ] } },
@@ -490,16 +481,12 @@
       "id": "w30-n65", "name": "Alert needed?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [1320, 700]
     },
     {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $env.N8N_INTERNAL_URL + '/webhook/w22-alert' }}",
-        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
-        "sendBody": true, "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ severity: 'info', kind: 'comment_sentiment', to: ['media-buyer', 'creative-strategist'], text: 'Ad ' + $('Parse sentiment').item.json.ad_id + ' comments: ' + $('Parse sentiment').item.json.sentiment + (($('Parse sentiment').item.json.flag_media_buyer) ? '. Negative-feedback-prone thread, media-buyer to review.' : '.') + (($('Parse sentiment').item.json.theme_alert) ? ' An objection theme was seen 3 or more times, creative-strategist to consider an ad or FAQ line.' : ''), deep_link: $env.CONSOLE_URL + '/community/ads/' + $('Parse sentiment').item.json.ad_id, source: 'W30' }) }}",
-        "options": { "response": { "response": { "neverError": true } } }
-      },
-      "id": "w30-n66", "name": "Alert W22 (sentiment)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1540, 640],
-      "credentials": { "httpHeaderAuth": { "name": "W22 Internal Webhook" } }
+      "parameters": {"mode":"runOnceForEachItem","jsCode":"// I-47g: W22 producer contract (automation/W22.md section 3). Handed to W22 by Execute Workflow smc-w22 (CONTRACTS.md\n// \"Sub-workflow interfaces\": every call is Execute Workflow by id); no internal alert webhook.\nconst p = $('Parse sentiment').item.json;\nconst link = ($env.CONSOLE_URL || '') + '/community/ads/' + p.ad_id;\nreturn { json: { signal_key: 'comment_sentiment', scope: 'ad:' + String(p.ad_id || 'unknown'), severity: 'amber', info: true, what: 'Ad ' + p.ad_id + ' comments: ' + p.sentiment + (p.flag_media_buyer ? '. Negative-feedback-prone thread, media-buyer to review.' : '.') + (p.theme_alert ? ' An objection theme was seen 3 or more times, creative-strategist to consider an ad or FAQ line.' : ''), impact: 'Comment sentiment on a live ad', first_action: 'Open ' + link, deep_link: link, recipients_hint: ['media-buyer', 'creative-strategist'], source: 'W30' } };"},
+      "id": "w30-n66-sig", "name": "Alert W22 (sentiment): W22 signal", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1520, 800]
+    },
+    {
+      "parameters": {"source":"database","workflowId":{"__rl":true,"mode":"id","value":"smc-w22","cachedResultName":"W22 Alerts"},"options":{"waitForSubWorkflow":false}},
+      "id": "w30-n66", "name": "Alert W22 (sentiment)", "type": "n8n-nodes-base.executeWorkflow", "typeVersion": 1.1, "position": [1540, 640]
     },
     {
       "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "*/15 * * * *" } ] } },
@@ -515,24 +502,24 @@
       "credentials": { "postgres": { "name": "LV Supabase - n8n_app (least privilege)" } }
     },
     {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $env.N8N_INTERNAL_URL + '/webhook/w22-alert' }}",
-        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
-        "sendBody": true, "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ severity: 'amber', kind: 'hostile_thread', to: ['media-buyer', 'Jonathan'], text: 'Ad ' + $json.ref_id + ' has a hostile comment thread (3 or more abuse comments in 60 minutes). Review the ad for pause.', deep_link: $env.CONSOLE_URL + '/community/escalations/' + $json.id, source: 'W30' }) }}",
-        "options": { "response": { "response": { "neverError": true } } }
-      },
-      "id": "w30-n69", "name": "Alert W22 (hostile)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [440, 960],
-      "credentials": { "httpHeaderAuth": { "name": "W22 Internal Webhook" } }
+      "parameters": {"mode":"runOnceForEachItem","jsCode":"// I-47g: W22 producer contract (automation/W22.md section 3). Handed to W22 by Execute Workflow smc-w22 (CONTRACTS.md\n// \"Sub-workflow interfaces\": every call is Execute Workflow by id); no internal alert webhook.\nconst link = ($env.CONSOLE_URL || '') + '/community/escalations/' + $json.id;\nreturn { json: { signal_key: 'hostile_thread', scope: 'ad:' + String($json.ref_id || 'unknown'), severity: 'amber', what: 'Ad ' + $json.ref_id + ' has a hostile comment thread (3 or more abuse comments in 60 minutes). Review the ad for pause.', impact: 'A hostile thread under a live ad', first_action: 'Open ' + link, deep_link: link, recipients_hint: ['media-buyer', 'Jonathan'], source: 'W30' } };"},
+      "id": "w30-n69-sig", "name": "Alert W22 (hostile): W22 signal", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 1120]
+    },
+    {
+      "parameters": {"source":"database","workflowId":{"__rl":true,"mode":"id","value":"smc-w22","cachedResultName":"W22 Alerts"},"options":{"waitForSubWorkflow":false}},
+      "id": "w30-n69", "name": "Alert W22 (hostile)", "type": "n8n-nodes-base.executeWorkflow", "typeVersion": 1.1, "position": [440, 960]
     }
   ],
   "connections": {
+    "Alert bad signature: W22 signal": { "main": [ [ { "node": "Alert bad signature", "type": "main", "index": 0 } ] ] },
+    "Alert W22 (escalation): W22 signal": { "main": [ [ { "node": "Alert W22 (escalation)", "type": "main", "index": 0 } ] ] },
+    "Alert W22 (sentiment): W22 signal": { "main": [ [ { "node": "Alert W22 (sentiment)", "type": "main", "index": 0 } ] ] },
+    "Alert W22 (hostile): W22 signal": { "main": [ [ { "node": "Alert W22 (hostile)", "type": "main", "index": 0 } ] ] },
     "Meta Verify (GET)": { "main": [ [ { "node": "Token ok?", "type": "main", "index": 0 } ] ] },
     "Token ok?": { "main": [ [ { "node": "Respond challenge", "type": "main", "index": 0 } ], [ { "node": "Respond 403", "type": "main", "index": 0 } ] ] },
     "Meta Events (POST)": { "main": [ [ { "node": "Verify signature", "type": "main", "index": 0 } ] ] },
     "Verify signature": { "main": [ [ { "node": "Signature ok?", "type": "main", "index": 0 } ] ] },
-    "Signature ok?": { "main": [ [ { "node": "Read community files", "type": "main", "index": 0 }, { "node": "Read faq", "type": "main", "index": 0 }, { "node": "Read guardrail", "type": "main", "index": 0 } ], [ { "node": "Alert bad signature", "type": "main", "index": 0 } ] ] },
+    "Signature ok?": { "main": [ [ { "node": "Read community files", "type": "main", "index": 0 }, { "node": "Read faq", "type": "main", "index": 0 }, { "node": "Read guardrail", "type": "main", "index": 0 } ], [ { "node": "Alert bad signature: W22 signal", "type": "main", "index": 0 } ] ] },
     "Read community files": { "main": [ [ { "node": "Merge config", "type": "main", "index": 0 } ] ] },
     "Read faq": { "main": [ [ { "node": "Merge config", "type": "main", "index": 1 } ] ] },
     "Read guardrail": { "main": [ [ { "node": "Merge config", "type": "main", "index": 2 } ] ] },
@@ -568,7 +555,7 @@
     "Block call": { "main": [ [ { "node": "Queue?", "type": "main", "index": 0 } ] ] },
     "Queue?": { "main": [ [ { "node": "Queue for 07:15", "type": "main", "index": 0 } ], [ { "node": "Escalate?", "type": "main", "index": 0 } ] ] },
     "Escalate?": { "main": [ [ { "node": "Insert escalation", "type": "main", "index": 0 } ], [ { "node": "Public reply?", "type": "main", "index": 0 } ] ] },
-    "Insert escalation": { "main": [ [ { "node": "Alert W22 (escalation)", "type": "main", "index": 0 } ] ] },
+    "Insert escalation": { "main": [ [ { "node": "Alert W22 (escalation): W22 signal", "type": "main", "index": 0 } ] ] },
     "Alert W22 (escalation)": { "main": [ [ { "node": "Public reply?", "type": "main", "index": 0 } ] ] },
     "Public reply?": { "main": [ [ { "node": "Public reply", "type": "main", "index": 0 } ], [ { "node": "Like?", "type": "main", "index": 0 } ] ] },
     "Public reply": { "main": [ [ { "node": "Like?", "type": "main", "index": 0 } ] ] },
@@ -586,9 +573,9 @@
     "Summarise (Haiku)": { "main": [ [ { "node": "Parse sentiment", "type": "main", "index": 0 } ] ] },
     "Parse sentiment": { "main": [ [ { "node": "Save sentiment", "type": "main", "index": 0 } ] ] },
     "Save sentiment": { "main": [ [ { "node": "Alert needed?", "type": "main", "index": 0 } ] ] },
-    "Alert needed?": { "main": [ [ { "node": "Alert W22 (sentiment)", "type": "main", "index": 0 } ], [] ] },
+    "Alert needed?": { "main": [ [ { "node": "Alert W22 (sentiment): W22 signal", "type": "main", "index": 0 } ], [] ] },
     "Hostile check schedule": { "main": [ [ { "node": "Raise hostile escalation", "type": "main", "index": 0 } ] ] },
-    "Raise hostile escalation": { "main": [ [ { "node": "Alert W22 (hostile)", "type": "main", "index": 0 } ] ] }
+    "Raise hostile escalation": { "main": [ [ { "node": "Alert W22 (hostile): W22 signal", "type": "main", "index": 0 } ] ] }
   },
   "settings": {
     "executionOrder": "v1",

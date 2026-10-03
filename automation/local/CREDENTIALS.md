@@ -81,11 +81,9 @@ W26 has no JSON yet (it runs as `provision.sh`, see LOCAL-STAGING.md Â§7). W01â€
 | W30 | Anthropic API | `httpHeaderAuth` |
 | W30 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W30 | Meta Page Token | `httpHeaderAuth` |
-| W30 | W22 Internal Webhook | `httpHeaderAuth` |
 | W31 | Anthropic API | `httpHeaderAuth` |
 | W31 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W31 | Meta Page Token | `httpHeaderAuth` |
-| W31 | W22 Internal Webhook | `httpHeaderAuth` |
 | W32 | Anthropic API (SMC) | `httpHeaderAuth` |
 | W32 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W32 | Microsoft Graph (howzit@) | `microsoftOutlookOAuth2Api` |
@@ -101,7 +99,7 @@ W26 has no JSON yet (it runs as `provision.sh`, see LOCAL-STAGING.md Â§7). W01â€
 | W35 | LV Supabase - n8n_app (least privilege) | `postgres` |
 
 ## B. Distinct credentials (machine-checked: name, type, used by) and what backs each one
-"Backed by" names the `.env` variable (or the source) that the value is copied from when the credential is created in the n8n UI. "No `.env` name" means a random value of at least 32 characters, generated once when the credential is created, stored in the password manager and listed by name in `ops.secret_inventory`, so W22 `token_expiring` covers its rotation. 32 credentials across 34 workflow files.
+"Backed by" names the `.env` variable (or the source) that the value is copied from when the credential is created in the n8n UI. "No `.env` name" means a random value of at least 32 characters, generated once when the credential is created, stored in the password manager and listed by name in `ops.secret_inventory`, so W22 `token_expiring` covers its rotation. 31 credentials across 34 workflow files.
 
 | Credential name | Type | Used by | n8n form | Backed by |
 |---|---|---|---|---|
@@ -128,7 +126,6 @@ W26 has no JSON yet (it runs as `provision.sh`, see LOCAL-STAGING.md Â§7). W01â€
 | Transcription API (bearer) | `httpHeaderAuth` | W23 | `Authorization: Bearer â€¦` | `TRANSCRIBE_API_KEY` (endpoint `TRANSCRIBE_URL`; no transcription service in compose, C4) |
 | Twilio (SMC voice) | `httpBasicAuth` | W32 | Basic: API key SID / secret | `TWILIO_API_KEY_SID`, `TWILIO_API_KEY_SECRET` (duplicate of the next, C1) |
 | Twilio API key (Basic) | `httpBasicAuth` | W01, W06, W15, W22 | Basic: API key SID / secret | `TWILIO_API_KEY_SID`, `TWILIO_API_KEY_SECRET` |
-| W22 Internal Webhook | `httpHeaderAuth` | W30, W31 | Header sent to `N8N_INTERNAL_URL/webhook/w22-alert` | No `.env` name. **No workflow serves `/webhook/w22-alert`** (W22 exposes `w22/uptime` only, C5) |
 | W22 uptime monitor header token | `httpHeaderAuth` | W22 | Webhook header auth `X-LV-Monitor` on `POST /w22/uptime` | No `.env` name. Same value set in the uptime monitor (vps/UPTIME.md) |
 | W34 DSR webhook token | `httpHeaderAuth` | W34 | Webhook header auth on `POST /w34/dsr` and `/w34/dsr-action` | No `.env` name. Held by the console's server-side caller |
 | WhatsApp Cloud API (SortMyCover) | `httpHeaderAuth` | W14 | `Authorization: Bearer â€¦` | `META_SYSTEM_USER_TOKEN` (C1; same name as the next row with another type) |
@@ -145,5 +142,5 @@ Not credentials (by design, so not in the tables): every webhook signature secre
 - **C2. howzit@ Microsoft access is split across delegated and app-only.** `microsoftOutlookOAuth2Api` (delegated, signed in as howzit@) is used by W05, W15, W17, W19, W32 and W34. App-only `oAuth2Api` is used by W20 and W22. 6.7 says `Mail.Read` and `Mail.Send` are scoped to that mailbox, and app-only needs an Exchange application access policy to stay scoped to howzit@. Decide one model (`needs_human`, devops-security + platform-architect).
 - **C3. Supabase service-role key inside n8n.** Three Header Auth credentials hold `SUPABASE_SERVICE_ROLE_KEY`: W16 and W20 for magic links (Auth admin API), and W23 for signing Storage uploads. `provision.sh` step 5 strips that key from the VPS `.env`. Step 7 then restores n8n's credential table, so the key **reaches the VPS anyway**, encrypted with `N8N_ENCRYPTION_KEY`. That contradicts "the VPS never holds a service-role key" (W26.md step 4/13). Fix pattern already in the repo: an edge function holds the key and n8n calls it with an HMAC (as `w34-media-erase` does). `needs_human`: accept the risk for R0, or move magic links and upload signing behind edge functions before W26.
 - **C4. Unbacked services.** `MinIO intro media` (`s3`) and `Transcription API (bearer)` point at services that are in neither compose file. W23 needs both before it can activate. Create placeholder credentials so W23 imports and activates, and keep its media path off until the owner (intro-media) settles on storage (Supabase Storage is already used for signing) and transcription.
-- **C5. `/webhook/w22-alert` has no server.** W30 and W31 (and W23 through `OPS_ALERT_WEBHOOK`) post alerts there, but W22 serves only `w22/uptime`. Those alerts go nowhere today (automation-engineer / community-response-lead).
-- **C6. Postgres nodes without a credential.** W21 `Stamp brands.insights_last_fetched_at` and `Cache ad status/budget (ad_objects)`, and W27 `Record alerts (ops.notifications.body)`, have no `credentials` block, so they fail when they run (ads-api-engineer). The test lists them as `todo`.
+- **C5. `/webhook/w22-alert` had no server. Resolved (I-47g, 2026-10-03).** W30, W31 and W23 no longer POST alerts: each alert node is now `<name>: W22 signal` (Code, W22.md section 3 producer shape) followed by an Execute Workflow call to `smc-w22` by id (CONTRACTS.md "Sub-workflow interfaces"). The `W22 Internal Webhook` credential is gone; `OPS_ALERT_WEBHOOK` and `N8N_INTERNAL_URL` are no longer read by any workflow.
+- **C6. Postgres nodes without a credential. Resolved (I-47e, 2026-10-03).** W21 `Stamp brands.insights_last_fetched_at` and `Cache ad status/budget (ad_objects)`, and W27 `Record alerts (ops.notifications.body)`, now carry the shared `LV Supabase - n8n_app (least privilege)` credential (rows W21 / W27 in table A and the `postgres` row in table B were already listed through their other Postgres nodes). The credential-inventory test that listed them as `todo` now passes.

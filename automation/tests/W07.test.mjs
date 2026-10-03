@@ -3,7 +3,7 @@
 // Run: node --test automation/tests/W07.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { FIX, lead, broker, at, ms } from './_harness.mjs';
 import { checkSql, workflowSql } from './_sqlcheck.mjs';
 import * as W from '../lib/w07.mjs';
@@ -394,8 +394,12 @@ test('I-46b Explode delegations: all-items mode, every output item is { json: ob
   assert.deepEqual(back.map((o) => o.json.route), targets(book).filter((t) => t !== 'W03'), 'other targets still fan out');
 });
 
-test('I-46a egress: every Anthropic call in W07/W23/W30/W31 takes its base URL from $env.ANTHROPIC_BASE_URL (default api.anthropic.com)', () => {
-  for (const f of ['W07', 'W23', 'W30', 'W31']) {
+test('I-46a / I-47d egress: every Anthropic call in every workflow (W07/W11/W23/W29-W33) takes its base URL from $env.ANTHROPIC_BASE_URL (default api.anthropic.com)', () => {
+  const all = readdirSync(new URL('..', import.meta.url)).filter((x) => /^W\d\d\.json$/.test(x)).map((x) => x.slice(0, 3));
+  const withLlm = all.filter((f) => /\/v1\/messages/.test(readFileSync(new URL(`../${f}.json`, import.meta.url), 'utf8')));
+  for (const f of ['W07', 'W11', 'W23', 'W29', 'W30', 'W31', 'W32', 'W33']) assert.ok(withLlm.includes(f), `${f} has Anthropic nodes`);
+  for (const f of withLlm) {
+    assert.doesNotMatch(readFileSync(new URL(`../${f}.json`, import.meta.url), 'utf8'), /"url": "https:\/\/api\.anthropic\.com/, `${f}: no hard-coded Anthropic host`);
     const wf = JSON.parse(readFileSync(new URL(`../${f}.json`, import.meta.url), 'utf8'));
     const llm = wf.nodes.filter((n) => n.type === 'n8n-nodes-base.httpRequest' && /\/v1\/messages/.test(n.parameters.url || ''));
     assert.ok(llm.length > 0, f);
@@ -406,4 +410,24 @@ test('I-46a egress: every Anthropic call in W07/W23/W30/W31 takes its base URL f
       assert.equal(base({ ANTHROPIC_BASE_URL: 'http://127.0.0.1:18080/' }), 'http://127.0.0.1:18080/v1/messages');
     }
   }
+});
+
+// Security (coordinator, 2026-10-03): verifyMetaSignature returns { ok, reason } (always truthy), so the old
+// `if (!V.verifyMetaSignature(...))` never rejected. The real node now tests `.ok`; a wrong signature -> valid:false -> 401.
+test('W07 "Verify signature + normalise": wrong or missing X-Hub-Signature-256 -> valid:false (401 branch); right one -> valid:true', async () => {
+  const WFS = JSON.parse(readFileSync(new URL('../W07.json', import.meta.url), 'utf8'));
+  const { createHmac } = await import('node:crypto');
+  const secret = 'synthetic-meta-app-secret';
+  const body = { object: 'whatsapp_business_account', entry: [{ id: 'WABA_TEST', changes: [{ field: 'messages', value: { metadata: { phone_number_id: '100000000000001' }, messages: [{ id: 'wamid.SIG.1', from: '27600000001', timestamp: '1700000000', type: 'text', text: { body: 'hi' } }] } }] }] };
+  const raw = JSON.stringify(body);
+  const run = (sig) => runCode(WFS, 'Verify signature + normalise', { json: { body, headers: sig === undefined ? {} : { 'x-hub-signature-256': sig } }, env: { META_APP_SECRET: secret } });
+  const respond = WFS.nodes.find((n) => n.name === 'Respond 200 / 401');
+  const code = (j) => Number(new Function('$json', `return (${respond.parameters.options.responseCode.replace(/^=\{\{([\s\S]*)\}\}$/, '$1')});`)(j));
+  for (const bad of ['sha256=' + '0'.repeat(64), 'sha256=' + createHmac('sha256', 'wrong-secret').update(raw).digest('hex'), undefined, 'garbage']) {
+    const out = await run(bad);
+    assert.equal(out.length, 1); assert.equal(out[0].json.valid, false, String(bad)); assert.ok(out[0].json.reason);
+    assert.equal(code(out[0].json), 401);
+  }
+  const good = await run('sha256=' + createHmac('sha256', secret).update(raw).digest('hex'));
+  assert.equal(good[0].json.valid, true); assert.equal(good[0].json.kind, 'message'); assert.equal(code(good[0].json), 200);
 });

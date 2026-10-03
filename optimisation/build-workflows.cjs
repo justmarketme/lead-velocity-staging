@@ -84,8 +84,9 @@ const pg = (w, name, query, pos, opts = {}) => w.add(name, 'n8n-nodes-base.postg
 const codeNode = (w, name, file, pos, extra, node = {}) => w.add(name, 'n8n-nodes-base.code', 2, { jsCode: code(file, extra) }, pos, node);
 const cond = (left, right, type = 'boolean', op = 'equals') => ({ conditions: { options: { caseSensitive: true, leftValue: '', typeValidation: 'loose' }, conditions: [{ id: 'c1', leftValue: left, rightValue: right, operator: { type, operation: op } }], combinator: 'and' }, options: {} });
 const ifNode = (w, name, left, right, pos, type, op) => w.add(name, 'n8n-nodes-base.if', 2.2, cond(left, right, type, op), pos);
+// I-47d: base URL from $env.ANTHROPIC_BASE_URL (production default api.anthropic.com), same as W07/W23/W30/W31; the local smoke points it at the egress stub.
 const anthropic = (w, name, pos) => w.add(name, 'n8n-nodes-base.httpRequest', 4.2, {
-  method: 'POST', url: 'https://api.anthropic.com/v1/messages', authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth',
+  method: 'POST', url: '={{ ($env.ANTHROPIC_BASE_URL || "https://api.anthropic.com").replace(/\\/+$/, "") }}/v1/messages', authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth',
   sendHeaders: true, headerParameters: { parameters: [{ name: 'anthropic-version', value: '2023-06-01' }, { name: 'content-type', value: 'application/json' }] },
   sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.body) }}', options: { timeout: 120000 },
 }, pos, { credentials: CRED.anth, retryOnFail: true, maxTries: 2, waitBetweenTries: 4000, onError: 'continueRegularOutput' });
