@@ -364,7 +364,7 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 |---|---|---|
 | I-45h ✅ | W05 /book Turnstile + rate limit (S7-05 / R6-08); fails closed when the verify service is down (NH-32) | automation-engineer — dispatched |
 | I-56a ✅ | S7-10: community/hide-words.txt + rules DRAFT (live only after GATE-HIDE-WORDS) | community-response-lead — dispatched |
-| I-56b | S7-15: local Lighthouse mobile reports into landing/reports/ | landing-page-builder — dispatched |
+| I-56b ✅ | S7-15: local Lighthouse mobile reports into landing/reports/ | landing-page-builder — dispatched |
 | I-56c ✅ | S7-25: 52 typed prices in 15 files — move SortMyCover hits to the pricing table/template vars, document exclusions (signed docs, seed, legacy B2B per NH-14) | billing-automation — dispatched |
 | I-56d | landing/ booking widget must send `turnstile_token` (action=book, re-executed per booking) in the /book body (I-45h) | landing-page-builder — next |
 | I-56e | webhook_events.source has no w05_* value; /book rate keys reuse w01_ip/w01_num with bk_ip:/bk_lead: prefixes — a dedicated source needs a migration (stub only until NH-15/NH-11) | platform-architect — backlog |
