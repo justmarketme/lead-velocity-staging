@@ -58,6 +58,7 @@ async function newPage(opts: { js?: boolean } = {}) {
     if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type,x-lead-token', 'access-control-allow-methods': 'GET,POST' } });
     if (u.pathname.endsWith('/lead')) return json(200, { ok: true, lead_id: 'ld_test1', lead_token: 'lt1.test', methods_supported: state.methods });
     if (u.pathname.endsWith('/slots')) return json(200, { slots: state.slots, tz: 'Africa/Johannesburg' });
+    if (u.pathname.endsWith('/lead/skip')) return json(202, { ok: true });
     if (u.pathname.endsWith('/book')) {
       state.bookCount++;
       if (state.bookFirst409 && state.bookCount === 1) return json(409, { error: 'slot_taken', slots: [{ start: '2026-10-12T09:30:00+02:00' }, { start: '2026-10-12T11:00:00+02:00' }, { start: '2026-10-13T09:30:00+02:00' }, { start: '2026-10-13T11:00:00+02:00' }] });
@@ -234,6 +235,9 @@ test('skip link keeps the lead: not-booked thank-you, Lead fired, no Schedule, n
   assert.match(await page.locator('#doneP').innerText(), /adviser’s details and a few times/);
   assert.equal(await page.locator('#cal').isVisible(), false);
   assert.equal(calls.filter((c) => c.url.endsWith('/book')).length, 0);
+  // I-45o: the skip tells W01 (POST /lead/skip with the lead token) so the slots card goes to WhatsApp now
+  const skips = calls.filter((c) => c.method === 'POST' && c.url.endsWith('/lead/skip'));
+  assert.equal(skips.length, 1); assert.equal(skips[0].token, 'lt1.test'); assert.equal(skips[0].body.lead_id, 'ld_test1');
   assert.deepEqual((await fbq(page)).map((e: any) => e.name), ['PageView', 'ViewContent', 'Lead']);
   await ctx.close();
 });

@@ -52,6 +52,7 @@ Order note (NH-59, default applied 2026-10-03): the questions follow master prom
 Priority order, exactly as `decide()` implements it:
 
 1. **STOP** (`prefilter().stop` or intent `stop`) → W15: opt-out flag, cancel every scheduled send, notify the broker, send `STOP_ACK` once (or `STOP_ACK_CANCELLED` when the default cancel mode cancelled a live booking, R6-04; `STOP_ACK_BOOKED` only in keep mode), then nothing. Any later inbound from an opted-out lead goes to the console (`human_review`), no bot reply.
+   - **W15 wiring, `broker_lead_opted_out` (I-45p, automation-engineer):** broker window closed and `bookingMode` is `cancel` (a cancelled booking still uses `broker_booking_changed`, its calendar link is more useful; this one covers "no booking existed"; in keep mode send nothing from this template, the body says any call is cancelled). Replaces `mode: 'held_no_template'` in `planOptOut`. Body variables in order: `{{1}}` = `firstName(br.contact_person || br.adviser_name || br.adviser_first_name)`, `{{2}}` = `firstName(l.first_name)` (never the number). URL button suffix (`{{1}}` of `https://app.leadvelocity.co.za/s/{{1}}`) = `leads?lead=<l.id>`. Idempotency key stays `w15:optout:<lead_id>`; the email leg is unchanged. Submission is a Day-0 meta-operator task, not done here.
 2. **Handoff paused** → no bot reply; forward to the human.
 3. **Person / complaint** → `handoff`.
 4. **Frustrated** → `handoff`.

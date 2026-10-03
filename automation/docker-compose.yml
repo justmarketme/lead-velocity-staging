@@ -2,6 +2,8 @@
 # Values come from the repo-root .env (git-ignored); names are listed in automation/.env.example.
 #   docker compose -f automation/docker-compose.yml up -d
 # Webhooks reach this box through a tunnel; N8N_PUBLIC_URL / WEBHOOK_URL hold its public URL.
+# No MinIO and no transcription (speech-to-text) container is expected here (I-47i): W23 intro media uses Supabase Storage's S3 endpoint
+# (SUPABASE_S3_*) and an external TRANSCRIBE_URL, both chosen by env in .env.example.
 
 services:
   postgres:

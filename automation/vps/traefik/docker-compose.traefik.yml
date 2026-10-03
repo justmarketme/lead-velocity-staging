@@ -4,6 +4,8 @@
 #     -f automation/docker-compose.yml -f automation/vps/traefik/docker-compose.traefik.yml up -d
 # Hosts (from .env): N8N_UI_HOST (editor, IP allow-list), API_HOST (webhooks + /healthz only), LINK_HOST (consumer /c/ /j/).
 # No secrets here; ACME e-mail comes from TRAEFIK_ACME_EMAIL. One server, no orchestrator.
+# No MinIO and no transcription (speech-to-text) container is expected here (I-47i): W23 intro media uses Supabase Storage's S3 endpoint
+# (SUPABASE_S3_*) and an external TRANSCRIBE_URL, both chosen by env in .env.example.
 
 services:
   traefik:

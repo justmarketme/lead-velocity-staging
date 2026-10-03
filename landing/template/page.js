@@ -298,7 +298,14 @@
       else showErr('bookErr', str('err_book'));
     }, function () { booking = false; $('book').disabled = false; $('book').textContent = str('book'); showErr('bookErr', str('err_book')); });
   });
-  $('skipBook').addEventListener('click', function () { finish(false); });
+  $('skipBook').addEventListener('click', function () {
+    /* I-45o: tell the server the lead skipped booking (POST /lead/skip, X-Lead-Token) so the slots card goes to WhatsApp now
+       instead of after the 45-s hold. Fire-and-forget: the thank-you never waits on it and a failure changes nothing here. */
+    if (lead && lead.id && leadToken) {
+      try { api('/lead/skip', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Lead-Token': leadToken }, body: JSON.stringify({ lead_id: lead.id }) }).catch(function () {}); } catch (e) {}
+    }
+    finish(false);
+  });
 
   /* ---------- thank-you ---------- */
   function row(label, value) { var s = document.createElement('span'); var b = document.createElement('b'); b.textContent = label + ' '; s.appendChild(b); s.appendChild(document.createTextNode(value)); return s; }
