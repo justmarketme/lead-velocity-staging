@@ -44,6 +44,10 @@ const ARGS = process.argv.slice(2);
 const JSON_OUT = ARGS.includes('--json');
 const ENV_FILE = (() => { const i = ARGS.indexOf('--env-file'); return i >= 0 ? resolve(ARGS[i + 1]) : join(ROOT, '.env'); })();
 const EVIDENCE_DIR = process.env.READINESS_EVIDENCE_DIR ? resolve(process.env.READINESS_EVIDENCE_DIR) : join(ROOT, 'build', 'evidence');
+// I-49h: smc-capi-send appends its Events Manager test-event rows to $CAPI_EVIDENCE_PATH (n8n volume, default
+// /data/evidence/capi-test-events.jsonl inside the container). S7-11 / S7-14 read that file when the variable is set
+// (process.env only; point it at the host path of the volume); otherwise <evidence dir>/capi-test-events.jsonl.
+const CAPI_EVIDENCE_PATH = process.env.CAPI_EVIDENCE_PATH ? resolve(process.env.CAPI_EVIDENCE_PATH) : null;
 const SUITE_TIMEOUT_MS = 180_000;
 
 const p = (rel) => join(ROOT, rel);
@@ -78,8 +82,10 @@ function loadEnv() {
 loadEnv();
 
 // Evidence logs.
+const evidencePath = (file) => (file === 'capi-test-events.jsonl' && CAPI_EVIDENCE_PATH ? CAPI_EVIDENCE_PATH : join(EVIDENCE_DIR, file));
+const evidenceLabel = (file) => (file === 'capi-test-events.jsonl' && CAPI_EVIDENCE_PATH ? CAPI_EVIDENCE_PATH : `build/evidence/${file}`);
 function evidence(file) {
-  const f = join(EVIDENCE_DIR, file);
+  const f = evidencePath(file);
   if (!existsSync(f)) return null;
   const rows = [];
   for (const line of readFileSync(f, 'utf8').split(/\r?\n/)) {
@@ -218,7 +224,7 @@ function ev(half, line, key, want, ok = (v) => v === true) {
 }
 function evFile(half, name, label, want) {
   const rows = evidence(name);
-  return mk(half, label, rows && rows.length ? PASS : MISSING, rows && rows.length ? `build/evidence/${name}: ${rows.length} row(s)` : `build/evidence/${name} (${want})`);
+  return mk(half, label, rows && rows.length ? PASS : MISSING, rows && rows.length ? `${evidenceLabel(name)}: ${rows.length} row(s)` : `${evidenceLabel(name)} (${want})`);
 }
 // WhatsApp template decisions (runbook §5 log). Latest row per template name wins.
 function templateLog() {
@@ -546,8 +552,8 @@ const LINES = [
 
   // S7-11 Acquisition — Pixel/CAPI: domain verified, event priority set, EMQ ≥ 6 on test events, exclusions + engagement
   // audiences created (4.4a Phase 1). Purely external: red until green.
-  // GREEN when: PIXEL_ID (or META_PIXEL_ID) is set; GATE-PIXEL green; build/evidence/capi-test-events.jsonl exists (Events
-  // Manager test-event checks); build/evidence/S7-11.jsonl has domain_verified=true, event_priority_set=true, emq>=6,
+  // GREEN when: PIXEL_ID (or META_PIXEL_ID) is set; GATE-PIXEL green; the CAPI test-events log exists ($CAPI_EVIDENCE_PATH when set,
+  // else build/evidence/capi-test-events.jsonl; Events Manager test-event checks); build/evidence/S7-11.jsonl has domain_verified=true, event_priority_set=true, emq>=6,
   // exclusion_audiences_created=true and engagement_audiences_created=true. (capi suite + pixel.js are shown as prep.)
   { id: 'S7-11', amber: false, checks: () => [
     suite('build', 'automation/capi/capi.test.js'),
@@ -604,7 +610,7 @@ const LINES = [
   // S7-14 Acquisition — Pixel + CAPI verified in Events Manager (test events received, event_id dedupe working); Lead Ads
   // webhook subscribed and tested. Purely external: red until green.
   // GREEN when: PIXEL_ID (or META_PIXEL_ID) and a CAPI token (META_SYSTEM_USER_TOKEN or META_CAPI_TOKEN) are set; the CAPI
-  // test-events log exists; S7-14.jsonl has event_id_dedupe_verified, lead_ads_webhook_subscribed, lead_ads_webhook_tested true.
+  // test-events log exists ($CAPI_EVIDENCE_PATH when set, else build/evidence/capi-test-events.jsonl); S7-14.jsonl has event_id_dedupe_verified, lead_ads_webhook_subscribed, lead_ads_webhook_tested true.
   { id: 'S7-14', amber: false, checks: () => [
     suite('build', 'automation/capi/capi.test.js'),
     workflow('build', 'W02'),
