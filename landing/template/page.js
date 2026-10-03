@@ -283,10 +283,12 @@
     scheduleCtx = scheduleCtx || track('Schedule'); /* own event_id, never the Lead id */
     if (!bookRequestId) bookRequestId = uuid(); /* same id on a retry of the same attempt (idempotent), new id after a 409 or success */
     var slotNow = chosenSlot, methodNow = chosenMethod;
-    bookToken().then(function (tok) {
+    function send() { return bookToken().then(function (tok) {
     var body = { lead_id: lead.id, slot_start: slotNow, method: methodNow, angle: ANGLE, started_at: STARTED_AT, request_id: bookRequestId, turnstile_token: tok, context: scheduleCtx };
     if (needs) body.email = $('email').value.trim();
-    return api('/book', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Lead-Token': leadToken }, body: JSON.stringify(body) }); }).then(function (r) {
+    return api('/book', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Lead-Token': leadToken }, body: JSON.stringify(body) }); }); }
+    /* I-56d: 400 try_again = Turnstile rejected -> fresh token and ONE re-run, then the friendly retry. 429 rate_limited / 503 try_again use the same error UI. */
+    send().then(function (r) { return (r.status === 400 && r.json && r.json.error === 'try_again') ? send() : r; }).then(function (r) {
       booking = false; $('book').disabled = false; $('book').textContent = str('book');
       if (r.status === 409 || r.ok) bookRequestId = null;
       if (r.ok && (r.json.booked !== false)) { finish(true, { start: r.json.start || chosenSlot, method: r.json.method || chosenMethod, ics_url: r.json.ics_url }); }

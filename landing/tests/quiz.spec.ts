@@ -47,7 +47,7 @@ async function newPage(opts: { js?: boolean } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, javaScriptEnabled: opts.js !== false, reducedMotion: 'reduce' });
   const page = await ctx.newPage();
   const calls: { method: string; url: string; body: any; token?: string }[] = [];
-  const state = { bookCount: 0, bookFirst409: true, methods: ['teams', 'phone'] as string[], slots: slotsFor(7) as any[] };
+  const state = { bookCount: 0, bookFirst409: true, bookSeq: [] as number[], methods: ['teams', 'phone'] as string[], slots: slotsFor(7) as any[] };
   await page.addInitScript(STUB);
   await page.route('**/connect.facebook.net/**', (r: any) => r.abort());
   await page.route(`${API}/**`, async (route: any) => {
@@ -61,6 +61,7 @@ async function newPage(opts: { js?: boolean } = {}) {
     if (u.pathname.endsWith('/lead/skip')) return json(202, { ok: true });
     if (u.pathname.endsWith('/book')) {
       state.bookCount++;
+      if (state.bookSeq.length) { const st = state.bookSeq.shift()!; if (st !== 200) return json(st, { error: st === 429 ? 'rate_limited' : 'try_again' }); return json(200, { booked: true, start: body.slot_start, method: body.method }); }
       if (state.bookFirst409 && state.bookCount === 1) return json(409, { error: 'slot_taken', slots: [{ start: '2026-10-12T09:30:00+02:00' }, { start: '2026-10-12T11:00:00+02:00' }, { start: '2026-10-13T09:30:00+02:00' }, { start: '2026-10-13T11:00:00+02:00' }] });
       return json(200, { booked: true, start: body.slot_start, method: body.method });
     }
@@ -204,6 +205,34 @@ test('qualified path: validation, consent, /lead payload, Teams booking with ema
   assert.equal(ev[3].opt.eventID, b.context.event_id);
   assert.ok(!JSON.stringify(ev).match(/Thabo|8212|gmail/), 'no PII reaches the Pixel');
   await ctx.close();
+});
+
+async function toBook(slug: string, seq: number[]) {
+  const t = await newPage(); t.state.bookFirst409 = false; t.state.bookSeq = seq;
+  await t.page.goto(PAGE(slug));
+  await quiz(t.page, { age: '35_44', budget: '750_1250' });
+  await t.page.fill('#name', 'Lerato'); await t.page.fill('#phone', '+27 71 234 5678'); await t.page.check('#consent'); await t.page.click('#send');
+  await t.page.locator('.slot').first().waitFor();
+  await t.page.click('.method[data-m="phone"]'); await t.page.locator('.slot').first().click();
+  return t;
+}
+
+test('I-56d: /book 400 try_again re-runs the widget once, then books', async () => {
+  const { ctx, page, calls } = await toBook('virtual', [400, 200]);
+  await page.click('#book'); await page.locator('.q.on[data-step="8"]').waitFor();
+  const books = calls.filter((c) => c.url.endsWith('/book'));
+  assert.equal(books.length, 2); assert.ok('turnstile_token' in books[1].body);
+  await ctx.close();
+});
+
+test('I-56d: 400 twice, 429 and 503 show the friendly retry, no thank-you', async () => {
+  for (const [seq, n] of [[[400, 400], 2], [[429], 1], [[503], 1]] as [number[], number][]) {
+    const { ctx, page, calls } = await toBook('virtual', seq);
+    await page.click('#book'); await page.locator('#bookErr:not([hidden])').waitFor();
+    assert.equal(calls.filter((c) => c.url.endsWith('/book')).length, n);
+    assert.equal(await page.locator('.q.on[data-step="8"]').count(), 0);
+    await ctx.close();
+  }
 });
 
 test('phone method: no email asked, email absent from /book', async () => {
