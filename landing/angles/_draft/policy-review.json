@@ -1,14 +1,14 @@
 {
   "slug": "policy-review",
   "lang": "en-ZA",
-  "_status": "DRAFT pending compliance-qa (C17). Not for build or publish. Move to landing/angles/ once cleared.",
+  "_status": "DRAFT, compliance-qa wording applied 2026-10-03. Not for build or publish until the review file is accepted.",
   "ad_hook": "Cover from 10 years ago. Life moved on.",
   "h1": "Cover from 10 years ago.\n*Life moved on.*",
   "sub": "Jobs, homes and families change. A licensed adviser can look at what is in place, in 30 minutes. No obligation.",
   "title": "Cover from 10 years ago. Life moved on. | SortMyCover",
   "og_title": "Cover from 10 years ago. Life moved on.",
   "og_description": "A free 30-minute call with a licensed adviser, by video, WhatsApp or phone.",
-  "gap_p": "Cover is often left as it was set up. A review looks at what is in place and what has changed.",
+  "gap_p": "Cover can be left as it was set up. A review looks at what is in place and what has changed.",
   "chips": [
     "**Licensed** adviser",
     "Video, WhatsApp or phone",
