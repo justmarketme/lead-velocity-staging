@@ -197,7 +197,7 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | # | Item | Owner |
 |---|---|---|
 | I-43a ✅ | 9:16 end card: move CTA + S97 fine print up so the last text row ends ≤ y 1579 (Reels bottom safe zone); re-render the 18 9:16 MP4s; measure the last text row on C14 | visual-producer — dispatched |
-| I-43b | Migration 13 COMMENT on `brokers.verified_credentials`: now an array of objects `{type, number, register_name, verified_at}` written by W20 on `verified` (admin console may add others) | platform-architect |
+| I-43b ✅ | Migration 13 COMMENT on `brokers.verified_credentials`: now an array of objects `{type, number, register_name, verified_at}` written by W20 on `verified` (admin console may add others) | platform-architect |
 | I-43c | W14 broker report + portal pulse tile: report the lead pulse per cycle only, or hide the week-on-week delta when < 5 new answers arrived, so a broker cannot difference totals to one lead's answer (compliance ruling W35-pulse-visibility.md) | analytics-reporter + broker-success |
 | I-43d | Phase 5 synthetic run on local n8n: W34 one-batch loop passes every batch result on; Summarise night reads all batches; signing-failure item shape | compliance-qa + devops-security, Phase 5 |
 | I-43e | W20 callback: the HTTP node's own token response can still persist if n8n crashes mid-run — full fix is a sub-workflow with error data off; accepted residual until Phase 5 | automation-engineer, Phase 5 |
@@ -225,7 +225,7 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-45f | W06 accepts `{event:'booking'}` from W05 and chooses broker_intro_booked vs booking_confirmed; W05 calls W06 `op:'booking'` for a page booking inside the hold | automation-engineer |
 | I-45g | Drop the "(DRAFT pending …)" name suffix on each workflow at gate approval (callers bind by name) | orchestrator at GATE-TEST-* |
 | I-45h | /book and /lead Turnstile + rate limits need the Public guard (W03-notes B.3); `ops.rate_counters` table (today W01 counts in webhook_events) | automation-engineer + platform-architect |
-| I-45i (line + template ✅, W17/W05 wiring → I-49b) | lines.mjs EMAIL_BOUNCED (EN/AF) + a utility template for the bounce prompt outside 24 h; W17 forwards bounce notices to W05 `invite_bounced` | conversation-designer + billing-automation (W17) |
+| I-45i ✅ | lines.mjs EMAIL_BOUNCED (EN/AF) + a utility template for the bounce prompt outside 24 h; W17 forwards bounce notices to W05 `invite_bounced` | conversation-designer + billing-automation (W17) |
 | I-45j | Serve `/c/{booking_id}` for the .ics link; Zoom meeting creation and Google Meet path not built (Teams + phone + WhatsApp-call are) | automation-engineer, Phase 5 |
 | I-45k | W29 → W13 call sends only `{lead_id}`; add a Code node sending `{op, outcome_id, reason, reason_code, idempotency_key}` | automation-engineer (W29) |
 | I-45l | Voice-note owner: W29 transcribes today, W12 stores `whatsapp-media:{id}` only; pick one (P17/Q22) | conversation-designer + compliance-qa |
@@ -271,19 +271,31 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-48f ✅ | I-47c re-run (nothing was built): build smc-whatsapp-send + smc-capi-send first, then smc-w26 + smc-ads-budget; widen every test scan from `^W\d\d\.json$` to include `SUB-*.json`; `capi` in index.cjs; CAPI evidence file path must be writable (not under the read-only /repo mount) | automation-engineer — dispatched |
 | I-48g ✅ | W16/W19 caller inputs for the sub-workflows: W16 passes W20's passthrough to smc-w26 and the "Resume" output to ads; W19 passes Postgres outputs with no `to`/template to 4 of 5 WhatsApp calls and "Routing off" output (no broker_id) to ads lower — mapping nodes in billing/build-workflows.mjs; W19 email leg stays in W19 (default) | billing-automation — dispatched |
 | I-48h | CTWA leads never get `consent_ads_at`, so the CAPI consent gate would block every CTWA Lead/Schedule event — rule: CTWA consent (ctwa-named-v2) covers measurement, set consent_ads_at at consent time (NH-60 to confirm) | compliance-qa + attribution-analyst |
-| I-48i | ops.proposals.source for the ads-budget proposal: none of the allowed values fits (`routing` suggested) — add `ads_budget` to the check in migration 13 | platform-architect |
+| I-48i ✅ | ops.proposals.source for the ads-budget proposal: none of the allowed values fits (`routing` suggested) — add `ads_budget` to the check in migration 13 | platform-architect |
 | I-48j | W30/W31 community escalations sent amber while their text promises a human within 30 min — red, or change the promise | community-response-lead |
 | I-48k ✅ | W03 writes `leads.conv_state.state`; W07 "Save conv_state" skips `state` on hand-off turns; `q_method` in W07's qualifying-tap states; W03 DRY_RUN gate + outbound communications row — all part of I-47a | automation-engineer — dispatched |
 
 ### I-49 · 2026-10-03 (after the I-48 wave)
 | # | Item | Owner |
 |---|---|---|
-| I-49a | Re-check on a fresh n8n that an unsigned `POST {}` to /webhook/whatsapp returns 401 (a probe returned 200 on a run that may have hit a stale process; the offline test asserts 401) | automation-engineer — dispatched |
-| I-49b | Wire the review-6 lines: W15 sends STOP_ACK_CANCELLED when a booking is cancelled; W12 L03 waits for the broker's mark or broker_nudge_at before the no-show + BROKER_NO_SHOW_APOLOGY (lines-r6.md); W05 `invite_bounced` sends EMAIL_BOUNCED (or the invite_email_bounced template outside 24 h) and W17 forwards bounce notices | automation-engineer — dispatched |
-| I-49c | R6-11: W01 held leads (consent names another practice / no capacity) send no CAPI Lead until handed over | automation-engineer — dispatched |
-| I-49d | Templates broker_cycle_ended + broker_come_back for the W19 pay-link and come-back messages (session text today); runbook count 53 → 55 | conversation-designer + meta-operator |
+| I-49a ✅ | Re-check on a fresh n8n that an unsigned `POST {}` to /webhook/whatsapp returns 401 (a probe returned 200 on a run that may have hit a stale process; the offline test asserts 401) | automation-engineer — dispatched |
+| I-49b ✅ | Wire the review-6 lines: W15 sends STOP_ACK_CANCELLED when a booking is cancelled; W12 L03 waits for the broker's mark or broker_nudge_at before the no-show + BROKER_NO_SHOW_APOLOGY (lines-r6.md); W05 `invite_bounced` sends EMAIL_BOUNCED (or the invite_email_bounced template outside 24 h) and W17 forwards bounce notices | automation-engineer — dispatched |
+| I-49c ✅ | R6-11: W01 held leads (consent names another practice / no capacity) send no CAPI Lead until handed over | automation-engineer — dispatched |
+| I-49d ✅ | Templates broker_cycle_ended + broker_come_back for the W19 pay-link and come-back messages (session text today); runbook count 53 → 55 | conversation-designer + meta-operator |
 | I-49e | smc-whatsapp-send returns `email_fallback:true` when no approved template and the window is closed — W19 already sends its email legs; other callers (W34, core-path) decide per call (default: log only) | automation-engineer (W34) |
 | I-49f | Ads lower: callers send amount_zar 0 + media_share_zar — define "lower" as lower-to media_share_zar × 0 = pause spend (default) and document in SUB-ads-budget | ads-api-engineer |
-| I-49g | Migration 13 additions: `ops.proposals.source` check + 'ads_budget'; `facts.broker_pulse` 4-arg + `w14_broker_report` body from analytics/I-43c-migration-note.md; partial unique index on communications (metadata->>'correlation') where not null; `verified_credentials` COMMENT (I-43b); go_live notification kinds used by smc-w26 (`go_live`, signal keys go_live_ready / go_live_vps_gate / go_live_pending) allowed; chain validation on the stub incl. analytics/tests/pulse-hold.test.sql | platform-architect — dispatched |
-| I-49h | readiness.mjs S7-11 / S7-14 read `CAPI_EVIDENCE_PATH` when set (default build/evidence/capi-test-events.jsonl) | platform-architect — dispatched |
-| I-49i | smc-w26 to-dos use source `manual` because `build` is not an allowed proposals source — add `build` or keep manual (platform-architect decides in I-49g) | platform-architect |
+| I-49g ✅ | Migration 13 additions: `ops.proposals.source` check + 'ads_budget'; `facts.broker_pulse` 4-arg + `w14_broker_report` body from analytics/I-43c-migration-note.md; partial unique index on communications (metadata->>'correlation') where not null; `verified_credentials` COMMENT (I-43b); go_live notification kinds used by smc-w26 (`go_live`, signal keys go_live_ready / go_live_vps_gate / go_live_pending) allowed; chain validation on the stub incl. analytics/tests/pulse-hold.test.sql | platform-architect — dispatched |
+| I-49h ✅ | readiness.mjs S7-11 / S7-14 read `CAPI_EVIDENCE_PATH` when set (default build/evidence/capi-test-events.jsonl) | platform-architect — dispatched |
+| I-49i ✅ | smc-w26 to-dos use source `manual` because `build` is not an allowed proposals source — add `build` or keep manual (platform-architect decides in I-49g) | platform-architect |
+
+### I-50 · 2026-10-03 (parse-check against the migrated stub + review-6 wiring)
+| # | Item | Owner |
+|---|---|---|
+| I-50a | Real SQL bugs: SUB-capi-send "Update capi_log" casts `id` to uuid (column is bigint); W05 "Insert appointment" writes a non-existent `appointments.lead_id` | automation-engineer — dispatched |
+| I-50b | SUB-whatsapp-send inserts `recipient_contact` NULL into a NOT NULL legacy column — write the recipient number | automation-engineer — dispatched |
+| I-50c | Ask-the-data Q12 (capacity days left) 49.0/28 vs expected 50.8/29 — fixture drifts with today's date; pin the fixture date | analytics-reporter |
+| I-50d | Re-running analytics/W14-*.sql resets the two facts functions to SECURITY INVOKER; analytics layer has no migration path to production (migration 10 §3) | platform-architect |
+| I-50e | L02 fixture in synthetic-leads.json still expects the old no-show reading (broker No-show + lead "No" → apology); update at GATE-TEST-W12 with the R6-03 rule | automation-engineer at GATE-TEST-W12 |
+| I-50f | W12: a broker mark that arrives after the apology went out is not logged as a conflict for KG; CAPI Attended still fires on an Attended-vs-"No" conflict | automation-engineer (W12) + attribution-analyst |
+| I-50g | W17 NDR detection assumes Microsoft 365 subjects "Undeliverable: Your call with …" — verify against a real NDR at staging | billing-automation, Phase 5 |
+| I-50h | W19: switch the pay-link and come-back calls from session text to broker_cycle_ended / broker_come_back (variable order: first name, reason, end date, reference / first name, reference) and supply the cycle end date | billing-automation |
