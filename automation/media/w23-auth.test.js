@@ -118,8 +118,9 @@ const NEW = { status: 'GET', interview: 'POST', 'script-select': 'POST', upload:
 const nodeBy = (name) => W.nodes.find((n) => n.name === name);
 
 test('I-37a: every new endpoint is a JWT-gated webhook; no cookie, no credential, CORS pinned, 401 on a bad token', () => {
-  for (const [tag, method] of Object.entries(NEW)) {
-    const hook = W.nodes.find((n) => n.type === 'n8n-nodes-base.webhook' && n.parameters.path === 'intro/' + tag);
+  for (const [p, method] of Object.entries(NEW)) {
+    const tag = p === 'upload' ? 'upload-url' : p; // node-name suffix; the URL path stays intro/upload
+    const hook = W.nodes.find((n) => n.type === 'n8n-nodes-base.webhook' && n.parameters.path === 'intro/' + p);
     assert.ok(hook, tag);
     assert.equal(hook.parameters.httpMethod, method);
     assert.equal(hook.parameters.authentication, 'none');
@@ -320,4 +321,17 @@ test('script-generate and script-recheck log ops.costs (kind llm, source_ref sha
   assert.equal(ref(rc), 'w23:script-recheck:b-1:x77');
   assert.match(W.connections['Variant result (1)'].main[0].map((t) => t.node).join(), /Cost row \(generate 1\)/);
   assert.match(W.connections['Recheck result'].main[0].map((t) => t.node).join(), /Cost row \(recheck\)/);
+});
+
+test('every W23 node name is unique and every connection source/target names an existing node (n8n rejects duplicate_node_name)', () => {
+  const names = W.nodes.map((n) => n.name);
+  const dup = names.filter((n, i) => names.indexOf(n) !== i);
+  assert.deepEqual([...new Set(dup)], []);
+  const set = new Set(names);
+  for (const [from, c] of Object.entries(W.connections)) {
+    assert.ok(set.has(from), `connection source missing: ${from}`);
+    for (const out of c.main || []) for (const t of out || []) assert.ok(set.has(t.node), `dangling target ${from} -> ${t.node}`);
+  }
+  assert.ok(node('Verify broker JWT (upload-url)') && node('Verify broker JWT (upload)'));
+  assert.equal(node('Intro upload-url (browser, Bearer JWT)').parameters.path, 'intro/upload');
 });

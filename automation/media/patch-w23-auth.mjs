@@ -8,6 +8,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+// TODO(I-44a): when the other workflows move Code nodes from import($env.REPO_DIR + ...) to require('lv-automation/lib/...'), change PRE below the same way.
 import { inlineModule } from '../security/inline-for-n8n.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -97,9 +98,10 @@ w.nodes = w.nodes.filter((x) => !x.id.startsWith('w23-x'));
 let xid = 0;
 const X = () => 'w23-x' + String(++xid).padStart(2, '0');
 const pg = (id, name, pos, query, repl) => ({ parameters: { operation: 'executeQuery', query, options: { queryReplacement: repl } }, id, name, type: 'n8n-nodes-base.postgres', typeVersion: 2.5, position: pos, alwaysOutputData: true, credentials: { postgres: { name: 'LV Supabase - n8n_app (least privilege)' } } });
-const newHook = (tag, method, y) => { const n = { parameters: { httpMethod: method, path: 'intro/' + tag, authentication: 'none', responseMode: 'responseNode', options: { allowedOrigins: ORIGIN } }, id: X(), name: `Intro ${tag} (browser, Bearer JWT)`, type: 'n8n-nodes-base.webhook', typeVersion: 2, position: [0, y], webhookId: 'intro/' + tag }; return n; };
-function gate(tag, method, y) {
-  const h = newHook(tag, method, y), v = codeNode(X(), `Verify broker JWT (${tag})`, [220, y]);
+const newHook = (tag, method, y, path = tag) => { const n = { parameters: { httpMethod: method, path: 'intro/' + path, authentication: 'none', responseMode: 'responseNode', options: { allowedOrigins: ORIGIN } }, id: X(), name: `Intro ${tag} (browser, Bearer JWT)`, type: 'n8n-nodes-base.webhook', typeVersion: 2, position: [0, y], webhookId: 'intro/' + path }; return n; };
+// tag = unique node-name suffix (n8n rejects duplicate node names); path = URL segment (defaults to tag).
+function gate(tag, method, y, path = tag) {
+  const h = newHook(tag, method, y, path), v = codeNode(X(), `Verify broker JWT (${tag})`, [220, y]);
   const ok = ifOk(X(), `JWT valid? (${tag})`, [440, y], '={{ $json.ok === true }}'), r401 = respond(X(), `Respond 401 (${tag})`, [660, y - 140], 401, '{"error":"unauthorised"}');
   w.nodes.push(h, v, ok, r401);
   link(h.name, v.name); link(v.name, ok.name); link(ok.name, r401.name, 1);
@@ -149,7 +151,7 @@ select exists (select 1 from c) as found, (select count(*) from u) as stored`,
   w.nodes.push(q, r200); link(g.ok, q.name, 0); link(q.name, r200.name); }
 
 // POST intro/upload (phase 1): signed upload URL into the private broker-media bucket, key = <broker uuid>/<language>/<take_id>.<ext>
-{ const g = gate('upload', 'POST', 3400);
+{ const g = gate('upload-url', 'POST', 3400, 'upload'); // node names "(upload-url)" so they do not collide with the upload-confirm lane's "(upload)" nodes
   const b = g.body;
   const lb = pg(X(), 'Load broker (upload sign)', [680, 3400], 'select id::text as broker_id from brokers where user_id::text = $1 limit 1', '={{ [ ' + g.sub + ' ] }}');
   const f = ifOk(X(), 'Broker found? (upload sign)', [900, 3400], '={{ !!$json.broker_id }}');
