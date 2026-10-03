@@ -231,8 +231,8 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-45l | Voice-note owner: W29 transcribes today, W12 stores `whatsapp-media:{id}` only; pick one (P17/Q22) | conversation-designer + compliance-qa |
 | I-45m | W13 claim query must run as one transaction (two statements, batching `single`) — confirm on staging | compliance-qa, Phase 5 |
 | I-45n ✅ | `BROKER_NO_SHOW_APOLOGY` (EN/AF) in lib/w12.mjs is draft wording → approve into lines.mjs | conversation-designer |
-| I-45o | Landing "I'll pick on WhatsApp" button must call `POST /lead/skip` | landing-page-builder |
-| I-45p | `broker_lead_opted_out` template for the WhatsApp broker notice when the window is closed (today email only) | conversation-designer + meta-operator |
+| I-45o ✅ | Landing "I'll pick on WhatsApp" button must call `POST /lead/skip` | landing-page-builder — ✅ 2026-10-03 (ea5bfc0): page.js posts /lead/skip with X-Lead-Token, fire-and-forget; quiz.spec asserts it |
+| I-45p ✅ | `broker_lead_opted_out` template for the WhatsApp broker notice when the window is closed (today email only) | conversation-designer + meta-operator — ✅ 2026-10-03 (ed70a8a): template + sample + /s/leads short link; W15 wiring note in state-machine.md (I-55a: automation-engineer wires it); Meta submission stays GATE-TEMPLATES |
 | I-45q | Shared-calendar route needs credential "Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)" + per-broker `calendar_status_detail.shared_calendar_id` (else `SMC_SHARED_CALENDAR_ID`) | devops-security + platform-architect |
 | I-45r | W14-broker.md + W14.test.mjs: add `lead_pulse` to the s4_quality key list | broker-success |
 
@@ -256,8 +256,8 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-47e ✅ | Three Postgres nodes without a credential (W21 "Stamp brands.insights_last_fetched_at", W21 "Cache ad status/budget", W27 "Record alerts") → the shared credential name; inventory todo → pass | ads-api-engineer / automation-engineer — dispatched |
 | I-47f | Microsoft access to howzit@: delegated sign-in (W05, W15, W17, W19, W32, W34) vs app-only (W20, W22) — pick one model (default: app-only for server flows; delegated only for the broker's own calendar connect) | devops-security + platform-architect |
 | I-47g ✅ | Nothing serves `/webhook/w22-alert`; W30/W31 (and W23 via OPS_ALERT_WEBHOOK) post alerts that go nowhere — W22 inbound webhook or Execute Workflow by id | automation-engineer (W22) — dispatched |
-| I-47h | One secret under several credential names (Meta 6, Anthropic 3, Twilio 2, Microsoft 5): rotation runbook lists every copy; consider one credential per secret | devops-security |
-| I-47i | W23 MinIO + transcription credentials point at services absent from both compose files — add or remove | intro-media-producer + devops-security |
+| I-47h ✅ | One secret under several credential names (Meta 6, Anthropic 3, Twilio 2, Microsoft 5): rotation runbook lists every copy; consider one credential per secret | devops-security — ✅ 2026-10-03 (6cb3c68): vps/ROTATION.md + credential-copies.mjs/test (34 copies, 16 secrets); no credential renamed |
+| I-47i ✅ | W23 MinIO + transcription credentials point at services absent from both compose files — add or remove | intro-media-producer + devops-security — ✅ 2026-10-03 (6cb3c68): by decision — Supabase Storage S3 endpoint backs "MinIO intro media" (key pair = Jonathan), TRANSCRIBE_URL external by env; no containers added |
 | I-47j ✅ | index.cjs header cites tests/lv-automation.test.mjs (does not exist; loader.test.mjs covers it) | automation-engineer (trivial, with I-47d) |
 
 ### I-48 · 2026-10-03 (review 6 + the I-47 wave)
@@ -272,7 +272,7 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-48g ✅ | W16/W19 caller inputs for the sub-workflows: W16 passes W20's passthrough to smc-w26 and the "Resume" output to ads; W19 passes Postgres outputs with no `to`/template to 4 of 5 WhatsApp calls and "Routing off" output (no broker_id) to ads lower — mapping nodes in billing/build-workflows.mjs; W19 email leg stays in W19 (default) | billing-automation — dispatched |
 | I-48h | CTWA leads never get `consent_ads_at`, so the CAPI consent gate would block every CTWA Lead/Schedule event — rule: CTWA consent (ctwa-named-v2) covers measurement, set consent_ads_at at consent time (NH-60 to confirm) | compliance-qa + attribution-analyst |
 | I-48i ✅ | ops.proposals.source for the ads-budget proposal: none of the allowed values fits (`routing` suggested) — add `ads_budget` to the check in migration 13 | platform-architect |
-| I-48j | W30/W31 community escalations sent amber while their text promises a human within 30 min — red, or change the promise | community-response-lead |
+| I-48j ✅ | W30/W31 community escalations sent amber while their text promises a human within 30 min — red, or change the promise | community-response-lead — ✅ 2026-10-03 (2b46c40): promise reworded, severity stays amber; test guards it |
 | I-48k ✅ | W03 writes `leads.conv_state.state`; W07 "Save conv_state" skips `state` on hand-off turns; `q_method` in W07's qualifying-tap states; W03 DRY_RUN gate + outbound communications row — all part of I-47a | automation-engineer — dispatched |
 
 ### I-49 · 2026-10-03 (after the I-48 wave)
@@ -283,7 +283,7 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-49c ✅ | R6-11: W01 held leads (consent names another practice / no capacity) send no CAPI Lead until handed over | automation-engineer — dispatched |
 | I-49d ✅ | Templates broker_cycle_ended + broker_come_back for the W19 pay-link and come-back messages (session text today); runbook count 53 → 55 | conversation-designer + meta-operator |
 | I-49e | smc-whatsapp-send returns `email_fallback:true` when no approved template and the window is closed — W19 already sends its email legs; other callers (W34, core-path) decide per call (default: log only) | automation-engineer (W34) |
-| I-49f | Ads lower: callers send amount_zar 0 + media_share_zar — define "lower" as lower-to media_share_zar × 0 = pause spend (default) and document in SUB-ads-budget | ads-api-engineer |
+| I-49f ✅ | Ads lower: callers send amount_zar 0 + media_share_zar — define "lower" as lower-to media_share_zar × 0 = pause spend (default) and document in SUB-ads-budget | ads-api-engineer — ✅ 2026-10-03 (26fad94): lower with amount_zar 0 + media_share_zar = pause (target 0); SUB.test + LOCAL-STAGING §7 |
 | I-49g ✅ | Migration 13 additions: `ops.proposals.source` check + 'ads_budget'; `facts.broker_pulse` 4-arg + `w14_broker_report` body from analytics/I-43c-migration-note.md; partial unique index on communications (metadata->>'correlation') where not null; `verified_credentials` COMMENT (I-43b); go_live notification kinds used by smc-w26 (`go_live`, signal keys go_live_ready / go_live_vps_gate / go_live_pending) allowed; chain validation on the stub incl. analytics/tests/pulse-hold.test.sql | platform-architect — dispatched |
 | I-49h ✅ | readiness.mjs S7-11 / S7-14 read `CAPI_EVIDENCE_PATH` when set (default build/evidence/capi-test-events.jsonl) | platform-architect — dispatched |
 | I-49i ✅ | smc-w26 to-dos use source `manual` because `build` is not an allowed proposals source — add `build` or keep manual (platform-architect decides in I-49g) | platform-architect |
@@ -349,3 +349,11 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-54h | F15: W15 (and likely W10) delete a shared-fallback calendar event from the broker's own calendar; live, the cancelled meeting stays in the howzit@ shared calendar Mark subscribes to — needs the howzit@ credential branch (as W05 creates it) | automation-engineer — dispatched (session 2, wave 3) |
 | I-54i | F16: once the broker marks an outcome, the lead's reach_check never goes out, so CAPI Attended always waits for the lead window to close — intended? | needs_human (default: keep; Attended releases at window close as designed in I-51b) |
 | I-54j | Minor: negative first-touch latency under the test clock (W06 metric reads wall clock); W05 stores a Teams join URL on phone bookings | automation-engineer — dispatched (session 2, wave 3) |
+
+### I-55 · 2026-10-03 (orchestrator session, parallel to session 2 round 4)
+| ID | Item | Owner |
+|---|---|---|
+| I-55a | Wire `broker_lead_opted_out` into W15 (cancel mode, window closed; variable order in conversation/state-machine.md STOP step 1) | automation-engineer, after session 2 wave 3 |
+| I-55b | Supabase Storage S3 key pair for "MinIO intro media" + choose TRANSCRIBE_URL endpoint (W23 media path stays off until both) | [Jonathan] login gate (GATE-W23-STORAGE) |
+| I-55c | Portal Leads page should read `?lead=<id>` from the /s/leads short link and open/highlight that lead | broker-success |
+| I-55d | Legacy CRM pages fail `tsc --noEmit` (17 files, pre-existing, none SMC); decide whether the SMC build gate type-checks the whole app or only src/pages/portal + console | platform-architect (default: SMC files only) |

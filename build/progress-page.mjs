@@ -43,7 +43,7 @@ const now = new Date().toUTCString().replace(/:\d\d GMT$/, ' UTC');
 const BUILT = [
   ['Database schema', 'done', '13 migrations drafted and validated twice on a local Postgres stub. <b>Not applied to the live project</b> until you answer NH-15 (security fixes) and NH-11 (schema dump).'],
   ['Automation (n8n)', 'run', 'All 35 workflows plus the four shared sub-workflows exist as drafts and run through their tests against the real workflow code. The 8 core-path flows (W01, W04–W06, W09, W12, W13, W15) wait for your approval of their acceptance tests. n8n runs for real in the sandbox: all files import and a synthetic WhatsApp conversation runs end to end in dry-run.'],
-  ['WhatsApp templates', 'wait', '53 templates drafted with samples (fictional adviser, FSP 00000). Nothing submitted to Meta; submission is your click (GATE-TEMPLATES).'],
+  ['WhatsApp templates', 'wait', '56 templates drafted with samples (fictional adviser, FSP 00000). Nothing submitted to Meta; submission is your click (GATE-TEMPLATES).'],
   ['Broker portal + admin console', 'done', 'Built in the existing CRM behind a feature flag (off by default): onboarding wizard, calendar connect, billing, weekly report, intro recorder, pulse screen, console on admin-only RPCs.'],
   ['Landing pages + holding site', 'done', 'Quiz template, 10 angle pages, holding site with the full privacy page and first-party opt-out. Staging only; nothing public.'],
   ['Creative', 'done', '15 concepts, 111 code-rendered assets (stills, Reels, stories, end cards, intro cards), palette B test arm, first batch of 16 ads. Review-5 re-renders done.'],
@@ -52,7 +52,7 @@ const BUILT = [
   ['Billing', 'done', 'Paystack checkout, Instant EFT, manual EFT with inContact parsing, renewals and reminders (W16–W19, W25). Live only after Paystack KYC (your login).'],
   ['Compliance QA', 'done', '5 reviews done; fix waves 1–5 applied (every review-4 blocking item is closed in code; review 6 runs after the next build wave).'],
   ['Infrastructure', 'wait', 'Docker + tunnel for local staging, VPS runbook, backups, CORS, secrets guard, edge function skeleton. VPS is bought only after first payment (GATE-VPS).'],
-  ['Tests', 'done', '642 offline tests green, including a repo-wide check that no workflow can send WhatsApp, SMS or email while dry-run is on. Rehearsal round 3: stages 1-7 pass end to end on the local n8n; stage 8 (STOP) partial.'],
+  ['Tests', 'done', '692 offline tests green across every suite, including a repo-wide check that no workflow can send WhatsApp, SMS or email while dry-run is on. Rehearsal round 4: all 8 stages (lead in, first touch, slots, booking, reminders, outcome, no-show + replacement, STOP) pass end to end on the local n8n from a real page submission, with zero messages reaching the outside world.'],
 ];
 const PILL = { done: ['Drafted & tested', 'p-ok'], run: ['In progress', 'p-run'], wait: ['Waiting on you', 'p-wait'] };
 
@@ -67,6 +67,7 @@ const TODAY = [
   'n8n runs for real in the sandbox: all committed workflows import, and a synthetic WhatsApp message now runs end to end through the assistant in dry-run (rows in the database, reply drafted, nothing sent), and the run caught a real loop that would have made 55 paid AI calls per message in production. Fixed.',
   'Section 7 readiness checker, make check, WCAG AA pass, portal explainer clip, consumer terms page.',
   'Session 2: round 3 findings fixed - the test clock now reaches the slot check, STOP leaves an evidence trail, and the 12 WhatsApp sends that slipped past dry-run were traced to the ops-alert sender and closed in 10 workflows. Wave 2: the last ungated sender (the meeting-invite email) is gated, and Meta now only hears a meeting was attended once the lead has confirmed or KG has decided. Rehearsal round 4 passed all 8 stages, from a real form submission through booking, reminders, the broker feedback tap, a no-show replacement and STOP cancelling a live booking; zero messages left the dry-run.',
+  'Owner items closed alongside round 4: the landing "I\'ll pick a time on WhatsApp" button now tells the system so the slots card goes out at once; the ads-budget "lower" call at cycle end now means "pause this broker\'s spend" instead of being dropped; a machine-checked secret-rotation runbook (34 credential copies, 16 secrets); the broker-video storage decision (Supabase Storage, your S3 key pair needed); a new broker "lead opted out" WhatsApp template (56 now); community escalations no longer promise a human within 30 minutes.',
   'Compliance review 6 (33 pass, 4 medium items being fixed) and a real security bug caught before it mattered: inbound WhatsApp signatures were not actually being checked. Fixed and tested.',
   'Microsoft connect hardening: refresh token never lands in an error log; expired app secret raises a red alert; FSCA check records the verified FSP on the broker row.',
   'Template review samples signed off (FSP 00000, SAMPLE tag from frame 0).',
@@ -175,7 +176,7 @@ summary:focus-visible,a:focus-visible{outline:2px solid var(--amber);outline-off
         <div class="kpi"><b>${running.length}</b><span>tasks in progress</span></div>
         <div class="kpi"><b>${decisions.length}</b><span>decisions waiting on you</span></div>
         <div class="kpi"><b>${openGates.length}</b><span>logins / money / approvals</span></div>
-        <div class="kpi"><b>642</b><span>offline tests green</span></div>
+        <div class="kpi"><b>692</b><span>offline tests green</span></div>
       </div>
     </div>
   </section>
