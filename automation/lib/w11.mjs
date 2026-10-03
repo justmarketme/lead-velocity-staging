@@ -70,7 +70,7 @@ export function fallbackBrief(lead, booking, input) {
   const callMethod = ['phone', 'whatsapp_call'].includes(booking.method);
   const asked = input.asked.map((a) => `${a.words}${a.deferred ? ' (deferred to you)' : ''}`.replace(/[\n\t]/g, ' ').replace(/ {5,}/g, ' '));
   if (input.signals.health_question) asked.push(BRIEF_HEALTH_LINE);
-  const num = `${input.contact.call_number}${input.contact.call_number_differs ? ' (not the WhatsApp number)' : ''}`;
+  const num = `${input.contact.call_number}${input.contact.call_number_differs ? ' (not the WhatsApp number)' : ''}${callMethod && input.contact.alt_number ? ` (if no answer: ${input.contact.alt_number})` : ''}`;
   const vars = {
     1: whoLabel(lead), 2: input.booking.time, 3: METHOD_WORDS[booking.method], 4: callMethod ? num : booking.method === 'teams' ? 'Teams link in the event' : 'link in the event',
     5: lead.best_time || 'not given', 6: input.lead.age_band || 'not given', 7: input.lead.budget_band || 'not given', 8: (asked.join('; ') || 'nothing yet').slice(0, 200), 9: input.contact.language

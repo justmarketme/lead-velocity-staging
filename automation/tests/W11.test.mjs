@@ -127,3 +127,27 @@ test('I-38d: digest and pre-call brief sends touch leads.last_contact_at (only w
   assert.match(byName('Touch last_contact_at (digest leads)').parameters.query, /status IN \('booked','confirmed'\)/);
   assert.deepEqual(checkSql(workflowSql(WF)), []);
 });
+
+// S7-03: the lead's call-number taps (W07 contactStep) land in the broker's pre-call brief (real W07 + W11 node code)
+import * as W07 from '../lib/w07.mjs';
+test('S7-03 call-number taps (other number, alt number, best time) flow from W07 into the W11 brief; nothing re-asked', () => {
+  let ld = { first_name: 'Pieter', last_name: 'van Wyk', phone: '+27600000004', line_type: 'mobile', age_band: '45_50', budget_band: '1250plus', language: 'en', conv_state: {} };
+  const apply = (r) => { ld = { ...ld, ...r.update, conv_state: r.conv_state || ld.conv_state }; return r; };
+  apply(W07.contactStep(ld, { payload: 'call_number_other' }));
+  apply(W07.contactStep(ld, { text: '060 000 0099' }, { line_type: 'mobile' }));
+  assert.equal(ld.call_number, '+27600000099');
+  ld.conv_state = { contact_step: 'typed_alt' };
+  apply(W07.contactStep(ld, { text: '+27 60 000 0098' }, { line_type: 'mobile' }));
+  apply(W07.contactStep(ld, { list_id: 'best_afternoons' }));
+  assert.equal(ld.conv_state.contact_step, 'done');
+  const b = mk(L04, 'van Wyk');
+  const fb = K.fallbackBrief(ld, b, K.briefInput(ld, b, [], {}, []));
+  assert.match(fb.template_vars[4], /^\+27600000099 \(not the WhatsApp number\)/);
+  assert.match(fb.template_vars[4], /\+27600000098/); assert.equal(fb.template_vars[5], 'afternoons');
+  assert.equal(briefCheck(fb, { last_name: 'van Wyk' }).pass, true, JSON.stringify(briefCheck(fb, { last_name: 'van Wyk' }).issues));
+  // confirm tap ("Yes, this one") -> the WhatsApp number is the call number, not flagged as different
+  let l2 = { ...ld, call_number: null, alt_number: null, conv_state: { contact_step: 'call_number' } };
+  l2 = { ...l2, ...W07.contactStep(l2, { payload: 'call_number_yes' }).update };
+  const f2 = K.fallbackBrief(l2, b, K.briefInput(l2, b, [], {}, []));
+  assert.equal(f2.template_vars[4], '+27600000004');
+});
