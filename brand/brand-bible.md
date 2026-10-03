@@ -279,3 +279,4 @@ People trust what they can check, so every item here can be checked (Labrecque &
 - Changes to tokens go through `brand/tokens.json` only (6B.8). The screenshot regression test and the W33 judge flag colours that are not tokens.
 - Changes to the line, the disclosure or the banned list need sign-off from brand-naming-lead and compliance-qa (and contracts-drafter for the disclosure) and a version bump here.
 - Version history: BB-v1.0 (2 Oct 2026), first issue.
+- Token changelog: 3 Oct 2026, added `darkMuted` (dark-mode secondary text, semantic `textMutedDark`), applied as `--sm-text-muted` in the dark scheme, to fix WCAG AA contrast (muted was 2.8:1 on dark). No existing token value changed. Status text shades on prototypes (green, orange) were darkened locally for AA.

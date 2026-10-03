@@ -19,6 +19,7 @@ Generated from `tokens.json` by `npm run tokens`. Edit the JSON, never this file
 | `amberDark` | #B86E0A | 184, 110, 10 | 0, 40, 95, 28 | amber as text on off-white, large text only |
 | `darkBg` | #15181C | 21, 24, 28 | 25, 14, 0, 89 | dark-mode page background (web) |
 | `darkCard` | #1C2027 | 28, 32, 39 | 28, 18, 0, 85 | dark-mode surface (web) |
+| `darkMuted` | #A9AFB7 | 169, 175, 183 | 8, 4, 0, 28 | dark-mode secondary text (web) |
 | `darkText` | #F1EDE5 | 241, 237, 229 | 0, 2, 5, 5 | dark-mode text (web) |
 
 Notes: `accentText` #2A1B02 is the ink on amber for text and for the tick (the approved ad mock-up and landing page draw the tick in this near-black brown, not in charcoal). Mono logos use `black`/`white` only. Semantic colours for the console (success, warn, danger) are separate and never used in brand; the one status green that appears in the approved landing reference belongs to the web app, not to this palette.
@@ -39,6 +40,7 @@ Notes: `accentText` #2A1B02 is the ink on amber for text and for the tick (the a
 | `bgDark` | `darkBg` |
 | `surfaceDark` | `darkCard` |
 | `textDark` | `darkText` |
+| `textMutedDark` | `darkMuted` |
 
 ## WCAG 2.x contrast (computed from the hex values)
 

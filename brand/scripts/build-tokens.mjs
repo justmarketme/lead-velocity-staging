@@ -34,7 +34,7 @@ css += `  /* space, radius, safe zones */\n`;
 for (const [k, v] of Object.entries(T.space)) css += `  --sm-space-${k}: ${v}px;\n`;
 for (const [k, v] of Object.entries(T.radius)) css += `  --sm-radius-${k}: ${v}px;\n`;
 css += `  --sm-safe-top: ${T.safeZones.reelsTopPx}px;\n  --sm-safe-bottom: ${T.safeZones.reelsBottomPx}px;\n}\n`;
-css += `@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--sm-bg:var(--sm-dark-bg);--sm-text:var(--sm-dark-text);--sm-surface:var(--sm-dark-card);--sm-surface-raised:var(--sm-dark-card)}}\n:root[data-theme="dark"]{--sm-bg:var(--sm-dark-bg);--sm-text:var(--sm-dark-text);--sm-surface:var(--sm-dark-card);--sm-surface-raised:var(--sm-dark-card)}\n`;
+css += `@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--sm-bg:var(--sm-dark-bg);--sm-text:var(--sm-dark-text);--sm-surface:var(--sm-dark-card);--sm-surface-raised:var(--sm-dark-card);--sm-text-muted:var(--sm-dark-muted)}}\n:root[data-theme="dark"]{--sm-bg:var(--sm-dark-bg);--sm-text:var(--sm-dark-text);--sm-surface:var(--sm-dark-card);--sm-surface-raised:var(--sm-dark-card);--sm-text-muted:var(--sm-dark-muted)}\n`;
 css += `.sm-font{font-family:var(--sm-font);font-weight:var(--sm-weight-body);font-variant-numeric:tabular-nums}\n`;
 fs.writeFileSync(path.join(root, 'tokens.css'), css);
 

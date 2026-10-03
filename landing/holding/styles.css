@@ -17,7 +17,7 @@ h1{font-size:var(--fs-1)}h2{font-size:var(--fs-2);margin-top:2rem}h3{font-size:v
 p,ul{margin:0 0 1rem}
 a{color:var(--charcoal);text-decoration:underline;text-underline-offset:.15em}
 a:focus-visible{outline:3px solid var(--charcoal);outline-offset:3px}
-.skip{position:absolute;left:-999px;top:0;background:var(--amber);color:var(--on-amber);padding:.75rem 1rem;z-index:9}
+.skip{display:inline-block;min-height:24px;position:absolute;left:-999px;top:0;background:var(--amber);color:var(--on-amber);padding:.75rem 1rem;z-index:9}
 .skip:focus{left:0}
 .top{background:var(--charcoal);padding:.5rem 0}
 .wm{display:inline-flex;align-items:center;min-height:var(--tap);color:var(--offwhite);font-weight:var(--w-head);font-size:var(--fs-2);text-decoration:none;letter-spacing:-.01em}
