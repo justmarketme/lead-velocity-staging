@@ -100,13 +100,14 @@ const STEP_KEYS = ['profile', 'calendar', 'availability', 'agreement', 'card', '
 const done = (by = 'broker', at = '2026-10-12T09:00:00+02:00') => ({ status: 'done', done_at: at, by });
 
 // ---------------------------------------------------------------------------------------------
-// A new broker in onboarding, built from the fixture broker (Mark Smith Financial Services, FSP 00000)
+// A new broker in onboarding, built from the fixture broker but with its own practice (Mark Smith Financial Services,
+// FSP 00000): the fixture broker now carries the seeded practice + FSP (I-52b), which is not on any register.
 // ---------------------------------------------------------------------------------------------
 const FB = fixtureBroker();
 const T0 = ms('2026-10-12T09:00:00+02:00'); // Monday 09:00 SAST: first magic-link login
 function newBroker(over = {}) {
   return {
-    broker_id: 'brk_test_onb', brand_id: ENV.BRAND_ID, practice_name: FB.practice_name, practice_legal_name: null, fsp_number: FB.fsp_number,
+    broker_id: 'brk_test_onb', brand_id: ENV.BRAND_ID, practice_name: 'Mark Smith Financial Services', practice_legal_name: null, fsp_number: '00000',
     adviser_name: FB.adviser_name, adviser_whatsapp: FB.adviser_whatsapp, email: FB.email, bio_short: 'Helps young families in Cape Town.',
     languages: ['en'], years_advising: 12, status: 'onboarding', onboarding_step: 'profile', onboarding_progress: {}, onboarding_nudges: null,
     first_login_at: iso(T0), last_seen_at: iso(T0), onboarding_last_progress_at: iso(T0), fsp_check: null, fsp_verified_at: null,
