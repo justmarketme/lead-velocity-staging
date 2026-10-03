@@ -1,7 +1,8 @@
 # One-pass keeper for the local n8n staging (MASTER-PROMPT 0.3 #7). Idempotent; run at logon and every 10 min.
 #   1. Docker engine up (clears stale AF_UNIX socket dirs that crash Docker Desktop 4.61 on this laptop)
 #   2. n8n + Postgres containers up
-#   3. cloudflared quick tunnel alive; if its URL changed, rewrite N8N_PUBLIC_URL / WEBHOOK_URL in .env and recreate n8n
+#   3. public URL: SSH reverse tunnel to the EMMA VPS (stable n8n.leadvelocity.co.za), else a cloudflared quick
+#      tunnel as fallback; if the URL changed, rewrite N8N_PUBLIC_URL / WEBHOOK_URL in .env and recreate n8n
 # ASCII only: Windows PowerShell 5.1 reads BOM-less scripts as ANSI.
 $ErrorActionPreference = 'Continue'
 $repo    = Split-Path $PSScriptRoot -Parent
@@ -47,6 +48,20 @@ function Test-Url($u) {
 # Judge the tunnel only once n8n itself answers - a 502 while n8n boots must not rotate the URL
 for ($i = 0; $i -lt 24 -and -not (Test-Url 'http://localhost:5678'); $i++) { Start-Sleep 5 }
 if (-not (Test-Url 'http://localhost:5678')) { Log 'n8n not healthy locally - leaving tunnel alone this tick'; exit 1 }
+# 3a. Stable path: SSH reverse tunnel to the EMMA VPS, where Caddy serves $stableUrl -> 127.0.0.1:15678
+$stableUrl = 'https://n8n.leadvelocity.co.za'
+$sshKey    = Join-Path $HOME '.ssh\emma_vps_ed25519'
+$sshProc = Get-CimInstance Win32_Process -Filter "Name='ssh.exe'" | Where-Object { $_.CommandLine -match '15678:localhost:5678' }
+if (-not $sshProc -or -not (Test-Url $stableUrl)) {
+    $sshProc | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    Start-Process ssh -ArgumentList '-N', '-i', $sshKey, '-o', 'BatchMode=yes', '-o', 'ExitOnForwardFailure=yes', '-o', 'ServerAliveInterval=30', '-o', 'ServerAliveCountMax=3', '-o', 'StrictHostKeyChecking=accept-new', '-R', '127.0.0.1:15678:localhost:5678', 'root@76.13.252.92' -WindowStyle Hidden
+    Start-Sleep 8
+}
+if (Test-Url $stableUrl) {
+    $url = $stableUrl
+    Get-CimInstance Win32_Process -Filter "Name='cloudflared.exe'" | Where-Object { $_.CommandLine -match 'localhost:5678' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+} else {
+# 3b. Fallback until DNS for $stableUrl exists (or the VPS is unreachable): cloudflared quick tunnel
 $tunnelProc = Get-CimInstance Win32_Process -Filter "Name='cloudflared.exe'" | Where-Object { $_.CommandLine -match 'localhost:5678' }
 $url = Get-TunnelUrl
 if (-not $tunnelProc -or -not $url -or -not (Test-Url $url)) {
@@ -57,6 +72,7 @@ if (-not $tunnelProc -or -not $url -or -not (Test-Url $url)) {
     $url = $null
     for ($i = 0; $i -lt 30 -and -not $url; $i++) { Start-Sleep 2; $url = Get-TunnelUrl }
     if (-not $url) { Log 'tunnel gave no URL'; exit 1 }
+}
 }
 
 # Keep .env in step with the live tunnel URL
