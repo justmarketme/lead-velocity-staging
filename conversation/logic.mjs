@@ -32,14 +32,15 @@ export const OTHER_TOPICS = ['id_number', 'bank_details', 'complaint', 'distress
 export const ALL_TOPICS = [...Object.keys(FAQ_TOPICS), ...DEFER_TOPICS, ...OTHER_TOPICS];
 
 export const STATES = [
-  'consent_pending', 'q_age', 'q_bond', 'q_dependants', 'q_budget', 'q_budget_clarify',
+  'consent_pending', 'q_age', 'q_budget', 'q_budget_clarify', 'q_bond', 'q_dependants', 'q_method',
   'unbooked', 'booking', 'booked_await_commit', 'contact_confirm', 'booked', 'confirmed', 'rescheduling',
   'meeting_due', 'outcome_pending', 'attended', 'no_show', 'broker_no_show',
   'closed_unbooked', 'closed_oob', 'closed_no_consent', 'closed_attended', 'opted_out', 'handoff'
 ];
 const BOOKED = new Set(['booked_await_commit', 'contact_confirm', 'booked', 'confirmed', 'rescheduling', 'meeting_due']);
-const PRE_BOOKING = new Set(['consent_pending', 'q_age', 'q_bond', 'q_dependants', 'q_budget', 'q_budget_clarify', 'unbooked', 'booking', 'closed_unbooked', 'no_show', 'broker_no_show']);
-const QUAL = { q_age: ['age_band', 'q_bond'], q_bond: ['bond', 'q_dependants'], q_dependants: ['dependants', 'q_budget'], q_budget: ['budget_band', 'unbooked'], q_budget_clarify: ['budget_band', 'unbooked'] };
+const PRE_BOOKING = new Set(['consent_pending', 'q_age', 'q_budget', 'q_budget_clarify', 'q_bond', 'q_dependants', 'q_method', 'unbooked', 'booking', 'closed_unbooked', 'no_show', 'broker_no_show']);
+// 4.6 step 3 order (NH-59 default): age -> budget -> bond/dependants (one question) -> method. q_dependants kept for old rows.
+const QUAL = { q_age: ['age_band', 'q_budget'], q_budget: ['budget_band', 'q_bond'], q_budget_clarify: ['budget_band', 'q_bond'], q_bond: ['bond', 'q_method'], q_dependants: ['dependants', 'q_method'], q_method: ['method', 'unbooked'] };
 
 const outOfBand = (s = {}) => s.age_band === '<35' || s.age_band === '51+' || s.budget_band === '<750';
 
@@ -106,7 +107,8 @@ export function decide(state, nlu = {}, pre = {}, ctx = {}) {
   if (QUAL[state]) {
     if (outOfBand(slots)) return { actions: ['close_oob'], next_state: 'closed_oob' };
     const [key, next] = QUAL[state];
-    if (slots[key] !== undefined && slots[key] !== null) {
+    const answered = key === 'bond' ? slots.bond != null || slots.dependants != null : slots[key] !== undefined && slots[key] !== null;
+    if (answered) {
       if (key === 'budget_band' && slots[key] === 'unsure') {
         return state === 'q_budget'
           ? { actions: [...answers, ...tail(), 'record_answer', 'budget_clarify'], next_state: 'q_budget_clarify' }

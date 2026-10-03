@@ -399,13 +399,13 @@ select round(sum(leads_raw)::numeric / nullif(sum(page_visits), 0), 3) as signup
 - **Adviser display rule (I-43c):**
   1. Under 5 answers so far this cycle: show "Fewer than 5 answers yet". No number.
   2. From 5 answers: show "X of N people (answers so far this cycle)". Per cycle only. Never a change since last week, never a target.
-  3. Hold the figure at the last one he was sent until 5 new answers have arrived. The figure is worked out on the first N answers, so a late answer cannot change it.
+  3. Hold the figure at the last one he was sent (the stored "X of N" in his last report, any edition: weekly, midcycle or cycle-end) until 5 new answers have arrived. The held figure is read from that report, never recounted from today's answers, so a late answer cannot change it and neither can a POPIA erase (R6-05): if one answered row is deleted, he still sees the stored figure until 5 new answers sit on top of N (the count is against today's total, so an erase delays the next update, it never changes the held figure). Midcycle and cycle-end editions look back at every earlier report up to that day (R6-01), so a Monday weekly and a Wednesday midcycle show the same figure.
   4. Worked example: he first sees 7 of 9. A 10th answer (a thumbs-down) arrives that week: he still sees 7 of 9, not 7 of 10, so he cannot tell that the new answer was a no. The 11th, 12th and 13th answers arrive: still 7 of 9. The 14th arrives (5 new): he now sees the figure for those 14 answers, 11 of 14 if 4 of the 5 new ones were yes. Any two figures he sees are at least 5 answers apart.
   5. A new cycle starts again from "Fewer than 5 answers yet".
-- **SQL (adviser view, `facts.broker_pulse`, analytics/W14-broker.sql; p_prev_n = answer count behind the last figure sent):**
+- **SQL (adviser view, `facts.broker_pulse`, analytics/W14-broker.sql; p_prev_n and p_prev_up = the stored n and up of the last figure sent):**
 
 ```sql
-select * from facts.broker_pulse((select id from public.cycles order by starts_at desc limit 1), facts.as_of(), null);   -- shown, n, up; third argument = answers behind the last figure sent
+select * from facts.broker_pulse((select id from public.cycles order by starts_at desc limit 1), facts.as_of(), null);   -- shown, n, up; third and fourth arguments = the stored n and up of the last figure sent (null if none)
 ```
 - **SQL (Lead Velocity view, live, admin only):**
 

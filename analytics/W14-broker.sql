@@ -10,6 +10,7 @@
 drop function if exists facts.kv(numeric, numeric, numeric);
 drop function if exists facts.cycle_counts(text, date);
 drop function if exists facts.broker_pulse(uuid, date, int);
+drop function if exists facts.broker_pulse(uuid, date, int, int);
 
 -- Cycle-to-date counts at a given SA day. "delivered" = verified + qualified, replacement leads excluded (= v_cycle_progress.verified).
 create or replace function facts.cycle_counts(p_cycle uuid, p_day date)
@@ -47,11 +48,15 @@ $$;
 
 -- I-43c: the lead pulse AS THE BROKER MAY SEE IT (compliance-qa W35-pulse-visibility.md, residual risk). Per cycle only, never week-on-week.
 -- Hidden (shown = false, "Fewer than 5 answers yet") until 5 answers exist. Once shown, the figure is HELD at the last one the broker saw until 5 new
--- answers have arrived (p_prev_n = the answer count behind that figure, read from his last report). Computed on the FIRST shown_n answers (oldest first),
--- so a late answer cannot move a held figure. Example: 7 of 9 shown; a 10th answer arrives: still 7 of 9; the 14th arrives: new figure on 14.
+-- answers have arrived. R6-05: the hold is on the STORED {n, up} of his last report (p_prev_n, p_prev_up, read from report_history), never a recount of
+-- today's rows, so a POPIA erase (W34 deletes a lead_pulse row) cannot move a held figure by one. While total - p_prev_n < 5 (including after an erase,
+-- when total can be below p_prev_n) the function returns exactly {p_prev_n, p_prev_up}. Once 5 or more new answers exist (total >= p_prev_n + 5) the
+-- figure is recomputed on all current answers. If p_prev_up is null (an old report with no stored up), up is taken from the first p_prev_n current answers.
+-- An erase therefore delays the next update (the 5 new answers are counted against the current total); it never shows a different held figure.
+-- Example: 7 of 9 shown; a 10th answer arrives: still 7 of 9; one of the 9 is erased: still 7 of 9; the 14th answer on top of 9 live rows: a new figure.
 -- So no two figures a broker sees have denominators fewer than 5 apart, and he cannot difference them to one lead's answer.
 -- cycle_counts.pulse_up / pulse_n above are the live internal figures (admin / console only) and must NEVER be put in a broker payload.
-create or replace function facts.broker_pulse(p_cycle uuid, p_day date, p_prev_n int default null)
+create or replace function facts.broker_pulse(p_cycle uuid, p_day date, p_prev_n int default null, p_prev_up int default null)
 returns table (shown boolean, n int, up int)
 language sql stable as $$
   with a as (
@@ -59,9 +64,13 @@ language sql stable as $$
       from public.lead_pulse lp
      where lp.cycle_id = p_cycle and lp.thumbs is not null and lp.answered_at is not null and facts.sa_date(lp.answered_at) <= p_day),
   t as (select count(*)::int as total from a),
-  k as (select case when t.total < 5 then null
-                    when p_prev_n >= 5 and t.total - p_prev_n < 5 then least(p_prev_n, t.total)
+  k as (select (p_prev_n >= 5 and t.total - p_prev_n < 5) as held,
+               case when p_prev_n >= 5 and t.total - p_prev_n < 5 then p_prev_n
+                    when t.total < 5 then null
                     else t.total end as m from t)
-  select k.m is not null, k.m, case when k.m is not null then (select count(*) from a where a.rn <= k.m and a.thumbs = 'up')::int end from k
+  select k.m is not null, k.m,
+         case when k.held and p_prev_up between 0 and p_prev_n then p_prev_up
+              when k.m is not null then (select count(*) from a where a.rn <= k.m and a.thumbs = 'up')::int end
+    from k
 $$;
-comment on function facts.broker_pulse(uuid, date, int) is 'Broker-facing lead pulse (I-43c): per cycle, held until 5 new answers, null below 5. Never use cycle_counts.pulse_* in a broker surface.';
+comment on function facts.broker_pulse(uuid, date, int, int) is 'Broker-facing lead pulse (I-43c, R6-05): per cycle, held on the stored n and up of the last report until 5 new answers, null below 5. A POPIA erase never moves a held figure. Never use cycle_counts.pulse_* in a broker surface.';

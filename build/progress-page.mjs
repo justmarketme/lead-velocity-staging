@@ -43,7 +43,7 @@ const now = new Date().toUTCString().replace(/:\d\d GMT$/, ' UTC');
 const BUILT = [
   ['Database schema', 'done', '13 migrations drafted and validated twice on a local Postgres stub. <b>Not applied to the live project</b> until you answer NH-15 (security fixes) and NH-11 (schema dump).'],
   ['Automation (n8n)', 'run', '26 of 35 workflows drafted and tested offline (W02, W03, W07, W08, W10, W11, W14, W16–W25, W27–W35). The 8 core-path flows (W01, W04–W06, W09, W12, W13, W15) have their acceptance tests drafted and wait for your approval. Microsoft calendar connect, intro-script generator and POPIA operations landed today.'],
-  ['WhatsApp templates', 'wait', '52 templates drafted with samples (fictional adviser, FSP 00000). Nothing submitted to Meta; submission is your click (GATE-TEMPLATES).'],
+  ['WhatsApp templates', 'wait', '53 templates drafted with samples (fictional adviser, FSP 00000). Nothing submitted to Meta; submission is your click (GATE-TEMPLATES).'],
   ['Broker portal + admin console', 'done', 'Built in the existing CRM behind a feature flag (off by default): onboarding wizard, calendar connect, billing, weekly report, intro recorder, pulse screen, console on admin-only RPCs.'],
   ['Landing pages + holding site', 'done', 'Quiz template, 10 angle pages, holding site with the full privacy page and first-party opt-out. Staging only; nothing public.'],
   ['Creative', 'done', '15 concepts, 111 code-rendered assets (stills, Reels, stories, end cards, intro cards), palette B test arm, first batch of 16 ads. Review-5 re-renders done.'],
@@ -52,7 +52,7 @@ const BUILT = [
   ['Billing', 'done', 'Paystack checkout, Instant EFT, manual EFT with inContact parsing, renewals and reminders (W16–W19, W25). Live only after Paystack KYC (your login).'],
   ['Compliance QA', 'done', '5 reviews done; fix waves 1–5 applied (every review-4 blocking item is closed in code; review 6 runs after the next build wave).'],
   ['Infrastructure', 'wait', 'Docker + tunnel for local staging, VPS runbook, backups, CORS, secrets guard, edge function skeleton. VPS is bought only after first payment (GATE-VPS).'],
-  ['Tests', 'done', '432 offline tests green, 52-template check clean, eval gate PASS. End-to-end rehearsal (Phase 5) waits on the gates above.'],
+  ['Tests', 'done', '432 offline tests green, 53-template check clean, eval gate PASS. End-to-end rehearsal (Phase 5) waits on the gates above.'],
 ];
 const PILL = { done: ['Drafted & tested', 'p-ok'], run: ['In progress', 'p-run'], wait: ['Waiting on you', 'p-wait'] };
 

@@ -110,7 +110,7 @@ test('fix wave 4: a close-rate / policies line fails the build of the emailed re
 // The payload is built the way analytics/W14-broker-payload.sql does: facts.broker_pulse == brokerLine(answers oldest first, prevN = n of the last figure he was sent).
 const arrive = (...t) => t.map((thumbs, i) => ({ lead_id: `l${i}`, thumbs }));
 const mk = (n, upEvery = 3) => arrive(...Array.from({ length: n }, (_, i) => (i % upEvery === 2 ? 'down' : 'up')));
-const withPulse = (rows, prevN = null) => { const p = structuredClone(FX.weekly_close_rate); const b = brokerLine(rows, prevN);
+const withPulse = (rows, prevN = null, prevUp = null) => { const p = structuredClone(FX.weekly_close_rate); const b = brokerLine(rows, prevN, prevUp);
   p.s4_quality.lead_pulse = b ? { shown: true, n: b.n, up: b.up, text: b.text } : { shown: false, n: null, up: null, text: 'Fewer than 5 answers yet.' }; return p; };
 const pulseRow = (p) => visibleText(renderEmail(p, opts)).match(/Said the call was worth their time\s+([^]*?)\s+(?:How you marked|Your average|Meetings you rated)/)?.[1];
 
@@ -159,5 +159,37 @@ test('I-43c: the SQL gives the broker only facts.broker_pulse (never cycle_count
   const cnt = readFileSync(join(here, '..', 'analytics', 'W14-broker.sql'), 'utf8');
   assert.match(sql, /facts\.broker_pulse\(c\.id, d,/);
   assert.doesNotMatch(sql, /\b[nw]\.pulse_(up|n)\b/);
-  assert.match(cnt, /t\.total < 5 then null/); assert.match(cnt, /p_prev_n >= 5 and t\.total - p_prev_n < 5 then least\(p_prev_n, t\.total\)/);
+  assert.match(cnt, /t\.total < 5 then null/); assert.match(cnt, /p_prev_n >= 5 and t\.total - p_prev_n < 5 then p_prev_n/);
+  assert.doesNotMatch(cnt.replace(/--[^\n]*/g, ''), /least\(p_prev_n/, 'R6-05: no recount');
+  assert.match(sql, /broker_pulse\(c\.id, d, pv_n, pv_up\)/); assert.match(sql, /rh\.week <= d/);
+});
+
+test('R6-01: Monday weekly (9 answers) then Wednesday midcycle (10 answers) show the same held 7 of 9; cycle-end after 5 new answers updates it', () => {
+  const nine = arrive(...Array(7).fill('up'), 'down', 'down');
+  const monday = withPulse(nine);                                              // weekly: 7 of 9, stored in report_history
+  const sent = monday.s4_quality.lead_pulse;
+  const ten = [...nine, { lead_id: 'l9', thumbs: 'down' }];
+  const wed = withPulse(ten, sent.n, sent.up);                                 // midcycle two days later: report_history lookup is rh.week <= d, so Monday counts
+  assert.equal(pulseRow(wed), '7 of 9 people (answers so far this cycle)');
+  assert.deepEqual(wed.s4_quality.lead_pulse, sent);
+  const end = withPulse([...ten, ...arrive('up', 'up', 'up')], wed.s4_quality.lead_pulse.n, wed.s4_quality.lead_pulse.up);   // 13 total, 4 new on 9: held
+  assert.equal(pulseRow(end), '7 of 9 people (answers so far this cycle)');
+  const fresh = withPulse([...nine, ...arrive('down', 'up', 'up', 'up', 'up')], sent.n, sent.up);      // 5 new answers since 9 (14 total)
+  assert.equal(pulseRow(fresh), '11 of 14 people (answers so far this cycle)');
+});
+
+test('R6-05: a POPIA erase of an answered row never shifts a held figure; it updates only after 5 new answers', () => {
+  const nine = arrive(...Array(7).fill('up'), 'down', 'down');
+  const sent = withPulse(nine).s4_quality.lead_pulse;                          // stored {n: 9, up: 7}
+  for (const gone of [0, 3, 8]) {                                              // W34 erases one answered row (an up, or a down)
+    const rows = nine.filter((_, i) => i !== gone);                            // 8 rows left
+    const held = withPulse(rows, sent.n, sent.up);
+    assert.deepEqual(held.s4_quality.lead_pulse, sent, `erase #${gone}`);      // still 7 of 9, never 6 of 8 / 7 of 8
+    assert.equal(pulseRow(held), '7 of 9 people (answers so far this cycle)');
+  }
+  const after = nine.filter((_, i) => i !== 3);
+  assert.deepEqual(brokerLine([...after, ...arrive('up', 'up', 'up', 'up')], 9, 7), { n: 9, up: 7, rate: 0.778, text: '7 of 9 people said the call was worth their time.' });  // 12 rows: held
+  assert.equal(brokerLine([...after, ...arrive('up', 'up', 'up', 'up', 'up', 'up')], 9, 7).n, 14);                                              // 14 rows (5 new on 9): recomputed
+  assert.equal(brokerLine(after.slice(0, 4), 9, 7).n, 9);   // even with fewer than 5 rows left the stored figure stands
+  assert.equal(brokerLine(after.slice(0, 4)), null);        // but with nothing stored, under 5 is still hidden
 });

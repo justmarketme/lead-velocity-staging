@@ -41,7 +41,7 @@
 | `outcome_pending` | Broker: `broker_outcome_check` at T+15 → `broker_disposition` → `broker_quality` → optional voice note (4.12a). Lead: `reach_check` at T+30. | L1 | both sides | `attended` / `no_show` / `broker_no_show` |
 | `attended` | `attended_thanks`; W35 `lead_pulse` after the reach-check (attended + 30 min, never before the reach-check is settled; reach-check `no` = no pulse; session `PULSE_ASK` inside the 24-h window, template `lead_pulse` outside). Tap → `PULSE_LINE_ASK_UP`/`_DOWN` once; the next free text within 24 h is the optional line (`conversation/pulse.mjs` `isPulseLine`; advice questions, person, STOP, complaints go the normal W07 way) → `PULSE_LINE_THANKS`. Then **nothing else from us** (FAIS). | L1 | | `closed_attended` |
 | `no_show` | `missed_you` (3 new times, zero guilt, one offer) | L1 | slot tapped / 48 h silence | `booking` / W13 `replacement_due` |
-| `broker_no_show` | Lead said the adviser didn't call: apology + 3 new times; Schedule D path, KG alerted (W12/W13) | L1 | | `booking` |
+| `broker_no_show` | Lead tapped "No, not yet" **and** the broker marked No-show/nothing by his +3 h nudge (R6-03; if the broker marks *Attended* or *Rescheduled*, no apology is sent and KG reviews the conflict): `BROKER_NO_SHOW_APOLOGY` + new times (W10); Schedule D path, KG alerted (W12/W13) | L1 | broker mark / broker-nudge time | `booking` |
 | `handoff` | One fixed handoff line; bot paused (see `handoff.md`) | human | console "Hand back" | previous state |
 | `closed_*` / `opted_out` | nothing further | | | |
 
@@ -49,7 +49,7 @@
 
 Priority order, exactly as `decide()` implements it:
 
-1. **STOP** (`prefilter().stop` or intent `stop`) → W15: opt-out flag, cancel every scheduled send, notify the broker, send `STOP_ACK` (or `STOP_ACK_BOOKED` if a call is booked) once, then nothing. Any later inbound from an opted-out lead goes to the console (`human_review`), no bot reply.
+1. **STOP** (`prefilter().stop` or intent `stop`) → W15: opt-out flag, cancel every scheduled send, notify the broker, send `STOP_ACK` once (or `STOP_ACK_CANCELLED` when the default cancel mode cancelled a live booking, R6-04; `STOP_ACK_BOOKED` only in keep mode), then nothing. Any later inbound from an opted-out lead goes to the console (`human_review`), no bot reply.
 2. **Handoff paused** → no bot reply; forward to the human.
 3. **Person / complaint** → `handoff`.
 4. **Frustrated** → `handoff`.
@@ -99,6 +99,7 @@ Multi-intent: answers first, then the deferral, then the operational action (its
 | CTWA, mid-qualification, no reply | nudge +1 h, +20 h, +68 h (inside the 72-h free entry window), then `closed_unbooked` | 4.6 step 7 |
 | Unbooked (web or CTWA after qualifying) | `unbooked_nudge_2h` → `unbooked_nudge_24h` (intro video; `_text` if none) → `unbooked_nudge_72h` (last; "we will not message again") → `closed_unbooked` | 4.6 W08, 4.12 |
 | Booked, no commitment reply | no chasing; the T-24 h `Confirm` button is the second commitment chance | 4.12 (design for a reply, not a read) |
+| Booked (Teams/Zoom/Meet), invite email bounced | `EMAIL_BOUNCED` once (session) or template `invite_email_bounced` (outside 24 h); the next typed email → `capture_contact` → invite re-sent; no second ask, booking stands either way | I-45i (W17 → W05 `invite_bounced`) |
 | Contact confirm ignored | nothing further ("no nagging", 4.6) | 4.6 |
 | Broker outcome unmarked | +3 h nudge; 24 h → `attended` + `unconfirmed` flag | 4.12a |
 | No-show, no reply 48 h | `replacement_due` (per-cycle cap, 0.1) | W13 |

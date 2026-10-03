@@ -22,7 +22,7 @@ create or replace function facts.w14_broker_report(p_broker uuid, p_day date def
 returns jsonb language plpgsql stable as $$
 declare
   pr facts.v_params%rowtype; c public.cycles%rowtype; b public.brokers%rowtype;
-  d date; tier text; n record; w record; pu record;
+  d date; tier text; n record; w record; pu record; pv_n int; pv_up int;
   start_d date; end_d date; elapsed int; cycle_len int; pace int; week_no int; weeks_in int; send_day date; edition text; on_track boolean;
   show_now numeric; show_prev numeric; rated_now numeric; rated_prev numeric; light_show text; light_rep text;
   lastwk jsonb; nxt jsonb; unmarked jsonb; followups jsonb; not_reached jsonb; mix jsonb; themes jsonb; notices jsonb := '[]'::jsonb;
@@ -43,9 +43,12 @@ begin
   select * into w from facts.cycle_counts(c.id, d - 7);
   -- I-43c: broker-facing pulse = per cycle, hidden under 5 answers, held until 5 new answers; never n.pulse_* (live) and never a week-on-week figure.
   -- p_prev_n = the answer count behind the last pulse figure this broker was sent this cycle (any earlier edition up to today, incl. midcycle/cycle-end; not held/failed). R6-01: never skip a report 1-3 days old.
-  select * into pu from facts.broker_pulse(c.id, d, (select (rh.report_data #>> '{s4_quality,lead_pulse,n}')::int from public.report_history rh
-      where rh.broker_id = p_broker and rh.cycle_id = c.id and rh.brand_id is not null and rh.status in ('sent','partial','generated') and rh.week <= d
-        and (rh.report_data #>> '{s4_quality,lead_pulse,n}') is not null order by rh.week desc limit 1));
+  -- R6-05: hold on the STORED n and up of that report, never a recount (a POPIA erase must not shift a held figure).
+  select (rh.report_data #>> '{s4_quality,lead_pulse,n}')::int, (rh.report_data #>> '{s4_quality,lead_pulse,up}')::int into pv_n, pv_up
+    from public.report_history rh
+   where rh.broker_id = p_broker and rh.cycle_id = c.id and rh.brand_id is not null and rh.status in ('sent','partial','generated') and rh.week <= d
+     and (rh.report_data #>> '{s4_quality,lead_pulse,n}') is not null order by rh.week desc limit 1;
+  select * into pu from facts.broker_pulse(c.id, d, pv_n, pv_up);
   start_d := facts.sa_date(c.starts_at); end_d := facts.sa_date(c.ends_at) - 1;   -- ends_at is the exclusive boundary (as in facts.fact_broker_day); end_d = the cycle's last day
   elapsed := d - start_d + 1; cycle_len := end_d - start_d + 1;
   pace := round(c.committed_leads * least(elapsed, cycle_len)::numeric / cycle_len);

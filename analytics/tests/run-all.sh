@@ -30,6 +30,8 @@ echo "=== FIXTURE: the seven tiles ==="
 psql -d "$FIX_DB" -f tests/print-tiles.sql
 echo "=== FIXTURE: branch scenarios ==="
 psql -d "$FIX_DB" -f tests/scenarios.test.sql
+echo "=== FIXTURE: broker pulse hold (R6-01, R6-05) ==="
+psql -d "$FIX_DB" -f tests/pulse-hold.test.sql
 echo "=== FIXTURE: every SQL block in knowledge/metrics.md ==="
 FIX_DB="$FIX_DB" bash tests/metrics-sql.test.sh
 echo "=== FIXTURE: the 20 scripted Ask-the-data questions ==="

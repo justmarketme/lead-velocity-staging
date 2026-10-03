@@ -132,6 +132,18 @@ test('broker report is aggregate only (>= 5 answers, no lines, no names); W33 ge
   assert.deepEqual(P.judgeHints(rows).map((h) => [h.lead_id, h.reason, h.lead_said]), [['lead_2', 'lead_pulse_down', 'he was late']]);
 });
 
+test('R6-05: brokerLine holds the stored {n, up}; an erased answer row cannot shift it', () => {
+  const rows = Array.from({ length: 9 }, (_, i) => ({ lead_id: `l${i}`, thumbs: i < 7 ? 'up' : 'down' }));
+  const first = P.brokerLine(rows);
+  assert.deepEqual([first.n, first.up], [9, 7]);
+  const erased = rows.filter((r) => r.lead_id !== 'l2');                     // W34 erase: 8 rows left
+  const held = P.brokerLine(erased, first.n, first.up);
+  assert.deepEqual([held.n, held.up, held.text], [9, 7, first.text]);
+  assert.equal(P.brokerLine(erased.slice(0, 4), 9, 7).n, 9);                 // under 5 rows left, stored figure still stands
+  const grown = [...erased, ...Array.from({ length: 6 }, (_, i) => ({ lead_id: `n${i}`, thumbs: 'up' }))];   // 14 rows = 5 new on 9
+  assert.equal(P.brokerLine(grown, 9, 7).n, 14);
+});
+
 test('every lead-facing W35 line passes the output gate and the tone check (en + af)', () => {
   for (const lang of ['en', 'af']) for (const k of ['PULSE_ASK', 'PULSE_LINE_ASK_UP', 'PULSE_LINE_ASK_DOWN', 'PULSE_LINE_THANKS']) {
     const t = fill(LINES[lang][k], { first_name: 'Lerato', adviser_first: 'Mark' });

@@ -161,21 +161,22 @@ export function onPulseLine(text, c) {
 }
 
 /**
- * brokerLine(rows, prevN) -> the aggregate sentence for W14 broker report / portal Reports tab, or null below REPORT_MIN_N.
+ * brokerLine(rows, prevN, prevUp) -> the aggregate sentence for W14 broker report / portal Reports tab, or null below REPORT_MIN_N.
  * rows = lead_pulse answers for this broker and cycle, OLDEST ANSWER FIRST. Never names, never lines.
- * prevN = the number of answers behind the last figure this broker was shown this cycle (null if none).
+ * prevN, prevUp = the STORED n and up of the last figure this broker was sent this cycle (report_history), null if none.
  * I-43c (W35-pulse-visibility.md residual risk): per cycle only, never week-on-week, and the figure is held at the last displayed
- * one until REPORT_STEP (5) new answers have arrived: 9 answers then 10 show the same figure, 14 shows a new one. The figure is
- * computed on the first `shown` answers, so a late answer cannot move it. Mirrors facts.broker_pulse (analytics/W14-broker.sql).
+ * one until REPORT_STEP (5) new answers have arrived: 9 answers then 10 show the same figure, 14 shows a new one.
+ * R6-05: the hold is on the stored {n, up}, never a recount of today's rows, so a POPIA erase (W34 deletes a lead_pulse row) cannot
+ * move a held figure, even when fewer than prevN rows remain. Only when answers.length - prevN >= 5 is it recomputed on all current answers.
+ * (If prevUp is missing, up comes from the first prevN current answers.) Mirrors facts.broker_pulse (analytics/W14-broker.sql).
  */
 export const REPORT_STEP = 5;
-export function brokerLine(rows = [], prevN = null) {
+export function brokerLine(rows = [], prevN = null, prevUp = null) {
   const all = rows.filter((r) => r.thumbs === 'up' || r.thumbs === 'down');
-  if (all.length < REPORT_MIN_N) return null;
   const hold = Number.isInteger(prevN) && prevN >= REPORT_MIN_N && all.length - prevN < REPORT_STEP;
-  const n = hold ? Math.min(prevN, all.length) : all.length;
-  const ans = all.slice(0, n);
-  const up = ans.filter((r) => r.thumbs === 'up').length;
+  if (!hold && all.length < REPORT_MIN_N) return null;
+  const n = hold ? prevN : all.length;
+  const up = hold && Number.isInteger(prevUp) && prevUp >= 0 && prevUp <= prevN ? prevUp : all.slice(0, n).filter((r) => r.thumbs === 'up').length;
   return { n, up, rate: Math.round((up / n) * 1000) / 1000, text: `${up} of ${n} people said the call was worth their time.` };
 }
 

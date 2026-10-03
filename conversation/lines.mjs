@@ -34,6 +34,15 @@ export const LINES = {
     // W15 / POPIA. One message, then silence.
     STOP_ACK: "Done. You won't get any more messages from us.",
     STOP_ACK_BOOKED: "Done. You won't get any more messages from us. Your call with {adviser_first} on {date} at {time} stays booked unless you reply CANCEL.",
+    // R6-04 / I-48d: STOP under the NH-52 default (cancel mode) when W15 cancelled a live booking. The ONE confirmation:
+    // messages stop, the call is off, how to come back. {date}/{time} = the cancelled booking (the next one if several).
+    STOP_ACK_CANCELLED: "Done. You won't get any more messages from us, and your call with {adviser_first} on {date} at {time} is cancelled. If you change your mind, just send us a message here.",
+    // R6-03 / I-45n: Schedule D broker no-show (W12). Neutral: says what happened, blames no one, offers new times
+    // (FAQ-02: the lead pays nothing). W10 follows with the times. Session text: the lead's "No, not yet" opened the window.
+    BROKER_NO_SHOW_APOLOGY: "Sorry, {first_name}, it looks like your call with {adviser_first} didn't happen today. I'll send you some new times now, and there's still nothing to pay.",
+    // I-45i: the Teams/Zoom/Meet invite email bounced (W17 -> W05 invite_bounced). Inside 24 h; outside it the
+    // utility template invite_email_bounced carries the same ask. Next free text that looks like an email = EMAIL_Q answer.
+    EMAIL_BOUNCED: "The {method} invite we sent didn't reach your inbox. When you have a moment, please reply with the email address you'd like us to use.",
     // Out-of-band close (3.3, 4.6 step 3). No reason that judges the person; no advice; nothing stored after 24 h.
     CLOSE_OOB_AGE: "Thanks for your time. The advisers on this service work with people aged 35 to 50 at the moment, so we won't set up a call, and we'll delete your details. You're welcome to contact any licensed financial adviser directly.",
     CLOSE_OOB_BUDGET: "Thanks for your time. The advisers on this service aren't able to take this on at the moment, so we won't set up a call, and we'll delete your details. You're welcome to contact any licensed financial adviser directly.",
@@ -111,6 +120,9 @@ export const LINES = {
     CLARIFY: "Jammer, ek het jou nie mooi verstaan nie. Kan jy dit anders stel?",
     STOP_ACK: "Klaar. Jy sal nie weer boodskappe van ons kry nie.",
     STOP_ACK_BOOKED: "Klaar. Jy sal nie weer boodskappe van ons kry nie. Jou oproep met {adviser_first} op {date} om {time} bly bespreek, tensy jy CANCEL antwoord.",
+    STOP_ACK_CANCELLED: "Klaar. Jy sal nie weer boodskappe van ons kry nie, en jou oproep met {adviser_first} op {date} om {time} is gekanselleer. As jy van plan verander, stuur net vir ons 'n boodskap hier.",
+    BROKER_NO_SHOW_APOLOGY: "Jammer, {first_name}, dit lyk of jou oproep met {adviser_first} nie vandag plaasgevind het nie. Ek stuur nou vir jou 'n paar nuwe tye, en daar is steeds niks om te betaal nie.",
+    EMAIL_BOUNCED: "Die {method}-uitnodiging wat ons gestuur het, het nie jou e-pos bereik nie. Wanneer jy 'n oomblik het, antwoord asseblief met die e-posadres wat ons moet gebruik.",
     CLOSE_OOB_AGE: "Dankie vir jou tyd. Die adviseurs op hierdie diens werk tans met mense van 35 tot 50, so ons sal nie 'n oproep reël nie, en ons sal jou besonderhede uitvee. Jy is welkom om enige gelisensieerde finansiële adviseur self te kontak.",
     CLOSE_OOB_BUDGET: "Dankie vir jou tyd. Die adviseurs op hierdie diens kan dit tans nie aanneem nie, so ons sal nie 'n oproep reël nie, en ons sal jou besonderhede uitvee. Jy is welkom om enige gelisensieerde finansiële adviseur self te kontak.",
     CLOSE_NO_CONSENT: "Geen probleem nie, ons hou nie jou besonderhede nie. Mooi bly.",
