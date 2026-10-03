@@ -2552,6 +2552,28 @@
       "human_gate": true,
       "status": "needs_human",
       "section": "6.6 security"
+    },
+    {
+      "id": "NH-59",
+      "title": "Qualifying question order: 4.6 (age, budget, bond/dependants, method — default) vs state machine (age, bond, dependants, budget)",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.6 / conversation"
+    },
+    {
+      "id": "NH-60",
+      "title": "CTWA consent covers Meta measurement events (consent_ads_at at consent time, default) — practitioner",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "2.3 / 4.4a"
     }
   ]
 }

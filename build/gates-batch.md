@@ -125,3 +125,5 @@ GATE-HIDE-WORDS (Phase 2) · GATE-TEST-W01/W04/W05/W06/W09/W12/W13/W15 — you w
 | NH-54 | Broker never marks and lead says adviser did not call → broker no-show + apology line? | Yes (confirm wording at GATE-TEST-W12) |
 | NH-57 | Ad budget changes: every change needs your one-tap confirm (a), or only raises (b)? | (a) |
 | NH-58 | Service-role key on the VPS: accept for cycle 1 (a) or move the three calls behind edge functions first (b)? | (b) |
+| NH-59 | Qualifying order: age → budget → bond/dependants → method (4.6, default) or age → bond → dependants → budget (state machine)? | 4.6 order |
+| NH-60 | WhatsApp consent covers Meta measurement events (set consent_ads_at at consent)? — practitioner item | Yes until the opinion says otherwise |
