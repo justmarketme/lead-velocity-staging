@@ -180,7 +180,11 @@ test('renewal reminder template matches renewalReminderTemplate() and the W19 re
   assert.equal(out[0].json.template.name, t.name);
   assert.equal(out[0].json.template.body.length, nVars);
   // I-48g: the reminder goes through a mapping node to the sender; the email leg stays in W19.
-  assert.deepEqual(next(wf('W19'), n.name).sort(), ['Email: renewal reminder from howzit@', 'Reminder: map to sender input']);
+  // I-54c: the email leg sits behind a DRY_RUN_SENDS gate (lib/egress-gate.cjs); look through it.
+  const GATE = 'Live send? (Email: renewal reminder from howzit@)';
+  assert.deepEqual(next(wf('W19'), n.name).sort(), [GATE, 'Reminder: map to sender input']);
+  assert.deepEqual(next(wf('W19'), GATE, 0), ['Email: renewal reminder from howzit@']);
+  assert.deepEqual(next(wf('W19'), GATE, 1), ['Dry-run stub (Email: renewal reminder from howzit@)']);
   assert.deepEqual(next(wf('W19'), 'Reminder: map to sender input'), ['WhatsApp + email: renewal reminder']);
   assert.match(fs.readFileSync(path.join(ROOT, 'automation/templates/samples/broker_renewal_reminder.txt'), 'utf8'), /Manage auto-renew -> https:\/\/app\.leadvelocity\.co\.za\/s\/billing/);
 });
