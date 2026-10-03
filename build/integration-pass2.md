@@ -220,14 +220,14 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-45a ✅ | W05 offline booking adapter still uses the test's reference book(); swap to lib/w05.mjs | automation-engineer |
 | I-45b ✅ | Append W04/W05 request/response contracts to CONTRACTS.md | automation-engineer |
 | I-45c ✅ | Rewire W01/W06/W15 tests to the real libs + JSON (4 fixture contradictions logged) | automation-engineer — dispatched |
-| I-45d | W07: route `flow_complete` to W05 (not W28); call W04 by its real name; forward delivery/failure receipts for intro cards to W06 `op:'status'` | automation-engineer (W07) |
-| I-45e | W10: W04 is_free / graph_token sub-calls must wait (`waitForSubWorkflow: true` per CONTRACTS) | automation-engineer (W10) |
-| I-45f | W06 accepts `{event:'booking'}` from W05 and chooses broker_intro_booked vs booking_confirmed; W05 calls W06 `op:'booking'` for a page booking inside the hold | automation-engineer |
+| I-45d ✅ | W07: route `flow_complete` to W05 (not W28); call W04 by its real name; forward delivery/failure receipts for intro cards to W06 `op:'status'` | automation-engineer (W07) |
+| I-45e ✅ | W10: W04 is_free / graph_token sub-calls must wait (`waitForSubWorkflow: true` per CONTRACTS) | automation-engineer (W10) |
+| I-45f ✅ | W06 accepts `{event:'booking'}` from W05 and chooses broker_intro_booked vs booking_confirmed; W05 calls W06 `op:'booking'` for a page booking inside the hold | automation-engineer |
 | I-45g | Drop the "(DRAFT pending …)" name suffix on each workflow at gate approval (callers bind by name) | orchestrator at GATE-TEST-* |
 | I-45h | /book and /lead Turnstile + rate limits need the Public guard (W03-notes B.3); `ops.rate_counters` table (today W01 counts in webhook_events) | automation-engineer + platform-architect |
 | I-45i ✅ | lines.mjs EMAIL_BOUNCED (EN/AF) + a utility template for the bounce prompt outside 24 h; W17 forwards bounce notices to W05 `invite_bounced` | conversation-designer + billing-automation (W17) |
 | I-45j | Serve `/c/{booking_id}` for the .ics link; Zoom meeting creation and Google Meet path not built (Teams + phone + WhatsApp-call are) | automation-engineer, Phase 5 |
-| I-45k | W29 → W13 call sends only `{lead_id}`; add a Code node sending `{op, outcome_id, reason, reason_code, idempotency_key}` | automation-engineer (W29) |
+| I-45k ✅ | W29 → W13 call sends only `{lead_id}`; add a Code node sending `{op, outcome_id, reason, reason_code, idempotency_key}` | automation-engineer (W29) |
 | I-45l | Voice-note owner: W29 transcribes today, W12 stores `whatsapp-media:{id}` only; pick one (P17/Q22) | conversation-designer + compliance-qa |
 | I-45m | W13 claim query must run as one transaction (two statements, batching `single`) — confirm on staging | compliance-qa, Phase 5 |
 | I-45n ✅ | `BROKER_NO_SHOW_APOLOGY` (EN/AF) in lib/w12.mjs is draft wording → approve into lines.mjs | conversation-designer |
@@ -293,14 +293,17 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 |---|---|---|
 | I-50a ✅ | Real SQL bugs: SUB-capi-send "Update capi_log" casts `id` to uuid (column is bigint); W05 "Insert appointment" writes a non-existent `appointments.lead_id` | automation-engineer — dispatched |
 | I-50b ✅ | SUB-whatsapp-send inserts `recipient_contact` NULL into a NOT NULL legacy column — write the recipient number | automation-engineer — dispatched |
-| I-50c | Ask-the-data Q12 (capacity days left) 49.0/28 vs expected 50.8/29 — fixture drifts with today's date; pin the fixture date | analytics-reporter |
-| I-50d | Re-running analytics/W14-*.sql resets the two facts functions to SECURITY INVOKER; analytics layer has no migration path to production (migration 10 §3) | platform-architect |
+| I-50c ✅ | Ask-the-data Q12 (capacity days left) 49.0/28 vs expected 50.8/29 — fixture drifts with today's date; pin the fixture date | analytics-reporter |
+| I-50d ✅ | Re-running analytics/W14-*.sql resets the two facts functions to SECURITY INVOKER; analytics layer has no migration path to production (migration 10 §3) | platform-architect |
 | I-50e | L02 fixture in synthetic-leads.json still expects the old no-show reading (broker No-show + lead "No" → apology); update at GATE-TEST-W12 with the R6-03 rule | automation-engineer at GATE-TEST-W12 |
-| I-50f | W12: a broker mark that arrives after the apology went out is not logged as a conflict for KG; CAPI Attended still fires on an Attended-vs-"No" conflict | automation-engineer (W12) + attribution-analyst |
+| I-50f ✅ | W12: a broker mark that arrives after the apology went out is not logged as a conflict for KG; CAPI Attended still fires on an Attended-vs-"No" conflict | automation-engineer (W12) + attribution-analyst |
 | I-50g | W17 NDR detection assumes Microsoft 365 subjects "Undeliverable: Your call with …" — verify against a real NDR at staging | billing-automation, Phase 5 |
-| I-50h | W19: switch the pay-link and come-back calls from session text to broker_cycle_ended / broker_come_back (variable order: first name, reason, end date, reference / first name, reference) and supply the cycle end date | billing-automation |
+| I-50h ✅ | W19: switch the pay-link and come-back calls from session text to broker_cycle_ended / broker_come_back (variable order: first name, reason, end date, reference / first name, reference) and supply the cycle end date | billing-automation |
 
 ### I-51 · 2026-10-03 (Phase 5 rehearsal attempt)
 | # | Item | Owner |
 |---|---|---|
 | I-51a | Day-in-the-life rehearsal (6B.10) on the local n8n: import all 39 workflow files, run synthetic lead L01 through intake → first touch → slots → book → reminders (time-shifted) → outcome → no-show → replacement → STOP with the egress guard and DRY_RUN; precise failure list per stage | automation-engineer — dispatched |
+| I-51b | W12 holds CAPI Attended on an Attended-vs-"No" conflict but nothing releases it after KG decides; an Attended sent before the lead answers cannot be recalled; Attended + unreachable disposition still sends Attended | attribution-analyst + automation-engineer (W12) |
+| I-51c | W07 "-> W28" route is unused after I-45d; remove it in a pass that renumbers the Route switch outputs | automation-engineer (W07) |
+| I-51d | Late broker-mark conflict is logged to public.escalations (W12 convention) rather than ops.notifications — keep (default) or move | compliance-qa |
