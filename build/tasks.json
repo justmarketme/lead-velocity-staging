@@ -2618,6 +2618,17 @@
       "human_gate": true,
       "status": "needs_human",
       "section": "4.4 cycle 1 reality / 4D"
+    },
+    {
+      "id": "NH-65",
+      "title": "Lookalike seed: MASTER-PROMPT 4.4b seeds the week-2 lookalike from raw Lead; relayed direction says Qualified/GoodFit, never raw. Spec now seeds from Qualified, then GoodFit/Attended (default applied; confirm or revert). Campaign A still optimises on native Lead (Conversion Leads needs 200+/month).",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.4b"
     }
   ]
 }

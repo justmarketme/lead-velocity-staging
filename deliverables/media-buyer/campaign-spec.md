@@ -273,7 +273,7 @@ Hashing: SHA-256 in n8n only (event-spec POPIA note). Consent gate: only rows wi
 | `SMC_ENG_igpage_90d` | Engagement | IG + Page engagers 90 d | none yet | automatic |
 | `SMC_ENG_formopen_90d` | Engagement | people who opened the instant form (and, separately, opened but did not submit) | none yet; Phase 2 only, **audience-only, never contacted** | automatic |
 | `SMC_PIX_quizstart_14d` / `SMC_PIX_visitors_30d` | Website (pixel) | `ViewContent` minus `Lead`; all PageViews | none yet; Phase 2 | automatic |
-| `SMC_LAL-1_lead_1pct` ... | Lookalike | per 4.4b gates | **not created until the seed gate is met** (section 11) | per source |
+| `SMC_LAL-1_qualified_1pct` ... | Lookalike | seed = `Qualified` / `GoodFit` / `Attended` only, never raw `Lead` or `Schedule`; per 4.4b gates | **not created until the seed gate is met** (section 11) | per source |
 
 Engagement audiences depend on the Page and IG existing; create them the day the assets are linked, before any spend.
 
@@ -371,8 +371,8 @@ Replacements, shortfall credits and good-fit ratings change the real cost per qu
 | Monthly media >= R20,000 (about 2 brokers) **or** Campaign A qualify rate < 50% | Switch on Campaign B (30%) and Test C (10%); A drops to 60% | A 60 / B 30 / C 10 of total daily media |
 | Decision once >= 2 campaigns run | Move budget toward the lowest cost per **qualified** lead and cost per **attended meeting**; never raw CPL; >= 30 leads per arm | per section 12 |
 | **Phase 2:** pixel audience >= 1,000 (or week 3) | Add Campaign B second ad set: quiz-starters not submitted 14 d, 50% video viewers, form-openers; a *different* creative ("finish your 60-second check"); frequency cap 3 per 7 days; excluded once they submit. Meta audiences only; no direct contact | inside B's 30% |
-| **Week 2 (300+ `Lead` events)** | Add **LAL-1 (1%)** from pixel/CAPI `Lead` 90 d + CTWA `Lead` as an Advantage+ **suggestion** in Campaign A (never a new campaign) | no change |
-| **Week 4–6 (300+ `Qualified`)** | Replace the LAL-1 seed with `Qualified`; keep 1% | no change |
+| **Week 2 (300+ `Lead` events)** | **No lookalike from raw `Lead` (changed 2026-10-03, intent filters; supersedes 4.4b's week-2 `Lead` seed, flagged for the orchestrator).** Keep broad + creative diversity until `Qualified` reaches the gate | no change |
+| **Week 4–6 (300+ `Qualified`)** | First lookalike: **LAL-1 (1%) seeded from `Qualified`** (offline/CAPI), as an Advantage+ **suggestion** in Campaign A (never a new campaign) | no change |
 | **Cycle 2+ (>= 300 `Attended`/`GoodFit`)** | LAL-Q value-based (value = broker score 1-5), 1% and 3% as suggestions | no change |
 | **Phase 3 (>= 1,000 `Attended`/`GoodFit` or >= 200 leads/mo) and A has >= 50 qualified/mo** | Split-test broad vs LAL-Q 1% for 14 days, equal budget and creative; winner on cost per **attended meeting**. Conversion Leads optimisation becomes available | equal split |
 | LAL-Q loses to broad twice | Retire it; spend attention on creative | |
@@ -415,6 +415,27 @@ Per campaign, ad set, ad, and **by origin** (`leads.origin`: `lead_ad` = instant
 8. Alerts per 6.3 plus: first message > 60 s, token expiring, spend > 1.5x daily budget.
 
 Every write action (pause, budget, duplicate) logs who/when/why and is confirm-to-apply.
+
+---
+
+## 13b. Intent filters (2026-10-03)
+
+Direction: reach people who can afford life cover and are actively looking. Audit of filters outside the creative; spec/config only, no budgets or live set touched (NH-64 is Jonathan's).
+
+**(a) Form type.** A1 is Higher Intent (3.1, `instant-form-spec.json` `_meta.form_variant`, `_ui_only.form_type_higher_intent_toggle`); More Volume is not used anywhere. Meta-operator must confirm the review screen is on at build (API field still UNVERIFIED).
+
+**(b) Budget band is a hard qualifier: below R750 = not qualified; R750-R1,250 and R1,250+ both qualify (0.1).**
+| Place | Current rule | Status |
+|---|---|---|
+| Instant form Q2 + routing (3.3/3.4, json) | Under R500 and R500-R750 route out; two upper bands qualify | OK |
+| Quiz page (`landing/template/page.js:108`; `quiz.spec.ts`) | `budgetOk` only 750_1250 / 1250plus; missing = not ok | OK |
+| W01 (`automation/lib/w01.mjs` `QUAL_BUDGET`; maps all sub-750 codes to `lt750`; null = out) | both upper bands qualify | OK |
+| W02 | re-checks via the shared W01 mapping (budget_band field present; rule lives in w01.mjs) | OK, unit-verified only by reading |
+| W03 CTWA / Thandi (`automation/ctwa/w03.js` `QUAL_BUDGET`, `conversation/logic.mjs` `outOfBand`, `state-machine.md`, `intent-slot.md`) | `<750` closes (`closed_oob`); "not sure" gets one clarify, a second closes | OK |
+| DB check (`smc_02_core.sql:350`) | lt750 / 750_1250 / 1250plus | OK |
+Code mismatches for automation-engineer: none found. Watch item: instant-form Q2 offers a "Not sure" path only in chat, not in the form, so form leads cannot be unsure (intended).
+
+**(c) Optimisation and seeds.** Campaign A optimises on native `Lead` only because Conversion Leads needs >= 200 leads/month (not available); quality is steered by the form filters above plus the offline feedback. Event map (`automation/capi/event-spec.md`) already sends `Qualified`, `Attended`, `GoodFit` offline from day 1 (consent-gated, `sub-capi-send.mjs`). Audience plan fixed above: lookalike seeds are `Qualified`, then `GoodFit`/`Attended` (value = broker score); raw `Lead` and `Schedule` are never seeds (exclusion use only). This overrides the 4.4b week-2 `Lead` seed; orchestrator to reconcile the master prompt.
 
 ---
 
