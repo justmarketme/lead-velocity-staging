@@ -1,4 +1,5 @@
 {
+ "id": "smc-w16",
  "name": "W16 Payment received",
  "nodes": [
   {
@@ -597,7 +598,7 @@
     "workflowId": {
      "__rl": true,
      "mode": "id",
-     "value": "REPLACE_WITH_W22_WORKFLOW_ID"
+     "value": "smc-w22"
     },
     "options": {
      "waitForSubWorkflow": false
@@ -710,7 +711,7 @@
     "workflowId": {
      "__rl": true,
      "mode": "id",
-     "value": "REPLACE_WITH_W22_WORKFLOW_ID"
+     "value": "smc-w22"
     },
     "options": {
      "waitForSubWorkflow": false
@@ -887,7 +888,7 @@
     "workflowId": {
      "__rl": true,
      "mode": "id",
-     "value": "REPLACE_WITH_W20_WORKFLOW_ID"
+     "value": "smc-w20"
     },
     "options": {
      "waitForSubWorkflow": false
@@ -910,7 +911,7 @@
     "workflowId": {
      "__rl": true,
      "mode": "id",
-     "value": "REPLACE_WITH_W26_WORKFLOW_ID"
+     "value": "smc-w26"
     },
     "options": {
      "waitForSubWorkflow": false
@@ -955,7 +956,7 @@
     "workflowId": {
      "__rl": true,
      "mode": "id",
-     "value": "REPLACE_WITH_ADS_BUDGET_WORKFLOW_ID"
+     "value": "smc-ads-budget"
     },
     "options": {
      "waitForSubWorkflow": false
@@ -978,7 +979,7 @@
     "workflowId": {
      "__rl": true,
      "mode": "id",
-     "value": "REPLACE_WITH_W22_WORKFLOW_ID"
+     "value": "smc-w22"
     },
     "options": {
      "waitForSubWorkflow": false
@@ -1700,7 +1701,7 @@
   "saveDataErrorExecution": "all",
   "saveManualExecutions": false,
   "saveExecutionProgress": false,
-  "errorWorkflow": "REPLACE_WITH_W22_WORKFLOW_ID",
+  "errorWorkflow": "smc-w22",
   "callerPolicy": "workflowsFromSameOwner"
  },
  "pinData": {},

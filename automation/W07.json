@@ -1,4 +1,5 @@
 {
+  "id": "smc-w07",
   "name": "W07 Conversation agent (Thandi)",
   "nodes": [
     {
@@ -46,7 +47,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst V = require(REPO + '/automation/security/verify-webhooks.js');\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w07.mjs').href);\nconst it = $input.first();\nconst raw = it.binary && it.binary.data ? Buffer.from(it.binary.data.data, 'base64').toString('utf8') : JSON.stringify(it.json.body || {});\nconst sig = (it.json.headers || {})['x-hub-signature-256'];\nif (!V.verifyMetaSignature(raw, sig, $env.META_APP_SECRET)) return [{ json: { valid: false } }];\nconst body = JSON.parse(raw);\nconst crypto = require('crypto');\nconst out = [];\nfor (const m of L.normaliseInbound(body)) out.push({ json: { valid: true, kind: 'message', msg: m, payload_hash: crypto.createHash('sha256').update(JSON.stringify(m)).digest('hex') } });\nfor (const e of body.entry || []) for (const ch of e.changes || []) for (const s of (ch.value && ch.value.statuses) || []) out.push({ json: { valid: true, kind: 'status', wamid: s.id, status: s.status, ts: Number(s.timestamp || 0), error: (s.errors && s.errors[0] && (s.errors[0].code + ' ' + (s.errors[0].title || ''))) || null } });\nreturn out.length ? out : [{ json: { valid: true, kind: 'empty' } }];"
+        "jsCode": "const V = require('lv-automation').verifyWebhooks;\nconst L = require('lv-automation').w07;\nconst it = $input.first();\nconst raw = it.binary && it.binary.data ? Buffer.from(it.binary.data.data, 'base64').toString('utf8') : JSON.stringify(it.json.body || {});\nconst sig = (it.json.headers || {})['x-hub-signature-256'];\nif (!V.verifyMetaSignature(raw, sig, $env.META_APP_SECRET)) return [{ json: { valid: false } }];\nconst body = JSON.parse(raw);\nconst crypto = require('crypto');\nconst out = [];\nfor (const m of L.normaliseInbound(body)) out.push({ json: { valid: true, kind: 'message', msg: m, payload_hash: crypto.createHash('sha256').update(JSON.stringify(m)).digest('hex') } });\nfor (const e of body.entry || []) for (const ch of e.changes || []) for (const s of (ch.value && ch.value.statuses) || []) out.push({ json: { valid: true, kind: 'status', wamid: s.id, status: s.status, ts: Number(s.timestamp || 0), error: (s.errors && s.errors[0] && (s.errors[0].code + ' ' + (s.errors[0].title || ''))) || null } });\nreturn out.length ? out : [{ json: { valid: true, kind: 'empty' } }];"
       }
     },
     {
@@ -251,7 +252,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w07.mjs').href);\nlet msg; try { msg = $('Verify signature + normalise').item.json.msg; } catch (e) { msg = $('W03 forward: loop guard (origin w03)').item.json.msg; } // I-37e: W03 hand-back carries origin 'w03'\nconst c = $json;\nconst lead = c.id ? { id: c.id, first_name: c.first_name, last_name: c.last_name, phone: c.phone, line_type: c.line_type, brand_id: c.brand_id, broker_id: c.broker_id, cycle_id: c.cycle_id, stage: c.stage, conv_state: c.conv_state || {}, opted_out_at: c.opted_out_at, language: c.language, origin: c.origin, age_band: c.age_band, budget_band: c.budget_band, method_pref: c.method_pref, email: c.email, call_number: c.call_number, best_time: c.best_time } : null;\nconst brokerNumbers = new Set(c.from_broker_id ? [msg.from] : []);\nconst opsNumbers = new Set([$env.OPS_WHATSAPP_JONATHAN, $env.OPS_WHATSAPP_KG].filter(Boolean).map((x) => '+' + String(x).replace(/\\D/g, '')));\nconst r = L.routeInbound(msg, { lead, broker_numbers: brokerNumbers, ops_numbers: opsNumbers, broker_status: c.from_broker_status, has_live_booking: !!c.booking_id, suppressed: c.suppressed });\nconst pre = L.preStep(msg, lead || {}, { contact_person: c.contact_person });\nconst booking = c.booking_id ? { id: c.booking_id, appointment_date: c.appointment_date, method: c.method, status: c.booking_status, graph_event_id: c.graph_event_id } : null;\nreturn { json: { route: r.route, reason: r.reason, msg, lead, booking, broker: { id: c.broker_id || c.from_broker_id, contact_person: c.contact_person, firm_name: c.firm_name }, from_broker_id: c.from_broker_id, brand_id: (lead && lead.brand_id) || c.from_broker_brand_id || null, last_inbound_at: c.last_inbound_at, pre: pre.pre, text_llm: pre.text_llm, text_store: pre.text_store, adviser_first: pre.adviser_first, skip_llm: pre.skip_llm } };"
+        "jsCode": "const L = require('lv-automation').w07;\nlet msg; try { msg = $('Verify signature + normalise').item.json.msg; } catch (e) { msg = $('W03 forward: loop guard (origin w03)').item.json.msg; } // I-37e: W03 hand-back carries origin 'w03'\nconst c = $json;\nconst lead = c.id ? { id: c.id, first_name: c.first_name, last_name: c.last_name, phone: c.phone, line_type: c.line_type, brand_id: c.brand_id, broker_id: c.broker_id, cycle_id: c.cycle_id, stage: c.stage, conv_state: c.conv_state || {}, opted_out_at: c.opted_out_at, language: c.language, origin: c.origin, age_band: c.age_band, budget_band: c.budget_band, method_pref: c.method_pref, email: c.email, call_number: c.call_number, best_time: c.best_time } : null;\nconst brokerNumbers = new Set(c.from_broker_id ? [msg.from] : []);\nconst opsNumbers = new Set([$env.OPS_WHATSAPP_JONATHAN, $env.OPS_WHATSAPP_KG].filter(Boolean).map((x) => '+' + String(x).replace(/\\D/g, '')));\nconst r = L.routeInbound(msg, { lead, broker_numbers: brokerNumbers, ops_numbers: opsNumbers, broker_status: c.from_broker_status, has_live_booking: !!c.booking_id, suppressed: c.suppressed });\nconst pre = L.preStep(msg, lead || {}, { contact_person: c.contact_person });\nconst booking = c.booking_id ? { id: c.booking_id, appointment_date: c.appointment_date, method: c.method, status: c.booking_status, graph_event_id: c.graph_event_id } : null;\nreturn { json: { route: r.route, reason: r.reason, msg, lead, booking, broker: { id: c.broker_id || c.from_broker_id, contact_person: c.contact_person, firm_name: c.firm_name }, from_broker_id: c.from_broker_id, brand_id: (lead && lead.brand_id) || c.from_broker_brand_id || null, last_inbound_at: c.last_inbound_at, pre: pre.pre, text_llm: pre.text_llm, text_store: pre.text_store, adviser_first: pre.adviser_first, skip_llm: pre.skip_llm } };"
       }
     },
     {
@@ -753,8 +754,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w15",
           "cachedResultName": "W15 Opt-out"
         },
         "options": {
@@ -776,8 +777,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w03",
           "cachedResultName": "W03 Lead intake (Click-to-WhatsApp)"
         },
         "options": {
@@ -799,8 +800,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w05",
           "cachedResultName": "W05 Book"
         },
         "options": {
@@ -822,8 +823,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w09",
           "cachedResultName": "W09 Reminder sequence"
         },
         "options": {
@@ -845,8 +846,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w10",
           "cachedResultName": "W10 Reschedule / cancel"
         },
         "options": {
@@ -868,8 +869,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w12",
           "cachedResultName": "W12 Outcome, disposition & feedback"
         },
         "options": {
@@ -891,8 +892,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w29",
           "cachedResultName": "W29 Feedback loop"
         },
         "options": {
@@ -914,8 +915,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w35",
           "cachedResultName": "W35 Lead pulse"
         },
         "options": {
@@ -937,8 +938,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w04",
           "cachedResultName": "W04 Slots API (10-slot list in chat)"
         },
         "options": {
@@ -960,8 +961,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w08",
           "cachedResultName": "W08 Unbooked nurture"
         },
         "options": {
@@ -983,8 +984,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w28",
           "cachedResultName": "W28 Booking Flow"
         },
         "options": {
@@ -1015,7 +1016,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w07.mjs').href);\nconst j = $json;\nconst step = L.contactStep(j.lead, j.msg, null);\nreturn { json: { ...j, step } };"
+        "jsCode": "const L = require('lv-automation').w07;\nconst j = $json;\nconst step = L.contactStep(j.lead, j.msg, null);\nreturn { json: { ...j, step } };"
       }
     },
     {
@@ -1093,7 +1094,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w07.mjs').href);\nconst j = $('Contact step (call number / alt / best time)').item.json;\nconst t = ($json.line_type_intelligence && $json.line_type_intelligence.type) || 'unknown';\nconst line = t === 'mobile' ? 'mobile' : (t === 'landline' || t === 'fixedVoip' || t === 'nonFixedVoip') ? (t === 'landline' ? 'landline' : 'voip') : 'unknown';\nreturn { json: { ...j, step: L.contactStep(j.lead, j.msg, { line_type: line }) } };"
+        "jsCode": "const L = require('lv-automation').w07;\nconst j = $('Contact step (call number / alt / best time)').item.json;\nconst t = ($json.line_type_intelligence && $json.line_type_intelligence.type) || 'unknown';\nconst line = t === 'mobile' ? 'mobile' : (t === 'landline' || t === 'fixedVoip' || t === 'nonFixedVoip') ? (t === 'landline' ? 'landline' : 'voip') : 'unknown';\nreturn { json: { ...j, step: L.contactStep(j.lead, j.msg, { line_type: line }) } };"
       }
     },
     {
@@ -1178,7 +1179,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w07.mjs').href);\nconst fs = require('fs');\nconst md = fs.readFileSync(REPO + '/conversation/prompts/intent-slot.md', 'utf8');\nconst system = (md.split('\\u0060\\u0060\\u0060prompt')[1] || '').split('\\u0060\\u0060\\u0060')[0].trim();\nconst j = $json;\nconst state = (j.lead && j.lead.conv_state && j.lead.conv_state.state) || (j.booking ? 'booked' : 'unbooked');\nconst known = j.lead ? ['age_band', 'budget_band', 'bond', 'dependants', 'method_pref', 'email', 'call_number', 'best_time'].filter((k) => j.lead[k] != null) : [];\nconst user = L.intentUserTurn({ state, booking: j.booking ? { day: '', date: j.booking.appointment_date, time: '', method: j.booking.method } : null, now_ms: Date.now(), known, text_llm: j.text_llm });\nreturn { json: { ...j, state, t0: Date.now(), intent_body: { model: $env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5-20251001', max_tokens: 400, temperature: 0, system, messages: [{ role: 'user', content: user }] } } };"
+        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nconst fs = require('fs');\nconst md = fs.readFileSync(REPO + '/conversation/prompts/intent-slot.md', 'utf8');\nconst system = (md.split('\\u0060\\u0060\\u0060prompt')[1] || '').split('\\u0060\\u0060\\u0060')[0].trim();\nconst j = $json;\nconst state = (j.lead && j.lead.conv_state && j.lead.conv_state.state) || (j.booking ? 'booked' : 'unbooked');\nconst known = j.lead ? ['age_band', 'budget_band', 'bond', 'dependants', 'method_pref', 'email', 'call_number', 'best_time'].filter((k) => j.lead[k] != null) : [];\nconst user = L.intentUserTurn({ state, booking: j.booking ? { day: '', date: j.booking.appointment_date, time: '', method: j.booking.method } : null, now_ms: Date.now(), known, text_llm: j.text_llm });\nreturn { json: { ...j, state, t0: Date.now(), intent_body: { model: $env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5-20251001', max_tokens: 400, temperature: 0, system, messages: [{ role: 'user', content: user }] } } };"
       }
     },
     {
@@ -1238,7 +1239,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w07.mjs').href);\nconst D = await import(url.pathToFileURL(REPO + '/conversation/logic.mjs').href);\nconst j = $('Build intent-slot request (Haiku)').item.json;\nconst raw = ($json.content && $json.content[0] && $json.content[0].text) || '';\nconst nlu = L.parseNlu(raw);\nconst fs = require('fs');\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst lang = ((j.lead && j.lead.language) || nlu.language) === 'af' ? 'af' : 'en';\nconst cs = (j.lead && j.lead.conv_state) || {};\nconst decision = D.decide(j.state, nlu, j.pre, { booking: j.booking, unanswered: cs.unanswered || 0 });\nconst plan = L.planActions(decision, { lead: j.lead, booking: L.bookingView(j.booking, lang), faq, pre: j.pre, nlu, now_ms: Date.now(), lang, state: j.state, wamid: j.msg.wamid, disclosed: !!cs.disclosed, adviser_first: j.adviser_first, unanswered: cs.unanswered || 0, text_store: j.text_store });\nreturn { json: { ...j, nlu, decision, plan, latency_ms: Date.now() - j.t0 } };"
+        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nconst D = require('lv-automation').logic;\nconst j = $('Build intent-slot request (Haiku)').item.json;\nconst raw = ($json.content && $json.content[0] && $json.content[0].text) || '';\nconst nlu = L.parseNlu(raw);\nconst fs = require('fs');\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst lang = ((j.lead && j.lead.language) || nlu.language) === 'af' ? 'af' : 'en';\nconst cs = (j.lead && j.lead.conv_state) || {};\nconst decision = D.decide(j.state, nlu, j.pre, { booking: j.booking, unanswered: cs.unanswered || 0 });\nconst plan = L.planActions(decision, { lead: j.lead, booking: L.bookingView(j.booking, lang), faq, pre: j.pre, nlu, now_ms: Date.now(), lang, state: j.state, wamid: j.msg.wamid, disclosed: !!cs.disclosed, adviser_first: j.adviser_first, unanswered: cs.unanswered || 0, text_store: j.text_store });\nreturn { json: { ...j, nlu, decision, plan, latency_ms: Date.now() - j.t0 } };"
       }
     },
     {
@@ -1467,8 +1468,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w09",
           "cachedResultName": "W09 Reminder sequence"
         },
         "options": {
@@ -1683,7 +1684,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w07.mjs').href);\nconst fs = require('fs');\nconst md = fs.readFileSync(REPO + '/conversation/prompts/reply.md', 'utf8');\nconst system = (md.split('\\u0060\\u0060\\u0060prompt')[1] || '').split('\\u0060\\u0060\\u0060')[0].trim();\nconst j = $json;\n// w07-alignment #6: approved FAQ answer(s) in the lead's language, KNOWN slots, booking with day/date/time/method\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst facts = L.replyFacts({ plan: j.plan, adviser_first: j.adviser_first, booking: L.bookingView(j.booking, j.plan.lang), faq, lead: j.lead || {} });\nconst user = 'DECISION: ' + JSON.stringify({ actions: j.plan.reply_actions, defer: j.plan.actions.includes('defer'), facts }) + '\\nKNOWN: ' + facts.known.join(', ') + '\\nFIRST_NAME: ' + (j.plan.vars.first_name || '') + '\\nLANGUAGE: ' + j.plan.lang + '\\nLEAD_USED_EMOJI: ' + j.pre.lead_used_emoji + '\\nTHEIR MESSAGE: \"\"\"' + j.text_llm.replace(/\"{3,}/g, '\"').slice(0, 1200) + '\"\"\"';\nreturn { json: { ...j, reply_body: { model: $env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5-20251001', max_tokens: 220, temperature: 0.4, system, messages: [{ role: 'user', content: user }] } } };"
+        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nconst fs = require('fs');\nconst md = fs.readFileSync(REPO + '/conversation/prompts/reply.md', 'utf8');\nconst system = (md.split('\\u0060\\u0060\\u0060prompt')[1] || '').split('\\u0060\\u0060\\u0060')[0].trim();\nconst j = $json;\n// w07-alignment #6: approved FAQ answer(s) in the lead's language, KNOWN slots, booking with day/date/time/method\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst facts = L.replyFacts({ plan: j.plan, adviser_first: j.adviser_first, booking: L.bookingView(j.booking, j.plan.lang), faq, lead: j.lead || {} });\nconst user = 'DECISION: ' + JSON.stringify({ actions: j.plan.reply_actions, defer: j.plan.actions.includes('defer'), facts }) + '\\nKNOWN: ' + facts.known.join(', ') + '\\nFIRST_NAME: ' + (j.plan.vars.first_name || '') + '\\nLANGUAGE: ' + j.plan.lang + '\\nLEAD_USED_EMOJI: ' + j.pre.lead_used_emoji + '\\nTHEIR MESSAGE: \"\"\"' + j.text_llm.replace(/\"{3,}/g, '\"').slice(0, 1200) + '\"\"\"';\nreturn { json: { ...j, reply_body: { model: $env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5-20251001', max_tokens: 220, temperature: 0.4, system, messages: [{ role: 'user', content: user }] } } };"
       }
     },
     {
@@ -1743,7 +1744,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w07.mjs').href);\nconst fs = require('fs');\nconst j = $('Build reply request (Haiku)').item.json;\nconst draft = (($json.content && $json.content[0] && $json.content[0].text) || '').trim();\nconst md = fs.readFileSync(REPO + '/conversation/prompts/guardrail.md', 'utf8');\nconst system = (md.split('\\u0060\\u0060\\u0060prompt')[1] || '').split('\\u0060\\u0060\\u0060')[0].trim();\nconst question = $('Route (deterministic) + prefilter').item.json.msg.text || '';\n// w07-alignment #3: outputGate FIRST; a trip skips the paid classifier call (verdict = block, same result)\nconst g = L.preClassifierGate(j.plan, draft, question);\n// the classifier sees the lead's (redacted) question + the draft, surface whatsapp (G-1)\nconst user = L.classifierTurn(draft, question, j.plan.lang);\nreturn { json: { ...j, draft, gate_ok: g.pass, pre_verdict: g.verdict, classifier_body: { model: $env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5-20251001', max_tokens: 200, temperature: 0, system, messages: [{ role: 'user', content: user }] } } };"
+        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nconst fs = require('fs');\nconst j = $('Build reply request (Haiku)').item.json;\nconst draft = (($json.content && $json.content[0] && $json.content[0].text) || '').trim();\nconst md = fs.readFileSync(REPO + '/conversation/prompts/guardrail.md', 'utf8');\nconst system = (md.split('\\u0060\\u0060\\u0060prompt')[1] || '').split('\\u0060\\u0060\\u0060')[0].trim();\nconst question = $('Route (deterministic) + prefilter').item.json.msg.text || '';\n// w07-alignment #3: outputGate FIRST; a trip skips the paid classifier call (verdict = block, same result)\nconst g = L.preClassifierGate(j.plan, draft, question);\n// the classifier sees the lead's (redacted) question + the draft, surface whatsapp (G-1)\nconst user = L.classifierTurn(draft, question, j.plan.lang);\nreturn { json: { ...j, draft, gate_ok: g.pass, pre_verdict: g.verdict, classifier_body: { model: $env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5-20251001', max_tokens: 200, temperature: 0, system, messages: [{ role: 'user', content: user }] } } };"
       }
     },
     {
@@ -1803,7 +1804,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w07.mjs').href);\nlet j; let draft = ''; let verdict = null;\ntry { j = $('outputGate + classifierInput (I-27)').item.json; draft = j.draft; verdict = j.pre_verdict || L.parseVerdict(($json.content && $json.content[0] && $json.content[0].text) || ''); }\ncatch (e) { j = $json; }\nconst msgText = $('Route (deterministic) + prefilter').item.json.msg.text || '';\n// w07-alignment #7: real HH:MM and the approved FAQ map, so a blocked answer:FAQ-xx draft falls back to the verbatim answer\nconst fs = require('fs');\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst fb = (j.plan.reply_actions || []).map((a) => L.replyFallback(a, { lang: j.plan.lang, adviser_first: j.adviser_first, booking: L.bookingView(j.booking, j.plan.lang), faq })).filter(Boolean).join(' ');\nconst out = L.gateAndAssemble(j.plan, { draft, verdict, question: msgText, lead_used_emoji: j.pre.lead_used_emoji, fallback: fb });\nconst send = j.plan.send && !!out.text;\nconst disclosed_after = L.disclosedAfter(!!(j.lead && j.lead.conv_state && j.lead.conv_state.disclosed), j.plan, send); // #14\nreturn { json: { ...j, disclosed_after, text: out.text, trip: out.guardrail_trip, rule: out.guardrail_rule, used: out.used, send, wa: { messaging_product: 'whatsapp', to: j.msg.from, type: 'text', text: { body: out.text } }, intent: j.nlu.intent, model: out.used === 'llm' ? ($env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5-20251001') : null, handoff: j.plan.next_state === 'handoff' } };"
+        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nlet j; let draft = ''; let verdict = null;\ntry { j = $('outputGate + classifierInput (I-27)').item.json; draft = j.draft; verdict = j.pre_verdict || L.parseVerdict(($json.content && $json.content[0] && $json.content[0].text) || ''); }\ncatch (e) { j = $json; }\nconst msgText = $('Route (deterministic) + prefilter').item.json.msg.text || '';\n// w07-alignment #7: real HH:MM and the approved FAQ map, so a blocked answer:FAQ-xx draft falls back to the verbatim answer\nconst fs = require('fs');\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst fb = (j.plan.reply_actions || []).map((a) => L.replyFallback(a, { lang: j.plan.lang, adviser_first: j.adviser_first, booking: L.bookingView(j.booking, j.plan.lang), faq })).filter(Boolean).join(' ');\nconst out = L.gateAndAssemble(j.plan, { draft, verdict, question: msgText, lead_used_emoji: j.pre.lead_used_emoji, fallback: fb });\nconst send = j.plan.send && !!out.text;\nconst disclosed_after = L.disclosedAfter(!!(j.lead && j.lead.conv_state && j.lead.conv_state.disclosed), j.plan, send); // #14\nreturn { json: { ...j, disclosed_after, text: out.text, trip: out.guardrail_trip, rule: out.guardrail_rule, used: out.used, send, wa: { messaging_product: 'whatsapp', to: j.msg.from, type: 'text', text: { body: out.text } }, intent: j.nlu.intent, model: out.used === 'llm' ? ($env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5-20251001') : null, handoff: j.plan.next_state === 'handoff' } };"
       }
     },
     {
@@ -2029,7 +2030,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w07.mjs').href);\nconst D = await import(url.pathToFileURL(REPO + '/conversation/logic.mjs').href);\nconst j = $json; const cs = (j.lead && j.lead.conv_state) || {};\nconst state = cs.state || (j.booking ? 'booked' : 'unbooked');\nconst nlu = { intent: 'other', topics: [], slots: {}, confidence: 1 };\nconst decision = D.decide(state, nlu, j.pre, { booking: j.booking });\nconst plan = L.planActions(decision, { lead: j.lead, booking: L.bookingView(j.booking, (j.lead && j.lead.language) === 'af' ? 'af' : 'en'), pre: j.pre, nlu, now_ms: Date.now(), lang: (j.lead && j.lead.language) || 'en', state, wamid: j.msg.wamid, disclosed: !!cs.disclosed, adviser_first: j.adviser_first, text_store: j.text_store });\nreturn { json: { ...j, state, nlu, decision, plan } };"
+        "jsCode": "const L = require('lv-automation').w07;\nconst D = require('lv-automation').logic;\nconst j = $json; const cs = (j.lead && j.lead.conv_state) || {};\nconst state = cs.state || (j.booking ? 'booked' : 'unbooked');\nconst nlu = { intent: 'other', topics: [], slots: {}, confidence: 1 };\nconst decision = D.decide(state, nlu, j.pre, { booking: j.booking });\nconst plan = L.planActions(decision, { lead: j.lead, booking: L.bookingView(j.booking, (j.lead && j.lead.language) === 'af' ? 'af' : 'en'), pre: j.pre, nlu, now_ms: Date.now(), lang: (j.lead && j.lead.language) || 'en', state, wamid: j.msg.wamid, disclosed: !!cs.disclosed, adviser_first: j.adviser_first, text_store: j.text_store });\nreturn { json: { ...j, state, nlu, decision, plan } };"
       }
     },
     {
@@ -2056,7 +2057,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w07.mjs').href);\nconst j = $json; const q = L.contactStart(j.booking, j.broker || {}, (j.lead && j.lead.language) || 'en');\nif (!q) return { json: { skip: true } };\nreturn { json: { skip: false, send: true, brand_id: j.lead.brand_id, msg: { from: j.lead.phone, wamid: 'w05:' + j.booking.id }, lead: j.lead, text: q.body, wa: { messaging_product: 'whatsapp', to: j.lead.phone, type: 'interactive', interactive: { type: 'button', body: { text: q.body }, action: { buttons: q.buttons.map(([id, t]) => ({ type: 'reply', reply: { id, title: t } })) } } }, intent: 'contact', model: null, trip: false, rule: null, handoff: false } };"
+        "jsCode": "const L = require('lv-automation').w07;\nconst j = $json; const q = L.contactStart(j.booking, j.broker || {}, (j.lead && j.lead.language) || 'en');\nif (!q) return { json: { skip: true } };\nreturn { json: { skip: false, send: true, brand_id: j.lead.brand_id, msg: { from: j.lead.phone, wamid: 'w05:' + j.booking.id }, lead: j.lead, text: q.body, wa: { messaging_product: 'whatsapp', to: j.lead.phone, type: 'interactive', interactive: { type: 'button', body: { text: q.body }, action: { buttons: q.buttons.map(([id, t]) => ({ type: 'reply', reply: { id, title: t } })) } } }, intent: 'contact', model: null, trip: false, rule: null, handoff: false } };"
       }
     },
     {
@@ -2070,7 +2071,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w07.mjs').href);\nreturn { json: L.w32DecisionItem($json.msg) };"
+        "jsCode": "const L = require('lv-automation').w07;\nreturn { json: L.w32DecisionItem($json.msg) };"
       }
     },
     {
@@ -2086,8 +2087,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w32",
           "cachedResultName": "W32 Optimisation pulse, memo, retro, events, approvals"
         },
         "options": {
@@ -2107,7 +2108,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w07.mjs').href);\nreturn { json: L.w23MediaItem($json.msg) };"
+        "jsCode": "const L = require('lv-automation').w07;\nreturn { json: L.w23MediaItem($json.msg) };"
       }
     },
     {
@@ -2123,8 +2124,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w23",
           "cachedResultName": "W23 Media processing (intro video and voice)"
         },
         "options": {
@@ -3001,7 +3002,7 @@
     "executionOrder": "v1",
     "timezone": "Africa/Johannesburg",
     "saveManualExecutions": true,
-    "errorWorkflow": "W22 Alerts"
+    "errorWorkflow": "smc-w22"
   },
   "pinData": {},
   "tags": [

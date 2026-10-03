@@ -1,4 +1,5 @@
 {
+  "id": "smc-w29",
   "name": "W29 Feedback loop",
   "nodes": [
     {
@@ -40,7 +41,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w29.mjs').href);\nconst j = $json;\nif (j.event === 'outcome_recorded') return { json: { ...j, kind: 'recompute' } };\nconst p = L.parseBrokerReply(j.msg || {});\nreturn { json: { ...j, kind: p.kind, value: p.value, booking_id: p.booking_id || null, followup_lead_id: p.lead_id || null, from: j.msg && j.msg.from } };"
+        "jsCode": "const L = require('lv-automation').w29;\nconst j = $json;\nif (j.event === 'outcome_recorded') return { json: { ...j, kind: 'recompute' } };\nconst p = L.parseBrokerReply(j.msg || {});\nreturn { json: { ...j, kind: p.kind, value: p.value, booking_id: p.booking_id || null, followup_lead_id: p.lead_id || null, from: j.msg && j.msg.from } };"
       }
     },
     {
@@ -224,7 +225,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w29.mjs').href);\nconst j = $json; const d = L.applyDisposition(j.o, j.value, Date.now()); return { json: { ...j, d } };"
+        "jsCode": "const L = require('lv-automation').w29;\nconst j = $json; const d = L.applyDisposition(j.o, j.value, Date.now()); return { json: { ...j, d } };"
       }
     },
     {
@@ -327,8 +328,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w13",
           "cachedResultName": "W13 No-show & replacement"
         },
         "options": {
@@ -362,7 +363,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w29.mjs').href);\nconst j = $json; const d = L.applyQuality(j.o, j.value); return { json: { ...j, d } };"
+        "jsCode": "const L = require('lv-automation').w29;\nconst j = $json; const d = L.applyQuality(j.o, j.value); return { json: { ...j, d } };"
       }
     },
     {
@@ -554,7 +555,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w29.mjs').href);\nconst t = $('Transcribe (Whisper-class, audio not stored)').item.json;\nconst s = (($json.content && $json.content[0] && $json.content[0].text) || '').trim();\nconst v = L.voiceNote({ duration_s: Number(t.duration || 0), transcript: t.text || '', summary: s });\nreturn { json: { ...$('Merge').item.json, v } };"
+        "jsCode": "const L = require('lv-automation').w29;\nconst t = $('Transcribe (Whisper-class, audio not stored)').item.json;\nconst s = (($json.content && $json.content[0] && $json.content[0].text) || '').trim();\nconst v = L.voiceNote({ duration_s: Number(t.duration || 0), transcript: t.text || '', summary: s });\nreturn { json: { ...$('Merge').item.json, v } };"
       }
     },
     {
@@ -650,7 +651,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w29.mjs').href);\nconst rows = $input.all().map((i) => i.json).filter((r) => r.ad_id !== undefined);\nconst m = $('Merge').first().json;\nconst q = L.adQuality(rows.filter((r) => r.same_ad));\nconst t = L.tuning(rows.filter((r) => r.same_cycle));\nconst ins = [];\nif (q.signal === 'pause') ins.push({ kind: 'kill_signal', text: 'Lead quality ' + q.raw_index + ' from ' + q.quality_n + ' calls, not-a-fit ' + Math.round((q.nofit_rate || 0) * 100) + '%: pause per 3.4.', n: q.quality_n });\nif (q.signal === 'scale_candidate') ins.push({ kind: 'scale_signal', text: 'Lead quality ' + q.raw_index + ' from ' + q.quality_n + ' calls: +20% if CPL is within threshold (3.4).', n: q.quality_n });\nfor (const x of t) ins.push(x);\nreturn [{ json: { o: m.o, q, insights: ins, thanks: L.thanksLine(q) } }];"
+        "jsCode": "const L = require('lv-automation').w29;\nconst rows = $input.all().map((i) => i.json).filter((r) => r.ad_id !== undefined);\nconst m = $('Merge').first().json;\nconst q = L.adQuality(rows.filter((r) => r.same_ad));\nconst t = L.tuning(rows.filter((r) => r.same_cycle));\nconst ins = [];\nif (q.signal === 'pause') ins.push({ kind: 'kill_signal', text: 'Lead quality ' + q.raw_index + ' from ' + q.quality_n + ' calls, not-a-fit ' + Math.round((q.nofit_rate || 0) * 100) + '%: pause per 3.4.', n: q.quality_n });\nif (q.signal === 'scale_candidate') ins.push({ kind: 'scale_signal', text: 'Lead quality ' + q.raw_index + ' from ' + q.quality_n + ' calls: +20% if CPL is within threshold (3.4).', n: q.quality_n });\nfor (const x of t) ins.push(x);\nreturn [{ json: { o: m.o, q, insights: ins, thanks: L.thanksLine(q) } }];"
       }
     },
     {
@@ -907,7 +908,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w29.mjs').href);\nconst r = $('fit_followup due').item.json; if (!$json.id) return { json: { skip: true } };\nconst d = new Date(Date.parse(r.marked_at) + 7200000); const lbl = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getUTCDay()] + ' ' + d.getUTCDate() + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getUTCMonth()];\nconst who = (r.first_name || '') + (r.last_name ? ' ' + r.last_name.slice(0, 1) + '.' : '');\nreturn { json: { skip: false, wa: { messaging_product: 'whatsapp', to: r.whatsapp_number, type: 'template', template: { name: 'broker_fit_followup', language: { code: 'en' }, components: [{ type: 'body', parameters: [String(r.contact_person).split(' ')[0], lbl, who].map((t) => ({ type: 'text', text: t })) }, { type: 'button', sub_type: 'quick_reply', index: '0', parameters: [{ type: 'payload', payload: 'fit_followup:' + r.lead_id + ':done' }] }, { type: 'button', sub_type: 'quick_reply', index: '1', parameters: [{ type: 'payload', payload: 'fit_followup:' + r.lead_id + ':open' }] }, { type: 'button', sub_type: 'url', index: '2', parameters: [{ type: 'text', text: 'leads/' + r.lead_id }] }] } } } };"
+        "jsCode": "const L = require('lv-automation').w29;\nconst r = $('fit_followup due').item.json; if (!$json.id) return { json: { skip: true } };\nconst d = new Date(Date.parse(r.marked_at) + 7200000); const lbl = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getUTCDay()] + ' ' + d.getUTCDate() + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getUTCMonth()];\nconst who = (r.first_name || '') + (r.last_name ? ' ' + r.last_name.slice(0, 1) + '.' : '');\nreturn { json: { skip: false, wa: { messaging_product: 'whatsapp', to: r.whatsapp_number, type: 'template', template: { name: 'broker_fit_followup', language: { code: 'en' }, components: [{ type: 'body', parameters: [String(r.contact_person).split(' ')[0], lbl, who].map((t) => ({ type: 'text', text: t })) }, { type: 'button', sub_type: 'quick_reply', index: '0', parameters: [{ type: 'payload', payload: 'fit_followup:' + r.lead_id + ':done' }] }, { type: 'button', sub_type: 'quick_reply', index: '1', parameters: [{ type: 'payload', payload: 'fit_followup:' + r.lead_id + ':open' }] }, { type: 'button', sub_type: 'url', index: '2', parameters: [{ type: 'text', text: 'leads/' + r.lead_id }] }] } } } };"
       }
     }
   ],
@@ -1264,7 +1265,7 @@
     "executionOrder": "v1",
     "timezone": "Africa/Johannesburg",
     "saveManualExecutions": true,
-    "errorWorkflow": "W22 Alerts"
+    "errorWorkflow": "smc-w22"
   },
   "pinData": {},
   "tags": [

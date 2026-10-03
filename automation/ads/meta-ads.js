@@ -25,7 +25,9 @@ const RATE_LIMIT_CODES = new Set([4, 17, 32, 613, 80000, 80001, 80002, 80003, 80
 const MIN_DAILY_BUDGET_ZAR = () => Number(process.env.META_MIN_DAILY_BUDGET_ZAR || 20);
 
 class MetaError extends Error {
-  constructor(message, o = {}) { super(message); this.name = 'MetaError'; Object.assign(this, o); }
+  // defineProperty, not `this.name =`: n8n's task runner freezes Error.prototype, so assigning an inherited
+  // read-only property throws in strict mode (lv-automation loads this file inside the runner, I-44a).
+  constructor(message, o = {}) { super(message); Object.defineProperty(this, 'name', { value: 'MetaError', writable: true, configurable: true }); Object.assign(this, o); }
 }
 
 const sha256 = (s) => crypto.createHash('sha256').update(String(s), 'utf8').digest('hex');

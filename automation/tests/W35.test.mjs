@@ -173,5 +173,5 @@ test('W35.json: inactive, credentials by name only, $env for secrets, SQL matche
   const claim = WF.nodes.find((n) => n.name === 'Claim pulse row (idempotency)');
   assert.match(claim.parameters.query, /ON CONFLICT \(lead_id, booking_id\) DO NOTHING\s+RETURNING id/u);
   assert.equal(WF.connections['Claim pulse row (idempotency)'].main[0][0].node, 'Claimed? (first scheduler run only)');
-  assert.equal(WF.settings.errorWorkflow, 'W22 Alerts');
+  assert.equal(WF.settings.errorWorkflow, 'smc-w22', 'n8n reads errorWorkflow as a workflow id (I-44b)');
 });

@@ -1,4 +1,5 @@
 {
+  "id": "smc-w11",
   "name": "W11 Broker reminders",
   "nodes": [
     {
@@ -74,7 +75,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w11.mjs').href);\nconst rows = $input.all().map((i) => i.json).filter((r) => r.id);\nconst byBroker = {};\nfor (const r of rows) (byBroker[r.broker_id] ||= { broker: { id: r.broker_id, contact_person: r.contact_person, whatsapp_number: r.whatsapp_number, email: r.email }, bookings: [] }).bookings.push({ broker_id: r.broker_id, status: r.status, appointment_date: r.appointment_date, method: r.method, lead: { first_name: r.first_name, last_name: r.last_name } });\nconst out = [];\nfor (const v of Object.values(byBroker)) { const d = L.digest(v.broker, v.bookings, Date.now()); if (d) out.push({ json: { broker: v.broker, d } }); }\nreturn out;"
+        "jsCode": "const L = require('lv-automation').w11;\nconst rows = $input.all().map((i) => i.json).filter((r) => r.id);\nconst byBroker = {};\nfor (const r of rows) (byBroker[r.broker_id] ||= { broker: { id: r.broker_id, contact_person: r.contact_person, whatsapp_number: r.whatsapp_number, email: r.email }, bookings: [] }).bookings.push({ broker_id: r.broker_id, status: r.status, appointment_date: r.appointment_date, method: r.method, lead: { first_name: r.first_name, last_name: r.last_name } });\nconst out = [];\nfor (const v of Object.values(byBroker)) { const d = L.digest(v.broker, v.bookings, Date.now()); if (d) out.push({ json: { broker: v.broker, d } }); }\nreturn out;"
       }
     },
     {
@@ -247,7 +248,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w11.mjs').href);\nconst r = $json; if (!r.id) return { json: { skip: true } };\nconst lead = { first_name: r.first_name, last_name: r.last_name, phone: r.phone, age_band: r.age_band, budget_band: r.budget_band, bond: r.bond, dependants: r.dependants, work_cover: r.work_cover, call_number: r.lead_call_number, alt_number: r.alt_number, best_time: r.best_time, language: r.language };\nconst booking = { id: r.id, appointment_date: r.appointment_date, method: r.method, call_number: r.call_number, join_url: r.join_url, reschedule_count: r.reschedule_count, status: r.status };\nconst input = L.briefInput(lead, booking, r.themes || [], { confirmed_t24: !!r.confirmed_at, intro_media_played: !!r.intro_played_at }, r.corpus || []);\nconst fallback = L.fallbackBrief(lead, booking, input);\nconst fs = require('fs');\nconst md = fs.readFileSync(REPO + '/conversation/prompts/precall-brief.md', 'utf8');\nconst system = (md.split('\\u0060\\u0060\\u0060prompt')[1] || '').split('\\u0060\\u0060\\u0060')[0].trim();\nreturn { json: { skip: false, r, lead, booking, input, fallback, key: L.briefKey(booking), body: { model: $env.ANTHROPIC_MODEL_STRONG || 'claude-sonnet-5-5', max_tokens: 600, temperature: 0.2, system, messages: [{ role: 'user', content: JSON.stringify(input) }] } } };"
+        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w11;\nconst r = $json; if (!r.id) return { json: { skip: true } };\nconst lead = { first_name: r.first_name, last_name: r.last_name, phone: r.phone, age_band: r.age_band, budget_band: r.budget_band, bond: r.bond, dependants: r.dependants, work_cover: r.work_cover, call_number: r.lead_call_number, alt_number: r.alt_number, best_time: r.best_time, language: r.language };\nconst booking = { id: r.id, appointment_date: r.appointment_date, method: r.method, call_number: r.call_number, join_url: r.join_url, reschedule_count: r.reschedule_count, status: r.status };\nconst input = L.briefInput(lead, booking, r.themes || [], { confirmed_t24: !!r.confirmed_at, intro_media_played: !!r.intro_played_at }, r.corpus || []);\nconst fallback = L.fallbackBrief(lead, booking, input);\nconst fs = require('fs');\nconst md = fs.readFileSync(REPO + '/conversation/prompts/precall-brief.md', 'utf8');\nconst system = (md.split('\\u0060\\u0060\\u0060prompt')[1] || '').split('\\u0060\\u0060\\u0060')[0].trim();\nreturn { json: { skip: false, r, lead, booking, input, fallback, key: L.briefKey(booking), body: { model: $env.ANTHROPIC_MODEL_STRONG || 'claude-sonnet-5-5', max_tokens: 600, temperature: 0.2, system, messages: [{ role: 'user', content: JSON.stringify(input) }] } } };"
       }
     },
     {
@@ -364,7 +365,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w11.mjs').href);\nconst j = $('Brief input (w11.briefInput)').item.json;\nlet model = null; try { model = JSON.parse((($json.content && $json.content[0] && $json.content[0].text) || '').replace(/\\u0060\\u0060\\u0060json|\\u0060\\u0060\\u0060/g, '').trim()); } catch (e) { model = null; }\nconst c = L.chooseBrief(model, j.fallback, { last_name: j.lead.last_name });\nconst vars = L.briefVarsArray(c.brief);\nreturn { json: { ...j, used: c.used, issues: c.issues, wa: { messaging_product: 'whatsapp', to: j.r.whatsapp_number, type: 'template', template: { name: 'precall_brief', language: { code: 'en' }, components: [{ type: 'body', parameters: vars.map((t) => ({ type: 'text', text: t })) }, { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: 'brief/' + j.r.id }] }] } } } };"
+        "jsCode": "const L = require('lv-automation').w11;\nconst j = $('Brief input (w11.briefInput)').item.json;\nlet model = null; try { model = JSON.parse((($json.content && $json.content[0] && $json.content[0].text) || '').replace(/\\u0060\\u0060\\u0060json|\\u0060\\u0060\\u0060/g, '').trim()); } catch (e) { model = null; }\nconst c = L.chooseBrief(model, j.fallback, { last_name: j.lead.last_name });\nconst vars = L.briefVarsArray(c.brief);\nreturn { json: { ...j, used: c.used, issues: c.issues, wa: { messaging_product: 'whatsapp', to: j.r.whatsapp_number, type: 'template', template: { name: 'precall_brief', language: { code: 'en' }, components: [{ type: 'body', parameters: vars.map((t) => ({ type: 'text', text: t })) }, { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: 'brief/' + j.r.id }] }] } } } };"
       }
     },
     {
@@ -496,7 +497,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w11.mjs').href);\nconst r = $json; if (!r.id) return { json: { action: 'none' } };\nconst d = L.unmarkedSweep(r, { outcome_exists: false, reach: r.reach || null }, Date.now());\nreturn { json: { ...d, r } };"
+        "jsCode": "const L = require('lv-automation').w11;\nconst r = $json; if (!r.id) return { json: { action: 'none' } };\nconst d = L.unmarkedSweep(r, { outcome_exists: false, reach: r.reach || null }, Date.now());\nreturn { json: { ...d, r } };"
       }
     },
     {
@@ -632,8 +633,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w12",
           "cachedResultName": "W12 Outcome, disposition & feedback"
         },
         "options": {
@@ -1045,7 +1046,7 @@
     "executionOrder": "v1",
     "timezone": "Africa/Johannesburg",
     "saveManualExecutions": true,
-    "errorWorkflow": "W22 Alerts"
+    "errorWorkflow": "smc-w22"
   },
   "pinData": {},
   "tags": [

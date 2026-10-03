@@ -1,4 +1,5 @@
 {
+  "id": "smc-w27",
   "name": "W27 Meta asset health (hourly + webhooks)",
   "nodes": [
     {
@@ -66,7 +67,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const M = require('/opt/lv/automation/ads/meta-ads.js');\nconst it = $input.first();\nconst raw = it.binary && it.binary.data ? Buffer.from(it.binary.data.data, 'base64').toString('utf8') : (it.json.rawBody || JSON.stringify(it.json.body));\nconst sig = (it.json.headers || {})['x-hub-signature-256'];\nif (!M.verifyWebhookSignature(raw, sig, $env.META_APP_SECRET)) throw new Error('bad Meta webhook signature: dropped');\nreturn [{ json: { trigger: 'webhook' } }];"
+        "jsCode": "const M = require('lv-automation').metaAds;\nconst it = $input.first();\nconst raw = it.binary && it.binary.data ? Buffer.from(it.binary.data.data, 'base64').toString('utf8') : (it.json.rawBody || JSON.stringify(it.json.body));\nconst sig = (it.json.headers || {})['x-hub-signature-256'];\nif (!M.verifyWebhookSignature(raw, sig, $env.META_APP_SECRET)) throw new Error('bad Meta webhook signature: dropped');\nreturn [{ json: { trigger: 'webhook' } }];"
       }
     },
     {
@@ -149,7 +150,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const M = require('/opt/lv/automation/ads/meta-ads.js');\nconst client = M.createClient({ token: $env.META_SYSTEM_USER_TOKEN, apiVersion: $env.META_API_VERSION || 'v23.0', maxInlineWaitMs: 20000 });\nconst out = [];\nfor (const it of $input.all()) {\n  const b = it.json;\n  try {\n    const h = await client.getAssetHealth({ businessId: b.business_id, pageId: b.page_id, igUserId: b.ig_user_id, wabaId: b.waba_id, phoneNumberId: b.phone_number_id, adAccountId: b.ad_account_id, pixelId: b.pixel_id });\n    const d = M.diffHealth({ waba_quality: b.waba_quality, alerts: b.health_alerts || [] }, h);\n    out.push({ json: { brand_id: b.brand_id, ok: true, health: h, urgent: d.urgent, new_alerts: d.new_alerts, templates: (h.template_status && h.template_status.items) || [] } });\n  } catch (e) {\n    // API error -> retry next run; a rate-limit back-off is not an alert.\n    out.push({ json: { brand_id: b.brand_id, ok: false, code: e.code || 'ERR', message: String(e.message).slice(0, 300), urgent: false, retry_after_ms: e.retryAfterMs || null } });\n  }\n}\nreturn out;"
+        "jsCode": "const M = require('lv-automation').metaAds;\nconst client = M.createClient({ token: $env.META_SYSTEM_USER_TOKEN, apiVersion: $env.META_API_VERSION || 'v23.0', maxInlineWaitMs: 20000 });\nconst out = [];\nfor (const it of $input.all()) {\n  const b = it.json;\n  try {\n    const h = await client.getAssetHealth({ businessId: b.business_id, pageId: b.page_id, igUserId: b.ig_user_id, wabaId: b.waba_id, phoneNumberId: b.phone_number_id, adAccountId: b.ad_account_id, pixelId: b.pixel_id });\n    const d = M.diffHealth({ waba_quality: b.waba_quality, alerts: b.health_alerts || [] }, h);\n    out.push({ json: { brand_id: b.brand_id, ok: true, health: h, urgent: d.urgent, new_alerts: d.new_alerts, templates: (h.template_status && h.template_status.items) || [] } });\n  } catch (e) {\n    // API error -> retry next run; a rate-limit back-off is not an alert.\n    out.push({ json: { brand_id: b.brand_id, ok: false, code: e.code || 'ERR', message: String(e.message).slice(0, 300), urgent: false, retry_after_ms: e.retryAfterMs || null } });\n  }\n}\nreturn out;"
       }
     },
     {
@@ -271,8 +272,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w22",
           "cachedResultName": "W22 Alerts"
         },
         "options": {
@@ -492,7 +493,7 @@
     "executionOrder": "v1",
     "timezone": "Africa/Johannesburg",
     "saveManualExecutions": true,
-    "errorWorkflow": "W22 Alerts"
+    "errorWorkflow": "smc-w22"
   },
   "pinData": {},
   "tags": [

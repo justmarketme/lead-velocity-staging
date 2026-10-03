@@ -1,4 +1,5 @@
 {
+ "id": "smc-w28",
  "name": "W28 Booking Flow endpoint",
  "nodes": [
   {
@@ -205,8 +206,8 @@
     "source": "database",
     "workflowId": {
      "__rl": true,
-     "mode": "list",
-     "value": "",
+     "mode": "id",
+     "value": "smc-w04",
      "cachedResultName": "W04 Slots API"
     },
     "options": {
@@ -440,8 +441,8 @@
     "source": "database",
     "workflowId": {
      "__rl": true,
-     "mode": "list",
-     "value": "",
+     "mode": "id",
+     "value": "smc-w22",
      "cachedResultName": "W22 Alerts"
     },
     "options": {
@@ -597,8 +598,8 @@
     "source": "database",
     "workflowId": {
      "__rl": true,
-     "mode": "list",
-     "value": "",
+     "mode": "id",
+     "value": "smc-w04",
      "cachedResultName": "W04 Slots API"
     },
     "options": {
@@ -720,8 +721,8 @@
     "source": "database",
     "workflowId": {
      "__rl": true,
-     "mode": "list",
-     "value": "",
+     "mode": "id",
+     "value": "smc-w07",
      "cachedResultName": "W07 Conversation agent"
     },
     "options": {
@@ -763,8 +764,8 @@
     "source": "database",
     "workflowId": {
      "__rl": true,
-     "mode": "list",
-     "value": "",
+     "mode": "id",
+     "value": "smc-w22",
      "cachedResultName": "W22 Alerts"
     },
     "options": {
@@ -1129,7 +1130,7 @@
   "executionOrder": "v1",
   "timezone": "Africa/Johannesburg",
   "saveManualExecutions": true,
-  "errorWorkflow": "W22 Alerts"
+  "errorWorkflow": "smc-w22"
  },
  "pinData": {},
  "tags": [

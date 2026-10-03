@@ -191,7 +191,7 @@ test('reschedule INIT pre-fills the current booking; booking id must match the t
 test('W28.json: inactive, settings block, credentials by name, no secrets, connections resolve, inlined modules current, ping before token work', () => {
   assert.equal(WF.active, false);
   assert.equal(WF.settings.timezone, 'Africa/Johannesburg');
-  assert.equal(WF.settings.errorWorkflow, 'W22 Alerts');
+  assert.equal(WF.settings.errorWorkflow, 'smc-w22', 'n8n reads errorWorkflow as a workflow id (I-44b)');
   const names = new Set(WF.nodes.map((n) => n.name));
   for (const [from, c] of Object.entries(WF.connections)) { assert.ok(names.has(from), from); for (const out of c.main) for (const l of out) assert.ok(names.has(l.node), l.node); }
   for (const n of WF.nodes) for (const cred of Object.values(n.credentials || {})) assert.equal(cred.id, '');

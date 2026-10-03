@@ -1,4 +1,5 @@
 {
+  "id": "smc-w35",
   "name": "W35 Lead pulse",
   "nodes": [
     {
@@ -70,7 +71,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst P = await import(url.pathToFileURL(REPO + '/conversation/pulse.mjs').href);\nconst r = $json; if (!r.lead_id) return { json: { action: 'none' } };\nconst c = { lead: { id: r.lead_id, first_name: r.first_name, language: r.language, opted_out_at: r.opted_out_at, conv_state: r.conv_state || {} }, outcome: { outcome: r.outcome, marked_at: r.marked_at, lead_reach_check: r.lead_reach_check }, booking: { id: r.booking_id }, reach: { sent_at: r.reach_sent_at, answered_at: r.reach_answered_at }, broker: { contact_person: r.contact_person }, suppressed: r.suppressed, already_sent: false, last_inbound_at: r.last_inbound_at, outbound_count: Number(r.outbound_count || 0) };\nconst d = P.pulseDue(c, Date.now());\nreturn { json: { ...d, lead_id: r.lead_id, booking_id: r.booking_id, cycle_id: r.cycle_id, brand_id: r.brand_id, broker_id: r.broker_id, phone: r.phone, version: P.VERSION } };"
+        "jsCode": "const P = require('lv-automation').pulse;\nconst r = $json; if (!r.lead_id) return { json: { action: 'none' } };\nconst c = { lead: { id: r.lead_id, first_name: r.first_name, language: r.language, opted_out_at: r.opted_out_at, conv_state: r.conv_state || {} }, outcome: { outcome: r.outcome, marked_at: r.marked_at, lead_reach_check: r.lead_reach_check }, booking: { id: r.booking_id }, reach: { sent_at: r.reach_sent_at, answered_at: r.reach_answered_at }, broker: { contact_person: r.contact_person }, suppressed: r.suppressed, already_sent: false, last_inbound_at: r.last_inbound_at, outbound_count: Number(r.outbound_count || 0) };\nconst d = P.pulseDue(c, Date.now());\nreturn { json: { ...d, lead_id: r.lead_id, booking_id: r.booking_id, cycle_id: r.cycle_id, brand_id: r.brand_id, broker_id: r.broker_id, phone: r.phone, version: P.VERSION } };"
       }
     },
     {
@@ -296,7 +297,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst P = await import(url.pathToFileURL(REPO + '/conversation/pulse.mjs').href);\nconst j = $json; const lead = j.lead || {}; const msg = j.msg || {}; const now = Date.now();\nconst c = { lead, booking: { id: (lead.conv_state && lead.conv_state.pulse_booking_id) || null } };\nconst key = String(msg.payload || '').split(':')[0];\nlet r; let kind;\nif (key === 'pulse_yes' || key === 'pulse_no') { r = P.onPulseTap(msg.payload, c, now); kind = 'tap'; }\nelse if (P.isPulseLine(msg.text, lead.conv_state || {}, now)) { r = P.onPulseLine(msg.text, c); r.booking_id = c.booking.id; kind = 'line'; }\nelse return { json: { skip: true, reason: 'not a pulse answer (W07 handles it)' } };\nif (r.error || !r.booking_id) return { json: { skip: true, reason: r.error || 'no booking for this pulse' } };\nconst lang = lead.language === 'af' ? 'af' : 'en';\nreturn { json: { skip: false, kind, r, lang, lead_id: lead.id, brand_id: lead.brand_id, broker_id: lead.broker_id, cycle_id: lead.cycle_id || null, phone: msg.from, wamid: msg.wamid, version: P.VERSION } };"
+        "jsCode": "const P = require('lv-automation').pulse;\nconst j = $json; const lead = j.lead || {}; const msg = j.msg || {}; const now = Date.now();\nconst c = { lead, booking: { id: (lead.conv_state && lead.conv_state.pulse_booking_id) || null } };\nconst key = String(msg.payload || '').split(':')[0];\nlet r; let kind;\nif (key === 'pulse_yes' || key === 'pulse_no') { r = P.onPulseTap(msg.payload, c, now); kind = 'tap'; }\nelse if (P.isPulseLine(msg.text, lead.conv_state || {}, now)) { r = P.onPulseLine(msg.text, c); r.booking_id = c.booking.id; kind = 'line'; }\nelse return { json: { skip: true, reason: 'not a pulse answer (W07 handles it)' } };\nif (r.error || !r.booking_id) return { json: { skip: true, reason: r.error || 'no booking for this pulse' } };\nconst lang = lead.language === 'af' ? 'af' : 'en';\nreturn { json: { skip: false, kind, r, lang, lead_id: lead.id, brand_id: lead.brand_id, broker_id: lead.broker_id, cycle_id: lead.cycle_id || null, phone: msg.from, wamid: msg.wamid, version: P.VERSION } };"
       }
     },
     {
@@ -730,7 +731,7 @@
     "executionOrder": "v1",
     "timezone": "Africa/Johannesburg",
     "saveManualExecutions": true,
-    "errorWorkflow": "W22 Alerts"
+    "errorWorkflow": "smc-w22"
   },
   "pinData": {},
   "tags": [

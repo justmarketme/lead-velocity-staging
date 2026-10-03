@@ -1,4 +1,5 @@
 {
+  "id": "smc-w23",
   "name": "W23 Media processing (intro video and voice)",
   "nodes": [
     {
@@ -2369,7 +2370,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const url = require('url');\nconst M = await import(url.pathToFileURL(($env.REPO_DIR || '/home/node/repo') + '/automation/media/intro-script.mjs').href);\nconst b = $json; const lang = ['en', 'af'].includes($('Verify broker JWT (script-generate)').item.json.body.lang) ? $('Verify broker JWT (script-generate)').item.json.body.lang : (/^[a-z]{2,8}$/.test(String($('Verify broker JWT (script-generate)').item.json.body.lang || '')) ? $('Verify broker JWT (script-generate)').item.json.body.lang : 'en');\nconst facts = { practice: b.practice_name, fsp: b.fsp_number, verified_credentials: b.verified_credentials };\nreturn M.ANGLES.map((m) => ({ json: Object.assign({}, m, { facts, lang, attempt: 1, broker: { adviser_name: b.adviser_name, practice_name: b.practice_name, fsp_number: b.fsp_number, verified_credentials: b.verified_credentials }, answers: b.positioning_answers, req: M.genRequest({ adviser_name: b.adviser_name, practice_name: b.practice_name, fsp_number: b.fsp_number, verified_credentials: b.verified_credentials }, b.positioning_answers, m.angle, lang, { model: $env.ANTHROPIC_MODEL_STRONG || undefined }) }) }));"
+        "jsCode": "const M = require('lv-automation').introScript;\nconst b = $json; const lang = ['en', 'af'].includes($('Verify broker JWT (script-generate)').item.json.body.lang) ? $('Verify broker JWT (script-generate)').item.json.body.lang : (/^[a-z]{2,8}$/.test(String($('Verify broker JWT (script-generate)').item.json.body.lang || '')) ? $('Verify broker JWT (script-generate)').item.json.body.lang : 'en');\nconst facts = { practice: b.practice_name, fsp: b.fsp_number, verified_credentials: b.verified_credentials };\nreturn M.ANGLES.map((m) => ({ json: Object.assign({}, m, { facts, lang, attempt: 1, broker: { adviser_name: b.adviser_name, practice_name: b.practice_name, fsp_number: b.fsp_number, verified_credentials: b.verified_credentials }, answers: b.positioning_answers, req: M.genRequest({ adviser_name: b.adviser_name, practice_name: b.practice_name, fsp_number: b.fsp_number, verified_credentials: b.verified_credentials }, b.positioning_answers, m.angle, lang, { model: $env.ANTHROPIC_MODEL_STRONG || undefined }) }) }));"
       },
       "id": "w23-y06",
       "name": "Explode 3 angles",
@@ -2425,7 +2426,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const url = require('url');\nconst M = await import(url.pathToFileURL(($env.REPO_DIR || '/home/node/repo') + '/automation/media/intro-script.mjs').href);\nconst src = $('Explode 3 angles').item.json; const text = M.parseGenerated($json, src.angle); const det = M.detCheck(text, src.facts, src.lang);\nreturn [{ json: Object.assign({}, src, { text, det, gate: null, gate_body: det.pass ? M.gateRequest(text, src.facts, src.lang, { model: $env.ANTHROPIC_MODEL_FAST || undefined }) : null }) }];"
+        "jsCode": "const M = require('lv-automation').introScript;\nconst src = $('Explode 3 angles').item.json; const text = M.parseGenerated($json, src.angle); const det = M.detCheck(text, src.facts, src.lang);\nreturn [{ json: Object.assign({}, src, { text, det, gate: null, gate_body: det.pass ? M.gateRequest(text, src.facts, src.lang, { model: $env.ANTHROPIC_MODEL_FAST || undefined }) : null }) }];"
       },
       "id": "w23-y08",
       "name": "Check variant (1)",
@@ -2468,7 +2469,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const url = require('url');\nconst M = await import(url.pathToFileURL(($env.REPO_DIR || '/home/node/repo') + '/automation/media/intro-script.mjs').href);\nconst j = $json; return [{ json: Object.assign({}, j, { v: M.variant({ id: j.id, label: j.label, angle: j.angle }, j.text, j.det, j.gate || null) }) }];"
+        "jsCode": "const M = require('lv-automation').introScript;\nconst j = $json; return [{ json: Object.assign({}, j, { v: M.variant({ id: j.id, label: j.label, angle: j.angle }, j.text, j.det, j.gate || null) }) }];"
       },
       "id": "w23-y10",
       "name": "Variant result (1)",
@@ -2524,7 +2525,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const url = require('url');\nconst M = await import(url.pathToFileURL(($env.REPO_DIR || '/home/node/repo') + '/automation/media/intro-script.mjs').href);\nconst src = $('Check variant (1)').item.json; const g = M.parseGate($json);\nreturn [{ json: Object.assign({}, src, { gate: g, sonnet_body: g.needs_sonnet ? M.gateRequest(src.text, src.facts, src.lang, { model: $env.ANTHROPIC_MODEL_STRONG || undefined }) : null }) }];"
+        "jsCode": "const M = require('lv-automation').introScript;\nconst src = $('Check variant (1)').item.json; const g = M.parseGate($json);\nreturn [{ json: Object.assign({}, src, { gate: g, sonnet_body: g.needs_sonnet ? M.gateRequest(src.text, src.facts, src.lang, { model: $env.ANTHROPIC_MODEL_STRONG || undefined }) : null }) }];"
       },
       "id": "w23-y12",
       "name": "Parse gate (1)",
@@ -2610,7 +2611,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const url = require('url');\nconst M = await import(url.pathToFileURL(($env.REPO_DIR || '/home/node/repo') + '/automation/media/intro-script.mjs').href);\nconst src = $('Parse gate (1)').item.json; const rc = M.parseGate($json);\nreturn [{ json: Object.assign({}, src, { gate: M.finalGate(src.gate, rc) }) }];"
+        "jsCode": "const M = require('lv-automation').introScript;\nconst src = $('Parse gate (1)').item.json; const rc = M.parseGate($json);\nreturn [{ json: Object.assign({}, src, { gate: M.finalGate(src.gate, rc) }) }];"
       },
       "id": "w23-y15",
       "name": "Parse re-check (1)",
@@ -2623,7 +2624,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const url = require('url');\nconst M = await import(url.pathToFileURL(($env.REPO_DIR || '/home/node/repo') + '/automation/media/intro-script.mjs').href);\nconst calls = [(() => { try { const j = $('Generate variant (Sonnet) (1)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })(), (() => { try { const j = $('Script gate LLM (Haiku, fails closed) (1)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })(), (() => { try { const j = $('Script gate re-check (Sonnet) (1)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })()];\nconst row = M.llmCostRow(calls);\nlet broker = ''; try { broker = $('Load broker + answers (generate)').first().json.broker_id; } catch (e) {}\nreturn [{ json: Object.assign({ broker_id: broker, source_ref: `w23:script-generate:${broker}:${$execution.id}:${$json.angle}:1` }, row) }];"
+        "jsCode": "const M = require('lv-automation').introScript;\nconst calls = [(() => { try { const j = $('Generate variant (Sonnet) (1)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })(), (() => { try { const j = $('Script gate LLM (Haiku, fails closed) (1)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })(), (() => { try { const j = $('Script gate re-check (Sonnet) (1)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })()];\nconst row = M.llmCostRow(calls);\nlet broker = ''; try { broker = $('Load broker + answers (generate)').first().json.broker_id; } catch (e) {}\nreturn [{ json: Object.assign({ broker_id: broker, source_ref: `w23:script-generate:${broker}:${$execution.id}:${$json.angle}:1` }, row) }];"
       },
       "id": "w23-y16",
       "name": "Cost row (generate 1)",
@@ -2690,7 +2691,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const url = require('url');\nconst M = await import(url.pathToFileURL(($env.REPO_DIR || '/home/node/repo') + '/automation/media/intro-script.mjs').href);\nreturn [{ json: Object.assign({}, $json, { attempt: 2, det: null, gate: null, v: null }) }];"
+        "jsCode": "const M = require('lv-automation').introScript;\nreturn [{ json: Object.assign({}, $json, { attempt: 2, det: null, gate: null, v: null }) }];"
       },
       "id": "w23-y19",
       "name": "Retry prep (generate)",
@@ -2746,7 +2747,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const url = require('url');\nconst M = await import(url.pathToFileURL(($env.REPO_DIR || '/home/node/repo') + '/automation/media/intro-script.mjs').href);\nconst src = $('Retry prep (generate)').item.json; const text = M.parseGenerated($json, src.angle); const det = M.detCheck(text, src.facts, src.lang);\nreturn [{ json: Object.assign({}, src, { text, det, gate: null, gate_body: det.pass ? M.gateRequest(text, src.facts, src.lang, { model: $env.ANTHROPIC_MODEL_FAST || undefined }) : null }) }];"
+        "jsCode": "const M = require('lv-automation').introScript;\nconst src = $('Retry prep (generate)').item.json; const text = M.parseGenerated($json, src.angle); const det = M.detCheck(text, src.facts, src.lang);\nreturn [{ json: Object.assign({}, src, { text, det, gate: null, gate_body: det.pass ? M.gateRequest(text, src.facts, src.lang, { model: $env.ANTHROPIC_MODEL_FAST || undefined }) : null }) }];"
       },
       "id": "w23-y21",
       "name": "Check variant (2)",
@@ -2789,7 +2790,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const url = require('url');\nconst M = await import(url.pathToFileURL(($env.REPO_DIR || '/home/node/repo') + '/automation/media/intro-script.mjs').href);\nconst j = $json; return [{ json: Object.assign({}, j, { v: M.variant({ id: j.id, label: j.label, angle: j.angle }, j.text, j.det, j.gate || null) }) }];"
+        "jsCode": "const M = require('lv-automation').introScript;\nconst j = $json; return [{ json: Object.assign({}, j, { v: M.variant({ id: j.id, label: j.label, angle: j.angle }, j.text, j.det, j.gate || null) }) }];"
       },
       "id": "w23-y23",
       "name": "Variant result (2)",
@@ -2845,7 +2846,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const url = require('url');\nconst M = await import(url.pathToFileURL(($env.REPO_DIR || '/home/node/repo') + '/automation/media/intro-script.mjs').href);\nconst src = $('Check variant (2)').item.json; const g = M.parseGate($json);\nreturn [{ json: Object.assign({}, src, { gate: g, sonnet_body: g.needs_sonnet ? M.gateRequest(src.text, src.facts, src.lang, { model: $env.ANTHROPIC_MODEL_STRONG || undefined }) : null }) }];"
+        "jsCode": "const M = require('lv-automation').introScript;\nconst src = $('Check variant (2)').item.json; const g = M.parseGate($json);\nreturn [{ json: Object.assign({}, src, { gate: g, sonnet_body: g.needs_sonnet ? M.gateRequest(src.text, src.facts, src.lang, { model: $env.ANTHROPIC_MODEL_STRONG || undefined }) : null }) }];"
       },
       "id": "w23-y25",
       "name": "Parse gate (2)",
@@ -2931,7 +2932,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const url = require('url');\nconst M = await import(url.pathToFileURL(($env.REPO_DIR || '/home/node/repo') + '/automation/media/intro-script.mjs').href);\nconst src = $('Parse gate (2)').item.json; const rc = M.parseGate($json);\nreturn [{ json: Object.assign({}, src, { gate: M.finalGate(src.gate, rc) }) }];"
+        "jsCode": "const M = require('lv-automation').introScript;\nconst src = $('Parse gate (2)').item.json; const rc = M.parseGate($json);\nreturn [{ json: Object.assign({}, src, { gate: M.finalGate(src.gate, rc) }) }];"
       },
       "id": "w23-y28",
       "name": "Parse re-check (2)",
@@ -2944,7 +2945,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const url = require('url');\nconst M = await import(url.pathToFileURL(($env.REPO_DIR || '/home/node/repo') + '/automation/media/intro-script.mjs').href);\nconst calls = [(() => { try { const j = $('Generate variant (Sonnet) (2)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })(), (() => { try { const j = $('Script gate LLM (Haiku, fails closed) (2)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })(), (() => { try { const j = $('Script gate re-check (Sonnet) (2)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })()];\nconst row = M.llmCostRow(calls);\nlet broker = ''; try { broker = $('Load broker + answers (generate)').first().json.broker_id; } catch (e) {}\nreturn [{ json: Object.assign({ broker_id: broker, source_ref: `w23:script-generate:${broker}:${$execution.id}:${$json.angle}:2` }, row) }];"
+        "jsCode": "const M = require('lv-automation').introScript;\nconst calls = [(() => { try { const j = $('Generate variant (Sonnet) (2)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })(), (() => { try { const j = $('Script gate LLM (Haiku, fails closed) (2)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })(), (() => { try { const j = $('Script gate re-check (Sonnet) (2)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })()];\nconst row = M.llmCostRow(calls);\nlet broker = ''; try { broker = $('Load broker + answers (generate)').first().json.broker_id; } catch (e) {}\nreturn [{ json: Object.assign({ broker_id: broker, source_ref: `w23:script-generate:${broker}:${$execution.id}:${$json.angle}:2` }, row) }];"
       },
       "id": "w23-y29",
       "name": "Cost row (generate 2)",
@@ -2994,7 +2995,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const url = require('url');\nconst M = await import(url.pathToFileURL(($env.REPO_DIR || '/home/node/repo') + '/automation/media/intro-script.mjs').href);\nconst list = $input.all().map((i) => i.json.v).filter(Boolean);\nreturn [{ json: { variants: M.collectThree(list), gate_version: M.GATE_VERSION } }];",
+        "jsCode": "const M = require('lv-automation').introScript;\nconst list = $input.all().map((i) => i.json.v).filter(Boolean);\nreturn [{ json: { variants: M.collectThree(list), gate_version: M.GATE_VERSION } }];",
         "mode": "runOnceForAllItems"
       },
       "id": "w23-y32",
@@ -3245,7 +3246,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const url = require('url');\nconst M = await import(url.pathToFileURL(($env.REPO_DIR || '/home/node/repo') + '/automation/media/intro-script.mjs').href);\nconst b = $('Verify broker JWT (script-recheck)').item.json.body; const br = $json; const text = String(b.text || '');\nconst lang = ['en', 'af'].includes(b.lang) ? b.lang : (/^[a-z]{2,8}$/.test(String(b.lang || '')) ? b.lang : 'en');\nconst facts = { practice: br.practice_name, fsp: br.fsp_number, verified_credentials: br.verified_credentials };\nconst tooLong = text.length > 1500;\nconst det = tooLong || !text.trim() ? { pass: false, verdict: 'block', issues: ['empty or over 1,500 characters'], rule: 'invalid_input' } : M.detCheck(text, facts, lang);\nreturn [{ json: { text, facts, lang, det, choose: b.choose === true, gate: null, gate_body: det.pass ? M.gateRequest(text, facts, lang, { model: $env.ANTHROPIC_MODEL_FAST || undefined }) : null } }];"
+        "jsCode": "const M = require('lv-automation').introScript;\nconst b = $('Verify broker JWT (script-recheck)').item.json.body; const br = $json; const text = String(b.text || '');\nconst lang = ['en', 'af'].includes(b.lang) ? b.lang : (/^[a-z]{2,8}$/.test(String(b.lang || '')) ? b.lang : 'en');\nconst facts = { practice: br.practice_name, fsp: br.fsp_number, verified_credentials: br.verified_credentials };\nconst tooLong = text.length > 1500;\nconst det = tooLong || !text.trim() ? { pass: false, verdict: 'block', issues: ['empty or over 1,500 characters'], rule: 'invalid_input' } : M.detCheck(text, facts, lang);\nreturn [{ json: { text, facts, lang, det, choose: b.choose === true, gate: null, gate_body: det.pass ? M.gateRequest(text, facts, lang, { model: $env.ANTHROPIC_MODEL_FAST || undefined }) : null } }];"
       },
       "id": "w23-y40",
       "name": "Check edited text",
@@ -3288,7 +3289,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const url = require('url');\nconst M = await import(url.pathToFileURL(($env.REPO_DIR || '/home/node/repo') + '/automation/media/intro-script.mjs').href);\nconst j = $json; return [{ json: Object.assign({}, j, { result: M.recheckResult(j.text, j.facts, j.lang, j.det, j.gate || null) }) }];"
+        "jsCode": "const M = require('lv-automation').introScript;\nconst j = $json; return [{ json: Object.assign({}, j, { result: M.recheckResult(j.text, j.facts, j.lang, j.det, j.gate || null) }) }];"
       },
       "id": "w23-y42",
       "name": "Recheck result",
@@ -3371,7 +3372,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const url = require('url');\nconst M = await import(url.pathToFileURL(($env.REPO_DIR || '/home/node/repo') + '/automation/media/intro-script.mjs').href);\nconst calls = [(() => { try { const j = $('Script gate LLM (Haiku, fails closed) (recheck)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })(), (() => { try { const j = $('Script gate re-check (Sonnet) (recheck)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })()];\nconst row = M.llmCostRow(calls);\nlet broker = ''; try { broker = $('Load broker facts (recheck)').first().json.broker_id; } catch (e) {}\nreturn [{ json: Object.assign({ broker_id: broker, source_ref: `w23:script-recheck:${broker}:${$execution.id}` }, row) }];"
+        "jsCode": "const M = require('lv-automation').introScript;\nconst calls = [(() => { try { const j = $('Script gate LLM (Haiku, fails closed) (recheck)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })(), (() => { try { const j = $('Script gate re-check (Sonnet) (recheck)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })()];\nconst row = M.llmCostRow(calls);\nlet broker = ''; try { broker = $('Load broker facts (recheck)').first().json.broker_id; } catch (e) {}\nreturn [{ json: Object.assign({ broker_id: broker, source_ref: `w23:script-recheck:${broker}:${$execution.id}` }, row) }];"
       },
       "id": "w23-y46",
       "name": "Cost row (recheck)",
@@ -3451,7 +3452,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const url = require('url');\nconst M = await import(url.pathToFileURL(($env.REPO_DIR || '/home/node/repo') + '/automation/media/intro-script.mjs').href);\nconst src = $('Check edited text').item.json; const g = M.parseGate($json);\nreturn [{ json: Object.assign({}, src, { gate: g, sonnet_body: g.needs_sonnet ? M.gateRequest(src.text, src.facts, src.lang, { model: $env.ANTHROPIC_MODEL_STRONG || undefined }) : null }) }];"
+        "jsCode": "const M = require('lv-automation').introScript;\nconst src = $('Check edited text').item.json; const g = M.parseGate($json);\nreturn [{ json: Object.assign({}, src, { gate: g, sonnet_body: g.needs_sonnet ? M.gateRequest(src.text, src.facts, src.lang, { model: $env.ANTHROPIC_MODEL_STRONG || undefined }) : null }) }];"
       },
       "id": "w23-y49",
       "name": "Parse gate (recheck)",
@@ -3537,7 +3538,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const url = require('url');\nconst M = await import(url.pathToFileURL(($env.REPO_DIR || '/home/node/repo') + '/automation/media/intro-script.mjs').href);\nconst src = $('Parse gate (recheck)').item.json; const rc = M.parseGate($json);\nreturn [{ json: Object.assign({}, src, { gate: M.finalGate(src.gate, rc) }) }];"
+        "jsCode": "const M = require('lv-automation').introScript;\nconst src = $('Parse gate (recheck)').item.json; const rc = M.parseGate($json);\nreturn [{ json: Object.assign({}, src, { gate: M.finalGate(src.gate, rc) }) }];"
       },
       "id": "w23-y52",
       "name": "Parse re-check (recheck)",

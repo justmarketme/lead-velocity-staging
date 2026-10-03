@@ -1,4 +1,5 @@
 {
+  "id": "smc-w02",
   "name": "W02 Lead intake (Meta instant form)",
   "nodes": [
     {
@@ -46,7 +47,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const M = require('/opt/lv/automation/ads/meta-ads.js');\nconst it = $input.first();\nconst raw = it.binary && it.binary.data ? Buffer.from(it.binary.data.data, 'base64').toString('utf8') : (it.json.rawBody || JSON.stringify(it.json.body));\nconst sig = (it.json.headers || {})['x-hub-signature-256'];\nif (!M.verifyWebhookSignature(raw, sig, $env.META_APP_SECRET)) return [{ json: { valid: false } }];\nconst events = M.parseLeadgenWebhook(JSON.parse(raw));\nif (!events.length) return [{ json: { valid: true, empty: true } }];\nreturn events.map((e) => ({ json: { valid: true, ...e } }));"
+        "jsCode": "const M = require('lv-automation').metaAds;\nconst it = $input.first();\nconst raw = it.binary && it.binary.data ? Buffer.from(it.binary.data.data, 'base64').toString('utf8') : (it.json.rawBody || JSON.stringify(it.json.body));\nconst sig = (it.json.headers || {})['x-hub-signature-256'];\nif (!M.verifyWebhookSignature(raw, sig, $env.META_APP_SECRET)) return [{ json: { valid: false } }];\nconst events = M.parseLeadgenWebhook(JSON.parse(raw));\nif (!events.length) return [{ json: { valid: true, empty: true } }];\nreturn events.map((e) => ({ json: { valid: true, ...e } }));"
       }
     },
     {
@@ -131,7 +132,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const M = require('/opt/lv/automation/ads/meta-ads.js');\nconst client = M.createClient({ token: $env.META_SYSTEM_USER_TOKEN, apiVersion: $env.META_API_VERSION || 'v23.0', maxInlineWaitMs: 5000 });\nconst ev = $('Verify signature + parse leadgen events').item.json;\nif ($input.item.json.id) return [{ json: { action: 'duplicate', leadgen_id: ev.leadgen_id } }]; // webhook re-delivery\nconst lead = await client.fetchLead(ev.leadgen_id);\nconst q = M.qualifyLead(lead);\nif (!q.qualified) return [{ json: { action: 'routed_out', leadgen_id: ev.leadgen_id, form_id: lead.form_id, ad_id: lead.ad_id, reasons: q.reasons } }];\n// Payload for \"W01 Lead core\" (same contract as the web path; origin = lead_ad). No raw Meta blobs, no age/budget beyond the bands.\nreturn [{ json: { action: 'ingest', lead: {\n  origin: 'lead_ad', leadgen_id: lead.leadgen_id, form_id: lead.form_id, full_name: lead.full_name, mobile_raw: lead.phone, email: lead.email || null,\n  campaign_id: lead.campaign_id, adset_id: lead.adset_id, ad_id: lead.ad_id, concept: lead.ad_parts && lead.ad_parts.concept, angle: lead.ad_parts && lead.ad_parts.angle,\n  platform: lead.platform, age_band: lead.answers.age_band, budget_band: lead.answers.budget_band, preferred_method_ok: true, bond_children: q.bond_children,\n  consent: { given: true, source: 'meta_instant_form', form_id: lead.form_id, text_version: 'CONSENT-NAMED-v1+CONSENT-ADS-v1', raw: lead.consent_raw, captured_at: lead.created_time },\n  lead_event_id: 'evt_' + lead.leadgen_id + '_lead', is_synthetic: false } } }];"
+        "jsCode": "const M = require('lv-automation').metaAds;\nconst client = M.createClient({ token: $env.META_SYSTEM_USER_TOKEN, apiVersion: $env.META_API_VERSION || 'v23.0', maxInlineWaitMs: 5000 });\nconst ev = $('Verify signature + parse leadgen events').item.json;\nif ($input.item.json.id) return [{ json: { action: 'duplicate', leadgen_id: ev.leadgen_id } }]; // webhook re-delivery\nconst lead = await client.fetchLead(ev.leadgen_id);\nconst q = M.qualifyLead(lead);\nif (!q.qualified) return [{ json: { action: 'routed_out', leadgen_id: ev.leadgen_id, form_id: lead.form_id, ad_id: lead.ad_id, reasons: q.reasons } }];\n// Payload for \"W01 Lead core\" (same contract as the web path; origin = lead_ad). No raw Meta blobs, no age/budget beyond the bands.\nreturn [{ json: { action: 'ingest', lead: {\n  origin: 'lead_ad', leadgen_id: lead.leadgen_id, form_id: lead.form_id, full_name: lead.full_name, mobile_raw: lead.phone, email: lead.email || null,\n  campaign_id: lead.campaign_id, adset_id: lead.adset_id, ad_id: lead.ad_id, concept: lead.ad_parts && lead.ad_parts.concept, angle: lead.ad_parts && lead.ad_parts.angle,\n  platform: lead.platform, age_band: lead.answers.age_band, budget_band: lead.answers.budget_band, preferred_method_ok: true, bond_children: q.bond_children,\n  consent: { given: true, source: 'meta_instant_form', form_id: lead.form_id, text_version: 'CONSENT-NAMED-v1+CONSENT-ADS-v1', raw: lead.consent_raw, captured_at: lead.created_time },\n  lead_event_id: 'evt_' + lead.leadgen_id + '_lead', is_synthetic: false } } }];"
       },
       "retryOnFail": true,
       "maxTries": 3,
@@ -213,8 +214,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w01",
           "cachedResultName": "W01 Lead core"
         },
         "options": {
@@ -269,8 +270,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w22",
           "cachedResultName": "W22 Alerts"
         },
         "options": {
@@ -441,7 +442,7 @@
     "executionOrder": "v1",
     "timezone": "Africa/Johannesburg",
     "saveManualExecutions": true,
-    "errorWorkflow": "W22 Alerts"
+    "errorWorkflow": "smc-w22"
   },
   "pinData": {},
   "tags": [

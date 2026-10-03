@@ -1,4 +1,5 @@
 {
+  "id": "smc-w20",
   "name": "W20 Onboarding wizard",
   "nodes": [
     {
@@ -11,7 +12,7 @@
         -560
       ],
       "parameters": {
-        "content": "## W20 Onboarding wizard (broker-success)\nSpec: portal/spec/README.md (state machine, events) and portal/spec/10-nudges-and-go-live.md (copy). Timezone Africa/Johannesburg.\nLanes: A broker events (signed webhook) | B pre-flight result | C Approve & go live (HUMAN GATE, console tap) | D 30-min sweep (24 h / 72 h nudges, availability defaults, 48-h SLA stamp).\nEvery send goes through ONE channel router: WhatsApp via Meta Cloud API (templates in portal/spec/proposed-templates.json until automation-engineer adds them to automation/templates), email via Graph sendMail from HOWZIT_MAILBOX with bcc to HOWZIT_MAILBOX (one audit trail, 4.10 item 0).\nCredentials by name only. Config from env: INTERNAL_HMAC_SECRET, FSCA_REGISTER_URL, SLOTS_API_URL, COMPLIANCE_PREFLIGHT_URL, GO_LIVE_HANDOFF_URL, PORTAL_URL, SUPABASE_URL, META_GRAPH_VERSION, PHONE_NUMBER_ID, WHATSAPP_TEST_PHONE_NUMBER_ID, WHATSAPP_TEST_RECIPIENTS, DRY_RUN_SENDS, HOWZIT_MAILBOX, BRAND_ID. Replace REPLACE_WITH_W22_WORKFLOW_ID on import.\nStale pass (> 24 h) at go-live: 409 preflight_stale AND the pre-flight is re-run in the background (Stale pre-flight? lane); Jonathan taps again when the fresh card lands.\nBroker audio routing (portal/spec/04): a broker voice note while status is pre-live (onboarding, onboarded, ready_for_go_live) is an intro-voice recording for W23; once status = active it is a W29 feedback voice note. W20 never handles audio itself.\nHuman gates: the only one is Jonathan's Approve & go live. Nothing here publishes ads or touches payment.",
+        "content": "## W20 Onboarding wizard (broker-success)\nSpec: portal/spec/README.md (state machine, events) and portal/spec/10-nudges-and-go-live.md (copy). Timezone Africa/Johannesburg.\nLanes: A broker events (signed webhook) | B pre-flight result | C Approve & go live (HUMAN GATE, console tap) | D 30-min sweep (24 h / 72 h nudges, availability defaults, 48-h SLA stamp).\nEvery send goes through ONE channel router: WhatsApp via Meta Cloud API (templates in portal/spec/proposed-templates.json until automation-engineer adds them to automation/templates), email via Graph sendMail from HOWZIT_MAILBOX with bcc to HOWZIT_MAILBOX (one audit trail, 4.10 item 0).\nCredentials by name only. Config from env: INTERNAL_HMAC_SECRET, FSCA_REGISTER_URL, SLOTS_API_URL, COMPLIANCE_PREFLIGHT_URL, GO_LIVE_HANDOFF_URL, PORTAL_URL, SUPABASE_URL, META_GRAPH_VERSION, PHONE_NUMBER_ID, WHATSAPP_TEST_PHONE_NUMBER_ID, WHATSAPP_TEST_RECIPIENTS, DRY_RUN_SENDS, HOWZIT_MAILBOX, BRAND_ID. Sub-calls and errorWorkflow reference W22 by its id smc-w22 (I-44b).\nStale pass (> 24 h) at go-live: 409 preflight_stale AND the pre-flight is re-run in the background (Stale pre-flight? lane); Jonathan taps again when the fresh card lands.\nBroker audio routing (portal/spec/04): a broker voice note while status is pre-live (onboarding, onboarded, ready_for_go_live) is an intro-voice recording for W23; once status = active it is a W29 feedback voice note. W20 never handles audio itself.\nHuman gates: the only one is Jonathan's Approve & go live. Nothing here publishes ads or touches payment.",
         "height": 420,
         "width": 640
       }
@@ -1835,7 +1836,7 @@
         "workflowId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_W22_WORKFLOW_ID"
+          "value": "smc-w22"
         },
         "mode": "each",
         "options": {
@@ -1963,7 +1964,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto,url and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst M = await import(url.pathToFileURL(REPO + '/automation/lib/w20-ms.mjs').href);\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nconst it = $input.first().json;\nconst c = M.brokerCaller(it.headers || {}, { jwtSecret: $env.SUPABASE_JWT_SECRET });\nreturn [{ json: { ...c, json: M.wantsJson(it.headers || {}, it.query || {}) } }];"
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation, NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst M = require('lv-automation').w20ms;\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nconst it = $input.first().json;\nconst c = M.brokerCaller(it.headers || {}, { jwtSecret: $env.SUPABASE_JWT_SECRET });\nreturn [{ json: { ...c, json: M.wantsJson(it.headers || {}, it.query || {}) } }];"
       }
     },
     {
@@ -2059,7 +2060,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto,url and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst M = await import(url.pathToFileURL(REPO + '/automation/lib/w20-ms.mjs').href);\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nconst row = $input.first().json;\nconst broker = row && row.broker_id ? row : null;\nconst p = M.planConnect({ broker, cfg: CFG, json: $('MS connect: verify broker JWT').first().json.json });\nreturn [{ json: p }];"
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation, NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst M = require('lv-automation').w20ms;\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nconst row = $input.first().json;\nconst broker = row && row.broker_id ? row : null;\nconst p = M.planConnect({ broker, cfg: CFG, json: $('MS connect: verify broker JWT').first().json.json });\nreturn [{ json: p }];"
       }
     },
     {
@@ -2181,7 +2182,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto,url and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst M = await import(url.pathToFileURL(REPO + '/automation/lib/w20-ms.mjs').href);\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nconst q = $input.first().json.query || {};\nlet state;\ntry { state = M.verifyState(q.state, { secret: STATE_SECRET, previousSecret: $env.MS_OAUTH_STATE_SECRET_PREVIOUS }); } catch (e) { state = { ok: false, reason: 'not_configured' }; }\n// Only these keys continue; the code is single-use and never logged elsewhere.\nconst query = { code: q.code ? String(q.code).slice(0, 4000) : '', error: q.error ? String(q.error).slice(0, 100) : '', error_description: q.error_description ? String(q.error_description).slice(0, 1000) : '' };\nreturn [{ json: { state, broker_id: state.ok ? state.broker_id : null, query, has_code: !!(state.ok && query.code && !query.error) } }];"
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation, NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst M = require('lv-automation').w20ms;\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nconst q = $input.first().json.query || {};\nlet state;\ntry { state = M.verifyState(q.state, { secret: STATE_SECRET, previousSecret: $env.MS_OAUTH_STATE_SECRET_PREVIOUS }); } catch (e) { state = { ok: false, reason: 'not_configured' }; }\n// Only these keys continue; the code is single-use and never logged elsewhere.\nconst query = { code: q.code ? String(q.code).slice(0, 4000) : '', error: q.error ? String(q.error).slice(0, 100) : '', error_description: q.error_description ? String(q.error_description).slice(0, 1000) : '' };\nreturn [{ json: { state, broker_id: state.ok ? state.broker_id : null, query, has_code: !!(state.ok && query.code && !query.error) } }];"
       }
     },
     {
@@ -2229,7 +2230,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto,url and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst M = await import(url.pathToFileURL(REPO + '/automation/lib/w20-ms.mjs').href);\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nreturn [{ json: M.planCallback({ state: $input.first().json.state, cfg: CFG }) }];"
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation, NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst M = require('lv-automation').w20ms;\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nreturn [{ json: M.planCallback({ state: $input.first().json.state, cfg: CFG }) }];"
       }
     },
     {
@@ -2357,7 +2358,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto,url and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst M = await import(url.pathToFileURL(REPO + '/automation/lib/w20-ms.mjs').href);\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nconst s = $('MS callback: check state').first().json;\nlet row = {}; try { row = $('Load broker (callback)').first().json || {}; } catch (e) {}\nlet token = null; try { const t = $('MS token exchange').first().json; token = { statusCode: t.statusCode, body: t.body }; } catch (e) {}\nconst state = row.broker_id ? s.state : { ok: false, reason: 'unknown_broker' };\nconst plan = M.planCallback({ state, query: s.query, token, currentStatus: row.calendar_status, cfg: CFG });\n// I-41j: the refresh token never leaves this node; only \"Vault: prepare input\" reads it, straight from the token response.\nreturn [{ json: M.publicPlan({ broker_id: row.broker_id || null, ...plan }) }];"
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation, NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst M = require('lv-automation').w20ms;\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nconst s = $('MS callback: check state').first().json;\nlet row = {}; try { row = $('Load broker (callback)').first().json || {}; } catch (e) {}\nlet token = null; try { const t = $('MS token exchange').first().json; token = { statusCode: t.statusCode, body: t.body }; } catch (e) {}\nconst state = row.broker_id ? s.state : { ok: false, reason: 'unknown_broker' };\nconst plan = M.planCallback({ state, query: s.query, token, currentStatus: row.calendar_status, cfg: CFG });\n// I-41j: the refresh token never leaves this node; only \"Vault: prepare input\" reads it, straight from the token response.\nreturn [{ json: M.publicPlan({ broker_id: row.broker_id || null, ...plan }) }];"
       },
       "onError": "continueRegularOutput"
     },
@@ -2503,7 +2504,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto,url and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst M = await import(url.pathToFileURL(REPO + '/automation/lib/w20-ms.mjs').href);\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nconst p = $('MS callback: plan').first().json;\nconst ref = $('Vault: store MS refresh token').first().json.token_ref;\nconst e = M.connectedEvent({ brokerId: p.broker_id, tokenRef: ref, secret: $env.INTERNAL_HMAC_SECRET });\nreturn [{ json: e }];"
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation, NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst M = require('lv-automation').w20ms;\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nconst p = $('MS callback: plan').first().json;\nconst ref = $('Vault: store MS refresh token').first().json.token_ref;\nconst e = M.connectedEvent({ brokerId: p.broker_id, tokenRef: ref, secret: $env.INTERNAL_HMAC_SECRET });\nreturn [{ json: e }];"
       },
       "onError": "continueRegularOutput"
     },
@@ -2627,7 +2628,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto,url and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst M = await import(url.pathToFileURL(REPO + '/automation/lib/w20-ms.mjs').href);\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nconst it = $input.first().json;\nreturn [{ json: M.brokerCaller(it.headers || {}, { jwtSecret: $env.SUPABASE_JWT_SECRET }) }];"
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation, NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst M = require('lv-automation').w20ms;\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nconst it = $input.first().json;\nreturn [{ json: M.brokerCaller(it.headers || {}, { jwtSecret: $env.SUPABASE_JWT_SECRET }) }];"
       }
     },
     {
@@ -2829,7 +2830,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto,url and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst M = await import(url.pathToFileURL(REPO + '/automation/lib/w20-ms.mjs').href);\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\n// I-41j: the ONLY node output that carries the refresh token, and its only consumer is the vault RPC.\nconst p = $input.first().json;\nlet token = null; try { const t = $('MS token exchange').first().json; token = { statusCode: t.statusCode, body: t.body }; } catch (e) {}\nreturn [{ json: M.vaultInput({ plan: p, token }) }];"
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation, NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst M = require('lv-automation').w20ms;\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\n// I-41j: the ONLY node output that carries the refresh token, and its only consumer is the vault RPC.\nconst p = $input.first().json;\nlet token = null; try { const t = $('MS token exchange').first().json; token = { statusCode: t.statusCode, body: t.body }; } catch (e) {}\nreturn [{ json: M.vaultInput({ plan: p, token }) }];"
       },
       "onError": "continueRegularOutput"
     },
@@ -2844,7 +2845,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto,url and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst M = await import(url.pathToFileURL(REPO + '/automation/lib/w20-ms.mjs').href);\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\n// I-41j: vault RPC failed after a good exchange. Built fresh (no input fields are copied, so nothing secret flows on).\nconst p = $('MS callback: plan').first().json;\nlet row = {}; try { row = $('Load broker (callback)').first().json || {}; } catch (e) {}\nreturn [{ json: M.planVaultFailure({ brokerId: p.broker_id, currentStatus: row.calendar_status, cfg: CFG }) }];"
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation, NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst M = require('lv-automation').w20ms;\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\n// I-41j: vault RPC failed after a good exchange. Built fresh (no input fields are copied, so nothing secret flows on).\nconst p = $('MS callback: plan').first().json;\nlet row = {}; try { row = $('Load broker (callback)').first().json || {}; } catch (e) {}\nreturn [{ json: M.planVaultFailure({ brokerId: p.broker_id, currentStatus: row.calendar_status, cfg: CFG }) }];"
       },
       "onError": "continueRegularOutput"
     },
@@ -2892,7 +2893,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto,url and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst M = await import(url.pathToFileURL(REPO + '/automation/lib/w20-ms.mjs').href);\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\n// I-41i: AADSTS7000215 / 7000222 / 700016 (bad or expired secret, unknown app) -> W22 red alert (kind: M.SECRET_ALERT_KIND).\n// Fresh object only (no plan fields copied); nothing is emitted for any other outcome.\nconst a = M.secretAlert($input.first().json);\nreturn a ? [{ json: a }] : [];"
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation, NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst M = require('lv-automation').w20ms;\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\n// I-41i: AADSTS7000215 / 7000222 / 700016 (bad or expired secret, unknown app) -> W22 red alert (kind: M.SECRET_ALERT_KIND).\n// Fresh object only (no plan fields copied); nothing is emitted for any other outcome.\nconst a = M.secretAlert($input.first().json);\nreturn a ? [{ json: a }] : [];"
       },
       "onError": "continueRegularOutput"
     },
@@ -2910,7 +2911,7 @@
         "workflowId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_W22_WORKFLOW_ID"
+          "value": "smc-w22"
         },
         "mode": "each",
         "options": {
@@ -4215,7 +4216,7 @@
     "saveDataErrorExecution": "all",
     "saveManualExecutions": false,
     "saveExecutionProgress": false,
-    "errorWorkflow": "REPLACE_WITH_W22_WORKFLOW_ID",
+    "errorWorkflow": "smc-w22",
     "callerPolicy": "workflowsFromSameOwner"
   },
   "pinData": {},

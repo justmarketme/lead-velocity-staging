@@ -184,7 +184,7 @@ test('every interactive message fits Cloud API limits (<=3 buttons/20 chars, <=1
 test('W03.json: settings block, inactive, credentials by name only, no secrets, every connection target exists, inlined logic is current', () => {
   assert.equal(WF.active, false);
   assert.equal(WF.settings.timezone, 'Africa/Johannesburg');
-  assert.equal(WF.settings.errorWorkflow, 'W22 Alerts');
+  assert.equal(WF.settings.errorWorkflow, 'smc-w22', 'n8n reads errorWorkflow as a workflow id (I-44b)');
   const names = new Set(WF.nodes.map((n) => n.name));
   for (const [from, c] of Object.entries(WF.connections)) {
     assert.ok(names.has(from), from);
@@ -197,4 +197,25 @@ test('W03.json: settings block, inactive, credentials by name only, no secrets, 
   const src = readFileSync(new URL('../ctwa/w03.js', import.meta.url), 'utf8');
   const sha = createHash('sha256').update(src).digest('hex').slice(0, 12);
   assert.ok(raw.includes(`w03.js sha256:${sha}`), 'W03.json inlines the current w03.js (regenerate with automation/build-w03-w28.mjs)');
+});
+
+// I-44d: Meta's GET subscription check must get the challenge back verbatim as text/plain 200. The verify node returns
+// { ok, status, body } (body = challenge), and the respond node used $json.challenge, so it sent an empty 200.
+// The real Code node runs here, and the respond node's expressions are evaluated on its output.
+test('I-44d GET verify: right token -> 200 text/plain with the challenge; wrong token -> 403; bad challenge -> 400', () => {
+  const node = (name) => WF.nodes.find((n) => n.name === name);
+  const TOKEN = 'synthetic-meta-webhook-verify-token';
+  const verify = (query) => new Function('$input', '$env', 'require', node('Check hub.verify_token').parameters.jsCode)(
+    { first: () => ({ json: { query } }) }, { META_WEBHOOK_VERIFY_TOKEN: TOKEN }, require)[0].json;
+  const resp = node('Respond hub.challenge');
+  const expr = (e, $json) => new Function('$json', `return (${String(e).replace(/^=\{\{([\s\S]*)\}\}$/, '$1')});`)($json);
+  const answer = (query) => { const j = verify(query); return { status: Number(expr(resp.parameters.options.responseCode, j)), body: expr(resp.parameters.responseBody, j) }; };
+  assert.equal(resp.parameters.respondWith, 'text');
+  const ct = resp.parameters.options.responseHeaders.entries.find((h) => h.name === 'Content-Type');
+  assert.match(ct.value, /^text\/plain/);
+  assert.deepEqual(answer({ 'hub.mode': 'subscribe', 'hub.verify_token': TOKEN, 'hub.challenge': '1158201444' }), { status: 200, body: '1158201444' });
+  assert.deepEqual(answer({ 'hub.mode': 'subscribe', 'hub.verify_token': 'wrong', 'hub.challenge': '1158201444' }), { status: 403, body: 'forbidden' });
+  assert.deepEqual(answer({ 'hub.mode': 'unsubscribe', 'hub.verify_token': TOKEN, 'hub.challenge': '1' }), { status: 403, body: 'forbidden' });
+  assert.equal(answer({ 'hub.mode': 'subscribe', 'hub.verify_token': TOKEN, 'hub.challenge': '<script>' }).status, 400, 'challenge is echoed only when it is a plain token');
+  assert.ok(!/\$json\.challenge/.test(resp.parameters.responseBody), 'the verify node has no challenge field');
 });

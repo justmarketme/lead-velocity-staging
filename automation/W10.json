@@ -1,4 +1,5 @@
 {
+  "id": "smc-w10",
   "name": "W10 Reschedule / cancel",
   "nodes": [
     {
@@ -40,7 +41,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w10.mjs').href);\nconst j = $json; const op = L.classifyOp(j);\nconst sp = L.parseSlotPayload((j.msg && (j.msg.payload || j.msg.list_id)) || '');\nreturn { json: { ...j, op, pick: sp, booking_id: (sp && sp.booking_id) || (j.booking && j.booking.id) || null, lead_id: j.lead ? j.lead.id : null } };"
+        "jsCode": "const L = require('lv-automation').w10;\nconst j = $json; const op = L.classifyOp(j);\nconst sp = L.parseSlotPayload((j.msg && (j.msg.payload || j.msg.list_id)) || '');\nreturn { json: { ...j, op, pick: sp, booking_id: (sp && sp.booking_id) || (j.booking && j.booking.id) || null, lead_id: j.lead ? j.lead.id : null } };"
       }
     },
     {
@@ -292,8 +293,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w04",
           "cachedResultName": "W04 Slots API"
         },
         "options": {
@@ -313,7 +314,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w10.mjs').href);\nconst j = $('Merge context').item.json;\nconst o = L.offerMessage({ booking: j.bk, lead: j.ld, broker: j.br, brand: j.brand, slots: $json.slots || [], now_ms: Date.now(), last_inbound_ms: j.last_inbound_ms, reason: j.op, delegate: j.delegate || null }); // I-39a: delegate.body is the one message body\nlet wa = null;\nif (o.kind === 'list_session') wa = { type: 'interactive', interactive: { type: 'list', body: { text: o.body }, action: { button: 'See times', sections: [{ title: 'Open times', rows: o.rows }] } } };\nelse if (o.kind === 'flow_session') wa = { type: 'interactive', interactive: { type: 'flow', body: { text: o.body }, action: { name: 'flow', parameters: { flow_message_version: '3', flow_id: j.brand.booking_flow_id || $env.RESCHEDULE_FLOW_ID, flow_cta: 'Pick a new time', flow_action: 'data_exchange', flow_token: 'resched:' + j.bk.id } } } };\nelse if (o.kind === 'template') { const comps = [{ type: 'body', parameters: o.vars.map((t) => ({ type: 'text', text: String(t) })) }]; (o.buttons || []).forEach((p, i) => comps.push({ type: 'button', sub_type: 'quick_reply', index: String(i), parameters: [{ type: 'payload', payload: p }] })); if (o.template === 'reschedule_offer_v2') comps.push({ type: 'button', sub_type: 'flow', index: '0', parameters: [{ type: 'action', action: { flow_token: 'resched:' + j.bk.id } }] }); wa = { type: 'template', template: { name: o.template, language: { code: 'en' }, components: comps } }; }\nreturn { json: { ...j, offer: o, wa: wa ? { messaging_product: 'whatsapp', to: j.ld.phone, ...wa } : null, text: o.body || o.template || o.kind } };"
+        "jsCode": "const L = require('lv-automation').w10;\nconst j = $('Merge context').item.json;\nconst o = L.offerMessage({ booking: j.bk, lead: j.ld, broker: j.br, brand: j.brand, slots: $json.slots || [], now_ms: Date.now(), last_inbound_ms: j.last_inbound_ms, reason: j.op, delegate: j.delegate || null }); // I-39a: delegate.body is the one message body\nlet wa = null;\nif (o.kind === 'list_session') wa = { type: 'interactive', interactive: { type: 'list', body: { text: o.body }, action: { button: 'See times', sections: [{ title: 'Open times', rows: o.rows }] } } };\nelse if (o.kind === 'flow_session') wa = { type: 'interactive', interactive: { type: 'flow', body: { text: o.body }, action: { name: 'flow', parameters: { flow_message_version: '3', flow_id: j.brand.booking_flow_id || $env.RESCHEDULE_FLOW_ID, flow_cta: 'Pick a new time', flow_action: 'data_exchange', flow_token: 'resched:' + j.bk.id } } } };\nelse if (o.kind === 'template') { const comps = [{ type: 'body', parameters: o.vars.map((t) => ({ type: 'text', text: String(t) })) }]; (o.buttons || []).forEach((p, i) => comps.push({ type: 'button', sub_type: 'quick_reply', index: String(i), parameters: [{ type: 'payload', payload: p }] })); if (o.template === 'reschedule_offer_v2') comps.push({ type: 'button', sub_type: 'flow', index: '0', parameters: [{ type: 'action', action: { flow_token: 'resched:' + j.bk.id } }] }); wa = { type: 'template', template: { name: o.template, language: { code: 'en' }, components: comps } }; }\nreturn { json: { ...j, offer: o, wa: wa ? { messaging_product: 'whatsapp', to: j.ld.phone, ...wa } : null, text: o.body || o.template || o.kind } };"
       }
     },
     {
@@ -356,8 +357,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w04",
           "cachedResultName": "W04 Slots API"
         },
         "options": {
@@ -377,7 +378,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w10.mjs').href);\nconst j = $('Merge context').item.json;\nconst claimed = !!$('Claim reschedule key (idempotency)').item.json.id;\nconst start = j.pick.start; const end = new Date(Date.parse(start) + j.br.slot_minutes * 60000).toISOString();\nconst after = Date.parse(j.bk.ends_at) <= Date.now() || ['no_show', 'attended', 'rescheduled'].includes(j.bk.status);\nconst d = L.applyReschedule(j.bk, { start, end }, { now_ms: Date.now(), free: !!$json.free, next_slots: $json.next_slots || [], initiated_by: j.source === 'W12' ? 'broker' : 'lead', after_meeting: after, idempotency_key: 'k', seen_keys: new Set(claimed ? [] : ['k']) });\nreturn { json: { ...j, d, new_start: start, new_end: end, rebooked_after_no_show: j.bk.status === 'no_show' } };"
+        "jsCode": "const L = require('lv-automation').w10;\nconst j = $('Merge context').item.json;\nconst claimed = !!$('Claim reschedule key (idempotency)').item.json.id;\nconst start = j.pick.start; const end = new Date(Date.parse(start) + j.br.slot_minutes * 60000).toISOString();\nconst after = Date.parse(j.bk.ends_at) <= Date.now() || ['no_show', 'attended', 'rescheduled'].includes(j.bk.status);\nconst d = L.applyReschedule(j.bk, { start, end }, { now_ms: Date.now(), free: !!$json.free, next_slots: $json.next_slots || [], initiated_by: j.source === 'W12' ? 'broker' : 'lead', after_meeting: after, idempotency_key: 'k', seen_keys: new Set(claimed ? [] : ['k']) });\nreturn { json: { ...j, d, new_start: start, new_end: end, rebooked_after_no_show: j.bk.status === 'no_show' } };"
       }
     },
     {
@@ -557,8 +558,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w04",
           "cachedResultName": "W04 Slots API"
         },
         "options": {
@@ -621,8 +622,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w09",
           "cachedResultName": "W09 Reminder sequence"
         },
         "options": {
@@ -671,8 +672,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w05",
           "cachedResultName": "W05 Book"
         },
         "options": {
@@ -719,7 +720,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w10.mjs').href);\nconst j = $('Decide move (w10.applyReschedule)').item.json;\nconst label = L.slotLabel(j.new_start);\nconst lead = { messaging_product: 'whatsapp', to: j.ld.phone, type: 'text', text: { body: 'Done. Your call with ' + String(j.br.contact_person).split(' ')[0] + ' is now ' + label + '.' } };\nconst notice = L.brokerNotice(j.d.broker_notice, j.ld);\nconst who = (String(j.ld.first_name || '').trim() + ' ' + (j.ld.last_name ? String(j.ld.last_name).trim().slice(0, 1) + '.' : '')).trim();\nconst dayOf = (iso) => new Date(Date.parse(iso) + 7200000).toISOString().slice(0, 10);\n// Outside the broker's 24-h window: approved utility template broker_booking_changed (I-35a); the howzit@ email still goes as the written record.\nconst tpl = (oldIso, nowText, dayIso) => ({ messaging_product: 'whatsapp', to: j.br.whatsapp_number, type: 'template', template: { name: 'broker_booking_changed', language: { code: 'en' }, components: [{ type: 'body', parameters: [String(j.br.contact_person || '').split(' ')[0] || 'there', who, L.METHOD_LABEL[j.bk.method] || String(j.bk.method || 'call'), L.slotLabel(oldIso), nowText].map((t) => ({ type: 'text', text: String(t) })) }, { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: 'calendar?day=' + dayOf(dayIso) }] }] } });\nconst brokerWindow = Number.isFinite(j.br.last_inbound_ms) && Date.now() - j.br.last_inbound_ms < 86400000;\nreturn [{ json: { to: 'lead', wa: lead } }, { json: { to: 'broker', channel: brokerWindow ? 'whatsapp' : 'email', wa: brokerWindow ? { messaging_product: 'whatsapp', to: j.br.whatsapp_number, type: 'text', text: { body: notice } } : (j.br.whatsapp_number ? tpl(j.bk.appointment_date, label, j.new_start) : null), email: { to: j.br.email, subject: 'SortMyCover booking moved', body: notice } } }];"
+        "jsCode": "const L = require('lv-automation').w10;\nconst j = $('Decide move (w10.applyReschedule)').item.json;\nconst label = L.slotLabel(j.new_start);\nconst lead = { messaging_product: 'whatsapp', to: j.ld.phone, type: 'text', text: { body: 'Done. Your call with ' + String(j.br.contact_person).split(' ')[0] + ' is now ' + label + '.' } };\nconst notice = L.brokerNotice(j.d.broker_notice, j.ld);\nconst who = (String(j.ld.first_name || '').trim() + ' ' + (j.ld.last_name ? String(j.ld.last_name).trim().slice(0, 1) + '.' : '')).trim();\nconst dayOf = (iso) => new Date(Date.parse(iso) + 7200000).toISOString().slice(0, 10);\n// Outside the broker's 24-h window: approved utility template broker_booking_changed (I-35a); the howzit@ email still goes as the written record.\nconst tpl = (oldIso, nowText, dayIso) => ({ messaging_product: 'whatsapp', to: j.br.whatsapp_number, type: 'template', template: { name: 'broker_booking_changed', language: { code: 'en' }, components: [{ type: 'body', parameters: [String(j.br.contact_person || '').split(' ')[0] || 'there', who, L.METHOD_LABEL[j.bk.method] || String(j.bk.method || 'call'), L.slotLabel(oldIso), nowText].map((t) => ({ type: 'text', text: String(t) })) }, { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: 'calendar?day=' + dayOf(dayIso) }] }] } });\nconst brokerWindow = Number.isFinite(j.br.last_inbound_ms) && Date.now() - j.br.last_inbound_ms < 86400000;\nreturn [{ json: { to: 'lead', wa: lead } }, { json: { to: 'broker', channel: brokerWindow ? 'whatsapp' : 'email', wa: brokerWindow ? { messaging_product: 'whatsapp', to: j.br.whatsapp_number, type: 'text', text: { body: notice } } : (j.br.whatsapp_number ? tpl(j.bk.appointment_date, label, j.new_start) : null), email: { to: j.br.email, subject: 'SortMyCover booking moved', body: notice } } }];"
       }
     },
     {
@@ -733,7 +734,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w10.mjs').href);\nconst j = $('Decide move (w10.applyReschedule)').item.json;\nconst slots = (j.d.offer && j.d.offer.length) ? j.d.offer : [];\nconst rows = slots.map((s) => ({ id: 'slot_' + s.start + ':resched:' + j.bk.id, title: L.slotLabel(s.start).slice(0, 24) }));\nreturn { json: { to: 'lead', wa: rows.length ? { messaging_product: 'whatsapp', to: j.ld.phone, type: 'interactive', interactive: { type: 'list', body: { text: L.leadBody('slots', { lead: j.ld, booking: j.bk, broker: j.br }) }, action: { button: 'See times', sections: [{ title: 'Open times', rows }] } } } : null } };"
+        "jsCode": "const L = require('lv-automation').w10;\nconst j = $('Decide move (w10.applyReschedule)').item.json;\nconst slots = (j.d.offer && j.d.offer.length) ? j.d.offer : [];\nconst rows = slots.map((s) => ({ id: 'slot_' + s.start + ':resched:' + j.bk.id, title: L.slotLabel(s.start).slice(0, 24) }));\nreturn { json: { to: 'lead', wa: rows.length ? { messaging_product: 'whatsapp', to: j.ld.phone, type: 'interactive', interactive: { type: 'list', body: { text: L.leadBody('slots', { lead: j.ld, booking: j.bk, broker: j.br }) }, action: { button: 'See times', sections: [{ title: 'Open times', rows }] } } } : null } };"
       }
     },
     {
@@ -747,7 +748,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w10.mjs').href);\nconst j = $json; const d = L.applyCancel(j.bk, j.ld, { now_ms: Date.now(), initiated_by: j.source === 'W12' ? 'broker' : 'lead' }); return { json: { ...j, d } };"
+        "jsCode": "const L = require('lv-automation').w10;\nconst j = $json; const d = L.applyCancel(j.bk, j.ld, { now_ms: Date.now(), initiated_by: j.source === 'W12' ? 'broker' : 'lead' }); return { json: { ...j, d } };"
       }
     },
     {
@@ -820,8 +821,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w04",
           "cachedResultName": "W04 Slots API"
         },
         "options": {
@@ -877,8 +878,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w09",
           "cachedResultName": "W09 Reminder sequence"
         },
         "options": {
@@ -925,7 +926,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w10.mjs').href);\nconst j = $('Decide cancel (w10.applyCancel)').item.json;\nconst notice = L.brokerNotice(j.d.broker_notice, j.ld);\nconst who = (String(j.ld.first_name || '').trim() + ' ' + (j.ld.last_name ? String(j.ld.last_name).trim().slice(0, 1) + '.' : '')).trim();\nconst dayOf = (iso) => new Date(Date.parse(iso) + 7200000).toISOString().slice(0, 10);\n// Outside the broker's 24-h window: approved utility template broker_booking_changed (I-35a); the howzit@ email still goes as the written record.\nconst tpl = (oldIso, nowText, dayIso) => ({ messaging_product: 'whatsapp', to: j.br.whatsapp_number, type: 'template', template: { name: 'broker_booking_changed', language: { code: 'en' }, components: [{ type: 'body', parameters: [String(j.br.contact_person || '').split(' ')[0] || 'there', who, L.METHOD_LABEL[j.bk.method] || String(j.bk.method || 'call'), L.slotLabel(oldIso), nowText].map((t) => ({ type: 'text', text: String(t) })) }, { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: 'calendar?day=' + dayOf(dayIso) }] }] } });\nconst brokerWindow = Number.isFinite(j.br.last_inbound_ms) && Date.now() - j.br.last_inbound_ms < 86400000;\nreturn { json: { ...j, op: 'rebook_after_cancel', to: 'broker', channel: brokerWindow ? 'whatsapp' : 'email', wa: brokerWindow ? { messaging_product: 'whatsapp', to: j.br.whatsapp_number, type: 'text', text: { body: notice } } : (j.br.whatsapp_number ? tpl(j.bk.appointment_date, 'Cancelled', j.bk.appointment_date) : null), email: { to: j.br.email, subject: 'SortMyCover booking cancelled', body: notice } } };"
+        "jsCode": "const L = require('lv-automation').w10;\nconst j = $('Decide cancel (w10.applyCancel)').item.json;\nconst notice = L.brokerNotice(j.d.broker_notice, j.ld);\nconst who = (String(j.ld.first_name || '').trim() + ' ' + (j.ld.last_name ? String(j.ld.last_name).trim().slice(0, 1) + '.' : '')).trim();\nconst dayOf = (iso) => new Date(Date.parse(iso) + 7200000).toISOString().slice(0, 10);\n// Outside the broker's 24-h window: approved utility template broker_booking_changed (I-35a); the howzit@ email still goes as the written record.\nconst tpl = (oldIso, nowText, dayIso) => ({ messaging_product: 'whatsapp', to: j.br.whatsapp_number, type: 'template', template: { name: 'broker_booking_changed', language: { code: 'en' }, components: [{ type: 'body', parameters: [String(j.br.contact_person || '').split(' ')[0] || 'there', who, L.METHOD_LABEL[j.bk.method] || String(j.bk.method || 'call'), L.slotLabel(oldIso), nowText].map((t) => ({ type: 'text', text: String(t) })) }, { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: 'calendar?day=' + dayOf(dayIso) }] }] } });\nconst brokerWindow = Number.isFinite(j.br.last_inbound_ms) && Date.now() - j.br.last_inbound_ms < 86400000;\nreturn { json: { ...j, op: 'rebook_after_cancel', to: 'broker', channel: brokerWindow ? 'whatsapp' : 'email', wa: brokerWindow ? { messaging_product: 'whatsapp', to: j.br.whatsapp_number, type: 'text', text: { body: notice } } : (j.br.whatsapp_number ? tpl(j.bk.appointment_date, 'Cancelled', j.bk.appointment_date) : null), email: { to: j.br.email, subject: 'SortMyCover booking cancelled', body: notice } } };"
       }
     },
     {
@@ -969,7 +970,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w10.mjs').href);\n// I-39a: one message. delegate.body (W07's fixed lines + CANCEL_CONFIRM_Q) when present, else lines.mjs in the lead's language.\nconst j = $json; const m = L.cancelConfirmMessage(j.bk, j.ld, j.br, j.delegate || null);\nreturn { json: { to: 'lead', ld: j.ld, wa: L.toWa(j.ld.phone, m) } };"
+        "jsCode": "const L = require('lv-automation').w10;\n// I-39a: one message. delegate.body (W07's fixed lines + CANCEL_CONFIRM_Q) when present, else lines.mjs in the lead's language.\nconst j = $json; const m = L.cancelConfirmMessage(j.bk, j.ld, j.br, j.delegate || null);\nreturn { json: { to: 'lead', ld: j.ld, wa: L.toWa(j.ld.phone, m) } };"
       }
     },
     {
@@ -997,7 +998,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w10.mjs').href);\nconst j = $json;\nconst p = String((j.msg && (j.msg.payload || j.msg.list_id)) || '').split(':');\nconst method = (j.delegate && j.delegate.method) || (p[0] === 'change_method' ? p[1] : null);\nconst d = L.changeMethod(j.bk, j.ld, j.br, method); return { json: { ...j, method, d } };"
+        "jsCode": "const L = require('lv-automation').w10;\nconst j = $json;\nconst p = String((j.msg && (j.msg.payload || j.msg.list_id)) || '').split(':');\nconst method = (j.delegate && j.delegate.method) || (p[0] === 'change_method' ? p[1] : null);\nconst d = L.changeMethod(j.bk, j.ld, j.br, method); return { json: { ...j, method, d } };"
       }
     },
     {
@@ -1125,8 +1126,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w28",
           "cachedResultName": "W28 Booking Flow"
         },
         "options": {
@@ -1148,8 +1149,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w05",
           "cachedResultName": "W05 Book"
         },
         "options": {
@@ -1325,7 +1326,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w10.mjs').href);\n// Schedule C1A point 2 (default pending NH-42): a plain \"I don't want a call\" / \"No thanks\" stops messaging AT ONCE.\n// The W13 claim (option b: nofit_criteria / no_call) is made by the hourly C1A sweep below from the message log.\nconst j = $json; const nc = L.applyNoCall(j.bk, j.ld);\nreturn { json: { ...j, nc, op: 'cancel_all', booking_id: j.bk.id } };"
+        "jsCode": "const L = require('lv-automation').w10;\n// Schedule C1A point 2 (default pending NH-42): a plain \"I don't want a call\" / \"No thanks\" stops messaging AT ONCE.\n// The W13 claim (option b: nofit_criteria / no_call) is made by the hourly C1A sweep below from the message log.\nconst j = $json; const nc = L.applyNoCall(j.bk, j.ld);\nreturn { json: { ...j, nc, op: 'cancel_all', booking_id: j.bk.id } };"
       }
     },
     {
@@ -1394,8 +1395,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w09",
           "cachedResultName": "W09 Reminder sequence"
         },
         "options": {
@@ -1459,7 +1460,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w10.mjs').href);\nconst r = $json;\nconst d = L.c1aDecision({ lead: { id: r.lead_id, verified_at: r.verified_at, first_message_at: r.first_message_at, opted_out_at: r.opted_out_at, conv_state: r.conv_state || {} },\n  booking: { id: r.booking_id, brand_id: r.brand_id, broker_id: r.broker_id, cycle_id: r.cycle_id, status: r.status, cancelled_at: r.cancelled_at },\n  cancelled_by: r.cancelled_by === 'broker' ? 'broker' : 'lead', rebooked: r.rebooked, rebook_offered: r.rebook_offered,\n  inbound_after_cancel: r.inbound_after_cancel || [], already_claimed: r.already_claimed, now_ms: Date.now(), mode: $env.W10_C1A_MODE || L.C1A_DEFAULT_MODE });\nreturn { json: { ...r, d } };"
+        "jsCode": "const L = require('lv-automation').w10;\nconst r = $json;\nconst d = L.c1aDecision({ lead: { id: r.lead_id, verified_at: r.verified_at, first_message_at: r.first_message_at, opted_out_at: r.opted_out_at, conv_state: r.conv_state || {} },\n  booking: { id: r.booking_id, brand_id: r.brand_id, broker_id: r.broker_id, cycle_id: r.cycle_id, status: r.status, cancelled_at: r.cancelled_at },\n  cancelled_by: r.cancelled_by === 'broker' ? 'broker' : 'lead', rebooked: r.rebooked, rebook_offered: r.rebook_offered,\n  inbound_after_cancel: r.inbound_after_cancel || [], already_claimed: r.already_claimed, now_ms: Date.now(), mode: $env.W10_C1A_MODE || L.C1A_DEFAULT_MODE });\nreturn { json: { ...r, d } };"
       }
     },
     {
@@ -1542,8 +1543,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w13",
           "cachedResultName": "W13 No-show & replacement"
         },
         "options": {
@@ -1586,7 +1587,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w10.mjs').href);\n// I-39a: change -> METHOD_CHANGED (or delegate.body); reject -> lead_lines + SAME_METHOD with the adviser's methods.\nconst j = $('Decide method change').item.json;\nconst m = L.methodMessage(j.d, j.bk, j.ld, j.br, j.delegate || null, j.method);\nreturn { json: { to: 'lead', ld: j.ld, wa: L.toWa(j.ld.phone, m) } };"
+        "jsCode": "const L = require('lv-automation').w10;\n// I-39a: change -> METHOD_CHANGED (or delegate.body); reject -> lead_lines + SAME_METHOD with the adviser's methods.\nconst j = $('Decide method change').item.json;\nconst m = L.methodMessage(j.d, j.bk, j.ld, j.br, j.delegate || null, j.method);\nreturn { json: { to: 'lead', ld: j.ld, wa: L.toWa(j.ld.phone, m) } };"
       }
     }
   ],
@@ -2242,7 +2243,7 @@
     "executionOrder": "v1",
     "timezone": "Africa/Johannesburg",
     "saveManualExecutions": true,
-    "errorWorkflow": "W22 Alerts"
+    "errorWorkflow": "smc-w22"
   },
   "pinData": {},
   "tags": [

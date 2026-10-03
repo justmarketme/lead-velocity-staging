@@ -585,7 +585,7 @@ test('broker notice: broker_dsr_erase goes through the shared WhatsApp sender, b
   assert.equal((body.match(/\{\{\d\}\}/g) || []).length, 2, 'template takes exactly two params');
   const send = node('WhatsApp: broker_dsr_erase');
   assert.equal(send.type, 'n8n-nodes-base.executeWorkflow');
-  assert.equal(send.parameters.workflowId.value, 'REPLACE_WITH_WHATSAPP_SEND_WORKFLOW_ID');
+  assert.equal(send.parameters.workflowId.value, 'smc-whatsapp-send', 'the shared sender by its stable id (I-44b)');
   assert.equal(WF.connections['Build broker erase messages'].main[0][0].node, 'WhatsApp: broker_dsr_erase');
   assert.ok(!JSON.stringify(WF.connections).includes('"Notify IO + broker (W22)"'), 'broker notice no longer routed via W22');
   const sup = { dsr_id: 'd1', leads_found: 2, suppressed: 1, broker_notices: [

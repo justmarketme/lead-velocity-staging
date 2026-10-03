@@ -1,4 +1,5 @@
 {
+  "id": "smc-w21",
   "name": "W21 Ads sync (hourly insights -> ad_metrics + ad_objects)",
   "nodes": [
     {
@@ -68,7 +69,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const M = require('/opt/lv/automation/ads/meta-ads.js');\nconst out = [];\nconst client = M.createClient({ token: $env.META_SYSTEM_USER_TOKEN, apiVersion: $env.META_API_VERSION || 'v23.0', maxInlineWaitMs: 20000 });\nfor (const it of $input.all()) {\n  const b = it.json;\n  try {\n    // last_3d re-reads yesterday/day-before so late attribution revisions overwrite (upsert by ad/day).\n    const r = await client.getInsights({ adAccountId: b.ad_account_id, level: 'ad', datePreset: 'last_3d', lastFetchedAt: b.insights_last_fetched_at });\n    // Ad status / budget cache (ad_objects). Non-fatal: a failure here never blocks the metrics upsert.\n    let objects = [];\n    try { objects = (await client.getAdObjects({ adAccountId: b.ad_account_id, brandId: b.brand_id, lastFetchedAt: b.insights_last_fetched_at })).rows; } catch (e2) { objects = []; }\n    out.push({ json: { status: 'ok', brand_id: b.brand_id, fetched_at: r.fetched_at, usage_pct: r.usage && r.usage.pct, truncated: r.truncated, rows: M.insightsToAdMetrics(r.rows, { brandId: b.brand_id }), objects } });\n  } catch (e) {\n    const status = e.code === 'RATE_LIMIT_BACKOFF' || e.code === 'RATE_LIMIT' ? 'backoff' : e.code === 'TOO_SOON' ? 'too_soon' : 'error';\n    out.push({ json: { status, brand_id: b.brand_id, code: e.code || 'ERR', message: String(e.message).slice(0, 300), retry_after_ms: e.retryAfterMs || null } });\n  }\n}\nreturn out;"
+        "jsCode": "const M = require('lv-automation').metaAds;\nconst out = [];\nconst client = M.createClient({ token: $env.META_SYSTEM_USER_TOKEN, apiVersion: $env.META_API_VERSION || 'v23.0', maxInlineWaitMs: 20000 });\nfor (const it of $input.all()) {\n  const b = it.json;\n  try {\n    // last_3d re-reads yesterday/day-before so late attribution revisions overwrite (upsert by ad/day).\n    const r = await client.getInsights({ adAccountId: b.ad_account_id, level: 'ad', datePreset: 'last_3d', lastFetchedAt: b.insights_last_fetched_at });\n    // Ad status / budget cache (ad_objects). Non-fatal: a failure here never blocks the metrics upsert.\n    let objects = [];\n    try { objects = (await client.getAdObjects({ adAccountId: b.ad_account_id, brandId: b.brand_id, lastFetchedAt: b.insights_last_fetched_at })).rows; } catch (e2) { objects = []; }\n    out.push({ json: { status: 'ok', brand_id: b.brand_id, fetched_at: r.fetched_at, usage_pct: r.usage && r.usage.pct, truncated: r.truncated, rows: M.insightsToAdMetrics(r.rows, { brandId: b.brand_id }), objects } });\n  } catch (e) {\n    const status = e.code === 'RATE_LIMIT_BACKOFF' || e.code === 'RATE_LIMIT' ? 'backoff' : e.code === 'TOO_SOON' ? 'too_soon' : 'error';\n    out.push({ json: { status, brand_id: b.brand_id, code: e.code || 'ERR', message: String(e.message).slice(0, 300), retry_after_ms: e.retryAfterMs || null } });\n  }\n}\nreturn out;"
       }
     },
     {
@@ -190,8 +191,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w22",
           "cachedResultName": "W22 Alerts"
         },
         "options": {
@@ -354,7 +355,7 @@
     "executionOrder": "v1",
     "timezone": "Africa/Johannesburg",
     "saveManualExecutions": true,
-    "errorWorkflow": "W22 Alerts"
+    "errorWorkflow": "smc-w22"
   },
   "pinData": {},
   "tags": [

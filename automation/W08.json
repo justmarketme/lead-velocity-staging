@@ -1,4 +1,5 @@
 {
+  "id": "smc-w08",
   "name": "W08 Unbooked nurture",
   "nodes": [
     {
@@ -74,7 +75,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w08.mjs').href);\nconst r = $json; if (!r.id) return { json: { action: 'none' } };\nconst lead = { id: r.id, first_name: r.first_name, language: r.language, origin: r.origin, stage: r.stage, conv_state: r.conv_state || {}, opted_out_at: r.opted_out_at, first_message_at: r.first_message_at, cancelled_at: r.cancelled_at, broker_id: r.broker_id };\nconst ctx = { has_live_booking: r.has_live_booking, suppressed: r.suppressed, sent: new Set(r.sent || []), last_inbound_ms: r.last_inbound_at ? Date.parse(r.last_inbound_at) : NaN, outbound_count: Number(r.outbound_count || 0), broker: { contact_person: r.contact_person, bio_short: r.bio_short, intro_video_url: r.intro_video_url } };\nconst d = L.due(lead, ctx, Date.now());\nreturn { json: { ...d, lead_id: r.id, brand_id: r.brand_id, broker_id: r.broker_id, phone: r.phone, lang: r.language === 'af' ? 'af' : 'en' } };"
+        "jsCode": "const L = require('lv-automation').w08;\nconst r = $json; if (!r.id) return { json: { action: 'none' } };\nconst lead = { id: r.id, first_name: r.first_name, language: r.language, origin: r.origin, stage: r.stage, conv_state: r.conv_state || {}, opted_out_at: r.opted_out_at, first_message_at: r.first_message_at, cancelled_at: r.cancelled_at, broker_id: r.broker_id };\nconst ctx = { has_live_booking: r.has_live_booking, suppressed: r.suppressed, sent: new Set(r.sent || []), last_inbound_ms: r.last_inbound_at ? Date.parse(r.last_inbound_at) : NaN, outbound_count: Number(r.outbound_count || 0), broker: { contact_person: r.contact_person, bio_short: r.bio_short, intro_video_url: r.intro_video_url } };\nconst d = L.due(lead, ctx, Date.now());\nreturn { json: { ...d, lead_id: r.id, brand_id: r.brand_id, broker_id: r.broker_id, phone: r.phone, lang: r.language === 'af' ? 'af' : 'en' } };"
       }
     },
     {
@@ -360,7 +361,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w08.mjs').href);\nconst j = $json; const p = (j.msg && j.msg.payload) || (j.delegate && j.delegate.action === 'close' ? 'no_thanks' : '');\nconst r = L.onTap(j.lead || {}, p);\nif (!r) return { json: { skip: true } };\nreturn { json: { skip: false, lead: j.lead, brand_id: j.lead.brand_id, msg: j.msg, r, from: j.msg && j.msg.from } };"
+        "jsCode": "const L = require('lv-automation').w08;\nconst j = $json; const p = (j.msg && j.msg.payload) || (j.delegate && j.delegate.action === 'close' ? 'no_thanks' : '');\nconst r = L.onTap(j.lead || {}, p);\nif (!r) return { json: { skip: true } };\nreturn { json: { skip: false, lead: j.lead, brand_id: j.lead.brand_id, msg: j.msg, r, from: j.msg && j.msg.from } };"
       }
     },
     {
@@ -431,7 +432,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst { LINES } = await import(url.pathToFileURL(REPO + '/conversation/lines.mjs').href);\nconst j = $('On tap (w08.onTap)').item.json;\nconst lang = j.lead.language === 'af' ? 'af' : 'en';\nreturn { json: { ...j, wa: { messaging_product: 'whatsapp', to: j.from, type: 'text', text: { body: LINES[lang].CLOSE_UNBOOKED } } } };"
+        "jsCode": "const { LINES } = require('lv-automation').lines;\nconst j = $('On tap (w08.onTap)').item.json;\nconst lang = j.lead.language === 'af' ? 'af' : 'en';\nreturn { json: { ...j, wa: { messaging_product: 'whatsapp', to: j.from, type: 'text', text: { body: LINES[lang].CLOSE_UNBOOKED } } } };"
       }
     },
     {
@@ -844,7 +845,7 @@
     "executionOrder": "v1",
     "timezone": "Africa/Johannesburg",
     "saveManualExecutions": true,
-    "errorWorkflow": "W22 Alerts"
+    "errorWorkflow": "smc-w22"
   },
   "pinData": {},
   "tags": [

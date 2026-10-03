@@ -1,4 +1,5 @@
 {
+  "id": "smc-w34",
   "name": "W34 POPIA operations",
   "nodes": [
     {
@@ -422,7 +423,7 @@
         "workflowId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_W22_WORKFLOW_ID"
+          "value": "smc-w22"
         },
         "mode": "once",
         "options": {
@@ -562,7 +563,7 @@
         "workflowId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_W22_WORKFLOW_ID"
+          "value": "smc-w22"
         },
         "mode": "once",
         "options": {
@@ -715,7 +716,7 @@
         "workflowId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_W22_WORKFLOW_ID"
+          "value": "smc-w22"
         },
         "mode": "once",
         "options": {
@@ -1142,7 +1143,7 @@
         "workflowId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_W22_WORKFLOW_ID"
+          "value": "smc-w22"
         },
         "mode": "once",
         "options": {
@@ -1180,7 +1181,7 @@
         "workflowId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_WHATSAPP_SEND_WORKFLOW_ID"
+          "value": "smc-whatsapp-send"
         },
         "options": {
           "waitForSubWorkflow": false
@@ -1379,7 +1380,7 @@
         "workflowId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_W22_WORKFLOW_ID"
+          "value": "smc-w22"
         },
         "mode": "once",
         "options": {
@@ -1401,7 +1402,7 @@
       "parameters": {
         "width": 620,
         "height": 300,
-        "content": "## W34 POPIA operations (DRAFT, inactive until GATE-TEST-W34)\nSpec: deliverables/compliance-qa/W34-popia-ops.md. Owner: compliance-qa (+ devops-security). Timezone Africa/Johannesburg.\nA. Nightly 02:30: wa_threads expiry (I-35l), non-fit 24 h, 12 m pseudonymise, 5 y delete, DSR record minimisation, media erase.\nB. DSR intake: howzit@ mailbox or webhook -> dsr_requests + ops.notifications kind dsar -> IO alert (W22).\nC. Daily 07:00 DSR 30-day clock. D. Export / erase (verified requests only). E. Monthly report on the 1st.\nPeriods from .env: W34_NONFIT_RETENTION_HOURS, W34_LEAD_RETENTION_MONTHS, W34_CONSENT_RETENTION_YEARS, W34_DSR_RECORD_YEARS, W34_WA_THREAD_*.\nNEVER deleted: public.suppression, public.audit_log, public.retention_log. Credentials by name only. Replace REPLACE_WITH_W22_WORKFLOW_ID on import."
+        "content": "## W34 POPIA operations (DRAFT, inactive until GATE-TEST-W34)\nSpec: deliverables/compliance-qa/W34-popia-ops.md. Owner: compliance-qa (+ devops-security). Timezone Africa/Johannesburg.\nA. Nightly 02:30: wa_threads expiry (I-35l), non-fit 24 h, 12 m pseudonymise, 5 y delete, DSR record minimisation, media erase.\nB. DSR intake: howzit@ mailbox or webhook -> dsr_requests + ops.notifications kind dsar -> IO alert (W22).\nC. Daily 07:00 DSR 30-day clock. D. Export / erase (verified requests only). E. Monthly report on the 1st.\nPeriods from .env: W34_NONFIT_RETENTION_HOURS, W34_LEAD_RETENTION_MONTHS, W34_CONSENT_RETENTION_YEARS, W34_DSR_RECORD_YEARS, W34_WA_THREAD_*.\nNEVER deleted: public.suppression, public.audit_log, public.retention_log. Credentials by name only. Sub-calls and errorWorkflow reference W22 by its id smc-w22 (I-44b)."
       }
     }
   ],
@@ -2089,7 +2090,7 @@
     "saveDataErrorExecution": "all",
     "saveManualExecutions": false,
     "saveExecutionProgress": false,
-    "errorWorkflow": "REPLACE_WITH_W22_WORKFLOW_ID",
+    "errorWorkflow": "smc-w22",
     "callerPolicy": "workflowsFromSameOwner"
   },
   "pinData": {},

@@ -1,0 +1,12 @@
+{
+  "name": "lv-automation",
+  "private": true,
+  "version": "1.0.0",
+  "description": "The one module n8n Code nodes may require (NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation). See index.cjs.",
+  "type": "module",
+  "main": "./index.cjs",
+  "exports": {
+    ".": "./index.cjs",
+    "./package.json": "./package.json"
+  }
+}

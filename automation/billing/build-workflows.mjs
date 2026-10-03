@@ -48,7 +48,7 @@ const BILLING = {}; for (const k of ${JSON.stringify(keys)}) BILLING[k] = __req(
 }
 
 const SETTINGS = (owner) => ({ executionOrder: 'v1', timezone: 'Africa/Johannesburg', saveDataSuccessExecution: 'none', saveDataErrorExecution: 'all',
-  saveManualExecutions: false, saveExecutionProgress: false, errorWorkflow: 'REPLACE_WITH_W22_WORKFLOW_ID', callerPolicy: 'workflowsFromSameOwner' });
+  saveManualExecutions: false, saveExecutionProgress: false, errorWorkflow: 'smc-w22', callerPolicy: 'workflowsFromSameOwner' });
 const PG = { postgres: { name: 'LV Supabase - n8n_app (least privilege)' } };
 const PAYSTACK = { httpHeaderAuth: { name: 'Paystack secret key (Authorization: Bearer)' } };
 const OUTLOOK = { microsoftOutlookOAuth2Api: { name: 'Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send)' } };
@@ -79,14 +79,17 @@ function wf(id, name, spec) {
     chain(...names) { for (let i = 0; i < names.length - 1; i++) api.link(names[i], names[i + 1]); },
   };
   spec(api);
-  return { name: `${id} ${name}`, nodes, connections, active: false, settings: SETTINGS(), pinData: {},
+  return { id: `smc-${id.toLowerCase()}`, name: `${id} ${name}`, nodes, connections, active: false, settings: SETTINGS(), pinData: {},
     meta: { templateCredsSetupCompleted: false, owner: 'billing-automation', spec: 'automation/billing/RUNBOOK.md', generated_by: 'automation/billing/build-workflows.mjs' },
     tags: [{ name: 'SortMyCover' }, { name: 'billing' }, { name: id }] };
 }
 
 const code = (body, keys = []) => ({ mode: 'runOnceForAllItems', jsCode: (keys.length ? bundle(keys) : '') + body });
 const sql = (query, replacement) => ({ operation: 'executeQuery', query, options: replacement ? { queryReplacement: replacement } : {} });
-const execWf = (placeholder, note) => ({ source: 'database', workflowId: { __rl: true, mode: 'id', value: placeholder }, options: { waitForSubWorkflow: false }, _note: note });
+// I-44b: sub-calls reference the callee's stable top-level id (smc-wNN, same rule as every SMC workflow). Targets that are
+// not committed workflows yet: smc-w26 (go-live runner, devops-security), smc-ads-budget (ads module, ads-api-engineer),
+// smc-whatsapp-send (sender sub-workflow, automation-engineer); listed in automation/tests/workflow-ids.test.mjs.
+const execWf = (workflowId, note) => ({ source: 'database', workflowId: { __rl: true, mode: 'id', value: workflowId }, options: { waitForSubWorkflow: false }, _note: note });
 const ifTrue = (expr) => ({ conditions: { options: { caseSensitive: true, typeValidation: 'loose' }, combinator: 'and', conditions: [{ leftValue: expr, rightValue: true, operator: { type: 'boolean', operation: 'true', singleValue: true } }] }, options: {} });
 const switchOn = (expr, values) => ({ mode: 'rules', rules: { values: values.map((v) => ({ conditions: { options: { caseSensitive: true, typeValidation: 'strict' }, combinator: 'and', conditions: [{ leftValue: expr, rightValue: v, operator: { type: 'string', operation: 'equals' } }] }, renameOutput: true, outputKey: v })) }, options: { fallbackOutput: 'extra' } });
 const httpSpec = (credName) => ({ method: '={{ $json.spec.method }}', url: '={{ "https://api.paystack.co" + $json.spec.path }}', authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth',
@@ -209,7 +212,7 @@ return [{ json: { ...d, ev: d.event || null, credit } }];
     '={{ [$json.credit.id, $json.reason, JSON.stringify($json.suggestions || [])] }}'), { v: 2.5, row: 4, col: 4, credentials: PG });
   const dupQ = w.add('n8n-nodes-base.postgres', 'Credit: duplicate (not counted)', sql(`${AUDIT()}update ${T.BC} set match_status = 'duplicate', duplicate_of = nullif($2,'')::uuid where id = $1::uuid;`, '={{ [$json.credit.id, $json.duplicate_of || ""] }}'), { v: 2.5, row: 5, col: 4, credentials: PG });
   const settleQ = w.add('n8n-nodes-base.postgres', 'Credit: Paystack settlement', sql(`${AUDIT()}update ${T.BC} set source = 'paystack_settlement', match_status = 'settlement' where id = $1::uuid;`, '={{ [$json.credit.id] }}'), { v: 2.5, row: 6, col: 4, credentials: PG });
-  const queueAlert = w.add('n8n-nodes-base.executeWorkflow', 'W22: unmatched payment to console (+ POP request if no reference)', execWf('REPLACE_WITH_W22_WORKFLOW_ID', 'kind=billing_unmatched; payload: bank_credit_id, reason, suggestions, ask_pop. W22 sends ops_action to Jonathan; ask_pop -> WhatsApp to the broker asking for proof of payment (6.5 item 3).'), { v: 1.2, row: 4, col: 5 });
+  const queueAlert = w.add('n8n-nodes-base.executeWorkflow', 'W22: unmatched payment to console (+ POP request if no reference)', execWf('smc-w22', 'kind=billing_unmatched; payload: bank_credit_id, reason, suggestions, ask_pop. W22 sends ops_action to Jonathan; ask_pop -> WhatsApp to the broker asking for proof of payment (6.5 item 3).'), { v: 1.2, row: 4, col: 5 });
 
   // --- C. Mark paid (both rails meet here: the same event)
   const norm = w.add('n8n-nodes-base.code', 'Normalise payment.received', code(`
@@ -230,7 +233,7 @@ return $input.all().map((i) => { const ev = i.json.ev || i.json;
   const flipped = w.add('n8n-nodes-base.if', 'Invoice flipped to paid?', ifTrue('={{ !!$json.invoice_id }}'), { v: 2, row: 1, col: 14 });
   const creditBack = w.add('n8n-nodes-base.postgres', 'Credit: to console queue (invoice not open / amount outside R1)', sql(`${AUDIT()}update ${T.BC} set queue_reason = 'mark_paid_rejected'
 where id = nullif($1, '')::uuid and match_status = 'unmatched';`, '={{ [$("Normalise payment.received").first().json.bank_credit_id || ""] }}'), { v: 2.5, row: 2, col: 15, credentials: PG });
-  const notFlipped = w.add('n8n-nodes-base.executeWorkflow', 'W22: paid event did not match an open invoice', execWf('REPLACE_WITH_W22_WORKFLOW_ID', 'kind=billing_unmatched (already paid / amount outside R1 / unknown reference). Never silently dropped.'), { v: 1.2, row: 2, col: 16 });
+  const notFlipped = w.add('n8n-nodes-base.executeWorkflow', 'W22: paid event did not match an open invoice', execWf('smc-w22', 'kind=billing_unmatched (already paid / amount outside R1 / unknown reference). Never silently dropped.'), { v: 1.2, row: 2, col: 16 });
   const saveAuth = w.add('n8n-nodes-base.postgres', 'Card auto-renew token to Vault (opt-in only)', sql(`${AUDIT()}-- Only the Paystack authorization_code (a token), only when the broker opted in. Never card numbers or expiry.
 -- I-33a: the SECURITY DEFINER wrapper (migration 08) writes the secret and sets brokers.card_autorenew +
 -- paystack_authorization_ref (the secret NAME). It returns NULL and stores nothing when the code is empty.
@@ -241,14 +244,14 @@ update ${T.BR} set status = 'onboarding', status_changed_at = case when status =
   const magic = w.add('n8n-nodes-base.httpRequest', 'Supabase magic link', { method: 'POST', url: '={{ $env.SUPABASE_URL + "/auth/v1/admin/generate_link" }}', authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth',
     sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify({ type: "magiclink", email: $json.email, options: { redirect_to: "https://app.leadvelocity.co.za/broker/start" } }) }}', options: { timeout: 15000 } },
     { v: 4.2, row: 0, col: 18, credentials: { httpHeaderAuth: { name: 'Supabase service role (W16 magic link)' } } });
-  const w20 = w.add('n8n-nodes-base.executeWorkflow', 'W20: welcome + magic link by WhatsApp and email', execWf('REPLACE_WITH_W20_WORKFLOW_ID', 'payload: broker_id, action_link (never logged). 6.1 step 1.'), { v: 1.2, row: 0, col: 19 });
-  const w26 = w.add('n8n-nodes-base.executeWorkflow', 'W26: go-live runner (first payment)', execWf('REPLACE_WITH_W26_WORKFLOW_ID', '6.6: VPS buy link to Jonathan (HUMAN GATE) etc.'), { v: 1.2, row: 0, col: 20 });
+  const w20 = w.add('n8n-nodes-base.executeWorkflow', 'W20: welcome + magic link by WhatsApp and email', execWf('smc-w20', 'payload: broker_id, action_link (never logged). 6.1 step 1.'), { v: 1.2, row: 0, col: 19 });
+  const w26 = w.add('n8n-nodes-base.executeWorkflow', 'W26: go-live runner (first payment)', execWf('smc-w26', '6.6: VPS buy link to Jonathan (HUMAN GATE) etc.'), { v: 1.2, row: 0, col: 20 });
   const resume = w.add('n8n-nodes-base.postgres', 'Resume: cycle starts now, routing on', sql(`${AUDIT()}with c as (update ${T.CY} set status = 'active', starts_at = now(), ends_at = now() + interval '30 days' where id = $2::uuid and status = 'scheduled' returning id)
 update ${T.BR} set status = 'active', status_changed_at = now(), routing_on = true, current_cycle_id = (select id from c)
 where id = $1::uuid and exists (select 1 from c) returning id, (select media_share_zar from ${T.PR} p where p.tier_code = $3) as media_share_zar;`,
     '={{ [$("Mark invoice paid + create cycle").first().json.broker_id, $("Mark invoice paid + create cycle").first().json.cycle_id, $("Mark invoice paid + create cycle").first().json.tier_code] }}'), { v: 2.5, row: 1, col: 17, credentials: PG });
-  const adsUp = w.add('n8n-nodes-base.executeWorkflow', 'Ads module: raise budget by media_share_zar', execWf('REPLACE_WITH_ADS_BUDGET_WORKFLOW_ID', 'payload: { action: "raise", broker_id, media_share_zar } -> automation/ads/meta-ads.js guarded write.'), { v: 1.2, row: 1, col: 18 });
-  const notify = w.add('n8n-nodes-base.executeWorkflow', 'W22: payment received (Jonathan/KG + broker receipt)', execWf('REPLACE_WITH_W22_WORKFLOW_ID', 'kind=payment_received; broker gets a receipt with the reference; renewal: "next cycle scheduled, no gap in leads".'), { v: 1.2, row: 2, col: 17 });
+  const adsUp = w.add('n8n-nodes-base.executeWorkflow', 'Ads module: raise budget by media_share_zar', execWf('smc-ads-budget', 'payload: { action: "raise", broker_id, media_share_zar } -> automation/ads/meta-ads.js guarded write.'), { v: 1.2, row: 1, col: 18 });
+  const notify = w.add('n8n-nodes-base.executeWorkflow', 'W22: payment received (Jonathan/KG + broker receipt)', execWf('smc-w22', 'kind=payment_received; broker gets a receipt with the reference; renewal: "next cycle scheduled, no gap in leads".'), { v: 1.2, row: 2, col: 17 });
 
   // --- D. Card auto-renew lifecycle + failed charges
   const autoOn = w.add('n8n-nodes-base.postgres', 'Card auto-renew on (Paystack plan mode)', sql(`${AUDIT()}-- I-33a: paystack_subscription_token_ref holds the secret NAME, never the token. The SECURITY DEFINER wrapper
@@ -348,9 +351,9 @@ return out.length ? out : [{ json: { kind: 'none' } }];
 values ('incontact', $1, 'graph:' || $1, $2::timestamptz, $3::numeric, $4, nullif($5, ''), 'unmatched')
 on conflict (graph_message_id) do nothing returning id as bank_credit_id, graph_message_id;`, '={{ [$json.credit.graph_message_id, $json.credit.received_at, $json.credit.amount_zar, $json.credit.reference_raw || "", $json.credit.parsed_reference || ""] }}'), { v: 2.5, row: 0, col: 5, credentials: PG });
   const isNewC = w.add('n8n-nodes-base.if', 'New credit row?', ifTrue('={{ !!$json.bank_credit_id }}'), { v: 2, row: 0, col: 6 });
-  const w16 = w.add('n8n-nodes-base.executeWorkflow', 'W16: match + mark paid', { ...execWf('REPLACE_WITH_W16_WORKFLOW_ID', 'payload: { bank_credit_id }'), options: { waitForSubWorkflow: true } }, { v: 1.2, row: 0, col: 7 });
-  const alert = w.add('n8n-nodes-base.executeWorkflow', 'W22: inContact format changed (alert)', execWf('REPLACE_WITH_W22_WORKFLOW_ID', 'kind=incontact_format_change, level=alert: an FNB alert could not be read. Message ids only. Statement import (W18) still catches the money.'), { v: 1.2, row: 1, col: 5 });
-  const warn = w.add('n8n-nodes-base.executeWorkflow', 'W22: new inContact wording (warning)', execWf('REPLACE_WITH_W22_WORKFLOW_ID', 'kind=incontact_new_shape, level=warn'), { v: 1.2, row: 2, col: 5 });
+  const w16 = w.add('n8n-nodes-base.executeWorkflow', 'W16: match + mark paid', { ...execWf('smc-w16', 'payload: { bank_credit_id }'), options: { waitForSubWorkflow: true } }, { v: 1.2, row: 0, col: 7 });
+  const alert = w.add('n8n-nodes-base.executeWorkflow', 'W22: inContact format changed (alert)', execWf('smc-w22', 'kind=incontact_format_change, level=alert: an FNB alert could not be read. Message ids only. Statement import (W18) still catches the money.'), { v: 1.2, row: 1, col: 5 });
+  const warn = w.add('n8n-nodes-base.executeWorkflow', 'W22: new inContact wording (warning)', execWf('smc-w22', 'kind=incontact_new_shape, level=warn'), { v: 1.2, row: 2, col: 5 });
   const done = w.add('n8n-nodes-base.microsoftOutlook', 'Outlook: mark FNB alert read', { resource: 'message', operation: 'update', messageId: { __rl: true, mode: 'id', value: '={{ $json.graph_message_id }}' }, updateFields: { isRead: true } }, { v: 2, row: 3, col: 5, credentials: OUTLOOK, onError: 'continueRegularOutput' });
   const note = w.add('n8n-nodes-base.stickyNote', 'Note', { content: '## W17 inContact parser\nGraph poll of howzit@ every 2 min (target: 100% of payments matched within 15 min).\nFilter: FNB sender domain + credit/payment subject; DMARC/DKIM/SPF fail -> rejected.\nRecognised credit -> bank_credits (unique graph_message_id) -> W16.\nUnreadable FNB alert -> alert; new wording -> warning (fingerprints in static data).\nASSUMPTION: FNB wording and sender; validate on 20 real alerts at GATE-INCONTACT.', height: 260, width: 440 }, { row: 3, col: 1 });
   w.chain(sched, win); w.link(man, win); w.chain(win, get, parse, sw);
@@ -398,7 +401,7 @@ from jsonb_array_elements($1::jsonb) x where b.id = (x->>'bank_credit_id')::uuid
   const ins = w.add('n8n-nodes-base.postgres', 'Insert missed credits (idempotent)', sql(`${AUDIT()}insert into ${T.BC} (source, external_id, received_at, amount_zar, reference_raw, parsed_reference, match_status, statement_confirmed_at)
 values ('statement', $1, $2::timestamptz, $3::numeric, $4, nullif($5,''), 'unmatched', now()) on conflict (external_id) do nothing returning id as bank_credit_id;`, '={{ [$json.external_id, $json.received_at, $json.amount_zar, $json.reference_raw || "", $json.parsed_reference || ""] }}'), { v: 2.5, row: 1, col: 6, credentials: PG });
   const isNewS = w.add('n8n-nodes-base.if', 'New credit row?', ifTrue('={{ !!$json.bank_credit_id }}'), { v: 2, row: 1, col: 7 });
-  const w16 = w.add('n8n-nodes-base.executeWorkflow', 'W16: match missed credit', { ...execWf('REPLACE_WITH_W16_WORKFLOW_ID', 'payload: { bank_credit_id }'), options: { waitForSubWorkflow: true } }, { v: 1.2, row: 1, col: 8 });
+  const w16 = w.add('n8n-nodes-base.executeWorkflow', 'W16: match missed credit', { ...execWf('smc-w16', 'payload: { bank_credit_id }'), options: { waitForSubWorkflow: true } }, { v: 1.2, row: 1, col: 8 });
   const loadRep = w.add('n8n-nodes-base.postgres', 'Load invoices + credits for report', sql(`select (select coalesce(json_agg(i), '[]') from (select id, reference, status, round(total_zar*100)::bigint as total_cents, due_at, paid_at from ${T.INV} where issued_at > now() - interval '120 days') i) as invoices,
 (select coalesce(json_agg(c), '[]') from (select id, source, round(amount_zar*100)::bigint as amount_cents, reference_raw, received_at, match_status, statement_confirmed_at from ${T.BC} where received_at > now() - interval '35 days' or match_status = 'unmatched') c) as credits;`), { v: 2.5, row: 0, col: 6, credentials: PG });
   const report = w.add('n8n-nodes-base.code', 'Daily reconciliation report', code(`
@@ -414,8 +417,8 @@ return [{ json: r }];
 `, ['reconcile']), { v: 2, row: 0, col: 7 });
   const save = w.add('n8n-nodes-base.postgres', 'Save report', sql(`insert into ops.billing_reports (day, status, report) values ($1::date, $2, $3::jsonb) on conflict (day) do update set status = excluded.status, report = excluded.report;`, '={{ [$json.day, $json.status, JSON.stringify($json)] }}'), { v: 2.5, row: 0, col: 8, credentials: PG });
   const isAlert = w.add('n8n-nodes-base.if', 'Gaps or missing statement?', ifTrue('={{ $("Daily reconciliation report").first().json.alert }}'), { v: 2, row: 0, col: 9 });
-  const alert = w.add('n8n-nodes-base.executeWorkflow', 'W22: reconciliation gaps (alert)', execWf('REPLACE_WITH_W22_WORKFLOW_ID', 'kind=billing_reconciliation_gap'), { v: 1.2, row: 0, col: 10 });
-  const pulse = w.add('n8n-nodes-base.executeWorkflow', 'W22: daily billing line for the pulse', execWf('REPLACE_WITH_W22_WORKFLOW_ID', 'kind=billing_daily (dedupe per day)'), { v: 1.2, row: 1, col: 10 });
+  const alert = w.add('n8n-nodes-base.executeWorkflow', 'W22: reconciliation gaps (alert)', execWf('smc-w22', 'kind=billing_reconciliation_gap'), { v: 1.2, row: 0, col: 10 });
+  const pulse = w.add('n8n-nodes-base.executeWorkflow', 'W22: daily billing line for the pulse', execWf('smc-w22', 'kind=billing_daily (dedupe per day)'), { v: 1.2, row: 1, col: 10 });
   w.chain(sched, read); w.link(man, read); w.chain(read, parse, load, recon, confirm, loadRep, report, save, isAlert);
   w.link(recon, split); w.chain(split, ins, isNewS); w.link(isNewS, w16, 0);
   w.link(isAlert, alert, 0); w.link(isAlert, pulse, 1);
@@ -493,7 +496,7 @@ return [{ json: { row, invoice: inv, links, template, email } }];
 insert into ${T.INV} (broker_id, tier_code, amount_excl_vat, vat_zar, total_zar, credit_applied_zar, reference, method, status, issued_at, due_at)
 values ($1::uuid, $2, $3::numeric, nullif($4,'')::numeric, $5::numeric, $10::numeric / 100, $6, 'instant_eft', $7, now(), $8::timestamptz) on conflict (reference) do nothing;
 update ${T.CY} set renewal_offer_sent_at = now() where id = $9::uuid;`, '={{ [$json.invoice.broker_id, $json.invoice.tier_code, $json.invoice.amount_excl_vat, $json.invoice.vat_zar === null ? "" : String($json.invoice.vat_zar), $json.invoice.total_zar, $json.invoice.reference, $json.invoice.status, $json.invoice.due_at, $json.row.cycle_id, $json.invoice.credit_cents || 0] }}'), { v: 2.5, row: 0, col: 7, credentials: PG });
-  const send = w.add('n8n-nodes-base.executeWorkflow', 'WhatsApp: broker_cycle_end (renewal offer)', execWf('REPLACE_WITH_WHATSAPP_SEND_WORKFLOW_ID', 'automation-engineer sender sub-workflow: template + params from "Offer: renewal invoice + message".'), { v: 1.2, row: 0, col: 8 });
+  const send = w.add('n8n-nodes-base.executeWorkflow', 'WhatsApp: broker_cycle_end (renewal offer)', execWf('smc-whatsapp-send', 'automation-engineer sender sub-workflow: template + params from "Offer: renewal invoice + message".'), { v: 1.2, row: 0, col: 8 });
   const mail = w.add('n8n-nodes-base.microsoftOutlook', 'Email: renewal offer from howzit@', { resource: 'message', operation: 'send', toRecipients: '={{ $("Offer: renewal invoice + message").first().json.row.email }}', subject: '={{ $("Offer: renewal invoice + message").first().json.email.subject }}', bodyContent: '={{ $("Offer: renewal invoice + message").first().json.email.html }}', additionalFields: { bodyContentType: 'html' } }, { v: 2, row: 1, col: 8, credentials: OUTLOOK });
 
   // reminders at T-3 / T-1
@@ -502,7 +505,7 @@ return $input.all().map((i) => { const r = i.json; const days = r.action === 're
   return { json: { ...r, reminder: { days, reference: r.open_ref, link: 'https://app.leadvelocity.co.za/billing/checkout/?ref=' + (r.open_ref || ''),
     text: BILLING.autorenew.renewalReminderText(r) }, template: BILLING.autorenew.renewalReminderTemplate(r) } }; });
 `, ['autorenew']), { v: 2, row: 2, col: 5 });
-  const remSend = w.add('n8n-nodes-base.executeWorkflow', 'WhatsApp + email: renewal reminder', execWf('REPLACE_WITH_WHATSAPP_SEND_WORKFLOW_ID', 'Template broker_renewal_reminder (params from renewalReminderTemplate: 6 body vars, Pay now = reference, Manage auto-renew = /s/billing). Not submitted yet (NH-BA-08): until approved, email + session text inside the 24-h window.'), { v: 1.2, row: 2, col: 6 });
+  const remSend = w.add('n8n-nodes-base.executeWorkflow', 'WhatsApp + email: renewal reminder', execWf('smc-whatsapp-send', 'Template broker_renewal_reminder (params from renewalReminderTemplate: 6 body vars, Pay now = reference, Manage auto-renew = /s/billing). Not submitted yet (NH-BA-08): until approved, email + session text inside the 24-h window.'), { v: 1.2, row: 2, col: 6 });
 
   // cycle end
   // Always exactly one row (even with no open invoice), so routing still goes off at cycle end.
@@ -519,7 +522,7 @@ left join lateral (
   const routeOff = w.add('n8n-nodes-base.postgres', 'Routing off, cycle not renewed (no grace)', sql(`${AUDIT("'W19 cycle end, not renewed (no grace)'")}update ${T.CY} set status = 'not_renewed' where id = $2::uuid and status in ('active','extended');
 update ${T.BR} set routing_on = false, status = 'not_renewed', status_changed_at = now() where id = $1::uuid
   and not exists (select 1 from ${T.CY} n where n.broker_id = $1::uuid and n.status = 'scheduled' and n.invoice_id is not null);`, '={{ [$json.broker_id, $json.cycle_id] }}'), { v: 2.5, row: 3, col: 7, credentials: PG });
-  const adsDown = w.add('n8n-nodes-base.executeWorkflow', 'Ads module: lower budget by media_share_zar', execWf('REPLACE_WITH_ADS_BUDGET_WORKFLOW_ID', 'payload: { action: "lower", broker_id, media_share_zar } (6.1 step 7). Cycle end only, never on a card retry.'), { v: 1.2, row: 3, col: 8 });
+  const adsDown = w.add('n8n-nodes-base.executeWorkflow', 'Ads module: lower budget by media_share_zar', execWf('smc-ads-budget', 'payload: { action: "lower", broker_id, media_share_zar } (6.1 step 7). Cycle end only, never on a card retry.'), { v: 1.2, row: 3, col: 8 });
   const hasCard = w.add('n8n-nodes-base.if', 'Card auto-renew on?', ifTrue('={{ !!$("Cycle end: open invoice + card token").first().json.authorization_code }}'), { v: 2, row: 3, col: 9 });
   const chargeSpec = w.add('n8n-nodes-base.code', 'Build card charge (attempt n)', code(`
 const i = $('Cycle end: open invoice + card token').first().json;
@@ -531,11 +534,11 @@ return [{ json: { spec } }];
   const chargeNote = w.add('n8n-nodes-base.noOp', 'Paid: charge.success webhook -> W16 resumes (no action here)', {}, { row: 3, col: 13 });
   const chargeFail = w.add('n8n-nodes-base.postgres', 'Record failed charge', sql(`${AUDIT()}update ${T.INV} set charge_attempts = charge_attempts + 1, last_charge_failed_at = now(), last_charge_error = left($2, 500) where reference = $1;`, '={{ [$("Cycle end: open invoice + card token").first().json.reference, ($json.body && $json.body.data && $json.body.data.gateway_response) || ($json.body && $json.body.message) || "failed"] }}'), { v: 2.5, row: 4, col: 13, credentials: PG });
   const lastTry = w.add('n8n-nodes-base.if', 'Day-3 retry failed? -> pay link', ifTrue('={{ Number($("Cycle end: open invoice + card token").first().json.attempts) + 1 >= 3 }}'), { v: 2, row: 4, col: 14 });
-  const payLink = w.add('n8n-nodes-base.executeWorkflow', 'WhatsApp + email: pay link (card failed / cycle ended)', execWf('REPLACE_WITH_WHATSAPP_SEND_WORKFLOW_ID', 'Text: "Your cycle has ended and new leads have stopped. Pay any time to start again: <link>. Reference *LV-...*. Your delivered leads stay yours." Card failure adds "Your card was declined; update it with the link."'), { v: 1.2, row: 4, col: 15 });
+  const payLink = w.add('n8n-nodes-base.executeWorkflow', 'WhatsApp + email: pay link (card failed / cycle ended)', execWf('smc-whatsapp-send', 'Text: "Your cycle has ended and new leads have stopped. Pay any time to start again: <link>. Reference *LV-...*. Your delivered leads stay yours." Card failure adds "Your card was declined; update it with the link."'), { v: 1.2, row: 4, col: 15 });
 
   // retry day 1 and 3 (routing already off: no grace)
   const retryCtx = w.add('n8n-nodes-base.noOp', 'Retry day 1 / day 3 uses the same charge path', {}, { row: 5, col: 5 });
-  const comeBack = w.add('n8n-nodes-base.executeWorkflow', "WhatsApp + email: 'come back any time' (once, day 7)", execWf('REPLACE_WITH_WHATSAPP_SEND_WORKFLOW_ID', 'No offer pressure; one message; data retention per POPIA schedule.'), { v: 1.2, row: 6, col: 5 });
+  const comeBack = w.add('n8n-nodes-base.executeWorkflow', "WhatsApp + email: 'come back any time' (once, day 7)", execWf('smc-whatsapp-send', 'No offer pressure; one message; data retention per POPIA schedule.'), { v: 1.2, row: 6, col: 5 });
 
   // --- I-30e: portal "Switch off" card auto-renew (Bearer Supabase JWT; off only; opt-in happens at checkout)
   const arHook = w.add('n8n-nodes-base.webhook', 'Portal: POST /billing-autorenew', { httpMethod: 'POST', path: 'billing-autorenew', responseMode: 'responseNode', options: { allowedOrigins: 'https://app.leadvelocity.co.za' } }, { v: 2, row: 8, col: 0, webhookId: 'smc-billing-autorenew' });
@@ -571,8 +574,8 @@ const row = $('Autorenew off as n8n_app + timeline row').first().json;
 const msg = BILLING.autorenew.confirmMessage(row);
 return msg ? [{ json: msg }] : [];
 `, ['autorenew']), { v: 2, row: 8, col: 6 });
-  const arSend = w.add('n8n-nodes-base.executeWorkflow', 'WhatsApp: broker_autorenew_off', execWf('REPLACE_WITH_WHATSAPP_SEND_WORKFLOW_ID', 'automation-engineer sender sub-workflow: { broker_id, to, template { name, body, buttons } }. Template broker_autorenew_off (automation/templates, I-35j): body [first name], URL button suffix billing.'), { v: 1.2, row: 8, col: 7 });
-  const arOps = w.add('n8n-nodes-base.executeWorkflow', 'W22: card auto-renew off (disable Paystack plan if any)', execWf('REPLACE_WITH_W22_WORKFLOW_ID', 'kind=card_autorenew_off; broker_id, subscription_code. If subscription_code is set, Jonathan disables the Paystack plan in the dashboard (no Vault read of the email token here; needs_human for a wrapper). subscription.disable then arrives in W16.'), { v: 1.2, row: 9, col: 6 });
+  const arSend = w.add('n8n-nodes-base.executeWorkflow', 'WhatsApp: broker_autorenew_off', execWf('smc-whatsapp-send', 'automation-engineer sender sub-workflow: { broker_id, to, template { name, body, buttons } }. Template broker_autorenew_off (automation/templates, I-35j): body [first name], URL button suffix billing.'), { v: 1.2, row: 8, col: 7 });
+  const arOps = w.add('n8n-nodes-base.executeWorkflow', 'W22: card auto-renew off (disable Paystack plan if any)', execWf('smc-w22', 'kind=card_autorenew_off; broker_id, subscription_code. If subscription_code is set, Jonathan disables the Paystack plan in the dashboard (no Vault read of the email token here; needs_human for a wrapper). subscription.disable then arrives in W16.'), { v: 1.2, row: 9, col: 6 });
   const note = w.add('n8n-nodes-base.stickyNote', 'Note', { content: '## W19 Cycle renewal offer\nT-7: results + renewal invoice (same tier pre-selected, up/downgrade links, shortfall credit applied).\nT-3, T-1: reminder with the reference in bold, only if unpaid.\nCycle end (effective end incl. 14-day extension): unpaid -> routing off + budget lowered. **No grace.** Card auto-renew (opt-in) charges here; failed -> retry day 1 and day 3 (Stripe pattern), then pay link.\nDay 7 after a lapse: one "come back any time".\nIdempotency: ops.billing_actions_log (cycle, action, day).\nPortal POST /billing-autorenew (I-30e): broker JWT -> card_autorenew off as n8n_app, timeline row, WhatsApp confirm. Off only.\nCard token read only via smc_vault_paystack_auth_code() (I-33a).', height: 340, width: 480 }, { row: 6, col: 8 });
   w.chain(sched, due); w.link(man, due); w.chain(due, log, back, sw);
   w.link(sw, ctx, 0); w.chain(ctx, offer, insInv, send); w.link(insInv, mail);
@@ -627,7 +630,7 @@ return [{ json: { staging, files, paystack } }];
 `, ['pricing', 'render', 'paystack']), { v: 2, row: 0, col: 3 });
   const diff = w.add('n8n-nodes-base.executeCommand', 'Diff check: no hard-coded price in the repo', { command: "={{ 'cd ' + ($env.REPO_DIR || '/home/node/repo') + ' && git pull --ff-only -q && node automation/billing/price-diff.mjs --json' }}" }, { v: 1, row: 0, col: 4, onError: 'continueRegularOutput' });
   const diffOk = w.add('n8n-nodes-base.if', 'Repo diff clean?', ifTrue('={{ $json.exitCode === 0 }}'), { v: 2, row: 0, col: 5 });
-  const fail = w.add('n8n-nodes-base.executeWorkflow', 'W22: diff found hard-coded price -> build failed', execWf('REPLACE_WITH_W22_WORKFLOW_ID', 'kind=pricing_diff_failed; payload = price-diff JSON (failing_files, legacy_locations). Nothing is deployed or sent to Paystack.'), { v: 1.2, row: 1, col: 6 });
+  const fail = w.add('n8n-nodes-base.executeWorkflow', 'W22: diff found hard-coded price -> build failed', execWf('smc-w22', 'kind=pricing_diff_failed; payload = price-diff JSON (failing_files, legacy_locations). Nothing is deployed or sent to Paystack.'), { v: 1.2, row: 1, col: 6 });
   const stop = w.add('n8n-nodes-base.stopAndError', 'Fail build', { errorMessage: 'W25: price-diff found hard-coded prices (see W22 alert)' }, { v: 1, row: 1, col: 7 });
   const files = w.add('n8n-nodes-base.code', 'Files to items', code(`return $('Render tier cards, checkout, templates').first().json.files.map((f) => ({ json: f, binary: { data: { data: Buffer.from(f.content).toString('base64'), mimeType: f.path.endsWith('.json') ? 'application/json' : 'text/html', fileName: f.path.split('/').pop() } } }));`), { v: 2, row: 0, col: 6 });
   const write = w.add('n8n-nodes-base.readWriteFile', 'Write build output', { operation: 'write', fileName: "={{ ($env.W25_OUT_DIR || '/home/node/billing/site') + '/' + $json.path }}", options: {} }, { v: 1, row: 0, col: 7 });
@@ -647,7 +650,7 @@ update ${T.PR} set paystack_page_code = case when $2 = 'page' then $3 else payst
   paystack_plan_code = case when $2 = 'plan' then $3 else paystack_plan_code end
 where tier_code = $1 and $4::boolean and nullif($3, '') is not null
   and (case when $2 = 'page' then paystack_page_code else paystack_plan_code end) is distinct from $3;`, '={{ [$json.tier_code, $json.kind, $json.code === null || $json.code === undefined ? "" : String($json.code), $json.ok] }}'), { v: 2.5, row: 1, col: 11, credentials: PG });
-  const done = w.add('n8n-nodes-base.executeWorkflow', 'W22: pricing published', execWf('REPLACE_WITH_W22_WORKFLOW_ID', 'kind=pricing_published; staging/production; Paystack results.'), { v: 1.2, row: 0, col: 9 });
+  const done = w.add('n8n-nodes-base.executeWorkflow', 'W22: pricing published', execWf('smc-w22', 'kind=pricing_published; staging/production; Paystack results.'), { v: 1.2, row: 0, col: 9 });
   const note = w.add('n8n-nodes-base.stickyNote', 'Note', { content: '## W25 Pricing & website sync\n`pricing` table -> tier cards (3.5a wording), checkout JSON, proposal/Schedule A/invoice template fields -> **diff check gates everything** -> deploy static -> Paystack pages/plans by API -> codes back to `pricing`.\nPostgres trigger: `pg_notify(\'pricing_changed\', tier_code)` on insert/update (platform-architect).\nThe CRM generators (src/) read the table at runtime once rewired; W25 never edits src/.\nExecute Command must be enabled on this n8n (NODES_EXCLUDE) or the diff runs in CI and W25 reads the CI result (NH-BA-09).', height: 300, width: 500 }, { row: 3, col: 3 });
   w.chain(trig, load); w.link(hook, load); w.link(man, load); w.chain(load, tpl, render, diff, diffOk);
   w.link(diffOk, files, 0); w.link(diffOk, fail, 1); w.link(fail, stop);

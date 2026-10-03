@@ -1,4 +1,5 @@
 {
+ "id": "smc-w18",
  "name": "W18 Statement import",
  "nodes": [
   {
@@ -199,7 +200,7 @@
     "workflowId": {
      "__rl": true,
      "mode": "id",
-     "value": "REPLACE_WITH_W16_WORKFLOW_ID"
+     "value": "smc-w16"
     },
     "options": {
      "waitForSubWorkflow": true
@@ -309,7 +310,7 @@
     "workflowId": {
      "__rl": true,
      "mode": "id",
-     "value": "REPLACE_WITH_W22_WORKFLOW_ID"
+     "value": "smc-w22"
     },
     "options": {
      "waitForSubWorkflow": false
@@ -332,7 +333,7 @@
     "workflowId": {
      "__rl": true,
      "mode": "id",
-     "value": "REPLACE_WITH_W22_WORKFLOW_ID"
+     "value": "smc-w22"
     },
     "options": {
      "waitForSubWorkflow": false
@@ -518,7 +519,7 @@
   "saveDataErrorExecution": "all",
   "saveManualExecutions": false,
   "saveExecutionProgress": false,
-  "errorWorkflow": "REPLACE_WITH_W22_WORKFLOW_ID",
+  "errorWorkflow": "smc-w22",
   "callerPolicy": "workflowsFromSameOwner"
  },
  "pinData": {},

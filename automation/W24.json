@@ -1,4 +1,5 @@
 {
+  "id": "smc-w24",
   "name": "W24 Compliance cleanse & calendar",
   "nodes": [
     {
@@ -391,7 +392,7 @@
         "workflowId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_W15_WORKFLOW_ID"
+          "value": "smc-w15"
         },
         "mode": "each",
         "options": {
@@ -572,7 +573,7 @@
         "workflowId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_W22_WORKFLOW_ID"
+          "value": "smc-w22"
         },
         "mode": "once",
         "options": {
@@ -630,7 +631,7 @@
         "workflowId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_W22_WORKFLOW_ID"
+          "value": "smc-w22"
         },
         "mode": "once",
         "options": {
@@ -758,7 +759,7 @@
         "workflowId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_W22_WORKFLOW_ID"
+          "value": "smc-w22"
         },
         "mode": "once",
         "options": {
@@ -834,7 +835,7 @@
         "workflowId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_W22_WORKFLOW_ID"
+          "value": "smc-w22"
         },
         "mode": "once",
         "options": {
@@ -853,7 +854,7 @@
         -360
       ],
       "parameters": {
-        "content": "## W24 Compliance cleanse & calendar\nSpec: automation/W24-compliance-cleanse.md. Owner: compliance-qa.\nTimezone: Africa/Johannesburg (workflow setting).\nCredentials by name only; endpoint + mode from .env (NCC_REGISTRY_ENDPOINT, NCC_REGISTRY_MODE).\nNCC mechanism UNKNOWN until registration: api node is a placeholder, csv is the working fallback.\nReplace REPLACE_WITH_W15/W22_WORKFLOW_ID on import.",
+        "content": "## W24 Compliance cleanse & calendar\nSpec: automation/W24-compliance-cleanse.md. Owner: compliance-qa.\nTimezone: Africa/Johannesburg (workflow setting).\nCredentials by name only; endpoint + mode from .env (NCC_REGISTRY_ENDPOINT, NCC_REGISTRY_MODE).\nNCC mechanism UNKNOWN until registration: api node is a placeholder, csv is the working fallback.\nSub-calls reference W15 / W22 by id (smc-w15 / smc-w22, I-44b).",
         "height": 220,
         "width": 520
       }
@@ -1304,7 +1305,7 @@
     "saveDataErrorExecution": "all",
     "saveManualExecutions": false,
     "saveExecutionProgress": false,
-    "errorWorkflow": "REPLACE_WITH_W22_WORKFLOW_ID",
+    "errorWorkflow": "smc-w22",
     "callerPolicy": "workflowsFromSameOwner"
   },
   "pinData": {},
