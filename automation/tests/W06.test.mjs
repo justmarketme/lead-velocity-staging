@@ -150,7 +150,7 @@ test(`W06 [${MODE}] L01 booked on the page inside the hold -> broker_intro_booke
   assert.ok(ms(p.send_at) <= ms(e.deadline));
   assert.deepEqual(p.variables, e.variables);
   const text = renderBody(p.template, p.variables); // the real template file in automation/templates/
-  for (const needle of ['Mark Smith Financial Services (FSP 00000)', 'an authorised financial services provider', '*Mark Smith*', 'Microsoft Teams', 'Thu 15 Oct at 10:00', 'Reply STOP to opt out.'])
+  for (const needle of [`${B.practice_name} (FSP ${B.fsp_number})`, 'an authorised financial services provider', '*Mark Smith*', 'Microsoft Teams', 'Thu 15 Oct at 10:00', 'Reply STOP to opt out.'])
     assert.ok(text.includes(needle), needle);
 });
 
@@ -204,7 +204,7 @@ test(`W06 [${MODE}] when brands.booking_ui = flow, the Flow-button card (v2) rep
   const p = planFirstTouch(leadRow(lead('L03')), B, ctxFor(lead('L03'), { bookingUi: 'flow' }));
   assert.equal(p.template, 'broker_intro_slots_v2');
   assert.equal(p.variables.length, 4);
-  assert.ok(renderBody(p.template, p.variables).includes('Mark Smith Financial Services (FSP 00000)'));
+  assert.ok(renderBody(p.template, p.variables).includes(`${B.practice_name} (FSP ${B.fsp_number})`));
 });
 
 test(`W06 [${MODE}] 100% of routed fixture leads are inside 60 s (the number this agent moves)`, async () => {
@@ -243,7 +243,7 @@ test(`W06 [${MODE}] undeliverable WhatsApp -> SMS fallback (Twilio) carrying the
   applyStatus(l, log, { id: 'wamid.TEST.L02.1', status: 'failed', at: '2026-10-12T09:02:40+02:00' });
   const sms = log.find((m) => m.channel === 'sms');
   assert.ok(sms);
-  for (const needle of ['Mark Smith Financial Services (FSP 00000)', 'authorised financial services provider', 'Mark Smith', 'Reply STOP to opt out.']) assert.ok(sms.text.includes(needle), needle);
+  for (const needle of [`${B.practice_name} (FSP ${B.fsp_number})`, 'authorised financial services provider', 'Mark Smith', 'Reply STOP to opt out.']) assert.ok(sms.text.includes(needle), needle);
   assert.ok(!sms.text.includes('*'), 'no WhatsApp bold markers in SMS');
   assert.equal(l.disclosure_delivered_at, undefined, 'a failed WhatsApp is not disclosure evidence');
 });
@@ -275,7 +275,7 @@ test('W06 node "Plan card": slots card from the W04 list -> Cloud API template w
   const plan = async (ev, w04, over = {}) => (await runCode(RUN, N.plan, { json: w04, env: { LEAD_TOKEN_SECRET: SECRET }, refs: { [N.claimed]: { ev, l: { ...l, ...over }, claimed: true, need_slots: !!w04.slots, broker_id: l.broker_id } } }))[0].json;
   const a = await plan({ op: 'skip', lead_id: l.id }, w04List(fx, ms(fx.submission.skip_booking_at)));
   assert.equal(a.plan.template, 'broker_intro_slots');
-  assert.equal(a.wa.to, '27600000002');
+  assert.equal(a.wa.to, '27600000102');
   assert.equal(a.wa.template.name, 'broker_intro_slots');
   assert.equal(a.wa.template.components[0].parameters[0].image.link, B.intro_card_url, 'header = the broker intro card');
   const qr = a.wa.template.components.filter((c) => c.sub_type === 'quick_reply').map((c) => c.parameters[0].payload);
@@ -302,15 +302,15 @@ test('W06 node "Plan card": slots card from the W04 list -> Cloud API template w
 
 test('W06 node "Status effect": delivered -> evidence; failed -> one SMS with the same disclosure words', async () => {
   const p = planFirstTouch(leadRow(lead('L02')), B, ctxFor(lead('L02')));
-  const m = { comm_id: 'c1', lead_id: 'lead_test_L02', brand_id: 'smc', broker_id: B.broker_id, template_name: p.template, recipient_contact: '+27600000002', metadata: { is_disclosure: true, variables: p.variables } };
+  const m = { comm_id: 'c1', lead_id: 'lead_test_L02', brand_id: 'smc', broker_id: B.broker_id, template_name: p.template, recipient_contact: '+27600000102', metadata: { is_disclosure: true, variables: p.variables } };
   const run = async (status) => (await runCode(RUN, N.status, { json: m, refs: { [N.trigger]: { op: 'status', wamid: 'wamid.TEST.L02.1', status, at: '2026-10-12T09:02:40+02:00' } } }))[0].json;
   const d = await run('delivered');
   assert.equal(d.e.lead_update.disclosure_msg_id, 'wamid.TEST.L02.1');
   assert.equal(d.sms, null);
   const f = await run('failed');
   assert.equal(f.e.lead_update, null);
-  assert.equal(f.sms.to, '+27600000002');
-  assert.ok(f.sms.text.includes('Mark Smith Financial Services (FSP 00000)') && !f.sms.text.includes('*'));
+  assert.equal(f.sms.to, '+27600000102');
+  assert.ok(f.sms.text.includes(`${B.practice_name} (FSP ${B.fsp_number})`) && !f.sms.text.includes('*'));
   const none = (await runCode(RUN, N.status, { json: {}, refs: { [N.trigger]: { op: 'status', wamid: 'x', status: 'failed' } } }))[0].json;
   assert.equal(none.skip, true, 'a status for a message W06 did not send is ignored');
 });
@@ -349,7 +349,7 @@ test('I-45f W06 nodes: { event: booking } from W05 is op booking; a booking that
   const item = (await runCode(RUN, cname, { items: [{ lead_id: l.id }], env: { DRY_RUN_SENDS: 'false' }, refs: { [N.claimed]: { l: { ...l, booking: bk } } } }))[0].json;
   assert.equal(item.template, 'booking_confirmed');
   assert.equal(item.wa.template.name, 'booking_confirmed');
-  assert.equal(item.wa.to, '27600000002');
+  assert.equal(item.wa.to, '27600000102');
   const qr = item.wa.template.components.filter((c) => c.sub_type === 'quick_reply').map((c) => c.parameters[0].payload);
   assert.deepEqual(qr, ['confirm:bkg_L02', 'reschedule:bkg_L02', 'cancel:bkg_L02']);
   assert.equal(item.wa.template.components.find((c) => c.type === 'body').parameters.length, templateCounts('booking_confirmed').body);

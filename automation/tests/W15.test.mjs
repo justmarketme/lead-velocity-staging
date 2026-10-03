@@ -268,8 +268,8 @@ test(`W15 [${MODE}] a second STOP is idempotent: no second suppression row, noti
 test(`W15 [${MODE}] STOP anywhere: mid-CTWA quiz (not yet routed) and mid-nurture (unbooked) both opt out; unrouted -> no broker notice`, async (t) => {
   if (MODE === 'online') return t.skip('online variants run in the 6B.10 rehearsal script');
   const st = newState();
-  const quiz = { id: 'lead_test_L04', first_name: 'Pieter', mobile: '+27600000004', phone: '+27600000004', broker_id: null, stage: 'new' };
-  const nurture = { id: 'lead_test_L02', first_name: 'Sipho', mobile: '+27600000002', phone: '+27600000002', broker_id: B.broker_id, stage: 'disclosed' };
+  const quiz = { id: 'lead_test_L04', first_name: 'Pieter', mobile: '+27600000104', phone: '+27600000104', broker_id: null, stage: 'new' };
+  const nurture = { id: 'lead_test_L02', first_name: 'Sipho', mobile: '+27600000102', phone: '+27600000102', broker_id: B.broker_id, stage: 'disclosed' };
   st.leads.set(quiz.id, quiz);
   st.leads.set(nurture.id, nurture);
   st.jobs.push({ lead_id: nurture.id, touch: 'unbooked_nudge_24h', at: '2026-10-13T09:02:30+02:00', to: nurture.mobile, status: 'pending' });
@@ -299,7 +299,7 @@ test(`W15 [${MODE}] a later form from the STOPped number is suppressed (the W01/
   const st = newState();
   const { fx, l } = seedL10(st);
   await handleInbound(st, l.mobile, fx.stop_message.text, ms(fx.stop_message.at));
-  assert.equal(isSuppressed(st, '+27600000010'), true);
+  assert.equal(isSuppressed(st, '+27600000110'), true);
   assert.equal(fx.expected.W15.later_intake_whatsapp, false);
 });
 
@@ -356,10 +356,10 @@ test('W15 node "Fan out": loses a parallel-STOP race -> emits nothing; out-of-wi
 });
 
 test('W15 node "Entry": Twilio SMS STOP and console opt-out are accepted; a booking "Cancel" tap is not a STOP', async () => {
-  const [sms] = await runCode(RUN, N.entry, { items: [{ source: 'twilio_sms', From: '+27600000010', Body: 'STOP' }] });
-  assert.deepEqual([sms.json.channel, sms.json.stop, sms.json.mobile], ['sms', true, '+27600000010']);
+  const [sms] = await runCode(RUN, N.entry, { items: [{ source: 'twilio_sms', From: '+27600000110', Body: 'STOP' }] });
+  assert.deepEqual([sms.json.channel, sms.json.stop, sms.json.mobile], ['sms', true, '+27600000110']);
   const [con] = await runCode(RUN, N.entry, { items: [{ op: 'opt_out', lead_id: 'lead_test_L10', channel: 'console' }] });
   assert.deepEqual([con.json.channel, con.json.stop, con.json.lead_id], ['console', true, 'lead_test_L10']);
-  const [tap] = await runCode(RUN, N.entry, { items: [{ source: 'whatsapp', route: 'W10', msg: { from: '27600000010', text: 'Cancel' } }] });
+  const [tap] = await runCode(RUN, N.entry, { items: [{ source: 'whatsapp', route: 'W10', msg: { from: '27600000110', text: 'Cancel' } }] });
   assert.equal(tap.json.stop, false);
 });

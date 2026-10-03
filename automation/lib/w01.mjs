@@ -295,13 +295,25 @@ export function pickBroker(brokers = [], brandId = null) {
 const brokerIdOf = (b) => b.broker_id ?? b.id;
 
 /**
+ * I-52b: the consent text must name this broker's practice AND its FSP number exactly as every named text renders it
+ * ("{practice_name} (FSP {fsp_number})", consent.json named / W03 named prompt). A broker row without a practice name
+ * matches nothing (an empty name would otherwise be "included" in any text).
+ */
+export function namesPractice(consentText, b) {
+  const practice = practiceOf(b || {});
+  if (!practice) return false;
+  const text = String(consentText || '');
+  return b.fsp_number ? text.includes(`${practice} (FSP ${b.fsp_number})`) : text.includes(practice);
+}
+
+/**
  * Named consent (0.1 default while there is one broker): the practice named in the consent text must be the broker
  * we route to, otherwise the lead is HELD (stored, not handed over, not messaged) and ops sees it in the console.
  */
 export function routingFor(consentText, consentMode, brokers, brandId) {
   const b = pickBroker(brokers, brandId);
   if (!b) return { held: 'held_no_capacity' };
-  if (consentMode === 'named' && !String(consentText || '').includes(practiceOf(b))) return { held: 'held_consent_names_other_practice' };
+  if (consentMode === 'named' && !namesPractice(consentText, b)) return { held: 'held_consent_names_other_practice' };
   return { broker: b };
 }
 
@@ -447,6 +459,19 @@ export function ipKey(ip, salt) {
 }
 
 // ---------------------------------------------------------------------------------------------- 7. workflow glue (pure)
+/**
+ * I-52b / rehearsal F1: the brand W01 writes under is brands.id (uuid), never the slug. A uuid brand_id carried on the
+ * item (W02 ingest) wins; otherwise $env.BRAND_ID. Anything else fails fast here with a clear message instead of a
+ * Postgres "invalid input syntax for type uuid" deep in the Context query.
+ */
+export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function brandUuid(itemBrandId, envBrandId) {
+  if (UUID_RE.test(String(itemBrandId || ''))) return String(itemBrandId).toLowerCase();
+  const v = String(envBrandId ?? '').trim();
+  if (!UUID_RE.test(v)) throw new Error(`BRAND_ID must be the brands.id uuid (got ${v ? JSON.stringify(v.slice(0, 40)) : 'nothing'}); set BRAND_ID in .env to the id of the SortMyCover row in public.brands, not its slug or code.`);
+  return v.toLowerCase();
+}
+
 /** New lead id (uuid v4). Generated in code so the lead_token can be minted before the insert returns. */
 export const newLeadId = () => randomUUID();
 

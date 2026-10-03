@@ -39,7 +39,7 @@ test('L04 consent yes: named consent first, lead row at the tap (verified), Meta
   const { actions } = run(fx);
   const consentMsg = sends(actions)[0].message;
   assert.equal(consentMsg.type, 'button');
-  assert.match(consentMsg.body, /Mark Smith Financial Services \(FSP 00000\), an authorised financial services provider/);
+  assert.ok(consentMsg.body.includes(`${MARK.practice_name} (FSP ${MARK.fsp_number}), an authorised financial services provider`), consentMsg.body);
   assert.deepEqual(consentMsg.buttons.map((b) => b.id), ['consent_yes', 'consent_no']);
   const ins = actions.filter((a) => a.kind === 'insert_lead');
   assert.equal(ins.length, 1);
@@ -57,7 +57,7 @@ test('L04 consent yes: named consent first, lead row at the tap (verified), Meta
   assert.match(row.consent_text, /sortmycover\.co\.za\/privacy/);
   assert.ok(row.consent_text.length < 1024, 'consent body under the WhatsApp interactive limit');
   assert.equal(row.consent_text, consentMsg.body, 'stored consent = the exact words shown');
-  assert.equal(row.phone, '+27600000004');
+  assert.equal(row.phone, '+27600000104');
   const capi = actions.filter((a) => a.kind === 'capi');
   assert.deepEqual(capi.map((c) => [c.event_name, c.event_id, c.action_source]), [['Lead', e.capi_lead_event_id, 'business_messaging']]);
 });
@@ -122,9 +122,9 @@ test('existing open lead (90-day dedupe): forwarded to W07, no second consent, n
 
 test('free text mid-question re-asks the same question and logs the text for the brief; state does not move', () => {
   const fx = lead('L04');
-  const r1 = W3.step(null, toMsg(fx.submission.inbound[0], 0), { at: fx.submission.inbound[0].at, mobile: '+27600000004', lead_id: 'x1', broker: MARK, brand: BRAND });
-  const r2 = W3.step(r1.thread, toMsg(fx.submission.inbound[1], 1), { at: fx.submission.inbound[1].at, mobile: '+27600000004', lead_id: 'x1', broker: MARK, brand: BRAND });
-  const r3 = W3.step(r2.thread, { type: 'text', text: { body: 'how much does cover cost?' } }, { at: fx.submission.inbound[1].at, mobile: '+27600000004', lead_id: 'x1', broker: MARK, brand: BRAND });
+  const r1 = W3.step(null, toMsg(fx.submission.inbound[0], 0), { at: fx.submission.inbound[0].at, mobile: '+27600000104', lead_id: 'x1', broker: MARK, brand: BRAND });
+  const r2 = W3.step(r1.thread, toMsg(fx.submission.inbound[1], 1), { at: fx.submission.inbound[1].at, mobile: '+27600000104', lead_id: 'x1', broker: MARK, brand: BRAND });
+  const r3 = W3.step(r2.thread, { type: 'text', text: { body: 'how much does cover cost?' } }, { at: fx.submission.inbound[1].at, mobile: '+27600000104', lead_id: 'x1', broker: MARK, brand: BRAND });
   assert.equal(r3.thread.stage, 'q_age');
   assert.ok(r3.actions.some((a) => a.kind === 'forward_w07' && a.reply === false));
   assert.equal(r3.actions.find((a) => a.kind === 'send').message.type, 'list');
@@ -175,7 +175,7 @@ test('every interactive message fits Cloud API limits (<=3 buttons/20 chars, <=1
   const qs = ['q_age', 'q_budget', 'q_bond', 'q_method'].map((s) => W3.question(s, MARK));
   qs.push({ type: 'button', body: 'x', buttons: [{ id: 'consent_yes', title: 'Yes, continue' }, { id: 'consent_no', title: 'No thanks' }] });
   for (const q of qs) {
-    const api = W3.toCloudApi('+27600000004', q).interactive;
+    const api = W3.toCloudApi('+27600000104', q).interactive;
     if (api.type === 'button') { assert.ok(api.action.buttons.length <= 3); for (const b of api.action.buttons) assert.ok(b.reply.title.length <= 20 && b.reply.title === q.buttons.find((x) => x.id === b.reply.id).title); }
     else { const rows = api.action.sections.flatMap((s) => s.rows); assert.ok(rows.length <= 10); for (const r of rows) assert.ok(r.title.length <= 24 && q.rows.find((x) => x.id === r.id).title === r.title); }
   }

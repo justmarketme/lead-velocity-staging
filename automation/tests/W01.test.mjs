@@ -34,7 +34,7 @@ const RUN = WF;
 
 const TOKEN = 'test-hooks-token-w01';
 const SECRET = 'w01-test-lead-token-secret-0123456789abcdef';
-const ENV = { TEST_HOOKS_ENABLED: 'true', TEST_HOOKS_TOKEN: TOKEN, LEAD_TOKEN_SECRET: SECRET, BRAND_ID: 'smc' };
+const ENV = { TEST_HOOKS_ENABLED: 'true', TEST_HOOKS_TOKEN: TOKEN, LEAD_TOKEN_SECRET: SECRET, BRAND_ID: '00000000-0000-4000-8000-0000000005c1' }; // brands.id uuid (I-52b guard)
 const N = {
   screen: 'Screen (w01.normaliseSubmission + screen)',
   screenIf: 'Screen passed?',
@@ -272,9 +272,9 @@ test('W01 structure: every column the SQL names exists in the migrations', () =>
 // Behaviour (offline = the workflow's own Code nodes)
 // ============================================================================================
 test(`W01 [${MODE}] SA numbers normalise to E.164; anything else is refused`, () => {
-  const ok = { '060 000 0001': '+27600000001', '+27 60 000 0001': '+27600000001', '0027600000001': '+27600000001', '27600000001': '+27600000001', '060-000-0010': '+27600000010', '(060) 000 0002': '+27600000002' };
+  const ok = { '060 000 0101': '+27600000101', '+27 60 000 0101': '+27600000101', '0027600000101': '+27600000101', '27600000101': '+27600000101', '060-000-0110': '+27600000110', '(060) 000 0102': '+27600000102' };
   for (const [raw, want] of Object.entries(ok)) assert.equal(toE164(raw), want, raw);
-  for (const bad of ['12345', '060 000 001', '+44 20 7946 0000', '0000000000', '', null, '+27 0600000001'])
+  for (const bad of ['12345', '060 000 001', '+44 20 7946 0000', '0000000000', '', null, '+27 0600000101'])
     assert.equal(toE164(bad), null, String(bad));
 });
 
@@ -310,7 +310,7 @@ test(`W01 [${MODE}] landline and VoIP are rejected at the page with a friendly m
     assert.equal(r.http_status ?? r.status, 422, t);
     assert.equal(r.body.page_message, 'Please use a mobile number.');
   }
-  assert.equal((await sys.leadsByMobile('+27600000008')).length, 0);
+  assert.equal((await sys.leadsByMobile('+27600000108')).length, 0);
 });
 
 test(`W01 [${MODE}] consent text, version, time, page and source are stored verbatim; attribution kept`, async () => {
@@ -340,7 +340,7 @@ test(`W01 [${MODE}] unticked or missing consent -> 422, nothing stored`, async (
     assert.equal(r.http_status ?? r.status, 422);
     assert.equal(r.body.error_code, 'consent_required');
   }
-  assert.equal((await sys.leadsByMobile('+27600000002')).length, 0);
+  assert.equal((await sys.leadsByMobile('+27600000102')).length, 0);
 });
 
 test(`W01 [${MODE}] routing writes broker_id (and cycle) BEFORE the first-touch job exists`, async () => {
@@ -359,7 +359,7 @@ test(`W01 [${MODE}] routing writes broker_id (and cycle) BEFORE the first-touch 
 test(`W01 [${MODE}] named consent must name the broker we route to, otherwise the lead is held (not messaged)`, async () => {
   const sys = fresh();
   const fx = clone(lead('L02'));
-  fx.submission.consent.text = fx.submission.consent.text.replace('Mark Smith Financial Services (FSP 00000)', 'Other Practice (FSP 99999)');
+  fx.submission.consent.text = fx.submission.consent.text.replace(`${broker().practice_name} (FSP ${broker().fsp_number})`, 'Other Practice (FSP 99999)');
   const r = await sys.page(fx, { sub: fx.submission });
   assert.equal(r.body.status, 'held');
   const s = await sys.state(r.body.lead_id);
@@ -399,7 +399,7 @@ test(`W01 [${MODE}] duplicate within 90 days merges: no new lead, no WhatsApp, n
     assert.ok(v.ok && v.lead_id === first.body.lead_id, 'fresh token for the existing lead');
     assert.equal(r.body.duplicate_of, undefined, 'the page never learns');
   }
-  assert.equal((await sys.leadsByMobile('+27600000001')).length, 1, 'one lead row');
+  assert.equal((await sys.leadsByMobile('+27600000101')).length, 1, 'one lead row');
   const s = await sys.state(first.body.lead_id);
   assert.equal(s.jobs.filter((j) => j.workflow === 'W06').length, 1, 'no second first-touch');
   assert.equal(s.capi.filter((e) => e.event_name === 'Lead').length, 1, 'no second CAPI Lead');
@@ -432,7 +432,7 @@ test(`W01 [${MODE}] honeypot filled -> looks accepted to the bot, nothing stored
   fx.submission.honeypot = 'http://spam.example';
   const r = await sys.page(fx, { sub: fx.submission });
   assert.equal(r.http_status ?? r.status, 200);
-  assert.equal((await sys.leadsByMobile('+27600000002')).length, 0);
+  assert.equal((await sys.leadsByMobile('+27600000102')).length, 0);
 });
 
 test(`W01 [${MODE}] more than ${IP_LIMIT_PER_HOUR} submissions per IP per hour -> 429`, async (t) => {
@@ -460,7 +460,7 @@ test(`W01 [${MODE}] Lookup outage fails open: lead accepted, line_type 'unknown'
 
 test(`W01 [${MODE}] a suppressed (STOPped) number is stored but never messaged`, async () => {
   const sys = fresh();
-  await sys.suppress('+27600000002');
+  await sys.suppress('+27600000102');
   const r = await sys.page(lead('L02'));
   const s = await sys.state(r.body.lead_id);
   assert.equal(s.jobs.filter((j) => j.workflow === 'W06').length, 0);
@@ -475,7 +475,7 @@ test(`W02 parity [${MODE}] instant-form lead (L03) gets the same treatment as a 
   assert.equal(s.lead.mobile, fx.expected.W01.mobile);
   assert.equal(s.lead.leadgen_id, fx.expected.W01.leadgen_id);
   assert.equal(s.lead.broker_id, fx.expected.W01.broker_id);
-  assert.equal(s.lead.consent_text, FIX.consent_texts['named-v1-DRAFT']);
+  assert.equal(s.lead.consent_text, FIX.consent_texts['CONSENT-NAMED-v1+CONSENT-ADS-v1']);
   assert.deepEqual(s.capi.map((e) => e.event_id), [`evt_${r.body.lead_id}_lead`]);
 });
 
@@ -486,7 +486,7 @@ test(`W02 parity [${MODE}] the production ingest item (registry version, no text
   assert.equal(r.body.status, 'accepted');
   const l = (await sys.state(r.body.lead_id)).lead;
   assert.equal(l.consent_text_version, 'CONSENT-NAMED-v1+CONSENT-ADS-v1');
-  assert.ok(l.consent_text.includes('Mark Smith Financial Services (FSP 00000)'), l.consent_text);
+  assert.ok(l.consent_text.includes(`${broker().practice_name} (FSP ${broker().fsp_number})`), l.consent_text);
   assert.equal(l.broker_id, broker().broker_id);
   assert.equal(r.result.outcome, 'accepted');
 });
@@ -510,14 +510,14 @@ test(`W03 parity [${MODE}] CTWA consent-no (L05): no lead row, only a hashed num
   const fx = lead('L05');
   const { lead: l } = await sys.ctwa(fx);
   assert.equal(l, null);
-  assert.equal((await sys.leadsByMobile('+27600000005')).length, 0);
-  // GATE-TEST-W01: fixture expected sha256('+27600000005'); 0.1/CONTRACTS says digits-only smc_hash_contact (migration 12, I-38a) (needs-human-log 2026-10-03 (b))
-  const want = MODE === 'offline' ? hashContact('+27600000005') : sha256('+27600000005');
-  assert.equal(hashContact('+27600000005'), sha256('27600000005'));
+  assert.equal((await sys.leadsByMobile('+27600000105')).length, 0);
+  // GATE-TEST-W01: fixture expected sha256('+27600000105'); 0.1/CONTRACTS says digits-only smc_hash_contact (migration 12, I-38a) (needs-human-log 2026-10-03 (b))
+  const want = MODE === 'offline' ? hashContact('+27600000105') : sha256('+27600000105');
+  assert.equal(hashContact('+27600000105'), sha256('27600000105'));
   const supp = (await sys.suppression()).filter((s) => s.mobile_hash === want);
   assert.equal(supp.length, 1);
   assert.equal(supp[0].source, 'no_consent_ctwa');
-  const msgs = await sys.messagesTo('+27600000005');
+  const msgs = await sys.messagesTo('+27600000105');
   // GATE-TEST-W01: fixture expected the broker never named to a non-consenting person; 0.1/CONTRACTS (named consent, ctwa-named-v2) names the practice IN the consent prompt so the person can decide; nothing after "No" names it (NH-40 / needs-human-log 2026-10-03 (c))
   if (MODE === 'offline') {
     assert.ok(msgs[0].kind === 'consent_buttons' && msgs[0].text.includes(broker().practice_name), 'named consent prompt names the practice');
@@ -600,4 +600,103 @@ test('W01 node "Decide": email kept only for an invite method; CAPI payload carr
   fx2.submission.email = 'someone@example.com';
   const r2 = await sys.page(fx2, { sub: fx2.submission });
   assert.equal((await sys.state(r2.body.lead_id)).lead.email, null, 'phone booking: no email stored (0.1 Email)');
+});
+
+// ============================================================================================
+// I-52b: the fixture's named consent is the registry's text for the SEEDED broker, so a real POST /lead with L01
+// passes W01's registry check against supabase/seed/smc_synthetic.sql (rehearsal F3); BRAND_ID must be the uuid (F1).
+// ============================================================================================
+const AF = await import('./fixtures/align-fixture.mjs');
+const SEEDB = AF.seedBroker();
+const pageConsentLeads = () => FIX.leads.filter((l) => l.submission && l.submission.consent && typeof l.submission.consent === 'object');
+
+test('I-52b fixture consent = consent.json named text rendered for the seeded practice + FSP; W01 maps it to the seeded broker', async () => {
+  // The seeded broker as W01's Context query builds it (practice_name = brokers.firm_name).
+  const seeded = { ...dbBroker(broker()), practice_name: SEEDB.practice_name, fsp_number: SEEDB.fsp_number };
+  assert.equal(broker().practice_name, SEEDB.practice_name, 'fixture broker practice = seed brokers.firm_name');
+  assert.equal(broker().fsp_number, SEEDB.fsp_number, 'fixture broker FSP = seed brokers.fsp_number');
+  const registry = W01.consentRegistry(seeded);
+  const rendered = registry[AF.NAMED_VERSION];
+  const C = JSON.parse(readFileSync(new URL('../../landing/config/consent.json', import.meta.url), 'utf8'));
+  assert.equal(AF.NAMED_VERSION, C.named.version, 'the current named version from the registry');
+  assert.equal(rendered, `${C.named.text.replace('{practice_name}', SEEDB.practice_name).replace('{fsp_number}', SEEDB.fsp_number)} ${C.ads}`);
+  assert.equal(FIX.consent_texts[AF.NAMED_VERSION], rendered);
+  assert.ok(!('named-v1-DRAFT' in FIX.consent_texts), 'no DRAFT version left in the fixture');
+  const subs = pageConsentLeads();
+  assert.ok(subs.length >= 6, 'every page lead with consent is covered');
+  for (const fx of subs) {
+    if (!fx.submission.consent.checked) continue;
+    const sub = W01.normaliseSubmission(fx.submission);
+    assert.equal(sub.consent.version, AF.NAMED_VERSION, fx.fixture_id);
+    assert.equal(sub.consent.text, rendered, `${fx.fixture_id}: exact registry text`);
+    assert.deepEqual(W01.consentAudit(sub, registry), { version: AF.NAMED_VERSION, known_version: true, matches_registry: true }, fx.fixture_id);
+    const r = W01.routingFor(sub.consent.text, 'named', [seeded], seeded.brand_id);
+    assert.equal(r.held, undefined, `${fx.fixture_id}: not held_consent_names_other_practice`);
+    assert.equal(r.broker.broker_id, seeded.broker_id);
+  }
+  // Lead-ad fixture (L03) resolves its version from the same registry.
+  const l3 = lead('L03').submission;
+  assert.equal(l3.consent_text_version, AF.NAMED_VERSION);
+  // The fixture file is exactly what the generator produces (second run is a no-op).
+  const raw = readFileSync(new URL('./fixtures/synthetic-leads.json', import.meta.url), 'utf8');
+  assert.equal(AF.align(raw), raw, 'run node automation/tests/fixtures/align-fixture.mjs');
+});
+
+test(`W01 [${MODE}] I-52b L01 from the fixture routes to the seeded broker: consent_audit known_version, not held`, async () => {
+  const sys = fresh();
+  const r = await sys.page(lead('L01'));
+  assert.equal(r.http_status, 200);
+  assert.equal(r.body.status, 'accepted');
+  const s = await sys.state(r.body.lead_id);
+  assert.equal(s.lead.broker_id, broker().broker_id);
+  assert.notEqual(s.lead.routing_reason, 'held_consent_names_other_practice');
+  if (MODE === 'offline') {
+    const a = s.activities.find((x) => x.activity_type === 'consent_audit');
+    assert.ok(a, 'consent_audit on the timeline');
+    assert.deepEqual(a.payload, { version: AF.NAMED_VERSION, known_version: true, matches_registry: true });
+  }
+});
+
+test('I-52b registry check tolerates nothing it should not: DRAFT / suffixed / re-cased versions are unknown; FSP must match', () => {
+  const b = { ...dbBroker(broker()) };
+  const reg = W01.consentRegistry(b);
+  const text = reg[AF.NAMED_VERSION];
+  for (const v of ['named-v1-DRAFT', `${AF.NAMED_VERSION}-DRAFT`, `${AF.NAMED_VERSION} `, AF.NAMED_VERSION.toLowerCase(), 'CONSENT-NAMED-v1', '', null, '__proto__', 'toString'])
+    assert.equal(W01.consentAudit({ consent: { version: v, text } }, reg).known_version, false, String(v));
+  assert.equal(W01.consentAudit({ consent: { version: AF.NAMED_VERSION, text: text + ' ' } }, reg).matches_registry, false, 'one extra space is a mismatch');
+  // A lead-ad version that is not in the registry carries no consent at all.
+  const la = W01.normaliseLeadAd({ lead: { mobile_raw: '+27600000103', consent: { given: true, text_version: 'named-v1-DRAFT', captured_at: '2026-10-12T14:40:00+02:00' } } }, {});
+  assert.equal(la.consent.checked, false);
+  // Named routing: the practice AND its FSP number, as every named text renders them; an empty practice matches nothing.
+  assert.equal(W01.routingFor(text.replace(`(FSP ${b.fsp_number})`, '(FSP 99999)'), 'named', [b], b.brand_id).held, 'held_consent_names_other_practice');
+  assert.equal(W01.routingFor(text, 'named', [{ ...b, practice_name: '' }], b.brand_id).held, 'held_consent_names_other_practice');
+  assert.equal(W01.routingFor(text, 'named', [b], b.brand_id).broker.broker_id, b.broker_id);
+});
+
+test('I-52b BRAND_ID must be the brands.id uuid: a slug or empty value fails fast with a clear error (no Postgres cast error)', async () => {
+  const U = '00000000-0000-4000-8000-0000000005c1';
+  assert.equal(W01.brandUuid(null, U), U);
+  assert.equal(W01.brandUuid(U.toUpperCase(), 'smc'), U, 'a uuid brand on the item (W02 ingest) wins');
+  for (const bad of ['smc', 'SMC', '', undefined, '1234', `${U}x`]) assert.throws(() => W01.brandUuid('smc', bad), /BRAND_ID must be the brands\.id uuid/, String(bad));
+  const fx = lead('L01');
+  const headers = { 'content-type': 'application/json', 'cf-connecting-ip': '192.0.2.10' };
+  await assert.rejects(runCode(RUN, N.screen, { json: { headers, body: fx.submission }, env: { ...ENV, BRAND_ID: 'smc' } }), /BRAND_ID must be the brands\.id uuid/);
+  const [ok] = await runCode(RUN, N.screen, { json: { headers, body: fx.submission }, env: ENV });
+  assert.equal(ok.json.brand_id, U, 'Screen hands the uuid to the Context query');
+  const item = { lead: { brand_id: 'smc', mobile_raw: '+27600000103', consent: { given: true, text_version: AF.NAMED_VERSION } } };
+  await assert.rejects(runCode(RUN, N.leadAd, { items: [item], env: { ...ENV, BRAND_ID: 'smc' } }), /BRAND_ID must be the brands\.id uuid/);
+  const ctx = WF.nodes.find((n) => n.name === N.context);
+  assert.match(JSON.stringify(ctx.parameters), /\$6::uuid/, 'the Context query still casts; the guard runs before it');
+});
+
+test('I-52b fixture lead numbers never collide with the seed (leads +27600000001..10, broker +27600000099)', () => {
+  const seedNums = new Set([...AF.seedLeadNumbers(), SEEDB.whatsapp]);
+  assert.ok(seedNums.has('+27600000001') && seedNums.has('+27600000099'));
+  for (const fx of FIX.leads) {
+    const s = fx.submission || {};
+    const raw = s.mobile ?? (s.wa_id ? '+' + s.wa_id : (s.field_data || []).find((f) => f.name === 'phone_number')?.values?.[0]);
+    const e = toE164(raw);
+    assert.ok(e, `${fx.fixture_id}: has a number`);
+    assert.ok(!seedNums.has(e), `${fx.fixture_id}: ${e} collides with the seed`);
+  }
 });

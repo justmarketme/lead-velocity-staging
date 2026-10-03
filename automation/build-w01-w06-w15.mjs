@@ -71,7 +71,8 @@ function buildW01() {
   // ---- entry 1: POST /lead
   n.push(node('POST /lead (landing page)', 'webhook', 2, pos(0, 0), { httpMethod: 'POST', path: 'lead', responseMode: 'responseNode', options: {} }, { webhookId: 'w01-lead-post' }));
   n.push(code('Screen (w01.normaliseSubmission + screen)', pos(1, 0), prelude('w01.mjs') +
-`const it = $input.first().json; const h = it.headers || {};
+`const brand_id = L.brandUuid(null, $env.BRAND_ID); // I-52b: fail fast on a slug / empty BRAND_ID (rehearsal F1)
+const it = $input.first().json; const h = it.headers || {};
 const body = it.body || {};
 const test_hooks = $env.TEST_HOOKS_ENABLED === 'true' && !!$env.TEST_HOOKS_TOKEN && h['x-test-token'] === $env.TEST_HOOKS_TOKEN && body.is_synthetic === true;
 const now = test_hooks && h['x-test-now'] ? Date.parse(h['x-test-now']) : Date.now();
@@ -83,7 +84,7 @@ const scr = L.screen(sub, { now, origin_ok });
 const lead_id = L.newLeadId();
 const form_post = /x-www-form-urlencoded/i.test(h['content-type'] || '');
 const keys = L.rateKeys({ ip, mobile_hash: scr.ok ? scr.mobile_hash : null, request_id: sub.request_id || lead_id, salt: $env.RATE_LIMIT_IP_SALT, now });
-return [{ json: { from: 'page', sub, scr, now, lead_id, test_hooks, form_post, keys, mobile: scr.ok ? scr.mobile : null,
+return [{ json: { from: 'page', sub, scr, now, lead_id, test_hooks, form_post, keys, brand_id, mobile: scr.ok ? scr.mobile : null,
   lookup_override: test_hooks ? (h['x-test-lookup-line-type'] || null) : null,
   http: scr.ok ? null : { http_status: scr.http_status, body: scr.body }, result: scr.ok ? null : { outcome: 'rejected', reason: scr.reason } } }];`));
   n.push(ifTrue('Screen passed?', pos(2, 0), '$json.scr.ok'));
@@ -240,7 +241,7 @@ for (const it of $input.all()) {
   const scr = L.screen(sub, { now });
   const lead_id = L.newLeadId();
   out.push({ json: { from: 'core', sub, scr, now, lead_id, test_hooks: false, form_post: false, keys: L.rateKeys({ mobile_hash: scr.ok ? scr.mobile_hash : null, request_id: sub.request_id || lead_id, now }),
-    mobile: scr.ok ? scr.mobile : null, lookup_override: null, brand_id: it.json.lead && it.json.lead.brand_id || null,
+    mobile: scr.ok ? scr.mobile : null, lookup_override: null, brand_id: L.brandUuid(it.json.lead && it.json.lead.brand_id, $env.BRAND_ID),
     http: scr.ok ? null : { http_status: scr.http_status, body: scr.body }, result: scr.ok ? null : { outcome: 'rejected', reason: scr.reason } } });
 }
 return out;`));

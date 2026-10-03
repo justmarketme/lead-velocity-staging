@@ -33,9 +33,9 @@
   },
 
   "consent_texts": {
-    "named-v1-DRAFT": "I agree that Lead Velocity may share my details with Mark Smith Financial Services (FSP 00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. Lead Velocity may also use my details to measure and improve its advertising. I can opt out at any time by replying STOP.",
+    "CONSENT-NAMED-v1+CONSENT-ADS-v1": "I agree that Lead Velocity may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
     "ctwa-v1": "Before we start: if it's a fit, we'll share your details with an authorised financial services provider who'll contact you about life cover. OK to continue?",
-    "_note": "named-v1-DRAFT = 2.1.2 'stronger alternative' (0.1: named is the default while there is one broker) + the advertising sentence from automation/capi/event-spec.md; final wording is contracts-drafter / compliance-qa's. ctwa-v1 = the 4.6 CTWA consent text verbatim."
+    "_note": "CONSENT-NAMED-v1+CONSENT-ADS-v1 = landing/config/consent.json named text rendered for the seeded broker (supabase/seed/smc_synthetic.sql) by automation/tests/fixtures/align-fixture.mjs; never hand-edit. ctwa-v1 = the 4.6 CTWA consent text verbatim (NH-40)."
   },
 
   "pricing": [
@@ -49,8 +49,8 @@
     {
       "broker_id": "brk_test_mark",
       "brand_id": "smc",
-      "practice_name": "Mark Smith Financial Services",
-      "fsp_number": "00000",
+      "practice_name": "Synthetic Test Advisory (TEST ONLY)",
+      "fsp_number": "TEST-00000",
       "adviser_name": "Mark Smith",
       "adviser_first_name": "Mark",
       "adviser_whatsapp": "+27600000090",
@@ -117,13 +117,13 @@
         "is_synthetic": true,
         "submitted_at": "2026-10-12T08:14:05+02:00",
         "first_name": "Lerato",
-        "mobile": "060 000 0001",
+        "mobile": "060 000 0101",
         "language": "en",
         "quiz": { "age_band": "35_44", "has_bond": true, "has_dependants": true, "has_work_cover": true, "budget_band": "750_1250" },
         "consent": {
           "checked": true,
-          "version": "named-v1-DRAFT",
-          "text": "I agree that Lead Velocity may share my details with Mark Smith Financial Services (FSP 00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. Lead Velocity may also use my details to measure and improve its advertising. I can opt out at any time by replying STOP.",
+          "version": "CONSENT-NAMED-v1+CONSENT-ADS-v1",
+          "text": "I agree that Lead Velocity may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
           "includes_ads_sentence": true,
           "at": "2026-10-12T08:14:05+02:00",
           "page_url": "https://sortmycover.co.za/bond-gap",
@@ -165,9 +165,9 @@
         { "at": "2026-10-15T11:04:00+02:00", "actor": "lead", "event": "tap", "data": { "template": "reach_check", "button": "Yes, we spoke" } }
       ],
       "expected": {
-        "W01": { "http_status": 200, "status": "accepted", "mobile": "+27600000001", "line_type": "mobile", "broker_id": "brk_test_mark", "qualified_bands": true, "capi_lead_event_id": "5b0f7a2e-0001-4c1a-9a51-000000000001", "consent_ads": true },
+        "W01": { "http_status": 200, "status": "accepted", "mobile": "+27600000101", "line_type": "mobile", "broker_id": "brk_test_mark", "qualified_bands": true, "capi_lead_event_id": "5b0f7a2e-0001-4c1a-9a51-000000000001", "consent_ads": true },
         "W05": { "http_status": 201, "slot_start": "2026-10-15T10:00:00+02:00", "slot_end": "2026-10-15T10:30:00+02:00", "event_title": "Life cover call – Lerato – Teams", "is_online_meeting": true, "online_meeting_provider": "teamsForBusiness", "client_is_attendee": false, "email_status": "mx_ok", "email_purpose": "meeting_invite", "invite_from": "howzit@leadvelocity.co.za", "capi_schedule_event_id": "5b0f7a2e-0001-4c1a-9a51-000000000101", "cycle_id": "cyc_test_001" },
-        "W06": { "template": "broker_intro_booked", "trigger": "booking", "send_at": "2026-10-12T08:14:41+02:00", "deadline": "2026-10-12T08:15:05+02:00", "variables": ["Lerato", "Mark Smith Financial Services", "00000", "Mark Smith", "Microsoft Teams", "Thu 15 Oct", "10:00"] },
+        "W06": { "template": "broker_intro_booked", "trigger": "booking", "send_at": "2026-10-12T08:14:41+02:00", "deadline": "2026-10-12T08:15:05+02:00", "variables": ["Lerato", "Synthetic Test Advisory (TEST ONLY)", "TEST-00000", "Mark Smith", "Microsoft Teams", "Thu 15 Oct", "10:00"] },
         "W09": {
           "compressed": false,
           "schedule": [
@@ -197,13 +197,13 @@
         "is_synthetic": true,
         "submitted_at": "2026-10-12T09:02:11+02:00",
         "first_name": "Sipho",
-        "mobile": "+27 60 000 0002",
+        "mobile": "+27 60 000 0102",
         "language": "en",
         "quiz": { "age_band": "45_50", "has_bond": true, "has_dependants": false, "has_work_cover": false, "budget_band": "1250_plus" },
         "consent": {
           "checked": true,
-          "version": "named-v1-DRAFT",
-          "text": "I agree that Lead Velocity may share my details with Mark Smith Financial Services (FSP 00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. Lead Velocity may also use my details to measure and improve its advertising. I can opt out at any time by replying STOP.",
+          "version": "CONSENT-NAMED-v1+CONSENT-ADS-v1",
+          "text": "I agree that Lead Velocity may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
           "includes_ads_sentence": true,
           "at": "2026-10-12T09:02:11+02:00",
           "page_url": "https://sortmycover.co.za/family-first",
@@ -244,10 +244,10 @@
         { "at": "2026-10-13T11:41:00+02:00", "actor": "lead", "event": "tap", "data": { "template": "reach_check", "button": "No, not yet" } }
       ],
       "expected": {
-        "W01": { "http_status": 200, "status": "accepted", "mobile": "+27600000002", "line_type": "mobile", "broker_id": "brk_test_mark", "qualified_bands": true, "capi_lead_event_id": "5b0f7a2e-0002-4c1a-9a51-000000000002", "consent_ads": true },
+        "W01": { "http_status": 200, "status": "accepted", "mobile": "+27600000102", "line_type": "mobile", "broker_id": "brk_test_mark", "qualified_bands": true, "capi_lead_event_id": "5b0f7a2e-0002-4c1a-9a51-000000000002", "consent_ads": true },
         "W04": { "offer_at": "2026-10-12T09:02:30+02:00", "offered": ["2026-10-12T11:30:00+02:00", "2026-10-13T10:30:00+02:00", "2026-10-14T09:00:00+02:00"], "why": "Mon earliest after 2-h notice (11:02 -> 11:30 grid); Tue 09:00-10:00 busy + 15-min buffer -> 10:30; Wed 09:00; one per day (round-robin)" },
-        "W05": { "http_status": 201, "slot_start": "2026-10-13T10:30:00+02:00", "event_title": "Life cover call – Sipho – Phone", "is_online_meeting": false, "body_contains": "Call Sipho on +27600000002", "email_stored": false, "capi_schedule_event_id": "evt_lead_test_L02_schedule" },
-        "W06": { "template": "broker_intro_slots", "trigger": "skip", "send_at": "2026-10-12T09:02:30+02:00", "deadline": "2026-10-12T09:03:11+02:00", "variables": ["Sipho", "Mark Smith Financial Services", "00000", "Mark Smith", "Mon 12 Oct, 11:30", "Tue 13 Oct, 10:30", "Wed 14 Oct, 09:00"] },
+        "W05": { "http_status": 201, "slot_start": "2026-10-13T10:30:00+02:00", "event_title": "Life cover call – Sipho – Phone", "is_online_meeting": false, "body_contains": "Call Sipho on +27600000102", "email_stored": false, "capi_schedule_event_id": "evt_lead_test_L02_schedule" },
+        "W06": { "template": "broker_intro_slots", "trigger": "skip", "send_at": "2026-10-12T09:02:30+02:00", "deadline": "2026-10-12T09:03:11+02:00", "variables": ["Sipho", "Synthetic Test Advisory (TEST ONLY)", "TEST-00000", "Mark Smith", "Mon 12 Oct, 11:30", "Tue 13 Oct, 10:30", "Wed 14 Oct, 09:00"] },
         "W09": {
           "compressed": true,
           "schedule": [
@@ -280,7 +280,7 @@
         "created_time": "2026-10-12T14:40:00+02:00",
         "field_data": [
           { "name": "first_name", "values": ["Anele"] },
-          { "name": "phone_number", "values": ["+27600000003"] },
+          { "name": "phone_number", "values": ["+27600000103"] },
           { "name": "age_band", "values": ["35_44"] },
           { "name": "budget_band", "values": ["1250_plus"] },
           { "name": "has_bond", "values": ["yes"] },
@@ -288,7 +288,7 @@
           { "name": "preferred_method", "values": ["whatsapp_call"] }
         ],
         "custom_disclaimer_responses": [{ "checkbox_key": "consent", "is_checked": "1" }],
-        "consent_text_version": "named-v1-DRAFT"
+        "consent_text_version": "CONSENT-NAMED-v1+CONSENT-ADS-v1"
       },
       "booking_request": {
         "idempotency_key": "book_L03_1",
@@ -311,9 +311,9 @@
         { "at": "2026-10-14T15:20:00+02:00", "actor": "lead", "event": "tap", "data": { "template": "reach_check", "button": "No, not yet" } }
       ],
       "expected": {
-        "W01": { "via": "W02", "status": "accepted", "routed_at": "2026-10-12T14:40:05+02:00", "mobile": "+27600000003", "broker_id": "brk_test_mark", "leadgen_id": "lg_test_0003", "capi_lead_event_id": "evt_lead_test_L03_lead" },
+        "W01": { "via": "W02", "status": "accepted", "routed_at": "2026-10-12T14:40:05+02:00", "mobile": "+27600000103", "broker_id": "brk_test_mark", "leadgen_id": "lg_test_0003", "capi_lead_event_id": "evt_lead_test_L03_lead" },
         "W04": { "offer_at": "2026-10-12T14:40:05+02:00", "offered": ["2026-10-13T11:30:00+02:00", "2026-10-14T09:00:00+02:00", "2026-10-15T09:00:00+02:00"], "why": "Mon: 16:40 earliest, no 30-min slot ends by 17:00; Tue 10:00-11:00 blocked by busy and L02's 10:30 + buffers -> 11:30; Wed 09:00; Thu 09:00" },
-        "W05": { "http_status": 201, "slot_start": "2026-10-13T11:30:00+02:00", "event_title": "Life cover call – Anele – WhatsApp call", "body_contains": "WhatsApp-call Anele on +27600000003", "capi_schedule_event_id": "evt_lead_test_L03_schedule" },
+        "W05": { "http_status": 201, "slot_start": "2026-10-13T11:30:00+02:00", "event_title": "Life cover call – Anele – WhatsApp call", "body_contains": "WhatsApp-call Anele on +27600000103", "capi_schedule_event_id": "evt_lead_test_L03_schedule" },
         "W06": { "template": "broker_intro_slots", "trigger": "routed", "send_at": "2026-10-12T14:40:05+02:00", "deadline": "2026-10-12T14:41:00+02:00" },
         "W09": {
           "compressed": true,
@@ -350,7 +350,7 @@
       "lookup": { "line_type": "mobile" },
       "submission": {
         "is_synthetic": true,
-        "wa_id": "27600000004",
+        "wa_id": "27600000104",
         "profile_name": "Pieter",
         "inbound": [
           { "at": "2026-10-12T19:05:00+02:00", "type": "text", "text": "Hi, I'd like to check my life cover", "referral": { "source_type": "ad", "source_id": "ad_test_ctwa_01", "ctwa_clid": "ctwa_test_L04", "headline": "Most bonds outlast work cover" } },
@@ -406,7 +406,7 @@
       "origin": "ctwa",
       "submission": {
         "is_synthetic": true,
-        "wa_id": "27600000005",
+        "wa_id": "27600000105",
         "profile_name": "Thabo",
         "inbound": [
           { "at": "2026-10-12T20:10:00+02:00", "type": "text", "text": "Hi, I'd like to check my life cover", "referral": { "source_type": "ad", "source_id": "ad_test_ctwa_01", "ctwa_clid": "ctwa_test_L05" } },
@@ -415,7 +415,7 @@
         "consent_text_version": "ctwa-v1"
       },
       "expected": {
-        "W01": { "via": "W03", "lead_row": false, "suppression": { "source": "no_consent_ctwa", "mobile_hash_of": "+27600000005" }, "broker_named": false, "capi_lead": false, "messages_after_no": 1 }
+        "W01": { "via": "W03", "lead_row": false, "suppression": { "source": "no_consent_ctwa", "mobile_hash_of": "+27600000105" }, "broker_named": false, "capi_lead": false, "messages_after_no": 1 }
       }
     },
 
@@ -427,7 +427,7 @@
       "lookup": { "line_type": "mobile" },
       "submission": {
         "is_synthetic": true,
-        "wa_id": "27600000006",
+        "wa_id": "27600000106",
         "profile_name": "Johan",
         "inbound": [
           { "at": "2026-10-13T07:30:00+02:00", "type": "text", "text": "Hi, I'd like to check my life cover", "referral": { "source_type": "ad", "source_id": "ad_test_ctwa_02", "ctwa_clid": "ctwa_test_L06" } },
@@ -452,13 +452,13 @@
         "is_synthetic": true,
         "submitted_at": "2026-10-13T12:00:00+02:00",
         "first_name": "Nomsa",
-        "mobile": "0600000007",
+        "mobile": "0600000107",
         "language": "en",
         "quiz": { "age_band": "35_44", "has_bond": false, "has_dependants": true, "has_work_cover": true, "budget_band": "500_750" },
         "consent": {
           "checked": true,
-          "version": "named-v1-DRAFT",
-          "text": "I agree that Lead Velocity may share my details with Mark Smith Financial Services (FSP 00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. Lead Velocity may also use my details to measure and improve its advertising. I can opt out at any time by replying STOP.",
+          "version": "CONSENT-NAMED-v1+CONSENT-ADS-v1",
+          "text": "I agree that Lead Velocity may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
           "includes_ads_sentence": true,
           "at": "2026-10-13T12:00:00+02:00",
           "page_url": "https://sortmycover.co.za/bond-gap",
@@ -484,13 +484,13 @@
         "is_synthetic": true,
         "submitted_at": "2026-10-13T13:00:00+02:00",
         "first_name": "Kagiso",
-        "mobile": "060 000 0008",
+        "mobile": "060 000 0108",
         "language": "en",
         "quiz": { "age_band": "35_44", "has_bond": true, "has_dependants": true, "has_work_cover": true, "budget_band": "750_1250" },
         "consent": {
           "checked": true,
-          "version": "named-v1-DRAFT",
-          "text": "I agree that Lead Velocity may share my details with Mark Smith Financial Services (FSP 00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. Lead Velocity may also use my details to measure and improve its advertising. I can opt out at any time by replying STOP.",
+          "version": "CONSENT-NAMED-v1+CONSENT-ADS-v1",
+          "text": "I agree that Lead Velocity may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
           "includes_ads_sentence": true,
           "at": "2026-10-13T13:00:00+02:00",
           "page_url": "https://sortmycover.co.za/bond-gap",
@@ -515,13 +515,13 @@
         "is_synthetic": true,
         "submitted_at": "2026-10-30T19:20:00+02:00",
         "first_name": "Lerato",
-        "mobile": "0027 60 000 0001",
+        "mobile": "0027 60 000 0101",
         "language": "en",
         "quiz": { "age_band": "35_44", "has_bond": true, "has_dependants": true, "has_work_cover": true, "budget_band": "750_1250" },
         "consent": {
           "checked": true,
-          "version": "named-v1-DRAFT",
-          "text": "I agree that Lead Velocity may share my details with Mark Smith Financial Services (FSP 00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. Lead Velocity may also use my details to measure and improve its advertising. I can opt out at any time by replying STOP.",
+          "version": "CONSENT-NAMED-v1+CONSENT-ADS-v1",
+          "text": "I agree that Lead Velocity may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
           "includes_ads_sentence": true,
           "at": "2026-10-30T19:20:00+02:00",
           "page_url": "https://sortmycover.co.za/work-cover",
@@ -546,13 +546,13 @@
         "is_synthetic": true,
         "submitted_at": "2026-10-19T10:00:00+02:00",
         "first_name": "Zanele",
-        "mobile": "060-000-0010",
+        "mobile": "060-000-0110",
         "language": "en",
         "quiz": { "age_band": "45_50", "has_bond": true, "has_dependants": true, "has_work_cover": true, "budget_band": "1250_plus" },
         "consent": {
           "checked": true,
-          "version": "named-v1-DRAFT",
-          "text": "I agree that Lead Velocity may share my details with Mark Smith Financial Services (FSP 00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. Lead Velocity may also use my details to measure and improve its advertising. I can opt out at any time by replying STOP.",
+          "version": "CONSENT-NAMED-v1+CONSENT-ADS-v1",
+          "text": "I agree that Lead Velocity may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
           "includes_ads_sentence": true,
           "at": "2026-10-19T10:00:00+02:00",
           "page_url": "https://sortmycover.co.za/bond-gap",
@@ -577,7 +577,7 @@
         { "at": "2026-10-21T15:07:00+02:00", "actor": "lead", "event": "text 'Stop'" }
       ],
       "expected": {
-        "W01": { "http_status": 200, "status": "accepted", "mobile": "+27600000010", "broker_id": "brk_test_mark" },
+        "W01": { "http_status": 200, "status": "accepted", "mobile": "+27600000110", "broker_id": "brk_test_mark" },
         "W06": { "template": "broker_intro_booked", "trigger": "booking", "send_at": "2026-10-19T10:00:30+02:00", "deadline": "2026-10-19T10:01:00+02:00" },
         "W09": {
           "compressed": false,
@@ -598,7 +598,7 @@
           "graph_event_deleted": true,
           "broker_notified": true,
           "broker_notification_names_lead_as": "Zanele",
-          "suppression": { "source": "stop", "brand_id": null, "mobile_hash_of": "+27600000010" },
+          "suppression": { "source": "stop", "brand_id": null, "mobile_hash_of": "+27600000110" },
           "messages_to_lead_after_stop": ["opt_out_confirmation"],
           "later_intake_whatsapp": false
         }
