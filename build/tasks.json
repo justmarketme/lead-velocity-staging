@@ -2574,6 +2574,39 @@
       "human_gate": true,
       "status": "needs_human",
       "section": "2.3 / 4.4a"
+    },
+    {
+      "id": "NH-61",
+      "title": "Payments (money): sequence Paystack last — manual EFT + inContact (W16/W17/W18) is the cycle-1 launch path; Paystack built but off behind a flag; Paystack gates and the Paystack half of S7-23/GATE-R1-LIVE move post-launch. Relayed from Jonathan via the bootstrap session; needs his confirmation in the build thread (changes the 0.1 Instant-EFT default).",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "0.1 / 6.5 / pre-mortem #5"
+    },
+    {
+      "id": "NH-62",
+      "title": "I-54g: after KG rules not_attended on an Attended-vs-No conflict, what happens to the outcomes row and the delivered/verified count? Default proposal: outcome → no_show, replacement_eligible within the cycle cap.",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.12a / Schedule C"
+    },
+    {
+      "id": "NH-63",
+      "title": "I-54i: once the broker marks an outcome, the lead reach_check is skipped so CAPI Attended always waits for the lead window to close. Default: keep.",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.12a / 4.4a"
     }
   ]
 }

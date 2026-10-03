@@ -127,3 +127,11 @@ GATE-HIDE-WORDS (Phase 2) · GATE-TEST-W01/W04/W05/W06/W09/W12/W13/W15 — you w
 | NH-58 | Service-role key on the VPS: accept for cycle 1 (a) or move the three calls behind edge functions first (b)? | (b) |
 | NH-59 | Qualifying order: age → budget → bond/dependants → method (4.6, default) or age → bond → dependants → budget (state machine)? | 4.6 order |
 | NH-60 | WhatsApp consent covers Meta measurement events (set consent_ads_at at consent)? — practitioner item | Yes until the opinion says otherwise |
+
+## Session 2 additions (2026-10-03)
+
+| Code | Decision | Default if silent |
+|---|---|---|
+| NH-61 | **Payments (money):** a message relayed from your coordination thread says "Let's put the paystack option for the last." Proposed reading: manual EFT with the unique reference + FNB inContact parsing is the cycle-1 launch payment path (pre-mortem #5); Paystack checkout/plans/webhooks stay built and tested but switched off behind a flag; GATE-PAYSTACK-KYC, GATE-PAY-WITH-BANK and the Paystack half of GATE-R1-LIVE / S7-23 move to post-launch; the R1 EFT inContact test stays. This changes the 0.1 "Instant EFT default". | No default (money) — confirm here and the build applies it. |
+| NH-62 | **I-54g:** when KG rules "not attended" on a broker-says-attended / lead-says-no conflict, what happens to the outcome and Mark's delivered count? | Outcome becomes no-show, replacement allowed within the cycle cap. (Touches what Mark pays for — confirm.) |
+| NH-63 | **I-54i:** once Mark marks the outcome, the lead's own "how did it go?" check is skipped, so Meta hears "attended" only after the lead's window closes. | Keep. |
