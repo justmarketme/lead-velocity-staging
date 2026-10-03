@@ -58,6 +58,15 @@ export function missingCredentials(required, present) {
   return miss;
 }
 
+/** Warnings (never failures, I-47i): W23's backing services are env-chosen, not containers; empty = W23 media path off / unusable. */
+export function envWarnings(env = process.env) {
+  const w = [];
+  if (!env.TRANSCRIBE_URL) w.push('TRANSCRIBE_URL is empty: the W23 media (transcription) path stays off (set an OpenAI-compatible /v1/audio/transcriptions endpoint to enable it)');
+  const s3 = ['SUPABASE_S3_ENDPOINT', 'SUPABASE_S3_REGION', 'SUPABASE_S3_ACCESS_KEY', 'SUPABASE_S3_SECRET_KEY'].filter((k) => !env[k]);
+  if (s3.length) w.push(`${s3.join(', ')} empty: the W23 "MinIO intro media" (Supabase Storage S3) credential has no key pair yet (CREDENTIALS.md C4)`);
+  return w;
+}
+
 async function main(argv) {
   const required = requiredCredentials();
   if (argv.includes('--list')) {
@@ -67,6 +76,7 @@ async function main(argv) {
   let input = '';
   for await (const chunk of process.stdin) input += chunk;
   const miss = missingCredentials(required, parsePresent(input));
+  for (const w of envWarnings()) console.error(`WARNING: ${w}`);
   if (!miss.length) { console.log(`credentials OK: ${required.size}/${required.size} present (name + type)`); return 0; }
   for (const m of miss) console.log(`MISSING credential: ${m.type} "${m.name}" (blocks ${m.workflows.join(', ')})`);
   console.log(`credentials: ${miss.length} of ${required.size} missing. Create them in the n8n UI from .env (automation/local/CREDENTIALS.md), then re-run.`);
