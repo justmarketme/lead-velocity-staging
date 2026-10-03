@@ -358,3 +358,11 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-55c | Portal Leads page should read `?lead=<id>` from the /s/leads short link and open/highlight that lead | broker-success |
 | I-55d | Legacy CRM pages fail `tsc --noEmit` (17 files, pre-existing, none SMC); decide whether the SMC build gate type-checks the whole app or only src/pages/portal + console | platform-architect (default: SMC files only) |
 | I-55e | Traefik/VPS routing: `/c/*` must reach the W05 `c/:booking_id` webhook (I-45j) | devops-security (other session owns automation/vps/) |
+
+### I-56 · 2026-10-03 (session 2 wave 5 — Section 7 readiness items that can be closed offline; scripts/readiness.mjs: green 0 · amber 15 · red 13)
+| ID | Item | Owner |
+|---|---|---|
+| I-45h | W05 /book Turnstile + rate limit (S7-05 / R6-08); fails closed when the verify service is down (NH-32) | automation-engineer — dispatched |
+| I-56a | S7-10: community/hide-words.txt + rules DRAFT (live only after GATE-HIDE-WORDS) | community-response-lead — dispatched |
+| I-56b | S7-15: local Lighthouse mobile reports into landing/reports/ | landing-page-builder — dispatched |
+| I-56c | S7-25: 52 typed prices in 15 files — move SortMyCover hits to the pricing table/template vars, document exclusions (signed docs, seed, legacy B2B per NH-14) | billing-automation — dispatched |
