@@ -334,3 +334,13 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-53k | W05's W09 schedule call must forward x-test-now / is_synthetic so what_to_expect shifts in a /book-driven rehearsal | automation-engineer — dispatched with round 3 |
 | I-53l | W01 POST /lead 500 at "Guard (w01.guard) + Lookup needed?" ($('Turnstile check needed? ...').first() undefined) in the latest store — regression after the fixture/registry pass or a node-name drift; fix + _n8ncode test | automation-engineer — dispatched with round 3 |
 | I-53m | Round 3: stages 1–8 from a real /lead with the fixes (incl. W15 STOP, CAPI capi_log row) | automation-engineer — dispatched |
+
+### I-54 · 2026-10-03 (rehearsal L01 round 3 findings; session 2)
+| ID | Item | Owner |
+|---|---|---|
+| I-54a | F13: W05 → W04 `is_free`/`list` sub-calls run on the wall clock; forward `{now, is_synthetic}` behind TEST_HOOKS | automation-engineer — dispatched (session 2, wave 1) |
+| I-54b | F14: W15 dry sends write no `communications` row (same class as F4) | automation-engineer — dispatched (session 2, wave 1) |
+| I-54c | Egress anomaly: 12 WhatsApp `/messages` POSTs reached the stub despite DRY_RUN — find the sender, gate it, add a repo-wide DRY_RUN egress test | automation-engineer — dispatched (session 2, wave 1) |
+| I-54d | CAPI evidence: no `capi_log` row under DRY_RUN by design — log dry rows, or a test-event-code run against the stub? | needs_human (default: log a `dry` capi_log row, no network) |
+| I-52c / I-53h | W26/RUN-LOCAL publish every sub-workflow target; pubcheck checksum step before any run | devops-security — dispatched (session 2, wave 1) |
+| I-54e | Round 4: stage 8 (STOP with a live booking → STOP_ACK_CANCELLED) + re-run 1–7 after I-54a–c; needs the local n8n + Postgres stub rebuilt in this container | automation-engineer — next wave |
