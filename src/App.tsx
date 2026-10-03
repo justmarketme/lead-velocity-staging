@@ -27,7 +27,6 @@ import ResetPassword from "./pages/ResetPassword";
 import NotificationHistory from "./pages/NotificationHistory";
 import BrokerOnboarding from "./pages/BrokerOnboarding";
 import Pricing from "./pages/Pricing";
-import Promotions from "./pages/Promotions";
 import PremiumBrokerPortalPage from "./pages/PremiumBrokerPortalPage";
 import BrokerProfile from "./pages/broker/BrokerProfile";
 
@@ -83,7 +82,7 @@ const App = () => {
             <Route path="/about" element={<About />} />
             <Route path="/services" element={<Services />} />
             <Route path="/pricing" element={<Pricing />} />
-            <Route path="/promotions" element={<Promotions />} />
+            <Route path="/promotions" element={<Navigate to="/pricing" replace />} />
             <Route path="/specialized-services" element={<SpecializedServices />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/broker" element={<BrokerPortal />} />

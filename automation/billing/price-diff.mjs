@@ -40,11 +40,7 @@ const EXCLUDE = [
   ['src/components/dashboard/ProposalGenerator.tsx', 'legacy B2B tiers: NH-14 pending'],
   ['src/components/dashboard/InvoiceGenerator.tsx', 'legacy B2B tiers: NH-14 pending'],
   ['src/components/dashboard/ContractGenerator.tsx', 'legacy B2B tiers: NH-14 pending'],
-  ['src/pages/Pricing.tsx', 'legacy B2B tiers: NH-14 pending'],
-  ['src/pages/Promotions.tsx', 'legacy B2B tiers: NH-14 pending'],
-  ['src/hooks/useChatbot.ts', 'legacy B2B tiers: NH-14 pending'],
   ['supabase/functions/_shared/knowledge.ts', 'legacy B2B tiers: NH-14 pending'],
-  ['public/llms.txt', 'legacy B2B tiers (Lead Velocity site copy): NH-14 pending'],
 ];
 // Surfaces that live under an excluded folder but must be clean.
 const REINCLUDE = ['deliverables/contracts-drafter/broker-services-agreement.md'];
@@ -53,9 +49,6 @@ const LEGACY_LOCATIONS = [
   'src/components/dashboard/ProposalGenerator.tsx',
   'src/components/dashboard/InvoiceGenerator.tsx',
   'src/components/dashboard/ContractGenerator.tsx',
-  'src/pages/Pricing.tsx',
-  'src/pages/Promotions.tsx',
-  'src/hooks/useChatbot.ts',
   'supabase/functions/_shared/knowledge.ts',
 ];
 

@@ -33,10 +33,8 @@ Lead Velocity is structured and intentional. We're not another lead vendor hopin
 ### WHAT "QUALIFIED" MEANS
 A lead qualifies if it matches geographic/demographic criteria, has expressed interest, provided verified contact details, opted in, and is reachable.
 
-### PRICING TIERS
-- Bronze (R8,500/mo): ~17 leads p/mo.
-- Silver (R10,500/mo) - RECOMMENDED: ~23-26 leads p/mo.
-- Gold (R16,500+/mo): 33-40+ leads p/mo.
+### PRICING
+Do not quote prices, lead volumes or guarantees. Say options depend on the brokerage and invite them to talk to the team via the contact page or the Readiness Assessment.
 
 ### BROKER READINESS ASSESSMENT (Onboarding)
 A 6-step diagnostic to tailor recommendations. Meeting becomes an alignment call.
