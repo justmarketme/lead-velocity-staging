@@ -2486,6 +2486,50 @@
       "human_gate": true,
       "status": "needs_human",
       "section": "4.7 / W26"
+    },
+    {
+      "id": "NH-51",
+      "title": "Explainer clip: accept 9:16 + 1:1 at 44 s (row 1 at 11.5 s); VO voice choice",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.10b"
+    },
+    {
+      "id": "NH-52",
+      "title": "STOP from a lead with a live booking cancels it (default) — W15 / NH-28b",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.6 W15"
+    },
+    {
+      "id": "NH-53",
+      "title": "Chat booking with no method on the tap: method_pref, else broker first call method (default)",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.6 W05"
+    },
+    {
+      "id": "NH-54",
+      "title": "Broker never marks + lead says adviser did not call = broker no-show + apology line (default) — W12 L03",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.12a"
     }
   ]
 }

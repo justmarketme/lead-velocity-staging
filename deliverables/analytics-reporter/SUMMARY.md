@@ -16,3 +16,7 @@ Pass 3 realigned the analytics layer to the real smc_04/smc_06 schema. `knowledg
 
 ## W14 payload: no ROI fields stored (review 4, NH-43 — 2026-10-02)
 `policies_reported`, `tracking_to`, `meetings_to_policies`, `close_rate` and `basis` are gone from `facts.w14_broker_report`; `s6_roi` is always `{"shown": false}`; `facts.w14_reconcile` check `roi_hidden_without_close_rate` → `roi_not_in_payload` (regex `policies_reported|tracking_to|meetings_to_policies`; the ask code `add_close_rate` is allowed). Fixture and W14 test updated (17/17; the test asserts no payload carries those keys); `run-all.sh` green. The portal reads `cycles.policies_written_reported` and `brokers.close_rate` directly, on screen only. Migration 12 carries the same function diff (section 6 block → `roi := jsonb_build_object('shown', false)`). W14-broker.md lines 30/36/88 updated by the orchestrator.
+
+
+## Broker-facing lead pulse rule (I-43c, 2026-10-03)
+`facts.broker_pulse(p_cycle, p_day, p_prev_n)` + `s4_quality.lead_pulse {shown, n, up, text}`: per cycle only, "Fewer than 5 answers yet" under 5, then "X of N people (answers so far this cycle)" held at the last figure the broker saw until 5 new answers arrive (computed on the first N answers, oldest first). Email/print row "Said the call was worth their time", portal Reports line, metrics.md M31 with the worked example; admin view unchanged. Migration note for platform-architect in `analytics/I-43c-migration-note.md`. Tests 23/23 (5 new), W35 14/14; SQL ran on the stub in a rolled-back transaction.

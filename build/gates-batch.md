@@ -119,3 +119,7 @@ GATE-HIDE-WORDS (Phase 2) · GATE-TEST-W01/W04/W05/W06/W09/W12/W13/W15 — you w
 | NH-MO-08b | EMQ may stay below the §7 target of 6 because no email goes to Meta (0.1) | Record the value, note "email excluded by 0.1", pull the fbc / external_id / IP+UA levers |
 | NH-49 | Microsoft scopes for the broker's Outlook connect: calendar + Teams links + profile only, no Mail.*? | Yes (no Mail.*; invites from howzit@) |
 | NH-50 | W26 day: install the Supabase CLI and put `SUPABASE_ACCESS_TOKEN` + `SUPABASE_PROJECT_REF` in the laptop `.env` before running step 13 | Reminder only, no decision |
+| NH-51 | Explainer clip: accept 9:16 + 1:1, 44 s, row 1 at 11.5 s; which voice for the VO (ElevenLabs or your own)? | Accept; VO open |
+| NH-52 | STOP from a lead with a live booking: cancel it (default) or keep it? | Cancel |
+| NH-53 | Chat booking with no method on the tap: lead's method_pref, else broker's first call method? | Yes |
+| NH-54 | Broker never marks and lead says adviser did not call → broker no-show + apology line? | Yes (confirm wording at GATE-TEST-W12) |

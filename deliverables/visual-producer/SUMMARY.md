@@ -35,3 +35,7 @@ The end card in `engine/engine.js` now renders DISC-S97-v1 verbatim from `delive
 
 ## 9:16 end card inside the Reels safe zone (I-43a, 2026-10-02)
 In `engine/engine.js` EC['9x16'] the CTA, optional tag line and S97 fine print moved up 40 px together (ctaY 1296→1256, tagY 1452→1412, fineY 1500→1460); size and three lines unchanged, 1:1 and 4:5 untouched, both palettes share the layout. All 18 9:16 MP4s re-rendered (same filenames, date 20261002; ffprobe 1080×1920, 15–28 s, 379–725 KB, no empty files). Measured on the C14 last frame: CTA y 1256–1406, fine print y 1462–1566 (orchestrator re-measured the lowest text row at y 1559), inside the 1579 limit. Manifest unchanged on end_card_at / qa / duration; only generated timestamp, render_seconds and bytes differ; the pre-existing C02 H2 hold-variant gap warning remains.
+
+
+## Portal step explainer clip (4.10b, 2026-10-03)
+`portal/intro-media/assets/explainer/`: explainer_9x16.mp4 (593 KB) and explainer_1x1.mp4 (449 KB), both 44 s, H.264, silent, code-rendered from brand tokens + logo SVGs (src/explainer.html + build.mjs); captions .srt, VO script, poster, manifest with the storyboard row → timestamp map (0 / 11.5 / 22.5 / 35.5 s). Fictional "Sam Example", FSP 00000 (SAMPLE), SAMPLE tag on every mock. Recorder wired (1:1 in page, 9:16 on fullscreen). Deviations for sign-off (NH-51): row 1 stretched to 11.5 s, optional "or skip for now" line dropped, 9:16 + 1:1 instead of 16:9; VO track still open.

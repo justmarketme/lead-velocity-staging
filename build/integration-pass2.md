@@ -203,3 +203,35 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-43e | W20 callback: the HTTP node's own token response can still persist if n8n crashes mid-run — full fix is a sub-workflow with error data off; accepted residual until Phase 5 | automation-engineer, Phase 5 |
 | I-43f | W23 cost rows aggregate per attempt (generation + gate + re-check summed), not per LLM call; `usd_zar` 18.00 and 4A rates are ASSUMPTION constants in intro-script.mjs — measure in production | intro-media-producer (recorded) |
 | I-43g | Lighthouse now runs in the sandbox (lighthouse 13.5.0 + /opt/pw-browsers); LP01–LP13 green on the local build; S7-15 re-runs on the public URL after GATE-DOMAINS + hosting | landing-page-builder (recorded) |
+
+### I-44 · 2026-10-03 (first real n8n import + smoke, devops pass 7)
+| # | Item | Owner |
+|---|---|---|
+| I-44a | Code nodes cannot load repo modules on n8n 2.41.6 (path `require` disallowed; `import()` of .mjs unsupported). Decision: one allowlisted package `lv-automation` (= automation/), `require('lv-automation/lib/x.mjs')` via Node 24 require(esm), fallback generated CJS; compose/VPS/local set `NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation`; every workflow + generator updated | automation-engineer — dispatched |
+| I-44b | Committed workflows need a stable top-level `id` (`smc-wNN`) and filled Execute Workflow references (40 blank); test that every reference resolves | automation-engineer — dispatched |
+| I-44c ✅ | W23 duplicate node names → "(upload-url)" lane | intro-media-producer |
+| I-44d | W03 GET verify returns an empty body (`$json.challenge` → `body`) | automation-engineer — dispatched |
+| I-44e | W03 CTWA redirect path is `/webhook/w03-ctwa-redirect/wa/:ref`; landing/templates assume `/wa/:ref` — align (reverse proxy rule or path) | devops-security + landing-page-builder |
+| I-44f | One missing credential blocks a whole workflow at activation (W03 needed "WhatsApp Cloud API (system user)"): LOCAL-STAGING §1 must list every credential name per workflow; W26 restore step verifies them | devops-security |
+
+### I-45 · 2026-10-03 (core-path drafts, pending GATE-TEST-*)
+| # | Item | Owner |
+|---|---|---|
+| I-45a | W05 offline booking adapter still uses the test's reference book(); swap to lib/w05.mjs | automation-engineer |
+| I-45b | Append W04/W05 request/response contracts to CONTRACTS.md | automation-engineer |
+| I-45c | Rewire W01/W06/W15 tests to the real libs + JSON (4 fixture contradictions logged) | automation-engineer — dispatched |
+| I-45d | W07: route `flow_complete` to W05 (not W28); call W04 by its real name; forward delivery/failure receipts for intro cards to W06 `op:'status'` | automation-engineer (W07) |
+| I-45e | W10: W04 is_free / graph_token sub-calls must wait (`waitForSubWorkflow: true` per CONTRACTS) | automation-engineer (W10) |
+| I-45f | W06 accepts `{event:'booking'}` from W05 and chooses broker_intro_booked vs booking_confirmed; W05 calls W06 `op:'booking'` for a page booking inside the hold | automation-engineer |
+| I-45g | Drop the "(DRAFT pending …)" name suffix on each workflow at gate approval (callers bind by name) | orchestrator at GATE-TEST-* |
+| I-45h | /book and /lead Turnstile + rate limits need the Public guard (W03-notes B.3); `ops.rate_counters` table (today W01 counts in webhook_events) | automation-engineer + platform-architect |
+| I-45i | lines.mjs EMAIL_BOUNCED (EN/AF) + a utility template for the bounce prompt outside 24 h; W17 forwards bounce notices to W05 `invite_bounced` | conversation-designer + billing-automation (W17) |
+| I-45j | Serve `/c/{booking_id}` for the .ics link; Zoom meeting creation and Google Meet path not built (Teams + phone + WhatsApp-call are) | automation-engineer, Phase 5 |
+| I-45k | W29 → W13 call sends only `{lead_id}`; add a Code node sending `{op, outcome_id, reason, reason_code, idempotency_key}` | automation-engineer (W29) |
+| I-45l | Voice-note owner: W29 transcribes today, W12 stores `whatsapp-media:{id}` only; pick one (P17/Q22) | conversation-designer + compliance-qa |
+| I-45m | W13 claim query must run as one transaction (two statements, batching `single`) — confirm on staging | compliance-qa, Phase 5 |
+| I-45n | `BROKER_NO_SHOW_APOLOGY` (EN/AF) in lib/w12.mjs is draft wording → approve into lines.mjs | conversation-designer |
+| I-45o | Landing "I'll pick on WhatsApp" button must call `POST /lead/skip` | landing-page-builder |
+| I-45p | `broker_lead_opted_out` template for the WhatsApp broker notice when the window is closed (today email only) | conversation-designer + meta-operator |
+| I-45q | Shared-calendar route needs credential "Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)" + per-broker `calendar_status_detail.shared_calendar_id` (else `SMC_SHARED_CALENDAR_ID`) | devops-security + platform-architect |
+| I-45r | W14-broker.md + W14.test.mjs: add `lead_pulse` to the s4_quality key list | broker-success |
