@@ -566,6 +566,30 @@ RETURNING id;`,
     "={{ [$('Classify + validate (w12.classifyOp)').first().json.booking_id, $('Classify + validate (w12.classifyOp)').first().json.decision] }}", { alwaysOutputData: true });
   link(sw, kgW, 7); link(kgW, kgEsc); link(kgEsc, heldQ);
 
+  // ---- NH-62 (Jonathan, 2026-10-03): KG "not_attended" turns the outcome into no_show, replacement-eligible through the
+  // SAME W13 no_show op a lead no-show uses (cap per cycle, over cap -> cap_reached there). The delivered/verified count is
+  // untouched (W12 never writes it). Guarded by the recorded decision, so a later contradicting call cannot flip a first one;
+  // "attended" changes nothing. The held CAPI Attended is dropped by releaseHeld (kg_not_attended). No DDL.
+  const kgNo = pg('Apply KG not_attended (outcome -> no_show, audit activity)', [6, 11],
+`WITH k AS (SELECT 1 AS ok FROM public.lead_activities WHERE idempotency_key = 'w12:kg_decision:' || $1::text AND payload->>'decision' = 'not_attended'),
+o AS (
+  UPDATE public.outcomes SET outcome = 'no_show', dispute_status = 'upheld', unconfirmed = false, marked_via = 'console', marked_at = now(), updated_at = now()
+   WHERE booking_id = $1::uuid AND outcome = 'attended' AND EXISTS (SELECT 1 FROM k)
+  RETURNING id, booking_id, lead_id, cycle_id, brand_id, broker_id, marked_at),
+ap AS (UPDATE public.appointments SET status = 'no_show', updated_at = now() WHERE id IN (SELECT booking_id FROM o) RETURNING id),
+st AS (UPDATE public.leads SET stage = 'no_show', updated_at = now() WHERE id IN (SELECT lead_id FROM o) RETURNING id),
+tl AS (
+  INSERT INTO public.lead_activities (${ACTIVITY_COLS})
+  SELECT o.lead_id, o.brand_id, o.broker_id, o.cycle_id, 'W12', 'system', 'outcome_kg_not_attended', jsonb_build_object('booking_id', o.booking_id::text, 'from', 'attended', 'to', 'no_show', 'nh', 'NH-62', 'decided_by', $2::text), now(), 'w12:kg_not_attended:' || o.booking_id::text
+    FROM o
+  ON CONFLICT (idempotency_key) DO NOTHING RETURNING id)
+SELECT o.id AS outcome_id, o.booking_id, o.lead_id, o.marked_at AS confirmed_at FROM o;`,
+    "={{ [$('Classify + validate (w12.classifyOp)').first().json.booking_id, $('Classify + validate (w12.classifyOp)').first().json.decided_by || null] }}");
+  const kgNoW13 = code('KG no-show -> W13 payload (w12.w13NoShow)', [7, 11], IMPORT('w12') +
+`return { json: L.w13NoShow($json.outcome_id, { id: $json.booking_id }, $json.lead_id, $json.confirmed_at) };`);
+  const kgW13 = sub('W13 no_show (KG not_attended: replacement path, cap in W13)', [8, 11], 'W13 No-show & replacement');
+  link(kgEsc, kgNo); link(kgNo, kgNoW13); link(kgNoW13, kgW13);
+
   // ---- Attended tap -> disposition ask at once (list in window)
   const attTap = ifTrue('Attended tap? (ask disposition now)', [5, 1], "$json.mark === 'attended'");
   link(markB, attTap);

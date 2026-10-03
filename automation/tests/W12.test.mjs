@@ -447,3 +447,42 @@ test('W12.json I-51b: kg_decision op, held-queue sweep, claim-once release, CAPI
   const sent = await runCode(WF, 'Release item (w12.releaseCapi, only when claimed + decision send)', { items: [{ id: 'act1' }, {}], refs: { 'Release source': out[0] } });
   assert.ok(sent.length >= 1 && sent[0].json.event_id === 'evt_ld_attended' && sent[0].json.fu === 'capi');
 });
+
+// NH-62 (Jonathan, 2026-10-03): KG "not_attended" -> outcome no_show, replacement-eligible via W13's no_show op, cap per cycle.
+import * as W13 from '../lib/w13.mjs';
+import { pricing, cycle } from './_harness.mjs';
+
+test('NH-62: KG not_attended flips the outcome to no_show, audits it, calls W13 no_show; KG attended changes nothing; first decision wins', async () => {
+  const q = node('Apply KG not_attended (outcome -> no_show, audit activity)').parameters.query;
+  assert.match(q, /payload->>'decision' = 'not_attended'/, 'guarded by the recorded (first) decision');
+  assert.match(q, /UPDATE public\.outcomes SET outcome = 'no_show'[\s\S]*outcome = 'attended' AND EXISTS \(SELECT 1 FROM k\)/);
+  assert.match(q, /'outcome_kg_not_attended'[\s\S]*'w12:kg_not_attended:' \|\| o\.booking_id::text[\s\S]*ON CONFLICT \(idempotency_key\) DO NOTHING/);
+  assert.doesNotMatch(q, /verified|delivered|capi/i, 'delivered/verified count untouched');
+  assert.doesNotMatch(JSON.stringify(WF), /CREATE TABLE|ALTER TABLE|CREATE INDEX/);
+  const c = (n) => WF.connections[n].main[0].map((x) => x.node);
+  assert.ok(c('Resolve the open dispute escalation').includes('Apply KG not_attended (outcome -> no_show, audit activity)'));
+  assert.deepEqual(c('Apply KG not_attended (outcome -> no_show, audit activity)'), ['KG no-show -> W13 payload (w12.w13NoShow)']);
+  assert.deepEqual(c('KG no-show -> W13 payload (w12.w13NoShow)'), ['W13 no_show (KG not_attended: replacement path, cap in W13)']);
+  // the payload is the one a lead no-show sends, and W13 accepts it as a no_show
+  const p = (await runCode(WF, 'KG no-show -> W13 payload (w12.w13NoShow)', { json: { outcome_id: 'o1', booking_id: 'bk', lead_id: 'ld', confirmed_at: '2026-10-15T15:00:00+02:00' } })).json;
+  assert.deepEqual(p, R.w13NoShow('o1', { id: 'bk' }, 'ld', '2026-10-15T15:00:00+02:00'));
+  const n = W13.normaliseInput(p); assert.equal(n.op, 'no_show'); assert.equal(W13.validateInput(n).ok, true);
+  // the held CAPI Attended is dropped (reason kg_not_attended) even though the outcome row is already no_show
+  const held = { booking_id: 'bk', lead_id: 'ld', brand_id: 'b', broker_id: 'br', slot_end: END, outcome_outcome: 'no_show', kg_decision: 'not_attended' };
+  assert.deepEqual(R.releaseHeld(held, ms(END) + H).map((x) => [x.fu, x.decision, x.reason]), [['capi_release', 'drop', 'kg_not_attended']]);
+  // KG attended: outcome stays attended, Attended is released
+  assert.deepEqual(R.releaseHeld({ ...held, outcome_outcome: 'attended', kg_decision: 'attended' }, ms(END) + H).map((x) => [x.decision, x.reason]), [['send', 'kg_attended']]);
+});
+
+for (const tier of ['SMC_BRONZE', 'SMC_SILVER', 'SMC_GOLD']) {
+  test(`NH-62 [${tier}]: KG-ruled no-shows claim replacements through W13 up to the cycle cap; the next is cap_reached`, () => {
+    const cap = pricing(tier).replacement_cap_cycle;
+    const cyc = { ...clone(cycle()), cycle_id: `cyc_${tier}`, tier_code: tier, replacement_cap: cap };
+    const rows = [];
+    const kgTrig = (i) => W13.replacementTrigger({ kind: 'no_show', confirmed_at: iso(ms('2026-10-15T15:00:00+02:00') + i * H), second_no_show: true });
+    for (let i = 0; i < cap; i++) assert.equal(W13.claim(cyc, rows, `kg_lead_${i}`, kgTrig(i)).row.status, 'due', `#${i + 1}`);
+    const over = W13.claim(cyc, rows, 'kg_lead_over', kgTrig(cap));
+    assert.deepEqual([over.row.status, over.row.note], ['rejected', 'cap_reached']);
+    assert.deepEqual(over.alerts, ['Jonathan: replacement cap reached']);
+  });
+}

@@ -1119,6 +1119,66 @@
     },
     {
       "id": "n37",
+      "name": "Apply KG not_attended (outcome -> no_show, audit activity)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1440,
+        2200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH k AS (SELECT 1 AS ok FROM public.lead_activities WHERE idempotency_key = 'w12:kg_decision:' || $1::text AND payload->>'decision' = 'not_attended'),\no AS (\n  UPDATE public.outcomes SET outcome = 'no_show', dispute_status = 'upheld', unconfirmed = false, marked_via = 'console', marked_at = now(), updated_at = now()\n   WHERE booking_id = $1::uuid AND outcome = 'attended' AND EXISTS (SELECT 1 FROM k)\n  RETURNING id, booking_id, lead_id, cycle_id, brand_id, broker_id, marked_at),\nap AS (UPDATE public.appointments SET status = 'no_show', updated_at = now() WHERE id IN (SELECT booking_id FROM o) RETURNING id),\nst AS (UPDATE public.leads SET stage = 'no_show', updated_at = now() WHERE id IN (SELECT lead_id FROM o) RETURNING id),\ntl AS (\n  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\n  SELECT o.lead_id, o.brand_id, o.broker_id, o.cycle_id, 'W12', 'system', 'outcome_kg_not_attended', jsonb_build_object('booking_id', o.booking_id::text, 'from', 'attended', 'to', 'no_show', 'nh', 'NH-62', 'decided_by', $2::text), now(), 'w12:kg_not_attended:' || o.booking_id::text\n    FROM o\n  ON CONFLICT (idempotency_key) DO NOTHING RETURNING id)\nSELECT o.id AS outcome_id, o.booking_id, o.lead_id, o.marked_at AS confirmed_at FROM o;",
+        "options": {
+          "queryReplacement": "={{ [$('Classify + validate (w12.classifyOp)').first().json.booking_id, $('Classify + validate (w12.classifyOp)').first().json.decided_by || null] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "id": "n38",
+      "name": "KG no-show -> W13 payload (w12.w13NoShow)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        2200
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w12;\nreturn { json: L.w13NoShow($json.outcome_id, { id: $json.booking_id }, $json.lead_id, $json.confirmed_at) };"
+      }
+    },
+    {
+      "id": "n39",
+      "name": "W13 no_show (KG not_attended: replacement path, cap in W13)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        1920,
+        2200
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w13",
+          "cachedResultName": "W13 No-show & replacement"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    },
+    {
+      "id": "n40",
       "name": "Attended tap? (ask disposition now)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -1148,7 +1208,7 @@
       }
     },
     {
-      "id": "n38",
+      "id": "n41",
       "name": "Load meeting (disposition ask)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1172,7 +1232,7 @@
       "alwaysOutputData": false
     },
     {
-      "id": "n39",
+      "id": "n42",
       "name": "Disposition ask (w12.dispositionItem)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1186,7 +1246,7 @@
       }
     },
     {
-      "id": "n40",
+      "id": "n43",
       "name": "Voice note reference (w12.voiceNoteRef)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1200,7 +1260,7 @@
       }
     },
     {
-      "id": "n41",
+      "id": "n44",
       "name": "Store voice note reference (no audio, no transcript here)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1224,7 +1284,7 @@
       "alwaysOutputData": false
     },
     {
-      "id": "n42",
+      "id": "n45",
       "name": "Log subcall_rejected (CONTRACTS: never guessed)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1248,7 +1308,7 @@
       "alwaysOutputData": false
     },
     {
-      "id": "n43",
+      "id": "n46",
       "name": "Live send?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -1278,7 +1338,7 @@
       }
     },
     {
-      "id": "n44",
+      "id": "n47",
       "name": "Send WhatsApp",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -1316,7 +1376,7 @@
       }
     },
     {
-      "id": "n45",
+      "id": "n48",
       "name": "Store outbound",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1343,7 +1403,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n46",
+      "id": "n49",
       "name": "Touch leads.last_contact_at (lead outbound)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1367,7 +1427,7 @@
       "alwaysOutputData": false
     },
     {
-      "id": "n47",
+      "id": "n50",
       "name": "Accepted by Meta? (wamid)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -1397,7 +1457,7 @@
       }
     },
     {
-      "id": "n48",
+      "id": "n51",
       "name": "Log send failed (once; W22 reads it)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1851,6 +1911,33 @@
         [
           {
             "node": "Held CAPI Attended (not yet released)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Apply KG not_attended (outcome -> no_show, audit activity)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply KG not_attended (outcome -> no_show, audit activity)": {
+      "main": [
+        [
+          {
+            "node": "KG no-show -> W13 payload (w12.w13NoShow)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "KG no-show -> W13 payload (w12.w13NoShow)": {
+      "main": [
+        [
+          {
+            "node": "W13 no_show (KG not_attended: replacement path, cap in W13)",
             "type": "main",
             "index": 0
           }

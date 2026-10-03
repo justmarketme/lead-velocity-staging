@@ -374,6 +374,8 @@ export function dispositionItem(row = {}, now, brokerLastInboundMs) {
  * the workflow), and the KG escalation when a lead "No" arrived after the outcome row was written and none is open.
  */
 export function releaseHeld(row = {}, now) {
+  // NH-62: KG "not_attended" wins whatever the outcome row says now (it is flipped to no_show by the same op)
+  if (row.kg_decision === 'not_attended') return [{ fu: 'capi_release', ...heldKeys(row), decision: 'drop', reason: 'kg_not_attended' }];
   if (row.outcome_outcome && row.outcome_outcome !== 'attended') return [{ fu: 'capi_release', ...heldKeys(row), decision: 'drop', reason: 'outcome_not_attended' }];
   const g = capiAttendedGate({ slotEnd: row.slot_end, reach: row.reach || null, disposition: row.disposition_code || null, kgDecision: row.kg_decision || null, consentAds: row.consent_ads === false ? false : undefined }, now);
   if (g.action === 'hold') {
