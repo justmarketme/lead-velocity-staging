@@ -88,6 +88,14 @@ The raw committed files **do not import**: `SQLITE_CONSTRAINT: NOT NULL constrai
 
 25 of 26 imported (after the id shim). W01, W04, W05, W06, W09, W12, W13 and W15 are not committed, so they were not imported. Because of that, the W07 → W05/W09/W12/W15/W04 sub-calls have no target locally.
 
+### 3a. Publish every sub-workflow target and checksum before any run (I-52c, I-53h)
+n8n 2.x refuses to call an unpublished sub-workflow, and workflows were once published from an older version mid-run. Before every run, with n8n stopped: (1) re-import **every** repo workflow (`node automation/local/pubcheck.mjs --plan` prints the commands in order; use the `shim.cjs` copies for the id problem above), (2) `publish:workflow` every Execute Workflow target (`pubcheck.mjs --targets`), (3) start n8n, (4) export the published graph and compare:
+```bash
+# $S/pubexport.sh: sqlite3 "$S/home/.n8n/database.sqlite" -json "select w.id, h.nodes, h.connections from workflow_entity w join workflow_history h on h.versionId = w.activeVersionId" > $S/published.json   # ASSUMPTION: 2.41.6 schema
+node automation/local/pubcheck.mjs --check $S/published.json      # exit 1 + one MISSING/DRIFT line per problem; --only-published checks just what is published
+```
+**Publishing a target starts its cron triggers** (W08, W09, W10, W12, W13, W20, W22, W29, W32, W35; `pubcheck.mjs --targets` prints the exact nodes). They are harmless only under the fail-closed env in section 2 (`DRY_RUN_SENDS=true`, all `*_ENABLED=false`, egress guard section 6). Never publish targets on a laptop that holds real credentials without that env. If a rehearsal needs a cron quiet, unpublish it after the run (`unpublish:workflow --id=<id>`) and accept that its callers then fail; or keep the crons by design and read them from the stub log. Offline proof: `node --test automation/tests/pubcheck.test.mjs`.
+
 ## 4. Smoke: inbound WhatsApp path
 
 `publish:workflow --id=lvsmc07000000000` (W07) and `--id=lvsmc03000000000` (W03), then start. Run `node $S/send-wa.mjs text whatsapp`. This POSTs a signed synthetic text message from `27600000001` to `/webhook/whatsapp`. Then run `node $S/lastexec.cjs` to read the execution.

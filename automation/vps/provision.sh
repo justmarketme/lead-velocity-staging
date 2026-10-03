@@ -116,8 +116,20 @@ s7() { # stream local n8n DB (or a decrypted backup) into the VPS n8n Postgres, 
   # n8n stays stopped on a miss, so nothing half-activates. Fix in the laptop n8n UI (CREDENTIALS.md), then --from 7 (no 07.done marker was written).
   remote "$DC exec -T postgres sh -c 'psql -At -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -c \"select name || chr(9) || type from credentials_entity\"'" \
     | node "$REPO/automation/vps/check-credentials.mjs"
+  # I-52c: n8n 2.x refuses to call an unpublished sub-workflow, so every Execute Workflow target must be published
+  # (publishing also starts the targets' cron triggers: `pubcheck.mjs --targets` lists them; staging keeps DRY_RUN_SENDS=true).
+  # CLI publish runs with n8n stopped and takes effect on the start below.
+  local id; for id in $(node "$REPO/automation/local/pubcheck.mjs" --targets | awk -F'\t' '$1=="target"{print $2}'); do
+    remote "$DC run --rm --no-deps --entrypoint n8n n8n publish:workflow --id=$id"
+  done
   remote "$DC start n8n"
   poll 180 remote 'curl -fsS http://127.0.0.1:5678/healthz'
+  # I-53h: the published version must equal the repo (stable hash of nodes + connections). ASSUMPTION: n8n 2.41.6 keeps the
+  # published graph in workflow_history via workflow_entity."activeVersionId"; verify the query once on the laptop (local/RUN-LOCAL-NO-DOCKER.md 3a).
+  local pub; pub="$(mktemp)"
+  printf '%s\n' 'select coalesce(json_agg(json_build_object($$id$$, w.id, $$nodes$$, h.nodes, $$connections$$, h.connections)), $$[]$$::json) from workflow_entity w join workflow_history h on h."versionId" = w."activeVersionId";' \
+    | remote "$DC exec -T postgres sh -c 'psql -At -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\"'" > "$pub"
+  local rc=0; node "$REPO/automation/local/pubcheck.mjs" --check "$pub" || rc=$?; rm -f "$pub"; return $rc
 }
 # 8. DNS at GoDaddy: api. and n8n. A records -> VPS IP (and LINK_HOST if set)
 s8() { # GoDaddy API if GODADDY_API_KEY/SECRET are set, else print the records (Chrome agent / Jonathan) and poll dns.google
