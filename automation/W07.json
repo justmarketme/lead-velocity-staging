@@ -1781,7 +1781,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nlet j; let draft = ''; let verdict = null;\ntry { j = $('outputGate + classifierInput (I-27)').item.json; draft = j.draft; verdict = j.pre_verdict || L.parseVerdict(($json.content && $json.content[0] && $json.content[0].text) || ''); }\ncatch (e) { j = $json; }\nconst msgText = $('Route (deterministic) + prefilter').item.json.msg.text || '';\n// w07-alignment #7: real HH:MM and the approved FAQ map, so a blocked answer:FAQ-xx draft falls back to the verbatim answer\nconst fs = require('fs');\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst fb = (j.plan.reply_actions || []).map((a) => L.replyFallback(a, { lang: j.plan.lang, adviser_first: j.adviser_first, booking: L.bookingView(j.booking, j.plan.lang), faq })).filter(Boolean).join(' ');\nconst out = L.gateAndAssemble(j.plan, { draft, verdict, question: msgText, lead_used_emoji: j.pre.lead_used_emoji, fallback: fb });\nconst send = j.plan.send && !!out.text;\nconst disclosed_after = L.disclosedAfter(!!(j.lead && j.lead.conv_state && j.lead.conv_state.disclosed), j.plan, send); // #14\nreturn { json: { ...j, disclosed_after, text: out.text, trip: out.guardrail_trip, rule: out.guardrail_rule, used: out.used, send, wa: { messaging_product: 'whatsapp', to: j.msg.from, type: 'text', text: { body: out.text } }, intent: j.nlu.intent, model: out.used === 'llm' ? ($env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5-20251001') : null, handoff: j.plan.next_state === 'handoff' } };"
+        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nlet j; let draft = ''; let verdict = null;\ntry { j = $('outputGate + classifierInput (I-27)').item.json; draft = j.draft; if (j.pre_verdict) verdict = j.pre_verdict;\n  else {\n    const pv = $('Parse verdict + re-check needed? (I-39h)').item.json; // first (Haiku) verdict\n    verdict = pv.first_verdict;\n    if (pv.needs_recheck) { // I-39h: Sonnet re-check ran on this item; $json is its response (neverError: no text = block)\n      verdict = L.resolveRecheck(pv.first_verdict, ($json.content && $json.content[0] && $json.content[0].text) || '');\n    }\n  } }\ncatch (e) { j = $json; }\nconst msgText = $('Route (deterministic) + prefilter').item.json.msg.text || '';\n// w07-alignment #7: real HH:MM and the approved FAQ map, so a blocked answer:FAQ-xx draft falls back to the verbatim answer\nconst fs = require('fs');\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst fb = (j.plan.reply_actions || []).map((a) => L.replyFallback(a, { lang: j.plan.lang, adviser_first: j.adviser_first, booking: L.bookingView(j.booking, j.plan.lang), faq })).filter(Boolean).join(' ');\nconst out = L.gateAndAssemble(j.plan, { draft, verdict, question: msgText, lead_used_emoji: j.pre.lead_used_emoji, fallback: fb });\nconst send = j.plan.send && !!out.text;\nconst disclosed_after = L.disclosedAfter(!!(j.lead && j.lead.conv_state && j.lead.conv_state.disclosed), j.plan, send); // #14\nreturn { json: { ...j, disclosed_after, text: out.text, trip: out.guardrail_trip, rule: out.guardrail_rule, used: out.used, send, wa: { messaging_product: 'whatsapp', to: j.msg.from, type: 'text', text: { body: out.text } }, intent: j.nlu.intent, model: out.used === 'llm' ? ($env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5-20251001') : null, handoff: j.plan.next_state === 'handoff' } };"
       }
     },
     {
@@ -2312,6 +2312,96 @@
         }
       },
       "notes": "I-45d / CONTRACTS W06: { op: 'status', wamid, status, at, errors } for delivered/read/failed receipts of W06 cards. W06 stamps disclosure evidence and sends the SMS fallback once (w06:sms:{wamid})."
+    },
+    {
+      "id": "n_i39h_code",
+      "name": "Parse verdict + re-check needed? (I-39h)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        1200
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w07;\nconst j = $('outputGate + classifierInput (I-27)').item.json;\nconst first = L.parseVerdict(($json.content && $json.content[0] && $json.content[0].text) || '');\n// I-39h: only a pass with confidence < 0.8 goes to Sonnet (ANTHROPIC_MODEL_STRONG); a block is never appealed\nconst recheck = L.needsRecheck(first);\nreturn { json: { first_verdict: first, needs_recheck: recheck, recheck_body: recheck ? L.recheckBody(j.classifier_body, { model: $env.ANTHROPIC_MODEL_STRONG || undefined }) : null } };"
+      }
+    },
+    {
+      "id": "n_i39h_if",
+      "name": "Low-confidence pass? (I-39h)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        990,
+        1200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.needs_recheck === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n_i39h_http",
+      "name": "Guardrail re-check LLM (Sonnet, I-39h)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        1200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.recheck_body) }}",
+        "options": {
+          "timeout": 8000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1500,
+      "onError": "continueRegularOutput"
     }
   ],
   "connections": {
@@ -2920,7 +3010,7 @@
       "main": [
         [
           {
-            "node": "Assemble (verdict + toneCheck + fallbacks)",
+            "node": "Parse verdict + re-check needed? (I-39h)",
             "type": "main",
             "index": 0
           }
@@ -3135,6 +3225,46 @@
         [
           {
             "node": "-> W06 status receipt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse verdict + re-check needed? (I-39h)": {
+      "main": [
+        [
+          {
+            "node": "Low-confidence pass? (I-39h)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Low-confidence pass? (I-39h)": {
+      "main": [
+        [
+          {
+            "node": "Guardrail re-check LLM (Sonnet, I-39h)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Assemble (verdict + toneCheck + fallbacks)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardrail re-check LLM (Sonnet, I-39h)": {
+      "main": [
+        [
+          {
+            "node": "Assemble (verdict + toneCheck + fallbacks)",
             "type": "main",
             "index": 0
           }

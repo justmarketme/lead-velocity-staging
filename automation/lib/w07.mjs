@@ -377,7 +377,7 @@ export function preClassifierGate(plan, draft, question = '') {
   const gate = outputGate(draft, { fixed_lines: fixedLines(plan.lang, plan.vars), question, first_name_raw: plan.first_name_raw ?? plan.vars.first_name });
   return gate.pass ? { pass: true, verdict: null } : { pass: false, verdict: { verdict: 'block', confidence: 1, categories: gate.categories.map((c) => `outputGate:${c}`) } };
 }
-export const CLASSIFIER_MIN_CONFIDENCE = 0.8; // #4: a pass below this is re-checked (Sonnet) or, until then, blocked
+export const CLASSIFIER_MIN_CONFIDENCE = 0.8; // #4: a pass below this is re-checked on Sonnet (I-39h); unresolved = blocked
 
 export function parseVerdict(raw) {
   try {
@@ -385,6 +385,30 @@ export function parseVerdict(raw) {
     if (o && (o.verdict === 'pass' || o.verdict === 'block')) return { verdict: o.verdict, confidence: Number(o.confidence ?? 0), categories: o.categories || [] };
   } catch { /* fails closed */ }
   return { verdict: 'block', confidence: 0, categories: ['invalid_or_timeout'] }; // guardrail.md: fails closed
+}
+
+/**
+ * I-39h: the Sonnet re-check (guardrail.md "Escalate to"). Only a `pass` with confidence < 0.8 is re-checked; a `block`
+ * is never appealed. The re-check must itself say pass with confidence >= 0.8, otherwise the draft is blocked.
+ * Timeout, API error or invalid JSON on the re-check = block (fails closed). Model routing: ANTHROPIC_MODEL_STRONG.
+ */
+export const needsRecheck = (v) => !!v && v.verdict === 'pass' && !(Number(v.confidence) >= CLASSIFIER_MIN_CONFIDENCE);
+export function recheckBody(classifierBody, { model } = {}) {
+  return { ...classifierBody, model: model || 'claude-sonnet-5-5' };
+}
+export function resolveRecheck(first, rawSecond) {
+  if (!needsRecheck(first)) return first; // a block stands; a confident pass needs no second look
+  const second = parseVerdict(rawSecond);
+  if (second.verdict === 'pass' && second.confidence >= CLASSIFIER_MIN_CONFIDENCE) return { ...second, rechecked: true };
+  return { verdict: 'block', confidence: second.confidence, categories: second.verdict === 'block' ? second.categories : ['recheck_low_confidence'], rechecked: true };
+}
+/** One call site for tests and any non-n8n caller: llm(body) -> raw text; `llm` is injected (stubbed in tests). */
+export async function classifyWithRecheck(llm, classifierBody, { strongModel } = {}) {
+  let raw1; try { raw1 = await llm(classifierBody); } catch { raw1 = null; }
+  const first = parseVerdict(raw1);
+  if (!needsRecheck(first)) return first;
+  let raw2; try { raw2 = await llm(recheckBody(classifierBody, { model: strongModel })); } catch { raw2 = null; }
+  return resolveRecheck(first, raw2);
 }
 
 /**
@@ -402,7 +426,7 @@ export function gateAndAssemble(plan, { draft = '', verdict = null, question = '
   if (plan.reply_actions.length) {
     const gate = outputGate(draft, { fixed_lines: fixed, question, first_name_raw: plan.first_name_raw ?? plan.vars.first_name });
     const v0 = verdict || { verdict: 'block', categories: ['not_run'] };
-    // #4: low-confidence pass is not a pass (fails closed until the Sonnet re-check node exists); a block is never appealed
+    // #4: low-confidence pass is not a pass (the W07 Sonnet re-check node resolves it before this point; unresolved = fails closed); a block is never appealed
     const v = v0.verdict === 'pass' && !(Number(v0.confidence) >= CLASSIFIER_MIN_CONFIDENCE) ? { verdict: 'block', categories: ['low_confidence_pass'] } : v0;
     const tone = toneCheck(draft, { fixed_lines: fixed, lead_used_emoji, lang: plan.lang });
     if (draft && gate.pass && v.verdict === 'pass' && tone.pass) { body = draft; used = 'llm'; }

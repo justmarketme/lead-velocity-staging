@@ -68,6 +68,29 @@ test('envelope: RSA-OAEP(SHA-256) + AES-128-GCM request decrypts; response uses 
   assert.throws(() => FC.decryptRequest(body, other), (e) => e.statusCode === 421);
 });
 
+test('I-34g envelope hardening: tampered tag, SHA-1 key wrap, 12-byte IV, missing fields, long round-trip', () => {
+  const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const pem = privateKey.export({ type: 'pkcs8', format: 'pem' });
+  const mk = (payload, { iv = randomBytes(16), hash = 'sha256', aes = randomBytes(16) } = {}) => {
+    const c = createCipheriv('aes-128-gcm', aes, iv);
+    const enc = Buffer.concat([c.update(JSON.stringify(payload)), c.final(), c.getAuthTag()]);
+    return { aes, iv, enc, body: { encrypted_aes_key: publicEncrypt({ key: publicKey, padding: constants.RSA_PKCS1_OAEP_PADDING, oaepHash: hash }, aes).toString('base64'), encrypted_flow_data: enc.toString('base64'), initial_vector: iv.toString('base64') } };
+  };
+  const big = { version: '3.0', action: 'data_exchange', screen: 'SLOTS', data: { day: '2026-10-12', note: 'Ünïcode \u2713 '.repeat(200) }, flow_token: 't'.repeat(120) };
+  const a = mk(big, { iv: randomBytes(12) });
+  const dec = FC.decryptRequest(a.body, pem);
+  assert.deepEqual(dec.decryptedBody, big);
+  const resp = { screen: 'SUCCESS', data: { ok: true } };
+  const out = Buffer.from(FC.encryptResponse(resp, dec.aesKeyBuffer, dec.initialVectorBuffer), 'base64');
+  const dc = createDecipheriv('aes-128-gcm', a.aes, Buffer.from(a.iv.map((b) => ~b & 0xff))); dc.setAuthTag(out.subarray(-16));
+  assert.deepEqual(JSON.parse(Buffer.concat([dc.update(out.subarray(0, -16)), dc.final()]).toString()), resp);
+  const t = mk({ action: 'ping' }); const bad = Buffer.from(t.enc); bad[bad.length - 1] ^= 1;
+  assert.throws(() => FC.decryptRequest({ ...t.body, encrypted_flow_data: bad.toString('base64') }, pem), (e) => e.statusCode === 421, 'tampered tag');
+  assert.throws(() => FC.decryptRequest(mk({ action: 'ping' }, { hash: 'sha1' }).body, pem), (e) => e.statusCode === 421, 'SHA-1 OAEP is not what Meta sends');
+  assert.throws(() => FC.decryptRequest({ ...t.body, initial_vector: undefined }, pem), (e) => e.statusCode === 421);
+  assert.throws(() => FC.decryptRequest(null, pem), (e) => e.statusCode === 421);
+});
+
 test('INIT: METHOD screen with only the broker\'s methods, calendar bounds from the W04 engine, flow_opened logged (I-22)', async () => {
   const { token, d } = deps();
   const r = await EP.handle({ version: '3.0', action: 'INIT', flow_token: token }, d);

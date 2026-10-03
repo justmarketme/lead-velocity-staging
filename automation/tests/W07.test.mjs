@@ -532,3 +532,39 @@ test('I-51c: Route outputs keep their targets (W28 removed, nothing else rewired
   assert.ok(!WF.nodes.some((n) => n.name === '-> W28'));
   route.parameters.rules.values.forEach((v, i) => assert.equal(v.conditions.conditions[0].id, 's' + i));
 });
+
+// I-39h: Sonnet re-check of a low-confidence classifier pass (guardrail.md "Escalate to"); LLM stubbed, no live calls.
+test('I-39h re-check: only a pass < 0.8 goes to Sonnet; block is never appealed; failures fail closed', async () => {
+  const body = { model: 'claude-haiku-4-5-20251001', max_tokens: 200, temperature: 0, system: 's', messages: [] };
+  const seen = [];
+  const stub = (answers) => async (b) => { seen.push(b.model); const a = answers.shift(); if (a instanceof Error) throw a; return a; };
+  const J = (verdict, confidence, categories = []) => JSON.stringify({ verdict, categories, confidence });
+  assert.equal(W.needsRecheck({ verdict: 'pass', confidence: 0.79 }), true);
+  assert.equal(W.needsRecheck({ verdict: 'pass', confidence: 0.8 }), false);
+  assert.equal(W.needsRecheck({ verdict: 'block', confidence: 0.1 }), false);
+  // confident pass: one call, Haiku only
+  assert.equal((await W.classifyWithRecheck(stub([J('pass', 0.95)]), body)).verdict, 'pass'); assert.deepEqual(seen.splice(0), ['claude-haiku-4-5-20251001']);
+  // block: one call, never appealed
+  assert.equal((await W.classifyWithRecheck(stub([J('block', 0.2, ['premium'])]), body)).verdict, 'block'); assert.equal(seen.splice(0).length, 1);
+  // low pass -> Sonnet says confident pass -> pass
+  const ok = await W.classifyWithRecheck(stub([J('pass', 0.6), J('pass', 0.9)]), body, { strongModel: 'claude-sonnet-5-5' });
+  assert.equal(ok.verdict, 'pass'); assert.equal(ok.rechecked, true); assert.deepEqual(seen.splice(0), ['claude-haiku-4-5-20251001', 'claude-sonnet-5-5']);
+  // low pass -> Sonnet blocks / still unsure / garbage / throws -> block
+  assert.deepEqual((await W.classifyWithRecheck(stub([J('pass', 0.6), J('block', 0.9, ['product'])]), body)).categories, ['product']);
+  assert.equal((await W.classifyWithRecheck(stub([J('pass', 0.6), J('pass', 0.7)]), body)).verdict, 'block');
+  assert.equal((await W.classifyWithRecheck(stub([J('pass', 0.6), 'not json']), body)).verdict, 'block');
+  assert.equal((await W.classifyWithRecheck(stub([J('pass', 0.6), new Error('timeout')]), body)).verdict, 'block');
+  assert.equal((await W.classifyWithRecheck(stub([new Error('down')]), body)).verdict, 'block', 'first call failure fails closed, no re-check');
+});
+
+test('I-39h W07.json: Parse -> Low-confidence pass? -> Sonnet re-check -> Assemble wiring, STRONG model routing', () => {
+  const names = WF.nodes.map((n) => n.name);
+  for (const n of ['Parse verdict + re-check needed? (I-39h)', 'Low-confidence pass? (I-39h)', 'Guardrail re-check LLM (Sonnet, I-39h)']) assert.ok(names.includes(n), n);
+  const C = WF.connections;
+  assert.equal(C['Guardrail classifier LLM (fails closed)'].main[0][0].node, 'Parse verdict + re-check needed? (I-39h)');
+  assert.equal(C['Low-confidence pass? (I-39h)'].main[0][0].node, 'Guardrail re-check LLM (Sonnet, I-39h)');
+  assert.equal(C['Low-confidence pass? (I-39h)'].main[1][0].node, 'Assemble (verdict + toneCheck + fallbacks)');
+  assert.equal(C['Guardrail re-check LLM (Sonnet, I-39h)'].main[0][0].node, 'Assemble (verdict + toneCheck + fallbacks)');
+  const code = JSON.stringify(WF);
+  assert.ok(code.includes('ANTHROPIC_MODEL_STRONG') && code.includes('resolveRecheck('));
+});
