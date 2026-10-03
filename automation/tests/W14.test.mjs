@@ -79,7 +79,7 @@ for (const key of ['weekly_close_rate', 'weekly_no_close_rate', 'midcycle', 'cyc
     assert.ok(['green', 'amber', 'red'].includes(p.s2_progress.replacements.light));
     assert.deepEqual(Object.keys(p.s3_meetings).sort(), ['last_week', 'next_week', 'todos']);
     assert.deepEqual(Object.keys(p.s3_meetings.todos).sort(), ['followups_due', 'not_reached', 'unmarked']);
-    for (const k of ['avg_rating', 'ratings_given', 'mix', 'themes']) assert.ok(k in p.s4_quality);
+    for (const k of ['avg_rating', 'ratings_given', 'mix', 'themes', 'lead_pulse']) assert.ok(k in p.s4_quality);
     assert.ok(Array.isArray(p.s5_notice));
     assert.ok(p.s7_ask === null || (p.s7_ask.code && p.s7_ask.text && p.s7_ask.button && p.s7_ask.deep_link), 'one ask or none');
     assert.equal(typeof p.s8_cycle.line, 'string');

@@ -659,3 +659,24 @@ test('B2 breach lane: incident draft SQL uses the existing incidents table, no D
   assert.doesNotMatch(alerts[0].message, /@example|0600/);
   assert.equal(node('Alert breach (W22)').type, 'n8n-nodes-base.executeWorkflow', 'no direct send in W34: W22 owns delivery and DRY_RUN');
 });
+
+// I-43d (offline half): the real Summarise night code over a synthetic multi-batch loop-done output (3 batches: ok, ok with
+// not_found, signer-error item). What stays for the next local-n8n rehearsal: that n8n's Split-in-Batches "done" output really
+// carries every batch's HTTP/signer-error item in this shape (the unit tests feed it by hand).
+test('media erase (I-43d): Summarise night sums every batch from the loop done output; one signer error turns the night red', () => {
+  const ctx = ctxAt('2026-10-02T02:30:00+02:00');
+  const urls = Array.from({ length: 120 }, (_, i) => `${B1}/n${i}.ogg`);
+  const col = runCode('Collect media to erase', { now: '2026-10-02T02:31:00+02:00', refs: { 'Set retention context': [ctx], 'Pseudonymise after lead retention': [{ media_urls: urls }] } });
+  assert.deepEqual(col.map((c) => c.paths.length), [50, 50, 20], 'three batches, one item each');
+  const base = { 'Set retention context': [ctx], 'Collect media to erase': col, 'Purge expired wa_threads': [{ due: 0, done: 0 }], 'Delete non-fit entries': [{ due: 0, done: 0 }],
+    'Pseudonymise after lead retention': [{ media_urls: urls }], 'Delete consent records after consent retention': [{ due: 0, done: 0 }], 'Minimise closed DSR records': [{ done: 0 }] };
+  const night = (loop) => runCode('Summarise night', { now: '2026-10-02T02:32:00+02:00', refs: { ...base, 'Loop media erase (nightly)': loop } })[0];
+  const ok = (i, deleted, not_found = 0) => ({ ok: true, deleted, not_found, rejected: [], request_id: col[i].request_id });
+  const green = night([ok(0, 50), ok(1, 49, 1), ok(2, 20)]);
+  assert.equal(green.red, false); assert.deepEqual(green.media, { requested: 120, deleted: 119, not_found: 1, rejected: 0, failed: false });
+  const red = night([ok(0, 50), ok(1, 50), { error: { message: 'W34_MEDIA_ERASE_SECRET missing or shorter than 32 characters: media not erased' } }]);
+  assert.equal(red.red, true); assert.equal(red.alert.kind, 'w34_retention_failure');
+  assert.equal(red.media.deleted, 100, 'the two sent batches still count');
+  assert.match(red.errors.join(), /media erase not sent: W34_MEDIA_ERASE_SECRET/);
+  assert.doesNotMatch(JSON.stringify(red), /@|\+27/);
+});
