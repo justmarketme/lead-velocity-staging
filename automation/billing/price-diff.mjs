@@ -33,6 +33,7 @@ const EXCLUDE = [
   ['automation/billing/pricing.seed.json', 'THE pricing seed: the one allowed place'],
   ['automation/billing/price-diff.mjs', 'this checker (its legacy-value list)'],
   ['automation/billing/fixtures/', 'synthetic bank alerts/statements: amounts are test data, not price claims'],
+  ['landing/reports/', 'Lighthouse report snapshots of the rendered pages (machine output; the page sources are checked)'],
   ['evals/', 'golden sets and judge rubrics quote amounts as test inputs'],
   ['brand/node_modules/', 'third-party code'],
   // Legacy B2B Lead Velocity tiers: Jonathan's money decision, not changed or removed here.
