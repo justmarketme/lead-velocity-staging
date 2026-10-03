@@ -137,7 +137,7 @@
     },
     {
       "parameters": {
-        "method": "POST", "url": "https://api.anthropic.com/v1/messages",
+        "method": "POST", "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
         "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "anthropic-version", "value": "2023-06-01" } ] },
         "sendBody": true, "specifyBody": "json",
@@ -175,7 +175,7 @@
     },
     {
       "parameters": {
-        "method": "POST", "url": "https://api.anthropic.com/v1/messages",
+        "method": "POST", "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
         "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "anthropic-version", "value": "2023-06-01" } ] },
         "sendBody": true, "specifyBody": "json",
@@ -199,7 +199,7 @@
     },
     {
       "parameters": {
-        "method": "POST", "url": "https://api.anthropic.com/v1/messages",
+        "method": "POST", "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
         "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "anthropic-version", "value": "2023-06-01" } ] },
         "sendBody": true, "specifyBody": "json",

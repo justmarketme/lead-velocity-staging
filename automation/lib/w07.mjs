@@ -471,3 +471,30 @@ export function w23MediaItem(msg) {
   return { source: 'W07', metadata: { phone_number_id: msg.phone_number_id || null },
     messages: [{ id: msg.wamid, from: String(msg.from || '').replace(/^\+/, ''), timestamp: String(Math.floor((msg.at_ms || 0) / 1000)), type, [type]: { id: msg.media_id, caption: msg.text || undefined } }] };
 }
+
+/** I-46b: "Explode delegations" (Run Once for All Items). One n8n item per delegate TARGET, each `{ json: {...} }` with
+ *  `route` = the target. Several delegates to the same target (e.g. record_answer + next_question -> W03) collapse into
+ *  one item: `delegate` is the first entry plus `actions` (every action, in order), so one inbound message is never
+ *  handed to the same sub-workflow twice (W03 re-reads the raw message; two items = the answer processed twice).
+ *  A plan with no delegates gives NO items (that branch simply ends; the reply branch still runs). Non-object or
+ *  target-less entries are dropped, so the node can never hand n8n a non-object json.
+ *  I-46b loop guard (extends I-37e to delegations): a message W03 handed back (msg.origin === 'w03') is never delegated
+ *  to W03 again. Seen on the local n8n smoke: a known lead whose conv_state says q_age but has no W03 thread -> W07
+ *  delegates record_answer to W03 -> W03 forwards "existing_lead_90d" to W07 -> ... (55 round trips in ~20 s). */
+export function explodeDelegations(items = []) {
+  const out = [];
+  for (const it of items) {
+    const j = it && typeof it === 'object' && it.json && typeof it.json === 'object' && !Array.isArray(it.json) ? it.json : null;
+    const list = j && j.plan && Array.isArray(j.plan.delegate) ? j.plan.delegate : [];
+    const byTarget = new Map();
+    for (const d of list) {
+      if (!d || typeof d !== 'object' || Array.isArray(d) || typeof d.to !== 'string' || !d.to) continue;
+      if (d.to === 'W03' && j.msg && j.msg.origin === 'w03') continue;
+      const cur = byTarget.get(d.to);
+      if (!cur) byTarget.set(d.to, { ...d, actions: d.action ? [d.action] : [] });
+      else if (d.action && !cur.actions.includes(d.action)) cur.actions.push(d.action);
+    }
+    for (const [to, delegate] of byTarget) out.push({ json: { ...j, route: to, delegate } });
+  }
+  return out;
+}

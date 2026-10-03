@@ -352,3 +352,58 @@ test('I-39d: "I don\'t want a call" with a live booking -> W10 no_call; without 
   assert.equal(W.routeInbound({ from: ld.phone, payload: 'no_thanks:x' }, { lead: ld, has_live_booking: true }).route, 'W10');
   assert.equal(W.routeInbound({ from: ld.phone, payload: 'no_thanks:x' }, { lead: ld }).route, 'W08');
 });
+
+// I-46b: on n8n 2.41 "Explode delegations" failed with "A 'json' property isn't an object [item 0]": it ran in
+// "Run Once for Each Item" mode and returned an array (the synthetic text's plan.delegate was []), which the runner
+// wraps as { json: [] }. The node now runs once for all items through L.explodeDelegations(); run it as n8n does.
+import { runCode } from './_n8ncode.mjs';
+test('I-46b Explode delegations: all-items mode, every output item is { json: object }, empty plan -> no items', async () => {
+  const node = WF.nodes.find((n) => n.name === 'Explode delegations');
+  assert.equal(node.parameters.mode, 'runOnceForAllItems', 'per-item mode cannot return 0 or n items');
+  const isObj = (o) => o !== null && typeof o === 'object' && !Array.isArray(o);
+  const shape = (out) => { assert.ok(Array.isArray(out)); for (const it of out) { assert.deepEqual(Object.keys(it), ['json']); assert.ok(isObj(it.json)); } };
+  // the smoke's synthetic text ("Hi, is this about life cover?" with the LLM unavailable): clarify, no delegates
+  const base = { route: 'nlu', msg: { wamid: 'wamid.SYNTH.1', from: '+27600000001', text: 'Hi, is this about life cover?' } };
+  const none = await runCode(WF, 'Explode delegations', { items: [{ ...base, plan: { actions: ['clarify'], delegate: [], send: true } }] });
+  shape(none); assert.equal(none.length, 0);
+  // a real plan with delegates (STOP -> W15; unbooked "book Friday" -> W04), two input items at once
+  const stop = turn('STOP', { state: 'unbooked', nlu: { intent: 'stop' } }).plan;
+  const book = turn('can we do Friday after 2', { state: 'unbooked', lead: mkLead(L01, { conv_state: { state: 'unbooked' } }), disclosed: false, nlu: { intent: 'book', slots: { preferred_day: 'Friday', preferred_time: '14:00' } } }).plan;
+  assert.ok(stop.delegate.length && book.delegate.length, 'fixtures produce delegates');
+  const out = await runCode(WF, 'Explode delegations', { items: [{ ...base, plan: stop }, { ...base, plan: book }] });
+  shape(out);
+  const targets = (p) => [...new Set(p.delegate.map((d) => d.to))];
+  assert.deepEqual(out.map((o) => o.json.route), [...targets(stop), ...targets(book)]);
+  for (const o of out) { assert.equal(o.json.delegate.to, o.json.route); assert.equal(o.json.msg.wamid, 'wamid.SYNTH.1'); }
+  // routes are the "Delegate to" switch's outputs
+  const sw = WF.nodes.find((n) => n.name === 'Delegate to').parameters.rules.values.map((r) => r.conditions.conditions[0].rightValue);
+  for (const o of out) assert.ok(sw.includes(o.json.route), o.json.route);
+  // malformed plans never yield a non-object json
+  const bad = await runCode(WF, 'Explode delegations', { items: [{ ...base, plan: { delegate: [null, 'W15', ['W03'], { to: '' }, { to: 'W08', action: 'close' }] } }, { ...base }, { ...base, plan: { delegate: 'W15' } }] });
+  shape(bad); assert.deepEqual(bad.map((o) => o.json.route), ['W08']);
+  // the smoke's q_age turn ("I'm 47"): record_answer + next_question both go to W03 -> ONE W03 hand-off, both actions kept
+  const q = turn("I'm 47", { state: 'q_age', nlu: { intent: 'other', slots: { age_band: '45-50' } } }).plan;
+  assert.deepEqual(q.delegate.map((d) => d.to), ['W03', 'W03'], JSON.stringify(q.delegate));
+  const one = await runCode(WF, 'Explode delegations', { items: [{ ...base, plan: q }] });
+  shape(one); assert.equal(one.length, 1);
+  assert.equal(one[0].json.route, 'W03'); assert.deepEqual(one[0].json.delegate.actions, ['record_answer', 'next_question']);
+  assert.deepEqual(one[0].json.delegate.slots, { age_band: '45-50' });
+  // loop guard: the same turn handed back by W03 (origin w03, "existing_lead_90d") is never delegated to W03 again
+  const back = await runCode(WF, 'Explode delegations', { items: [{ ...base, msg: { ...base.msg, origin: 'w03' }, plan: q }, { ...base, msg: { ...base.msg, origin: 'w03' }, plan: book }] });
+  shape(back); assert.ok(back.every((o) => o.json.route !== 'W03'), JSON.stringify(back.map((o) => o.json.route)));
+  assert.deepEqual(back.map((o) => o.json.route), targets(book).filter((t) => t !== 'W03'), 'other targets still fan out');
+});
+
+test('I-46a egress: every Anthropic call in W07/W23/W30/W31 takes its base URL from $env.ANTHROPIC_BASE_URL (default api.anthropic.com)', () => {
+  for (const f of ['W07', 'W23', 'W30', 'W31']) {
+    const wf = JSON.parse(readFileSync(new URL(`../${f}.json`, import.meta.url), 'utf8'));
+    const llm = wf.nodes.filter((n) => n.type === 'n8n-nodes-base.httpRequest' && /\/v1\/messages/.test(n.parameters.url || ''));
+    assert.ok(llm.length > 0, f);
+    for (const n of llm) {
+      assert.equal(n.parameters.url, '={{ ($env.ANTHROPIC_BASE_URL || "https://api.anthropic.com").replace(/\\/+$/, "") }}/v1/messages', `${f} ${n.name}`);
+      const base = (env) => (env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com').replace(/\/+$/, '') + '/v1/messages';
+      assert.equal(base({}), 'https://api.anthropic.com/v1/messages');
+      assert.equal(base({ ANTHROPIC_BASE_URL: 'http://127.0.0.1:18080/' }), 'http://127.0.0.1:18080/v1/messages');
+    }
+  }
+});

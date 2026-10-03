@@ -114,3 +114,20 @@ The raw committed files **do not import**: `SQLITE_CONSTRAINT: NOT NULL constrai
 - n8n 2.41.6: port 5678 (UI and webhooks), task broker on 5679, pid in `$S/n8n.pid`, runs with the compose-faithful `NODE_FUNCTION_ALLOW_EXTERNAL=""`. About 450 MB RSS.
 - Restart: `$S/stop.sh && $S/start.sh`. After any `import:*` or `publish:workflow`, restart n8n, because the CLI warns that changes do not take effect while it is running.
 - Start-up deprecation notices worth tracking: `N8N_RUNNERS_ENABLED` is no longer needed. `WEBHOOK_URL` is replaced by `N8N_WEBHOOK_URL`. Internal runner mode is deprecated in favour of the external launcher. "Running n8n outside a container is deprecated." That last notice is one more reason this route is for build verification only.
+
+## 6. Egress guard (zero egress for the local smoke, I-46a)
+
+Why: on 2026-10-03 the "Intent-slot LLM" node reached api.anthropic.com (refused on the synthetic key) even with `HTTP(S)_PROXY=127.0.0.1:9`, because the sandbox's `NO_PROXY` lists api.anthropic.com and n8n then connects directly. n8n also calls api.n8n.io at start (MCP registry). The local smoke must never leave the box.
+
+| Piece (all in `$S/egress/`, outside the repo) | What it does |
+|---|---|
+| `stub.mjs`, `stub.sh start|stop` | Local stub: HTTP `127.0.0.1:18080`, HTTPS `127.0.0.1:18443` (cert from a throwaway local CA `ca.pem`). Answers `/v1/messages` with canned intent-slot / reply / classifier JSON and Graph `/messages` with a fake wamid. Logs every request (host, path, kind) to `stub.log`. |
+| `egress-guard.cjs` + `bin/node` | `bin/node` = node24 `--require egress-guard.cjs`, first on PATH, so the n8n main process **and** the task runner (spawned as `node`) load it. Every TCP connect that is not loopback on an allowlisted port (5678, 5679, 54329, 18080, 18443) is logged to `guard.log` and redirected to the stub (port 80 to :18080, anything else to :18443). Other loopback ports (e.g. a host proxy) are refused. `dns.lookup` of public names answers 127.0.0.1, `dns.resolve*` (MX checks) fail ENOTFOUND. Nothing queries a resolver. |
+| `env.egress` (sourced by `n8n2.sh` after `n8n.env`) | `ANTHROPIC_BASE_URL=http://127.0.0.1:18080`, every proxy variable empty, `NO_PROXY=*`, `NODE_EXTRA_CA_CERTS=egress/ca.pem`. |
+| `sockwatch.cjs <log>` | Stands in for `ss -tnp` (iproute2 is not installed here). It samples `/proc/net/tcp{,6}` every 200 ms and logs any socket owned by a scratchpad process whose remote address is not loopback. |
+
+Workflows: the Anthropic nodes in W07, W23, W30 and W31 now use `{{ ($env.ANTHROPIC_BASE_URL || "https://api.anthropic.com") }}/v1/messages`. Production is unchanged when the variable is unset. Graph, Paystack, Microsoft and Twilio hosts are still hard-coded, so the guard redirects them at socket level.
+
+Order: `egress/stub.sh start` → `nohup node egress/sockwatch.cjs egress/sock.log &` → `n8n2.sh start` → wait about 20 s until the webhooks are registered (the first POST after healthz returned 404) → `node send-wa2.mjs <from> text "<body>"` → read `stub.log`, `guard.log` and `sock.log`.
+
+Positive control: an unguarded node SYN to 10.255.255.1:9 shows up in `sock.log`. The same call through `bin/node` is redirected to the stub.
