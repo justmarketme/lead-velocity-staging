@@ -899,11 +899,25 @@
   },
   {
    "id": "w16-32",
+   "name": "W26: map first_payment input",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    4800,
+    0
+   ],
+   "parameters": {
+    "mode": "runOnceForAllItems",
+    "jsCode": "\n// I-48g: smc-w26 input = { op: 'first_payment', broker_id, cycle_id } from the paid invoice, never W20's item (magic link).\nconst m = $('Mark invoice paid + create cycle').first().json;\nif (!m || !m.broker_id) return [];\nreturn [{ json: { op: 'first_payment', broker_id: m.broker_id, cycle_id: m.cycle_id || null } }];\n"
+   }
+  },
+  {
+   "id": "w16-33",
    "name": "W26: go-live runner (first payment)",
    "type": "n8n-nodes-base.executeWorkflow",
    "typeVersion": 1.2,
    "position": [
-    4800,
+    5040,
     0
    ],
    "parameters": {
@@ -917,11 +931,11 @@
      "waitForSubWorkflow": false
     }
    },
-   "notes": "6.6: VPS buy link to Jonathan (HUMAN GATE) etc.",
+   "notes": "payload: { op: \"first_payment\", broker_id, cycle_id } (I-48g). 6.6: VPS buy link to Jonathan (HUMAN GATE) etc.",
    "notesInFlow": true
   },
   {
-   "id": "w16-33",
+   "id": "w16-34",
    "name": "Resume: cycle starts now, routing on",
    "type": "n8n-nodes-base.postgres",
    "typeVersion": 2.5,
@@ -931,9 +945,9 @@
    ],
    "parameters": {
     "operation": "executeQuery",
-    "query": "SET LOCAL smc.source = 'n8n';\nwith c as (update public.cycles set status = 'active', starts_at = now(), ends_at = now() + interval '30 days' where id = $2::uuid and status = 'scheduled' returning id)\nupdate public.brokers set status = 'active', status_changed_at = now(), routing_on = true, current_cycle_id = (select id from c)\nwhere id = $1::uuid and exists (select 1 from c) returning id, (select media_share_zar from public.pricing p where p.tier_code = $3) as media_share_zar;",
+    "query": "SET LOCAL smc.source = 'n8n';\nwith c as (update public.cycles set status = 'active', starts_at = now(), ends_at = now() + interval '30 days' where id = $2::uuid and status = 'scheduled' returning id)\nupdate public.brokers set status = 'active', status_changed_at = now(), routing_on = true, current_cycle_id = (select id from c)\nwhere id = $1::uuid and exists (select 1 from c) returning id, (select media_share_zar from public.cycles y where y.id = $2::uuid) as media_share_zar;",
     "options": {
-     "queryReplacement": "={{ [$(\"Mark invoice paid + create cycle\").first().json.broker_id, $(\"Mark invoice paid + create cycle\").first().json.cycle_id, $(\"Mark invoice paid + create cycle\").first().json.tier_code] }}"
+     "queryReplacement": "={{ [$(\"Mark invoice paid + create cycle\").first().json.broker_id, $(\"Mark invoice paid + create cycle\").first().json.cycle_id] }}"
     }
    },
    "credentials": {
@@ -943,12 +957,26 @@
    }
   },
   {
-   "id": "w16-34",
+   "id": "w16-35",
+   "name": "Ads: map raise input (resume)",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    4320,
+    200
+   ],
+   "parameters": {
+    "mode": "runOnceForAllItems",
+    "jsCode": "\n// I-48g: smc-ads-budget input. op + action (same value) so both the I-48g and the LOCAL-STAGING.md §7 readers work.\n// Amount = cycles.media_share_zar of the resumed cycle (pricing value copied at cycle creation). No row = no resume = no call.\nconst m = $('Mark invoice paid + create cycle').first().json;\nreturn $input.all().map((i) => i.json).filter((r) => r && r.id).map((r) => {\n  const amount = Number(r.media_share_zar);\n  return { json: { op: 'raise', action: 'raise', broker_id: r.id, cycle_id: m.cycle_id || null,\n    amount_zar: Number.isFinite(amount) ? amount : null, media_share_zar: Number.isFinite(amount) ? amount : null, reason: 'resume_payment' } };\n});\n"
+   }
+  },
+  {
+   "id": "w16-36",
    "name": "Ads module: raise budget by media_share_zar",
    "type": "n8n-nodes-base.executeWorkflow",
    "typeVersion": 1.2,
    "position": [
-    4320,
+    4560,
     200
    ],
    "parameters": {
@@ -962,11 +990,11 @@
      "waitForSubWorkflow": false
     }
    },
-   "notes": "payload: { action: \"raise\", broker_id, media_share_zar } -> automation/ads/meta-ads.js guarded write.",
+   "notes": "payload: { op/action: \"raise\", broker_id, cycle_id, amount_zar (= media_share_zar), reason } (I-48g) -> automation/ads/meta-ads.js guarded write.",
    "notesInFlow": true
   },
   {
-   "id": "w16-35",
+   "id": "w16-37",
    "name": "W22: payment received (Jonathan/KG + broker receipt)",
    "type": "n8n-nodes-base.executeWorkflow",
    "typeVersion": 1.2,
@@ -989,7 +1017,7 @@
    "notesInFlow": true
   },
   {
-   "id": "w16-36",
+   "id": "w16-38",
    "name": "Card auto-renew on (Paystack plan mode)",
    "type": "n8n-nodes-base.postgres",
    "typeVersion": 2.5,
@@ -1011,7 +1039,7 @@
    }
   },
   {
-   "id": "w16-37",
+   "id": "w16-39",
    "name": "Card auto-renew off",
    "type": "n8n-nodes-base.postgres",
    "typeVersion": 2.5,
@@ -1033,7 +1061,7 @@
    }
   },
   {
-   "id": "w16-38",
+   "id": "w16-40",
    "name": "Record failed card charge (W19 retries day 1 and 3)",
    "type": "n8n-nodes-base.postgres",
    "typeVersion": 2.5,
@@ -1055,7 +1083,7 @@
    }
   },
   {
-   "id": "w16-39",
+   "id": "w16-41",
    "name": "Checkout: POST /billing/checkout",
    "type": "n8n-nodes-base.webhook",
    "typeVersion": 2,
@@ -1074,7 +1102,7 @@
    "webhookId": "smc-billing-checkout"
   },
   {
-   "id": "w16-40",
+   "id": "w16-42",
    "name": "Checkout: load invoice + pricing",
    "type": "n8n-nodes-base.postgres",
    "typeVersion": 2.5,
@@ -1096,7 +1124,7 @@
    }
   },
   {
-   "id": "w16-41",
+   "id": "w16-43",
    "name": "Checkout: re-issue if tier changed, build Paystack request",
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
@@ -1110,7 +1138,7 @@
    }
   },
   {
-   "id": "w16-42",
+   "id": "w16-44",
    "name": "Checkout: void + re-issue (only if tier changed)",
    "type": "n8n-nodes-base.postgres",
    "typeVersion": 2.5,
@@ -1133,7 +1161,7 @@
    "alwaysOutputData": true
   },
   {
-   "id": "w16-43",
+   "id": "w16-45",
    "name": "Checkout: Paystack needed?",
    "type": "n8n-nodes-base.if",
    "typeVersion": 2,
@@ -1164,7 +1192,7 @@
    }
   },
   {
-   "id": "w16-44",
+   "id": "w16-46",
    "name": "Paystack initialize transaction",
    "type": "n8n-nodes-base.httpRequest",
    "typeVersion": 4.2,
@@ -1197,7 +1225,7 @@
    }
   },
   {
-   "id": "w16-45",
+   "id": "w16-47",
    "name": "Respond: Paystack URL",
    "type": "n8n-nodes-base.respondToWebhook",
    "typeVersion": 1.1,
@@ -1214,7 +1242,7 @@
    }
   },
   {
-   "id": "w16-46",
+   "id": "w16-48",
    "name": "Respond: manual EFT reference",
    "type": "n8n-nodes-base.respondToWebhook",
    "typeVersion": 1.1,
@@ -1231,7 +1259,7 @@
    }
   },
   {
-   "id": "w16-47",
+   "id": "w16-49",
    "name": "Note",
    "type": "n8n-nodes-base.stickyNote",
    "typeVersion": 1,
@@ -1601,6 +1629,17 @@
    "main": [
     [
      {
+      "node": "W26: map first_payment input",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "W26: map first_payment input": {
+   "main": [
+    [
+     {
       "node": "W26: go-live runner (first payment)",
       "type": "main",
       "index": 0
@@ -1609,6 +1648,17 @@
    ]
   },
   "Resume: cycle starts now, routing on": {
+   "main": [
+    [
+     {
+      "node": "Ads: map raise input (resume)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Ads: map raise input (resume)": {
    "main": [
     [
      {

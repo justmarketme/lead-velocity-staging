@@ -245,12 +245,30 @@ update ${T.BR} set status = 'onboarding', status_changed_at = case when status =
     sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify({ type: "magiclink", email: $json.email, options: { redirect_to: "https://app.leadvelocity.co.za/broker/start" } }) }}', options: { timeout: 15000 } },
     { v: 4.2, row: 0, col: 18, credentials: { httpHeaderAuth: { name: 'Supabase service role (W16 magic link)' } } });
   const w20 = w.add('n8n-nodes-base.executeWorkflow', 'W20: welcome + magic link by WhatsApp and email', execWf('smc-w20', 'payload: broker_id, action_link (never logged). 6.1 step 1.'), { v: 1.2, row: 0, col: 19 });
-  const w26 = w.add('n8n-nodes-base.executeWorkflow', 'W26: go-live runner (first payment)', execWf('smc-w26', '6.6: VPS buy link to Jonathan (HUMAN GATE) etc.'), { v: 1.2, row: 0, col: 20 });
+  // I-48g: W20's passthrough (the magic-link response) never reaches W26; the go-live runner gets ids only (LOCAL-STAGING.md §7).
+  const w26Map = w.add('n8n-nodes-base.code', 'W26: map first_payment input', code(`
+// I-48g: smc-w26 input = { op: 'first_payment', broker_id, cycle_id } from the paid invoice, never W20's item (magic link).
+const m = $('Mark invoice paid + create cycle').first().json;
+if (!m || !m.broker_id) return [];
+return [{ json: { op: 'first_payment', broker_id: m.broker_id, cycle_id: m.cycle_id || null } }];
+`), { v: 2, row: 0, col: 20 });
+  const w26 = w.add('n8n-nodes-base.executeWorkflow', 'W26: go-live runner (first payment)', execWf('smc-w26', 'payload: { op: "first_payment", broker_id, cycle_id } (I-48g). 6.6: VPS buy link to Jonathan (HUMAN GATE) etc.'), { v: 1.2, row: 0, col: 21 });
   const resume = w.add('n8n-nodes-base.postgres', 'Resume: cycle starts now, routing on', sql(`${AUDIT()}with c as (update ${T.CY} set status = 'active', starts_at = now(), ends_at = now() + interval '30 days' where id = $2::uuid and status = 'scheduled' returning id)
 update ${T.BR} set status = 'active', status_changed_at = now(), routing_on = true, current_cycle_id = (select id from c)
-where id = $1::uuid and exists (select 1 from c) returning id, (select media_share_zar from ${T.PR} p where p.tier_code = $3) as media_share_zar;`,
-    '={{ [$("Mark invoice paid + create cycle").first().json.broker_id, $("Mark invoice paid + create cycle").first().json.cycle_id, $("Mark invoice paid + create cycle").first().json.tier_code] }}'), { v: 2.5, row: 1, col: 17, credentials: PG });
-  const adsUp = w.add('n8n-nodes-base.executeWorkflow', 'Ads module: raise budget by media_share_zar', execWf('smc-ads-budget', 'payload: { action: "raise", broker_id, media_share_zar } -> automation/ads/meta-ads.js guarded write.'), { v: 1.2, row: 1, col: 18 });
+where id = $1::uuid and exists (select 1 from c) returning id, (select media_share_zar from ${T.CY} y where y.id = $2::uuid) as media_share_zar;`,
+    '={{ [$("Mark invoice paid + create cycle").first().json.broker_id, $("Mark invoice paid + create cycle").first().json.cycle_id] }}'), { v: 2.5, row: 1, col: 17, credentials: PG });
+  // I-48g: the Resume row is { id, media_share_zar }; the ads module needs named ids + the amount (cycles.media_share_zar).
+  const adsUpMap = w.add('n8n-nodes-base.code', 'Ads: map raise input (resume)', code(`
+// I-48g: smc-ads-budget input. op + action (same value) so both the I-48g and the LOCAL-STAGING.md §7 readers work.
+// Amount = cycles.media_share_zar of the resumed cycle (pricing value copied at cycle creation). No row = no resume = no call.
+const m = $('Mark invoice paid + create cycle').first().json;
+return $input.all().map((i) => i.json).filter((r) => r && r.id).map((r) => {
+  const amount = Number(r.media_share_zar);
+  return { json: { op: 'raise', action: 'raise', broker_id: r.id, cycle_id: m.cycle_id || null,
+    amount_zar: Number.isFinite(amount) ? amount : null, media_share_zar: Number.isFinite(amount) ? amount : null, reason: 'resume_payment' } };
+});
+`), { v: 2, row: 1, col: 18 });
+  const adsUp = w.add('n8n-nodes-base.executeWorkflow', 'Ads module: raise budget by media_share_zar', execWf('smc-ads-budget', 'payload: { op/action: "raise", broker_id, cycle_id, amount_zar (= media_share_zar), reason } (I-48g) -> automation/ads/meta-ads.js guarded write.'), { v: 1.2, row: 1, col: 19 });
   const notify = w.add('n8n-nodes-base.executeWorkflow', 'W22: payment received (Jonathan/KG + broker receipt)', execWf('smc-w22', 'kind=payment_received; broker gets a receipt with the reference; renewal: "next cycle scheduled, no gap in leads".'), { v: 1.2, row: 2, col: 17 });
 
   // --- D. Card auto-renew lifecycle + failed charges
@@ -309,8 +327,8 @@ on conflict (reference) do nothing;`, '={{ [$json.old_reference, $json.reissue ?
   w.link(queueQ, queueAlert);
   w.chain(norm, markPaid, flipped); w.link(flipped, saveAuth, 0); w.link(flipped, creditBack, 1); w.link(creditBack, notFlipped);
   w.link(saveAuth, route); w.link(saveAuth, notify);
-  w.link(route, onboard, 0); w.chain(onboard, magic, w20, w26);
-  w.link(route, resume, 1); w.link(resume, adsUp);
+  w.link(route, onboard, 0); w.chain(onboard, magic, w20, w26Map, w26);
+  w.link(route, resume, 1); w.chain(resume, adsUpMap, adsUp);
   w.chain(coHook, coLoad, coPlan, coReissue, coNeed); w.link(coNeed, coInit, 0); w.link(coNeed, coRespRef, 1); w.link(coInit, coRespPay);
   void note;
 });
@@ -449,6 +467,24 @@ with c as (
 select a.*, (now() at time zone 'Africa/Johannesburg')::date - (a.effective_end at time zone 'Africa/Johannesburg')::date as days_after_end
 from a where not exists (select 1 from ops.billing_actions_log l where l.cycle_id = a.cycle_id and l.action = a.action and l.day = (now() at time zone 'Africa/Johannesburg')::date);`;
 
+// I-48g: smc-whatsapp-send input builders for W19 (LOCAL-STAGING.md §7). The sender does WhatsApp only; every email leg stays
+// in W19 (Outlook nodes from howzit@). template { name, body, buttons } is the §7 / broker_autorenew_off shape; kind, variables,
+// buttons, correlation and idempotency_key ride along so either reader works. Ids only besides the number: no email, no amounts.
+const W19_WA = `
+const sastDay = () => new Date(Date.now() + 7200000).toISOString().slice(0, 10);
+const clean = (s) => String(s == null ? '' : s).replace(/[\\n\\t]+/g, ' ').replace(/ {4,}/g, ' ').trim();
+const firstName = (s) => clean(s).split(' ')[0] || 'there';
+const rowsOf = (name) => { try { return $(name).all().map((i) => i.json); } catch (e) { return []; } };
+const ids = (r) => ({ broker_id: r.broker_id, cycle_id: r.cycle_id || null, lead_id: null });
+const waTemplate = (to, t, r, key) => ({ to, kind: 'template', template: { name: t.name, body: t.body.map(clean), buttons: (t.buttons || []).map(clean) },
+  variables: t.body.map(clean), buttons: (t.buttons || []).map(clean), ...ids(r), correlation: key, idempotency_key: key });
+// No approved template yet for these (needs_human): session text, which the sender sends only inside the 24-h window (§7 rule 5).
+const waText = (to, text, r, key) => ({ to, kind: 'text', template: null, variables: [], buttons: [], text, ...ids(r), correlation: key, idempotency_key: key });
+const checkout = (ref) => 'https://app.leadvelocity.co.za/billing/checkout/?ref=' + encodeURIComponent(ref || '');
+`;
+const W19_MAIL_TO = '={{ ($("Claimed rows only").all().find((i) => i.json.cycle_id === $json.cycle_id) || { json: {} }).json.email }}';
+const W19_MAIL_HTML = (field) => '={{ "<p>" + String(' + field + ' || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/\\*([^*]+)\\*/g, "<strong style=\\"font-size:18px\\">$1</strong>") + "</p>" }}';
+
 const W19 = wf('W19', 'Cycle renewal offer', (w) => {
   const sched = w.add('n8n-nodes-base.scheduleTrigger', 'Daily 07:00 SAST', { rule: { interval: [{ field: 'cronExpression', expression: '0 7 * * *' }] } }, { v: 1.2, row: 0, col: 0 });
   const man = w.add('n8n-nodes-base.manualTrigger', 'Manual run', {}, { row: 1, col: 0 });
@@ -496,7 +532,12 @@ return [{ json: { row, invoice: inv, links, template, email } }];
 insert into ${T.INV} (broker_id, tier_code, amount_excl_vat, vat_zar, total_zar, credit_applied_zar, reference, method, status, issued_at, due_at)
 values ($1::uuid, $2, $3::numeric, nullif($4,'')::numeric, $5::numeric, $10::numeric / 100, $6, 'instant_eft', $7, now(), $8::timestamptz) on conflict (reference) do nothing;
 update ${T.CY} set renewal_offer_sent_at = now() where id = $9::uuid;`, '={{ [$json.invoice.broker_id, $json.invoice.tier_code, $json.invoice.amount_excl_vat, $json.invoice.vat_zar === null ? "" : String($json.invoice.vat_zar), $json.invoice.total_zar, $json.invoice.reference, $json.invoice.status, $json.invoice.due_at, $json.row.cycle_id, $json.invoice.credit_cents || 0] }}'), { v: 2.5, row: 0, col: 7, credentials: PG });
-  const send = w.add('n8n-nodes-base.executeWorkflow', 'WhatsApp: broker_cycle_end (renewal offer)', execWf('smc-whatsapp-send', 'automation-engineer sender sub-workflow: template + params from "Offer: renewal invoice + message".'), { v: 1.2, row: 0, col: 8 });
+  const sendMap = w.add('n8n-nodes-base.code', 'Offer: map to sender input', code(W19_WA + `
+// I-48g: the insert's output is not a message; rebuild { to, template, ... } from the offer item (broker_cycle_end: 7 body, 2 URL suffixes).
+return rowsOf('Offer: renewal invoice + message').filter((o) => o && o.row && clean(o.row.whatsapp_number)).map((o) => ({ json:
+  waTemplate(clean(o.row.whatsapp_number), o.template, o.row, 'W19:offer_t7:' + o.row.cycle_id + ':' + o.invoice.reference) }));
+`), { v: 2, row: 0, col: 8 });
+  const send = w.add('n8n-nodes-base.executeWorkflow', 'WhatsApp: broker_cycle_end (renewal offer)', execWf('smc-whatsapp-send', 'payload: { to, kind: "template", template { name: broker_cycle_end, body[7], buttons[2] }, variables, buttons, broker_id, cycle_id, correlation } (I-48g).'), { v: 1.2, row: 0, col: 9 });
   const mail = w.add('n8n-nodes-base.microsoftOutlook', 'Email: renewal offer from howzit@', { resource: 'message', operation: 'send', toRecipients: '={{ $("Offer: renewal invoice + message").first().json.row.email }}', subject: '={{ $("Offer: renewal invoice + message").first().json.email.subject }}', bodyContent: '={{ $("Offer: renewal invoice + message").first().json.email.html }}', additionalFields: { bodyContentType: 'html' } }, { v: 2, row: 1, col: 8, credentials: OUTLOOK });
 
   // reminders at T-3 / T-1
@@ -505,7 +546,14 @@ return $input.all().map((i) => { const r = i.json; const days = r.action === 're
   return { json: { ...r, reminder: { days, reference: r.open_ref, link: 'https://app.leadvelocity.co.za/billing/checkout/?ref=' + (r.open_ref || ''),
     text: BILLING.autorenew.renewalReminderText(r) }, template: BILLING.autorenew.renewalReminderTemplate(r) } }; });
 `, ['autorenew']), { v: 2, row: 2, col: 5 });
-  const remSend = w.add('n8n-nodes-base.executeWorkflow', 'WhatsApp + email: renewal reminder', execWf('smc-whatsapp-send', 'Template broker_renewal_reminder (params from renewalReminderTemplate: 6 body vars, Pay now = reference, Manage auto-renew = /s/billing). Not submitted yet (NH-BA-08): until approved, email + session text inside the 24-h window.'), { v: 1.2, row: 2, col: 6 });
+  const remMap = w.add('n8n-nodes-base.code', 'Reminder: map to sender input', code(W19_WA + `
+// I-48g: broker_renewal_reminder (6 body vars; Pay now URL suffix = reference). Not approved yet (NH-BA-08): the sender falls back.
+return $input.all().map((i) => i.json).filter((r) => r && r.template && clean(r.whatsapp_number)).map((r) => ({ json:
+  waTemplate(clean(r.whatsapp_number), r.template, r, 'W19:' + r.action + ':' + r.cycle_id + ':' + sastDay()) }));
+`), { v: 2, row: 2, col: 6 });
+  const remSend = w.add('n8n-nodes-base.executeWorkflow', 'WhatsApp + email: renewal reminder', execWf('smc-whatsapp-send', 'Template broker_renewal_reminder (params from renewalReminderTemplate: 6 body vars, Pay now = reference, Manage auto-renew = /s/billing). Not submitted yet (NH-BA-08): until approved, session text inside the 24-h window. The email leg is "Email: renewal reminder from howzit@" (W19 sends email, the sender WhatsApp only).'), { v: 1.2, row: 2, col: 7 });
+  const remMail = w.add('n8n-nodes-base.microsoftOutlook', 'Email: renewal reminder from howzit@', { resource: 'message', operation: 'send', toRecipients: '={{ $json.email }}', subject: '={{ "Your SortMyCover cycle ends in " + $json.reminder.days + " day" + ($json.reminder.days > 1 ? "s" : "") + ": reference " + ($json.reminder.reference || "on your invoice") }}',
+    bodyContent: '={{ ' + W19_MAIL_HTML('$json.reminder.text').slice(4, -3) + ' + "<p><a href=\\"" + $json.reminder.link + "\\">Pay by Instant EFT or card</a>. Manual EFT has no fees: use the reference exactly.</p>" }}', additionalFields: { bodyContentType: 'html' } }, { v: 2, row: 3, col: 7, credentials: OUTLOOK });
 
   // cycle end
   // Always exactly one row (even with no open invoice), so routing still goes off at cycle end.
@@ -522,8 +570,16 @@ left join lateral (
   const routeOff = w.add('n8n-nodes-base.postgres', 'Routing off, cycle not renewed (no grace)', sql(`${AUDIT("'W19 cycle end, not renewed (no grace)'")}update ${T.CY} set status = 'not_renewed' where id = $2::uuid and status in ('active','extended');
 update ${T.BR} set routing_on = false, status = 'not_renewed', status_changed_at = now() where id = $1::uuid
   and not exists (select 1 from ${T.CY} n where n.broker_id = $1::uuid and n.status = 'scheduled' and n.invoice_id is not null);`, '={{ [$json.broker_id, $json.cycle_id] }}'), { v: 2.5, row: 3, col: 7, credentials: PG });
-  const adsDown = w.add('n8n-nodes-base.executeWorkflow', 'Ads module: lower budget by media_share_zar', execWf('smc-ads-budget', 'payload: { action: "lower", broker_id, media_share_zar } (6.1 step 7). Cycle end only, never on a card retry.'), { v: 1.2, row: 3, col: 8 });
-  const hasCard = w.add('n8n-nodes-base.if', 'Card auto-renew on?', ifTrue('={{ !!$("Cycle end: open invoice + card token").first().json.authorization_code }}'), { v: 2, row: 3, col: 9 });
+  const adsDownMap = w.add('n8n-nodes-base.code', 'Routing off: map ads lower input', code(`
+// I-48g: the routing-off update returns no row/broker_id; build the ads input from the cycle-end context (cycle_end only).
+// amount_zar 0 = target spend for this broker's share; media_share_zar (cycles column) is the amount it removes (§7 reader).
+return $('Cycle end: open invoice + card token').all().map((i) => i.json).filter((r) => r && r.action === 'cycle_end' && r.broker_id).map((r) => {
+  const share = Number(r.media_share_zar);
+  return { json: { op: 'lower', action: 'lower', broker_id: r.broker_id, cycle_id: r.cycle_id, amount_zar: 0, media_share_zar: Number.isFinite(share) ? share : null, reason: 'cycle_not_renewed' } };
+});
+`), { v: 2, row: 3, col: 8 });
+  const adsDown = w.add('n8n-nodes-base.executeWorkflow', 'Ads module: lower budget by media_share_zar', execWf('smc-ads-budget', 'payload: { op/action: "lower", broker_id, cycle_id, amount_zar: 0, media_share_zar, reason: "cycle_not_renewed" } (I-48g; 6.1 step 7). Cycle end only, never on a card retry.'), { v: 1.2, row: 3, col: 9 });
+  const hasCard = w.add('n8n-nodes-base.if', 'Card auto-renew on?', ifTrue('={{ !!$("Cycle end: open invoice + card token").first().json.authorization_code }}'), { v: 2, row: 3, col: 10 });
   const chargeSpec = w.add('n8n-nodes-base.code', 'Build card charge (attempt n)', code(`
 const i = $('Cycle end: open invoice + card token').first().json;
 const spec = BILLING.paystack.build.chargeAuthorization({ invoice: { reference: i.reference, total_cents: Number(i.total_cents), tier_code: i.tier_code }, email: i.email, authorization_code: i.authorization_code, attempt: Number(i.attempts) + 1 });
@@ -534,11 +590,39 @@ return [{ json: { spec } }];
   const chargeNote = w.add('n8n-nodes-base.noOp', 'Paid: charge.success webhook -> W16 resumes (no action here)', {}, { row: 3, col: 13 });
   const chargeFail = w.add('n8n-nodes-base.postgres', 'Record failed charge', sql(`${AUDIT()}update ${T.INV} set charge_attempts = charge_attempts + 1, last_charge_failed_at = now(), last_charge_error = left($2, 500) where reference = $1;`, '={{ [$("Cycle end: open invoice + card token").first().json.reference, ($json.body && $json.body.data && $json.body.data.gateway_response) || ($json.body && $json.body.message) || "failed"] }}'), { v: 2.5, row: 4, col: 13, credentials: PG });
   const lastTry = w.add('n8n-nodes-base.if', 'Day-3 retry failed? -> pay link', ifTrue('={{ Number($("Cycle end: open invoice + card token").first().json.attempts) + 1 >= 3 }}'), { v: 2, row: 4, col: 14 });
-  const payLink = w.add('n8n-nodes-base.executeWorkflow', 'WhatsApp + email: pay link (card failed / cycle ended)', execWf('smc-whatsapp-send', 'Text: "Your cycle has ended and new leads have stopped. Pay any time to start again: <link>. Reference *LV-...*. Your delivered leads stay yours." Card failure adds "Your card was declined; update it with the link."'), { v: 1.2, row: 4, col: 15 });
+  const payMap = w.add('n8n-nodes-base.code', 'Pay link: map to sender input', code(W19_WA + `
+// I-48g: inputs differ by path (ads passthrough on cycle end, charge-failure row after the day-3 retry), so the ids come from
+// the item when it has them, else the cycle-end context; one message per cycle.
+const ctxRows = rowsOf('Cycle end: open invoice + card token');
+const claimed = rowsOf('Claimed rows only');
+const seen = new Set(); const out = [];
+for (const it of $input.all().map((i) => i.json || {})) {
+  const cycleId = it.cycle_id || (ctxRows[0] && ctxRows[0].cycle_id);
+  if (!cycleId || seen.has(cycleId)) continue; seen.add(cycleId);
+  const c = ctxRows.find((x) => x.cycle_id === cycleId) || {};
+  const r = claimed.find((x) => x.cycle_id === cycleId) || {};
+  const to = clean(r.whatsapp_number); if (!to) continue;
+  const ref = clean(c.reference || r.open_ref);
+  const cardFailed = !!c.authorization_code;
+  const text = 'Hi ' + firstName(r.contact_person) + ', ' + (cardFailed ? 'your card was declined, so your SortMyCover cycle was not renewed and new leads have stopped. Update your card or pay any time to start again: '
+    : 'your SortMyCover cycle has ended and new leads have stopped. Pay any time to start again: ') + checkout(ref) + ' . Payment reference: *' + (ref || 'on your invoice') + '*. Manual EFT has no fees if you use the reference exactly. Your delivered leads stay yours.';
+  out.push({ json: waText(to, text, { broker_id: c.broker_id || r.broker_id, cycle_id: cycleId }, 'W19:pay_link:' + cycleId + ':' + sastDay()) });
+}
+return out;
+`), { v: 2, row: 4, col: 15 });
+  const payLink = w.add('n8n-nodes-base.executeWorkflow', 'WhatsApp + email: pay link (card failed / cycle ended)', execWf('smc-whatsapp-send', 'payload: { to, kind: "text", text, broker_id, cycle_id, correlation } (I-48g). No approved template yet (needs_human): session text inside the 24-h window only; the email leg "Email: pay link from howzit@" always goes.'), { v: 1.2, row: 4, col: 16 });
+  const payMail = w.add('n8n-nodes-base.microsoftOutlook', 'Email: pay link from howzit@', { resource: 'message', operation: 'send', toRecipients: W19_MAIL_TO, subject: 'Your SortMyCover cycle has ended: pay any time to start again', bodyContent: W19_MAIL_HTML('$json.text'), additionalFields: { bodyContentType: 'html' } }, { v: 2, row: 5, col: 16, credentials: OUTLOOK });
 
   // retry day 1 and 3 (routing already off: no grace)
   const retryCtx = w.add('n8n-nodes-base.noOp', 'Retry day 1 / day 3 uses the same charge path', {}, { row: 5, col: 5 });
-  const comeBack = w.add('n8n-nodes-base.executeWorkflow', "WhatsApp + email: 'come back any time' (once, day 7)", execWf('smc-whatsapp-send', 'No offer pressure; one message; data retention per POPIA schedule.'), { v: 1.2, row: 6, col: 5 });
+  const backMap = w.add('n8n-nodes-base.code', "Come back: map to sender input", code(W19_WA + `
+// I-48g: day 7 after a lapse, once (billing_actions_log). No offer pressure.
+return $input.all().map((i) => i.json).filter((r) => r && r.action === 'come_back' && clean(r.whatsapp_number)).map((r) => ({ json: waText(clean(r.whatsapp_number),
+  'Hi ' + firstName(r.contact_person) + ', a short note: your SortMyCover leads stopped when your last cycle ended. If you want to start again, pay any time with reference *' + (clean(r.open_ref) || 'on your invoice') + '*: ' + checkout(r.open_ref) + ' . No lock-in, and your delivered leads stay yours.',
+  r, 'W19:come_back:' + r.cycle_id) }));
+`), { v: 2, row: 6, col: 5 });
+  const comeBack = w.add('n8n-nodes-base.executeWorkflow', "WhatsApp + email: 'come back any time' (once, day 7)", execWf('smc-whatsapp-send', 'payload: { to, kind: "text", text, broker_id, cycle_id, correlation } (I-48g). No offer pressure; one message; data retention per POPIA schedule. No approved template yet (needs_human); email leg in W19.'), { v: 1.2, row: 6, col: 6 });
+  const backMail = w.add('n8n-nodes-base.microsoftOutlook', "Email: 'come back any time' from howzit@", { resource: 'message', operation: 'send', toRecipients: W19_MAIL_TO, subject: 'SortMyCover: start again any time', bodyContent: W19_MAIL_HTML('$json.text'), additionalFields: { bodyContentType: 'html' } }, { v: 2, row: 7, col: 6, credentials: OUTLOOK });
 
   // --- I-30e: portal "Switch off" card auto-renew (Bearer Supabase JWT; off only; opt-in happens at checkout)
   const arHook = w.add('n8n-nodes-base.webhook', 'Portal: POST /billing-autorenew', { httpMethod: 'POST', path: 'billing-autorenew', responseMode: 'responseNode', options: { allowedOrigins: 'https://app.leadvelocity.co.za' } }, { v: 2, row: 8, col: 0, webhookId: 'smc-billing-autorenew' });
@@ -578,12 +662,12 @@ return msg ? [{ json: msg }] : [];
   const arOps = w.add('n8n-nodes-base.executeWorkflow', 'W22: card auto-renew off (disable Paystack plan if any)', execWf('smc-w22', 'kind=card_autorenew_off; broker_id, subscription_code. If subscription_code is set, Jonathan disables the Paystack plan in the dashboard (no Vault read of the email token here; needs_human for a wrapper). subscription.disable then arrives in W16.'), { v: 1.2, row: 9, col: 6 });
   const note = w.add('n8n-nodes-base.stickyNote', 'Note', { content: '## W19 Cycle renewal offer\nT-7: results + renewal invoice (same tier pre-selected, up/downgrade links, shortfall credit applied).\nT-3, T-1: reminder with the reference in bold, only if unpaid.\nCycle end (effective end incl. 14-day extension): unpaid -> routing off + budget lowered. **No grace.** Card auto-renew (opt-in) charges here; failed -> retry day 1 and day 3 (Stripe pattern), then pay link.\nDay 7 after a lapse: one "come back any time".\nIdempotency: ops.billing_actions_log (cycle, action, day).\nPortal POST /billing-autorenew (I-30e): broker JWT -> card_autorenew off as n8n_app, timeline row, WhatsApp confirm. Off only.\nCard token read only via smc_vault_paystack_auth_code() (I-33a).', height: 340, width: 480 }, { row: 6, col: 8 });
   w.chain(sched, due); w.link(man, due); w.chain(due, log, back, sw);
-  w.link(sw, ctx, 0); w.chain(ctx, offer, insInv, send); w.link(insInv, mail);
-  w.link(sw, rem, 1); w.link(sw, rem, 2); w.link(rem, remSend);
-  w.link(sw, endCtx, 3); w.chain(endCtx, isEnd); w.link(isEnd, routeOff, 0); w.link(isEnd, hasCard, 1); w.chain(routeOff, adsDown, hasCard); w.link(hasCard, chargeSpec, 0); w.link(hasCard, payLink, 1);
-  w.chain(chargeSpec, charge, chargeOk); w.link(chargeOk, chargeNote, 0); w.link(chargeOk, chargeFail, 1); w.link(chargeFail, lastTry); w.link(lastTry, payLink, 0);
+  w.link(sw, ctx, 0); w.chain(ctx, offer, insInv, sendMap, send); w.link(insInv, mail);
+  w.link(sw, rem, 1); w.link(sw, rem, 2); w.chain(rem, remMap, remSend); w.link(rem, remMail);
+  w.link(sw, endCtx, 3); w.chain(endCtx, isEnd); w.link(isEnd, routeOff, 0); w.link(isEnd, hasCard, 1); w.chain(routeOff, adsDownMap, adsDown, hasCard); w.link(hasCard, chargeSpec, 0); w.link(hasCard, payMap, 1); w.link(payMap, payLink); w.link(payMap, payMail);
+  w.chain(chargeSpec, charge, chargeOk); w.link(chargeOk, chargeNote, 0); w.link(chargeOk, chargeFail, 1); w.link(chargeFail, lastTry); w.link(lastTry, payMap, 0);
   w.link(sw, retryCtx, 4); w.link(retryCtx, endCtx);
-  w.link(sw, comeBack, 5);
+  w.link(sw, backMap, 5); w.link(backMap, comeBack); w.link(backMap, backMail);
   w.chain(arHook, arAuth, arOk); w.link(arOk, arOff, 0); w.link(arOk, arBad, 1); w.chain(arOff, arResp, arChanged); w.link(arChanged, arMsg, 0); w.link(arChanged, arOps, 0); w.link(arMsg, arSend);
   void note;
 });

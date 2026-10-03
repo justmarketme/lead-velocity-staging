@@ -295,11 +295,25 @@
   },
   {
    "id": "w19-10",
+   "name": "Offer: map to sender input",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1920,
+    0
+   ],
+   "parameters": {
+    "mode": "runOnceForAllItems",
+    "jsCode": "\nconst sastDay = () => new Date(Date.now() + 7200000).toISOString().slice(0, 10);\nconst clean = (s) => String(s == null ? '' : s).replace(/[\\n\\t]+/g, ' ').replace(/ {4,}/g, ' ').trim();\nconst firstName = (s) => clean(s).split(' ')[0] || 'there';\nconst rowsOf = (name) => { try { return $(name).all().map((i) => i.json); } catch (e) { return []; } };\nconst ids = (r) => ({ broker_id: r.broker_id, cycle_id: r.cycle_id || null, lead_id: null });\nconst waTemplate = (to, t, r, key) => ({ to, kind: 'template', template: { name: t.name, body: t.body.map(clean), buttons: (t.buttons || []).map(clean) },\n  variables: t.body.map(clean), buttons: (t.buttons || []).map(clean), ...ids(r), correlation: key, idempotency_key: key });\n// No approved template yet for these (needs_human): session text, which the sender sends only inside the 24-h window (§7 rule 5).\nconst waText = (to, text, r, key) => ({ to, kind: 'text', template: null, variables: [], buttons: [], text, ...ids(r), correlation: key, idempotency_key: key });\nconst checkout = (ref) => 'https://app.leadvelocity.co.za/billing/checkout/?ref=' + encodeURIComponent(ref || '');\n\n// I-48g: the insert's output is not a message; rebuild { to, template, ... } from the offer item (broker_cycle_end: 7 body, 2 URL suffixes).\nreturn rowsOf('Offer: renewal invoice + message').filter((o) => o && o.row && clean(o.row.whatsapp_number)).map((o) => ({ json:\n  waTemplate(clean(o.row.whatsapp_number), o.template, o.row, 'W19:offer_t7:' + o.row.cycle_id + ':' + o.invoice.reference) }));\n"
+   }
+  },
+  {
+   "id": "w19-11",
    "name": "WhatsApp: broker_cycle_end (renewal offer)",
    "type": "n8n-nodes-base.executeWorkflow",
    "typeVersion": 1.2,
    "position": [
-    1920,
+    2160,
     0
    ],
    "parameters": {
@@ -313,11 +327,11 @@
      "waitForSubWorkflow": false
     }
    },
-   "notes": "automation-engineer sender sub-workflow: template + params from \"Offer: renewal invoice + message\".",
+   "notes": "payload: { to, kind: \"template\", template { name: broker_cycle_end, body[7], buttons[2] }, variables, buttons, broker_id, cycle_id, correlation } (I-48g).",
    "notesInFlow": true
   },
   {
-   "id": "w19-11",
+   "id": "w19-12",
    "name": "Email: renewal offer from howzit@",
    "type": "n8n-nodes-base.microsoftOutlook",
    "typeVersion": 2,
@@ -342,7 +356,7 @@
    }
   },
   {
-   "id": "w19-12",
+   "id": "w19-13",
    "name": "Reminder text (reference in bold)",
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
@@ -356,12 +370,26 @@
    }
   },
   {
-   "id": "w19-13",
+   "id": "w19-14",
+   "name": "Reminder: map to sender input",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1440,
+    400
+   ],
+   "parameters": {
+    "mode": "runOnceForAllItems",
+    "jsCode": "\nconst sastDay = () => new Date(Date.now() + 7200000).toISOString().slice(0, 10);\nconst clean = (s) => String(s == null ? '' : s).replace(/[\\n\\t]+/g, ' ').replace(/ {4,}/g, ' ').trim();\nconst firstName = (s) => clean(s).split(' ')[0] || 'there';\nconst rowsOf = (name) => { try { return $(name).all().map((i) => i.json); } catch (e) { return []; } };\nconst ids = (r) => ({ broker_id: r.broker_id, cycle_id: r.cycle_id || null, lead_id: null });\nconst waTemplate = (to, t, r, key) => ({ to, kind: 'template', template: { name: t.name, body: t.body.map(clean), buttons: (t.buttons || []).map(clean) },\n  variables: t.body.map(clean), buttons: (t.buttons || []).map(clean), ...ids(r), correlation: key, idempotency_key: key });\n// No approved template yet for these (needs_human): session text, which the sender sends only inside the 24-h window (§7 rule 5).\nconst waText = (to, text, r, key) => ({ to, kind: 'text', template: null, variables: [], buttons: [], text, ...ids(r), correlation: key, idempotency_key: key });\nconst checkout = (ref) => 'https://app.leadvelocity.co.za/billing/checkout/?ref=' + encodeURIComponent(ref || '');\n\n// I-48g: broker_renewal_reminder (6 body vars; Pay now URL suffix = reference). Not approved yet (NH-BA-08): the sender falls back.\nreturn $input.all().map((i) => i.json).filter((r) => r && r.template && clean(r.whatsapp_number)).map((r) => ({ json:\n  waTemplate(clean(r.whatsapp_number), r.template, r, 'W19:' + r.action + ':' + r.cycle_id + ':' + sastDay()) }));\n"
+   }
+  },
+  {
+   "id": "w19-15",
    "name": "WhatsApp + email: renewal reminder",
    "type": "n8n-nodes-base.executeWorkflow",
    "typeVersion": 1.2,
    "position": [
-    1440,
+    1680,
     400
    ],
    "parameters": {
@@ -375,11 +403,36 @@
      "waitForSubWorkflow": false
     }
    },
-   "notes": "Template broker_renewal_reminder (params from renewalReminderTemplate: 6 body vars, Pay now = reference, Manage auto-renew = /s/billing). Not submitted yet (NH-BA-08): until approved, email + session text inside the 24-h window.",
+   "notes": "Template broker_renewal_reminder (params from renewalReminderTemplate: 6 body vars, Pay now = reference, Manage auto-renew = /s/billing). Not submitted yet (NH-BA-08): until approved, session text inside the 24-h window. The email leg is \"Email: renewal reminder from howzit@\" (W19 sends email, the sender WhatsApp only).",
    "notesInFlow": true
   },
   {
-   "id": "w19-14",
+   "id": "w19-16",
+   "name": "Email: renewal reminder from howzit@",
+   "type": "n8n-nodes-base.microsoftOutlook",
+   "typeVersion": 2,
+   "position": [
+    1680,
+    600
+   ],
+   "parameters": {
+    "resource": "message",
+    "operation": "send",
+    "toRecipients": "={{ $json.email }}",
+    "subject": "={{ \"Your SortMyCover cycle ends in \" + $json.reminder.days + \" day\" + ($json.reminder.days > 1 ? \"s\" : \"\") + \": reference \" + ($json.reminder.reference || \"on your invoice\") }}",
+    "bodyContent": "={{ \"<p>\" + String($json.reminder.text || \"\").replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/\\*([^*]+)\\*/g, \"<strong style=\\\"font-size:18px\\\">$1</strong>\") + \"</p>\" + \"<p><a href=\\\"\" + $json.reminder.link + \"\\\">Pay by Instant EFT or card</a>. Manual EFT has no fees: use the reference exactly.</p>\" }}",
+    "additionalFields": {
+     "bodyContentType": "html"
+    }
+   },
+   "credentials": {
+    "microsoftOutlookOAuth2Api": {
+     "name": "Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send)"
+    }
+   }
+  },
+  {
+   "id": "w19-17",
    "name": "Cycle end: open invoice + card token",
    "type": "n8n-nodes-base.postgres",
    "typeVersion": 2.5,
@@ -401,7 +454,7 @@
    }
   },
   {
-   "id": "w19-15",
+   "id": "w19-18",
    "name": "Cycle end (not a card retry)?",
    "type": "n8n-nodes-base.if",
    "typeVersion": 2,
@@ -432,7 +485,7 @@
    }
   },
   {
-   "id": "w19-16",
+   "id": "w19-19",
    "name": "Routing off, cycle not renewed (no grace)",
    "type": "n8n-nodes-base.postgres",
    "typeVersion": 2.5,
@@ -454,12 +507,26 @@
    }
   },
   {
-   "id": "w19-17",
+   "id": "w19-20",
+   "name": "Routing off: map ads lower input",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1920,
+    600
+   ],
+   "parameters": {
+    "mode": "runOnceForAllItems",
+    "jsCode": "\n// I-48g: the routing-off update returns no row/broker_id; build the ads input from the cycle-end context (cycle_end only).\n// amount_zar 0 = target spend for this broker's share; media_share_zar (cycles column) is the amount it removes (§7 reader).\nreturn $('Cycle end: open invoice + card token').all().map((i) => i.json).filter((r) => r && r.action === 'cycle_end' && r.broker_id).map((r) => {\n  const share = Number(r.media_share_zar);\n  return { json: { op: 'lower', action: 'lower', broker_id: r.broker_id, cycle_id: r.cycle_id, amount_zar: 0, media_share_zar: Number.isFinite(share) ? share : null, reason: 'cycle_not_renewed' } };\n});\n"
+   }
+  },
+  {
+   "id": "w19-21",
    "name": "Ads module: lower budget by media_share_zar",
    "type": "n8n-nodes-base.executeWorkflow",
    "typeVersion": 1.2,
    "position": [
-    1920,
+    2160,
     600
    ],
    "parameters": {
@@ -473,16 +540,16 @@
      "waitForSubWorkflow": false
     }
    },
-   "notes": "payload: { action: \"lower\", broker_id, media_share_zar } (6.1 step 7). Cycle end only, never on a card retry.",
+   "notes": "payload: { op/action: \"lower\", broker_id, cycle_id, amount_zar: 0, media_share_zar, reason: \"cycle_not_renewed\" } (I-48g; 6.1 step 7). Cycle end only, never on a card retry.",
    "notesInFlow": true
   },
   {
-   "id": "w19-18",
+   "id": "w19-22",
    "name": "Card auto-renew on?",
    "type": "n8n-nodes-base.if",
    "typeVersion": 2,
    "position": [
-    2160,
+    2400,
     600
    ],
    "parameters": {
@@ -508,7 +575,7 @@
    }
   },
   {
-   "id": "w19-19",
+   "id": "w19-23",
    "name": "Build card charge (attempt n)",
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
@@ -522,7 +589,7 @@
    }
   },
   {
-   "id": "w19-20",
+   "id": "w19-24",
    "name": "Paystack charge_authorization",
    "type": "n8n-nodes-base.httpRequest",
    "typeVersion": 4.2,
@@ -555,7 +622,7 @@
    }
   },
   {
-   "id": "w19-21",
+   "id": "w19-25",
    "name": "Charge succeeded?",
    "type": "n8n-nodes-base.if",
    "typeVersion": 2,
@@ -586,7 +653,7 @@
    }
   },
   {
-   "id": "w19-22",
+   "id": "w19-26",
    "name": "Paid: charge.success webhook -> W16 resumes (no action here)",
    "type": "n8n-nodes-base.noOp",
    "typeVersion": 1,
@@ -597,7 +664,7 @@
    "parameters": {}
   },
   {
-   "id": "w19-23",
+   "id": "w19-27",
    "name": "Record failed charge",
    "type": "n8n-nodes-base.postgres",
    "typeVersion": 2.5,
@@ -619,7 +686,7 @@
    }
   },
   {
-   "id": "w19-24",
+   "id": "w19-28",
    "name": "Day-3 retry failed? -> pay link",
    "type": "n8n-nodes-base.if",
    "typeVersion": 2,
@@ -650,12 +717,26 @@
    }
   },
   {
-   "id": "w19-25",
+   "id": "w19-29",
+   "name": "Pay link: map to sender input",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    3600,
+    800
+   ],
+   "parameters": {
+    "mode": "runOnceForAllItems",
+    "jsCode": "\nconst sastDay = () => new Date(Date.now() + 7200000).toISOString().slice(0, 10);\nconst clean = (s) => String(s == null ? '' : s).replace(/[\\n\\t]+/g, ' ').replace(/ {4,}/g, ' ').trim();\nconst firstName = (s) => clean(s).split(' ')[0] || 'there';\nconst rowsOf = (name) => { try { return $(name).all().map((i) => i.json); } catch (e) { return []; } };\nconst ids = (r) => ({ broker_id: r.broker_id, cycle_id: r.cycle_id || null, lead_id: null });\nconst waTemplate = (to, t, r, key) => ({ to, kind: 'template', template: { name: t.name, body: t.body.map(clean), buttons: (t.buttons || []).map(clean) },\n  variables: t.body.map(clean), buttons: (t.buttons || []).map(clean), ...ids(r), correlation: key, idempotency_key: key });\n// No approved template yet for these (needs_human): session text, which the sender sends only inside the 24-h window (§7 rule 5).\nconst waText = (to, text, r, key) => ({ to, kind: 'text', template: null, variables: [], buttons: [], text, ...ids(r), correlation: key, idempotency_key: key });\nconst checkout = (ref) => 'https://app.leadvelocity.co.za/billing/checkout/?ref=' + encodeURIComponent(ref || '');\n\n// I-48g: inputs differ by path (ads passthrough on cycle end, charge-failure row after the day-3 retry), so the ids come from\n// the item when it has them, else the cycle-end context; one message per cycle.\nconst ctxRows = rowsOf('Cycle end: open invoice + card token');\nconst claimed = rowsOf('Claimed rows only');\nconst seen = new Set(); const out = [];\nfor (const it of $input.all().map((i) => i.json || {})) {\n  const cycleId = it.cycle_id || (ctxRows[0] && ctxRows[0].cycle_id);\n  if (!cycleId || seen.has(cycleId)) continue; seen.add(cycleId);\n  const c = ctxRows.find((x) => x.cycle_id === cycleId) || {};\n  const r = claimed.find((x) => x.cycle_id === cycleId) || {};\n  const to = clean(r.whatsapp_number); if (!to) continue;\n  const ref = clean(c.reference || r.open_ref);\n  const cardFailed = !!c.authorization_code;\n  const text = 'Hi ' + firstName(r.contact_person) + ', ' + (cardFailed ? 'your card was declined, so your SortMyCover cycle was not renewed and new leads have stopped. Update your card or pay any time to start again: '\n    : 'your SortMyCover cycle has ended and new leads have stopped. Pay any time to start again: ') + checkout(ref) + ' . Payment reference: *' + (ref || 'on your invoice') + '*. Manual EFT has no fees if you use the reference exactly. Your delivered leads stay yours.';\n  out.push({ json: waText(to, text, { broker_id: c.broker_id || r.broker_id, cycle_id: cycleId }, 'W19:pay_link:' + cycleId + ':' + sastDay()) });\n}\nreturn out;\n"
+   }
+  },
+  {
+   "id": "w19-30",
    "name": "WhatsApp + email: pay link (card failed / cycle ended)",
    "type": "n8n-nodes-base.executeWorkflow",
    "typeVersion": 1.2,
    "position": [
-    3600,
+    3840,
     800
    ],
    "parameters": {
@@ -669,11 +750,36 @@
      "waitForSubWorkflow": false
     }
    },
-   "notes": "Text: \"Your cycle has ended and new leads have stopped. Pay any time to start again: <link>. Reference *LV-...*. Your delivered leads stay yours.\" Card failure adds \"Your card was declined; update it with the link.\"",
+   "notes": "payload: { to, kind: \"text\", text, broker_id, cycle_id, correlation } (I-48g). No approved template yet (needs_human): session text inside the 24-h window only; the email leg \"Email: pay link from howzit@\" always goes.",
    "notesInFlow": true
   },
   {
-   "id": "w19-26",
+   "id": "w19-31",
+   "name": "Email: pay link from howzit@",
+   "type": "n8n-nodes-base.microsoftOutlook",
+   "typeVersion": 2,
+   "position": [
+    3840,
+    1000
+   ],
+   "parameters": {
+    "resource": "message",
+    "operation": "send",
+    "toRecipients": "={{ ($(\"Claimed rows only\").all().find((i) => i.json.cycle_id === $json.cycle_id) || { json: {} }).json.email }}",
+    "subject": "Your SortMyCover cycle has ended: pay any time to start again",
+    "bodyContent": "={{ \"<p>\" + String($json.text || \"\").replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/\\*([^*]+)\\*/g, \"<strong style=\\\"font-size:18px\\\">$1</strong>\") + \"</p>\" }}",
+    "additionalFields": {
+     "bodyContentType": "html"
+    }
+   },
+   "credentials": {
+    "microsoftOutlookOAuth2Api": {
+     "name": "Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send)"
+    }
+   }
+  },
+  {
+   "id": "w19-32",
    "name": "Retry day 1 / day 3 uses the same charge path",
    "type": "n8n-nodes-base.noOp",
    "typeVersion": 1,
@@ -684,12 +790,26 @@
    "parameters": {}
   },
   {
-   "id": "w19-27",
+   "id": "w19-33",
+   "name": "Come back: map to sender input",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1200,
+    1200
+   ],
+   "parameters": {
+    "mode": "runOnceForAllItems",
+    "jsCode": "\nconst sastDay = () => new Date(Date.now() + 7200000).toISOString().slice(0, 10);\nconst clean = (s) => String(s == null ? '' : s).replace(/[\\n\\t]+/g, ' ').replace(/ {4,}/g, ' ').trim();\nconst firstName = (s) => clean(s).split(' ')[0] || 'there';\nconst rowsOf = (name) => { try { return $(name).all().map((i) => i.json); } catch (e) { return []; } };\nconst ids = (r) => ({ broker_id: r.broker_id, cycle_id: r.cycle_id || null, lead_id: null });\nconst waTemplate = (to, t, r, key) => ({ to, kind: 'template', template: { name: t.name, body: t.body.map(clean), buttons: (t.buttons || []).map(clean) },\n  variables: t.body.map(clean), buttons: (t.buttons || []).map(clean), ...ids(r), correlation: key, idempotency_key: key });\n// No approved template yet for these (needs_human): session text, which the sender sends only inside the 24-h window (§7 rule 5).\nconst waText = (to, text, r, key) => ({ to, kind: 'text', template: null, variables: [], buttons: [], text, ...ids(r), correlation: key, idempotency_key: key });\nconst checkout = (ref) => 'https://app.leadvelocity.co.za/billing/checkout/?ref=' + encodeURIComponent(ref || '');\n\n// I-48g: day 7 after a lapse, once (billing_actions_log). No offer pressure.\nreturn $input.all().map((i) => i.json).filter((r) => r && r.action === 'come_back' && clean(r.whatsapp_number)).map((r) => ({ json: waText(clean(r.whatsapp_number),\n  'Hi ' + firstName(r.contact_person) + ', a short note: your SortMyCover leads stopped when your last cycle ended. If you want to start again, pay any time with reference *' + (clean(r.open_ref) || 'on your invoice') + '*: ' + checkout(r.open_ref) + ' . No lock-in, and your delivered leads stay yours.',\n  r, 'W19:come_back:' + r.cycle_id) }));\n"
+   }
+  },
+  {
+   "id": "w19-34",
    "name": "WhatsApp + email: 'come back any time' (once, day 7)",
    "type": "n8n-nodes-base.executeWorkflow",
    "typeVersion": 1.2,
    "position": [
-    1200,
+    1440,
     1200
    ],
    "parameters": {
@@ -703,11 +823,36 @@
      "waitForSubWorkflow": false
     }
    },
-   "notes": "No offer pressure; one message; data retention per POPIA schedule.",
+   "notes": "payload: { to, kind: \"text\", text, broker_id, cycle_id, correlation } (I-48g). No offer pressure; one message; data retention per POPIA schedule. No approved template yet (needs_human); email leg in W19.",
    "notesInFlow": true
   },
   {
-   "id": "w19-28",
+   "id": "w19-35",
+   "name": "Email: 'come back any time' from howzit@",
+   "type": "n8n-nodes-base.microsoftOutlook",
+   "typeVersion": 2,
+   "position": [
+    1440,
+    1400
+   ],
+   "parameters": {
+    "resource": "message",
+    "operation": "send",
+    "toRecipients": "={{ ($(\"Claimed rows only\").all().find((i) => i.json.cycle_id === $json.cycle_id) || { json: {} }).json.email }}",
+    "subject": "SortMyCover: start again any time",
+    "bodyContent": "={{ \"<p>\" + String($json.text || \"\").replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/\\*([^*]+)\\*/g, \"<strong style=\\\"font-size:18px\\\">$1</strong>\") + \"</p>\" }}",
+    "additionalFields": {
+     "bodyContentType": "html"
+    }
+   },
+   "credentials": {
+    "microsoftOutlookOAuth2Api": {
+     "name": "Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send)"
+    }
+   }
+  },
+  {
+   "id": "w19-36",
    "name": "Portal: POST /billing-autorenew",
    "type": "n8n-nodes-base.webhook",
    "typeVersion": 2,
@@ -726,7 +871,7 @@
    "webhookId": "smc-billing-autorenew"
   },
   {
-   "id": "w19-29",
+   "id": "w19-37",
    "name": "Autorenew: verify broker JWT + body",
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
@@ -740,7 +885,7 @@
    }
   },
   {
-   "id": "w19-30",
+   "id": "w19-38",
    "name": "Autorenew: caller ok?",
    "type": "n8n-nodes-base.if",
    "typeVersion": 2,
@@ -771,7 +916,7 @@
    }
   },
   {
-   "id": "w19-31",
+   "id": "w19-39",
    "name": "Autorenew: respond error (reason only)",
    "type": "n8n-nodes-base.respondToWebhook",
    "typeVersion": 1.1,
@@ -788,7 +933,7 @@
    }
   },
   {
-   "id": "w19-32",
+   "id": "w19-40",
    "name": "Autorenew off as n8n_app + timeline row",
    "type": "n8n-nodes-base.postgres",
    "typeVersion": 2.5,
@@ -810,7 +955,7 @@
    }
   },
   {
-   "id": "w19-33",
+   "id": "w19-41",
    "name": "Autorenew: respond",
    "type": "n8n-nodes-base.respondToWebhook",
    "typeVersion": 1.1,
@@ -827,7 +972,7 @@
    }
   },
   {
-   "id": "w19-34",
+   "id": "w19-42",
    "name": "Autorenew: switched off just now?",
    "type": "n8n-nodes-base.if",
    "typeVersion": 2,
@@ -858,7 +1003,7 @@
    }
   },
   {
-   "id": "w19-35",
+   "id": "w19-43",
    "name": "Autorenew: WhatsApp confirmation (template)",
    "type": "n8n-nodes-base.code",
    "typeVersion": 2,
@@ -872,7 +1017,7 @@
    }
   },
   {
-   "id": "w19-36",
+   "id": "w19-44",
    "name": "WhatsApp: broker_autorenew_off",
    "type": "n8n-nodes-base.executeWorkflow",
    "typeVersion": 1.2,
@@ -895,7 +1040,7 @@
    "notesInFlow": true
   },
   {
-   "id": "w19-37",
+   "id": "w19-45",
    "name": "W22: card auto-renew off (disable Paystack plan if any)",
    "type": "n8n-nodes-base.executeWorkflow",
    "typeVersion": 1.2,
@@ -918,7 +1063,7 @@
    "notesInFlow": true
   },
   {
-   "id": "w19-38",
+   "id": "w19-46",
    "name": "Note",
    "type": "n8n-nodes-base.stickyNote",
    "typeVersion": 1,
@@ -1028,7 +1173,7 @@
     ],
     [
      {
-      "node": "WhatsApp + email: 'come back any time' (once, day 7)",
+      "node": "Come back: map to sender input",
       "type": "main",
       "index": 0
      }
@@ -1061,7 +1206,7 @@
    "main": [
     [
      {
-      "node": "WhatsApp: broker_cycle_end (renewal offer)",
+      "node": "Offer: map to sender input",
       "type": "main",
       "index": 0
      },
@@ -1073,7 +1218,34 @@
     ]
    ]
   },
+  "Offer: map to sender input": {
+   "main": [
+    [
+     {
+      "node": "WhatsApp: broker_cycle_end (renewal offer)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
   "Reminder text (reference in bold)": {
+   "main": [
+    [
+     {
+      "node": "Reminder: map to sender input",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "Email: renewal reminder from howzit@",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Reminder: map to sender input": {
    "main": [
     [
      {
@@ -1117,6 +1289,17 @@
    "main": [
     [
      {
+      "node": "Routing off: map ads lower input",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Routing off: map ads lower input": {
+   "main": [
+    [
+     {
       "node": "Ads module: lower budget by media_share_zar",
       "type": "main",
       "index": 0
@@ -1146,7 +1329,23 @@
     ],
     [
      {
+      "node": "Pay link: map to sender input",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Pay link: map to sender input": {
+   "main": [
+    [
+     {
       "node": "WhatsApp + email: pay link (card failed / cycle ended)",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "Email: pay link from howzit@",
       "type": "main",
       "index": 0
      }
@@ -1208,7 +1407,7 @@
    "main": [
     [
      {
-      "node": "WhatsApp + email: pay link (card failed / cycle ended)",
+      "node": "Pay link: map to sender input",
       "type": "main",
       "index": 0
      }
@@ -1220,6 +1419,22 @@
     [
      {
       "node": "Cycle end: open invoice + card token",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Come back: map to sender input": {
+   "main": [
+    [
+     {
+      "node": "WhatsApp + email: 'come back any time' (once, day 7)",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "Email: 'come back any time' from howzit@",
       "type": "main",
       "index": 0
      }

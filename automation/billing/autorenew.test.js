@@ -179,6 +179,8 @@ test('renewal reminder template matches renewalReminderTemplate() and the W19 re
   const out = new Function('$input', '$env', 'require', n.parameters.jsCode)({ all: () => rows.map((json) => ({ json })) }, {}, require);
   assert.equal(out[0].json.template.name, t.name);
   assert.equal(out[0].json.template.body.length, nVars);
-  assert.deepEqual(next(wf('W19'), n.name), ['WhatsApp + email: renewal reminder']);
+  // I-48g: the reminder goes through a mapping node to the sender; the email leg stays in W19.
+  assert.deepEqual(next(wf('W19'), n.name).sort(), ['Email: renewal reminder from howzit@', 'Reminder: map to sender input']);
+  assert.deepEqual(next(wf('W19'), 'Reminder: map to sender input'), ['WhatsApp + email: renewal reminder']);
   assert.match(fs.readFileSync(path.join(ROOT, 'automation/templates/samples/broker_renewal_reminder.txt'), 'utf8'), /Manage auto-renew -> https:\/\/app\.leadvelocity\.co\.za\/s\/billing/);
 });
