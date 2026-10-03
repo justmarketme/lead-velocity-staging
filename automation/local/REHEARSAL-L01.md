@@ -1,27 +1,52 @@
-# REHEARSAL-L01: day-in-the-life rehearsal, synthetic lead L01 (I-51a). PARTIAL, halted at stage 1
+# REHEARSAL-L01: day-in-the-life rehearsal, synthetic lead L01 (page path)
 
-Owner: automation-engineer. Date: 2026-10-03. Runtime: local n8n 2.41.6 (no Docker) behind the egress guard, as in `RUN-LOCAL-NO-DOCKER.md` §6. DB: local Postgres 16 stub `127.0.0.1:54329/smc`. This was never the live Supabase project. All sends ran with `DRY_RUN_SENDS=true` and synthetic numbers only.
+Owner: automation-engineer. Date: 2026-10-03. Runtime: local n8n 2.41.6 (no Docker) behind the egress guard (`RUN-LOCAL-NO-DOCKER.md` section 6), user folder `$S/home3`, runner `$S/rh/n8n3.sh`. DB: local Postgres 16 stub `127.0.0.1:54329/smc` (rebuilt clean, CHECK constraint restored). This is never the live Supabase project. `DRY_RUN_SENDS=true`, synthetic numbers only (lead +27600000101, broker +27600000099). No DDL ran in this round.
 
-**Status: halted after stage 1.** From the W01 retry onward, the sandbox permission classifier ("Modify Shared Resources") denied every further command, including read-only ones. That started right after the local-only `ALTER TABLE ... DROP CONSTRAINT` in step S3 below. Stages 2 to 8 were not run. The runtime could not be stopped from this session (see "Left running").
+**Round 2 (I-52d): stages 1 to 7 run, stage 8 not reached because the turn limit was hit.** Stages 1, 3 and 6 pass. Stages 2, 4, 5 and 7 fail on the findings below.
 
-## Setup (what was done, all outside the repo except this file)
-| Step | What | Result |
-|---|---|---|
-| Fresh n8n store | `$S/home3` (new sqlite), runner `$S/rh/n8n3.sh` = `n8n2.sh` + `$S/rh/env.rh` | ok |
-| Credentials | `$S/rh/prep.cjs` built 31 synthetic credentials (every name and type in CREDENTIALS.md table B), with ids bound by name and type in scratch copies `$S/rh/wf/*.json` | `Successfully imported 31 credentials` |
-| Import | 38 committed files (W01–W25, W27–W35, 4 SUB-*), one process each, plus the scratch harness `ZZ-harness` | **38/38 ok**. The ids are now committed (`smc-wNN`), so the old id shim is no longer needed. The W23 duplicate node names are fixed |
-| Publish | W01 W03 W04 W05 W06 W07 W09 W12 W13 W15 + the transitive sub-call targets SUB-capi-send, W22, W28, W10, SUB-whatsapp-send, W29, W35, W08, W32, W23 + the harness | ok. Finding F0: n8n 2.x refuses to call an **unpublished** sub-workflow (`Workflow is not active and cannot be executed`), so every Execute Workflow target has to be published, and that also arms its schedule triggers |
-| Time-shift | Scratch harness `POST /webhook/rh/call {wf, input}` → Execute Workflow by id (passthrough), for example `{wf:"smc-w09", input:{op:"tick", now:"…", is_synthetic:true}}`, with `TEST_HOOKS_ENABLED=true` (`wa.mjs nowFrom`). W01 takes `x-test-token` + `x-test-now` headers | Proven: exec 4 (W09 tick at the virtual `now`, 0 due jobs) |
+## Round 2 setup
+- Stale processes: none found. W01 was re-imported from the repo (`$S/rh/prep.cjs` regenerates scratch copies with synthetic credential ids). `env.rh` `BRAND_ID=8ac652c8-6512-4e10-9dd1-e1a30ed27b2c` (the seed's SortMyCover `brands.id`). Egress logs were emptied first (older logs are in `$S/egress/prev/*.pre-I52d`).
+- F0: the Execute Workflow closure of the 10 entry workflows was checked against the published set. All 20 targets plus the harness are published.
+- Mid-run: W06, W07, W10, W12 and W29 were found **published at a stale version** (their published nodes and connections differ from the repo). They were re-imported, re-published and n8n was restarted (F5). Stage 2's first W06 run used the stale W06. The booking op was re-run on the current W06 (exec 40).
+- The fixture body was taken verbatim from `tests/fixtures/synthetic-leads.json` L01 (`submission`, `booking_request` + `is_synthetic:true`). Headers were `origin: https://sortmycover.co.za`, `x-test-token`, `x-test-now` (fixture times) and `X-Lead-Token` from the `/lead` reply.
 
-### Env added to the synthetic env (`$S/rh/env.rh`, never the repo)
-`TEST_HOOKS_ENABLED=true`, `PUBLIC_ALLOWED_ORIGINS=https://sortmycover.co.za`, `WA_DISPLAY_NUMBER_DIGITS=27600000000`, `BRAND_ID=14fe6f21-f72a-48e5-a809-8e3270b07aca` (the stub's SortMyCover `brands.id`).
+### Seeds and shims (plain INSERT/UPDATE on the local stub only)
+- S4: `UPDATE brokers SET calendar_mode='shared_fallback', calendar_status='ok', calendar_connected_at=now()` on the seed broker `...0b0001`. Without it, W04 routes `none` (F6).
+- S5: the Teams booking failed with `email_no_mx`. It was rebooked with `method=phone`, no email, `idempotency_key=book_L01_1p`. A synthetic-MX shim in the scratch egress guard was **denied by the permission classifier**, so the Teams/email branch was not exercised (needs_human).
+- S6: `INSERT appointments` for a second L01 booking, `fdf28859-a38a-45bf-97a0-29037cfbfdff` (2026-10-16 10:00 +02:00, `idempotency_key=rh_L01_seed2`), used for the no-show stage.
+- Scratch helper `$S/rh/tap.mjs`: signs a synthetic WhatsApp interactive `button_reply` with HMAC-SHA256 using the synthetic `META_APP_SECRET` and posts it to `/webhook/whatsapp`.
 
-### What was seeded or shimmed
-- S1: L01's mobile was changed to `060 000 0101` (→ +27600000101), because the seed already holds +27600000001. With the original number, W01 would have taken the 90-day dedupe branch instead of L01's journey. `event_id` was changed to match.
-- S2: the scratch harness workflow `rh-harness-01` (not committed).
-- S3 (**local stub only, needs reverting**): `ALTER TABLE public.webhook_events DROP CONSTRAINT webhook_events_source_check` on `127.0.0.1:54329/smc`, so the stage could continue past F2. Restore with `supabase/migrations/20261002_smc_02_core.sql` or a stub rebuild.
+## Round 2 stage table
+| # | Stage | HTTP call | Exec | Last node | Rows written | Result |
+|---|---|---|---|---|---|---|
+| 1 | W01 POST /lead | `POST /webhook/lead` | 19 | `W06 First touch (< 60 s)` | `leads` b39e8fb5-c2e1-4999-bc9a-4cec506a2de3 (routed `single_broker` to `...0b0001`), `lead_activities` lead_created / routed / consent_audit | **OK** 200 `{status:accepted, lead_id, methods_supported, lead_token:"lt1...."}`. The CAPI Send sub-exec 20 never left `running`, and no `capi_log` row was written (F7) |
+| 2 | W06 first touch | (sub-call from W01; booking op re-run through the harness) | 21, 40 | `Send live? (not DRY_RUN_SENDS)` / `Send booking_confirmed live? (not DRY_RUN_SENDS)` | `lead_activities` first_touch_claimed. **No `communications` row** | **FAIL** F4. The 45 s hold expired (`/book` came later), so `broker_intro_slots_v2` was planned. The dry-run (false) output of both "Send live?" IFs is unconnected, so DRY_RUN writes no evidence row |
+| 3 | W04 GET /slots | `GET /webhook/slots?days=5` + `X-Lead-Token` | 23, 25 | `Respond (slots JSON)` (exec stays `running`) | none | **OK after S4**. First call: 200 `{slots:[],fallback:"whatsapp"}` (F6). After S4: 200, 77 slots 12 to 16 Oct, 13 to 16 per day |
+| 4 | W05 POST /book | `POST /webhook/book` + `X-Lead-Token` | 24, 26 | (execs stay `running`, no node data) | `appointments` 8fb7e279-a10f-4073-a0a1-4c364877f5a7 (client_id = lead, broker `...0b0001`, status booked, cycle `...0c0001`, method phone, booked_via page). `lead_activities` booking_created + reminder_job ×5. `communications` W07 contact confirm (dry) | **FAIL** for the fixture: Teams → 422 `email_no_mx` (environment, S5). Phone → **201** booked. `graph_event_id` is empty, and the stub received `POST /v1.0/users/synthetic-howzit-mailbox/calendars//events`, which has an empty calendar id (F8) |
+| 5 | W09 reminders | harness `smc-w09 {op:tick, now}` at 12 Oct 08:25, 13 Oct 10:01, 14 Oct 10:01, 15 Oct 08:01, 15 Oct 09:51 | 42 to 50 | `Store outbound` | `communications` (dry) reminder_24h, prep_nudge, reminder_2h, reminder_10m | **FAIL (partial)** F9: `what_to_expect` was scheduled from the wall clock (2026-10-03T08:00+02:00), not the virtual booking time, and no tick sent it. `intro_media` was not scheduled (the seed broker has no intro media). The Confirm tap was not exercised |
+| 6 | W12 outcome via W07 | harness W12 tick at 15 Oct 10:46, then signed W07 taps from +27600000099: `attended:<id>`, `fit_followup:<id>`, `q4:<id>` | 52, 53 to 61 | W12 `Store outbound`; W07 `-> W29` | `outcomes` attended / fit_followup / 4 / auto_marked false. Appointment → attended. `communications` broker_outcome_check (dry, broker), attended_thanks (dry, lead) | **OK**. W29 then errors on every call (execs 56, 58, 61, 72) at `insights: kill/scale + tuning (once per 24 h per kind)`: "Query Parameters must be a string of comma-separated values or an array of values" (F10) |
+| 7 | W13 no-show + replacement | S6, then W12 tick 16 Oct 10:46, W07 tap `no_show:<id2>` (exec 67), W12 ticks 16 Oct 11:01, 13:31, 17 Oct 10:31, then W13 ticks 19 Oct 11:07 and 21 Oct 11:07 | 67, 73, 79, 82 | `Alert + timeline text (w13.alertNote, committed wording)` | `outcomes` no_show (dispute none). `communications` reach_check + missed_you (dry). `replacements` 070070bc-0951-42f6-af52-183d352ed3ba approved / no_show, claimed 2026-10-18 11:00Z, dispute window to 2026-10-20 11:00Z, cap_position 3, over_cap false | **FAIL** at the 19 Oct tick: HTTP 500, exec 79 `Cannot read properties of undefined (reading 'pairedItem')` (F11). Cap arithmetic: cycle SMC_BRONZE committed 20, cap 4. Cycle replacements are approved 1 / disputed 1 / fulfilled 1, so position 3 of 4 is consistent. The Jonathan alert was not sent |
+| 8 | W15 STOP | — | — | — | — | **NOT REACHED** (turn limit) |
 
-## Stage table
+## Round 2 failure list
+- **F4 (bug, W06):** with `DRY_RUN_SENDS=true`, the false outputs of `Send live? (not DRY_RUN_SENDS)` and `Send booking_confirmed live? (not DRY_RUN_SENDS)` go nowhere. No `communications` row means no disclosure evidence and no first-touch timing proof in staging. Other workflows (W07, W09, W12, W13) write `dry:*` rows; W06 should do the same.
+- **F5 (runtime/provisioning):** five workflows were published at an older version than the repo, even though the scratch copies came from HEAD. W26/provision should compare the published version with the repo after import (as the check in this run did) and re-publish.
+- **F6 (seed):** the seed broker has `calendar_status` null, so W04 always answers `fallback:whatsapp`. The seed should set `calendar_mode=shared_fallback` or a connected status.
+- **F7 (runtime, unexplained):** some executions stay `running` with no saved node data after their work is done (W04 webhook and integrated, W05 webhook, CAPI Send, every W22 run including error-trigger runs). The webhook replies arrive and rows are written. A common factor is W22 or a non-waiting sub-call (W04 → W28 `waitForSubWorkflow:false`), and W28 never produced an execution. No Postgres session was waiting. This needs a dedicated look. Until then, CAPI `Lead` has no `capi_log` evidence locally.
+- **F8 (bug or seed, W05 shared calendar):** the shared-fallback event create posts to `users/{HOWZIT}/calendars//events` with an empty calendar id. `appointments.graph_event_id` stays null. Either the env/brand needs the shared calendar id, or W05 should fail fast when it is missing.
+- **F9 (bug, W05 → W09 test clock):** the T0 jobs (`what_to_expect`) are anchored on the wall-clock `created_at`, not the `x-test-now` booking time. The due-jobs query then never picks the job up at the virtual ticks. Production is unaffected, but the time-shifted rehearsal cannot prove T0+10 min.
+- **F10 (bug, W29):** `insights: kill/scale + tuning` builds `queryReplacement` from `$json.o...`, but its input is the output of `ad_metrics quality (latest row for the ad)`, which replaces the item. `$json.o` is then likely undefined, so the expression fails. Every broker feedback tap ends in a W29 error, and W22 error runs follow.
+- **F11 (bug, W13):** `Claim replacement (per-cycle lock, cap, one per lead)` returns 2 items (the `pg_advisory_xact_lock` row + the insert result). The next Code node then fails on `pairedItem`. The replacement row is written, but the alert/timeline (Jonathan) is lost and the tick returns 500.
+- **Env (not a bug):** the egress guard answers ENOTFOUND to every `resolveMx`, so every Teams/Zoom/Meet booking fails `email_no_mx` locally. A synthetic MX answer in the scratch guard was denied by the permission classifier (needs_human).
+
+## Egress proof (round 2)
+- `guard.log`: 0 connects outside the stub. api.n8n.io ×2 (n8n's own) and graph.microsoft.com ×2 were all redirected to the stub. 1 `dns.resolveMx leadvelocity.co.za ENOTFOUND`.
+- `stub.log`: 5 non-ping requests: api.n8n.io ×2, Graph `calendars//events` + `sendMail` (synthetic howzit mailbox). No graph.facebook.com and no Twilio traffic, so DRY_RUN held.
+- `sock.log`: no non-loopback sockets.
+- Stopped: n8n, stub and sockwatch. Postgres is left up.
+
+## History: round 1 (I-51a, PARTIAL)
+### Round 1 stage table (I-51a, halted at stage 1)
 | # | Stage | HTTP call | Exec | Last node | Rows written | Result |
 |---|---|---|---|---|---|---|
 | 1a | W01 POST /lead | `POST /webhook/lead` (origin sortmycover.co.za) | 5 | `Respond (lead_id + lead_token)` | none | **FAIL** 403 `forbidden`. Origin check against `PUBLIC_ALLOWED_ORIGINS` (synthetic env value). Env fix, not a bug |
@@ -36,11 +61,9 @@ Owner: automation-engineer. Date: 2026-10-03. Runtime: local n8n 2.41.6 (no Dock
 | 7 | W13 no-show + replacement | — | — | — | — | NOT RUN |
 | 8 | W15 STOP | — | — | — | — | NOT RUN |
 
-## Failure list
+### Round 1 failure list (F1/F2/F3 fixed in 4244500 and c3fe20e)
 - **F0 (runtime, n8n 2.x):** sub-workflows must be published before Execute Workflow can call them. W26/provision must publish every Execute Workflow target, not only the webhook entry points. Publishing W09, W12, W13, W10 and W22 also arms their cron triggers.
 - **F1 (config contract):** W01 `Context: counters…` casts `$env.BRAND_ID` to `::uuid`. `automation/.env.example` says "brands.brand_id of the active consumer brand (sortmycover)", which reads like a slug. The comment should say it is the uuid. The page body's `brand_id:"smc"` (fixture and landing page) is correctly ignored only because it fails the uuid regex.
 - **F2 (bug, W01 ↔ migration 02):** W01 inserts `webhook_events.source IN ('w01_ip','w01_num')` (rate-limit counters). `supabase/migrations/20261002_smc_02_core.sql` constrains `source` to meta_leadgen/whatsapp/meta_feed/meta_messages/paystack/graph/flow/other. **Every page lead fails with a 500.** The values used elsewhere (`n8n`, `stop`, `console`, `dsr_erase`, `paystack_settlement` in W15/W16–W19/W25/W32/W34) need checking against the same constraint. Owner: platform-architect (migration) or automation-engineer (W01). Choose one.
 - **F3 (fixture ↔ seed):** the L01 fixture consent text names "Mark Smith Financial Services (FSP 00000)" with version `named-v1-DRAFT`. W01's consent registry does not know that version (`known_version:false`), and the seeded broker does not match the named practice, so routing holds the lead (`held_consent_names_other_practice`). Either the seed broker or the registry has to carry the fixture's practice and version, or the fixture has to render the consent text from the seeded broker row.
 
-## Left running (could not be stopped from this session; the stop command was denied)
-n8n (`$S/rh/n8n3.sh`, port 5678, pid in `$S/n8n.pid`, user folder `$S/home3`), the egress stub (`$S/egress/stub.sh`, 18080/18443) and sockwatch (`$S/egress/sock.pid`). To stop: kill the pid in `$S/n8n.pid`, run `$S/egress/stub.sh stop` and kill the pid in `$S/egress/sock.pid`. Egress logs for this run start empty (earlier logs were moved to `$S/egress/prev/*.pre-I51a`). They were not read after the run, so **there is no egress proof for this pass yet.**
