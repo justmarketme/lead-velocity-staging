@@ -708,6 +708,102 @@
     },
     {
       "id": "n24",
+      "name": "Dry run: stand-in response (broker WhatsApp, dry:w15:broker_wa:{lead_id})",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        -600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const f = $json;\nreturn [{ json: { messaging_product: 'whatsapp', dry_run: true, messages: [{ id: 'dry:w15:broker_wa:' + String(f.lead_id) }] } }];"
+      }
+    },
+    {
+      "id": "n25",
+      "name": "Dry run: stand-in response (broker email, dry:w15:broker_email:{lead_id})",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        -800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const f = $json;\nreturn [{ json: { dry_run: true, statusCode: 202, dry_id: 'dry:w15:broker_email:' + String(f.lead_id) } }];"
+      }
+    },
+    {
+      "id": "n26",
+      "name": "Dry run: stand-in response (confirmation, dry:w15:confirm:{lead_id})",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        -1000
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const f = $json;\nreturn [{ json: { messaging_product: 'whatsapp', dry_run: true, messages: [{ id: 'dry:w15:confirm:' + String(f.lead_id) }] } }];"
+      }
+    },
+    {
+      "id": "n27",
+      "name": "Log broker WhatsApp notice (communications; live wamid or dry:)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2420,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- I-54b (F14): same row live or dry (external_id dry:w15:broker_wa:<lead_id>); template_category lower-case (communications_smc_checks, F12).\nINSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, author, workflow, template_name, template_category, metadata)\nSELECT l.brand_id, 'whatsapp', 'outbound', 'system', 'broker', $2, $3, 'sent', $4, l.id, 'system', 'W15', NULLIF($5, ''), CASE WHEN $5 <> '' THEN 'utility' END,\n       jsonb_build_object('kind', 'opt_out_broker_notice', 'dry_run', $4 LIKE 'dry:%')\n  FROM public.leads l WHERE l.id = $1::uuid AND $4 <> ''\nON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ (() => { const f = $('Fan-out kind?').item.json; const w = f.wa || {}; const t = w.type === 'template' ? (w.template || {}).name || '' : ''; return [f.lead_id, w.to || '', w.type === 'text' ? ((w.text || {}).body || '') : '[template ' + t + ']', ($json.messages && $json.messages[0] && $json.messages[0].id) || '', t]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n28",
+      "name": "Log broker email notice (communications; live or dry:)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2420,
+        200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- I-54b (F14): Graph sendMail returns 202 with no id, so a live row has external_id NULL; a dry run carries dry:w15:broker_email:<lead_id>.\nINSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, author, workflow, metadata)\nSELECT l.brand_id, 'email', 'outbound', 'system', 'broker', $2, $3, 'sent', NULLIF($4, ''), l.id, 'system', 'W15',\n       jsonb_build_object('kind', 'opt_out_broker_notice', 'subject', $5::text, 'dry_run', $4 LIKE 'dry:%')\n  FROM public.leads l WHERE l.id = $1::uuid AND ($6::int BETWEEN 200 AND 299 OR $4 LIKE 'dry:%')\nON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ (() => { const f = $('Fan-out kind?').item.json; return [f.lead_id, f.to, f.text, $json.dry_id || '', f.subject || '', Number($json.statusCode || 0)]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n29",
       "name": "Live send? (confirmation)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -739,7 +835,7 @@
       }
     },
     {
-      "id": "n25",
+      "id": "n30",
       "name": "Send WhatsApp (the one confirmation)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -780,7 +876,7 @@
       "waitBetweenTries": 3000
     },
     {
-      "id": "n26",
+      "id": "n31",
       "name": "Log confirmation + touch leads.last_contact_at (lead outbound)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -790,7 +886,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "-- I-38d / CONTRACTS.md: a lead-facing send Meta accepted (wamid) touches last_contact_at. Dry runs never reach here.\nWITH c AS (\n  INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, author, workflow, metadata)\n  SELECT l.brand_id, 'whatsapp', 'outbound', 'system', 'client', $2, $3, 'sent', $4, l.id, 'system', 'W15', jsonb_build_object('kind', 'opt_out_confirmation')\n    FROM public.leads l WHERE l.id = $1::uuid AND $4 <> ''\n  ON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING\n  RETURNING id)\nUPDATE public.leads SET last_contact_at = now() WHERE id = $1::uuid AND $4 <> '' RETURNING id;",
+        "query": "-- I-38d / CONTRACTS.md: a lead-facing send Meta accepted (wamid) touches last_contact_at. Dry runs write the same row (dry: id) but never touch last_contact_at (I-54b).\nWITH c AS (\n  INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, author, workflow, metadata)\n  SELECT l.brand_id, 'whatsapp', 'outbound', 'system', 'client', $2, $3, 'sent', $4, l.id, 'system', 'W15', jsonb_build_object('kind', 'opt_out_confirmation', 'dry_run', $4 LIKE 'dry:%')\n    FROM public.leads l WHERE l.id = $1::uuid AND $4 <> ''\n  ON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING\n  RETURNING id)\nUPDATE public.leads SET last_contact_at = now() WHERE id = $1::uuid AND $4 <> '' AND $4 NOT LIKE 'dry:%' RETURNING id;",
         "options": {
           "queryReplacement": "={{ (() => { const f = $('Fan-out kind?').item.json; return [f.lead_id, f.to, f.text, ($json.messages && $json.messages[0] && $json.messages[0].id) || '']; })() }}"
         }
@@ -807,7 +903,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n27",
+      "id": "n32",
       "name": "Live send? (SMS confirmation)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -839,7 +935,7 @@
       }
     },
     {
-      "id": "n28",
+      "id": "n33",
       "name": "Twilio SMS (the one confirmation)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -890,7 +986,7 @@
       "waitBetweenTries": 5000
     },
     {
-      "id": "n29",
+      "id": "n34",
       "name": "Log broker notice held (no template yet; email carries it)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1140,6 +1236,35 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Dry run: stand-in response (broker WhatsApp, dry:w15:broker_wa:{lead_id})",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp (broker notice)": {
+      "main": [
+        [
+          {
+            "node": "Log broker WhatsApp notice (communications; live wamid or dry:)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry run: stand-in response (broker WhatsApp, dry:w15:broker_wa:{lead_id})": {
+      "main": [
+        [
+          {
+            "node": "Log broker WhatsApp notice (communications; live wamid or dry:)",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -1151,6 +1276,35 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Dry run: stand-in response (broker email, dry:w15:broker_email:{lead_id})",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email broker from howzit@ (Graph sendMail)": {
+      "main": [
+        [
+          {
+            "node": "Log broker email notice (communications; live or dry:)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry run: stand-in response (broker email, dry:w15:broker_email:{lead_id})": {
+      "main": [
+        [
+          {
+            "node": "Log broker email notice (communications; live or dry:)",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -1159,6 +1313,24 @@
         [
           {
             "node": "Send WhatsApp (the one confirmation)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dry run: stand-in response (confirmation, dry:w15:confirm:{lead_id})",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry run: stand-in response (confirmation, dry:w15:confirm:{lead_id})": {
+      "main": [
+        [
+          {
+            "node": "Log confirmation + touch leads.last_contact_at (lead outbound)",
             "type": "main",
             "index": 0
           }

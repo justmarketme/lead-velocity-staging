@@ -363,3 +363,41 @@ test('W15 node "Entry": Twilio SMS STOP and console opt-out are accepted; a book
   const [tap] = await runCode(RUN, N.entry, { items: [{ source: 'whatsapp', route: 'W10', msg: { from: '27600000110', text: 'Cancel' } }] });
   assert.equal(tap.json.stop, false);
 });
+
+test('I-54b F14 W15.json: DRY_RUN_SENDS leaves the same communications evidence as a live send (dry: ids), and never touches last_contact_at', async () => {
+  const conn = (from, out = 0) => (WF.connections[from]?.main[out] || []).map((e) => e.node);
+  const pgNode = (name) => WF.nodes.find((n) => n.name === name && n.type === 'n8n-nodes-base.postgres');
+  const cases = [
+    ['Live send? (broker WhatsApp)', 'Dry run: stand-in response (broker WhatsApp, dry:w15:broker_wa:{lead_id})', 'Log broker WhatsApp notice (communications; live wamid or dry:)', 'Send WhatsApp (broker notice)', 'dry:w15:broker_wa:'],
+    ['Live send? (broker email)', 'Dry run: stand-in response (broker email, dry:w15:broker_email:{lead_id})', 'Log broker email notice (communications; live or dry:)', 'Email broker from howzit@ (Graph sendMail)', 'dry:w15:broker_email:'],
+    ['Live send? (confirmation)', 'Dry run: stand-in response (confirmation, dry:w15:confirm:{lead_id})', 'Log confirmation + touch leads.last_contact_at (lead outbound)', 'Send WhatsApp (the one confirmation)', 'dry:w15:confirm:'],
+  ];
+  for (const [ifName, dryName, logName, sendName, prefix] of cases) {
+    assert.deepEqual(conn(ifName, 0), [sendName], `${ifName} true -> live send`);
+    assert.deepEqual(conn(ifName, 1), [dryName], `${ifName} false (DRY_RUN_SENDS) is connected`);
+    assert.deepEqual(conn(dryName), [logName], 'dry stand-in -> the same evidence node');
+    assert.ok(conn(sendName).includes(logName), 'live send -> the same evidence node');
+    const [o] = await runCode(RUN, dryName, { json: { lead_id: 'lead_x', kind: 'x' } });
+    const id = o.json.messages?.[0]?.id ?? o.json.dry_id;
+    assert.equal(id, `${prefix}lead_x`);
+    assert.ok(pgNode(logName).parameters.query.includes('public.communications'));
+  }
+  // lower-case category (F12) and the CHECK-listed vocabulary only
+  const q = pgNode('Log broker WhatsApp notice (communications; live wamid or dry:)').parameters.query;
+  assert.match(q, /CASE WHEN \$5 <> '' THEN 'utility' END/);
+  assert.ok(!/'(UTILITY|MARKETING|SERVICE|AUTHENTICATION)'/.test(q));
+  assert.match(pgNode('Log confirmation + touch leads.last_contact_at (lead outbound)').parameters.query, /last_contact_at = now\(\) WHERE id = \$1::uuid AND \$4 <> '' AND \$4 NOT LIKE 'dry:%'/);
+  assert.deepEqual(checkSql(workflowSql(WF)), []);
+  // the params evaluate with a dry stand-in: wamid dry:..., template name for a template notice, session text body otherwise
+  const tpl = { lead_id: 'lead_x', wa: { to: '27600000001', type: 'template', template: { name: 'broker_booking_changed' } } };
+  const prm = JSON.parse(JSON.stringify(evalExpr(pgNode('Log broker WhatsApp notice (communications; live wamid or dry:)').parameters.options.queryReplacement, { messages: [{ id: 'dry:w15:broker_wa:lead_x' }] }, { 'Fan-out kind?': tpl })));
+  assert.deepEqual([prm[0], prm[3], prm[4]], ['lead_x', 'dry:w15:broker_wa:lead_x', 'broker_booking_changed']);
+  const txt = evalExpr(pgNode('Log broker WhatsApp notice (communications; live wamid or dry:)').parameters.options.queryReplacement, { messages: [{ id: 'wamid.1' }] }, { 'Fan-out kind?': { lead_id: 'l', wa: { to: '1', type: 'text', text: { body: 'hello' } } } });
+  assert.deepEqual([txt[2], txt[4]], ['hello', '']);
+});
+
+function evalExpr(expr, json, refs) {
+  const m = /^=\{\{([\s\S]*)\}\}$/.exec(String(expr).trim());
+  const $ = (k) => ({ item: { json: refs[k] } });
+  return new Function('$json', '$', `return (${m[1]});`)(json, $);
+}

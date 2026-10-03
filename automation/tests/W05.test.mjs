@@ -451,3 +451,24 @@ test('F8 W05.json shared calendar: empty id -> error item + alert, never an empt
   assert.match(save.parameters.options.queryReplacement, /u\.graph_event_id/);
   assert.throws(() => W5.graphEventUrl('shared', { sharedCalendarId: '' }), /shared_calendar_id_missing/);
 });
+
+test('I-54a F13 W05 -> W04: the is_free re-check carries {now, is_synthetic} only when Decide moved the clock (test_clock); production sends nothing extra', async () => {
+  const shifted = Date.parse('2026-12-01T08:00:00+02:00');
+  const lead1 = { id: 'lead-f13', first_name: 'Lerato', phone: '+27600000001', is_synthetic: true, broker_id: 'b1' };
+  const brokerRow = { ...clone(broker()), calendar_status: 'ok' };
+  const slot = '2026-12-08T10:00:00+02:00';
+  const mk = (test_clock, now) => W5.decide({ lane: 'sub', req: { op: 'book', lead_id: lead1.id, slot_start: slot, method: 'phone', booked_via: 'list', idempotency_key: 'k-f13', context: {} }, lead: lead1, broker: brokerRow, existing: null, live: null, mx: {}, now, test_clock });
+  const on = mk(true, shifted);
+  assert.equal(on.action, 'check');
+  assert.equal(on.is_free.is_synthetic, true);
+  assert.equal(Date.parse(on.is_free.now), shifted);
+  const off = mk(false, shifted);
+  assert.ok(!('now' in off.is_free) && !('is_synthetic' in off.is_free));
+  // end to end through W04: accepted past wall+14d with hooks, wall-relative (slot_taken) without
+  const sub = W4.subcallInput(on.is_free);
+  const run = (now) => W4.respond({ lane: 'sub', req: sub, broker: brokerRow, bookings: [], busy: [], route: 'graph', now, holidays: HOLIDAYS });
+  assert.equal(run(W4.subClockFor(sub, { TEST_HOOKS_ENABLED: 'true' })).free, true);
+  assert.equal(run(W4.subClockFor(sub, {})).free, false, 'same request without hooks stays on the wall clock');
+  assert.equal(run(W4.subClockFor(W4.subcallInput(off.is_free), { TEST_HOOKS_ENABLED: 'true' })).free, false, 'non-synthetic stays on the wall clock');
+  assert.ok(JSON.parse(readFileSync(new URL('../W04.json', import.meta.url), 'utf8')).nodes.find((n) => n.name === 'Plan (w04.planRequest)').parameters.jsCode.includes('subClockFor'));
+});

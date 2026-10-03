@@ -198,3 +198,25 @@ test('W04.json: draft name, inactive, one Postgres credential, physical columns 
   const names = new Set(WF4.nodes.map((n) => n.name));
   for (const [k, v] of Object.entries(WF4.connections)) { assert.ok(names.has(k), k); for (const o of v.main) for (const e of o) assert.ok(names.has(e.node), e.node); }
 });
+
+test('I-54a F13 W04 sub-calls: {now, is_synthetic} is honoured only with TEST_HOOKS_ENABLED; otherwise (and for non-synthetic) the wall clock', async () => {
+  const { runCode: run } = await import('./_n8ncode.mjs');
+  const shifted = Date.parse('2026-12-01T08:00:00+02:00'); // far past wall-clock + 14 d
+  const start = '2026-12-08T10:00:00+02:00';
+  const syn = W4.subcallInput({ op: 'is_free', broker_id: B.broker_id, start, now: new Date(shifted).toISOString(), is_synthetic: true });
+  assert.equal(syn.is_synthetic, true); assert.equal(syn.now, new Date(shifted).toISOString());
+  const nonSyn = W4.subcallInput({ op: 'is_free', broker_id: B.broker_id, start, now: new Date(shifted).toISOString() });
+  assert.ok(!('now' in nonSyn) && !('is_synthetic' in nonSyn), 'a caller that is not synthetic never carries a clock');
+  const plan = async (req, env) => (await run(WF4, 'Plan (w04.planRequest)', { json: { lane: 'sub', req, hdr: {}, lead: null, broker: B, bookings: [] }, env }))[0].json.now;
+  assert.equal(await plan(syn, { TEST_HOOKS_ENABLED: 'true' }), shifted, 'hooks on + synthetic -> shifted clock');
+  const wall = await plan(syn, {});
+  assert.ok(Math.abs(wall - Date.now()) < 60000, 'no hooks -> wall clock');
+  const wall2 = await plan({ ...syn, is_synthetic: false }, { TEST_HOOKS_ENABLED: 'true' });
+  assert.ok(Math.abs(wall2 - Date.now()) < 60000, 'not synthetic -> wall clock');
+  assert.equal(W4.subClockFor(syn, { TEST_HOOKS_ENABLED: 'true' }, 5), shifted);
+  assert.equal(W4.subClockFor({ ...syn, now: 'garbage' }, { TEST_HOOKS_ENABLED: 'true' }, 5), 5);
+  // behaviour: is_free for a slot > 14 d past wall clock is free on the shifted clock, taken on the wall clock
+  const free = (now) => W4.respond({ lane: 'sub', req: syn, broker: B, bookings: [], busy: [], route: 'graph', now, holidays: HOLIDAYS });
+  assert.equal(free(shifted).free, true);
+  assert.equal(free(Date.now()).free, false);
+});

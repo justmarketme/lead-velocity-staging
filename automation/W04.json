@@ -363,7 +363,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w04;\nconst x = $input.first().json;\nconst now = L.clockFor(x.hdr || {}, $env, !!(x.lead && x.lead.is_synthetic));\nconst plan = L.planRequest(x);\nconst b = L.brokerConfig(x.broker || {});\nconst gs = plan.next === 'graph' ? L.getScheduleRequest(b, now, { fresh: !!x.req.fresh }) : null;\nconst tk = plan.next === 'graph' ? L.tokenRefreshForm({ clientId: $env.MS_GRAPH_CLIENT_ID, tenant: b.ms_tenant_id || $env.MS_GRAPH_TENANT }) : null;\nconst stale = !b.calendar_status_at || now - Date.parse(b.calendar_status_at) > 86400000;\nreturn [{ json: { ...x, now, plan, gs, tk, stale, token_only: !!plan.token_only, busy: plan.route === 'shared' ? [] : null } }];"
+        "jsCode": "const L = require('lv-automation').w04;\nconst x = $input.first().json;\nconst now = x.lane === 'sub' ? L.subClockFor(x.req, $env) : L.clockFor(x.hdr || {}, $env, !!(x.lead && x.lead.is_synthetic));\nconst plan = L.planRequest(x);\nconst b = L.brokerConfig(x.broker || {});\nconst gs = plan.next === 'graph' ? L.getScheduleRequest(b, now, { fresh: !!x.req.fresh }) : null;\nconst tk = plan.next === 'graph' ? L.tokenRefreshForm({ clientId: $env.MS_GRAPH_CLIENT_ID, tenant: b.ms_tenant_id || $env.MS_GRAPH_TENANT }) : null;\nconst stale = !b.calendar_status_at || now - Date.parse(b.calendar_status_at) > 86400000;\nreturn [{ json: { ...x, now, plan, gs, tk, stale, token_only: !!plan.token_only, busy: plan.route === 'shared' ? [] : null } }];"
       }
     },
     {

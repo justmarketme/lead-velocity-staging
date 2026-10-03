@@ -270,7 +270,7 @@ export function decide(ctx = {}) {
   const end = start + b.slot_minutes * MIN;
   return {
     action: 'check',
-    is_free: { op: 'is_free', broker_id: b.broker_id, start: iso(start), end: iso(end) },
+    is_free: { op: 'is_free', broker_id: b.broker_id, start: iso(start), end: iso(end), ...(ctx.test_clock ? { now: iso(ctx.now), is_synthetic: true } : {}) },
     plan: { lead_id: lead.id, broker_id: b.broker_id, start: iso(start), end: iso(end), method, email, email_status: emailStatus, ask_email: askEmail, booked_via: req.booked_via, idempotency_key: req.idempotency_key, previous_booking_id: req.previous_booking_id || null, context: req.context || {}, adviser_first: adviserFirst, route: calendarRoute(b) },
   };
 }

@@ -357,6 +357,8 @@ export function subcallInput(j = {}) {
   if (!broker_id) return { op: 'reject', reason: 'broker_id missing', lead_id };
   const exclude = j.exclude_booking_id || (j.booking && j.booking.id) || null;
   const out = { op, broker_id, lead_id, exclude_booking_id: exclude, fresh: op === 'is_free' || j.fresh === true };
+  // I-54a (F13): a time-shifted synthetic caller (W05 test_clock) forwards { now, is_synthetic }; honoured only by subClockFor (hooks on).
+  if (j.is_synthetic === true && j.now) { out.now = j.now; out.is_synthetic = true; }
   if (op === 'list') {
     out.limit = Number.isInteger(Number(j.limit)) && Number(j.limit) > 0 ? Math.min(Number(j.limit), 200) : null; // omitted -> full list (W28 needs it for CalendarPicker bounds)
     out.day = /^\d{4}-\d{2}-\d{2}$/.test(String(j.day || '')) ? j.day : null;
@@ -458,6 +460,15 @@ export function clockFor(headers = {}, env = {}, isSynthetic = false, wall = Dat
   if (String(env.TEST_HOOKS_ENABLED) !== 'true' || !isSynthetic || !env.TEST_HOOKS_TOKEN || get('x-test-token') !== env.TEST_HOOKS_TOKEN) return wall;
   const t = Date.parse(get('x-test-now'));
   return Number.isFinite(t) ? t : wall;
+}
+
+/** I-54a (F13): sub-call clock. { now, is_synthetic:true } is honoured only with TEST_HOOKS_ENABLED=true (same rule as wa.nowFrom); otherwise wall. */
+export function subClockFor(req = {}, env = {}, wall = Date.now()) {
+  if (String(env.TEST_HOOKS_ENABLED) === 'true' && req.is_synthetic === true && req.now) {
+    const t = Date.parse(req.now);
+    if (Number.isFinite(t)) return t;
+  }
+  return wall;
 }
 
 export const isUuidish = (s) => UUIDISH.test(String(s || ''));

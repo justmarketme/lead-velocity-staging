@@ -689,17 +689,40 @@ return out;`));
     sendBody: true, specifyBody: 'json', jsonBody: "={{ JSON.stringify({ message: { subject: $json.subject, body: { contentType: 'Text', content: $json.text }, toRecipients: [{ emailAddress: { address: $json.to } }] }, saveToSentItems: true }) }}",
     options: { timeout: 10000, response: { response: { neverError: true } } },
   }, { credentials: HOWZIT, retryOnFail: true, maxTries: 3, waitBetweenTries: 2000 }));
+  // I-54a/b (F14): DRY_RUN_SENDS skips only the network call. The false branch of each Live send? IF goes through a stand-in
+  // response (dry:w15:<kind>:<lead_id>) into the SAME evidence Postgres node a live send uses, as W06 does (I-53a).
+  n.push(code('Dry run: stand-in response (broker WhatsApp, dry:w15:broker_wa:{lead_id})', pos(10, -3), "const f = $json;\nreturn [{ json: { messaging_product: 'whatsapp', dry_run: true, messages: [{ id: 'dry:w15:broker_wa:' + String(f.lead_id) }] } }];"));
+  n.push(code('Dry run: stand-in response (broker email, dry:w15:broker_email:{lead_id})', pos(10, -4), "const f = $json;\nreturn [{ json: { dry_run: true, statusCode: 202, dry_id: 'dry:w15:broker_email:' + String(f.lead_id) } }];"));
+  n.push(code('Dry run: stand-in response (confirmation, dry:w15:confirm:{lead_id})', pos(10, -5), "const f = $json;\nreturn [{ json: { messaging_product: 'whatsapp', dry_run: true, messages: [{ id: 'dry:w15:confirm:' + String(f.lead_id) }] } }];"));
+  n.push(pg('Log broker WhatsApp notice (communications; live wamid or dry:)', pos(11, 0),
+`-- I-54b (F14): same row live or dry (external_id dry:w15:broker_wa:<lead_id>); template_category lower-case (communications_smc_checks, F12).
+INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, author, workflow, template_name, template_category, metadata)
+SELECT l.brand_id, 'whatsapp', 'outbound', 'system', 'broker', $2, $3, 'sent', $4, l.id, 'system', 'W15', NULLIF($5, ''), CASE WHEN $5 <> '' THEN 'utility' END,
+       jsonb_build_object('kind', 'opt_out_broker_notice', 'dry_run', $4 LIKE 'dry:%')
+  FROM public.leads l WHERE l.id = $1::uuid AND $4 <> ''
+ON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING
+RETURNING id;`,
+    "={{ (() => { const f = $('Fan-out kind?').item.json; const w = f.wa || {}; const t = w.type === 'template' ? (w.template || {}).name || '' : ''; return [f.lead_id, w.to || '', w.type === 'text' ? ((w.text || {}).body || '') : '[template ' + t + ']', ($json.messages && $json.messages[0] && $json.messages[0].id) || '', t]; })() }}"));
+  n.push(pg('Log broker email notice (communications; live or dry:)', pos(11, 1),
+`-- I-54b (F14): Graph sendMail returns 202 with no id, so a live row has external_id NULL; a dry run carries dry:w15:broker_email:<lead_id>.
+INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, author, workflow, metadata)
+SELECT l.brand_id, 'email', 'outbound', 'system', 'broker', $2, $3, 'sent', NULLIF($4, ''), l.id, 'system', 'W15',
+       jsonb_build_object('kind', 'opt_out_broker_notice', 'subject', $5::text, 'dry_run', $4 LIKE 'dry:%')
+  FROM public.leads l WHERE l.id = $1::uuid AND ($6::int BETWEEN 200 AND 299 OR $4 LIKE 'dry:%')
+ON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING
+RETURNING id;`,
+    "={{ (() => { const f = $('Fan-out kind?').item.json; return [f.lead_id, f.to, f.text, $json.dry_id || '', f.subject || '', Number($json.statusCode || 0)]; })() }}"));
   n.push(ifTrue('Live send? (confirmation)', pos(9, 2), "$env.DRY_RUN_SENDS !== 'true'"));
   n.push(waSend('Send WhatsApp (the one confirmation)', pos(10, 2)));
   n.push(pg('Log confirmation + touch leads.last_contact_at (lead outbound)', pos(11, 2),
-`-- I-38d / CONTRACTS.md: a lead-facing send Meta accepted (wamid) touches last_contact_at. Dry runs never reach here.
+`-- I-38d / CONTRACTS.md: a lead-facing send Meta accepted (wamid) touches last_contact_at. Dry runs write the same row (dry: id) but never touch last_contact_at (I-54b).
 WITH c AS (
   INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, author, workflow, metadata)
-  SELECT l.brand_id, 'whatsapp', 'outbound', 'system', 'client', $2, $3, 'sent', $4, l.id, 'system', 'W15', jsonb_build_object('kind', 'opt_out_confirmation')
+  SELECT l.brand_id, 'whatsapp', 'outbound', 'system', 'client', $2, $3, 'sent', $4, l.id, 'system', 'W15', jsonb_build_object('kind', 'opt_out_confirmation', 'dry_run', $4 LIKE 'dry:%')
     FROM public.leads l WHERE l.id = $1::uuid AND $4 <> ''
   ON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING
   RETURNING id)
-UPDATE public.leads SET last_contact_at = now() WHERE id = $1::uuid AND $4 <> '' RETURNING id;`,
+UPDATE public.leads SET last_contact_at = now() WHERE id = $1::uuid AND $4 <> '' AND $4 NOT LIKE 'dry:%' RETURNING id;`,
     "={{ (() => { const f = $('Fan-out kind?').item.json; return [f.lead_id, f.to, f.text, ($json.messages && $json.messages[0] && $json.messages[0].id) || '']; })() }}"));
   n.push(ifTrue('Live send? (SMS confirmation)', pos(9, 3), "$env.DRY_RUN_SENDS !== 'true'"));
   n.push(smsSend('Twilio SMS (the one confirmation)', pos(10, 3)));
@@ -727,8 +750,16 @@ ON CONFLICT (idempotency_key) DO NOTHING;`,
   link(c, 'Fan-out kind?', 'Log broker notice held (no template yet; email carries it)', 6);
   chain(c, 'W04 graph_token', 'Graph DELETE event');
   link(c, 'Live send? (broker WhatsApp)', 'Send WhatsApp (broker notice)', 0);
+  link(c, 'Live send? (broker WhatsApp)', 'Dry run: stand-in response (broker WhatsApp, dry:w15:broker_wa:{lead_id})', 1);
+  chain(c, 'Send WhatsApp (broker notice)', 'Log broker WhatsApp notice (communications; live wamid or dry:)');
+  chain(c, 'Dry run: stand-in response (broker WhatsApp, dry:w15:broker_wa:{lead_id})', 'Log broker WhatsApp notice (communications; live wamid or dry:)');
   link(c, 'Live send? (broker email)', 'Email broker from howzit@ (Graph sendMail)', 0);
+  link(c, 'Live send? (broker email)', 'Dry run: stand-in response (broker email, dry:w15:broker_email:{lead_id})', 1);
+  chain(c, 'Email broker from howzit@ (Graph sendMail)', 'Log broker email notice (communications; live or dry:)');
+  chain(c, 'Dry run: stand-in response (broker email, dry:w15:broker_email:{lead_id})', 'Log broker email notice (communications; live or dry:)');
   link(c, 'Live send? (confirmation)', 'Send WhatsApp (the one confirmation)', 0);
+  link(c, 'Live send? (confirmation)', 'Dry run: stand-in response (confirmation, dry:w15:confirm:{lead_id})', 1);
+  chain(c, 'Dry run: stand-in response (confirmation, dry:w15:confirm:{lead_id})', 'Log confirmation + touch leads.last_contact_at (lead outbound)');
   chain(c, 'Send WhatsApp (the one confirmation)', 'Log confirmation + touch leads.last_contact_at (lead outbound)');
   link(c, 'Live send? (SMS confirmation)', 'Twilio SMS (the one confirmation)', 0);
   return wf('smc-w15', 'W15 Opt-out (DRAFT pending GATE-TEST-W15)', n, c, ['SortMyCover', 'core-path', 'draft', 'POPIA']);
