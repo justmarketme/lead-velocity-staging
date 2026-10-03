@@ -88,17 +88,47 @@ test(`W12 [${MODE}] L01: Attended + lead "Yes" -> attended, CAPI Attended, thank
   }
 });
 
-test(`W12 [${MODE}] L02: broker taps No-show but the lead says "No, not yet" -> BROKER no-show (Schedule D), no lead no-show`, async () => {
+test(`W12 [${MODE}] L02: broker taps No-show but the lead says "No, not yet" -> a conflict for KG (R6-03), neither side's no-show automatically`, async () => {
   const fx = lead('L02');
   const o = await sys.resolve(fx, '2026-10-13T11:45:00+02:00');
-  assert.equal(o.outcome, 'broker_no_show');
-  assert.equal(o.lead_reach_check, 'no');
+  assert.equal(o.outcome, 'disputed', 'lines-r6.md s.3: broker No-show vs lead "No" is a conflict, not a broker no-show');
   assert.equal(o.capi.length, 0, 'no Attended event');
   if (MODE === 'offline') {
-    assert.equal(o.lead_message, fx.expected.W12.lead_message);
-    assert.deepEqual(o.alerts, ['KG']);
-    assert.equal(o.next, 'rebook_at_our_cost');
+    assert.equal(o.lead_message, null, 'no apology, no missed_you: nothing to the lead until KG decides');
+    assert.deepEqual(o.alerts, [], 'no KG urgent alert (the console conflict alert is amber)');
+    assert.equal(o.next, 'console_queue');
   }
+});
+
+test('W12 L03 timing (R6-03): lead "No, not yet" waits for the broker until broker_nudge_at; each broker mark resolves without an apology', () => {
+  const end = '2026-10-15T10:30:00+02:00';
+  const base = { slotEnd: end, leadId: 'x', consentAds: true, reach: 'no' };
+  const nudge = ms(R.postCallPlan(end).broker_nudge_at);
+  assert.equal(nudge, ms(end) + 15 * MIN + 3 * H);
+  const early = resolveOutcome({ ...base, brokerMark: null }, ms(end) + 31 * MIN);
+  assert.equal(early.outcome, 'pending', 'the tap alone resolves nothing');
+  assert.equal(early.lead_message, null); assert.deepEqual(early.alerts, []);
+  assert.equal(resolveOutcome({ ...base, brokerMark: null }, nudge - 1).outcome, 'pending');
+  const late = resolveOutcome({ ...base, brokerMark: null }, nudge);
+  assert.equal(late.outcome, 'broker_no_show'); assert.equal(late.lead_message, 'broker_no_show_apology');
+  assert.deepEqual(late.alerts, ['KG']); assert.equal(late.next, 'rebook_at_our_cost');
+  const att = resolveOutcome({ ...base, brokerMark: 'attended' }, ms(end) + H);
+  assert.equal(att.outcome, 'attended'); assert.equal(att.dispute_status, 'open'); assert.equal(att.lead_message, null, 'no thank-you, no apology');
+  const resch = resolveOutcome({ ...base, brokerMark: 'rescheduled' }, ms(end) + H);
+  assert.equal(resch.outcome, 'rescheduled'); assert.equal(resch.dispute_status, 'open'); assert.equal(resch.lead_message, null);
+  assert.ok(!R.followUps(resch, { booking_id: 'b', lead_id: 'x' }, 'o1').some((f) => f.fu === 'w10' || f.fu === 'send'), 'nothing to the lead until KG decides');
+  const ns = resolveOutcome({ ...base, brokerMark: 'no_show' }, ms(end) + H);
+  assert.equal(ns.outcome, 'disputed'); assert.equal(ns.lead_message, null);
+  const un = resolveOutcome({ ...base, brokerMark: 'attended', disposition: 'unreachable' }, ms(end) + H);
+  assert.equal(un.outcome, 'attended'); assert.equal(un.dispute_status, null, 'Unreachable/wrong number -> normal W13 path'); assert.equal(un.lead_message, null);
+});
+
+test('W12 BROKER_NO_SHOW_APOLOGY comes from conversation/lines.mjs (the lib/w12 draft is gone)', async () => {
+  const { LINES } = await import('../../conversation/lines.mjs');
+  assert.equal(R.BROKER_NO_SHOW_APOLOGY.en, LINES.en.BROKER_NO_SHOW_APOLOGY);
+  assert.equal(R.BROKER_NO_SHOW_APOLOGY.af, LINES.af.BROKER_NO_SHOW_APOLOGY);
+  const m = R.brokerNoShowApology({ phone: '+27820000001', first_name: 'Lerato', language: 'en' }, { adviser_name: 'Mark Smith' });
+  assert.equal(m.wa.text.body, LINES.en.BROKER_NO_SHOW_APOLOGY.replace('{first_name}', 'Lerato').replace('{adviser_first}', 'Mark'));
 });
 
 test(`W12 [${MODE}] L03: broker never marks and the lead says the adviser didn't call -> broker no-show, NOT auto-attended at 24 h`, async () => {
@@ -264,12 +294,17 @@ test('W12.json L01 two-sided attended: thank-you to the lead, CAPI Attended, W29
   assert.deepEqual(await runCode(WF, 'Disposition ask (w12.dispositionItem)', { items: [{ ...row, already_dispositioned: true }], refs: { 'Classify + validate (w12.classifyOp)': { op: 'broker_tap', now_iso: '2026-10-15T10:46:00+02:00' } } }), []);
 });
 
-test('W12.json L02 broker no-show (lead "No, not yet"): apology (session) + W10 rebook at our cost + KG alert; never W13', async () => {
+test('W12.json L02/L03 (R6-03): broker No-show vs lead "No" -> console alert only; broker unmarked at broker_nudge_at -> apology (session) + W10 rebook at our cost + KG alert; never W13', async () => {
   const fx = lead('L02');
   const row = mrow(fx, { broker_mark: 'no_show', reach: 'no', sent_outcome_check: true, sent_reach_check: true });
-  const [res] = await sweep(row, '2026-10-13T11:45:00+02:00');
+  const conflict = await sweep(row, '2026-10-13T11:45:00+02:00');
+  assert.ok(conflict.every((x) => !x.o), 'disputed: no outcomes row');
+  const row3 = mrow(fx, { broker_mark: null, reach: 'no', sent_outcome_check: true, sent_reach_check: true, sent_broker_nudge: true });
+  const nudgeAt = R.postCallPlan(row3.slot_end).broker_nudge_at;
+  assert.deepEqual((await sweep(row3, iso(ms(nudgeAt) - MIN))).filter((x) => x.o), [], 'pending before broker_nudge_at');
+  const [res] = (await sweep(row3, nudgeAt)).filter((x) => x.o);
   assert.equal(res.o.outcome, 'broker_no_show'); assert.equal(res.o.lead_stage, null, 'lead stage unchanged: the lead did nothing wrong');
-  const fu = await follow({ ...res, row }, 'out_L02');
+  const fu = await follow({ ...res, row: row3 }, 'out_L03');
   assert.deepEqual(fu.map((x) => x.fu).sort(), ['alert', 'send', 'w10', 'w29']);
   assert.equal(fu.find((x) => x.fu === 'w10').schedule_d, true);
   assert.equal(fu.find((x) => x.fu === 'send').send.wa.type, 'text');

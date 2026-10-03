@@ -317,6 +317,29 @@ test('W15 node "Plan opt-out": W15_STOP_BOOKING_MODE=keep keeps the booking and 
   assert.equal(W15.bookingMode(undefined), 'cancel', 'unset env -> cancel (.env.example default)');
 });
 
+test('W15 node "Plan opt-out": cancel mode + live booking -> the one confirmation is the filled STOP_ACK_CANCELLED (R6-04, I-49b)', async () => {
+  const { LINES, fill } = await import('../../conversation/lines.mjs');
+  const st = newState();
+  const { fx, l } = seedL10(st);
+  const start = st.bookings[0].start;
+  const r = await handleInbound(st, l.mobile, fx.stop_message.text, ms(fx.stop_message.at));
+  assert.equal(r.plan.booking_mode, 'cancel');
+  assert.equal(r.plan.booking_cancels.length, 1);
+  const d = new Date(ms(start) + 2 * H);
+  const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const want = fill(LINES.en.STOP_ACK_CANCELLED, { adviser_first: String(B.contact_person || B.adviser_name).trim().split(/\s+/)[0],
+    date: `${DOW[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]}`, time: d.toISOString().slice(11, 16) });
+  assert.equal(r.plan.confirmation.text, want);
+  assert.doesNotMatch(want, /\{/, 'every placeholder filled');
+  // Earliest cancelled booking wins when there are several; nothing live -> plain STOP_ACK.
+  const two = W15.planOptOut({ mobile: '+27820000001', text: 'STOP', now: Date.parse('2026-10-05T08:00:00Z'), leads: [{ id: 'L1', phone: '+27820000001', broker_id: 'b1' }],
+    bookings: [{ id: 'k2', lead_id: 'L1', broker_id: 'b1', status: 'booked', start: '2026-10-09T10:00:00Z' }, { id: 'k1', lead_id: 'L1', broker_id: 'b1', status: 'confirmed', start: '2026-10-07T07:30:00Z' }],
+    brokers: [{ id: 'b1', contact_person: 'Mark Smith' }] });
+  assert.equal(two.confirmation.text, fill(LINES.en.STOP_ACK_CANCELLED, { adviser_first: 'Mark', date: 'Wed 7 Oct', time: '09:30' }));
+  const none = W15.planOptOut({ mobile: '+27820000001', text: 'STOP', leads: [{ id: 'L1', phone: '+27820000001' }], bookings: [] });
+  assert.equal(none.confirmation.text, LINES.en.STOP_ACK);
+});
+
 test('W15 node "Fan out": loses a parallel-STOP race -> emits nothing; out-of-window broker with a cancelled booking -> broker_booking_changed', async () => {
   const st = newState();
   const { fx, l } = seedL10(st);

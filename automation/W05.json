@@ -1674,9 +1674,9 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH l AS (\n  UPDATE public.leads SET email_status = 'bounced', updated_at = now()\n   WHERE lower(email) = $1 AND email_purpose = 'meeting_invite' AND brand_id IS NOT NULL\n  RETURNING id, email, phone, language)\nSELECT l.id, l.email, l.phone, l.language,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'inbound') AS last_inbound_at\n  FROM l;",
+        "query": "WITH l AS (\n  UPDATE public.leads SET email_status = 'bounced', updated_at = now()\n   WHERE lower(email) = $1 AND email_purpose = 'meeting_invite' AND brand_id IS NOT NULL\n  RETURNING id, email, phone, language, first_name)\nSELECT l.id, l.email, l.phone, l.language, l.first_name, bk.method, bk.adviser_name,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'inbound') AS last_inbound_at\n  FROM l\n  LEFT JOIN LATERAL (\n    SELECT a.method, COALESCE(b.adviser_name, b.contact_person) AS adviser_name\n      FROM public.appointments a JOIN public.brokers b ON b.id = a.broker_id\n     WHERE a.client_id = l.id AND ($2 = '' OR a.id::text = $2)\n     ORDER BY a.appointment_date DESC\n     LIMIT 1) bk ON true;",
         "options": {
-          "queryReplacement": "={{ [$json.req.recipient || ''] }}"
+          "queryReplacement": "={{ [$json.req.recipient || '', $json.req.booking_id || ''] }}"
         }
       },
       "credentials": {
@@ -1698,7 +1698,29 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w05;\nreturn $input.all().filter((it) => it.json.id).map((it) => { const e = L.bounceEffect(it.json, { now: Date.now(), last_inbound_ms: Date.parse(it.json.last_inbound_at || '') }); return { json: { kind: 'wa', to: 'lead', lead_id: it.json.id, wa: e.wa, message: e.message } }; });"
+        "jsCode": "const L = require('lv-automation').w05;\nreturn $input.all().filter((it) => it.json.id).map((it) => L.bounceEffect(it.json, { now: Date.now(), last_inbound_ms: Date.parse(it.json.last_inbound_at || '') }).send).filter(Boolean).map((send) => ({ json: send }));"
+      }
+    },
+    {
+      "id": "n58",
+      "name": "-> WhatsApp Send (invite bounce)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        1400
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
       }
     }
   ],
@@ -2363,7 +2385,7 @@
       "main": [
         [
           {
-            "node": "Live send?",
+            "node": "-> WhatsApp Send (invite bounce)",
             "type": "main",
             "index": 0
           }

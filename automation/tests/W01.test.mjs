@@ -365,6 +365,7 @@ test(`W01 [${MODE}] named consent must name the broker we route to, otherwise th
   const s = await sys.state(r.body.lead_id);
   assert.equal(s.lead.broker_id ?? null, null);
   assert.equal(s.jobs.filter((j) => j.workflow === 'W06').length, 0);
+  assert.equal(s.capi.length, 0, 'R6-11 / I-49c: held -> no CAPI Lead until handed over');
 });
 
 test(`W01 [${MODE}] CAPI Lead reuses the browser event_id; fallback evt_<lead_id>_lead; no ads consent -> not sent`, async () => {
@@ -553,6 +554,31 @@ test('W01 node "Route (w01.routeExisting)" (W03 hand-off): routes once, then rep
   assert.equal(b.json.r.action, 'already_routed');
   const [c] = await runCode(RUN, N.route, { items: [{ lead: { ...row, consent_text: 'I agree to share with Other Practice (FSP 99999).' }, brokers }], env: ENV });
   assert.equal(c.json.r.action, 'held');
+});
+
+test('W01 I-49c: a held page lead sends its CAPI Lead only at the hand-over (held -> no item; handed over -> exactly one)', async () => {
+  const fx = lead('L02');
+  const brokers = FIX.brokers.map(dbBroker);
+  const row = { id: fx.lead_id, brand_id: 'smc', origin: 'page', broker_id: null, routed_at: null, opted_out_at: null, disqualified_reason: null,
+    consent_text: 'I agree to share with Other Practice (FSP 99999).', consent_mode: 'named', suppressed: false,
+    routing_reason: 'held_consent_names_other_practice', consent_ads_at: '2026-10-12T08:00:00+02:00', lead_event_id: 'evt_browser_1', created_at: '2026-10-12T08:00:00+02:00' };
+  const hand = 'CAPI Lead at hand-over (held -> routed)';
+  const [held] = await runCode(RUN, N.route, { items: [{ lead: row, brokers }], env: ENV });
+  assert.equal(held.json.r.action, 'held');
+  assert.deepEqual(await runCode(RUN, hand, { items: [{ lead_id: row.id, broker_id: null }], refs: { [N.route]: held.json } }), [], 'held: no CAPI item');
+  const fixed = { ...row, consent_text: W3.consentFor('named', broker()).text };
+  const [routed] = await runCode(RUN, N.route, { items: [{ lead: fixed, brokers }], env: ENV });
+  assert.equal(routed.json.r.action, 'routed');
+  const out = await runCode(RUN, hand, { items: [{ lead_id: row.id, broker_id: routed.json.update.broker_id }], refs: { [N.route]: routed.json } });
+  assert.equal(out.length, 1, 'handed over: exactly one CAPI Lead');
+  assert.deepEqual(out[0].json, { event_name: 'Lead', event_id: 'evt_browser_1', action_source: 'website', lead_id: row.id, brand_id: 'smc', event_time: row.created_at });
+  // A CTWA lead is W03's CAPI (never sent here); a lead that was never held sent its Lead at intake.
+  const [ctwa] = await runCode(RUN, N.route, { items: [{ lead: { ...fixed, origin: 'ctwa' }, brokers }], env: ENV });
+  assert.equal(ctwa.json.r.capi, null);
+  const [fresh0] = await runCode(RUN, N.route, { items: [{ lead: { ...fixed, routing_reason: null }, brokers }], env: ENV });
+  assert.equal(fresh0.json.r.capi, null);
+  const wf = RUN.nodes.find((n) => n.name === 'CAPI Send (Lead at hand-over)');
+  assert.equal(wf.parameters.workflowId.value, 'smc-capi-send');
 });
 
 test('W01 node "Decide": email kept only for an invite method; CAPI payload carries ids only (never email)', async () => {

@@ -367,3 +367,26 @@ test('W05.json: draft name, inactive, one Postgres credential, physical columns 
   const names = new Set(WF5.nodes.map((n) => n.name));
   for (const [k, v] of Object.entries(WF5.connections)) { assert.ok(names.has(k), k); for (const o of v.main) for (const e of o) assert.ok(names.has(e.node), e.node); }
 });
+
+// I-49b / I-45i: the W17 -> W05 invite_bounced leg, run through the W05.json Code node as n8n runs it.
+test('W05.json invite_bounced: EMAIL_BOUNCED inside 24 h, invite_email_bounced (3 vars) outside, via smc-whatsapp-send (no wait); call methods never asked', async () => {
+  const { runCode: run, templateCounts: tc } = await import('./_n8ncode.mjs');
+  const { LINES: LN, fill: fl } = await import('../../conversation/lines.mjs');
+  const wf5 = JSON.parse(readFileSync(new URL('../W05.json', import.meta.url), 'utf8'));
+  const row = { id: 'lead-1', email: 'lerato.m@gmial.com', phone: '+27820000001', first_name: 'Lerato Mokoena', language: 'en', method: 'teams', adviser_name: 'Mark Smith' };
+  const inW = (await run(wf5, 'Bounce prompt (w05.bounceEffect)', { items: [{ ...row, last_inbound_at: new Date(Date.now() - 3600e3).toISOString() }] })).map((x) => x.json);
+  assert.equal(inW.length, 1);
+  assert.equal(inW[0].kind, 'text');
+  assert.equal(inW[0].text, fl(LN.en.EMAIL_BOUNCED, { method: 'Microsoft Teams' }));
+  const out = (await run(wf5, 'Bounce prompt (w05.bounceEffect)', { items: [{ ...row, last_inbound_at: new Date(Date.now() - 30 * 3600e3).toISOString() }] })).map((x) => x.json);
+  assert.equal(out[0].kind, 'template');
+  assert.equal(out[0].template, 'invite_email_bounced');
+  assert.deepEqual(out[0].variables, ['Lerato', 'Microsoft Teams', 'Mark Smith']);
+  assert.equal(out[0].variables.length, tc('invite_email_bounced').body);
+  assert.equal(out[0].correlation, inW[0].correlation, 'asked once per address (same correlation key)');
+  assert.deepEqual(await run(wf5, 'Bounce prompt (w05.bounceEffect)', { items: [{ ...row, method: 'phone' }] }), [], 'call methods never ask for an email');
+  const sendNode = wf5.nodes.find((x) => x.name === '-> WhatsApp Send (invite bounce)');
+  assert.equal(sendNode.parameters.workflowId.value, 'smc-whatsapp-send');
+  assert.equal(sendNode.parameters.options.waitForSubWorkflow, false);
+  assert.equal(wf5.connections['Bounce prompt (w05.bounceEffect)'].main[0][0].node, '-> WhatsApp Send (invite bounce)');
+});

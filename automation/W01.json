@@ -1029,7 +1029,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT to_jsonb(q) AS lead,\n       COALESCE((SELECT jsonb_agg(jsonb_build_object('id', b.id, 'broker_id', b.id, 'brand_id', b.brand_id, 'status', b.status, 'routing_on', b.routing_on,\n                  'active', b.active, 'bookings_paused', b.bookings_paused, 'practice_name', b.firm_name, 'fsp_number', b.fsp_number,\n                  'current_cycle_id', b.current_cycle_id, 'tier_code', b.tier_code, 'consent_mode', b.consent_mode))\n                   FROM public.brokers b WHERE b.brand_id = q.brand_id), '[]'::jsonb) AS brokers\n  FROM (SELECT l.id, l.brand_id, l.origin, l.broker_id, l.routed_at, l.opted_out_at, l.disqualified_reason, l.consent_text, l.consent_mode,\n               EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone) AND (s.brand_id IS NULL OR s.brand_id = l.brand_id)) AS suppressed\n          FROM public.leads l WHERE l.id = $1::uuid) q;",
+        "query": "SELECT to_jsonb(q) AS lead,\n       COALESCE((SELECT jsonb_agg(jsonb_build_object('id', b.id, 'broker_id', b.id, 'brand_id', b.brand_id, 'status', b.status, 'routing_on', b.routing_on,\n                  'active', b.active, 'bookings_paused', b.bookings_paused, 'practice_name', b.firm_name, 'fsp_number', b.fsp_number,\n                  'current_cycle_id', b.current_cycle_id, 'tier_code', b.tier_code, 'consent_mode', b.consent_mode))\n                   FROM public.brokers b WHERE b.brand_id = q.brand_id), '[]'::jsonb) AS brokers\n  FROM (SELECT l.id, l.brand_id, l.origin, l.broker_id, l.routed_at, l.opted_out_at, l.disqualified_reason, l.consent_text, l.consent_mode,\n               l.routing_reason, l.consent_ads_at, l.lead_event_id, l.created_at,\n               EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone) AND (s.brand_id IS NULL OR s.brand_id = l.brand_id)) AS suppressed\n          FROM public.leads l WHERE l.id = $1::uuid) q;",
         "options": {
           "queryReplacement": "={{ [$json.lead_id] }}"
         }
@@ -1120,6 +1120,43 @@
     },
     {
       "id": "n43",
+      "name": "CAPI Lead at hand-over (held -> routed)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        1600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const routed = new Set($input.all().filter((i) => i.json.broker_id).map((i) => String(i.json.lead_id)));\nreturn $('Route (w01.routeExisting)').all().map((i) => i.json).filter((x) => x.r && x.r.capi && routed.has(String(x.lead_id)))\n  .map((x) => { const c = x.r.capi; return { json: { event_name: c.event_name, event_id: c.event_id, action_source: c.action_source, lead_id: c.lead_id, brand_id: c.brand_id, event_time: c.event_time } }; });"
+      }
+    },
+    {
+      "id": "n44",
+      "name": "CAPI Send (Lead at hand-over)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1540,
+        1600
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-capi-send",
+          "cachedResultName": "CAPI Send"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "I-49c: { event_name: Lead, event_id, ... } for a lead held at intake (no CAPI then). Consent gate inside the callee."
+    },
+    {
+      "id": "n45",
       "name": "W06 input (CTWA)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1133,7 +1170,7 @@
       }
     },
     {
-      "id": "n44",
+      "id": "n46",
       "name": "W06 First touch (CTWA)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -1156,7 +1193,7 @@
       "notes": "Called with { op: routed, lead_id, origin: ctwa }: slots card (or Flow v2) at once."
     },
     {
-      "id": "n45",
+      "id": "n47",
       "name": "Unknown core call (logged, never guessed)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1632,6 +1669,11 @@
             "node": "W06 input (CTWA)",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "CAPI Lead at hand-over (held -> routed)",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -1641,6 +1683,17 @@
         [
           {
             "node": "W06 First touch (CTWA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CAPI Lead at hand-over (held -> routed)": {
+      "main": [
+        [
+          {
+            "node": "CAPI Send (Lead at hand-over)",
             "type": "main",
             "index": 0
           }

@@ -382,7 +382,9 @@ export function decide(sub, ctx) {
   if (r.held) {
     row.routing_reason = r.held;
     activities.push({ activity_type: 'routing_held', actor_type: 'system', occurred_at: at, idempotency_key: `w01:held:${ctx.lead_id}`, payload: { reason: r.held } });
-    return { kind: 'insert', outcome: 'held', row, activities, first_touch: null, capi: capiLead(row), mint_token: false,
+    // R6-11 / I-49c: a held lead (consent names another practice, or no capacity) may never be handed over, so no CAPI
+    // Lead now; routeExisting() sends it at the hand-over (held -> routed), same event_id, so Meta optimises on real leads.
+    return { kind: 'insert', outcome: 'held', row, activities, first_touch: null, capi: null, mint_token: false,
       response: { http_status: 200, body: { ok: true, status: 'held', lead_id: row.id } } };
   }
   const b = r.broker;
@@ -415,7 +417,8 @@ export function capiLead(row) {
 
 /**
  * W03 hand-off ("W01 Lead core", kind route_and_first_touch): the CTWA lead row already exists (consent at the tap,
- * qualified by taps). Route it and start the first touch. Idempotent: an already-routed lead is not re-routed.
+ * qualified by taps), or a page / lead-ad lead W01 held at intake. Route it and start the first touch; a held page /
+ * lead-ad lead gets its CAPI Lead here (I-49c). Idempotent: an already-routed lead is not re-routed.
  */
 export function routeExisting(lead, { brokers = [], now = Date.now(), consent_mode = 'named' } = {}) {
   const at = isoSast(now);
@@ -426,7 +429,9 @@ export function routeExisting(lead, { brokers = [], now = Date.now(), consent_mo
   if (r.held) return { action: 'held', update: { routing_reason: r.held } };
   const b = r.broker;
   const update = { broker_id: brokerIdOf(b), cycle_id: b.current_cycle_id ?? null, tier_code: b.tier_code ?? null, routed_at: at, routing_reason: b._reason };
-  return { action: 'routed', update, first_touch: { workflow: 'W06', op: 'routed', lead_id: lead.id, not_before: at, origin: lead.origin || 'ctwa', deadline_s: FIRST_TOUCH_DEADLINE_S } };
+  // I-49c: the CAPI Lead W01 withheld at intake (held_*) goes now, at the hand-over. CTWA leads are W03's (never here).
+  const wasHeld = String(lead.routing_reason || '').startsWith('held_') && (lead.origin || 'ctwa') !== 'ctwa';
+  return { action: 'routed', update, capi: wasHeld ? capiLead(lead) : null, first_touch: { workflow: 'W06', op: 'routed', lead_id: lead.id, not_before: at, origin: lead.origin || 'ctwa', deadline_s: FIRST_TOUCH_DEADLINE_S } };
 }
 
 // ---------------------------------------------------------------------------------------------- 6. token

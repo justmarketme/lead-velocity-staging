@@ -373,8 +373,30 @@ on conflict (graph_message_id) do nothing returning id as bank_credit_id, graph_
   const alert = w.add('n8n-nodes-base.executeWorkflow', 'W22: inContact format changed (alert)', execWf('smc-w22', 'kind=incontact_format_change, level=alert: an FNB alert could not be read. Message ids only. Statement import (W18) still catches the money.'), { v: 1.2, row: 1, col: 5 });
   const warn = w.add('n8n-nodes-base.executeWorkflow', 'W22: new inContact wording (warning)', execWf('smc-w22', 'kind=incontact_new_shape, level=warn'), { v: 1.2, row: 2, col: 5 });
   const done = w.add('n8n-nodes-base.microsoftOutlook', 'Outlook: mark FNB alert read', { resource: 'message', operation: 'update', messageId: { __rl: true, mode: 'id', value: '={{ $json.graph_message_id }}' }, updateFields: { isRead: true } }, { v: 2, row: 3, col: 5, credentials: OUTLOOK, onError: 'continueRegularOutput' });
-  const note = w.add('n8n-nodes-base.stickyNote', 'Note', { content: '## W17 inContact parser\nGraph poll of howzit@ every 2 min (target: 100% of payments matched within 15 min).\nFilter: FNB sender domain + credit/payment subject; DMARC/DKIM/SPF fail -> rejected.\nRecognised credit -> bank_credits (unique graph_message_id) -> W16.\nUnreadable FNB alert -> alert; new wording -> warning (fingerprints in static data).\nASSUMPTION: FNB wording and sender; validate on 20 real alerts at GATE-INCONTACT.', height: 260, width: 440 }, { row: 3, col: 1 });
+  // I-49b / I-45i: NDRs on howzit@ for our meeting invites (W05 sends "Your call with {adviser} on {when}") -> W05
+  // invite_bounced -> one WhatsApp ask (EMAIL_BOUNCED / invite_email_bounced). Trigger: the same 2-minute poll, a second
+  // Graph query for "Undeliverable: Your call with ..." (Exchange NDR subject). ASSUMPTION: NDR wording/sender; the
+  // recipient is the first address in the NDR body that is not ours. Only the address leaves this node (no bodies).
+  const getNdr = w.add('n8n-nodes-base.microsoftOutlook', 'Outlook: invite NDRs since watermark (howzit@)', { resource: 'message', operation: 'getAll', returnAll: true, output: 'raw',
+    filtersUI: { values: { filterBy: 'search', search: '' } },
+    options: { customFilter: "={{ \"receivedDateTime ge \" + $json.since + \" and startswith(subject,'Undeliverable')\" }}", fields: ['id', 'subject', 'from', 'receivedDateTime', 'body'] } },
+    { v: 2, row: 4, col: 2, credentials: OUTLOOK, alwaysOutputData: true });
+  const ndr = w.add('n8n-nodes-base.code', 'Parse invite NDRs (recipient only)', code(`
+const OURS = /@(leadvelocity\\.co\\.za|sortmycover\\.co\\.za|sortmycover\\.com)$/i;
+const out = [];
+for (const it of $input.all()) {
+  const m = it.json || {};
+  if (!m.id || !/^undeliverable:\\s*your call with /i.test(String(m.subject || ''))) continue; // only W05 invites
+  const body = String((m.body && m.body.content) || '').replace(/<[^>]+>/g, ' ');
+  const rcpt = (body.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/gi) || []).map((x) => x.toLowerCase()).find((x) => !OURS.test(x) && !/^(postmaster|mailer-daemon|microsoftexchange)/i.test(x));
+  if (rcpt) out.push({ json: { op: 'invite_bounced', recipient: rcpt, booking_id: null, graph_message_id: m.id } });
+}
+return out;
+`), { v: 2, row: 4, col: 3 });
+  const w05 = w.add('n8n-nodes-base.executeWorkflow', 'W05: invite_bounced', execWf('smc-w05', 'payload: { op: invite_bounced, recipient, booking_id }'), { v: 1.2, row: 4, col: 4 });
+  const note = w.add('n8n-nodes-base.stickyNote', 'Note', { content: '## W17 inContact parser\nGraph poll of howzit@ every 2 min (target: 100% of payments matched within 15 min).\nFilter: FNB sender domain + credit/payment subject; DMARC/DKIM/SPF fail -> rejected.\nRecognised credit -> bank_credits (unique graph_message_id) -> W16.\nUnreadable FNB alert -> alert; new wording -> warning (fingerprints in static data).\nASSUMPTION: FNB wording and sender; validate on 20 real alerts at GATE-INCONTACT.\nInvite NDRs (Undeliverable: Your call with ...) -> W05 invite_bounced (recipient only; I-49b).', height: 260, width: 440 }, { row: 3, col: 1 });
   w.chain(sched, win); w.link(man, win); w.chain(win, get, parse, sw);
+  w.chain(win, getNdr, ndr, w05); // I-49b: invite bounces -> W05
   w.link(sw, ins, 0); w.link(ins, isNewC); w.link(isNewC, w16, 0); w.link(isNewC, done, 0);  // already-stored alert: {success:true}, nothing to do
   w.link(sw, alert, 1); w.link(sw, warn, 2); w.link(sw, done, 3); w.link(sw, done, 4);
   void note;

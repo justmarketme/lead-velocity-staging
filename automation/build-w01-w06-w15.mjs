@@ -251,6 +251,7 @@ return out;`));
                   'current_cycle_id', b.current_cycle_id, 'tier_code', b.tier_code, 'consent_mode', b.consent_mode))
                    FROM public.brokers b WHERE b.brand_id = q.brand_id), '[]'::jsonb) AS brokers
   FROM (SELECT l.id, l.brand_id, l.origin, l.broker_id, l.routed_at, l.opted_out_at, l.disqualified_reason, l.consent_text, l.consent_mode,
+               l.routing_reason, l.consent_ads_at, l.lead_event_id, l.created_at,
                EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone) AND (s.brand_id IS NULL OR s.brand_id = l.brand_id)) AS suppressed
           FROM public.leads l WHERE l.id = $1::uuid) q;`,
     '={{ [$json.lead_id] }}'));
@@ -276,6 +277,12 @@ SELECT u.id, u.brand_id, u.broker_id, u.cycle_id, 'W01', 'system', CASE WHEN u.b
 ON CONFLICT (idempotency_key) DO NOTHING
 RETURNING lead_id, broker_id;`,
     '={{ [$json.lead_id, JSON.stringify($json.update || { routing_reason: $json.r.update && $json.r.update.routing_reason })] }}'));
+  // I-49c: a lead W01 held at intake gets its CAPI Lead only now, when the hand-over write actually routed it.
+  n.push(code('CAPI Lead at hand-over (held -> routed)', pos(6, 8),
+`const routed = new Set($input.all().filter((i) => i.json.broker_id).map((i) => String(i.json.lead_id)));
+return $('Route (w01.routeExisting)').all().map((i) => i.json).filter((x) => x.r && x.r.capi && routed.has(String(x.lead_id)))
+  .map((x) => { const c = x.r.capi; return { json: { event_name: c.event_name, event_id: c.event_id, action_source: c.action_source, lead_id: c.lead_id, brand_id: c.brand_id, event_time: c.event_time } }; });`));
+  n.push(sub('CAPI Send (Lead at hand-over)', pos(7, 8), 'CAPI Send', false, 'I-49c: { event_name: Lead, event_id, ... } for a lead held at intake (no CAPI then). Consent gate inside the callee.'));
   n.push(code('W06 input (CTWA)', pos(6, 7), "return $input.all().filter((i) => i.json.broker_id).map((i) => ({ json: { op: 'routed', lead_id: i.json.lead_id, origin: 'ctwa' } }));"));
   n.push(sub('W06 First touch (CTWA)', pos(7, 7), 'W06 First touch', false, 'Called with { op: routed, lead_id, origin: ctwa }: slots card (or Flow v2) at once.'));
   n.push(code('Unknown core call (logged, never guessed)', pos(2, 9), "return [{ json: { outcome: 'subcall_rejected', reason: 'W01 Lead core needs action=ingest or kind=route_and_first_touch', keys: Object.keys($input.first().json || {}) } }];"));
@@ -319,6 +326,7 @@ RETURNING lead_id, broker_id;`,
   chain(c, 'Load CTWA lead + brokers', 'Route (w01.routeExisting)', 'Routed or held? (write it)');
   link(c, 'Routed or held? (write it)', 'Write routing (only if not routed yet) + timeline', 0);
   chain(c, 'Write routing (only if not routed yet) + timeline', 'W06 input (CTWA)', 'W06 First touch (CTWA)');
+  chain(c, 'Write routing (only if not routed yet) + timeline', 'CAPI Lead at hand-over (held -> routed)', 'CAPI Send (Lead at hand-over)');
   return wf('smc-w01', 'W01 Lead intake (web) (DRAFT pending GATE-TEST-W01)', n, c, ['SortMyCover', 'core-path', 'draft']);
 }
 
@@ -525,7 +533,7 @@ function buildW15() {
   n.push(sticky(
     'W15 Opt-out ("STOP" anywhere) - DRAFT pending GATE-TEST-W15 (automation-engineer). Logic: automation/lib/w15.mjs (tested by automation/tests/W15.test.mjs, which also checks this file).\n' +
     'Entries: Execute Workflow from W07 (WhatsApp STOP in any state, or an opt-out intent), the console / W34 ({ op: opt_out, lead_id | mobile, channel }) and POST /sms-inbound (Twilio, signature checked) for STOP replies to the SMS fallback.\n' +
-    'Detection: conversation/guardrail.mjs STOP_RX (same net W07 routes on) + "stopall"; never the booking Cancel button. One statement: suppression row (smc_hash_contact = digits-only SHA-256, source stop, brand_id NULL = Lead-Velocity-wide) is the idempotency claim; leads.opted_out_at + stage opted_out; live bookings cancelled (W15_STOP_BOOKING_MODE=cancel, NH-28 b). Then: W09 pause (opt_out) + cancel_all per booking (CONTRACTS.md), Graph DELETE of the Outlook event (token from W04 graph_token), broker told by WhatsApp (session in window / broker_booking_changed template / held) and email from howzit@, first name only. Exactly one confirmation (lines.mjs STOP_ACK) on the channel the STOP came in on, then nothing ever again. A second STOP is a no-op.\n' +
+    'Detection: conversation/guardrail.mjs STOP_RX (same net W07 routes on) + "stopall"; never the booking Cancel button. One statement: suppression row (smc_hash_contact = digits-only SHA-256, source stop, brand_id NULL = Lead-Velocity-wide) is the idempotency claim; leads.opted_out_at + stage opted_out; live bookings cancelled (W15_STOP_BOOKING_MODE=cancel, NH-28 b). Then: W09 pause (opt_out) + cancel_all per booking (CONTRACTS.md), Graph DELETE of the Outlook event (token from W04 graph_token), broker told by WhatsApp (session in window / broker_booking_changed template / held) and email from howzit@, first name only. Exactly one confirmation (lines.mjs STOP_ACK; STOP_ACK_CANCELLED when a live booking was cancelled, R6-04; STOP_ACK_BOOKED in keep mode) on the channel the STOP came in on, then nothing ever again. A second STOP is a no-op.\n' +
     'Env: META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TWILIO_ACCOUNT_SID, TWILIO_SMS_FROM, TWILIO_AUTH_TOKEN, W15_STOP_BOOKING_MODE, DRY_RUN_SENDS.', 380));
   n.push(node('Called by W07 / console / W34 (STOP or opt-out)', 'executeWorkflowTrigger', 1.1, pos(0, 0), { inputSource: 'passthrough' }));
   n.push(node('POST /sms-inbound (Twilio)', 'webhook', 2, pos(0, 2), { httpMethod: 'POST', path: 'sms-inbound', responseMode: 'responseNode', options: { rawBody: true } }, { webhookId: 'w15-sms-inbound' }));

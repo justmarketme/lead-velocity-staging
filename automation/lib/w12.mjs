@@ -6,14 +6,15 @@
 //    Attended -> the one-tap disposition list (session, the tap opened his window; 4.12a codes) -> W29 asks 1-5
 //    quality and takes the optional voice note. Unmarked at 24 h -> attended + auto_marked + unconfirmed (flagged).
 //  - Lead: reach_check at slot end + 30 min ("Did {adviser} reach you today?"). A broker "No-show" becomes a lead
-//    no-show only when the lead stays silent for the 2-h reach window; a lead "No, not yet" makes it a BROKER no-show
-//    (Schedule D: apology, rebooking at our cost, never a replacement). The two sides disagreeing -> console queue.
+//    no-show only when the lead stays silent for the 2-h reach window. A lead "No, not yet" waits for the broker: still
+//    unmarked at broker_nudge_at -> BROKER no-show (Schedule D: apology, rebooking at our cost, KG alert, never a
+//    replacement); any broker mark against it -> console conflict (KG), nothing to the lead (R6-03, lines-r6.md s.3).
 // Writes: outcomes (one row per booking), appointments.status, leads.stage, lead_activities timeline. CAPI Attended
 // (consent-gated in the callee). W29 `outcome_recorded` (quality index, pulse/facts). W13 `no_show` (missed_you,
 // 48-h clock). W10 (rebook after a broker no-show or a broker "Rescheduled").
 // Voice notes: only the WhatsApp media reference is stored here (outcomes.voice_note_url = 'whatsapp-media:{id}');
 // transcription is a later step, switched on only when the provider is named in the privacy notice (P17, Q22).
-import { fill } from '../../conversation/lines.mjs';
+import { fill, LINES } from '../../conversation/lines.mjs';
 import { MIN, H, D, ms, iso, timeLabel, firstName, firstAndInitial, templateMessage, textMessage, listMessage, nowFrom, touchesLastContact } from './wa.mjs';
 export { MIN, H, D, iso, nowFrom, touchesLastContact };
 
@@ -39,12 +40,9 @@ export const BUTTON_TO_CODE = {
 const SECTIONS = [['Good fit', ['fit_proceeding', 'fit_followup']], ['Not a fit', ['nofit_budget', 'nofit_covered', 'nofit_criteria']], ['Could not talk', ['unreachable']]];
 const CODE_TO_BUTTON = Object.fromEntries(Object.entries(BUTTON_TO_CODE).map(([k, v]) => [v, k]));
 
-// DRAFT line (needs_human: conversation-designer approves it into conversation/lines.mjs EN + AF). Session text: the
-// lead's "No, not yet" tap opened the window. W10 follows with the new times (Schedule D, at our cost).
-export const BROKER_NO_SHOW_APOLOGY = {
-  en: "Sorry, {first_name}. {adviser_first} should have called you today and didn't. That isn't on you. I'll send you new times now so you can pick one that suits you.",
-  af: "Jammer, {first_name}. {adviser_first} moes jou vandag gebel het en het nie. Dit is nie jou skuld nie. Ek stuur nou vir jou nuwe tye sodat jy een kan kies wat jou pas."
-};
+// R6-03 / I-49b: the approved line lives in conversation/lines.mjs (lines-v1.2.0, EN + AF); the lib/w12 draft is gone.
+// Session text: the lead's "No, not yet" tap opened the window. W10 follows with the new times (Schedule D, at our cost).
+export const BROKER_NO_SHOW_APOLOGY = Object.freeze({ en: LINES.en.BROKER_NO_SHOW_APOLOGY, af: LINES.af.BROKER_NO_SHOW_APOLOGY });
 
 export function postCallPlan(slotEnd) {
   const e = ms(slotEnd);
@@ -58,7 +56,7 @@ export function postCallPlan(slotEnd) {
 
 /**
  * Resolve the outcome from both sides at time `now`.
- * @param m { slotEnd, brokerMark: 'attended'|'no_show'|'rescheduled'|null, reach: 'yes'|'no'|null, consentAds, optedOut, leadId }
+ * @param m { slotEnd, brokerMark: 'attended'|'no_show'|'rescheduled'|null, reach: 'yes'|'no'|null, disposition (4.12a code, when known), consentAds, optedOut, leadId }
  */
 export function resolveOutcome(m, now) {
   const p = postCallPlan(m.slotEnd);
@@ -70,13 +68,23 @@ export function resolveOutcome(m, now) {
     r.next = r.next || 'W12_disposition';
     return r;
   };
-  if (m.brokerMark === 'rescheduled') return Object.assign(r, { outcome: 'rescheduled', next: 'W10' });
+  // R6-03 / I-49b (lines-r6.md section 3): the lead's "No, not yet" resolves nothing on its own. The broker has until
+  // broker_nudge_at to mark; whatever he marks, the lead gets no apology. A mark that contradicts the lead's "No" is a
+  // conflict for KG in the console (amber), nothing to the lead until KG decides. "Unreachable/wrong number" is the
+  // normal W13 replacement path (W29), so no conflict. Only if he is still unmarked at broker_nudge_at: broker no-show.
   if (m.reach === 'no') {
-    if (m.brokerMark === 'attended') return attended({ dispute_status: 'open', next: 'console_queue' }); // two sides disagree
+    if (m.brokerMark === 'rescheduled') return Object.assign(r, { outcome: 'rescheduled', dispute_status: 'open', next: 'console_queue' }); // no W10 offer until KG decides
+    if (m.brokerMark === 'attended') {
+      if (m.disposition === 'unreachable') { attended(); r.lead_message = null; return r; } // W29 -> W13 replacement
+      attended({ dispute_status: 'open', next: 'console_queue' }); r.lead_message = null; return r; // no thank-you either
+    }
+    if (m.brokerMark === 'no_show') return Object.assign(r, { outcome: 'disputed', dispute_status: 'open', next: 'console_queue' });
+    if (now < ms(p.broker_nudge_at)) return r; // pending: the existing sweep wakes at broker_nudge_at, no new timer
     Object.assign(r, { outcome: 'broker_no_show', lead_message: m.optedOut ? null : 'broker_no_show_apology', next: 'rebook_at_our_cost' });
     r.alerts.push('KG');
     return r;
   }
+  if (m.brokerMark === 'rescheduled') return Object.assign(r, { outcome: 'rescheduled', next: 'W10' });
   if (m.brokerMark === 'attended') return attended();
   if (m.brokerMark === 'no_show') {
     if (m.reach === 'yes') return Object.assign(r, { outcome: 'disputed', dispute_status: 'open', next: 'console_queue' });
@@ -157,7 +165,7 @@ export function sweepActions(row, now) {
     else if (sent.outcome_check && !sent.broker_nudge && now >= ms(p.broker_nudge_at)) out.push({ kind: 'broker_nudge' });
   }
   if (!sent.reach_check && !row.reach && !row.optedOut && row.brokerMark !== 'rescheduled' && now >= ms(p.reach_check_at) && now < end + AUTO_ATTEND_AFTER_END) out.push({ kind: 'reach_check' });
-  const r = resolveOutcome({ slotEnd: row.slot_end, brokerMark: row.brokerMark || null, reach: row.reach || null, consentAds: row.consentAds, optedOut: row.optedOut, leadId: row.lead_id }, now);
+  const r = resolveOutcome({ slotEnd: row.slot_end, brokerMark: row.brokerMark || null, reach: row.reach || null, disposition: row.disposition || null, consentAds: row.consentAds, optedOut: row.optedOut, leadId: row.lead_id }, now);
   if (r.outcome !== 'pending') out.push({ kind: 'resolve', r });
   return out;
 }
@@ -265,7 +273,7 @@ const sendItem = (r, m, key, extra = {}) => ({ fu: 'send', send: { to: m.to, wa:
 export const meetingFromRow = (r = {}) => ({
   slot_end: r.slot_end, lead_id: r.lead_id,
   sent: { outcome_check: Boolean(r.sent_outcome_check), broker_nudge: Boolean(r.sent_broker_nudge), reach_check: Boolean(r.sent_reach_check) },
-  brokerMark: r.broker_mark || null, reach: r.reach || null, outcome_exists: Boolean(r.outcome_exists), optedOut: Boolean(r.opted_out_at)
+  brokerMark: r.broker_mark || null, reach: r.reach || null, disposition: r.disposition_code || null, outcome_exists: Boolean(r.outcome_exists), optedOut: Boolean(r.opted_out_at)
 });
 
 /**
@@ -295,9 +303,9 @@ export function followUps(r, row = {}, outcomeId, brandId = row.brand_id) {
   for (const c of r.capi || []) if (c.event_name === 'Attended') out.push({ fu: 'capi', ...capiAttended(lead, brandId) });
   if (r.outcome === 'no_show') out.push({ fu: 'w13', ...w13NoShow(outcomeId, booking, row.lead_id, r.no_show_confirmed_at) });
   if (r.outcome === 'broker_no_show') out.push({ fu: 'w10', ...w10Rebook(booking, lead, 'broker_no_show') });
-  if (r.outcome === 'rescheduled') out.push({ fu: 'w10', ...w10Rebook(booking, lead, 'broker_rescheduled') });
+  if (r.outcome === 'rescheduled' && r.dispute_status !== 'open') out.push({ fu: 'w10', ...w10Rebook(booking, lead, 'broker_rescheduled') });
   for (const a of r.alerts || []) out.push({ fu: 'alert', to: a, kind: 'other', severity: 'urgent', lead_id: row.lead_id, broker_id: row.broker_id, brand_id: brandId, booking_id: row.booking_id, note: `esc_kind=broker_no_show; ${firstAndInitial(lead)}: the lead says ${firstName(broker.adviser_name || broker.contact_person)} did not call (Schedule D: apology sent, rebooking at our cost, no replacement).` });
-  if (r.outcome === 'disputed' || r.dispute_status === 'open') out.push({ fu: 'alert', to: 'console', kind: 'outcome_unmarked', severity: 'normal', lead_id: row.lead_id, broker_id: row.broker_id, brand_id: brandId, booking_id: row.booking_id, note: `esc_kind=outcome_disputed; ${firstAndInitial(lead)}: broker marked ${row.broker_mark || 'nothing'}, lead answered ${row.reach || 'nothing'}. The console decides; no replacement is opened automatically.` });
+  if (r.outcome === 'disputed' || r.dispute_status === 'open') out.push({ fu: 'alert', to: 'console', kind: 'outcome_unmarked', severity: 'normal', lead_id: row.lead_id, broker_id: row.broker_id, brand_id: brandId, booking_id: row.booking_id, note: `esc_kind=outcome_disputed; ${firstAndInitial(lead)}: broker marked ${row.broker_mark || 'nothing'}, lead answered ${row.reach || 'nothing'}. KG reviews in the console; nothing goes to the lead until KG decides, and no replacement is opened automatically (an Unreachable/wrong number disposition takes the normal W13 path).` });
   return out;
 }
 

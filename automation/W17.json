@@ -398,6 +398,81 @@
   },
   {
    "id": "w17-13",
+   "name": "Outlook: invite NDRs since watermark (howzit@)",
+   "type": "n8n-nodes-base.microsoftOutlook",
+   "typeVersion": 2,
+   "position": [
+    480,
+    800
+   ],
+   "parameters": {
+    "resource": "message",
+    "operation": "getAll",
+    "returnAll": true,
+    "output": "raw",
+    "filtersUI": {
+     "values": {
+      "filterBy": "search",
+      "search": ""
+     }
+    },
+    "options": {
+     "customFilter": "={{ \"receivedDateTime ge \" + $json.since + \" and startswith(subject,'Undeliverable')\" }}",
+     "fields": [
+      "id",
+      "subject",
+      "from",
+      "receivedDateTime",
+      "body"
+     ]
+    }
+   },
+   "credentials": {
+    "microsoftOutlookOAuth2Api": {
+     "name": "Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send)"
+    }
+   },
+   "alwaysOutputData": true
+  },
+  {
+   "id": "w17-14",
+   "name": "Parse invite NDRs (recipient only)",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    720,
+    800
+   ],
+   "parameters": {
+    "mode": "runOnceForAllItems",
+    "jsCode": "\nconst OURS = /@(leadvelocity\\.co\\.za|sortmycover\\.co\\.za|sortmycover\\.com)$/i;\nconst out = [];\nfor (const it of $input.all()) {\n  const m = it.json || {};\n  if (!m.id || !/^undeliverable:\\s*your call with /i.test(String(m.subject || ''))) continue; // only W05 invites\n  const body = String((m.body && m.body.content) || '').replace(/<[^>]+>/g, ' ');\n  const rcpt = (body.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/gi) || []).map((x) => x.toLowerCase()).find((x) => !OURS.test(x) && !/^(postmaster|mailer-daemon|microsoftexchange)/i.test(x));\n  if (rcpt) out.push({ json: { op: 'invite_bounced', recipient: rcpt, booking_id: null, graph_message_id: m.id } });\n}\nreturn out;\n"
+   }
+  },
+  {
+   "id": "w17-15",
+   "name": "W05: invite_bounced",
+   "type": "n8n-nodes-base.executeWorkflow",
+   "typeVersion": 1.2,
+   "position": [
+    960,
+    800
+   ],
+   "parameters": {
+    "source": "database",
+    "workflowId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "smc-w05"
+    },
+    "options": {
+     "waitForSubWorkflow": false
+    }
+   },
+   "notes": "payload: { op: invite_bounced, recipient, booking_id }",
+   "notesInFlow": true
+  },
+  {
+   "id": "w17-16",
    "name": "Note",
    "type": "n8n-nodes-base.stickyNote",
    "typeVersion": 1,
@@ -406,7 +481,7 @@
     600
    ],
    "parameters": {
-    "content": "## W17 inContact parser\nGraph poll of howzit@ every 2 min (target: 100% of payments matched within 15 min).\nFilter: FNB sender domain + credit/payment subject; DMARC/DKIM/SPF fail -> rejected.\nRecognised credit -> bank_credits (unique graph_message_id) -> W16.\nUnreadable FNB alert -> alert; new wording -> warning (fingerprints in static data).\nASSUMPTION: FNB wording and sender; validate on 20 real alerts at GATE-INCONTACT.",
+    "content": "## W17 inContact parser\nGraph poll of howzit@ every 2 min (target: 100% of payments matched within 15 min).\nFilter: FNB sender domain + credit/payment subject; DMARC/DKIM/SPF fail -> rejected.\nRecognised credit -> bank_credits (unique graph_message_id) -> W16.\nUnreadable FNB alert -> alert; new wording -> warning (fingerprints in static data).\nASSUMPTION: FNB wording and sender; validate on 20 real alerts at GATE-INCONTACT.\nInvite NDRs (Undeliverable: Your call with ...) -> W05 invite_bounced (recipient only; I-49b).",
     "height": 260,
     "width": 440
    }
@@ -442,6 +517,11 @@
       "node": "Outlook: FNB mails since watermark (howzit@)",
       "type": "main",
       "index": 0
+     },
+     {
+      "node": "Outlook: invite NDRs since watermark (howzit@)",
+      "type": "main",
+      "index": 0
      }
     ]
    ]
@@ -462,6 +542,28 @@
     [
      {
       "node": "Kind",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Outlook: invite NDRs since watermark (howzit@)": {
+   "main": [
+    [
+     {
+      "node": "Parse invite NDRs (recipient only)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Parse invite NDRs (recipient only)": {
+   "main": [
+    [
+     {
+      "node": "W05: invite_bounced",
       "type": "main",
       "index": 0
      }

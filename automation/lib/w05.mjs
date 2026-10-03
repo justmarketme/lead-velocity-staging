@@ -554,21 +554,35 @@ export function planUpdateMethod(ctx = {}) {
 
 /**
  * NDR on howzit@ for an invite (W17's Graph poll forwards { op:'invite_bounced', recipient, booking_id? }):
- * email_status bounced + one WhatsApp prompt with the typo suggestion (inside the 24-h window; outside it the
- * prompt waits for the lead's next message: no template exists for it, needs_human).
+ * email_status bounced + ONE WhatsApp ask (I-45i / I-49b, lines-r6.md s.4). Inside the lead's 24-h window the session
+ * line lines.mjs EMAIL_BOUNCED; outside it the utility template invite_email_bounced (1 first_name, 2 method label,
+ * 3 adviser_name). Both go through the shared sender (smc-whatsapp-send) as `send`; the correlation key makes it
+ * "asked once" per address. The booking stands either way; the next typed email goes through capture_contact (MX)
+ * and the invite is re-sent. Teams/Zoom/Meet only (0.1 Email rule): a call-method booking never asks.
+ * lead = { id, email, phone, first_name, language, method?, adviser_name? }
  */
 export function bounceEffect(lead = {}, opts = {}) {
   const email = String(lead.email || '');
   const domain = email.split('@')[1] || '';
   const near = KNOWN_DOMAINS.find((k) => k !== domain && lev(domain, k) <= 2);
   const suggestion = near ? email.replace(/@.*/, '@' + near) : null;
-  const text = `The invite to ${email} bounced — can you check the address?${suggestion ? ` Did you mean ${suggestion}?` : ''}`;
+  const method = lead.method || opts.method || null;
+  const label = METHOD_LABEL[method] || 'meeting';
+  const L = LINES[lead.language] || LINES.en;
+  const text = fill(L.EMAIL_BOUNCED, { method: label });
   const inWindow = Number.isFinite(opts.last_inbound_ms) && Number.isFinite(opts.now) && opts.now - opts.last_inbound_ms < D;
+  const ask = Boolean(lead.phone) && (!method || INVITE_METHODS.has(method));
+  const first = String(lead.first_name || '').trim().split(/\s+/)[0] || 'there';
+  const adviser = String(lead.adviser_name || opts.adviser_name || '').trim() || 'your adviser';
+  const correlation = `w05:invite_bounced:${lead.id || ''}:${email.toLowerCase()}`;
+  const send = !ask ? null : inWindow
+    ? { to: lead.phone, kind: 'text', text, lead_id: lead.id || null, correlation }
+    : { to: lead.phone, kind: 'template', template: 'invite_email_bounced', variables: [first, label, adviser], lang: 'en', lead_id: lead.id || null, correlation };
   return {
     lead_update: { email_status: 'bounced' },
     appointment_update: { invite_email_status: 'bounced' },
-    message: { kind: 'email_bounced_prompt', text, suggestion },
-    wa: inWindow && lead.phone ? { messaging_product: 'whatsapp', recipient_type: 'individual', to: String(lead.phone).replace(/^\+/, ''), type: 'text', text: { body: text } } : null,
+    message: { kind: 'email_bounced_prompt', text, suggestion, mode: send ? (inWindow ? 'session' : 'template') : 'none' },
+    send,
     conv_state: { contact_step: 'email_fix', email_suggestion: suggestion },
   };
 }

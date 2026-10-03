@@ -8,7 +8,7 @@
 // insert is the idempotency claim: a second STOP finds it and does nothing).
 //
 // Detection uses the shared prefilter (conversation/guardrail.mjs STOP_RX, the same net W07 routes on), plus "stopall".
-// The confirmation wording is conversation/lines.mjs STOP_ACK / STOP_ACK_BOOKED (fixed lines, no LLM).
+// The confirmation wording is conversation/lines.mjs STOP_ACK / STOP_ACK_BOOKED / STOP_ACK_CANCELLED (fixed lines, no LLM).
 import { createHash } from 'node:crypto';
 import { prefilter } from '../../conversation/guardrail.mjs';
 import { LINES, fill } from '../../conversation/lines.mjs';
@@ -106,7 +106,13 @@ export function planOptOut(input = {}) {
     const L = LINES[input.language] || LINES.en;
     const kept = mode === 'keep' ? live[0] : null;
     const br = kept ? brokers.get(String(kept.broker_id)) || {} : {};
-    const text = kept ? fill(L.STOP_ACK_BOOKED, { adviser_first: firstName(br.contact_person || br.adviser_name), date: dateLabel(kept.start), time: timeLabel(kept.start) }) : L.STOP_ACK;
+    // R6-04 / I-49b: cancel mode with a live booking -> STOP_ACK_CANCELLED (the earliest cancelled booking, its broker)
+    // as the one confirmation, so the lead knows the call is off. Keep mode -> STOP_ACK_BOOKED. Nothing live -> STOP_ACK.
+    const cx = [...out.booking_cancels].filter((b) => b.start != null).sort((a, b) => msOf(a.start) - msOf(b.start))[0] || null;
+    const cbr = cx ? brokers.get(String(cx.broker_id)) || {} : {};
+    const text = kept ? fill(L.STOP_ACK_BOOKED, { adviser_first: firstName(br.contact_person || br.adviser_name), date: dateLabel(kept.start), time: timeLabel(kept.start) })
+      : cx ? fill(L.STOP_ACK_CANCELLED, { adviser_first: firstName(cbr.contact_person || cbr.adviser_name || cbr.adviser_first_name), date: dateLabel(cx.start), time: timeLabel(cx.start) })
+        : L.STOP_ACK;
     out.confirmation = { to: input.mobile, channel: input.channel || 'whatsapp', kind: 'opt_out_confirmation', text, lead_id: leads[0]?.id ?? null };
   }
   return out;

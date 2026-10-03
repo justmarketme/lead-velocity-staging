@@ -236,11 +236,19 @@ UPDATE public.leads SET last_contact_at = now() WHERE id = $1::uuid AND $2 = 'le
   n.push(pg('Mark invite bounced', `WITH l AS (
   UPDATE public.leads SET email_status = 'bounced', updated_at = now()
    WHERE lower(email) = $1 AND email_purpose = 'meeting_invite' AND brand_id IS NOT NULL
-  RETURNING id, email, phone, language)
-SELECT l.id, l.email, l.phone, l.language,
+  RETURNING id, email, phone, language, first_name)
+SELECT l.id, l.email, l.phone, l.language, l.first_name, bk.method, bk.adviser_name,
        (SELECT max(c.created_at) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'inbound') AS last_inbound_at
-  FROM l;`, "={{ [$json.req.recipient || ''] }}"));
-  n.push(code('Bounce prompt (w05.bounceEffect)', 'w05.mjs', `return $input.all().filter((it) => it.json.id).map((it) => { const e = L.bounceEffect(it.json, { now: Date.now(), last_inbound_ms: Date.parse(it.json.last_inbound_at || '') }); return { json: { kind: 'wa', to: 'lead', lead_id: it.json.id, wa: e.wa, message: e.message } }; });`));
+  FROM l
+  LEFT JOIN LATERAL (
+    SELECT a.method, COALESCE(b.adviser_name, b.contact_person) AS adviser_name
+      FROM public.appointments a JOIN public.brokers b ON b.id = a.broker_id
+     WHERE a.client_id = l.id AND ($2 = '' OR a.id::text = $2)
+     ORDER BY a.appointment_date DESC
+     LIMIT 1) bk ON true;`, "={{ [$json.req.recipient || '', $json.req.booking_id || ''] }}"));
+  // I-49b: one ask, through the shared sender (EMAIL_BOUNCED session line in the 24-h window, else invite_email_bounced).
+  n.push(code('Bounce prompt (w05.bounceEffect)', 'w05.mjs', `return $input.all().filter((it) => it.json.id).map((it) => L.bounceEffect(it.json, { now: Date.now(), last_inbound_ms: Date.parse(it.json.last_inbound_at || '') }).send).filter(Boolean).map((send) => ({ json: send }));`));
+  n.push(node('-> WhatsApp Send (invite bounce)', 'executeWorkflow', 1.1, { source: 'database', workflowId: { __rl: true, mode: 'id', value: 'smc-whatsapp-send', cachedResultName: 'WhatsApp Send' }, options: { waitForSubWorkflow: false } }));
   // ---------- connections
   chain(c, 'POST /book', 'Parse + verify caller (w05.parseHttp)', 'Caller ok?');
   link(c, 'Caller ok?', 'Load lead, broker, replay, live booking', 0); link(c, 'Caller ok?', 'Answer', 1);
@@ -266,7 +274,7 @@ SELECT l.id, l.email, l.phone, l.language,
   link(c, 'Method plan?', 'graph_token input (method)', 0); link(c, 'Method plan?', 'ask_email input (method)', 1); link(c, 'Method plan?', 'Log subcall_rejected', 2);
   chain(c, 'graph_token input (method)', 'W04 graph_token (method, waits)', 'Graph PATCH event (method, ASSUMPTION)', 'Save method', 'Method invite?', 'Email from howzit@ (Graph sendMail)');
   chain(c, 'ask_email input (method)', '-> W28 ask_email');
-  chain(c, 'Mark invite bounced', 'Bounce prompt (w05.bounceEffect)', 'Live send?');
+  chain(c, 'Mark invite bounced', 'Bounce prompt (w05.bounceEffect)', '-> WhatsApp Send (invite bounce)');
   return wf('smc-w05', 'W05 Book (DRAFT pending GATE-TEST-W05)', 'automation-engineer. W05 book; logic automation/lib/w05.mjs (+ lib/w04.mjs via the W04 sub-workflow); tests automation/tests/W05.test.mjs. Callers bind by id smc-w05 (name kept as cachedResultName only).', n, c, ['booking', 'core', 'draft']);
 }
 
