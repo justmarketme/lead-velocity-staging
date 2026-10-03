@@ -1,0 +1,10 @@
+{"stage":"import","ok":true,"exec":null,"note":"38/38 committed workflows + 31 synthetic credentials imported (I-51a, local n8n 2.41.6)"}
+{"stage":"W01_lead","ok":false,"exec":15,"note":"500 webhook_events_source_check (w01_ip/w01_num) at 'Context: counters, prior lead, suppression, brokers' (exec 9); after local-only constraint drop: 200 held, held_consent_names_other_practice, no lead_token"}
+{"stage":"W06_first_touch","ok":false,"exec":null,"note":"not run: blocked by W01 hold + session halted by permission classifier"}
+{"stage":"W04_slots","ok":false,"exec":null,"note":"not run"}
+{"stage":"W05_book","ok":false,"exec":null,"note":"not run"}
+{"stage":"W09_reminders","ok":false,"exec":4,"note":"time-shift harness proven (tick at virtual now, 0 due); L01 schedule not run"}
+{"stage":"W12_outcome","ok":false,"exec":null,"note":"not run"}
+{"stage":"W13_no_show_replacement","ok":false,"exec":null,"note":"not run"}
+{"stage":"W15_stop","ok":false,"exec":null,"note":"not run"}
+{"stage":"egress","ok":false,"exec":null,"note":"logs not read: session halted before egress proof"}
