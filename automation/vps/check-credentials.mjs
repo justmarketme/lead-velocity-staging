@@ -21,14 +21,14 @@ const KEY = (type, name) => `${type}\t${name}`;
 /** Map "type<TAB>name" -> sorted workflow ids (W01..) that reference it. */
 export function requiredCredentials(dir = AUTOMATION) {
   const req = new Map();
-  for (const f of readdirSync(dir).filter((x) => /^W\d\d\.json$/.test(x)).sort()) {
+  for (const f of readdirSync(dir).filter((x) => /^(W\d\d|SUB-[a-z0-9-]+)\.json$/.test(x)).sort()) {
     const wf = JSON.parse(readFileSync(join(dir, f), 'utf8'));
     for (const n of wf.nodes || []) {
       for (const [type, c] of Object.entries(n.credentials || {})) {
         if (!c || !c.name) continue;
         const k = KEY(type, c.name);
         if (!req.has(k)) req.set(k, new Set());
-        req.get(k).add(f.slice(0, 3));
+        req.get(k).add(f.replace(/\.json$/, '')); // W01 .. W35, SUB-<slug> (I-48f)
       }
     }
   }

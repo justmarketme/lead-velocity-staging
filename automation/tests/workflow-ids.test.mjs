@@ -11,18 +11,16 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const AUTOMATION = join(dirname(fileURLToPath(import.meta.url)), '..');
-const FILES = readdirSync(AUTOMATION).filter((f) => /^W\d\d\.json$/.test(f)).sort();
-const WF = Object.fromEntries(FILES.map((f) => [f.slice(0, 3), JSON.parse(readFileSync(join(AUTOMATION, f), 'utf8'))]));
-const expectedId = (w) => `smc-${w.toLowerCase()}`;
+const FILES = readdirSync(AUTOMATION).filter((f) => /^(W\d\d|SUB-[a-z0-9-]+)\.json$/.test(f)).sort();
+const WF = Object.fromEntries(FILES.map((f) => [f.replace(/\.json$/, ''), JSON.parse(readFileSync(join(AUTOMATION, f), 'utf8'))]));
+// W01.json -> smc-w01; SUB-<slug>.json carries the id its callers already use (I-48f).
+const SUB_IDS = { 'SUB-whatsapp-send': 'smc-whatsapp-send', 'SUB-capi-send': 'smc-capi-send', 'SUB-w26-runner': 'smc-w26', 'SUB-ads-budget': 'smc-ads-budget' };
+const expectedId = (w) => SUB_IDS[w] || `smc-${w.toLowerCase()}`;
 const COMMITTED = new Set(Object.keys(WF).map(expectedId));
 
 // Callees that are referenced but not committed as automation/W*.json yet. Each is a real gap with an owner;
 // the reference is already the final id, so the caller needs no edit when the callee lands.
 const NOT_YET_COMMITTED = {
-  'smc-capi-send': 'CAPI Send sub-workflow around automation/capi/capi.js (automation-engineer)',
-  'smc-w26': 'W26 go-live runner (devops-security; automation/vps/W26.md, runs as a script today)',
-  'smc-ads-budget': 'ads budget sub-workflow around automation/ads/meta-ads.js (ads-api-engineer)',
-  'smc-whatsapp-send': 'shared template sender sub-workflow (automation-engineer)',
 };
 // The core-path drafts (W01 W04 W05 W06 W09 W12 W13 W15) adopted ids and id references in I-46c: no exemptions remain.
 

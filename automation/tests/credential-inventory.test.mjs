@@ -33,7 +33,7 @@ test('table B (distinct credentials) equals the scan, with the exact "used by" l
   assert.deepEqual([...doc.keys()].sort(), [...REQ.keys()].sort(), 'distinct (type, name) set');
   for (const [k, ws] of REQ) assert.deepEqual(doc.get(k), ws, `used by: ${k.replace('\t', ' ')}`);
   for (const r of b) assert.ok(r[4] && r[4].length > 3, `backing documented: ${r[0]}`);
-  assert.match(DOC, new RegExp(`${REQ.size} credentials across ${readdirSync(A).filter((f) => /^W\d\d\.json$/.test(f)).length} workflow files`), 'summary count in the text');
+  assert.match(DOC, new RegExp(`${REQ.size} credentials across ${readdirSync(A).filter((f) => /^(W\d\d|SUB-[a-z0-9-]+)\.json$/.test(f)).length} workflow files`), 'summary count in the text');
 });
 
 test('CREDENTIALS.md carries names only, never values', () => {
@@ -48,7 +48,7 @@ test('check-credentials.mjs: all present -> exit 0; one missing -> exit 1 naming
   const drop = 'LV Supabase - n8n_app (least privilege)\tpostgres';
   r = run(all.filter((l) => l !== drop).join('\n'));
   assert.equal(r.status, 1);
-  assert.match(r.stdout, /MISSING credential: postgres "LV Supabase - n8n_app \(least privilege\)" \(blocks W01, W02/);
+  assert.match(r.stdout, /MISSING credential: postgres "LV Supabase - n8n_app \(least privilege\)" \(blocks (SUB-[a-z0-9-]+, )*W01, W02/); // SUB-<slug> files sort before W01 (I-48f)
   // same name, wrong type is a miss (n8n binds by name AND type)
   const miss = missingCredentials(REQ, parsePresent(all.map((l) => l.replace(/\tpostgres$/, '\thttpHeaderAuth')).join('\n')));
   assert.deepEqual(miss.map((m) => m.name), ['LV Supabase - n8n_app (least privilege)']);
@@ -67,10 +67,10 @@ test('provision.sh step 7 runs the credential check after the restore and before
 // Nodes whose type needs a credential but carry none: they fail when they run. Known gaps, owner ads-api-engineer (C6).
 const NEEDS_CRED = /\.(postgres|microsoftOutlook|microsoftOutlookTrigger|whatsApp|s3|ftp)$/;
 const gaps = [];
-for (const f of readdirSync(A).filter((x) => /^W\d\d\.json$/.test(x)).sort()) {
+for (const f of readdirSync(A).filter((x) => /^(W\d\d|SUB-[a-z0-9-]+)\.json$/.test(x)).sort()) {
   for (const n of JSON.parse(readFileSync(join(A, f), 'utf8')).nodes) {
     const auth = n.parameters && n.parameters.authentication;
-    if (!n.credentials && (NEEDS_CRED.test(n.type) || (auth && auth !== 'none'))) gaps.push(`${f.slice(0, 3)} / ${n.name}`);
+    if (!n.credentials && (NEEDS_CRED.test(n.type) || (auth && auth !== 'none'))) gaps.push(`${f.replace(/\.json$/, '')} / ${n.name}`);
   }
 }
 test('every node that needs a credential has one (CREDENTIALS.md C6)', gaps.length ? { todo: `${gaps.length} node(s) without a credential: ${gaps.join('; ')}` } : {}, () => {

@@ -36,6 +36,11 @@ const MODULES = {
   w20ms: './lib/w20-ms.mjs',
   w29: './lib/w29.mjs',
   wa: './lib/wa.mjs',
+  // sub-workflows SUB-*.json (LOCAL-STAGING §7, I-48f)
+  subWhatsappSend: './lib/sub-whatsapp-send.mjs',
+  subCapiSend: './lib/sub-capi-send.mjs',
+  subW26: './lib/sub-w26.mjs',
+  subAdsBudget: './lib/sub-ads-budget.mjs',
   // conversation (ESM, repo root)
   logic: '../conversation/logic.mjs',
   lines: '../conversation/lines.mjs',
@@ -47,6 +52,7 @@ const MODULES = {
   leadToken: './security/lead-token.js',
   redact: './security/redact.js',
   metaAds: './ads/meta-ads.js',
+  capi: './capi/capi.js',
   // data (JSON, repo root): SA public holidays for W04 slot generation (I-46c; was an fs read off $env.REPO_DIR)
   holidays: '../data/za-public-holidays.json',
 };

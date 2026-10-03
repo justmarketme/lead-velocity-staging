@@ -61,12 +61,12 @@ test('resolution through the container link: $HOME/.node_modules/lv-automation -
 });
 
 // Code nodes across automation/W*.json
-const FILES = readdirSync(A).filter((f) => /^W\d\d\.json$/.test(f)).sort();
+const FILES = readdirSync(A).filter((f) => /^(W\d\d|SUB-[a-z0-9-]+)\.json$/.test(f)).sort();
 const codeNodes = [];
 for (const f of FILES) {
   for (const n of JSON.parse(readFileSync(join(A, f), 'utf8')).nodes) {
     const src = (n.parameters && (n.parameters.jsCode || n.parameters.functionCode)) || '';
-    if (src.includes('lv-automation')) codeNodes.push({ wf: f.slice(0, 3), node: n.name, type: n.type, src });
+    if (src.includes('lv-automation')) codeNodes.push({ wf: f.replace(/\.json$/, ''), node: n.name, type: n.type, src });
   }
 }
 const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/[^\n]*/g, '$1');

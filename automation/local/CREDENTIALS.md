@@ -17,6 +17,12 @@ W26 has no JSON yet (it runs as `provision.sh`, see LOCAL-STAGING.md §7). W01�
 
 | Workflow | Credential name | Type |
 |---|---|---|
+| SUB-ads-budget | LV Supabase - n8n_app (least privilege) | `postgres` |
+| SUB-capi-send | LV Supabase - n8n_app (least privilege) | `postgres` |
+| SUB-capi-send | Meta system user token (Bearer) | `httpHeaderAuth` |
+| SUB-w26-runner | LV Supabase - n8n_app (least privilege) | `postgres` |
+| SUB-whatsapp-send | LV Supabase - n8n_app (least privilege) | `postgres` |
+| SUB-whatsapp-send | WhatsApp Cloud API (system user) | `httpHeaderAuth` |
 | W01 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W01 | Twilio API key (Basic) | `httpBasicAuth` |
 | W02 | LV Supabase - n8n_app (least privilege) | `postgres` |
@@ -99,7 +105,7 @@ W26 has no JSON yet (it runs as `provision.sh`, see LOCAL-STAGING.md §7). W01�
 | W35 | LV Supabase - n8n_app (least privilege) | `postgres` |
 
 ## B. Distinct credentials (machine-checked: name, type, used by) and what backs each one
-"Backed by" names the `.env` variable (or the source) that the value is copied from when the credential is created in the n8n UI. "No `.env` name" means a random value of at least 32 characters, generated once when the credential is created, stored in the password manager and listed by name in `ops.secret_inventory`, so W22 `token_expiring` covers its rotation. 31 credentials across 34 workflow files.
+"Backed by" names the `.env` variable (or the source) that the value is copied from when the credential is created in the n8n UI. "No `.env` name" means a random value of at least 32 characters, generated once when the credential is created, stored in the password manager and listed by name in `ops.secret_inventory`, so W22 `token_expiring` covers its rotation. 31 credentials across 38 workflow files.
 
 | Credential name | Type | Used by | n8n form | Backed by |
 |---|---|---|---|---|
@@ -108,10 +114,10 @@ W26 has no JSON yet (it runs as `provision.sh`, see LOCAL-STAGING.md §7). W01�
 | Anthropic API key (x-api-key) | `httpHeaderAuth` | W23 | Header `x-api-key` | `ANTHROPIC_API_KEY` (C1) |
 | Console -> n8n shared secret | `httpHeaderAuth` | W25 | Webhook header auth on `POST /billing/pricing/publish` | No `.env` name. Same value configured in the console's server-side caller |
 | Hostinger SFTP (static sites) | `sftp` | W25 | Host, port, user, password or key | Hostinger hPanel SFTP account for the static sites (password manager). No `.env` name |
-| LV Supabase - n8n_app (least privilege) | `postgres` | W01, W02, W03, W04, W05, W06, W07, W08, W09, W10, W11, W12, W13, W14, W15, W16, W17, W18, W19, W20, W21, W22, W23, W24, W25, W27, W28, W29, W30, W31, W32, W33, W34, W35 | Host, DB, port, user, password, SSL on | `SUPABASE_DB_URL` host/db/port. Login = `n8n_app_login` (LOCAL-STAGING.md §1b), password from the password manager |
+| LV Supabase - n8n_app (least privilege) | `postgres` | SUB-ads-budget, SUB-capi-send, SUB-w26-runner, SUB-whatsapp-send, W01, W02, W03, W04, W05, W06, W07, W08, W09, W10, W11, W12, W13, W14, W15, W16, W17, W18, W19, W20, W21, W22, W23, W24, W25, W27, W28, W29, W30, W31, W32, W33, W34, W35 | Host, DB, port, user, password, SSL on | `SUPABASE_DB_URL` host/db/port. Login = `n8n_app_login` (LOCAL-STAGING.md §1b), password from the password manager |
 | MS Graph app-only - howzit@ Mail.Send | `oAuth2Api` | W22 | OAuth2 client credentials, scope `https://graph.microsoft.com/.default` | `MS_TENANT_ID`, `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET` (C2) |
 | Meta Page Token | `httpHeaderAuth` | W30, W31 | `Authorization: Bearer …` | `PAGE_ACCESS_TOKEN` |
-| Meta system user token (Bearer) | `httpHeaderAuth` | W20, W22 | `Authorization: Bearer …` | `META_SYSTEM_USER_TOKEN` (C1) |
+| Meta system user token (Bearer) | `httpHeaderAuth` | SUB-capi-send, W20, W22 | `Authorization: Bearer …` | `META_SYSTEM_USER_TOKEN` (C1) |
 | Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite) | `microsoftOutlookOAuth2Api` | W05 | Microsoft Outlook OAuth2, signed in as howzit@ | `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET`. Consent by howzit@ in the n8n UI (C2) |
 | Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send) | `microsoftOutlookOAuth2Api` | W05, W15, W17, W19, W34 | Microsoft Outlook OAuth2, signed in as howzit@ | `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET`. Consent by howzit@ (C2) |
 | Microsoft Graph (howzit mailbox, app-only) | `oAuth2Api` | W20 | OAuth2 client credentials | `MS_TENANT_ID`, `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET` (C2) |
@@ -130,7 +136,7 @@ W26 has no JSON yet (it runs as `provision.sh`, see LOCAL-STAGING.md §7). W01�
 | W34 DSR webhook token | `httpHeaderAuth` | W34 | Webhook header auth on `POST /w34/dsr` and `/w34/dsr-action` | No `.env` name. Held by the console's server-side caller |
 | WhatsApp Cloud API (SortMyCover) | `httpHeaderAuth` | W14 | `Authorization: Bearer …` | `META_SYSTEM_USER_TOKEN` (C1; same name as the next row with another type) |
 | WhatsApp Cloud API (SortMyCover) | `whatsAppApi` | W23 | n8n WhatsApp node: access token + business account id | `META_SYSTEM_USER_TOKEN`, `WABA_ID` (C1) |
-| WhatsApp Cloud API (system user) | `httpHeaderAuth` | W03, W28 | `Authorization: Bearer …` | `META_SYSTEM_USER_TOKEN` (C1) |
+| WhatsApp Cloud API (system user) | `httpHeaderAuth` | SUB-whatsapp-send, W03, W28 | `Authorization: Bearer …` | `META_SYSTEM_USER_TOKEN` (C1) |
 | WhatsApp Cloud API token (SMC ops) | `httpHeaderAuth` | W32 | `Authorization: Bearer …` | `META_SYSTEM_USER_TOKEN` (C1) |
 | WhatsApp Graph bearer (system user) | `httpHeaderAuth` | W23 | `Authorization: Bearer …` | `META_SYSTEM_USER_TOKEN` (C1) |
 | n8n webhook secret (SMC) | `httpHeaderAuth` | W32, W33 | Webhook header auth on `smc-w32-event` / `smc-w32-decision`; W33 sends the same header | No `.env` name. One value on both sides |

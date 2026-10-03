@@ -1,0 +1,612 @@
+{
+  "id": "smc-capi-send",
+  "name": "CAPI Send (Conversions API sub-workflow)",
+  "nodes": [
+    {
+      "name": "Called by caller (CAPI Send)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "smc-capi-send-1",
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "name": "Normalise input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').subCapiSend;\nreturn { json: L.normalise($json) };"
+      },
+      "id": "smc-capi-send-2",
+      "position": [
+        440,
+        340
+      ]
+    },
+    {
+      "name": "Input valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.valid === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-capi-send-3",
+      "position": [
+        660,
+        380
+      ]
+    },
+    {
+      "name": "Load lead, consent, dataset and dedupe",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT (l.id IS NOT NULL) AS found, l.consent_ads_at, l.phone, l.first_name, l.last_name, l.fbc, l.fbp, l.client_ip, l.client_user_agent,\n       COALESCE(NULLIF($2, '')::uuid, l.brand_id)::text AS lead_brand_id, br.pixel_id, br.dataset_id, br.waba_id,\n       EXISTS (SELECT 1 FROM public.capi_log g WHERE g.event_id = $3 AND g.event_name = $4) AS duplicate\n  FROM (SELECT 1) one\n  LEFT JOIN public.leads l ON l.id = NULLIF($1, '')::uuid\n  LEFT JOIN public.brands br ON br.id = COALESCE(NULLIF($2, '')::uuid, l.brand_id);",
+        "options": {
+          "queryReplacement": "={{ [ $json.lead_id || '', $json.brand_id || '', $json.event_id, $json.event_name ] }}"
+        }
+      },
+      "id": "smc-capi-send-4",
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "name": "Build event (consent gate, no email, dry run)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Consent gate first (capi/event-spec.md). Email is never sent. DRY_RUN_SENDS: nothing is written or posted.\nconst L = require('lv-automation').subCapiSend;\nconst n = $('Normalise input').item.json;\nreturn { json: L.build(n, $json, $env, Date.now()) };"
+      },
+      "id": "smc-capi-send-5",
+      "position": [
+        1100,
+        340
+      ]
+    },
+    {
+      "name": "Send?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.action === 'send' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-capi-send-6",
+      "position": [
+        1320,
+        380
+      ]
+    },
+    {
+      "name": "Claim capi_log (unique event_id + event_name)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.capi_log (lead_id, brand_id, event_name, event_id, action_source, status)\nVALUES (NULLIF($1, '')::uuid, NULLIF($2, '')::uuid, $3, $4, $5, 'sending')\nON CONFLICT (event_id, event_name) DO NOTHING\nRETURNING id::text AS log_id;",
+        "options": {
+          "queryReplacement": "={{ [ $json.log.lead_id || '', $json.log.brand_id || '', $json.log.event_name, $json.log.event_id, $json.log.action_source ] }}"
+        }
+      },
+      "id": "smc-capi-send-7",
+      "position": [
+        1540,
+        300
+      ]
+    },
+    {
+      "name": "Claimed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ !!$json.log_id }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-capi-send-8",
+      "position": [
+        1760,
+        340
+      ]
+    },
+    {
+      "name": "POST /{dataset}/events",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Meta system user token (Bearer)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Build event (consent gate, no email, dry run)').item.json.url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Build event (consent gate, no email, dry run)').item.json.body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "smc-capi-send-9",
+      "position": [
+        1980,
+        380
+      ]
+    },
+    {
+      "name": "Interpret response (usage header)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').subCapiSend;\nreturn { json: L.interpret($json) };"
+      },
+      "id": "smc-capi-send-10",
+      "position": [
+        2200,
+        300
+      ]
+    },
+    {
+      "name": "Update capi_log",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.capi_log SET status = $2, events_received = $3::int, fbtrace_id = NULLIF($4, ''), error = NULLIF($5, ''), sent_at = CASE WHEN $2 = 'sent' THEN now() END\n WHERE id = $1::uuid RETURNING id::text AS log_id;",
+        "options": {
+          "queryReplacement": "={{ [ $('Claim capi_log (unique event_id + event_name)').item.json.log_id, $json.status, $json.events_received == null ? null : $json.events_received, $json.fbtrace_id || '', $json.error || '' ] }}"
+        }
+      },
+      "id": "smc-capi-send-11",
+      "position": [
+        2420,
+        340
+      ]
+    },
+    {
+      "name": "Test event code set and sent?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ !!$env.CAPI_TEST_EVENT_CODE && $('Interpret response (usage header)').item.json.ok === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-capi-send-12",
+      "position": [
+        2640,
+        380
+      ]
+    },
+    {
+      "name": "Evidence line (S7-11 / S7-14)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Appended to $env.CAPI_EVIDENCE_PATH (default /data/evidence/capi-test-events.jsonl, a writable volume; the repo\n// mount is read-only). readiness.mjs S7-11 / S7-14 read that path when CAPI_EVIDENCE_PATH is set. No identifiers.\nconst L = require('lv-automation').subCapiSend;\nconst b = $('Build event (consent gate, no email, dry run)').item.json;\nconst line = L.evidenceLine(b.log, $env.CAPI_TEST_EVENT_CODE, Date.now());\nreturn { json: { line }, binary: { data: { data: Buffer.from(line, 'utf8').toString('base64'), mimeType: 'application/x-ndjson', fileName: 'capi-test-events.jsonl' } } };"
+      },
+      "id": "smc-capi-send-13",
+      "position": [
+        2860,
+        300
+      ]
+    },
+    {
+      "name": "Append evidence file",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $env.CAPI_EVIDENCE_PATH || '/data/evidence/capi-test-events.jsonl' }}",
+        "dataPropertyName": "data",
+        "options": {
+          "append": true
+        }
+      },
+      "id": "smc-capi-send-14",
+      "position": [
+        3080,
+        340
+      ]
+    },
+    {
+      "name": "Failed or usage >= 80%?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $('Interpret response (usage header)').item.json.ok !== true || $('Interpret response (usage header)').item.json.usage_pct >= 80 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-capi-send-15",
+      "position": [
+        3300,
+        380
+      ]
+    },
+    {
+      "name": "Alert ops: W22 signal (CAPI)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// I-47g: W22 producer contract (automation/W22.md section 3), handed over by Execute Workflow smc-w22.\nconst r = $('Interpret response (usage header)').item.json;\nconst b = $('Build event (consent gate, no email, dry run)').item.json;\nconst failed = r.ok !== true;\nreturn { json: { signal_key: failed ? 'capi_send_failed' : 'capi_usage_80', scope: 'capi:' + b.log.event_name, severity: 'amber', what: failed ? 'CAPI ' + b.log.event_name + ' failed after 3 tries: ' + (r.error || 'error') + ' (fbtrace ' + (r.fbtrace_id || 'n/a') + ')' : 'CAPI usage header at ' + r.usage_pct + '%', impact: failed ? 'Meta did not receive one optimisation event' : 'CAPI calls will be throttled soon', first_action: failed ? 'Check capi_log status=failed and the dataset id' : 'Back off: hold non-critical CAPI events for an hour', source: 'smc-capi-send' } };"
+      },
+      "id": "smc-capi-send-16",
+      "position": [
+        3520,
+        300
+      ]
+    },
+    {
+      "name": "Alert ops (CAPI)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w22",
+          "cachedResultName": "W22 Alerts"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "id": "smc-capi-send-17",
+      "position": [
+        3740,
+        340
+      ]
+    },
+    {
+      "name": "Note: smc-capi-send",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "content": "## smc-capi-send (LOCAL-STAGING §7)\nInput (ids only): `{ event_name, event_id, action_source, lead_id, brand_id, ctwa_clid?, value?, event_time? }`; a caller may add `user: { phone, fn, ln, external_id, ip, ua, fbc, fbp }` + `custom_data` (lead row wins).\n1. Consent gate (`leads.consent_ads_at`). 2. Hash inside (capi.buildEvent); email never. 3. Dataset by action_source. 4. Dedupe on capi_log unique(event_id, event_name); DRY_RUN writes nothing. 5. 3 tries; failure or usage >= 80% -> W22. 6. CAPI_TEST_EVENT_CODE -> evidence JSONL at CAPI_EVIDENCE_PATH.\nExecution data is not saved (hashed identifiers).",
+        "width": 520,
+        "height": 300
+      },
+      "id": "smc-capi-send-18"
+    }
+  ],
+  "connections": {
+    "Called by caller (CAPI Send)": {
+      "main": [
+        [
+          {
+            "node": "Normalise input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise input": {
+      "main": [
+        [
+          {
+            "node": "Input valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Input valid?": {
+      "main": [
+        [
+          {
+            "node": "Load lead, consent, dataset and dedupe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load lead, consent, dataset and dedupe": {
+      "main": [
+        [
+          {
+            "node": "Build event (consent gate, no email, dry run)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build event (consent gate, no email, dry run)": {
+      "main": [
+        [
+          {
+            "node": "Send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send?": {
+      "main": [
+        [
+          {
+            "node": "Claim capi_log (unique event_id + event_name)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim capi_log (unique event_id + event_name)": {
+      "main": [
+        [
+          {
+            "node": "Claimed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claimed?": {
+      "main": [
+        [
+          {
+            "node": "POST /{dataset}/events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /{dataset}/events": {
+      "main": [
+        [
+          {
+            "node": "Interpret response (usage header)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Interpret response (usage header)": {
+      "main": [
+        [
+          {
+            "node": "Update capi_log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update capi_log": {
+      "main": [
+        [
+          {
+            "node": "Test event code set and sent?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test event code set and sent?": {
+      "main": [
+        [
+          {
+            "node": "Evidence line (S7-11 / S7-14)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Failed or usage >= 80%?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evidence line (S7-11 / S7-14)": {
+      "main": [
+        [
+          {
+            "node": "Append evidence file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append evidence file": {
+      "main": [
+        [
+          {
+            "node": "Failed or usage >= 80%?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Failed or usage >= 80%?": {
+      "main": [
+        [
+          {
+            "node": "Alert ops: W22 signal (CAPI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert ops: W22 signal (CAPI)": {
+      "main": [
+        [
+          {
+            "node": "Alert ops (CAPI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "errorWorkflow": "smc-w22",
+    "callerPolicy": "workflowsFromSameOwner",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "none",
+    "saveManualExecutions": false
+  },
+  "tags": [
+    {
+      "name": "SortMyCover"
+    },
+    {
+      "name": "sub-workflow"
+    }
+  ],
+  "meta": {
+    "generatedBy": "automation/build-sub-workflows.mjs"
+  }
+}

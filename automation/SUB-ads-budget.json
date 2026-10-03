@@ -1,0 +1,180 @@
+{
+  "id": "smc-ads-budget",
+  "name": "Ads budget (propose-only sub-workflow, NH-57 default a)",
+  "nodes": [
+    {
+      "name": "Called by W16 / W19 (raise / lower)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "smc-ads-budget-1",
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "name": "Normalise input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').subAdsBudget;\nreturn { json: L.normalise($json) };"
+      },
+      "id": "smc-ads-budget-2",
+      "position": [
+        440,
+        340
+      ]
+    },
+    {
+      "name": "Input valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.valid === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-ads-budget-3",
+      "position": [
+        660,
+        380
+      ]
+    },
+    {
+      "name": "Build proposal + approval row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Every change is a proposal for Jonathan; the Meta write path is never called from here (6.2 confirm-to-apply).\nconst L = require('lv-automation').subAdsBudget;\nreturn { json: L.proposal($json) };"
+      },
+      "id": "smc-ads-budget-4",
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "name": "Insert proposal + approval outbox row (once per broker, cycle, op)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH p AS (\n  INSERT INTO ops.proposals (source, faculty, title, metric, number_at_decision, cost_zar, owner_agent, status, mechanism, evidence)\n  SELECT $1, $2, $3, $4, $5::numeric, $6::numeric, $7, 'proposed', $8, $9\n   WHERE NOT EXISTS (SELECT 1 FROM ops.notifications x WHERE x.dedupe_key = $10)\n  RETURNING id\n)\nINSERT INTO ops.notifications (kind, recipient, channel, source, status, ref_table, ref_id, dedupe_key, proposal_id, what, payload)\nSELECT 'approval', 'jonathan', 'console', 'ads_budget', 'queued', 'proposals', p.id::text, $10, p.id, $3, $11::jsonb\n  FROM p\nRETURNING proposal_id::text AS proposal_id;",
+        "options": {
+          "queryReplacement": "={{ (() => { const p = $json.proposal; const n = $json.notification; return [ p.source, p.faculty, p.title, p.metric, p.number_at_decision, p.cost_zar, p.owner_agent, p.mechanism, p.evidence, n.dedupe_key, JSON.stringify(n.payload) ]; })() }}"
+        }
+      },
+      "id": "smc-ads-budget-5",
+      "position": [
+        1100,
+        340
+      ]
+    },
+    {
+      "name": "Note: smc-ads-budget (NH-57)",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "content": "## smc-ads-budget: propose only (NH-57 default a)\nInput `{ op: raise|lower, broker_id, cycle_id, amount_zar, reason }` (also `{ action, media_share_zar }`). Every change becomes an `ops.proposals` row (faculty media, source `ads_budget`; platform-architect adds the value to the check, I-48i) plus one `ops.notifications` approval row (channel console, source ads_budget, never `console`, so W32 does not read it as a decision). The Meta budget write path is never called here.\n\n**Alternative (b), not built:** a decrease-only system path in `ads/meta-ads.js` (ads-api-engineer) so `lower` applies unattended at cycle end without a confirmToken, while `raise` keeps the confirm gate. Money decision: Jonathan picks (a) or (b).",
+        "width": 520,
+        "height": 300
+      },
+      "id": "smc-ads-budget-6"
+    }
+  ],
+  "connections": {
+    "Called by W16 / W19 (raise / lower)": {
+      "main": [
+        [
+          {
+            "node": "Normalise input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise input": {
+      "main": [
+        [
+          {
+            "node": "Input valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Input valid?": {
+      "main": [
+        [
+          {
+            "node": "Build proposal + approval row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build proposal + approval row": {
+      "main": [
+        [
+          {
+            "node": "Insert proposal + approval outbox row (once per broker, cycle, op)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "errorWorkflow": "smc-w22",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    {
+      "name": "SortMyCover"
+    },
+    {
+      "name": "sub-workflow"
+    }
+  ],
+  "meta": {
+    "generatedBy": "automation/build-sub-workflows.mjs"
+  }
+}

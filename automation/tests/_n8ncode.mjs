@@ -28,7 +28,8 @@ export async function runCode(wf, name, { json = {}, items, env = {}, refs = {} 
   const $ = (k) => {
     if (!(k in refs)) throw new Error(`$('${k}') not provided to the test`);
     const r = refs[k];
-    return { item: { json: r }, first: () => ({ json: r }), itemMatching: () => ({ json: r }) };
+    // .all(): every item of that node (refs value is the json of its single item, as for .item / .first()).
+    return { item: { json: r }, first: () => ({ json: r }), itemMatching: () => ({ json: r }), all: () => [{ json: r }] };
   };
   const all = (items || [json]).map((j) => ({ json: j }));
   return fn(json, { REPO_DIR: REPO, ...env }, $, { all: () => all, first: () => all[0] }, nodeRequire);
@@ -51,7 +52,7 @@ export function templateCounts(name) {
 
 /** Every workflow JSON in automation/ (for "only one writer" checks). */
 import { readdirSync } from 'node:fs';
-export const allWorkflows = () => readdirSync(join(REPO, 'automation')).filter((f) => /^W\d\d\.json$/.test(f)).map((f) => ({ file: f, wf: JSON.parse(readFileSync(join(REPO, 'automation', f), 'utf8')) }));
+export const allWorkflows = () => readdirSync(join(REPO, 'automation')).filter((f) => /^(W\d\d|SUB-[a-z0-9-]+)\.json$/.test(f)).map((f) => ({ file: f, wf: JSON.parse(readFileSync(join(REPO, 'automation', f), 'utf8')) }));
 export const PG_CRED = 'LV Supabase - n8n_app (least privilege)';
 
 /**
