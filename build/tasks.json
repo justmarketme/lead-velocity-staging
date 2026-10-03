@@ -2530,6 +2530,28 @@
       "human_gate": true,
       "status": "needs_human",
       "section": "4.12a"
+    },
+    {
+      "id": "NH-57",
+      "title": "Ad budget changes by workflow: one-tap confirm for every change (default) or raises only",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.4 / W16 / W19"
+    },
+    {
+      "id": "NH-58",
+      "title": "Service-role key on the VPS: accept for cycle 1 or move W16/W20/W23 calls behind edge functions first (default)",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "6.6 security"
     }
   ]
 }
