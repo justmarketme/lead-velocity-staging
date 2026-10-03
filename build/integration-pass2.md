@@ -303,7 +303,15 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 ### I-51 · 2026-10-03 (Phase 5 rehearsal attempt)
 | # | Item | Owner |
 |---|---|---|
-| I-51a | Day-in-the-life rehearsal (6B.10) on the local n8n: import all 39 workflow files, run synthetic lead L01 through intake → first touch → slots → book → reminders (time-shifted) → outcome → no-show → replacement → STOP with the egress guard and DRY_RUN; precise failure list per stage | automation-engineer — dispatched |
+| I-51a (PARTIAL: import + harness ok; W01 blocked by F1/F2/F3 → I-52) | Day-in-the-life rehearsal (6B.10) on the local n8n: import all 39 workflow files, run synthetic lead L01 through intake → first touch → slots → book → reminders (time-shifted) → outcome → no-show → replacement → STOP with the egress guard and DRY_RUN; precise failure list per stage | automation-engineer — dispatched |
 | I-51b | W12 holds CAPI Attended on an Attended-vs-"No" conflict but nothing releases it after KG decides; an Attended sent before the lead answers cannot be recalled; Attended + unreachable disposition still sends Attended | attribution-analyst + automation-engineer (W12) |
 | I-51c | W07 "-> W28" route is unused after I-45d; remove it in a pass that renumbers the Route switch outputs | automation-engineer (W07) |
 | I-51d | Late broker-mark conflict is logged to public.escalations (W12 convention) rather than ops.notifications — keep (default) or move | compliance-qa |
+
+### I-52 · 2026-10-03 (rehearsal L01 findings)
+| # | Item | Owner |
+|---|---|---|
+| I-52a | F2: `webhook_events.source` CHECK (migration 02/06) rejects w01_ip / w01_num and other workflow literals — migration 13 §7 extends the list from a scan of every workflow; test that every literal is allowed; stub rebuilt (constraint restored) | platform-architect — dispatched |
+| I-52b | F3: L01 fixture consent version `named-v1-DRAFT` / practice text unknown to the registry → render from landing/config/consent.json with the seeded broker; BRAND_ID non-uuid fails fast (F1); fixture numbers must not collide with the seed broker | automation-engineer — dispatched |
+| I-52c | F0: n8n 2.x refuses to call an unpublished sub-workflow — W26 restore publishes every Execute Workflow target (their cron triggers start too); CREDENTIALS/W26.md note | devops-security |
+| I-52d | Re-run the rehearsal stages 1–8 after I-52a/b land (harness + env under the scratchpad `rh/`); only stub-local DDL allowed is the chain rebuild | automation-engineer, next |
