@@ -1,0 +1,1216 @@
+{
+  "name": "W15 Opt-out (DRAFT pending GATE-TEST-W15)",
+  "nodes": [
+    {
+      "id": "n01",
+      "name": "Sticky: read me",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -440
+      ],
+      "parameters": {
+        "width": 900,
+        "height": 380,
+        "content": "W15 Opt-out (\"STOP\" anywhere) - DRAFT pending GATE-TEST-W15 (automation-engineer). Logic: automation/lib/w15.mjs (tested by automation/tests/W15.test.mjs, which also checks this file).\nEntries: Execute Workflow from W07 (WhatsApp STOP in any state, or an opt-out intent), the console / W34 ({ op: opt_out, lead_id | mobile, channel }) and POST /sms-inbound (Twilio, signature checked) for STOP replies to the SMS fallback.\nDetection: conversation/guardrail.mjs STOP_RX (same net W07 routes on) + \"stopall\"; never the booking Cancel button. One statement: suppression row (smc_hash_contact = digits-only SHA-256, source stop, brand_id NULL = Lead-Velocity-wide) is the idempotency claim; leads.opted_out_at + stage opted_out; live bookings cancelled (W15_STOP_BOOKING_MODE=cancel, NH-28 b). Then: W09 pause (opt_out) + cancel_all per booking (CONTRACTS.md), Graph DELETE of the Outlook event (token from W04 graph_token), broker told by WhatsApp (session in window / broker_booking_changed template / held) and email from howzit@, first name only. Exactly one confirmation (lines.mjs STOP_ACK) on the channel the STOP came in on, then nothing ever again. A second STOP is a no-op.\nEnv: REPO_DIR, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TWILIO_ACCOUNT_SID, TWILIO_SMS_FROM, TWILIO_AUTH_TOKEN, W15_STOP_BOOKING_MODE, DRY_RUN_SENDS."
+      }
+    },
+    {
+      "id": "n02",
+      "name": "Called by W07 / console / W34 (STOP or opt-out)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "n03",
+      "name": "POST /sms-inbound (Twilio)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        400
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sms-inbound",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "webhookId": "w15-sms-inbound"
+    },
+    {
+      "id": "n04",
+      "name": "Verify Twilio signature",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst V = require(REPO + '/automation/security/verify-webhooks.js');\nconst it = $input.first().json; const h = it.headers || {};\nconst params = it.body || {};\nconst base = String($env.WEBHOOK_URL || '').replace(/\\/$/, '');\nconst ok = !!V.verifyTwilioSignature({ url: base + '/webhook/sms-inbound', params, signatureHeader: h['x-twilio-signature'], authToken: $env.TWILIO_AUTH_TOKEN }).ok;\nreturn [{ json: { ok, item: { source: 'twilio_sms', From: params.From, Body: params.Body } } }];"
+      }
+    },
+    {
+      "id": "n05",
+      "name": "Respond 200 (empty TwiML)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        400
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "<Response></Response>",
+        "options": {
+          "responseCode": "={{ $json.ok ? 200 : 403 }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/xml"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "n06",
+      "name": "Signed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.ok) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n07",
+      "name": "SMS item",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json.item }];"
+      }
+    },
+    {
+      "id": "n08",
+      "name": "Entry (w15.entryFrom + isStop)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w15.mjs').href);\nreturn $input.all().map((i) => { const e = L.entryFrom(i.json); return { json: { ...e, stop: e.force || L.isStop(e.text), lead_id: e.lead_id || (i.json.lead && i.json.lead.id) || null, now: Date.now() } }; });"
+      }
+    },
+    {
+      "id": "n09",
+      "name": "STOP? (else nothing: W07 owns every other message)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.stop && !!($json.mobile || $json.lead_id)) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n10",
+      "name": "Load leads, live bookings, brokers, suppression for this number",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH h AS (SELECT public.smc_hash_contact(COALESCE($1, (SELECT x.phone FROM public.leads x WHERE x.id = $2::uuid))) AS mh,\n                  COALESCE($1, (SELECT y.phone FROM public.leads y WHERE y.id = $2::uuid)) AS mobile)\nSELECT h.mh AS mobile_hash, h.mobile,\n       EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = h.mh AND s.source = 'stop') AS already_suppressed,\n       COALESCE((SELECT jsonb_agg(jsonb_build_object('id', l.id, 'first_name', l.first_name, 'phone', l.phone, 'broker_id', l.broker_id,\n                  'brand_id', l.brand_id, 'opted_out_at', l.opted_out_at, 'language', l.language))\n                   FROM public.leads l WHERE l.brand_id IS NOT NULL AND (l.dedupe_hash = h.mh OR l.id = $2::uuid)), '[]'::jsonb) AS leads,\n       COALESCE((SELECT jsonb_agg(jsonb_build_object('id', a.id, 'lead_id', a.client_id, 'broker_id', a.broker_id, 'status', a.status,\n                  'graph_event_id', a.graph_event_id, 'start', a.appointment_date, 'method', a.method))\n                   FROM public.appointments a JOIN public.leads la ON la.id = a.client_id\n                  WHERE a.brand_id IS NOT NULL AND a.status IN ('booked','confirmed') AND (la.dedupe_hash = h.mh OR la.id = $2::uuid)), '[]'::jsonb) AS bookings,\n       COALESCE((SELECT jsonb_agg(jsonb_build_object('id', b.id, 'whatsapp_number', b.whatsapp_number, 'email', b.email, 'contact_person', b.contact_person,\n                  'calendar_email', b.calendar_email,\n                  'last_inbound_at', (SELECT max(c.created_at) FROM public.communications c WHERE c.broker_id = b.id AND c.lead_id IS NULL AND c.direction = 'inbound' AND c.sender_type = 'broker')))\n                   FROM public.brokers b\n                  WHERE b.id IN (SELECT lb.broker_id FROM public.leads lb WHERE lb.dedupe_hash = h.mh OR lb.id = $2::uuid)), '[]'::jsonb) AS brokers\n  FROM h;",
+        "options": {
+          "queryReplacement": "={{ [$json.mobile || null, $json.lead_id || null] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n11",
+      "name": "Plan opt-out (w15.planOptOut)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w15.mjs').href);\nconst e = $('STOP? (else nothing: W07 owns every other message)').first().json;\nconst ctx = $input.first().json;\nconst language = (ctx.leads || []).map((l) => l.language).find(Boolean) || e.language || 'en';\nconst plan = L.planOptOut({ mobile: e.mobile || ctx.mobile, text: e.text, channel: e.channel, force: e.force, now: e.now, language,\n  leads: ctx.leads || [], bookings: ctx.bookings || [], brokers: ctx.brokers || [], already_suppressed: ctx.already_suppressed, booking_mode: $env.W15_STOP_BOOKING_MODE });\nreturn [{ json: { e, ctx, plan } }];"
+      }
+    },
+    {
+      "id": "n12",
+      "name": "First STOP for this number? (a repeat is a no-op)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.plan.handled && !$json.plan.duplicate) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n13",
+      "name": "Already opted out: nothing, no second confirmation",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1320,
+        200
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "n14",
+      "name": "Opt out + suppress + release bookings (one statement; the suppression insert is the claim)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH sup AS (\n  INSERT INTO public.suppression (mobile_hash, source, brand_id, lead_id, note)\n  SELECT public.smc_hash_contact($1), 'stop', NULL, $2::uuid, $3\n   WHERE $1 IS NOT NULL AND $1 <> ''\n  ON CONFLICT (mobile_hash, source) DO NOTHING\n  RETURNING id),\nclaim AS (SELECT (EXISTS (SELECT 1 FROM sup) OR $1 IS NULL OR $1 = '') AS ok),\nupd AS (\n  UPDATE public.leads l\n     SET opted_out_at = COALESCE(l.opted_out_at, now()), stage = 'opted_out', updated_at = now()\n   WHERE l.id IN (SELECT jsonb_array_elements_text($4::jsonb)::uuid) AND (SELECT ok FROM claim)\n  RETURNING l.id),\nbk AS (\n  UPDATE public.appointments a\n     SET status = 'cancelled', cancelled_at = now(), reason_notes = 'lead_opted_out', updated_at = now()\n   WHERE a.id IN (SELECT jsonb_array_elements_text($5::jsonb)::uuid) AND a.status IN ('booked','confirmed') AND (SELECT ok FROM claim)\n  RETURNING a.id),\nact AS (\n  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\n  SELECT (x->>'lead_id')::uuid, (x->>'brand_id')::uuid, (x->>'broker_id')::uuid, 'W15', 'lead', 'opted_out', x->'payload', now(), x->>'idempotency_key'\n    FROM jsonb_array_elements($6::jsonb) x\n   WHERE (SELECT ok FROM claim)\n  ON CONFLICT (idempotency_key) DO NOTHING\n  RETURNING id)\nSELECT (SELECT ok FROM claim) AS claimed, (SELECT count(*) FROM upd)::int AS leads_opted_out, (SELECT count(*) FROM bk)::int AS bookings_cancelled, (SELECT count(*) FROM act)::int AS activities;",
+        "options": {
+          "queryReplacement": "={{ [$json.e.mobile || $json.ctx.mobile || '', ($json.plan.suppression && $json.plan.suppression.lead_id) || null, ($json.plan.suppression && $json.plan.suppression.note) || 'W15', JSON.stringify($json.plan.lead_updates.map((u) => u.id)), JSON.stringify($json.plan.booking_cancels.map((b) => b.booking_id)), JSON.stringify($json.plan.activities)] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n15",
+      "name": "Fan out (W09, Graph delete, broker notices, one confirmation)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w15.mjs').href);\nif (!$input.first().json.claimed) return []; // lost a race with a parallel STOP: the winner does everything\nconst p = $('Plan opt-out (w15.planOptOut)').first().json;\nconst out = [];\nfor (const w of p.plan.w09) out.push({ json: { kind: 'w09', ...w } });\nconst brokers = new Map((p.ctx.brokers || []).map((b) => [String(b.id), b]));\nfor (const b of p.plan.booking_cancels) if (b.graph_event_id) out.push({ json: { kind: 'graph_delete', broker_id: b.broker_id, op: 'graph_token', graph_event_id: b.graph_event_id, calendar_email: (brokers.get(String(b.broker_id)) || {}).calendar_email || null } });\nfor (const nt of p.plan.broker_notices) {\n  if (nt.channel === 'email') { if (nt.to) out.push({ json: { kind: 'broker_email', to: nt.to, subject: nt.subject, text: nt.text, lead_id: nt.lead_id } }); continue; }\n  if (!nt.to || nt.mode === 'held_no_template') { out.push({ json: { kind: 'broker_held', lead_id: nt.lead_id, broker_id: nt.broker_id } }); continue; }\n  out.push({ json: { kind: 'broker_wa', lead_id: nt.lead_id, wa: nt.mode === 'session' ? L.waText(nt.to, nt.text) : L.brokerTemplate(nt.to, nt) } });\n}\nconst cf = p.plan.confirmation;\nif (cf) out.push({ json: { kind: cf.channel === 'sms' ? 'confirm_sms' : 'confirm_wa', lead_id: cf.lead_id, wa: L.waText(cf.to, cf.text), sms: { to: cf.to, text: cf.text }, text: cf.text, to: cf.to } });\nreturn out;"
+      }
+    },
+    {
+      "id": "n16",
+      "name": "Fan-out kind?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1760,
+        0
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "w09",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s0",
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "w09",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "graph_delete",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s1",
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "graph_delete",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "broker_wa",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s2",
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "broker_wa",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "broker_email",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s3",
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "broker_email",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "confirm_wa",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s4",
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "confirm_wa",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "confirm_sms",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s5",
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "confirm_sms",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "broker_held",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s6",
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "broker_held",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "n17",
+      "name": "W09 pause / cancel_all",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1980,
+        -400
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "",
+          "cachedResultName": "W09 Reminder sequence"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Called with { op: 'pause', lead_id, reason: 'opt_out' } and { op: 'cancel_all', booking_id } (CONTRACTS.md). Idempotent."
+    },
+    {
+      "id": "n18",
+      "name": "W04 graph_token",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1980,
+        -200
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "",
+          "cachedResultName": "W04 Slots API"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "notes": "Called with { op: 'graph_token', broker_id }; waits -> { access_token } (W04 is the only refresher)."
+    },
+    {
+      "id": "n19",
+      "name": "Graph DELETE event",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        -200
+      ],
+      "parameters": {
+        "method": "DELETE",
+        "url": "=https://graph.microsoft.com/v1.0/users/{{ encodeURIComponent($('Fan-out kind?').item.json.calendar_email) }}/events/{{ $('Fan-out kind?').item.json.graph_event_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n20",
+      "name": "Live send? (broker WhatsApp)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($env.DRY_RUN_SENDS !== 'true') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n21",
+      "name": "Send WhatsApp (broker notice)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION }}/{{ $env.PHONE_NUMBER_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.META_SYSTEM_USER_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.wa) }}",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "n22",
+      "name": "Live send? (broker email)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($env.DRY_RUN_SENDS !== 'true') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n23",
+      "name": "Email broker from howzit@ (Graph sendMail)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.microsoft.com/v1.0/me/sendMail",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "microsoftOutlookOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ message: { subject: $json.subject, body: { contentType: 'Text', content: $json.text }, toRecipients: [{ emailAddress: { address: $json.to } }] }, saveToSentItems: true }) }}",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "",
+          "name": "Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n24",
+      "name": "Live send? (confirmation)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($env.DRY_RUN_SENDS !== 'true') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n25",
+      "name": "Send WhatsApp (the one confirmation)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        400
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION }}/{{ $env.PHONE_NUMBER_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.META_SYSTEM_USER_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.wa) }}",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "n26",
+      "name": "Log confirmation + touch leads.last_contact_at (lead outbound)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2420,
+        400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- I-38d / CONTRACTS.md: a lead-facing send Meta accepted (wamid) touches last_contact_at. Dry runs never reach here.\nWITH c AS (\n  INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, author, workflow, metadata)\n  SELECT l.brand_id, 'whatsapp', 'outbound', 'system', 'client', $2, $3, 'sent', $4, l.id, 'system', 'W15', jsonb_build_object('kind', 'opt_out_confirmation')\n    FROM public.leads l WHERE l.id = $1::uuid AND $4 <> ''\n  ON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING\n  RETURNING id)\nUPDATE public.leads SET last_contact_at = now() WHERE id = $1::uuid AND $4 <> '' RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ (() => { const f = $('Fan-out kind?').item.json; return [f.lead_id, f.to, f.text, ($json.messages && $json.messages[0] && $json.messages[0].id) || '']; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n27",
+      "name": "Live send? (SMS confirmation)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        600
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($env.DRY_RUN_SENDS !== 'true') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n28",
+      "name": "Twilio SMS (the one confirmation)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        600
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.twilio.com/2010-04-01/Accounts/{{ $env.TWILIO_ACCOUNT_SID }}/Messages.json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "To",
+              "value": "={{ $json.sms.to }}"
+            },
+            {
+              "name": "From",
+              "value": "={{ $env.TWILIO_SMS_FROM }}"
+            },
+            {
+              "name": "Body",
+              "value": "={{ $json.sms.text }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "",
+          "name": "Twilio API key (Basic)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "n29",
+      "name": "Log broker notice held (no template yet; email carries it)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1980,
+        800
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, 'W15', 'system', 'broker_notice_held', jsonb_build_object('reason', 'outside the broker window and no booking: broker_lead_opted_out template pending (needs_human)'), now(), 'w15:held:' || $1::text)\nON CONFLICT (idempotency_key) DO NOTHING;",
+        "options": {
+          "queryReplacement": "={{ [$json.lead_id, $json.broker_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    }
+  ],
+  "connections": {
+    "Called by W07 / console / W34 (STOP or opt-out)": {
+      "main": [
+        [
+          {
+            "node": "Entry (w15.entryFrom + isStop)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Entry (w15.entryFrom + isStop)": {
+      "main": [
+        [
+          {
+            "node": "STOP? (else nothing: W07 owns every other message)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /sms-inbound (Twilio)": {
+      "main": [
+        [
+          {
+            "node": "Verify Twilio signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Twilio signature": {
+      "main": [
+        [
+          {
+            "node": "Respond 200 (empty TwiML)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond 200 (empty TwiML)": {
+      "main": [
+        [
+          {
+            "node": "Signed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Signed?": {
+      "main": [
+        [
+          {
+            "node": "SMS item",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SMS item": {
+      "main": [
+        [
+          {
+            "node": "Entry (w15.entryFrom + isStop)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "STOP? (else nothing: W07 owns every other message)": {
+      "main": [
+        [
+          {
+            "node": "Load leads, live bookings, brokers, suppression for this number",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load leads, live bookings, brokers, suppression for this number": {
+      "main": [
+        [
+          {
+            "node": "Plan opt-out (w15.planOptOut)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan opt-out (w15.planOptOut)": {
+      "main": [
+        [
+          {
+            "node": "First STOP for this number? (a repeat is a no-op)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "First STOP for this number? (a repeat is a no-op)": {
+      "main": [
+        [
+          {
+            "node": "Opt out + suppress + release bookings (one statement; the suppression insert is the claim)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Already opted out: nothing, no second confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Opt out + suppress + release bookings (one statement; the suppression insert is the claim)": {
+      "main": [
+        [
+          {
+            "node": "Fan out (W09, Graph delete, broker notices, one confirmation)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fan out (W09, Graph delete, broker notices, one confirmation)": {
+      "main": [
+        [
+          {
+            "node": "Fan-out kind?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fan-out kind?": {
+      "main": [
+        [
+          {
+            "node": "W09 pause / cancel_all",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "W04 graph_token",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Live send? (broker WhatsApp)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Live send? (broker email)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Live send? (confirmation)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Live send? (SMS confirmation)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log broker notice held (no template yet; email carries it)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W04 graph_token": {
+      "main": [
+        [
+          {
+            "node": "Graph DELETE event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Live send? (broker WhatsApp)": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp (broker notice)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Live send? (broker email)": {
+      "main": [
+        [
+          {
+            "node": "Email broker from howzit@ (Graph sendMail)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Live send? (confirmation)": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp (the one confirmation)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp (the one confirmation)": {
+      "main": [
+        [
+          {
+            "node": "Log confirmation + touch leads.last_contact_at (lead outbound)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Live send? (SMS confirmation)": {
+      "main": [
+        [
+          {
+            "node": "Twilio SMS (the one confirmation)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "saveManualExecutions": true,
+    "errorWorkflow": "W22 Alerts"
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "SortMyCover"
+    },
+    {
+      "name": "core-path"
+    },
+    {
+      "name": "draft"
+    },
+    {
+      "name": "POPIA"
+    }
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "generatedBy": "automation/build-w01-w06-w15.mjs"
+  }
+}
