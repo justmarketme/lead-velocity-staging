@@ -336,8 +336,9 @@
       ],
       "acceptance_test": "node automation/tests/W01.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
-      "section": "4.6 inventory"
+      "status": "in_progress",
+      "section": "4.6 inventory",
+      "note": "DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W01 approves the test and it passes on the draft"
     },
     {
       "id": "W02",
@@ -378,8 +379,9 @@
       ],
       "acceptance_test": "node automation/tests/W04.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
-      "section": "4.6 inventory"
+      "status": "in_progress",
+      "section": "4.6 inventory",
+      "note": "DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W04 approves the test and it passes on the draft"
     },
     {
       "id": "W05",
@@ -393,8 +395,9 @@
       ],
       "acceptance_test": "node automation/tests/W05.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
-      "section": "4.6 inventory"
+      "status": "in_progress",
+      "section": "4.6 inventory",
+      "note": "DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W05 approves the test and it passes on the draft"
     },
     {
       "id": "W06",
@@ -408,8 +411,9 @@
       ],
       "acceptance_test": "node automation/tests/W06.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
-      "section": "4.6 inventory"
+      "status": "in_progress",
+      "section": "4.6 inventory",
+      "note": "DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W06 approves the test and it passes on the draft"
     },
     {
       "id": "W07",
@@ -451,8 +455,9 @@
       ],
       "acceptance_test": "node automation/tests/W09.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
-      "section": "4.6 inventory"
+      "status": "in_progress",
+      "section": "4.6 inventory",
+      "note": "DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W09 approves the test and it passes on the draft"
     },
     {
       "id": "W10",
@@ -494,8 +499,9 @@
       ],
       "acceptance_test": "node automation/tests/W12.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
-      "section": "4.6 inventory"
+      "status": "in_progress",
+      "section": "4.6 inventory",
+      "note": "DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W12 approves the test and it passes on the draft"
     },
     {
       "id": "W13",
@@ -509,8 +515,9 @@
       ],
       "acceptance_test": "node automation/tests/W13.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
-      "section": "4.6 inventory"
+      "status": "in_progress",
+      "section": "4.6 inventory",
+      "note": "DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W13 approves the test and it passes on the draft"
     },
     {
       "id": "W14",
@@ -538,8 +545,9 @@
       ],
       "acceptance_test": "node automation/tests/W15.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
-      "status": "pending",
-      "section": "4.6 inventory"
+      "status": "in_progress",
+      "section": "4.6 inventory",
+      "note": "DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W15 approves the test and it passes on the draft"
     },
     {
       "id": "W16",
