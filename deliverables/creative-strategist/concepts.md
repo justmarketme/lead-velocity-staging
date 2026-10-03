@@ -275,6 +275,46 @@
 
 ---
 
+## DRAFT concepts C16 and C17 (added 2026-10-03, pending compliance-qa, not for upload)
+
+**Why these two:** Jonathan's direction is clients who would easily pay for cover and are looking for it now. C16 is the bond-paperwork moment (best on both signals in `angle-ranking.md`). C17 reaches people who already pay for cover and are open to a review. Both are educational and third person, with no premium, product, insurer, comparison or "cheaper / save" claim. Disclosure on the end card, short form as in the rendered assets: "A service of Lead Velocity (Pty) Ltd. No financial advice, product comparisons or premium quotes." The full footer line comes from `landing/config/consent.json`. CTA goes to the quiz. Landing configs: `landing/angles/_draft/bond-paperwork.json` and `policy-review.json` (a sub-folder so the angle build does not pick them up; move up one level once cleared).
+
+### C16 — Trigger: bond paperwork · DRAFT, pending compliance-qa
+| Field | Copy |
+|---|---|
+| Hook H1 (7) | Bond paperwork often includes a cover form. |
+| Hook H2 (8) | Sign the bond. Then check the cover form. |
+| Hook H3 (7) | The cover form in the bond pack. |
+| Primary text (61) | The cover form in the bond pack. Bond paperwork often includes one. Signing day is busy, and it is easy to sign and move on. Checking what the form says is a separate job. A licensed adviser can go through it in 30 minutes. On video, WhatsApp or phone. Free to check, and you decide after. Tap to check your cover. |
+| Headline | The cover form in the bond pack |
+| Description | A free 30-minute check with a licensed adviser. |
+| CTA | Check my cover (LEARN_MORE; quiz) |
+| Visual brief | **Style K (document stack).** Charcoal field. A stack of plain off-white paper outlines with tabs: "Offer", "Bond", "Cover form". **Motion 0.3 s:** the "Cover form" tab slides out and turns amber. Lines on it are blank bars, no figures. No bank name, no logo, no insurer, no cover amount. **Caption:** the hook. **End card:** the line + "Tap to check your cover" + the short disclosure. |
+| Variants | **9:16** full script. **4:5** stack centred, type x0.85. **1:1** static: the stack with the amber tab, hook, tick bottom-left. |
+| Video (20 s, 9:16, code-rendered) | 0.0 Stack on screen, hook readable. CAP the hook · 0.3 "Cover form" tab slides out, amber · 2.5 cut: pages flick past. CAP "Signing day is busy." · 5.0 cut: the cover form fills the frame with blank bars. CAP "Checking what the form says is a separate job." **(payoff by 5 s)** · 8.0 cut: tick icon. CAP "A licensed adviser can go through it. 30 minutes." · 12.0 cut: chips "Video · WhatsApp · Phone". CAP "Free to check." · 15.0 cut: CAP "You decide after." · 17.0 end card + disclosure. |
+| Landing angle wording | **H1:** "The cover form *in the bond pack.*" · **Sub:** "Bond paperwork often includes one. A licensed adviser can go through it in 30 minutes." · **Gap line:** "Signing day is busy. Checking what the cover form says is a separate job, and a licensed adviser can go through it." |
+| Reading grade | 8 sentences, 61 words → about **FK 3** (hand estimate). Re-run `fk_check.py`. |
+| Compliance self-check | **Third person, no figure, no premium, no insurer, no bank, no comparison, no "cheaper / save".** The v1 idea "banks ask for life cover" and "most people sign whatever comes" are **not used**: the first can read as a requirement, the second is an unsourced "most" (C-2 precedent). **For compliance-qa:** (1) "bond paperwork often includes a cover form" is a factual claim and needs a source in `deliverables/verified-facts.md`. If none, the concept stays out of the live set and the fallback is C03. (2) The adviser "goes through" the form; the ad says nothing about what the form contains, whether it is good, or what to do about it. Please confirm that wording does not read as a product comparison. (3) H2 is an imperative; it asserts nothing about the viewer. (4) A scene of paperwork shows no real bank or broker. |
+
+### C17 — Policy review for existing payers · DRAFT, pending compliance-qa
+| Field | Copy |
+|---|---|
+| Hook H1 (8) | Cover from 10 years ago. Life moved on. |
+| Hook H2 (8) | Old cover. New life. A 30-minute check. |
+| Hook H3 (7) | Nobody sends a reminder to review cover. |
+| Primary text (59) | Cover taken out 10 years ago. Life looks different now. Jobs change. Homes change. Families grow. Cover is often left exactly as it was set up. A licensed adviser can look at what is in place and what has changed. 30 minutes, on video, WhatsApp or phone. Free to check, and you decide after. Tap to check your cover. |
+| Headline | Old cover. New life. Check the fit. |
+| Description | A free 30-minute review with a licensed adviser. Video, WhatsApp or phone. |
+| CTA | Check my cover (LEARN_MORE; quiz) |
+| Visual brief | **Style K (document with a date stamp).** One plain document outline on charcoal. A faded stamp reads "Set up 10 years ago". Beside it a field "Last looked at:" stays blank. Different from C05 (no growing frame and no ages). **Motion 0.3 s:** the stamp thuds in. Then life words drop beside the document one per beat: "New job." "New home." "New family." **Caption:** the hook. **End card:** the line + "Tap to check your cover" + the short disclosure. |
+| Variants | **9:16** full script. **4:5** document left, words stacked right. **1:1** static: document, stamp, blank "Last looked at:" field, hook, tick. |
+| Video (20 s, 9:16, code-rendered) | 0.0 Document + stamp "Set up 10 years ago", hook readable. CAP the hook · 0.3 stamp thuds in · 2.5 cut: "New job." "New home." "New family." drop in, one per beat. CAP "Life looks different now." **(payoff by 3 s)** · 6.0 cut: the "Last looked at:" field stays blank. CAP "Cover is often left as it was set up." · 9.0 cut: tick icon. CAP "A licensed adviser can look at what is in place and what has changed." · 13.0 cut: CAP "30 minutes. Video, WhatsApp or phone. Free." · 15.5 cut: CAP "You decide after." · 17.0 end card + disclosure. |
+| Landing angle wording | **H1:** "Cover from 10 years ago. *Life moved on.*" · **Sub:** "Jobs, homes and families change. A licensed adviser can look at what is in place, in 30 minutes. No obligation." · **Gap line:** "Cover is often left as it was set up. A review looks at what is in place and what has changed." |
+| Reading grade | 11 sentences, 59 words → about **FK 2 to 3** (hand estimate). Re-run `fk_check.py`. |
+| Compliance self-check | **Third person, no premium, no insurer, no product, no comparison, no "cheaper / save", no advice to keep, cancel or replace anything.** "10 years" is a scene, not a claim about the viewer. **For compliance-qa:** (1) "Cover is often left exactly as it was set up" is a soft frequency claim, the same kind as C04 ("often years ago") which cleared. (2) H3 "Nobody sends a reminder" is the C05 line; it is an absolute, so cut it if you now read it as unsourced. (3) The adviser "looks at what is in place": please confirm that does not reach into replacement advice. Keep any replacement talk out of the ad and the landing page. (4) "Still a fit?" was considered for H2 and dropped, because a question aimed at the viewer implies they hold cover (C-5 precedent). |
+
+---
+
 ## Reading-grade table (hand-computed, primary text, cycle-1 set)
 | C01 | C02 | C03 | C04 | C05 | C06 | C07 | C08 | C09 | C10 | C11 | C12 | C13 | C14 | C15 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
