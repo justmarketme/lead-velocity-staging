@@ -600,3 +600,62 @@ test('broker notice: broker_dsr_erase goes through the shared WhatsApp sender, b
   const q = node('Suppress subject (erase step 1)').parameters.query;
   assert.match(q, /'broker_first_name', split_part\(/); assert.doesNotMatch(q, /last_name|'email'/, 'no surname or email leaves the database for the notice');
 });
+
+// ---------------------------------------------------------------------------------------------
+// B2. Breach reports at howzit@ (breach drill P14, gap G1). Synthetic emails only.
+// ---------------------------------------------------------------------------------------------
+const mail = (subject, bodyPreview, address = 'sender@example.test', id = 'm1') =>
+  ({ id, subject, bodyPreview, from: { emailAddress: { address, name: 'Test Sender' } }, receivedDateTime: '2026-10-03T07:32:00Z' });
+const detect = (...m) => runCode('Detect breach report (EN + AF keywords)', { input: m, now: '2026-10-03T08:00:00Z' });
+
+test('B2 breach lane: true positives (English and Afrikaans) open one draft each', () => {
+  const positives = [
+    mail('Data breach', 'I think there was a data breach at your company'),
+    mail('Your leads are public', 'I found your lead export on a public gist, please remove it', undefined, 'm2'),
+    mail('Unauthorised disclosure', 'My personal information was shared without my consent with a third party', undefined, 'm3'),
+    mail('Persoonlike inligting', 'My persoonlike inligting is blootgestel op die internet', undefined, 'm4'),
+    mail('Databreuk', 'Daar is \'n datalek by julle', undefined, 'm5'),
+    mail('Onbevoegde toegang', 'Onbevoegde openbaarmaking van my besonderhede', undefined, 'm6'),
+    mail('FYI', 'Your database has been leaked on pastebin', undefined, 'm7'),
+  ];
+  const out = detect(...positives);
+  assert.equal(out.length, positives.length, 'every true positive matches');
+  for (const o of out) { assert.match(o.ref, /^[0-9a-f]{12}$/); assert.match(o.summary, /^DRAFT:/); assert.ok(o.matched.length); }
+  assert.equal(new Set(out.map((o) => o.ref)).size, out.length, 'one ref per mail');
+  assert.ok(!JSON.stringify(out).includes('lead export'), 'no message text is carried');
+});
+
+test('B2 breach lane: DSR and ordinary mail do not trigger it', () => {
+  const quiet = [
+    mail('Delete my details', 'Please delete my personal information and forget me'),
+    mail('What data do you hold', 'What personal information do you hold about me? This is a POPIA request'),
+    mail('Correct my number', 'Please update my details, my number changed to 0600000101'),
+    mail('Stop messages', 'I object to marketing, please stop contacting me'),
+    mail('Invoice', 'Payment received, thank you. FNB inContact credit R1,000'),
+    mail('Booking question', 'Can I move my call to Thursday? My data is on the form already'),
+    mail('Verwyder my data', 'Verwyder asseblief my besonderhede en data'),
+    mail('Delivery Status Notification', 'Your message to test@example.test could not be delivered (bounce)'),
+  ];
+  assert.deepEqual(detect(...quiet), []);
+});
+
+test('B2 breach lane: our own mailbox (W22 e-mail copies) never re-triggers; a DSR mail still reaches the DSR lane', () => {
+  assert.deepEqual(detect(mail('[W22] popia_breach', 'Possible POPIA breach reported to howzit@', 'howzit@leadvelocity.co.za')), []);
+  const dsr = mail('Delete my details', 'Please delete my details');
+  assert.equal(runCode('Normalise DSR request', { input: [dsr], now: '2026-10-03T08:00:00Z' }).length, 1);
+  assert.deepEqual(WF.connections['howzit@ mailbox (DSR keywords)'].main[0].map((e) => e.node).sort(),
+    ['Detect breach report (EN + AF keywords)', 'Normalise DSR request']);
+});
+
+test('B2 breach lane: incident draft SQL uses the existing incidents table, no DDL, idempotent; alert is red, both phones, one per new incident', () => {
+  const q = node('Open incident draft').parameters.query;
+  assert.match(strip(q), /insert into public\.incidents \(declared_at, severity, summary\)/);
+  assert.match(strip(q), /where not exists \(select 1 from public\.incidents/);
+  assert.doesNotMatch(strip(q), /\b(create|alter|drop)\s+table\b/);
+  const alerts = runCode('Build breach alert', { input: [{ incident_id: 'i-1', ref: 'abc123abc123', duplicate: false }, { incident_id: 'i-2', duplicate: true }, { duplicate: true }], env: { CONSOLE_URL: 'https://app.example.test' } });
+  assert.equal(alerts.length, 1);
+  assert.deepEqual([alerts[0].kind, alerts[0].workflow, alerts[0].severity, alerts[0].to, alerts[0].incident_id], ['popia_breach', 'W34', 'red', ['jonathan', 'kg'], 'i-1']);
+  assert.match(alerts[0].deep_link, /\/compliance\/incidents\/i-1$/);
+  assert.doesNotMatch(alerts[0].message, /@example|0600/);
+  assert.equal(node('Alert breach (W22)').type, 'n8n-nodes-base.executeWorkflow', 'no direct send in W34: W22 owns delivery and DRY_RUN');
+});

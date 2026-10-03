@@ -125,7 +125,7 @@ if (process.argv[2] === '--write-sample' && process.argv[3]) {
 
 // submit.sh list vs files
 const sh = readFileSync(join(HERE, 'submit.sh'), 'utf8');
-const listed = new Set((sh.match(/CORE=\(([^)]*)\)/)[1] + ' ' + sh.match(/REST=\(([\s\S]*?)\n\)/)[1]).split(/\s+/).filter(Boolean));
+const listed = new Set((sh.match(/CORE=\(([^)]*)\)/)[1] + ' ' + sh.match(/REST=\(([\s\S]*?)\n\)/)[1] + ' ' + sh.match(/HELD=\(([^)]*)\)/)[1]).split(/\s+/).filter(Boolean));
 for (const n of names) if (!listed.has(n)) err(n, 'not in submit.sh CORE/REST');
 for (const n of listed) if (!names.has(n)) err(n, 'listed in submit.sh but no file');
 const readme = readFileSync(join(HERE, 'README.md'), 'utf8');

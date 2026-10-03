@@ -155,7 +155,7 @@ test('Normalise: W27 meta_asset_health is a registered red signal, never unknown
 });
 
 // ---------------------------------------------------------------- registered producer kinds (exact list)
-const REGISTERED_KINDS = ['broker_dsr_erase', 'dsar_due', 'dsar_erased', 'dsar_overdue', 'dsar_received', 'meta_asset_health', 'ms_client_secret_invalid', 'w34_monthly_report', 'w34_retention_failure'];
+const REGISTERED_KINDS = ['broker_dsr_erase', 'dsar_due', 'dsar_erased', 'dsar_overdue', 'dsar_received', 'meta_asset_health', 'ms_client_secret_invalid', 'popia_breach', 'w34_monthly_report', 'w34_retention_failure'];
 test('PRODUCER_SIGNALS: the registered kinds are exactly this list, each documented in W22.md', () => {
   const code = node('Normalise inbound signal').parameters.jsCode;
   const block = code.slice(code.indexOf('const PRODUCER_SIGNALS = {'), code.indexOf('\n};', code.indexOf('const PRODUCER_SIGNALS = {')));
@@ -186,7 +186,7 @@ test('W20 ms_client_secret_invalid (I-41i): red, both phones, app-wide scope, de
 });
 
 // ---------------------------------------------------------------- W34 POPIA kinds (I-38b)
-const W34_KINDS = ['dsar_received', 'dsar_due', 'dsar_overdue', 'dsar_erased', 'w34_retention_failure', 'w34_monthly_report']; // broker_dsr_erase goes via the shared WhatsApp sender, not W22 (I-39f)
+const W34_KINDS = ['popia_breach', 'dsar_received', 'dsar_due', 'dsar_overdue', 'dsar_erased', 'w34_retention_failure', 'w34_monthly_report']; // broker_dsr_erase goes via the shared WhatsApp sender, not W22 (I-39f)
 const w34 = (kind, extra = {}) => ({ kind, workflow: 'W34', to: ['jonathan'], severity: 'amber', message: `${kind} msg`, ...extra });
 
 test('W34 kinds: every kind W34.json emits is registered in W22 and documented in W22.md', () => {

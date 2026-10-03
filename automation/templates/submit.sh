@@ -67,9 +67,14 @@ REST=(
   broker_intro_slots_v2 reschedule_offer_v2
 )
 
+# HELD: drafted, NOT submitted. Never in the default or --core list; --only refuses them. Release = Jonathan moves the name
+# into REST after practitioner review (GATE-TEMPLATES / GATE-OPINION). breach_subject_notice: POPIA s22 subject notice, drill P14 G3.
+HELD=(breach_subject_notice)
+
 case "$FILTER" in
   core) LIST=("${CORE[@]}") ;;
-  only) LIST=("$ONLY") ;;
+  only) for h in "${HELD[@]}"; do [[ "$ONLY" == "$h" ]] && { echo "REFUSED $ONLY is HELD (draft, practitioner review required, not submitted)" >&2; exit 4; }; done
+        LIST=("$ONLY") ;;
   *)    LIST=("${CORE[@]}" "${REST[@]}") ;;
 esac
 

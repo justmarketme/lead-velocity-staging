@@ -469,7 +469,7 @@
           "name": "Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send)"
         }
       },
-      "notes": "Same mailbox credential as W17. Read-only here: W34 never marks, moves or replies. Non-DSR mail (FNB, bounces, brokers) is dropped by the normaliser."
+      "notes": "Same mailbox credential as W17. Read-only here: W34 never marks, moves or replies. Non-DSR mail (FNB, bounces, brokers) is dropped by the normaliser. Lane B2 (breach reports) reads the same trigger."
     },
     {
       "id": "w34-20",
@@ -1391,6 +1391,83 @@
       "notes": "W22 input: { kind: 'w34_monthly_report', to: ['jonathan'], severity: info|amber }"
     },
     {
+      "id": "w34-b2-1",
+      "name": "Detect breach report (EN + AF keywords)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        1000
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// W34 B2 breach-report detector (POPIA s22 / compliance register Part 3 step 2). howzit@ inbound mail only.\n// CONSERVATIVE on purpose: whole phrases, English + Afrikaans, documented in deliverables/compliance-qa/W34-popia-ops.md.\n// A match opens an incident DRAFT and alerts both phones; a person decides whether it is a breach. A DSR email (\"what data do you\n// hold\", \"delete my details\") never matches. Nothing here replies, marks or moves mail. No message text is kept: only a hash of the\n// mail id and the sender's domain.\nconst crypto = require('crypto');\nconst sha = (s) => crypto.createHash('sha256').update(String(s), 'utf8').digest('hex');\nconst OWN = String($env.HOWZIT_MAILBOX || 'howzit@leadvelocity.co.za').toLowerCase();\nconst DATA = '(?:personal (?:information|details|data)|(?:my|our|their) (?:information|details|data|number|numbers|name)|leads?|client data|customer data|database|export|spreadsheet|list)';\nconst BAD = '(?:leaked|leaking|exposed|compromised|breached|hacked|stolen|disclosed|published|made public|publicly (?:visible|accessible|available))';\nconst AF_DATA = '(?:persoonlike inligting|(?:my|ons|hul) (?:inligting|besonderhede|data|nommer|nommers)|leads?|kliënt ?data|databasis)';\nconst AF_BAD = '(?:uitgelek|blootgestel|gekompromitteer|gehack|gesteel|openbaar gemaak|openbaar beskikbaar|vir almal sigbaar)';\nconst PATTERNS = [\n  ['en.breach_phrase', /\\b(?:data|security|privacy|popia) (?:breach|leak|compromise)\\b|\\bsecurity incident\\b|\\bsecurity compromise\\b/],\n  ['en.unauthorised', /\\bunauthori[sz]ed (?:disclosure|access|release|sharing)\\b|\\bwithout (?:my|our|their) (?:consent|permission|knowledge)\\b[^.?!]{0,40}\\b(?:shared|disclosed|published|passed)\\b/],\n  ['en.data_then_bad', new RegExp('\\\\b' + DATA + '\\\\b[^.?!]{0,60}\\\\b(?:has|have|had|was|were|is|are|been)\\\\b[^.?!]{0,20}\\\\b' + BAD + '\\\\b')],\n  ['en.bad_then_data', new RegExp('\\\\b' + BAD + '\\\\b[^.?!]{0,40}\\\\b' + DATA + '\\\\b')],\n  ['en.found_online', /\\b(?:found|saw|spotted)\\b[^.?!]{0,60}\\b(?:your|lead velocity|sortmycover)\\b[^.?!]{0,60}\\b(?:online|public|gist|pastebin|github|website|internet)\\b/],\n  ['af.breach_phrase', /\\b(?:databreuk|datalek|data-lek|data lek|sekuriteitsbreuk|sekuriteitsinbreuk|inbreuk op (?:die )?(?:sekuriteit|data|privaatheid)|sekuriteitsvoorval)\\b/],\n  ['af.unauthorised', /\\bonbevoegde (?:openbaarmaking|toegang|blootstelling)\\b|\\bsonder (?:my|ons|hul) (?:toestemming|medewete)\\b[^.?!]{0,40}\\b(?:gedeel|openbaar|bekend)/],\n  ['af.data_then_bad', new RegExp('\\\\b' + AF_DATA + '\\\\b[^.?!]{0,60}\\\\b' + AF_BAD + '\\\\b')],\n  ['af.bad_then_data', new RegExp('\\\\b' + AF_BAD + '\\\\b[^.?!]{0,40}\\\\b' + AF_DATA + '\\\\b')],\n];\nconst out = [];\nfor (const item of $input.all()) {\n  const j = item.json || {};\n  if (j.subject === undefined && j.bodyPreview === undefined) continue;\n  const from = (j.from && j.from.emailAddress) || {};\n  const addr = String(from.address || '').toLowerCase();\n  if (addr === OWN) continue; // our own W22 e-mail copies and invites must never re-trigger this lane\n  const text = String((j.subject || '') + ' \\n ' + (j.bodyPreview || '')).toLowerCase().normalize('NFC');\n  const hits = PATTERNS.filter(([, re]) => re.test(text)).map(([id]) => id);\n  if (!hits.length) continue;\n  const received = j.receivedDateTime && !Number.isNaN(Date.parse(j.receivedDateTime)) ? new Date(Date.parse(j.receivedDateTime)).toISOString() : new Date().toISOString();\n  const ref = sha('breach-mail:' + (j.id || received)).slice(0, 12);\n  out.push({ json: { ref, received_at: received, matched: hits, sender_domain: addr.includes('@') ? addr.split('@')[1] : null,\n    summary: 'DRAFT: possible breach / unauthorised-disclosure report received at howzit@ (ref ' + ref + '). Not yet assessed. Open the mail, then run the breach runbook (register Part 3).' } });\n}\nreturn out;"
+      },
+      "notes": "G1 (breach drill P14). Reads the same howzit@ trigger as the DSR lane. Conservative whole-phrase list; the keyword set is documented in deliverables/compliance-qa/W34-popia-ops.md. Read-only on the mailbox."
+    },
+    {
+      "id": "w34-b2-2",
+      "name": "Open incident draft",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        480,
+        1000
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- W34 B2: one incidents DRAFT row per breach-report e-mail (idempotent on the ref in the summary, so a re-poll never opens two).\n-- severity high until a person assesses it; affected_count unknown (null). No sender name, address or message text is stored.\n-- Existing table only (migration smc_03): the exposure window, data categories and notice wording have no columns yet (drill gap G5, platform-architect).\n-- $1 detector item (json)\nwith v as (\n  select * from jsonb_to_record($1::jsonb) as v(ref text, received_at timestamptz, summary text)\n), ins as (\n  insert into public.incidents (declared_at, severity, summary)\n  select v.received_at, 'high', v.summary from v\n  where not exists (select 1 from public.incidents i where i.summary like '%(ref ' || v.ref || ')%')\n  returning id\n)\nselect (select id from ins limit 1) as incident_id, (select ref from v) as ref, not exists (select 1 from ins) as duplicate;",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($json)] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "executeOnce": false,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "w34-b2-3",
+      "name": "Build breach alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        1000
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// One W22 alert per NEW incident draft (duplicates are silent). Red, both phones (registry: popia_breach, to 'both').\n// No message text, name or contact. Whether it rings at night is NOT decided here: W22's DND list is unchanged (NH-29(d)).\nconst out = [];\nfor (const i of $input.all()) {\n  const j = i.json;\n  if (!j.incident_id || j.duplicate) continue;\n  out.push({ json: { kind: 'popia_breach', workflow: 'W34', to: ['jonathan', 'kg'], severity: 'red', incident_id: j.incident_id,\n    deep_link: ($env.CONSOLE_URL || '') + '/compliance/incidents/' + j.incident_id,\n    message: 'Possible POPIA breach reported to howzit@ (ref ' + j.ref + '). Incident draft opened. Read the mail, contain first, then follow the breach runbook.' } });\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "w34-b2-4",
+      "name": "Alert breach (W22)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        1000
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w22"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "executeOnce": true,
+      "notes": "W22 input: { kind: 'popia_breach', to: [both], severity: 'red', incident_id }. Producer contract W22.md section 3. No send here: W22 owns delivery and DRY_RUN."
+    },
+    {
       "id": "w34-60",
       "name": "Note",
       "type": "n8n-nodes-base.stickyNote",
@@ -1624,6 +1701,11 @@
         [
           {
             "node": "Normalise DSR request",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Detect breach report (EN + AF keywords)",
             "type": "main",
             "index": 0
           }
@@ -2075,6 +2157,39 @@
         [
           {
             "node": "Sign subject media erase (DSR)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect breach report (EN + AF keywords)": {
+      "main": [
+        [
+          {
+            "node": "Open incident draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Open incident draft": {
+      "main": [
+        [
+          {
+            "node": "Build breach alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build breach alert": {
+      "main": [
+        [
+          {
+            "node": "Alert breach (W22)",
             "type": "main",
             "index": 0
           }
