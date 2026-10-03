@@ -57,11 +57,12 @@ SELECT t.brand_id::text AS brand_id,
     "// Order: duplicate -> suppression (smc_hash_contact, digits only) -> WHATSAPP_TEST_RECIPIENTS -> template approval /\n// 24-h window -> DRY_RUN_SENDS (external_id dry:<correlation>) -> send.\nconst L = require('lv-automation').subWhatsappSend;\nconst n = $('Normalise input').item.json;\nreturn { json: L.decide(n, $json, $env, Date.now()) };"));
   const DUP = b.add(iff('Already sent (same correlation)?', "$json.action === 'duplicate'"));
   const REC = b.add(pg('Record communications row (claim before the Graph call)',
-`INSERT INTO public.communications (channel, direction, sender_type, recipient_type, recipient_contact, lead_id, broker_id, brand_id, content, status, external_id, failed_reason, template_name, workflow, metadata)
-SELECT 'whatsapp', 'outbound', 'system', $1, NULL, NULLIF($2, '')::uuid, NULLIF($3, '')::uuid, NULLIF($4, '')::uuid, $5, $6, NULLIF($7, ''), NULLIF($8, ''), NULLIF($9, ''), 'smc-whatsapp-send', $10::jsonb
+`-- recipient_contact is the legacy NOT NULL column: the recipient in E.164 (+ digits), I-50b.
+INSERT INTO public.communications (channel, direction, sender_type, recipient_type, recipient_contact, lead_id, broker_id, brand_id, content, status, external_id, failed_reason, template_name, workflow, metadata)
+SELECT 'whatsapp', 'outbound', 'system', $1, $12, NULLIF($2, '')::uuid, NULLIF($3, '')::uuid, NULLIF($4, '')::uuid, $5, $6, NULLIF($7, ''), NULLIF($8, ''), NULLIF($9, ''), 'smc-whatsapp-send', $10::jsonb
  WHERE NOT EXISTS (SELECT 1 FROM public.communications d WHERE d.workflow = 'smc-whatsapp-send' AND d.metadata->>'correlation' = $11)
 RETURNING id::text AS comm_id;`,
-    "={{ (() => { const L = $json; return [ L.lead_id ? 'client' : 'broker', L.lead_id || '', L.broker_id || '', L.brand_id || '', L.action === 'skip' ? '[skipped]' : (L.sent_as === 'text' ? '[text]' : (L.template ? 'template:' + L.template : '[' + L.kind + ']')), L.action === 'skip' ? 'failed' : 'pending', L.action === 'dry' ? L.external_id : '', L.action === 'skip' ? L.reason : '', L.template || '', JSON.stringify({ correlation: L.correlation, kind: L.kind, sent_as: L.sent_as || null, dry_run: L.action === 'dry', skip_reason: L.action === 'skip' ? L.reason : null }), L.correlation ]; })() }}"));
+    "={{ (() => { const L = $json; return [ L.lead_id ? 'client' : 'broker', L.lead_id || '', L.broker_id || '', L.brand_id || '', L.action === 'skip' ? '[skipped]' : (L.sent_as === 'text' ? '[text]' : (L.template ? 'template:' + L.template : '[' + L.kind + ']')), L.action === 'skip' ? 'failed' : 'pending', L.action === 'dry' ? L.external_id : '', L.action === 'skip' ? L.reason : '', L.template || '', JSON.stringify({ correlation: L.correlation, kind: L.kind, sent_as: L.sent_as || null, dry_run: L.action === 'dry', skip_reason: L.action === 'skip' ? L.reason : null }), L.correlation, '+' + String(L.to || '').replace(/\\D/g, '') ]; })() }}"));
   const LIVE = b.add(iff('Claimed and a live send?', "!!$json.comm_id && $('Decide (suppression, allow-list, window, template, dry run)').item.json.action === 'send'"));
   const H = b.add({ name: 'Graph POST /messages', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, credentials: WA_CRED, retryOnFail: true, maxTries: 3, waitBetweenTries: 2000, onError: 'continueRegularOutput',
     parameters: { method: 'POST', url: "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION || 'v21.0' }}/{{ $env.PHONE_NUMBER_ID }}/messages", authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth', sendBody: true, specifyBody: 'json',
@@ -109,8 +110,10 @@ export function capiSend() {
     "// Consent gate first (capi/event-spec.md). Email is never sent. DRY_RUN_SENDS: nothing is written or posted.\nconst L = require('lv-automation').subCapiSend;\nconst n = $('Normalise input').item.json;\nreturn { json: L.build(n, $json, $env, Date.now()) };"));
   const S = b.add(iff('Send?', "$json.action === 'send'"));
   const CL = b.add(pg('Claim capi_log (unique event_id + event_name)',
-`INSERT INTO public.capi_log (lead_id, brand_id, event_name, event_id, action_source, status)
-VALUES (NULLIF($1, '')::uuid, NULLIF($2, '')::uuid, $3, $4, $5, 'sending')
+`-- capi_log.id is bigint identity; status CHECK allows sent|failed|skipped_no_consent|test, so the claim is written
+-- pessimistically as 'failed' with error 'in_flight' and "Update capi_log" overwrites both. A crash mid-send stays failed.
+INSERT INTO public.capi_log (lead_id, brand_id, event_name, event_id, action_source, status, error)
+VALUES (NULLIF($1, '')::uuid, NULLIF($2, '')::uuid, $3, $4, $5, 'failed', 'in_flight')
 ON CONFLICT (event_id, event_name) DO NOTHING
 RETURNING id::text AS log_id;`,
     "={{ [ $json.log.lead_id || '', $json.log.brand_id || '', $json.log.event_name, $json.log.event_id, $json.log.action_source ] }}"));
@@ -121,7 +124,7 @@ RETURNING id::text AS log_id;`,
   const I = b.add(code('Interpret response (usage header)', "const L = require('lv-automation').subCapiSend;\nreturn { json: L.interpret($json) };"));
   const U = b.add(pg('Update capi_log',
 `UPDATE public.capi_log SET status = $2, events_received = $3::int, fbtrace_id = NULLIF($4, ''), error = NULLIF($5, ''), sent_at = CASE WHEN $2 = 'sent' THEN now() END
- WHERE id = $1::uuid RETURNING id::text AS log_id;`,
+ WHERE id = $1::bigint RETURNING id::text AS log_id;`,
     "={{ [ $('Claim capi_log (unique event_id + event_name)').item.json.log_id, $json.status, $json.events_received == null ? null : $json.events_received, $json.fbtrace_id || '', $json.error || '' ] }}"));
   const EV = b.add(iff('Test event code set and sent?', "!!$env.CAPI_TEST_EVENT_CODE && $('Interpret response (usage header)').item.json.ok === true"));
   const EL = b.add(code('Evidence line (S7-11 / S7-14)',

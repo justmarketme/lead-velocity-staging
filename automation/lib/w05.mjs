@@ -300,13 +300,13 @@ export function taken(ctx, plan, next = []) {
   return res;
 }
 
-/** INSERT row for public.appointments (physical names; client_id = lead, kept with lead_id). */
+/** INSERT row for public.appointments (physical names; the lead is client_id -> leads.id, there is no appointments.lead_id). */
 export function appointmentRow(ctx, p) {
   const lead = leadView(ctx.lead);
   const b = brokerConfig(ctx.broker);
   const route = p.route === 'shared' ? 'shared_lv' : (b.calendar_provider || 'outlook');
   return {
-    client_id: lead.id, lead_id: lead.id, broker_id: b.broker_id, brand_id: lead.brand_id || b.brand_id || null,
+    client_id: lead.id, broker_id: b.broker_id, brand_id: lead.brand_id || b.brand_id || null,
     cycle_id: b.current_cycle_id || lead.cycle_id || null, appointment_date: p.start, ends_at: p.end, method: p.method,
     status: 'booked', calendar_provider: route, booked_via: p.booked_via, booked_at: iso(ctx.now),
     idempotency_key: p.idempotency_key, previous_booking_id: p.previous_booking_id,

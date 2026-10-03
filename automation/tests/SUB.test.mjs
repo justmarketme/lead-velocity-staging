@@ -115,6 +115,10 @@ test('whatsapp-send: duplicate correlation sends nothing; the row is claimed bef
   const rec = WA.nodes.find((n) => n.name.startsWith('Record communications row'));
   assert.match(rec.parameters.query, /WHERE NOT EXISTS/);
   assert.doesNotMatch(rec.parameters.options.queryReplacement, /variables|payload/);
+  // I-50b: legacy communications.recipient_contact is NOT NULL -> the recipient in E.164 (+ digits) as $12.
+  assert.match(rec.parameters.query, /recipient_contact, lead_id[\s\S]*'system', \$1, \$12, /);
+  assert.doesNotMatch(rec.parameters.query, /\$1, NULL, /);
+  assert.match(rec.parameters.options.queryReplacement, /'\+' \+ String\(L\.to/);
   const order = (name) => Object.entries(WA.connections).find(([, c]) => c.main.flat().some((x) => x.node === name))?.[0];
   assert.equal(order('Graph POST /messages'), 'Claimed and a live send?');
   const http = WA.nodes.find((n) => n.name === 'Graph POST /messages');
@@ -166,6 +170,9 @@ test('capi-send: dedupe via capi_log, and a dry run writes nothing (dedupe skip 
   assert.deepEqual(CA.connections['Send?'].main[0].map((x) => x.node), ['Claim capi_log (unique event_id + event_name)']);
   assert.equal(CA.connections['Send?'].main[1], undefined, 'dry / skip / duplicate end here');
   assert.match(CA.nodes.find((n) => n.name.startsWith('Claim capi_log')).parameters.query, /ON CONFLICT \(event_id, event_name\) DO NOTHING/);
+  // I-50a: capi_log.id is bigint identity; the claim status must satisfy the CHECK (no 'sending').
+  assert.match(CA.nodes.find((n) => n.name === 'Update capi_log').parameters.query, /WHERE id = \$1::bigint/);
+  assert.doesNotMatch(CA.nodes.find((n) => n.name.startsWith('Claim capi_log')).parameters.query, /'sending'/);
 });
 
 test('capi-send: CAPI_TEST_EVENT_CODE goes in the body and the evidence line carries no identifiers', async () => {

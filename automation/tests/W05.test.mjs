@@ -58,7 +58,7 @@ export async function book(st, req, now) {
     lane: c.lane, mode: c.mode, req: c.req, now,
     lead: row0 ? { ...row0, broker_id: row0.broker_id || brokerRow.broker_id } : null, broker: brokerRow,
     existing: st.bookings.find((x) => x.idempotency_key === c.req.idempotency_key) || null,
-    live: st.bookings.find((x) => x.lead_id === c.req.lead_id && W5.LIVE.has(x.status)) || null,
+    live: st.bookings.find((x) => x.client_id === c.req.lead_id && W5.LIVE.has(x.status)) || null,
     mx: {},
   };
   const dec = W5.decide(ctx);
@@ -125,7 +125,7 @@ function offlineSys() {
     setup: async (fx) => seedLead(st, fx),
     book: async (req, now) => book(st, req, ms(now)),
     addOutlookEvent: async (start, end) => st.broker.calendar_busy.push({ start, end }),
-    state: async (leadId) => ({ lead: st.leads.get(leadId), bookings: st.bookings.filter((b) => b.lead_id === leadId), events: [...st.events.values()].filter((e) => st.bookings.some((b) => b.lead_id === leadId && b.graph_event_id === e.id)), capi: st.capi.filter((c) => c.lead_id === leadId), invites: st.invites.filter((i) => i.lead_id === leadId), messages: st.messages.filter((m) => m.to === st.leads.get(leadId).mobile) }),
+    state: async (leadId) => ({ lead: st.leads.get(leadId), bookings: st.bookings.filter((b) => b.client_id === leadId), events: [...st.events.values()].filter((e) => st.bookings.some((b) => b.client_id === leadId && b.graph_event_id === e.id)), capi: st.capi.filter((c) => c.lead_id === leadId), invites: st.invites.filter((i) => i.lead_id === leadId), messages: st.messages.filter((m) => m.to === st.leads.get(leadId).mobile) }),
     allBookings: async () => st.bookings,
     bounce: async (leadId, now) => onInviteBounce(st, leadId, ms(now)),
     notifications: async () => st.notifications,
@@ -361,6 +361,9 @@ test('W05.json: draft name, inactive, one Postgres credential, physical columns 
   assert.deepEqual(checkSql(workflowSql(WF5)), []);
   const ins = pgs.find((n) => n.name.startsWith('Insert appointment')).parameters.query;
   assert.match(ins, /NOT EXISTS/); assert.match(ins, /make_interval\(mins/); assert.match(ins, /ON CONFLICT DO NOTHING/);
+  // I-50a: appointments has no lead_id column; the lead is client_id (FK leads.id), as W09/W12/W13 read it.
+  assert.doesNotMatch(ins, /\blead_id\b/); assert.match(ins, /INSERT INTO public\.appointments \(client_id, broker_id,/);
+  assert.equal('lead_id' in W5.appointmentRow({ lead: { id: 'l1', phone: '+27820000000' }, broker: { broker_id: 'b1' }, now: Date.now() }, { start: '2026-10-05T08:00:00Z', end: '2026-10-05T08:30:00Z', method: 'phone', booked_via: 'list', idempotency_key: 'k' }), false);
   const all = JSON.stringify(WF5);
   for (const needle of ["require('lv-automation').w05;", 'W04 Slots API', 'CAPI Send', 'W09 Reminder sequence', 'W06 First touch', 'last_contact_at', 'teamsForBusiness'].slice(0, 6)) assert.ok(all.includes(needle), needle);
   assert.deepEqual(lvViolations(WF5, 'smc-w05', { builtins: ['dns'] }), [], 'I-46c exact-name require + I-44b ids');

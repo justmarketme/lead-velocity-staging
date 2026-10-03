@@ -140,7 +140,7 @@
       "alwaysOutputData": true,
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.capi_log (lead_id, brand_id, event_name, event_id, action_source, status)\nVALUES (NULLIF($1, '')::uuid, NULLIF($2, '')::uuid, $3, $4, $5, 'sending')\nON CONFLICT (event_id, event_name) DO NOTHING\nRETURNING id::text AS log_id;",
+        "query": "-- capi_log.id is bigint identity; status CHECK allows sent|failed|skipped_no_consent|test, so the claim is written\n-- pessimistically as 'failed' with error 'in_flight' and \"Update capi_log\" overwrites both. A crash mid-send stays failed.\nINSERT INTO public.capi_log (lead_id, brand_id, event_name, event_id, action_source, status, error)\nVALUES (NULLIF($1, '')::uuid, NULLIF($2, '')::uuid, $3, $4, $5, 'failed', 'in_flight')\nON CONFLICT (event_id, event_name) DO NOTHING\nRETURNING id::text AS log_id;",
         "options": {
           "queryReplacement": "={{ [ $json.log.lead_id || '', $json.log.brand_id || '', $json.log.event_name, $json.log.event_id, $json.log.action_source ] }}"
         }
@@ -245,7 +245,7 @@
       "alwaysOutputData": true,
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE public.capi_log SET status = $2, events_received = $3::int, fbtrace_id = NULLIF($4, ''), error = NULLIF($5, ''), sent_at = CASE WHEN $2 = 'sent' THEN now() END\n WHERE id = $1::uuid RETURNING id::text AS log_id;",
+        "query": "UPDATE public.capi_log SET status = $2, events_received = $3::int, fbtrace_id = NULLIF($4, ''), error = NULLIF($5, ''), sent_at = CASE WHEN $2 = 'sent' THEN now() END\n WHERE id = $1::bigint RETURNING id::text AS log_id;",
         "options": {
           "queryReplacement": "={{ [ $('Claim capi_log (unique event_id + event_name)').item.json.log_id, $json.status, $json.events_received == null ? null : $json.events_received, $json.fbtrace_id || '', $json.error || '' ] }}"
         }

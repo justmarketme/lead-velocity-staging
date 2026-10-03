@@ -166,8 +166,8 @@ VALUES (NULLIF($1, '')::uuid, 'W05', 'system', $3, jsonb_build_object('reason', 
   n.push(pg('Insert appointment (re-check overlap + buffer, idempotent)', `-- Zero double-bookings: the overlap+buffer re-check and the insert are ONE statement. appointments_smc_no_overlap (gist),
 -- appointments_smc_no_double_booking and appointments_smc_idem_uidx are the last line of defence: ON CONFLICT DO NOTHING
 -- turns any of them into "no row", and the re-select below decides replay (same key) or taken (next 3).
-INSERT INTO public.appointments (client_id, lead_id, broker_id, brand_id, cycle_id, appointment_date, ends_at, method, status, calendar_provider, booked_via, booked_at, idempotency_key, previous_booking_id, call_number, invite_email_status, schedule_event_id)
-SELECT $1::uuid, $1::uuid, $2::uuid, $3::uuid, NULLIF($4, '')::uuid, $5::timestamptz, $6::timestamptz, $7, 'booked', $8, $9, now(), $10, NULLIF($11, '')::uuid, NULLIF($12, ''), NULLIF($13, ''), NULLIF($14, '')
+INSERT INTO public.appointments (client_id, broker_id, brand_id, cycle_id, appointment_date, ends_at, method, status, calendar_provider, booked_via, booked_at, idempotency_key, previous_booking_id, call_number, invite_email_status, schedule_event_id)
+SELECT $1::uuid, $2::uuid, $3::uuid, NULLIF($4, '')::uuid, $5::timestamptz, $6::timestamptz, $7, 'booked', $8, $9, now(), $10, NULLIF($11, '')::uuid, NULLIF($12, ''), NULLIF($13, ''), NULLIF($14, '')
  WHERE NOT EXISTS (
    SELECT 1 FROM public.appointments x
     WHERE x.broker_id = $2::uuid AND x.brand_id IS NOT NULL AND x.status IN ('booked','confirmed')
