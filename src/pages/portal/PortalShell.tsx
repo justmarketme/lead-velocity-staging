@@ -3,7 +3,7 @@
  * that uses the SortMyCover kit (brand/tokens.css) exactly like the approved prototypes (portal/prototype/*.html).
  * Data isolation: brokers.user_id = auth.uid() here, enforced by RLS server-side (INV-A06, smc_05/07).
  */
-import { createContext, ReactNode, useContext } from "react";
+import { createContext, type CSSProperties, ReactNode, useContext } from "react";
 import { Link, Navigate, useLocation } from "react-router-dom";
 import { BarChart3, Calendar, CreditCard, Database, HelpCircle, IdCard, Mic, Rocket, UserCircle } from "lucide-react";
 import BrokerLayout, { type BrokerMenuItem } from "@/components/broker/BrokerLayout";
@@ -28,6 +28,9 @@ const TABS = [
   { to: "/broker/start", label: "Start" }, { to: "/broker/leads", label: "My leads" }, { to: "/broker/calendar", label: "Calendar" },
   { to: "/broker/reports", label: "Reports" }, { to: "/broker/help", label: "Help" },
 ];
+
+/** WCAG AA: the CRM --primary (280 90% 60%) gives 4.17:1 with white; scoped darker value for SMC surfaces only (axe 2026-10-03). */
+const A11Y_PRIMARY = { "--primary": "280 90% 45%" } as CSSProperties;
 
 interface Ctx { broker: SmcBroker; userId: string; reload: () => Promise<SmcBroker | null> }
 const PortalCtx = createContext<Ctx | null>(null);
@@ -61,6 +64,7 @@ export default function PortalShell({ title, children, wide, progress }: Props) 
   const showBar = progress ?? ["onboarding", "onboarded", "ready_for_go_live", "invited"].includes(String(broker.status));
   const practice = broker.firm_name || broker.practice_name || "";
   return (
+    <div style={A11Y_PRIMARY}>
     <BrokerLayout menuItems={SMC_MENU}>
       <PortalCtx.Provider value={{ broker, userId, reload }}>
         <div className="smc-portal">
@@ -70,7 +74,7 @@ export default function PortalShell({ title, children, wide, progress }: Props) 
               <h1>{typeof title === "function" ? title(broker) : title}</h1>
               {showBar && (
                 <>
-                  <div className="bar" role="progressbar" aria-valuenow={p.pct} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${p.pct}%` }} /></div>
+                  <div className="bar" role="progressbar" aria-label="Onboarding progress" aria-valuenow={p.pct} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${p.pct}%` }} /></div>
                   <div className="bar-l"><span>{p.done} of {p.total} done</span><span>{p.minutesToLive ? `about ${p.minutesToLive} minutes to go live` : "ready for final checks"}</span></div>
                 </>
               )}
@@ -83,6 +87,7 @@ export default function PortalShell({ title, children, wide, progress }: Props) 
         </div>
       </PortalCtx.Provider>
     </BrokerLayout>
+    </div>
   );
 }
 

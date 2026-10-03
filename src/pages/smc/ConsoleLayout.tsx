@@ -2,7 +2,7 @@
  * SMC console shell (admin role). Extends the existing admin console (INV-S01…S17) with three operator screens;
  * uses the CRM theme from src/index.css (no brand colours here — Close: operator tool, fewest clicks).
  */
-import { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Link, NavLink, Navigate } from "react-router-dom";
 import { useIsAdmin } from "@/lib/smc";
 import SEO from "@/components/SEO";
@@ -13,6 +13,9 @@ const NAV = [
   { to: "/console/ask", label: "Ask", end: false },
   { to: "/console/payments", label: "Payments", end: false },
 ];
+
+/** WCAG AA: the CRM --primary (280 90% 60%) gives 4.17:1 with white; scoped darker value for the console only (axe 2026-10-03). */
+const A11Y_PRIMARY = { "--primary": "280 90% 45%" } as CSSProperties;
 
 export default function ConsoleLayout({ children }: { children: ReactNode }) {
   const { loading, isAdmin, userId } = useIsAdmin();
@@ -27,7 +30,7 @@ export default function ConsoleLayout({ children }: { children: ReactNode }) {
     );
   }
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground" style={A11Y_PRIMARY}>
       <SEO title="Console" description="SortMyCover operator console." noIndex />
       <header className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-4 px-4 py-3">
