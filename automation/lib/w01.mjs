@@ -1,6 +1,6 @@
 // automation/lib/w01.mjs  -  W01 Lead intake (web) + "W01 Lead core" (the shared tail W02 and W03 call).
-// Owner: automation-engineer. Imported by the n8n Code nodes in automation/W01.json
-// (await import(pathToFileURL($env.REPO_DIR + '/automation/lib/w01.mjs'))) and by automation/tests/W01.test.mjs,
+// Owner: automation-engineer. Loaded by the n8n Code nodes in automation/W01.json
+// (require('lv-automation/lib/w01.mjs'), I-44a) and by automation/tests/W01.test.mjs,
 // so the workflow and its acceptance test run the same code. Node 18+, zero dependencies. No network, no database:
 // every input a decision needs (counters, prior lead, suppression, brokers, Lookup result) is passed in by the caller.
 //
@@ -158,12 +158,13 @@ export function normaliseLeadAd(p = {}, opts = {}) {
     const f = Object.fromEntries(p.field_data.map((x) => [x.name, x.values?.[0]]));
     const consented = (p.custom_disclaimer_responses || []).some((r) => r.checkbox_key === 'consent' && String(r.is_checked) === '1');
     const text = reg[p.consent_text_version] ?? null;
+    const from_registry = !opts.consent_texts && text != null;
     return {
       channel: 'lead_ad', brand_id: p.brand_id ?? 'smc', is_synthetic: p.is_synthetic === true, submitted_at: p.created_time,
       first_name: cleanName(f.first_name), mobile_raw: f.phone_number ?? null, language: f.language ?? null,
       quiz: { age_band: AGE_TO_DB[f.age_band] ?? null, budget_band: BUDGET_TO_DB[f.budget_band] ?? null, bond: yes(f.has_bond), dependants: yes(f.has_dependants), work_cover: null },
       preferred_method: methodOf(f.preferred_method), email: f.email ?? null,
-      consent: { checked: consented && !!text, text, version: p.consent_text_version ?? null, at: p.created_time, page_url: null, source: 'lead_ad', ads: adsSentence(text, p.consent_text_version) },
+      consent: { checked: consented && !!text, text, version: p.consent_text_version ?? null, at: p.created_time, page_url: null, source: 'lead_ad', ads: adsSentence(text, p.consent_text_version), from_registry },
       context: { event_id: null, ad_id: p.ad_id ?? null, adset_id: p.adset_id ?? null, campaign_id: p.campaign_id ?? null, leadgen_id: p.leadgen_id ?? null, form_id: p.form_id ?? null },
       honeypot: '', started_at: null, turnstile_token: null, request_id: p.leadgen_id ?? null,
     };
@@ -171,15 +172,28 @@ export function normaliseLeadAd(p = {}, opts = {}) {
   const l = p.lead || p;
   const ver = l.consent?.text_version ?? null;
   const text = reg[ver] ?? l.consent?.text ?? null;
+  const from_registry = !opts.consent_texts && reg[ver] != null;
   return {
     channel: 'lead_ad', brand_id: l.brand_id ?? null, is_synthetic: l.is_synthetic === true, submitted_at: l.consent?.captured_at ?? null,
     first_name: cleanName(l.first_name ?? String(l.full_name || '').split(' ')[0]), mobile_raw: l.mobile_raw ?? null, language: l.language ?? null,
     quiz: { age_band: AGE_TO_DB[l.age_band] ?? null, budget_band: BUDGET_TO_DB[l.budget_band] ?? null, bond: yes(l.bond_children?.bond ?? l.bond), dependants: yes(l.bond_children?.children ?? l.dependants), work_cover: null },
     preferred_method: methodOf(l.preferred_method), email: l.email ?? null,
-    consent: { checked: l.consent?.given === true && !!text, text, version: ver, at: l.consent?.captured_at ?? null, page_url: null, source: 'lead_ad', ads: adsSentence(text, ver) },
+    consent: { checked: l.consent?.given === true && !!text, text, version: ver, at: l.consent?.captured_at ?? null, page_url: null, source: 'lead_ad', ads: adsSentence(text, ver), from_registry },
     context: { event_id: null, ad_id: l.ad_id ?? null, adset_id: l.adset_id ?? null, campaign_id: l.campaign_id ?? null, leadgen_id: l.leadgen_id ?? null, form_id: l.form_id ?? null },
     honeypot: '', started_at: null, turnstile_token: null, request_id: l.leadgen_id ?? null,
   };
+}
+
+/**
+ * A Lead Ads consent text taken from the registry before the broker was known has an empty {practice_name}. The
+ * instant form showed the practice of the broker it runs for, so once the brokers are loaded (W01 "Decide") the text
+ * is filled with the routable broker. Without this every W02 lead in named mode would be held
+ * (held_consent_names_other_practice). Page and CTWA texts are stored exactly as posted and are never rewritten.
+ */
+export function withRegistryText(sub, broker) {
+  if (!sub || !sub.consent || !sub.consent.from_registry || !sub.consent.version) return sub;
+  const t = consentRegistry(broker || {})[sub.consent.version];
+  return t ? { ...sub, consent: { ...sub.consent, text: t } } : sub;
 }
 
 // ---------------------------------------------------------------------------------------------- responses

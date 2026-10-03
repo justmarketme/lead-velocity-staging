@@ -1,4 +1,5 @@
 {
+  "id": "smc-w06",
   "name": "W06 First touch (< 60 s) (DRAFT pending GATE-TEST-W06)",
   "nodes": [
     {
@@ -13,7 +14,7 @@
       "parameters": {
         "width": 900,
         "height": 380,
-        "content": "W06 First touch (< 60 s) - DRAFT pending GATE-TEST-W06 (automation-engineer). Logic: automation/lib/w06.mjs (tested by automation/tests/W06.test.mjs, which also checks this file).\nEntry: Execute Workflow from W01 / W01 Lead core (op routed), W01 POST /lead/skip (op skip), W05 (op booking: page booking inside the hold) and W07 (op status: delivery receipt of a disclosure card).\nPage leads are held 45 s for the in-page booking; lead-ad and CTWA leads go at once. ONE claim per lead (lead_activities w06:first:{lead_id}) so exactly one intro card is ever sent. Templates: broker_intro_booked (7 vars, URL + 2 quick replies), broker_intro_slots (7 vars, slot_{ISO} x3 + other_times; slots from the W04 sub-workflow, never invented), broker_intro_slots_v2 (4 vars + Flow button, flow_token per CONTRACTS.md) when brands.booking_ui = flow.\nEvidence: communications row (wamid, template, latency_ms) + leads.first_message_at / disclosure_msg_id / last_contact_at (CONTRACTS I-38d) in one statement. Delivered -> disclosure_delivered_at; failed or rejected -> SMS (Twilio) with the same disclosure words. No quiet hours on the first touch (HBR). DRY_RUN_SENDS=true sends nothing and touches nothing.\nEnv: REPO_DIR, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, LEAD_TOKEN_SECRET, TWILIO_ACCOUNT_SID, TWILIO_SMS_FROM, DRY_RUN_SENDS."
+        "content": "W06 First touch (< 60 s) - DRAFT pending GATE-TEST-W06 (automation-engineer). Logic: automation/lib/w06.mjs (tested by automation/tests/W06.test.mjs, which also checks this file).\nEntry: Execute Workflow from W01 / W01 Lead core (op routed), W01 POST /lead/skip (op skip), W05 (op booking: page booking inside the hold) and W07 (op status: delivery receipt of a disclosure card).\nPage leads are held 45 s for the in-page booking; lead-ad and CTWA leads go at once. ONE claim per lead (lead_activities w06:first:{lead_id}) so exactly one intro card is ever sent. Templates: broker_intro_booked (7 vars, URL + 2 quick replies), broker_intro_slots (7 vars, slot_{ISO} x3 + other_times; slots from the W04 sub-workflow, never invented), broker_intro_slots_v2 (4 vars + Flow button, flow_token per CONTRACTS.md) when brands.booking_ui = flow.\nEvidence: communications row (wamid, template, latency_ms) + leads.first_message_at / disclosure_msg_id / last_contact_at (CONTRACTS I-38d) in one statement. Delivered -> disclosure_delivered_at; failed or rejected -> SMS (Twilio) with the same disclosure words. No quiet hours on the first touch (HBR). DRY_RUN_SENDS=true sends nothing and touches nothing.\nEnv: META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, LEAD_TOKEN_SECRET, TWILIO_ACCOUNT_SID, TWILIO_SMS_FROM, DRY_RUN_SENDS."
       }
     },
     {
@@ -155,7 +156,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w06.mjs').href);\nconst ev = $('Called by W01 / W05 / W07 (op routed | skip | booking | status)').first().json;\nconst l = $input.first().json;\nif (!l || !l.id) return [{ json: { blocked: 'no_lead', lead_id: ev.lead_id, hold_s: 0 } }];\nconst block = L.blockReason(l);\nreturn [{ json: { ev, l, blocked: block, hold_s: block ? 0 : L.holdSeconds(l, ev.op) } }];"
+        "jsCode": "const L = require('lv-automation/lib/w06.mjs');\nconst ev = $('Called by W01 / W05 / W07 (op routed | skip | booking | status)').first().json;\nconst l = $input.first().json;\nif (!l || !l.id) return [{ json: { blocked: 'no_lead', lead_id: ev.lead_id, hold_s: 0 } }];\nconst block = L.blockReason(l);\nreturn [{ json: { ev, l, blocked: block, hold_s: block ? 0 : L.holdSeconds(l, ev.op) } }];"
       }
     },
     {
@@ -407,8 +408,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w04",
           "cachedResultName": "W04 Slots API"
         },
         "options": {
@@ -428,7 +429,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w06.mjs').href);\nconst LT = require(REPO + '/automation/security/lead-token.js');\nconst j = $('Claimed? -> need W04 slots?').first().json;\nconst slots = j.need_slots ? (($input.first().json || {}).slots || []) : [];\nconst now = Date.now();\nconst l = { ...j.l, mobile: j.l.phone };\nconst b = { id: j.l.broker_id, practice_name: j.l.practice_name, fsp_number: j.l.fsp_number, adviser_name: j.l.adviser_name, intro_card_url: j.l.intro_card_url };\nconst ctx = L.ctxFromEvent({ op: j.ev.op, booking: j.l.booking, booking_ui: j.l.booking_ui, slots }, now);\n// The 60-s clock runs from routed_at (CONTRACTS.md W06). hold -> trigger 'hold'; skip / booking -> that event; lead-ad / CTWA -> 'routed'.\nlet plan = L.planFirstTouch(l, b, ctx);\nif (plan && plan.blocked === 'not_enough_slots') {\n  // Fewer than 3 free slots in 14 days: the Flow card still discloses and lets the lead pick any day; W22 is told.\n  plan = { ...L.planFirstTouch(l, b, { ...ctx, bookingUi: 'flow' }), fallback_from: 'not_enough_slots' };\n}\nconst flow_token = plan && plan.template === 'broker_intro_slots_v2' ? LT.mintFlowToken(l.id, 'book', null, { secret: $env.LEAD_TOKEN_SECRET }) : null;\nconst wa = plan ? L.toCloudApi(plan, { to: l.phone, flow_token, lang: 'en' }) : null;\nreturn [{ json: { ...j, plan, wa, flow_token: flow_token ? 'minted' : null, dry: $env.DRY_RUN_SENDS === 'true', planned_at: now } }];"
+        "jsCode": "const L = require('lv-automation/lib/w06.mjs');\nconst LT = require('lv-automation/security/lead-token.js');\nconst j = $('Claimed? -> need W04 slots?').first().json;\nconst slots = j.need_slots ? (($input.first().json || {}).slots || []) : [];\nconst now = Date.now();\nconst l = { ...j.l, mobile: j.l.phone };\nconst b = { id: j.l.broker_id, practice_name: j.l.practice_name, fsp_number: j.l.fsp_number, adviser_name: j.l.adviser_name, intro_card_url: j.l.intro_card_url };\nconst ctx = L.ctxFromEvent({ op: j.ev.op, booking: j.l.booking, booking_ui: j.l.booking_ui, slots }, now);\n// The 60-s clock runs from routed_at (CONTRACTS.md W06). hold -> trigger 'hold'; skip / booking -> that event; lead-ad / CTWA -> 'routed'.\nlet plan = L.planFirstTouch(l, b, ctx);\nif (plan && plan.blocked === 'not_enough_slots') {\n  // Fewer than 3 free slots in 14 days: the Flow card still discloses and lets the lead pick any day; W22 is told.\n  plan = { ...L.planFirstTouch(l, b, { ...ctx, bookingUi: 'flow' }), fallback_from: 'not_enough_slots' };\n}\nconst flow_token = plan && plan.template === 'broker_intro_slots_v2' ? LT.mintFlowToken(l.id, 'book', null, { secret: $env.LEAD_TOKEN_SECRET }) : null;\nconst wa = plan ? L.toCloudApi(plan, { to: l.phone, flow_token, lang: 'en' }) : null;\nreturn [{ json: { ...j, plan, wa, flow_token: flow_token ? 'minted' : null, dry: $env.DRY_RUN_SENDS === 'true', planned_at: now } }];"
       }
     },
     {
@@ -515,7 +516,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w06.mjs').href);\nconst p = $('Plan card (w06.planFirstTouch + toCloudApi)').first().json;\nconst wamid = L.wamidOf($input.first().json);\nconst sentAt = Date.now();\nconst b = { id: p.l.broker_id };\nconst comm = L.communicationRow(p.plan, { ...p.l }, b, wamid, sentAt);\nconst upd = wamid ? L.sentUpdate(p.l, p.plan, wamid, sentAt) : null;\nconst sms = wamid ? null : { to: p.l.phone, text: L.smsText(p.plan.template, p.plan.variables) };\nreturn [{ json: { ...p, wamid, comm, upd, sms, slow: upd ? !upd.within_60s : false, error: wamid ? null : JSON.stringify($input.first().json.error || $input.first().json).slice(0, 500) } }];"
+        "jsCode": "const L = require('lv-automation/lib/w06.mjs');\nconst p = $('Plan card (w06.planFirstTouch + toCloudApi)').first().json;\nconst wamid = L.wamidOf($input.first().json);\nconst sentAt = Date.now();\nconst b = { id: p.l.broker_id };\nconst comm = L.communicationRow(p.plan, { ...p.l }, b, wamid, sentAt);\nconst upd = wamid ? L.sentUpdate(p.l, p.plan, wamid, sentAt) : null;\nconst sms = wamid ? null : { to: p.l.phone, text: L.smsText(p.plan.template, p.plan.variables) };\nreturn [{ json: { ...p, wamid, comm, upd, sms, slow: upd ? !upd.within_60s : false, error: wamid ? null : JSON.stringify($input.first().json.error || $input.first().json).slice(0, 500) } }];"
       }
     },
     {
@@ -714,8 +715,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w22",
           "cachedResultName": "W22 Alerts"
         },
         "options": {
@@ -761,7 +762,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w06.mjs').href);\nconst ev = $('Called by W01 / W05 / W07 (op routed | skip | booking | status)').first().json;\nconst m = $input.first().json;\nif (!m || !m.comm_id) return [{ json: { skip: true } }];\nconst msg = { wamid: ev.wamid, template: m.template_name, variables: (m.metadata || {}).variables || [], is_disclosure: !!(m.metadata || {}).is_disclosure };\nconst e = L.statusEffect(msg, { status: ev.status, at: ev.at || new Date().toISOString() });\nreturn [{ json: { skip: false, ev, m, e, sms: e.sms ? { to: m.recipient_contact, text: e.sms.text } : null, l: { id: m.lead_id, brand_id: m.brand_id, broker_id: m.broker_id, phone: m.recipient_contact }, wamid: ev.wamid } }];"
+        "jsCode": "const L = require('lv-automation/lib/w06.mjs');\nconst ev = $('Called by W01 / W05 / W07 (op routed | skip | booking | status)').first().json;\nconst m = $input.first().json;\nif (!m || !m.comm_id) return [{ json: { skip: true } }];\nconst msg = { wamid: ev.wamid, template: m.template_name, variables: (m.metadata || {}).variables || [], is_disclosure: !!(m.metadata || {}).is_disclosure };\nconst e = L.statusEffect(msg, { status: ev.status, at: ev.at || new Date().toISOString() });\nreturn [{ json: { skip: false, ev, m, e, sms: e.sms ? { to: m.recipient_contact, text: e.sms.text } : null, l: { id: m.lead_id, brand_id: m.brand_id, broker_id: m.broker_id, phone: m.recipient_contact }, wamid: ev.wamid } }];"
       }
     },
     {
@@ -1367,7 +1368,7 @@
     "executionOrder": "v1",
     "timezone": "Africa/Johannesburg",
     "saveManualExecutions": true,
-    "errorWorkflow": "W22 Alerts"
+    "errorWorkflow": "smc-w22"
   },
   "pinData": {},
   "tags": [

@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 // Generates automation/W01.json, automation/W06.json and automation/W15.json (DRAFTS pending GATE-TEST-W01/W06/W15).
-// The logic lives in automation/lib/w01.mjs, w06.mjs, w15.mjs (pure, no I/O); every Code node imports it from
-// $env.REPO_DIR exactly like automation/W07.json, so automation/tests/W01/W06/W15.test.mjs exercise the running code.
+// The logic lives in automation/lib/w01.mjs, w06.mjs, w15.mjs (pure, no I/O); every Code node loads it with
+// require('lv-automation/lib/w0x.mjs') (I-44a: one allowlisted package `lv-automation` = automation/, Node require(esm);
+// n8n needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation), so automation/tests/W01/W06/W15.test.mjs exercise the running code.
+// Every workflow has a stable top-level id (smc-w01 / smc-w06 / smc-w15, I-44b); Execute Workflow nodes and
+// settings.errorWorkflow reference other workflows by that id (smc-wNN), the name is kept as cachedResultName only.
 // Run after any change to this file:   node automation/build-w01-w06-w15.mjs
 // Credentials by name only (id ''), one Postgres credential, every secret via $env, workflows inactive. Zero dependencies.
 import { writeFileSync } from 'node:fs';
@@ -12,17 +15,19 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const PG = { postgres: { id: '', name: 'LV Supabase - n8n_app (least privilege)' } };
 const TWILIO = { httpBasicAuth: { id: '', name: 'Twilio API key (Basic)' } };
 const HOWZIT = { microsoftOutlookOAuth2Api: { id: '', name: 'Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send)' } };
-const SETTINGS = { executionOrder: 'v1', timezone: 'Africa/Johannesburg', saveManualExecutions: true, errorWorkflow: 'W22 Alerts' };
+const SETTINGS = { executionOrder: 'v1', timezone: 'Africa/Johannesburg', saveManualExecutions: true, errorWorkflow: 'smc-w22' };
 const RETRY = { retryOnFail: true, maxTries: 3, waitBetweenTries: 2000 };
 
 let seq = 0;
 let col = 0;
 const pos = (x, y) => [x * 220, y * 200];
 const node = (name, type, typeVersion, position, parameters, extra = {}) => ({ id: `n${String(++seq).padStart(2, '0')}`, name, type: `n8n-nodes-base.${type}`, typeVersion, position, parameters, ...extra });
-const prelude = (lib) => `const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/${lib}').href);\n`;
+const prelude = (lib) => `const L = require('lv-automation/lib/${lib}');\n`;
 const code = (name, p, jsCode, mode = 'runOnceForAllItems') => node(name, 'code', 2, p, { mode, jsCode });
 const pg = (name, p, query, replacement, extra = {}) => node(name, 'postgres', 2.5, p, { operation: 'executeQuery', query, options: replacement ? { queryReplacement: replacement } : {} }, { credentials: PG, alwaysOutputData: true, ...RETRY, ...extra });
-const sub = (name, p, target, wait = false, notes = '') => node(name, 'executeWorkflow', 1.2, p, { source: 'database', workflowId: { __rl: true, mode: 'list', value: '', cachedResultName: target }, options: { waitForSubWorkflow: wait } }, notes ? { notes } : {});
+// Callee name -> stable workflow id (I-44b). "W06 First touch" -> smc-w06; "CAPI Send" (no W number, no file yet) -> smc-capi-send.
+const workflowIdOf = (target) => { const m = /^W(\d\d)\b/.exec(target); return m ? `smc-w${m[1]}` : `smc-${target.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`; };
+const sub = (name, p, target, wait = false, notes = '') => node(name, 'executeWorkflow', 1.2, p, { source: 'database', workflowId: { __rl: true, mode: 'id', value: workflowIdOf(target), cachedResultName: target }, options: { waitForSubWorkflow: wait } }, notes ? { notes } : {});
 const ifTrue = (name, p, expr) => node(name, 'if', 2, p, { conditions: { options: { caseSensitive: true, leftValue: '', typeValidation: 'strict' }, combinator: 'and', conditions: [{ id: 'c1', leftValue: `={{ String(${expr}) }}`, rightValue: 'true', operator: { type: 'string', operation: 'equals' } }] }, options: {} });
 const switchOn = (name, p, expr, values) => node(name, 'switch', 3, p, {
   rules: { values: values.map((v, i) => ({ outputKey: v, renameOutput: true, conditions: { options: { caseSensitive: true, leftValue: '', typeValidation: 'strict' }, combinator: 'and', conditions: [{ id: `s${i}`, leftValue: expr, rightValue: v, operator: { type: 'string', operation: 'equals' } }] } })) },
@@ -48,7 +53,7 @@ const link = (conn, from, to, out = 0) => {
   conn[from].main[out].push({ node: to, type: 'main', index: 0 });
 };
 const chain = (conn, ...names) => names.slice(1).forEach((n, i) => link(conn, names[i], n));
-const wf = (name, nodes, connections, tags) => ({ name, nodes, connections, active: false, settings: SETTINGS, pinData: {}, tags: tags.map((t) => ({ name: t })), meta: { templateCredsSetupCompleted: false, generatedBy: 'automation/build-w01-w06-w15.mjs' } });
+const wf = (id, name, nodes, connections, tags) => ({ id, name, nodes, connections, active: false, settings: SETTINGS, pinData: {}, tags: tags.map((t) => ({ name: t })), meta: { templateCredsSetupCompleted: false, generatedBy: 'automation/build-w01-w06-w15.mjs' } });
 
 // =========================================================================================== W01
 function buildW01() {
@@ -61,7 +66,7 @@ function buildW01() {
     'Entry 2 POST /lead/skip (X-Lead-Token): the page\'s "I\'ll pick on WhatsApp" -> W06 op skip (slots card at once).\n' +
     'Entry 3 Execute Workflow "W01 Lead core": W02 { action: ingest, lead } (waits for { outcome, lead_id }) and W03 { kind: route_and_first_touch, lead_id } (routing written before W06 is called).\n' +
     'Email is stored only when the chosen method needs an invite (teams/zoom/meet), purpose meeting_invite. Consent text stored verbatim with its version; registry mismatch logged (consent_audit). Out-of-band: stored with retention_delete_after = +24 h (W34 purge), never routed, never messaged.\n' +
-    'Env: REPO_DIR, BRAND_ID, PUBLIC_ALLOWED_ORIGINS, TURNSTILE_SECRET_KEY, TURNSTILE_FAIL_MODE, RATE_LIMIT_PER_IP_PER_HOUR, RATE_LIMIT_PER_NUMBER_PER_DAY, RATE_LIMIT_IP_SALT, TWILIO_LOOKUP_ENABLED, TWILIO_ACCOUNT_SID, LEAD_TOKEN_SECRET(_PREVIOUS), TEST_HOOKS_ENABLED, TEST_HOOKS_TOKEN, CONSUMER_DOMAIN. Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto,url.', 400));
+    'Env: BRAND_ID, PUBLIC_ALLOWED_ORIGINS, TURNSTILE_SECRET_KEY, TURNSTILE_FAIL_MODE, RATE_LIMIT_PER_IP_PER_HOUR, RATE_LIMIT_PER_NUMBER_PER_DAY, RATE_LIMIT_IP_SALT, TWILIO_LOOKUP_ENABLED, TWILIO_ACCOUNT_SID, LEAD_TOKEN_SECRET(_PREVIOUS), TEST_HOOKS_ENABLED, TEST_HOOKS_TOKEN, CONSUMER_DOMAIN. Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation.', 400));
 
   // ---- entry 1: POST /lead
   n.push(node('POST /lead (landing page)', 'webhook', 2, pos(0, 0), { httpMethod: 'POST', path: 'lead', responseMode: 'responseNode', options: {} }, { webhookId: 'w01-lead-post' }));
@@ -138,16 +143,17 @@ return [{ json: { ...s, ctx, g, need_lookup, http: g.ok ? null : { http_status: 
     options: { timeout: 1500, response: { response: { neverError: true } } },
   }, { credentials: TWILIO, onError: 'continueRegularOutput' }));
   n.push(code('Decide (w01.decide) + lead_token', pos(10, 0), prelude('w01.mjs') +
-`const LT = require(REPO + '/automation/security/lead-token.js');
+`const LT = require('lv-automation/security/lead-token.js');
 const s = $('Guard passed?').first().json;
 const resp = s.need_lookup ? $input.first().json : null;
 const line_type = s.lookup_override ? L.lineTypeOf(s.lookup_override) : resp ? L.lineTypeFromLookup(resp) : (s.ctx.prior && s.ctx.prior.line_type) || 'unknown';
 const brokers = s.ctx.brokers || [];
 const routable = brokers.find((b) => b.status === 'active' && b.routing_on !== false);
-const decision = L.decide(s.sub, { mobile: s.mobile, line_type, prior: s.ctx.prior, suppressed: s.ctx.suppressed, brokers, brand_id: s.ctx.brand_uuid,
+const sub = L.withRegistryText(s.sub, routable); // lead-ad registry text gets the practice once the broker is known
+const decision = L.decide(sub, { mobile: s.mobile, line_type, prior: s.ctx.prior, suppressed: s.ctx.suppressed, brokers, brand_id: s.ctx.brand_uuid,
   consent_mode: (routable && routable.consent_mode) || 'named', now: s.now, lead_id: s.lead_id, bot_check: s.g.bot_check });
 if (decision.row) decision.row.is_synthetic = !!s.sub.is_synthetic && s.test_hooks;
-const audit = L.consentAudit(s.sub, L.consentRegistry(routable || {}));
+const audit = L.consentAudit(sub, L.consentRegistry(routable || {}));
 if (decision.kind === 'insert') decision.activities.push({ activity_type: 'consent_audit', actor_type: 'system', occurred_at: decision.row.created_at, idempotency_key: 'w01:consent:' + decision.row.id, payload: audit });
 const token = decision.mint_token ? LT.mintLeadToken(decision.lead_id || decision.row.id, { secret: $env.LEAD_TOKEN_SECRET }).token : null;
 const http = L.pageResponse(decision, token);
@@ -211,10 +217,8 @@ return $input.all().map((i) => { const c = i.json.capi; return { json: { event_n
   // ---- entry 2: POST /lead/skip
   n.push(node('POST /lead/skip (I\'ll pick on WhatsApp)', 'webhook', 2, pos(0, 4), { httpMethod: 'POST', path: 'lead/skip', responseMode: 'responseNode', options: {} }, { webhookId: 'w01-lead-skip' }));
   n.push(code('Verify X-Lead-Token', pos(1, 4),
-`const url = require('url');
-const REPO = $env.REPO_DIR || '/home/node/repo';
-const LT = require(REPO + '/automation/security/lead-token.js');
-const h = $input.first().json.headers || {};
+`const LT = require('lv-automation/security/lead-token.js');
+const h =$input.first().json.headers || {};
 const v = LT.verifyLeadToken(h['x-lead-token'] || '', { secret: $env.LEAD_TOKEN_SECRET, previousSecret: $env.LEAD_TOKEN_SECRET_PREVIOUS || undefined });
 return [{ json: { ok: !!v.ok, lead_id: v.ok ? v.lead_id : null, http: v.ok ? { http_status: 202, body: { ok: true } } : { http_status: 401, body: { error: 'try_again' } } } }];`));
   n.push(respondJson('Respond 202 / 401', pos(2, 4)));
@@ -315,7 +319,7 @@ RETURNING lead_id, broker_id;`,
   chain(c, 'Load CTWA lead + brokers', 'Route (w01.routeExisting)', 'Routed or held? (write it)');
   link(c, 'Routed or held? (write it)', 'Write routing (only if not routed yet) + timeline', 0);
   chain(c, 'Write routing (only if not routed yet) + timeline', 'W06 input (CTWA)', 'W06 First touch (CTWA)');
-  return wf('W01 Lead intake (web) (DRAFT pending GATE-TEST-W01)', n, c, ['SortMyCover', 'core-path', 'draft']);
+  return wf('smc-w01', 'W01 Lead intake (web) (DRAFT pending GATE-TEST-W01)', n, c, ['SortMyCover', 'core-path', 'draft']);
 }
 
 // =========================================================================================== W06
@@ -328,7 +332,7 @@ function buildW06() {
     'Entry: Execute Workflow from W01 / W01 Lead core (op routed), W01 POST /lead/skip (op skip), W05 (op booking: page booking inside the hold) and W07 (op status: delivery receipt of a disclosure card).\n' +
     'Page leads are held 45 s for the in-page booking; lead-ad and CTWA leads go at once. ONE claim per lead (lead_activities w06:first:{lead_id}) so exactly one intro card is ever sent. Templates: broker_intro_booked (7 vars, URL + 2 quick replies), broker_intro_slots (7 vars, slot_{ISO} x3 + other_times; slots from the W04 sub-workflow, never invented), broker_intro_slots_v2 (4 vars + Flow button, flow_token per CONTRACTS.md) when brands.booking_ui = flow.\n' +
     'Evidence: communications row (wamid, template, latency_ms) + leads.first_message_at / disclosure_msg_id / last_contact_at (CONTRACTS I-38d) in one statement. Delivered -> disclosure_delivered_at; failed or rejected -> SMS (Twilio) with the same disclosure words. No quiet hours on the first touch (HBR). DRY_RUN_SENDS=true sends nothing and touches nothing.\n' +
-    'Env: REPO_DIR, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, LEAD_TOKEN_SECRET, TWILIO_ACCOUNT_SID, TWILIO_SMS_FROM, DRY_RUN_SENDS.', 380));
+    'Env: META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, LEAD_TOKEN_SECRET, TWILIO_ACCOUNT_SID, TWILIO_SMS_FROM, DRY_RUN_SENDS.', 380));
   n.push(node('Called by W01 / W05 / W07 (op routed | skip | booking | status)', 'executeWorkflowTrigger', 1.1, pos(0, 0), { inputSource: 'passthrough' }));
   n.push(switchOn('Op?', pos(1, 0), "={{ $json.op === 'status' ? 'status' : ['routed', 'skip', 'booking', 'hold'].includes($json.op) ? 'send' : 'other' }}", ['send', 'status', 'other']));
   n.push(pg('Load lead, broker, brand, live booking', pos(2, 0),
@@ -383,7 +387,7 @@ return [{ json: { ...j, ev, claimed, need_slots, broker_id: j.l.broker_id, limit
   n.push(ifTrue('List card needs slots?', pos(11, 0), '$json.need_slots'));
   n.push(sub('W04 Slots API (list, limit 10)', pos(12, -1), 'W04 Slots API', true, 'Called with { broker_id, limit: 10 }; waits -> { slots: [{start,end}], fallback? }. Same rules as GET /slots.'));
   n.push(code('Plan card (w06.planFirstTouch + toCloudApi)', pos(13, 0), prelude('w06.mjs') +
-`const LT = require(REPO + '/automation/security/lead-token.js');
+`const LT = require('lv-automation/security/lead-token.js');
 const j = $('Claimed? -> need W04 slots?').first().json;
 const slots = j.need_slots ? (($input.first().json || {}).slots || []) : [];
 const now = Date.now();
@@ -510,7 +514,7 @@ ON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS
   chain(c, 'Claim SMS fallback (w06:sms:{wamid})', 'SMS item (claimed only)', 'Live SMS? (not DRY_RUN_SENDS)');
   link(c, 'Live SMS? (not DRY_RUN_SENDS)', 'Twilio SMS (status fallback)', 0);
   chain(c, 'Twilio SMS (status fallback)', 'Log SMS disclosure (status fallback)');
-  return wf('W06 First touch (< 60 s) (DRAFT pending GATE-TEST-W06)', n, c, ['SortMyCover', 'core-path', 'draft']);
+  return wf('smc-w06', 'W06 First touch (< 60 s) (DRAFT pending GATE-TEST-W06)', n, c, ['SortMyCover', 'core-path', 'draft']);
 }
 
 // =========================================================================================== W15
@@ -522,12 +526,11 @@ function buildW15() {
     'W15 Opt-out ("STOP" anywhere) - DRAFT pending GATE-TEST-W15 (automation-engineer). Logic: automation/lib/w15.mjs (tested by automation/tests/W15.test.mjs, which also checks this file).\n' +
     'Entries: Execute Workflow from W07 (WhatsApp STOP in any state, or an opt-out intent), the console / W34 ({ op: opt_out, lead_id | mobile, channel }) and POST /sms-inbound (Twilio, signature checked) for STOP replies to the SMS fallback.\n' +
     'Detection: conversation/guardrail.mjs STOP_RX (same net W07 routes on) + "stopall"; never the booking Cancel button. One statement: suppression row (smc_hash_contact = digits-only SHA-256, source stop, brand_id NULL = Lead-Velocity-wide) is the idempotency claim; leads.opted_out_at + stage opted_out; live bookings cancelled (W15_STOP_BOOKING_MODE=cancel, NH-28 b). Then: W09 pause (opt_out) + cancel_all per booking (CONTRACTS.md), Graph DELETE of the Outlook event (token from W04 graph_token), broker told by WhatsApp (session in window / broker_booking_changed template / held) and email from howzit@, first name only. Exactly one confirmation (lines.mjs STOP_ACK) on the channel the STOP came in on, then nothing ever again. A second STOP is a no-op.\n' +
-    'Env: REPO_DIR, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TWILIO_ACCOUNT_SID, TWILIO_SMS_FROM, TWILIO_AUTH_TOKEN, W15_STOP_BOOKING_MODE, DRY_RUN_SENDS.', 380));
+    'Env: META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TWILIO_ACCOUNT_SID, TWILIO_SMS_FROM, TWILIO_AUTH_TOKEN, W15_STOP_BOOKING_MODE, DRY_RUN_SENDS.', 380));
   n.push(node('Called by W07 / console / W34 (STOP or opt-out)', 'executeWorkflowTrigger', 1.1, pos(0, 0), { inputSource: 'passthrough' }));
   n.push(node('POST /sms-inbound (Twilio)', 'webhook', 2, pos(0, 2), { httpMethod: 'POST', path: 'sms-inbound', responseMode: 'responseNode', options: { rawBody: true } }, { webhookId: 'w15-sms-inbound' }));
   n.push(code('Verify Twilio signature', pos(1, 2),
-`const REPO = $env.REPO_DIR || '/home/node/repo';
-const V = require(REPO + '/automation/security/verify-webhooks.js');
+`const V = require('lv-automation/security/verify-webhooks.js');
 const it = $input.first().json; const h = it.headers || {};
 const params = it.body || {};
 const base = String($env.WEBHOOK_URL || '').replace(/\\/$/, '');
@@ -666,7 +669,7 @@ ON CONFLICT (idempotency_key) DO NOTHING;`,
   link(c, 'Live send? (confirmation)', 'Send WhatsApp (the one confirmation)', 0);
   chain(c, 'Send WhatsApp (the one confirmation)', 'Log confirmation + touch leads.last_contact_at (lead outbound)');
   link(c, 'Live send? (SMS confirmation)', 'Twilio SMS (the one confirmation)', 0);
-  return wf('W15 Opt-out (DRAFT pending GATE-TEST-W15)', n, c, ['SortMyCover', 'core-path', 'draft', 'POPIA']);
+  return wf('smc-w15', 'W15 Opt-out (DRAFT pending GATE-TEST-W15)', n, c, ['SortMyCover', 'core-path', 'draft', 'POPIA']);
 }
 
 const out = { 'W01.json': buildW01(), 'W06.json': buildW06(), 'W15.json': buildW15() };

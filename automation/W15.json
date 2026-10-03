@@ -1,4 +1,5 @@
 {
+  "id": "smc-w15",
   "name": "W15 Opt-out (DRAFT pending GATE-TEST-W15)",
   "nodes": [
     {
@@ -13,7 +14,7 @@
       "parameters": {
         "width": 900,
         "height": 380,
-        "content": "W15 Opt-out (\"STOP\" anywhere) - DRAFT pending GATE-TEST-W15 (automation-engineer). Logic: automation/lib/w15.mjs (tested by automation/tests/W15.test.mjs, which also checks this file).\nEntries: Execute Workflow from W07 (WhatsApp STOP in any state, or an opt-out intent), the console / W34 ({ op: opt_out, lead_id | mobile, channel }) and POST /sms-inbound (Twilio, signature checked) for STOP replies to the SMS fallback.\nDetection: conversation/guardrail.mjs STOP_RX (same net W07 routes on) + \"stopall\"; never the booking Cancel button. One statement: suppression row (smc_hash_contact = digits-only SHA-256, source stop, brand_id NULL = Lead-Velocity-wide) is the idempotency claim; leads.opted_out_at + stage opted_out; live bookings cancelled (W15_STOP_BOOKING_MODE=cancel, NH-28 b). Then: W09 pause (opt_out) + cancel_all per booking (CONTRACTS.md), Graph DELETE of the Outlook event (token from W04 graph_token), broker told by WhatsApp (session in window / broker_booking_changed template / held) and email from howzit@, first name only. Exactly one confirmation (lines.mjs STOP_ACK) on the channel the STOP came in on, then nothing ever again. A second STOP is a no-op.\nEnv: REPO_DIR, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TWILIO_ACCOUNT_SID, TWILIO_SMS_FROM, TWILIO_AUTH_TOKEN, W15_STOP_BOOKING_MODE, DRY_RUN_SENDS."
+        "content": "W15 Opt-out (\"STOP\" anywhere) - DRAFT pending GATE-TEST-W15 (automation-engineer). Logic: automation/lib/w15.mjs (tested by automation/tests/W15.test.mjs, which also checks this file).\nEntries: Execute Workflow from W07 (WhatsApp STOP in any state, or an opt-out intent), the console / W34 ({ op: opt_out, lead_id | mobile, channel }) and POST /sms-inbound (Twilio, signature checked) for STOP replies to the SMS fallback.\nDetection: conversation/guardrail.mjs STOP_RX (same net W07 routes on) + \"stopall\"; never the booking Cancel button. One statement: suppression row (smc_hash_contact = digits-only SHA-256, source stop, brand_id NULL = Lead-Velocity-wide) is the idempotency claim; leads.opted_out_at + stage opted_out; live bookings cancelled (W15_STOP_BOOKING_MODE=cancel, NH-28 b). Then: W09 pause (opt_out) + cancel_all per booking (CONTRACTS.md), Graph DELETE of the Outlook event (token from W04 graph_token), broker told by WhatsApp (session in window / broker_booking_changed template / held) and email from howzit@, first name only. Exactly one confirmation (lines.mjs STOP_ACK) on the channel the STOP came in on, then nothing ever again. A second STOP is a no-op.\nEnv: META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TWILIO_ACCOUNT_SID, TWILIO_SMS_FROM, TWILIO_AUTH_TOKEN, W15_STOP_BOOKING_MODE, DRY_RUN_SENDS."
       }
     },
     {
@@ -59,7 +60,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst V = require(REPO + '/automation/security/verify-webhooks.js');\nconst it = $input.first().json; const h = it.headers || {};\nconst params = it.body || {};\nconst base = String($env.WEBHOOK_URL || '').replace(/\\/$/, '');\nconst ok = !!V.verifyTwilioSignature({ url: base + '/webhook/sms-inbound', params, signatureHeader: h['x-twilio-signature'], authToken: $env.TWILIO_AUTH_TOKEN }).ok;\nreturn [{ json: { ok, item: { source: 'twilio_sms', From: params.From, Body: params.Body } } }];"
+        "jsCode": "const V = require('lv-automation/security/verify-webhooks.js');\nconst it = $input.first().json; const h = it.headers || {};\nconst params = it.body || {};\nconst base = String($env.WEBHOOK_URL || '').replace(/\\/$/, '');\nconst ok = !!V.verifyTwilioSignature({ url: base + '/webhook/sms-inbound', params, signatureHeader: h['x-twilio-signature'], authToken: $env.TWILIO_AUTH_TOKEN }).ok;\nreturn [{ json: { ok, item: { source: 'twilio_sms', From: params.From, Body: params.Body } } }];"
       }
     },
     {
@@ -144,7 +145,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w15.mjs').href);\nreturn $input.all().map((i) => { const e = L.entryFrom(i.json); return { json: { ...e, stop: e.force || L.isStop(e.text), lead_id: e.lead_id || (i.json.lead && i.json.lead.id) || null, now: Date.now() } }; });"
+        "jsCode": "const L = require('lv-automation/lib/w15.mjs');\nreturn $input.all().map((i) => { const e = L.entryFrom(i.json); return { json: { ...e, stop: e.force || L.isStop(e.text), lead_id: e.lead_id || (i.json.lead && i.json.lead.id) || null, now: Date.now() } }; });"
       }
     },
     {
@@ -217,7 +218,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w15.mjs').href);\nconst e = $('STOP? (else nothing: W07 owns every other message)').first().json;\nconst ctx = $input.first().json;\nconst language = (ctx.leads || []).map((l) => l.language).find(Boolean) || e.language || 'en';\nconst plan = L.planOptOut({ mobile: e.mobile || ctx.mobile, text: e.text, channel: e.channel, force: e.force, now: e.now, language,\n  leads: ctx.leads || [], bookings: ctx.bookings || [], brokers: ctx.brokers || [], already_suppressed: ctx.already_suppressed, booking_mode: $env.W15_STOP_BOOKING_MODE });\nreturn [{ json: { e, ctx, plan } }];"
+        "jsCode": "const L = require('lv-automation/lib/w15.mjs');\nconst e = $('STOP? (else nothing: W07 owns every other message)').first().json;\nconst ctx = $input.first().json;\nconst language = (ctx.leads || []).map((l) => l.language).find(Boolean) || e.language || 'en';\nconst plan = L.planOptOut({ mobile: e.mobile || ctx.mobile, text: e.text, channel: e.channel, force: e.force, now: e.now, language,\n  leads: ctx.leads || [], bookings: ctx.bookings || [], brokers: ctx.brokers || [], already_suppressed: ctx.already_suppressed, booking_mode: $env.W15_STOP_BOOKING_MODE });\nreturn [{ json: { e, ctx, plan } }];"
       }
     },
     {
@@ -301,7 +302,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const url = require('url');\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = await import(url.pathToFileURL(REPO + '/automation/lib/w15.mjs').href);\nif (!$input.first().json.claimed) return []; // lost a race with a parallel STOP: the winner does everything\nconst p = $('Plan opt-out (w15.planOptOut)').first().json;\nconst out = [];\nfor (const w of p.plan.w09) out.push({ json: { kind: 'w09', ...w } });\nconst brokers = new Map((p.ctx.brokers || []).map((b) => [String(b.id), b]));\nfor (const b of p.plan.booking_cancels) if (b.graph_event_id) out.push({ json: { kind: 'graph_delete', broker_id: b.broker_id, op: 'graph_token', graph_event_id: b.graph_event_id, calendar_email: (brokers.get(String(b.broker_id)) || {}).calendar_email || null } });\nfor (const nt of p.plan.broker_notices) {\n  if (nt.channel === 'email') { if (nt.to) out.push({ json: { kind: 'broker_email', to: nt.to, subject: nt.subject, text: nt.text, lead_id: nt.lead_id } }); continue; }\n  if (!nt.to || nt.mode === 'held_no_template') { out.push({ json: { kind: 'broker_held', lead_id: nt.lead_id, broker_id: nt.broker_id } }); continue; }\n  out.push({ json: { kind: 'broker_wa', lead_id: nt.lead_id, wa: nt.mode === 'session' ? L.waText(nt.to, nt.text) : L.brokerTemplate(nt.to, nt) } });\n}\nconst cf = p.plan.confirmation;\nif (cf) out.push({ json: { kind: cf.channel === 'sms' ? 'confirm_sms' : 'confirm_wa', lead_id: cf.lead_id, wa: L.waText(cf.to, cf.text), sms: { to: cf.to, text: cf.text }, text: cf.text, to: cf.to } });\nreturn out;"
+        "jsCode": "const L = require('lv-automation/lib/w15.mjs');\nif (!$input.first().json.claimed) return []; // lost a race with a parallel STOP: the winner does everything\nconst p = $('Plan opt-out (w15.planOptOut)').first().json;\nconst out = [];\nfor (const w of p.plan.w09) out.push({ json: { kind: 'w09', ...w } });\nconst brokers = new Map((p.ctx.brokers || []).map((b) => [String(b.id), b]));\nfor (const b of p.plan.booking_cancels) if (b.graph_event_id) out.push({ json: { kind: 'graph_delete', broker_id: b.broker_id, op: 'graph_token', graph_event_id: b.graph_event_id, calendar_email: (brokers.get(String(b.broker_id)) || {}).calendar_email || null } });\nfor (const nt of p.plan.broker_notices) {\n  if (nt.channel === 'email') { if (nt.to) out.push({ json: { kind: 'broker_email', to: nt.to, subject: nt.subject, text: nt.text, lead_id: nt.lead_id } }); continue; }\n  if (!nt.to || nt.mode === 'held_no_template') { out.push({ json: { kind: 'broker_held', lead_id: nt.lead_id, broker_id: nt.broker_id } }); continue; }\n  out.push({ json: { kind: 'broker_wa', lead_id: nt.lead_id, wa: nt.mode === 'session' ? L.waText(nt.to, nt.text) : L.brokerTemplate(nt.to, nt) } });\n}\nconst cf = p.plan.confirmation;\nif (cf) out.push({ json: { kind: cf.channel === 'sms' ? 'confirm_sms' : 'confirm_wa', lead_id: cf.lead_id, wa: L.waText(cf.to, cf.text), sms: { to: cf.to, text: cf.text }, text: cf.text, to: cf.to } });\nreturn out;"
       }
     },
     {
@@ -497,8 +498,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w09",
           "cachedResultName": "W09 Reminder sequence"
         },
         "options": {
@@ -520,8 +521,8 @@
         "source": "database",
         "workflowId": {
           "__rl": true,
-          "mode": "list",
-          "value": "",
+          "mode": "id",
+          "value": "smc-w04",
           "cachedResultName": "W04 Slots API"
         },
         "options": {
@@ -1192,7 +1193,7 @@
     "executionOrder": "v1",
     "timezone": "Africa/Johannesburg",
     "saveManualExecutions": true,
-    "errorWorkflow": "W22 Alerts"
+    "errorWorkflow": "smc-w22"
   },
   "pinData": {},
   "tags": [
