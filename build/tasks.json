@@ -2577,7 +2577,7 @@
     },
     {
       "id": "NH-61",
-      "title": "Payments (money): sequence Paystack last — manual EFT + inContact (W16/W17/W18) is the cycle-1 launch path; Paystack built but off behind a flag; Paystack gates and the Paystack half of S7-23/GATE-R1-LIVE move post-launch. Relayed from Jonathan via the bootstrap session; needs his confirmation in the build thread (changes the 0.1 Instant-EFT default).",
+      "title": "Payments (money): sequence Paystack last — manual EFT + inContact (W16/W17/W18) is the cycle-1 launch path; Paystack built but off behind a flag; Paystack gates and the Paystack half of S7-23/GATE-R1-LIVE move post-launch. Relayed from Jonathan via the bootstrap session; needs his confirmation in the build thread (changes the 0.1 Instant-EFT default). Extended (relayed 09:15Z): FNB inContact notifications also last — GATE-INCONTACT and the R1 EFT inContact test post-launch; cycle-1 payment = manual EFT with the unique reference, marked paid by Jonathan one-tap Payment received in the console (fires the same W16 event); W17/W18 stay built and tested on fixtures but switched off; the S7-24 inContact line leaves the Go-live gate.",
       "owner": "jonathan",
       "phase": "4",
       "depends_on": [],
