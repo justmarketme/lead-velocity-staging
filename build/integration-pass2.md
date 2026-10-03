@@ -113,7 +113,7 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 |---|---|---|
 | I-36a ✅ | `optimisation/n8n-code/w32-approve-confirm.js` is empty — write the approver confirmation step | optimisation-advisor |
 | I-36b ✅ | W22: alert on / re-queue `ops.notifications` approval rows in `sending` > 10 min | devops-security |
-| I-36c | W14 email send step: run `scripts/build-broker-report-email.mjs --pdf`, attach, send via Graph from howzit@ (same credential as W17) | automation-engineer |
+| I-36c ✅ | W14 email send step: run `scripts/build-broker-report-email.mjs --pdf`, attach, send via Graph from howzit@ (same credential as W17) | automation-engineer |
 | I-36d ✅ | Canonical broker PDF = email builder print view (initials only); portal `/r/<id>/print` stays an on-screen view | analytics-reporter + platform-architect (update W14-broker.md) |
 | I-36e ✅ | `NODE_FUNCTION_ALLOW_BUILTIN` must include `url` (and `fs`, `path`) for W30/W31/W07 `import()` — see I-35b | devops-security |
 | I-32a ✅ | **done** (recorder → Bearer to `{API}/intro`, W23 JWT check); follow-ups: I-37a | — |
@@ -200,7 +200,7 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-43b ✅ | Migration 13 COMMENT on `brokers.verified_credentials`: now an array of objects `{type, number, register_name, verified_at}` written by W20 on `verified` (admin console may add others) | platform-architect |
 | I-43c ✅ | W14 broker report + portal pulse tile: report the lead pulse per cycle only, or hide the week-on-week delta when < 5 new answers arrived, so a broker cannot difference totals to one lead's answer (compliance ruling W35-pulse-visibility.md) | analytics-reporter + broker-success |
 | I-43d | Phase 5 synthetic run on local n8n: W34 one-batch loop passes every batch result on; Summarise night reads all batches; signing-failure item shape | compliance-qa + devops-security, Phase 5. PARTIAL 2026-10-03: real Summarise code over synthetic 3-batch output tested (W34.test.mjs, I-43d); still needs the next local-n8n rehearsal to confirm n8n's loop done output carries every batch item in that shape |
-| I-43e | W20 callback: the HTTP node's own token response can still persist if n8n crashes mid-run — full fix is a sub-workflow with error data off; accepted residual until Phase 5 | automation-engineer, Phase 5 |
+| I-43e ✅ | W20 callback: the HTTP node's own token response can still persist if n8n crashes mid-run — full fix is a sub-workflow with error data off; accepted residual until Phase 5 | automation-engineer, Phase 5 |
 | I-43f | W23 cost rows aggregate per attempt (generation + gate + re-check summed), not per LLM call; `usd_zar` 18.00 and 4A rates are ASSUMPTION constants in intro-script.mjs — measure in production | intro-media-producer (recorded) |
 | I-43g | Lighthouse now runs in the sandbox (lighthouse 13.5.0 + /opt/pw-browsers); LP01–LP13 green on the local build; S7-15 re-runs on the public URL after GATE-DOMAINS + hosting | landing-page-builder (recorded) |
 

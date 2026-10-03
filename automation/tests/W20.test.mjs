@@ -27,8 +27,10 @@ import { FIX, MODE, broker as fixtureBroker, clone, ms, iso, MIN, H, D, sast, on
 const HERE = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 const WF = JSON.parse(readFileSync(join(HERE, '..', 'W20.json'), 'utf8'));
+// I-43e: the Microsoft token exchange lives in SUB-w20-ms-token.json; node() looks in W20 first, then the sub-workflow.
+const SUBWF = JSON.parse(readFileSync(join(HERE, '..', 'SUB-w20-ms-token.json'), 'utf8'));
 const node = (name) => {
-  const n = WF.nodes.find((x) => x.name === name);
+  const n = WF.nodes.find((x) => x.name === name) || SUBWF.nodes.find((x) => x.name === name);
   assert.ok(n, `W20.json has node "${name}"`);
   return n;
 };
@@ -796,6 +798,9 @@ const msIdToken = (c) => `${msB64u({ alg: 'RS256' })}.${msB64u(c)}.sig`;
 const TOKEN_OK = { statusCode: 200, body: { token_type: 'Bearer', scope: 'https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/OnlineMeetings.ReadWrite https://graph.microsoft.com/User.Read openid', access_token: 'at-xyz', refresh_token: 'RT-SECRET-0.AAAA', id_token: msIdToken({ tid: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', preferred_username: 'mark@practice.co.za' }) } };
 
 // Execute a W20 Code node from W20.json with stubbed $env/$input/$(name).
+// I-43e: the sub-workflow's trigger item replaces check-state + load-broker as the plan node's input.
+const SUB_TRIG = 'Called by W20 MS callback';
+const subRefs = (chk, row, tok) => ({ [SUB_TRIG]: { state: chk.state, query: chk.query, has_code: chk.has_code, broker_id: row.broker_id || null, current_status: row.calendar_status || null }, ...(tok ? { 'MS token exchange': tok } : {}) });
 const MsAsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 async function runMsCode(name, input, refs = {}) {
   const js = node(name).parameters.jsCode;
@@ -895,8 +900,9 @@ test('I-40c W20.json: three lanes, credentials by name, refresh token only reach
   assert.deepEqual(Object.keys(tok.credentials), ['httpCustomAuth']);
   assert.ok(!tok.credentials.httpCustomAuth.id, 'credential by name only');
   const msNodes = WF.nodes.filter((n) => n.id.startsWith('w20-ms-'));
-  const withRt = msNodes.filter((n) => JSON.stringify(n.parameters).includes('refresh_token')).map((n) => n.name);
-  assert.deepEqual(withRt, ['Vault: store MS refresh token']);
+  const rtIn = (wf) => wf.nodes.filter((n) => JSON.stringify(n.parameters).includes('refresh_token')).map((n) => n.name);
+  assert.deepEqual(rtIn(WF), [], 'I-43e: W20 itself has no node that touches the refresh token');
+  assert.deepEqual(rtIn(SUBWF), ['Vault: store MS refresh token'], 'only the sub-workflow vault RPC names it');
   assert.match(node('Vault: store MS refresh token').parameters.query, /smc_vault_store_ms_refresh\(\$1::uuid, \$2, \$3, \$4\)/);
   for (const n of msNodes.filter((x) => x.type === 'n8n-nodes-base.postgres')) {
     assert.ok(!/update\s+public\.brokers/i.test(n.parameters.query), `${n.name} never updates brokers directly`);
@@ -904,8 +910,8 @@ test('I-40c W20.json: three lanes, credentials by name, refresh token only reach
   }
   for (const n of msNodes.filter((x) => x.type === 'n8n-nodes-base.respondToWebhook')) assert.ok(!JSON.stringify(n.parameters).includes('refresh'), n.name);
   const after = (from) => (WF.connections[from]?.main || []).map((o) => o.map((c) => c.node));
-  assert.deepEqual(after('Callback action'), [['Vault: prepare input'], ['Set calendar_status (callback)'], ['Respond 302 to portal']]);
-  assert.deepEqual(after('Vault: prepare input'), [['Vault: store MS refresh token']]);
+  assert.deepEqual(after('Callback action'), [['Set calendar_status connected'], ['Set calendar_status (callback)'], ['Respond 302 to portal']]);
+  assert.deepEqual(after('MS token sub-workflow'), [['Callback action', 'MS callback: secret alert']]);
   assert.deepEqual(after('State valid?'), [['Load broker (callback)'], ['MS callback: bad state redirect']]);
 });
 
@@ -930,12 +936,12 @@ test('I-40c W20 Code nodes run end to end: connect -> Microsoft (modelled) -> ca
   const st = au.searchParams.get('state');
   const chk = await runMsCode('MS callback: check state', { query: { state: st, code: 'M.C123_code' } });
   assert.equal(chk.has_code, true); assert.equal(chk.broker_id, BROKER_ID);
-  const pl = await runMsCode('MS callback: plan', {}, { 'MS callback: check state': chk, 'Load broker (callback)': { broker_id: BROKER_ID, calendar_status: null }, 'MS token exchange': TOKEN_OK });
+  const pl = await runMsCode('MS callback: plan', {}, subRefs(chk, { broker_id: BROKER_ID, calendar_status: null }, TOKEN_OK));
   assert.equal(pl.action, 'store'); assert.equal(pl.broker_id, BROKER_ID);
   // modelled RPC: smc_vault_store_ms_refresh(p_broker_id, p_refresh_token, p_tenant_id, p_scopes)
   const repl = node('Vault: store MS refresh token').parameters.options.queryReplacement;
   assert.equal(repl, '={{ [ $json.broker_id, $json.refresh_token, $json.tenant_id, $json.scopes ] }}');
-  const ev = await runMsCode('Build calendar.connected event', {}, { 'MS callback: plan': pl, 'Vault: store MS refresh token': { token_ref: `ms_refresh_${BROKER_ID}_1790000000` } });
+  const ev = await runMsCode('Build calendar.connected event', {}, { 'MS token sub-workflow': { ...pl, token_ref: `ms_refresh_${BROKER_ID}_1790000000` } });
   // the lane-A signature check (node "Verify signature") accepts it: sha256 HMAC of the raw body
   assert.equal(ev.signature, 'sha256=' + createHmac('sha256', MS_ENV.INTERNAL_HMAC_SECRET).update(ev.raw).digest('hex'));
   assert.equal(JSON.parse(ev.raw).type, 'calendar.connected');
@@ -944,7 +950,7 @@ test('I-40c W20 Code nodes run end to end: connect -> Microsoft (modelled) -> ca
   // admin consent blocked
   const chk2 = await runMsCode('MS callback: check state', { query: { state: st, error: 'access_denied', error_description: 'AADSTS90094: The grant requires admin permission.' } });
   assert.equal(chk2.has_code, false);
-  const pl2 = await runMsCode('MS callback: plan', {}, { 'MS callback: check state': chk2, 'Load broker (callback)': { broker_id: BROKER_ID, calendar_status: null } });
+  const pl2 = await runMsCode('MS callback: plan', {}, subRefs(chk2, { broker_id: BROKER_ID, calendar_status: null }));
   assert.equal(pl2.action, 'status'); assert.equal(pl2.status, 'consent_pending'); assert.ok(pl2.detail.admin_consent_url);
 
   // forged state
@@ -954,7 +960,7 @@ test('I-40c W20 Code nodes run end to end: connect -> Microsoft (modelled) -> ca
   assert.match(red.redirect, /error=calendar&reason=link_expired/);
 
   // unknown broker in a valid state (row deleted) -> no writes
-  const pl4 = await runMsCode('MS callback: plan', {}, { 'MS callback: check state': chk, 'Load broker (callback)': {}, 'MS token exchange': TOKEN_OK });
+  const pl4 = await runMsCode('MS callback: plan', {}, subRefs(chk, {}, TOKEN_OK));
   assert.equal(pl4.action, 'none'); assert.equal(pl4.refresh_token, undefined);
 
   // disconnect
@@ -983,25 +989,37 @@ const callbackLane = () => {
   return [...seen];
 };
 
-test('I-41j W20.json: settings kept, every node after the token exchange continues on fail, only plan + vault input read the token response', () => {
-  assert.equal(WF.settings.saveDataSuccessExecution, 'none', 'a successful callback run is never stored');
-  assert.equal(WF.settings.saveDataErrorExecution, 'all', 'other lanes keep their error data; the callback lane never errors instead');
-  const lane = callbackLane();
-  for (const n of ['MS callback: plan', 'Vault: prepare input', 'Vault: store MS refresh token', 'MS callback: vault failed', 'MS callback: secret alert', 'Raise alert (W22, MS callback)', 'Respond 302 to portal']) assert.ok(lane.includes(n), `${n} is in the callback lane`);
-  for (const name of lane.filter((n) => n !== 'MS token exchange')) {
-    const n = node(name);
-    if (['n8n-nodes-base.if', 'n8n-nodes-base.switch'].includes(n.type)) continue;
-    assert.ok(['continueRegularOutput', 'continueErrorOutput'].includes(n.onError), `${name} continues on fail (no error execution after the exchange)`);
-  }
+test('I-41j + I-43e: the token exchange runs in a sub-workflow with execution data off; the parent never holds the token', () => {
+  // I-43e: the sub-workflow, not W20, does the exchange. Its own settings keep nothing on success or on error.
+  assert.equal(SUBWF.id, 'smc-w20-ms-token');
+  assert.equal(SUBWF.settings.saveDataSuccessExecution, 'none');
+  assert.equal(SUBWF.settings.saveDataErrorExecution, 'none', 'a crash mid-run cannot persist the token in execution data');
+  assert.equal(SUBWF.settings.saveExecutionProgress, false, 'no per-node progress snapshots either');
+  assert.equal(SUBWF.settings.saveManualExecutions, false);
+  // the parent calls it by id, waits for the result, and never errors on it
+  const call = node('MS token sub-workflow');
+  assert.equal(call.type, 'n8n-nodes-base.executeWorkflow');
+  assert.deepEqual([call.parameters.workflowId.mode, call.parameters.workflowId.value, call.parameters.options.waitForSubWorkflow], ['id', 'smc-w20-ms-token', true]);
+  assert.equal(call.onError, 'continueRegularOutput');
+  // parent: no node in W20 mentions the exchange, the token fields, or the sub's internals
+  const parentText = JSON.stringify(WF.nodes.filter((n) => n.type !== 'n8n-nodes-base.stickyNote'));
+  for (const bad of ['MS token exchange', 'refresh_token', 'access_token', 'Vault: ', 'smc_vault_store_ms_refresh', 'microsoftonline.com/']) assert.ok(!parentText.includes(bad) || bad === 'microsoftonline.com/' && /authorize/.test(parentText), `W20 parent has no "${bad}"`);
+  assert.ok(!/oauth2\/v2\.0\/token/.test(parentText), 'the token endpoint is only called inside the sub-workflow');
+  assert.equal(WF.settings.saveDataSuccessExecution, 'none');
+  // sub: every node after the exchange continues on fail; vault RPC has an error branch; results are built from the public plan
+  const subAfter = (from) => (SUBWF.connections[from]?.main || []).map((o) => o.map((c) => c.node));
+  assert.deepEqual(subAfter('Vault: store MS refresh token'), [['Result: stored'], ['Result: vault failed']]);
   assert.equal(node('Vault: store MS refresh token').onError, 'continueErrorOutput');
-  const after = (from) => (WF.connections[from]?.main || []).map((o) => o.map((c) => c.node));
-  assert.deepEqual(after('Vault: store MS refresh token'), [['Set calendar_status connected'], ['MS callback: vault failed']]);
-  assert.deepEqual(after('Downgrade? (vault failed)'), [['Set calendar_status (callback)'], ['Respond 302 to portal']]);
-  const readers = WF.nodes.filter((n) => n.type === 'n8n-nodes-base.code' && n.parameters.jsCode.includes("$('MS token exchange')")).map((n) => n.name).sort();
+  for (const n of SUBWF.nodes.filter((x) => ['MS callback: plan', 'Vault: prepare input', 'Result: stored', 'Result: vault failed', 'Result: no vault step'].includes(x.name))) assert.equal(n.onError, 'continueRegularOutput', n.name);
+  const readers = SUBWF.nodes.filter((n) => n.type === 'n8n-nodes-base.code' && n.parameters.jsCode.includes("$('MS token exchange')")).map((n) => n.name).sort();
   assert.deepEqual(readers, ['MS callback: plan', 'Vault: prepare input']);
   assert.match(node('MS callback: plan').parameters.jsCode, /M\.publicPlan\(/);
-  // Nothing reads the vault RPC's input item downstream: the error branch builds its item fresh from the plan.
-  assert.ok(!/\$\('Vault: prepare input'\)|\$input|\$json/.test(node('MS callback: vault failed').parameters.jsCode.split('\n').slice(6).join('\n')));
+  assert.ok(!/\$\('Vault: prepare input'\)|\$input|\$json/.test(node('Result: vault failed').parameters.jsCode.split('\n').slice(6).join('\n')));
+  // credentials: same names as before, none new
+  const names = SUBWF.nodes.flatMap((n) => Object.values(n.credentials || {}).map((c) => c.name)).sort();
+  assert.deepEqual([...new Set(names)], ['LV Supabase - n8n_app (least privilege)', 'Microsoft Graph broker-connect client secret (W20)']);
+  // every sub-workflow node name is unique, and the callback lane in W20 is connected end to end
+  assert.equal(new Set(SUBWF.nodes.map((n) => n.name)).size, SUBWF.nodes.length);
 });
 
 test('I-41j W20 Code nodes: no node output except the vault RPC input contains the refresh token (success, vault failure, bad secret)', async () => {
@@ -1011,23 +1029,23 @@ test('I-41j W20 Code nodes: no node output except the vault RPC input contains t
   // success
   const [chk] = keep('MS callback: check state', await runMsAll('MS callback: check state', { query: { state: st, code: 'M.C123_code' } }));
   const row = { broker_id: BROKER_ID, calendar_status: null };
-  const [pl] = keep('MS callback: plan', await runMsAll('MS callback: plan', {}, { 'MS callback: check state': chk, 'Load broker (callback)': row, 'MS token exchange': TOKEN_OK }));
+  const [pl] = keep('MS callback: plan', await runMsAll('MS callback: plan', {}, subRefs(chk, row, TOKEN_OK)));
   assert.equal(pl.action, 'store'); assert.ok(!('refresh_token' in pl));
   keep('MS callback: secret alert', await runMsAll('MS callback: secret alert', pl));
   const [vin] = keep('Vault: prepare input', await runMsAll('Vault: prepare input', pl, { 'MS token exchange': TOKEN_OK }));
   assert.deepEqual(vin, { broker_id: BROKER_ID, refresh_token: RT, tenant_id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', scopes: pl.scopes }, 'exactly the four RPC arguments');
   const vaultOut = keep('Vault: store MS refresh token', [{ token_ref: `ms_refresh_${BROKER_ID}_1790000000` }]); // modelled RPC result
-  keep('Build calendar.connected event', await runMsAll('Build calendar.connected event', {}, { 'MS callback: plan': pl, 'Vault: store MS refresh token': vaultOut[0] }));
+  keep('Build calendar.connected event', await runMsAll('Build calendar.connected event', {}, { 'MS token sub-workflow': { ...pl, token_ref: vaultOut[0].token_ref } }));
   // vault RPC fails (n8n error output: the node's own error item); new connect -> error, working calendar -> unchanged
   const errItem = { message: 'smc_vault_store_ms_refresh: unknown SMC broker', error: { message: 'unknown SMC broker' } };
-  const [vf] = keep('MS callback: vault failed', await runMsAll('MS callback: vault failed', errItem, { 'MS callback: plan': pl, 'Load broker (callback)': row }));
+  const [vf] = keep('Result: vault failed', await runMsAll('Result: vault failed', errItem, { 'MS callback: plan': pl, [SUB_TRIG]: subRefs(chk, row)[SUB_TRIG] }));
   assert.deepEqual([vf.action, vf.status, vf.detail.reason], ['status', 'error', 'vault_store_failed']);
   assert.match(vf.redirect, /error=calendar&reason=vault_store_failed/);
-  const [vfOk] = keep('MS callback: vault failed', await runMsAll('MS callback: vault failed', errItem, { 'MS callback: plan': pl, 'Load broker (callback)': { ...row, calendar_status: 'ok' } }));
+  const [vfOk] = keep('Result: vault failed', await runMsAll('Result: vault failed', errItem, { 'MS callback: plan': pl, [SUB_TRIG]: subRefs(chk, { ...row, calendar_status: 'ok' })[SUB_TRIG] }));
   assert.equal(vfOk.action, 'none', 'a vault failure on a re-connect never downgrades a working calendar');
   // bad client secret
   const BAD = { statusCode: 401, body: { error: 'invalid_client', error_description: 'AADSTS7000222: The provided client secret keys are expired.', error_codes: [7000222] } };
-  const [plBad] = keep('MS callback: plan', await runMsAll('MS callback: plan', {}, { 'MS callback: check state': chk, 'Load broker (callback)': row, 'MS token exchange': BAD }));
+  const [plBad] = keep('MS callback: plan', await runMsAll('MS callback: plan', {}, subRefs(chk, row, BAD)));
   keep('MS callback: secret alert', await runMsAll('MS callback: secret alert', plBad));
   for (const [name, items] of Object.entries(outputs)) {
     if (name === 'Vault: prepare input') continue;
@@ -1044,7 +1062,7 @@ test('I-41j W20 Code nodes: no node output except the vault RPC input contains t
 // =============================================================================================
 test('I-41i W20 callback: AADSTS7000215 / 7000222 / 700016 -> W22 red alert ms_client_secret_invalid via Execute Workflow; consent errors do not alert', async () => {
   const after = (from) => (WF.connections[from]?.main || []).map((o) => o.map((c) => c.node));
-  assert.deepEqual(after('MS callback: plan'), [['Callback action', 'MS callback: secret alert']]);
+  assert.deepEqual(after('MS token sub-workflow'), [['Callback action', 'MS callback: secret alert']]);
   assert.deepEqual(after('MS callback: secret alert'), [['Raise alert (W22, MS callback)']]);
   const raise = node('Raise alert (W22, MS callback)');
   assert.equal(raise.type, 'n8n-nodes-base.executeWorkflow');
@@ -1054,7 +1072,7 @@ test('I-41i W20 callback: AADSTS7000215 / 7000222 / 700016 -> W22 red alert ms_c
   const chk = await runMsCode('MS callback: check state', { query: { state: st, code: 'c0de' } });
   for (const [code, current] of [[7000215, null], [7000222, null], [700016, 'ok']]) {
     const tok = { statusCode: 401, body: { error: 'invalid_client', error_description: `AADSTS${code}: secret problem`, error_codes: [code] } };
-    const pl = await runMsCode('MS callback: plan', {}, { 'MS callback: check state': chk, 'Load broker (callback)': { broker_id: BROKER_ID, calendar_status: current }, 'MS token exchange': tok });
+    const pl = await runMsCode('MS callback: plan', {}, subRefs(chk, { broker_id: BROKER_ID, calendar_status: current }, tok));
     assert.equal(pl.detail.reason, 'app_credentials', 'what W20 writes to calendar_status_detail.reason');
     const out = await runMsAll('MS callback: secret alert', pl);
     assert.equal(out.length, 1, `AADSTS${code} alerts${current === 'ok' ? ' even when the broker keeps a working calendar' : ''}`);
@@ -1063,9 +1081,9 @@ test('I-41i W20 callback: AADSTS7000215 / 7000222 / 700016 -> W22 red alert ms_c
     assert.ok(!JSON.stringify(out[0]).includes(BROKER_ID), 'app-wide alert: one per 24 h, not one per broker');
   }
   const consent = await runMsCode('MS callback: check state', { query: { state: st, error: 'access_denied', error_description: 'AADSTS90094: admin permission' } });
-  const plC = await runMsCode('MS callback: plan', {}, { 'MS callback: check state': consent, 'Load broker (callback)': { broker_id: BROKER_ID, calendar_status: null } });
+  const plC = await runMsCode('MS callback: plan', {}, subRefs(consent, { broker_id: BROKER_ID, calendar_status: null }));
   assert.deepEqual(await runMsAll('MS callback: secret alert', plC), []);
-  const plOk = await runMsCode('MS callback: plan', {}, { 'MS callback: check state': chk, 'Load broker (callback)': { broker_id: BROKER_ID, calendar_status: null }, 'MS token exchange': TOKEN_OK });
+  const plOk = await runMsCode('MS callback: plan', {}, subRefs(chk, { broker_id: BROKER_ID, calendar_status: null }, TOKEN_OK));
   assert.deepEqual(await runMsAll('MS callback: secret alert', plOk), []);
 });
 

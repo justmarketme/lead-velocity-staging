@@ -440,6 +440,299 @@
         "mode": "runOnceForAllItems",
         "jsCode": "// DRY_RUN_SENDS=true: nothing leaves the box (whatsapp). Pass the input on with a fake 2xx so downstream logging still runs.\nreturn $input.all().map((i, n) => ({ json: { ...i.json, dry_run: true, statusCode: 200, body: { messages: [{ id: 'dry:' + n }] } } }));"
       }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/15 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "d0fd4087-dbf8-136b-f929-6f540e4f1f22",
+      "name": "Every 15 min report emails",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- I-36c: consume the ops.notifications email rows W14 queued (\"Mark sent and queue email\"). Claim = attempts+1 under SKIP LOCKED, so two ticks never take the same row;\n-- backoff = n * 15 min between tries, at most 3 tries (no retry storm). Rows with no broker email, or not queued by W14, are never touched.\nwith c as (\n  update ops.notifications n set attempts = n.attempts + 1, updated_at = now()\n   where n.id in (\n     select x.id from ops.notifications x\n      where x.source = 'W14' and x.channel = 'email' and x.sent_at is null\n        and coalesce(x.status, 'queued') = 'queued' and x.attempts < 3\n        and (x.attempts = 0 or x.updated_at < now() - (x.attempts * interval '15 minutes'))\n      order by x.created_at limit 20 for update skip locked)\n  returning n.id, n.payload, n.attempts\n)\nselect c.id as notification_id, c.attempts, c.payload, rh.id as report_id, rh.brand_id, rh.broker_id, rh.report_data, b.email as broker_email\n  from c\n  join public.report_history rh on rh.id = (c.payload->>'report_id')::uuid\n  left join public.brokers b on b.id = rh.broker_id;",
+        "options": {}
+      },
+      "id": "8970f4e3-cf97-cdf2-3cdd-1bcf357ba01b",
+      "name": "Queued report emails",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        420,
+        900
+      ],
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-36c: one shell command per report. Runs scripts/build-broker-report-email.mjs --pdf (initials only, I-36d canonical PDF) on the stored broker_report/1 payload.\n// The payload goes in as base64 (no quoting problems); ids are validated UUIDs before they touch the command line. stdout carries three sections: meta, email html, pdf (all base64).\nconst UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nconst EMAIL = /^[^\\s@<>\"']+@[^\\s@<>\"']+\\.[^\\s@<>\"']+$/;\nreturn $input.all().map((it) => {\n  const r = it.json;\n  const bad = !UUID.test(String(r.notification_id)) || !UUID.test(String(r.report_id)) ? 'bad_id'\n    : !r.broker_email || !EMAIL.test(r.broker_email) ? 'no_broker_email'\n    : !r.report_data || r.report_data.schema !== 'broker_report/1' ? 'no_payload'\n    : !r.payload || r.payload.pdf !== 'initials_only' ? 'not_initials_only' : null;\n  const b64 = bad ? '' : Buffer.from(JSON.stringify(r.report_data)).toString('base64');\n  if (!bad && b64.length > 120000) return { json: { ...r, report_data: undefined, build_error: 'payload_too_large', cmd: 'true' } };\n  const dir = '/tmp/w14-email/' + r.notification_id;\n  const cmd = bad ? 'true' : [\n    'set -e', 'D=' + dir, 'rm -rf \"$D\"', 'mkdir -p \"$D\"', \"echo '\" + b64 + \"' | base64 -d > \\\"$D/payload.json\\\"\",\n    'node \"${REPO_DIR:-.}/scripts/build-broker-report-email.mjs\" \"$D/payload.json\" --out \"$D\" --report-id ' + r.report_id + ' --portal-url \"${PORTAL_URL:-}\" --pdf > \"$D/meta.json\"',\n    \"echo '@@META'; base64 -w0 \\\"$D/meta.json\\\"; echo\", \"echo '@@HTML'; base64 -w0 \\\"$D\\\"/*.email.html; echo\", \"echo '@@PDF'; base64 -w0 \\\"$D\\\"/*.pdf; echo\", 'rm -rf \"$D\"',\n  ].join('; ');\n  return { json: { notification_id: r.notification_id, attempts: r.attempts, report_id: r.report_id, brand_id: r.brand_id, broker_id: r.broker_id, broker_email: r.broker_email, build_error: bad, cmd } };\n});"
+      },
+      "id": "4e0fa997-c296-0be4-ec27-d60ebb495c77",
+      "name": "Build email command",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "command": "={{ $json.cmd }}"
+      },
+      "id": "ffb3e496-46a0-e9e7-2229-0b6d6b77845e",
+      "name": "Build email + PDF (initials only)",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        860,
+        900
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-36c: pair each command result with its row, parse the three sections, build the Graph sendMail body (HTML body + PDF attachment). From howzit@, bcc howzit@ (one audit trail, 4.10 item 0).\nconst mailbox = $env.HOWZIT_MAILBOX || 'howzit@leadvelocity.co.za';\nconst rows = $('Build email command').all();\nconst sec = (out, tag) => { const m = String(out || '').match(new RegExp('@@' + tag + '\\\\n([A-Za-z0-9+/=]*)')); return m ? m[1] : ''; };\nreturn $input.all().map((it, i) => {\n  const r = rows[i].json;\n  const base = { notification_id: r.notification_id, attempts: r.attempts, report_id: r.report_id, brand_id: r.brand_id, broker_id: r.broker_id, broker_email: r.broker_email, mailbox };\n  if (r.build_error) return { json: { ...base, ok: false, error: r.build_error } };\n  const o = it.json;\n  const pdf = sec(o.stdout, 'PDF'), html = sec(o.stdout, 'HTML'), metaB = sec(o.stdout, 'META');\n  let meta = null; try { meta = JSON.parse(Buffer.from(metaB, 'base64').toString('utf8')); } catch (e) {}\n  if ((o.exitCode && o.exitCode !== 0) || !pdf || !html || !meta || !meta.subject) return { json: { ...base, ok: false, error: 'builder_failed: ' + String(o.stderr || o.error || 'no output').slice(0, 200) } };\n  if (pdf.length > 3500000) return { json: { ...base, ok: false, error: 'pdf_too_large_for_inline_attachment' } };\n  const subject = meta.subject, name = meta.pdf_name || 'report.pdf';\n  const graph_body = { message: { subject, body: { contentType: 'HTML', content: Buffer.from(html, 'base64').toString('utf8') },\n    toRecipients: [{ emailAddress: { address: r.broker_email } }], bccRecipients: [{ emailAddress: { address: mailbox } }],\n    attachments: [{ '@odata.type': '#microsoft.graph.fileAttachment', name, contentType: 'application/pdf', contentBytes: pdf }] }, saveToSentItems: true };\n  return { json: { ...base, ok: true, subject, pdf_name: name, graph_url: 'https://graph.microsoft.com/v1.0/users/' + encodeURIComponent(mailbox) + '/sendMail', graph_body } };\n});"
+      },
+      "id": "5dfae4fa-9699-c527-1f3b-dd4348038dfb",
+      "name": "Compose Graph sendMail",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ae7eda27-cbe7-3461-6836-b0235ca23dc0",
+      "name": "Built?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $env.DRY_RUN_SENDS !== 'true' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "11b6539d-6497-8dab-0ad9-fd60dd1eb9de",
+      "name": "Live send? (Graph sendMail)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        820
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.graph_url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "microsoftOutlookOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.graph_body) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "1f409caa-8b77-2220-4923-c865b7e0bea0",
+      "name": "Graph sendMail (howzit@)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1740,
+        740
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": null,
+          "name": "Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send)"
+        }
+      },
+      "notes": "Same credential W17 uses to read howzit@ (Mail.Send scope). Graph returns 202 with no id; evidence id is the notification id."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// DRY_RUN_SENDS=true: nothing leaves the box (email). Fake 202 so the evidence row is still written (marked dry).\nreturn $input.all().map((i) => ({ json: { ...i.json, dry_run: true, statusCode: 202, body: {} } }));"
+      },
+      "id": "769b5969-eca6-ae4a-f726-603a842c66b6",
+      "name": "Dry-run stub (Graph sendMail)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1740,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Pair each Graph response with its report (same order as the items that reached the send).\nconst built = $('Built?').all();\nreturn $input.all().map((it, i) => {\n  const b = built[i].json;\n  const ok = it.json.statusCode >= 200 && it.json.statusCode < 300;\n  return { json: { notification_id: b.notification_id, attempts: b.attempts, report_id: b.report_id, brand_id: b.brand_id, broker_id: b.broker_id, broker_email: b.broker_email, subject: b.subject, pdf_name: b.pdf_name,\n    ok, dry_run: it.json.dry_run === true, error: ok ? null : 'graph_' + it.json.statusCode + ' ' + JSON.stringify(it.json.body || {}).slice(0, 200) } };\n});"
+      },
+      "id": "0601595e-4f3e-3a3c-f3ae-e2d601a594dd",
+      "name": "Email sent or failed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1960,
+        820
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b13f9eb5-6ce7-8683-2933-1ef9163bc47d",
+      "name": "Email sent?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2180,
+        820
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- I-36c disclosure/delivery evidence: one communications row per report email. DRY_RUN rows are marked (external_id 'dry:...', metadata.dry_run) and leave the queue row queued with its attempt given back,\n-- so switching DRY_RUN off later still sends it. A real send closes the queue row. The PDF itself is not stored (initials only, regenerated from report_history).\nwith u as (\n  update ops.notifications n set\n         status = case when $6::boolean then n.status else 'sent' end,\n         sent_at = case when $6::boolean then null else now() end,\n         attempts = case when $6::boolean then greatest(n.attempts - 1, 0) else n.attempts end,\n         external_id = case when $6::boolean then null else 'email:' || n.id end,\n         error = null, updated_at = now()\n   where n.id = $1::uuid and n.sent_at is null\n  returning n.id\n)\ninsert into public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, subject, content, status, external_id, broker_id, author, workflow, template_name, metadata)\nselect $2::uuid, 'email', 'outbound', 'system', 'broker', $3, $4, 'Weekly report email with PDF attached (initials only): ' || $5, 'sent',\n       case when $6::boolean then 'dry:email:' else 'email:' end || u.id, $7::uuid, 'system', 'W14', 'broker_report_email', jsonb_build_object('report_id', $8::text, 'dry_run', $6::boolean, 'pdf', 'initials_only')\n  from u\non conflict (channel, external_id) where brand_id is not null and external_id is not null do nothing;",
+        "options": {
+          "queryReplacement": "={{ [ $json.notification_id, $json.brand_id, $json.broker_email, $json.subject, $json.pdf_name, $json.dry_run === true, $json.broker_id, $json.report_id ] }}"
+        }
+      },
+      "id": "b9fdb200-fc04-6d94-59dc-9273385968de",
+      "name": "Store email evidence",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2400,
+        740
+      ],
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Failure keeps the row queued for the next backoff slot; after the 3rd failed try it is closed as send_failed and Jonathan gets one amber console item (never a retry storm).\nwith u as (\n  update ops.notifications n set error = left($2, 300), status = case when n.attempts >= 3 then 'send_failed' else n.status end, updated_at = now()\n   where n.id = $1::uuid and n.sent_at is null\n  returning n.id, n.attempts, n.status\n)\ninsert into ops.notifications (kind, recipient, channel, dedupe_key, payload, severity, source, what, first_action)\nselect 'action', 'jonathan', 'console', 'w14-email-failed-' || u.id, jsonb_build_object('notification_id', u.id, 'error', left($2, 300)), 'amber', 'W14',\n       'A broker report email did not send (3 tries)', 'Check the howzit@ credential health tile, then re-send the report from the console'\n  from u where u.status = 'send_failed' and not exists (select 1 from ops.notifications where dedupe_key = 'w14-email-failed-' || u.id)\nreturning id;",
+        "options": {
+          "queryReplacement": "={{ [ $json.notification_id, $json.error ] }}"
+        }
+      },
+      "id": "c94b261d-3d06-6845-7e93-9ea2bb2b7213",
+      "name": "Email failed (retry or alert)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2400,
+        920
+      ],
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
     }
   ],
   "connections": {
@@ -612,6 +905,148 @@
         [
           {
             "node": "Sent or failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every 15 min report emails": {
+      "main": [
+        [
+          {
+            "node": "Queued report emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queued report emails": {
+      "main": [
+        [
+          {
+            "node": "Build email command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build email command": {
+      "main": [
+        [
+          {
+            "node": "Build email + PDF (initials only)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build email + PDF (initials only)": {
+      "main": [
+        [
+          {
+            "node": "Compose Graph sendMail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compose Graph sendMail": {
+      "main": [
+        [
+          {
+            "node": "Built?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Built?": {
+      "main": [
+        [
+          {
+            "node": "Live send? (Graph sendMail)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Email failed (retry or alert)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Live send? (Graph sendMail)": {
+      "main": [
+        [
+          {
+            "node": "Graph sendMail (howzit@)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dry-run stub (Graph sendMail)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graph sendMail (howzit@)": {
+      "main": [
+        [
+          {
+            "node": "Email sent or failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry-run stub (Graph sendMail)": {
+      "main": [
+        [
+          {
+            "node": "Email sent or failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email sent or failed": {
+      "main": [
+        [
+          {
+            "node": "Email sent?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email sent?": {
+      "main": [
+        [
+          {
+            "node": "Store email evidence",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Email failed (retry or alert)",
             "type": "main",
             "index": 0
           }

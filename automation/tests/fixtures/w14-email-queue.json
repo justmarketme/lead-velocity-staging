@@ -1,0 +1,12 @@
+{
+  "_note": "Synthetic. One queued ops.notifications email row (as 'Mark sent and queue email' writes it) joined to its report_history row; report_data is taken from w14-payloads.json (key weekly_close_rate) by the test.",
+  "queued": {
+    "notification_id": "5a1f0c52-0000-4000-8000-000000000001",
+    "attempts": 1,
+    "payload": { "report_id": "7c3e9d10-0000-4000-8000-000000000002", "template": "broker_report_email", "builder": "scripts/build-broker-report-email.mjs", "from": "howzit@leadvelocity.co.za", "bcc": "howzit@leadvelocity.co.za", "pdf": "initials_only" },
+    "report_id": "7c3e9d10-0000-4000-8000-000000000002",
+    "brand_id": "b7a10000-0000-4000-8000-000000000003",
+    "broker_id": "d4e20000-0000-4000-8000-000000000004",
+    "broker_email": "adviser@example.invalid"
+  }
+}

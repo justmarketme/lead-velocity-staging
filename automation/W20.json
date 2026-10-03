@@ -1931,7 +1931,7 @@
         3140
       ],
       "parameters": {
-        "content": "## W20 Microsoft calendar connect (I-40c, GAPS G-06, 0.3 #4)\nGET ms/connect (broker JWT; 302, or JSON {authorize_url} with Accept: application/json) -> Microsoft sign-in -> GET ms/callback (state HMAC, 10 min) -> code exchange (client secret ONLY in credential \"Microsoft Graph broker-connect client secret (W20)\", httpCustomAuth body {client_secret}) -> refresh token ONLY via smc_vault_store_ms_refresh() -> smc_set_calendar_status(connected) -> signed calendar.connected onto lane A.\nAdmin-consent AADSTS errors -> consent_pending + admin_consent_url in calendar_status_detail, portal opens with ?error=admin_consent. A failed re-connect never downgrades a working calendar. POST ms/disconnect (JWT) -> disconnected.\nEnv: MS_GRAPH_CLIENT_ID, MS_GRAPH_TENANT (default organizations), MS_GRAPH_REDIRECT_URI (= {N8N_PUBLIC_URL}/webhook/ms/callback), PORTAL_URL, SUPABASE_JWT_SECRET, MS_OAUTH_STATE_SECRET (falls back to INTERNAL_HMAC_SECRET), REPO_DIR. Scopes: automation/lib/w20-ms.mjs SCOPES (no Mail.*).\nI-41j: the refresh token exists only in the \"MS token exchange\" response and the item \"Vault: prepare input\" hands to the vault RPC; \"MS callback: plan\" emits it stripped. Every node after the exchange continues on fail (the vault RPC to an error branch -> calendar_status error, never downgrading a working calendar), so a callback run never becomes an error execution and is never stored (success data: none).\nI-41i: AADSTS7000215/7000222/700016 / invalid_client -> calendar_status_detail.reason app_credentials + W22 red alert ms_client_secret_invalid (both phones).",
+        "content": "## W20 Microsoft calendar connect (I-40c, GAPS G-06, 0.3 #4)\nGET ms/connect (broker JWT; 302, or JSON {authorize_url} with Accept: application/json) -> Microsoft sign-in -> GET ms/callback (state HMAC, 10 min) -> code exchange (client secret ONLY in credential \"Microsoft Graph broker-connect client secret (W20)\", httpCustomAuth body {client_secret}) -> refresh token ONLY via smc_vault_store_ms_refresh() -> smc_set_calendar_status(connected) -> signed calendar.connected onto lane A.\nAdmin-consent AADSTS errors -> consent_pending + admin_consent_url in calendar_status_detail, portal opens with ?error=admin_consent. A failed re-connect never downgrades a working calendar. POST ms/disconnect (JWT) -> disconnected.\nEnv: MS_GRAPH_CLIENT_ID, MS_GRAPH_TENANT (default organizations), MS_GRAPH_REDIRECT_URI (= {N8N_PUBLIC_URL}/webhook/ms/callback), PORTAL_URL, SUPABASE_JWT_SECRET, MS_OAUTH_STATE_SECRET (falls back to INTERNAL_HMAC_SECRET), REPO_DIR. Scopes: automation/lib/w20-ms.mjs SCOPES (no Mail.*).\nI-43e: the code exchange, plan and vault store run in sub-workflow smc-w20-ms-token (saveDataErrorExecution and saveDataSuccessExecution both none), called by id from the \"MS token sub-workflow\" node. This workflow never holds the refresh token; the sub returns the public plan + token_ref only. A vault failure returns a no-downgrade plan, so a callback run never becomes an error execution.\nI-41i: AADSTS7000215/7000222/700016 / invalid_client -> calendar_status_detail.reason app_credentials + W22 red alert ms_client_secret_invalid (both phones).",
         "height": 240,
         "width": 760
       }
@@ -2257,112 +2257,6 @@
       "alwaysOutputData": true
     },
     {
-      "id": "w20-ms-16",
-      "name": "Has code?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        880,
-        3800
-      ],
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "loose",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "c1",
-              "leftValue": "={{ $('MS callback: check state').first().json.has_code && !!$json.broker_id }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      }
-    },
-    {
-      "id": "w20-ms-17",
-      "name": "MS token exchange",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1100,
-        3720
-      ],
-      "parameters": {
-        "method": "POST",
-        "url": "={{ 'https://login.microsoftonline.com/' + ($env.MS_GRAPH_TENANT || 'organizations') + '/oauth2/v2.0/token' }}",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpCustomAuth",
-        "sendBody": true,
-        "contentType": "form-urlencoded",
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "client_id",
-              "value": "={{ $env.MS_GRAPH_CLIENT_ID }}"
-            },
-            {
-              "name": "grant_type",
-              "value": "authorization_code"
-            },
-            {
-              "name": "code",
-              "value": "={{ $('MS callback: check state').first().json.query.code }}"
-            },
-            {
-              "name": "redirect_uri",
-              "value": "={{ $env.MS_GRAPH_REDIRECT_URI }}"
-            },
-            {
-              "name": "scope",
-              "value": "openid offline_access User.Read Calendars.ReadWrite OnlineMeetings.ReadWrite"
-            }
-          ]
-        },
-        "options": {
-          "response": {
-            "response": {
-              "fullResponse": true,
-              "neverError": true
-            }
-          },
-          "timeout": 15000
-        }
-      },
-      "credentials": {
-        "httpCustomAuth": {
-          "name": "Microsoft Graph broker-connect client secret (W20)"
-        }
-      },
-      "retryOnFail": false
-    },
-    {
-      "id": "w20-ms-18",
-      "name": "MS callback: plan",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1320,
-        3800
-      ],
-      "parameters": {
-        "mode": "runOnceForAllItems",
-        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation, NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst M = require('lv-automation').w20ms;\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nconst s = $('MS callback: check state').first().json;\nlet row = {}; try { row = $('Load broker (callback)').first().json || {}; } catch (e) {}\nlet token = null; try { const t = $('MS token exchange').first().json; token = { statusCode: t.statusCode, body: t.body }; } catch (e) {}\nconst state = row.broker_id ? s.state : { ok: false, reason: 'unknown_broker' };\nconst plan = M.planCallback({ state, query: s.query, token, currentStatus: row.calendar_status, cfg: CFG });\n// I-41j: the refresh token never leaves this node; only \"Vault: prepare input\" reads it, straight from the token response.\nreturn [{ json: M.publicPlan({ broker_id: row.broker_id || null, ...plan }) }];"
-      },
-      "onError": "continueRegularOutput"
-    },
-    {
       "id": "w20-ms-19",
       "name": "Callback action",
       "type": "n8n-nodes-base.switch",
@@ -2448,29 +2342,6 @@
       }
     },
     {
-      "id": "w20-ms-20",
-      "name": "Vault: store MS refresh token",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.5,
-      "position": [
-        1780,
-        3660
-      ],
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "-- The ONLY place the refresh token goes (migration 13, n8n_app only). Never in a column, a log or a response.\nselect public.smc_vault_store_ms_refresh($1::uuid, $2, $3, $4) as token_ref;",
-        "options": {
-          "queryReplacement": "={{ [ $json.broker_id, $json.refresh_token, $json.tenant_id, $json.scopes ] }}"
-        }
-      },
-      "credentials": {
-        "postgres": {
-          "name": "LV Supabase - n8n_app (least privilege)"
-        }
-      },
-      "onError": "continueErrorOutput"
-    },
-    {
       "id": "w20-ms-21",
       "name": "Set calendar_status connected",
       "type": "n8n-nodes-base.postgres",
@@ -2483,7 +2354,7 @@
         "operation": "executeQuery",
         "query": "select public.smc_set_calendar_status($1::uuid, 'connected', $2::jsonb) as calendar_status;",
         "options": {
-          "queryReplacement": "={{ [ $('MS callback: plan').first().json.broker_id, JSON.stringify($('MS callback: plan').first().json.detail) ] }}"
+          "queryReplacement": "={{ [ $('MS token sub-workflow').first().json.broker_id, JSON.stringify($('MS token sub-workflow').first().json.detail) ] }}"
         }
       },
       "credentials": {
@@ -2504,7 +2375,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation, NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst M = require('lv-automation').w20ms;\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nconst p = $('MS callback: plan').first().json;\nconst ref = $('Vault: store MS refresh token').first().json.token_ref;\nconst e = M.connectedEvent({ brokerId: p.broker_id, tokenRef: ref, secret: $env.INTERNAL_HMAC_SECRET });\nreturn [{ json: e }];"
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation, NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst M = require('lv-automation').w20ms;\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nconst p = $('MS token sub-workflow').first().json;\nconst ref = p.token_ref;\nconst e = M.connectedEvent({ brokerId: p.broker_id, tokenRef: ref, secret: $env.INTERNAL_HMAC_SECRET });\nreturn [{ json: e }];"
       },
       "onError": "continueRegularOutput"
     },
@@ -2584,7 +2455,7 @@
             "entries": [
               {
                 "name": "Location",
-                "value": "={{ ($('MS callback: vault failed').isExecuted ? $('MS callback: vault failed').first().json.redirect : ($('MS callback: plan').isExecuted ? $('MS callback: plan').first().json.redirect : $('MS callback: bad state redirect').first().json.redirect)) || (($env.PORTAL_URL || '') + '/broker/calendar?error=calendar') }}"
+                "value": "={{ ($('MS token sub-workflow').isExecuted ? $('MS token sub-workflow').first().json.redirect : $('MS callback: bad state redirect').first().json.redirect) || (($env.PORTAL_URL || '') + '/broker/calendar?error=calendar') }}"
               },
               {
                 "name": "Cache-Control",
@@ -2820,69 +2691,6 @@
       }
     },
     {
-      "id": "w20-ms-35",
-      "name": "Vault: prepare input",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1660,
-        3560
-      ],
-      "parameters": {
-        "mode": "runOnceForAllItems",
-        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation, NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst M = require('lv-automation').w20ms;\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\n// I-41j: the ONLY node output that carries the refresh token, and its only consumer is the vault RPC.\nconst p = $input.first().json;\nlet token = null; try { const t = $('MS token exchange').first().json; token = { statusCode: t.statusCode, body: t.body }; } catch (e) {}\nreturn [{ json: M.vaultInput({ plan: p, token }) }];"
-      },
-      "onError": "continueRegularOutput"
-    },
-    {
-      "id": "w20-ms-36",
-      "name": "MS callback: vault failed",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        2000,
-        3940
-      ],
-      "parameters": {
-        "mode": "runOnceForAllItems",
-        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation, NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst M = require('lv-automation').w20ms;\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\n// I-41j: vault RPC failed after a good exchange. Built fresh (no input fields are copied, so nothing secret flows on).\nconst p = $('MS callback: plan').first().json;\nlet row = {}; try { row = $('Load broker (callback)').first().json || {}; } catch (e) {}\nreturn [{ json: M.planVaultFailure({ brokerId: p.broker_id, currentStatus: row.calendar_status, cfg: CFG }) }];"
-      },
-      "onError": "continueRegularOutput"
-    },
-    {
-      "id": "w20-ms-37",
-      "name": "Downgrade? (vault failed)",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        2220,
-        3940
-      ],
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "loose",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "c1",
-              "leftValue": "={{ $json.action }}",
-              "rightValue": "status",
-              "operator": {
-                "type": "string",
-                "operation": "equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      }
-    },
-    {
       "id": "w20-ms-38",
       "name": "MS callback: secret alert",
       "type": "n8n-nodes-base.code",
@@ -2919,6 +2727,44 @@
         }
       },
       "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w20-ms-40",
+      "name": "MS callback: sub input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        3800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-43e: builds the sub-workflow input. No token exists in this workflow; the exchange happens in smc-w20-ms-token.\nconst s = $('MS callback: check state').first().json;\nlet row = {}; try { row = $input.first().json || {}; } catch (e) {}\nreturn [{ json: { state: s.state, query: s.query, has_code: !!s.has_code, broker_id: row.broker_id || null, current_status: row.calendar_status || null } }];"
+      }
+    },
+    {
+      "id": "w20-ms-41",
+      "name": "MS token sub-workflow",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        3800
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w20-ms-token"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "I-43e: token exchange + vault store run in smc-w20-ms-token (error and success execution data off). Returns the public plan only."
     }
   ],
   "connections": {
@@ -3937,52 +3783,7 @@
       "main": [
         [
           {
-            "node": "Has code?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Has code?": {
-      "main": [
-        [
-          {
-            "node": "MS token exchange",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "MS callback: plan",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "MS token exchange": {
-      "main": [
-        [
-          {
-            "node": "MS callback: plan",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "MS callback: plan": {
-      "main": [
-        [
-          {
-            "node": "Callback action",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "MS callback: secret alert",
+            "node": "MS callback: sub input",
             "type": "main",
             "index": 0
           }
@@ -3993,7 +3794,7 @@
       "main": [
         [
           {
-            "node": "Vault: prepare input",
+            "node": "Set calendar_status connected",
             "type": "main",
             "index": 0
           }
@@ -4008,24 +3809,6 @@
         [
           {
             "node": "Respond 302 to portal",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Vault: store MS refresh token": {
-      "main": [
-        [
-          {
-            "node": "Set calendar_status connected",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "MS callback: vault failed",
             "type": "main",
             "index": 0
           }
@@ -4156,51 +3939,38 @@
         ]
       ]
     },
-    "Vault: prepare input": {
-      "main": [
-        [
-          {
-            "node": "Vault: store MS refresh token",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "MS callback: vault failed": {
-      "main": [
-        [
-          {
-            "node": "Downgrade? (vault failed)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Downgrade? (vault failed)": {
-      "main": [
-        [
-          {
-            "node": "Set calendar_status (callback)",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Respond 302 to portal",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "MS callback: secret alert": {
       "main": [
         [
           {
             "node": "Raise alert (W22, MS callback)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MS callback: sub input": {
+      "main": [
+        [
+          {
+            "node": "MS token sub-workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MS token sub-workflow": {
+      "main": [
+        [
+          {
+            "node": "Callback action",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "MS callback: secret alert",
             "type": "main",
             "index": 0
           }
