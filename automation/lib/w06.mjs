@@ -187,6 +187,20 @@ export function applyStatus(l, log, status) {
   return e;
 }
 
+/**
+ * I-54j: "sent at" on the SAME clock as plan.clock_start / send_at (the lead's routed_at). Production: the n8n wall clock IS
+ * that clock, so it is returned unchanged (real lateness still counts against the 60 s SLO). Under the test clock
+ * (x-test-now stamps routed_at in the past or future) the two clocks differ by far more than any real hold or retry, so
+ * the card's send time is send_at plus the real elapsed time of the send step; latency can never go negative.
+ * plannedAtMs = wall time when the plan was made, sentAtMs = wall time when Meta answered.
+ */
+export function sentAtOnLeadClock(plan, plannedAtMs, sentAtMs) {
+  const sendAt = msOf(plan.send_at);
+  if (!Number.isFinite(plannedAtMs) || Math.abs(plannedAtMs - sendAt) <= SKEW_MS) return sentAtMs;
+  return sendAt + Math.max(0, sentAtMs - plannedAtMs);
+}
+const SKEW_MS = 10 * 60 * 1000;
+
 /** The lead row update after Meta accepted the card (wamid back): first_message_at starts W08's clocks and the 72-h window. */
 export function sentUpdate(lead, plan, wamid, sentAtMs) {
   return {

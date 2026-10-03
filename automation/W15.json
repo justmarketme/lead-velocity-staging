@@ -191,7 +191,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH h AS (SELECT public.smc_hash_contact(COALESCE($1, (SELECT x.phone FROM public.leads x WHERE x.id = $2::uuid))) AS mh,\n                  COALESCE($1, (SELECT y.phone FROM public.leads y WHERE y.id = $2::uuid)) AS mobile)\nSELECT h.mh AS mobile_hash, h.mobile,\n       EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = h.mh AND s.source = 'stop') AS already_suppressed,\n       COALESCE((SELECT jsonb_agg(jsonb_build_object('id', l.id, 'first_name', l.first_name, 'phone', l.phone, 'broker_id', l.broker_id,\n                  'brand_id', l.brand_id, 'opted_out_at', l.opted_out_at, 'language', l.language))\n                   FROM public.leads l WHERE l.brand_id IS NOT NULL AND (l.dedupe_hash = h.mh OR l.id = $2::uuid)), '[]'::jsonb) AS leads,\n       COALESCE((SELECT jsonb_agg(jsonb_build_object('id', a.id, 'lead_id', a.client_id, 'broker_id', a.broker_id, 'status', a.status,\n                  'graph_event_id', a.graph_event_id, 'start', a.appointment_date, 'method', a.method))\n                   FROM public.appointments a JOIN public.leads la ON la.id = a.client_id\n                  WHERE a.brand_id IS NOT NULL AND a.status IN ('booked','confirmed') AND (la.dedupe_hash = h.mh OR la.id = $2::uuid)), '[]'::jsonb) AS bookings,\n       COALESCE((SELECT jsonb_agg(jsonb_build_object('id', b.id, 'whatsapp_number', b.whatsapp_number, 'email', b.email, 'contact_person', b.contact_person,\n                  'calendar_email', b.calendar_email,\n                  'last_inbound_at', (SELECT max(c.created_at) FROM public.communications c WHERE c.broker_id = b.id AND c.lead_id IS NULL AND c.direction = 'inbound' AND c.sender_type = 'broker')))\n                   FROM public.brokers b\n                  WHERE b.id IN (SELECT lb.broker_id FROM public.leads lb WHERE lb.dedupe_hash = h.mh OR lb.id = $2::uuid)), '[]'::jsonb) AS brokers\n  FROM h;",
+        "query": "WITH h AS (SELECT public.smc_hash_contact(COALESCE($1, (SELECT x.phone FROM public.leads x WHERE x.id = $2::uuid))) AS mh,\n                  COALESCE($1, (SELECT y.phone FROM public.leads y WHERE y.id = $2::uuid)) AS mobile)\nSELECT h.mh AS mobile_hash, h.mobile,\n       EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = h.mh AND s.source = 'stop') AS already_suppressed,\n       COALESCE((SELECT jsonb_agg(jsonb_build_object('id', l.id, 'first_name', l.first_name, 'phone', l.phone, 'broker_id', l.broker_id,\n                  'brand_id', l.brand_id, 'opted_out_at', l.opted_out_at, 'language', l.language))\n                   FROM public.leads l WHERE l.brand_id IS NOT NULL AND (l.dedupe_hash = h.mh OR l.id = $2::uuid)), '[]'::jsonb) AS leads,\n       COALESCE((SELECT jsonb_agg(jsonb_build_object('id', a.id, 'lead_id', a.client_id, 'broker_id', a.broker_id, 'status', a.status,\n                  'graph_event_id', a.graph_event_id, 'calendar_provider', a.calendar_provider, 'start', a.appointment_date, 'method', a.method))\n                   FROM public.appointments a JOIN public.leads la ON la.id = a.client_id\n                  WHERE a.brand_id IS NOT NULL AND a.status IN ('booked','confirmed') AND (la.dedupe_hash = h.mh OR la.id = $2::uuid)), '[]'::jsonb) AS bookings,\n       COALESCE((SELECT jsonb_agg(jsonb_build_object('id', b.id, 'whatsapp_number', b.whatsapp_number, 'email', b.email, 'contact_person', b.contact_person,\n                  'calendar_email', b.calendar_email, 'calendar_status', b.calendar_status, 'calendar_mode', b.calendar_mode, 'calendar_status_detail', b.calendar_status_detail,\n                  'last_inbound_at', (SELECT max(c.created_at) FROM public.communications c WHERE c.broker_id = b.id AND c.lead_id IS NULL AND c.direction = 'inbound' AND c.sender_type = 'broker')))\n                   FROM public.brokers b\n                  WHERE b.id IN (SELECT lb.broker_id FROM public.leads lb WHERE lb.dedupe_hash = h.mh OR lb.id = $2::uuid)), '[]'::jsonb) AS brokers\n  FROM h;",
         "options": {
           "queryReplacement": "={{ [$json.mobile || null, $json.lead_id || null] }}"
         }
@@ -302,7 +302,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w15;\nif (!$input.first().json.claimed) return []; // lost a race with a parallel STOP: the winner does everything\nconst p = $('Plan opt-out (w15.planOptOut)').first().json;\nconst out = [];\nfor (const w of p.plan.w09) out.push({ json: { kind: 'w09', ...w } });\nconst brokers = new Map((p.ctx.brokers || []).map((b) => [String(b.id), b]));\nfor (const b of p.plan.booking_cancels) if (b.graph_event_id) out.push({ json: { kind: 'graph_delete', broker_id: b.broker_id, op: 'graph_token', graph_event_id: b.graph_event_id, calendar_email: (brokers.get(String(b.broker_id)) || {}).calendar_email || null } });\nfor (const nt of p.plan.broker_notices) {\n  if (nt.channel === 'email') { if (nt.to) out.push({ json: { kind: 'broker_email', to: nt.to, subject: nt.subject, text: nt.text, lead_id: nt.lead_id } }); continue; }\n  if (!nt.to || nt.mode === 'held_no_template') { out.push({ json: { kind: 'broker_held', lead_id: nt.lead_id, broker_id: nt.broker_id } }); continue; }\n  out.push({ json: { kind: 'broker_wa', lead_id: nt.lead_id, wa: nt.mode === 'session' ? L.waText(nt.to, nt.text) : L.brokerTemplate(nt.to, nt) } });\n}\nconst cf = p.plan.confirmation;\nif (cf) out.push({ json: { kind: cf.channel === 'sms' ? 'confirm_sms' : 'confirm_wa', lead_id: cf.lead_id, wa: L.waText(cf.to, cf.text), sms: { to: cf.to, text: cf.text }, text: cf.text, to: cf.to } });\nreturn out;"
+        "jsCode": "const L = require('lv-automation').w15;\nif (!$input.first().json.claimed) return []; // lost a race with a parallel STOP: the winner does everything\nconst p = $('Plan opt-out (w15.planOptOut)').first().json;\nconst out = [];\nfor (const w of p.plan.w09) out.push({ json: { kind: 'w09', ...w } });\nconst brokers = new Map((p.ctx.brokers || []).map((b) => [String(b.id), b]));\n// I-54h (F15): the delete targets the calendar the event was created in (lib/w05.graphEventTarget): shared_lv -> howzit@ shared calendar (howzit@ credential), else the broker's own calendar (W04 graph_token).\nconst W05 = require('lv-automation').w05;\nfor (const b of p.plan.booking_cancels) {\n  const t = W05.graphEventTarget({ graph_event_id: b.graph_event_id, calendar_provider: b.calendar_provider }, brokers.get(String(b.broker_id)) || {}, { HOWZIT_MAILBOX: $env.HOWZIT_MAILBOX, SMC_SHARED_CALENDAR_ID: $env.SMC_SHARED_CALENDAR_ID });\n  if (t.route === 'none') continue;\n  out.push({ json: { kind: 'graph_delete', broker_id: b.broker_id, op: 'graph_token', graph_event_id: b.graph_event_id, graph_route: t.error ? 'skip' : t.route, url: t.url, graph_error: t.error || null } });\n}\nfor (const nt of p.plan.broker_notices) {\n  if (nt.channel === 'email') { if (nt.to) out.push({ json: { kind: 'broker_email', to: nt.to, subject: nt.subject, text: nt.text, lead_id: nt.lead_id } }); continue; }\n  if (!nt.to || nt.mode === 'held_no_template') { out.push({ json: { kind: 'broker_held', lead_id: nt.lead_id, broker_id: nt.broker_id } }); continue; }\n  out.push({ json: { kind: 'broker_wa', lead_id: nt.lead_id, wa: nt.mode === 'session' ? L.waText(nt.to, nt.text) : L.brokerTemplate(nt.to, nt) } });\n}\nconst cf = p.plan.confirmation;\nif (cf) out.push({ json: { kind: cf.channel === 'sms' ? 'confirm_sms' : 'confirm_wa', lead_id: cf.lead_id, wa: L.waText(cf.to, cf.text), sms: { to: cf.to, text: cf.text }, text: cf.text, to: cf.to } });\nreturn out;"
       }
     },
     {
@@ -533,6 +533,138 @@
     },
     {
       "id": "n19",
+      "name": "Graph calendar? (shared howzit@ vs broker)",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1980,
+        -300
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "shared",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s0",
+                    "leftValue": "={{ $json.graph_route }}",
+                    "rightValue": "shared",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "broker",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s1",
+                    "leftValue": "={{ $json.graph_route }}",
+                    "rightValue": "broker",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "skip",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s2",
+                    "leftValue": "={{ $json.graph_route }}",
+                    "rightValue": "skip",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "n20",
+      "name": "Graph DELETE event (howzit@ shared calendar)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        -400
+      ],
+      "parameters": {
+        "method": "DELETE",
+        "url": "={{ $json.url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "microsoftOutlookOAuth2Api",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "",
+          "name": "Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n21",
+      "name": "Graph delete skipped (no shared calendar id; W22 shared_calendar_id_missing)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2200,
+        -100
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "n22",
       "name": "Graph DELETE event",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -542,7 +674,7 @@
       ],
       "parameters": {
         "method": "DELETE",
-        "url": "=https://graph.microsoft.com/v1.0/users/{{ encodeURIComponent($('Fan-out kind?').item.json.calendar_email) }}/events/{{ $('Fan-out kind?').item.json.graph_event_id }}",
+        "url": "={{ $('Fan-out kind?').item.json.url }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -566,7 +698,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n20",
+      "id": "n23",
       "name": "Live send? (broker WhatsApp)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -598,7 +730,7 @@
       }
     },
     {
-      "id": "n21",
+      "id": "n24",
       "name": "Send WhatsApp (broker notice)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -639,7 +771,7 @@
       "waitBetweenTries": 3000
     },
     {
-      "id": "n22",
+      "id": "n25",
       "name": "Live send? (broker email)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -671,7 +803,7 @@
       }
     },
     {
-      "id": "n23",
+      "id": "n26",
       "name": "Email broker from howzit@ (Graph sendMail)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -707,7 +839,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n24",
+      "id": "n27",
       "name": "Dry run: stand-in response (broker WhatsApp, dry:w15:broker_wa:{lead_id})",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -721,7 +853,7 @@
       }
     },
     {
-      "id": "n25",
+      "id": "n28",
       "name": "Dry run: stand-in response (broker email, dry:w15:broker_email:{lead_id})",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -735,7 +867,7 @@
       }
     },
     {
-      "id": "n26",
+      "id": "n29",
       "name": "Dry run: stand-in response (confirmation, dry:w15:confirm:{lead_id})",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -749,7 +881,7 @@
       }
     },
     {
-      "id": "n27",
+      "id": "n30",
       "name": "Log broker WhatsApp notice (communications; live wamid or dry:)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -776,7 +908,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n28",
+      "id": "n31",
       "name": "Log broker email notice (communications; live or dry:)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -803,7 +935,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n29",
+      "id": "n32",
       "name": "Live send? (confirmation)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -835,7 +967,7 @@
       }
     },
     {
-      "id": "n30",
+      "id": "n33",
       "name": "Send WhatsApp (the one confirmation)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -876,7 +1008,7 @@
       "waitBetweenTries": 3000
     },
     {
-      "id": "n31",
+      "id": "n34",
       "name": "Log confirmation + touch leads.last_contact_at (lead outbound)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -903,7 +1035,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n32",
+      "id": "n35",
       "name": "Live send? (SMS confirmation)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -935,7 +1067,7 @@
       }
     },
     {
-      "id": "n33",
+      "id": "n36",
       "name": "Twilio SMS (the one confirmation)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -986,7 +1118,7 @@
       "waitBetweenTries": 5000
     },
     {
-      "id": "n34",
+      "id": "n37",
       "name": "Log broker notice held (no template yet; email carries it)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1175,7 +1307,7 @@
         ],
         [
           {
-            "node": "W04 graph_token",
+            "node": "Graph calendar? (shared howzit@ vs broker)",
             "type": "main",
             "index": 0
           }
@@ -1211,6 +1343,31 @@
         [
           {
             "node": "Log broker notice held (no template yet; email carries it)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graph calendar? (shared howzit@ vs broker)": {
+      "main": [
+        [
+          {
+            "node": "Graph DELETE event (howzit@ shared calendar)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "W04 graph_token",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Graph delete skipped (no shared calendar id; W22 shared_calendar_id_missing)",
             "type": "main",
             "index": 0
           }

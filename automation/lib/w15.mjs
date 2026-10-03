@@ -54,7 +54,7 @@ export function brokerNoticeText(lead, { bookingCancelled = false, keptBooking =
  * planOptOut(input) -> what W15 writes and sends. Pure.
  * input = { mobile (E.164 or null), text, channel: 'whatsapp'|'sms'|'console'|'email', force (opt-out intent from W07's
  *           model, the console, or a DSR), now, language, leads: [{id, first_name, phone, broker_id, brand_id, opted_out_at}],
- *           bookings: [{id, lead_id, broker_id, status, graph_event_id, start, method}],
+ *           bookings: [{id, lead_id, broker_id, status, graph_event_id, calendar_provider, start, method}],
  *           brokers: [{id|broker_id, adviser_whatsapp|whatsapp_number, email, contact_person|adviser_name, last_inbound_at}],
  *           already_suppressed (a 'stop' row exists for this hash), booking_mode: 'cancel'|'keep' }
  */
@@ -80,7 +80,7 @@ export function planOptOut(input = {}) {
     const mine = live.filter((b) => b.lead_id === l.id);
     for (const b of mine) {
       out.w09.push({ op: 'cancel_all', booking_id: b.id }); // CONTRACTS W09 cancel_all (idempotent)
-      if (mode === 'cancel') out.booking_cancels.push({ booking_id: b.id, lead_id: l.id, broker_id: b.broker_id, graph_event_id: b.graph_event_id || null, start: b.start, method: b.method });
+      if (mode === 'cancel') out.booking_cancels.push({ booking_id: b.id, lead_id: l.id, broker_id: b.broker_id, graph_event_id: b.graph_event_id || null, calendar_provider: b.calendar_provider || null, start: b.start, method: b.method });
     }
     out.activities.push({ lead_id: l.id, brand_id: l.brand_id ?? null, broker_id: l.broker_id ?? null, activity_type: 'opted_out', actor_type: 'lead', occurred_at: at,
       payload: { channel: input.channel || 'whatsapp', forced: !!input.force, bookings_cancelled: mode === 'cancel' ? mine.map((b) => b.id) : [], booking_mode: mode },

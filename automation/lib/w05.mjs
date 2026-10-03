@@ -391,6 +391,32 @@ export function graphEventUrl(route, { howzit = INVITE_FROM, sharedCalendarId = 
   return 'https://graph.microsoft.com/v1.0/me/events';
 }
 
+/**
+ * I-54h (F15): which calendar owns an existing booking's Graph event. W05 creates the event on the route stored in
+ * appointments.calendar_provider ('shared_lv' -> howzit@'s shared calendar, credential "Microsoft 365 howzit@ (Calendars)";
+ * 'outlook' | 'google' -> the broker's own calendar, W04 graph_token). Every later PATCH / DELETE (W10 move + cancel,
+ * W05 update_method, W15 STOP) asks this one function, so the write always lands where the event was created.
+ * Rows without calendar_provider (older bookings) fall back to the broker's current route (w04.calendarRoute).
+ * booking = { calendar_provider?, graph_event_id }, broker = { calendar_email, calendar_status, calendar_mode,
+ * calendar_status_detail }, env = { HOWZIT_MAILBOX, SMC_SHARED_CALENDAR_ID }.
+ * -> { route: 'shared'|'broker'|'none', credential: 'howzit_calendar'|'broker_token'|null, url, error? }
+ * 'none' = no event to touch (no graph_event_id). Shared without a calendar id -> error shared_calendar_id_missing (url null,
+ * never calendars//events).
+ */
+export function graphEventTarget(booking = {}, broker = {}, env = {}) {
+  const id = booking.graph_event_id ? encodeURIComponent(String(booking.graph_event_id)) : '';
+  if (!id) return { route: 'none', credential: null, url: null };
+  const prov = String(booking.calendar_provider || '');
+  const shared = prov ? prov === 'shared_lv' : calendarRoute(broker || {}) === 'shared';
+  if (shared) {
+    const cal = sharedCalendarId(broker, env);
+    if (!cal) return { route: 'shared', credential: 'howzit_calendar', url: null, error: 'shared_calendar_id_missing' };
+    return { route: 'shared', credential: 'howzit_calendar', url: `${graphEventUrl('shared', { howzit: (env && env.HOWZIT_MAILBOX) || INVITE_FROM, sharedCalendarId: cal })}/${id}` };
+  }
+  const mail = broker && broker.calendar_email ? `users/${encodeURIComponent(broker.calendar_email)}` : 'me';
+  return { route: 'broker', credential: 'broker_token', url: `https://graph.microsoft.com/v1.0/${mail}/events/${id}` };
+}
+
 /** W05 'Event body (shared)' item: { url, event } or the fail-closed error item { error:'shared_calendar_id_missing' }. */
 export function sharedEventItem(ctx = {}, p = {}, env = {}, opts = {}) {
   const id = sharedCalendarId(ctx.broker || {}, env);
@@ -524,13 +550,14 @@ export function methodNotOfferedMessage(lead, b, method, slotStart) {
  */
 export function finish(ctx, p, booking, ev = { ok: false }, opts = {}) {
   const lead = leadView(ctx.lead);
-  const bk = { ...booking, join_url: ev.join_url || null, ics_url: icsUrl(booking.id, opts.site) };
+  const joinUrl = INVITE_METHODS.has(p.method) ? (ev.join_url || null) : null; // I-54j: call methods never store a join link
+  const bk = { ...booking, join_url: joinUrl, ics_url: icsUrl(booking.id, opts.site) };
   const invite = inviteMail(ctx, p, bk, ev);
   const capi = capiSchedule(lead, p);
   const rebook = !!p.previous_booking_id;
   return {
     response: { status: 201, body: publicBody(bk) },
-    appointment_update: { graph_event_id: ev.ok ? ev.graph_event_id : null, ical_uid: ev.ok ? ev.ical_uid : null, join_url: ev.join_url || null, ics_url: bk.ics_url, invite_email_status: INVITE_METHODS.has(p.method) ? (invite ? 'sent' : null) : 'not_needed', schedule_event_id: capi ? capi.event_id : null },
+    appointment_update: { graph_event_id: ev.ok ? ev.graph_event_id : null, ical_uid: ev.ok ? ev.ical_uid : null, join_url: joinUrl, ics_url: bk.ics_url, invite_email_status: INVITE_METHODS.has(p.method) ? (invite ? 'sent' : null) : 'not_needed', schedule_event_id: capi ? capi.event_id : null },
     lead_update: leadUpdate(ctx, p),
     invite,
     broker: brokerNotice(ctx, p),

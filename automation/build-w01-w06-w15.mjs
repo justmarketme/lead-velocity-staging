@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PG = { postgres: { id: '', name: 'LV Supabase - n8n_app (least privilege)' } };
 const TWILIO = { httpBasicAuth: { id: '', name: 'Twilio API key (Basic)' } };
+const HOWZIT_CAL = { microsoftOutlookOAuth2Api: { id: '', name: 'Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)' } };
 const HOWZIT = { microsoftOutlookOAuth2Api: { id: '', name: 'Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send)' } };
 const SETTINGS = { executionOrder: 'v1', timezone: 'Africa/Johannesburg', saveManualExecutions: true, errorWorkflow: 'smc-w22' };
 const RETRY = { retryOnFail: true, maxTries: 3, waitBetweenTries: 2000 };
@@ -459,7 +460,7 @@ return [{ json: { ...j, plan, wa, flow_token: flow_token ? 'minted' : null, dry:
   n.push(code('Evidence rows (w06.communicationRow + sentUpdate)', pos(16, 0), prelude('w06.mjs') +
 `const p = $('Plan card (w06.planFirstTouch + toCloudApi)').first().json;
 const wamid = L.wamidOf($input.first().json);
-const sentAt = Date.now();
+const sentAt = L.sentAtOnLeadClock(p.plan, p.planned_at, Date.now()); // I-54j: same clock as clock_start (negative latency under the test clock)
 const b = { id: p.l.broker_id };
 const c0 = L.communicationRow(p.plan, { ...p.l }, b, wamid, sentAt);
 const dry_run = typeof wamid === 'string' && wamid.startsWith('dry:');
@@ -613,11 +614,11 @@ SELECT h.mh AS mobile_hash, h.mobile,
                   'brand_id', l.brand_id, 'opted_out_at', l.opted_out_at, 'language', l.language))
                    FROM public.leads l WHERE l.brand_id IS NOT NULL AND (l.dedupe_hash = h.mh OR l.id = $2::uuid)), '[]'::jsonb) AS leads,
        COALESCE((SELECT jsonb_agg(jsonb_build_object('id', a.id, 'lead_id', a.client_id, 'broker_id', a.broker_id, 'status', a.status,
-                  'graph_event_id', a.graph_event_id, 'start', a.appointment_date, 'method', a.method))
+                  'graph_event_id', a.graph_event_id, 'calendar_provider', a.calendar_provider, 'start', a.appointment_date, 'method', a.method))
                    FROM public.appointments a JOIN public.leads la ON la.id = a.client_id
                   WHERE a.brand_id IS NOT NULL AND a.status IN ('booked','confirmed') AND (la.dedupe_hash = h.mh OR la.id = $2::uuid)), '[]'::jsonb) AS bookings,
        COALESCE((SELECT jsonb_agg(jsonb_build_object('id', b.id, 'whatsapp_number', b.whatsapp_number, 'email', b.email, 'contact_person', b.contact_person,
-                  'calendar_email', b.calendar_email,
+                  'calendar_email', b.calendar_email, 'calendar_status', b.calendar_status, 'calendar_mode', b.calendar_mode, 'calendar_status_detail', b.calendar_status_detail,
                   'last_inbound_at', (SELECT max(c.created_at) FROM public.communications c WHERE c.broker_id = b.id AND c.lead_id IS NULL AND c.direction = 'inbound' AND c.sender_type = 'broker')))
                    FROM public.brokers b
                   WHERE b.id IN (SELECT lb.broker_id FROM public.leads lb WHERE lb.dedupe_hash = h.mh OR lb.id = $2::uuid)), '[]'::jsonb) AS brokers
@@ -665,7 +666,13 @@ const p = $('Plan opt-out (w15.planOptOut)').first().json;
 const out = [];
 for (const w of p.plan.w09) out.push({ json: { kind: 'w09', ...w } });
 const brokers = new Map((p.ctx.brokers || []).map((b) => [String(b.id), b]));
-for (const b of p.plan.booking_cancels) if (b.graph_event_id) out.push({ json: { kind: 'graph_delete', broker_id: b.broker_id, op: 'graph_token', graph_event_id: b.graph_event_id, calendar_email: (brokers.get(String(b.broker_id)) || {}).calendar_email || null } });
+// I-54h (F15): the delete targets the calendar the event was created in (lib/w05.graphEventTarget): shared_lv -> howzit@ shared calendar (howzit@ credential), else the broker's own calendar (W04 graph_token).
+const W05 = require('lv-automation').w05;
+for (const b of p.plan.booking_cancels) {
+  const t = W05.graphEventTarget({ graph_event_id: b.graph_event_id, calendar_provider: b.calendar_provider }, brokers.get(String(b.broker_id)) || {}, { HOWZIT_MAILBOX: $env.HOWZIT_MAILBOX, SMC_SHARED_CALENDAR_ID: $env.SMC_SHARED_CALENDAR_ID });
+  if (t.route === 'none') continue;
+  out.push({ json: { kind: 'graph_delete', broker_id: b.broker_id, op: 'graph_token', graph_event_id: b.graph_event_id, graph_route: t.error ? 'skip' : t.route, url: t.url, graph_error: t.error || null } });
+}
 for (const nt of p.plan.broker_notices) {
   if (nt.channel === 'email') { if (nt.to) out.push({ json: { kind: 'broker_email', to: nt.to, subject: nt.subject, text: nt.text, lead_id: nt.lead_id } }); continue; }
   if (!nt.to || nt.mode === 'held_no_template') { out.push({ json: { kind: 'broker_held', lead_id: nt.lead_id, broker_id: nt.broker_id } }); continue; }
@@ -677,8 +684,14 @@ return out;`));
   n.push(switchOn('Fan-out kind?', pos(8, 0), '={{ $json.kind }}', ['w09', 'graph_delete', 'broker_wa', 'broker_email', 'confirm_wa', 'confirm_sms', 'broker_held']));
   n.push(sub('W09 pause / cancel_all', pos(9, -2), 'W09 Reminder sequence', false, "Called with { op: 'pause', lead_id, reason: 'opt_out' } and { op: 'cancel_all', booking_id } (CONTRACTS.md). Idempotent."));
   n.push(sub('W04 graph_token', pos(9, -1), 'W04 Slots API', true, "Called with { op: 'graph_token', broker_id }; waits -> { access_token } (W04 is the only refresher)."));
+  n.push(switchOn('Graph calendar? (shared howzit@ vs broker)', pos(9, -1.5), '={{ $json.graph_route }}', ['shared', 'broker', 'skip']));
+  n.push(node('Graph DELETE event (howzit@ shared calendar)', 'httpRequest', 4.2, pos(10, -2), {
+    method: 'DELETE', url: '={{ $json.url }}', authentication: 'predefinedCredentialType', nodeCredentialType: 'microsoftOutlookOAuth2Api',
+    options: { timeout: 10000, response: { response: { neverError: true } } },
+  }, { credentials: HOWZIT_CAL, retryOnFail: true, maxTries: 3, waitBetweenTries: 2000 }));
+  n.push(noop('Graph delete skipped (no shared calendar id; W22 shared_calendar_id_missing)', pos(10, -0.5)));
   n.push(node('Graph DELETE event', 'httpRequest', 4.2, pos(10, -1), {
-    method: 'DELETE', url: "=https://graph.microsoft.com/v1.0/users/{{ encodeURIComponent($('Fan-out kind?').item.json.calendar_email) }}/events/{{ $('Fan-out kind?').item.json.graph_event_id }}",
+    method: 'DELETE', url: "={{ $('Fan-out kind?').item.json.url }}",
     sendHeaders: true, headerParameters: { parameters: [{ name: 'Authorization', value: '=Bearer {{ $json.access_token }}' }] }, options: { timeout: 10000, response: { response: { neverError: true } } },
   }, { retryOnFail: true, maxTries: 3, waitBetweenTries: 2000 }));
   n.push(ifTrue('Live send? (broker WhatsApp)', pos(9, 0), "$env.DRY_RUN_SENDS !== 'true'"));
@@ -742,12 +755,13 @@ ON CONFLICT (idempotency_key) DO NOTHING;`,
   link(c, 'First STOP for this number? (a repeat is a no-op)', 'Already opted out: nothing, no second confirmation', 1);
   chain(c, 'Opt out + suppress + release bookings (one statement; the suppression insert is the claim)', 'Fan out (W09, Graph delete, broker notices, one confirmation)', 'Fan-out kind?');
   link(c, 'Fan-out kind?', 'W09 pause / cancel_all', 0);
-  link(c, 'Fan-out kind?', 'W04 graph_token', 1);
+  link(c, 'Fan-out kind?', 'Graph calendar? (shared howzit@ vs broker)', 1);
   link(c, 'Fan-out kind?', 'Live send? (broker WhatsApp)', 2);
   link(c, 'Fan-out kind?', 'Live send? (broker email)', 3);
   link(c, 'Fan-out kind?', 'Live send? (confirmation)', 4);
   link(c, 'Fan-out kind?', 'Live send? (SMS confirmation)', 5);
   link(c, 'Fan-out kind?', 'Log broker notice held (no template yet; email carries it)', 6);
+  link(c, 'Graph calendar? (shared howzit@ vs broker)', 'Graph DELETE event (howzit@ shared calendar)', 0); link(c, 'Graph calendar? (shared howzit@ vs broker)', 'W04 graph_token', 1); link(c, 'Graph calendar? (shared howzit@ vs broker)', 'Graph delete skipped (no shared calendar id; W22 shared_calendar_id_missing)', 2);
   chain(c, 'W04 graph_token', 'Graph DELETE event');
   link(c, 'Live send? (broker WhatsApp)', 'Send WhatsApp (broker notice)', 0);
   link(c, 'Live send? (broker WhatsApp)', 'Dry run: stand-in response (broker WhatsApp, dry:w15:broker_wa:{lead_id})', 1);

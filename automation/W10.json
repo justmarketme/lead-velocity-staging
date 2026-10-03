@@ -55,7 +55,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT a.id, a.client_id, a.broker_id, a.brand_id, a.cycle_id, a.appointment_date, a.ends_at, a.method, a.status, a.graph_event_id, a.reschedule_count, a.call_number,\n       l.first_name, l.last_name, l.phone, l.email, l.email_status, l.conv_state, l.opted_out_at, l.language, l.stage,\n       b.contact_person, b.whatsapp_number, b.email AS broker_email, b.methods_supported, b.calendar_email, b.buffer_minutes, b.slot_minutes,\n       br.booking_ui, br.booking_flow_id,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'inbound') AS last_inbound_at,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.broker_id = b.id AND c.lead_id IS NULL AND c.direction = 'inbound' AND c.sender_type = 'broker') AS broker_last_inbound_at\n  FROM public.appointments a\n  JOIN public.leads l ON l.id = a.client_id\n  JOIN public.brokers b ON b.id = a.broker_id\n  JOIN public.brands br ON br.id = a.brand_id\n WHERE a.brand_id IS NOT NULL\n   AND (a.id = $1::uuid OR ($1::uuid IS NULL AND a.client_id = $2::uuid))\n ORDER BY a.appointment_date DESC\n LIMIT 1;",
+        "query": "SELECT a.id, a.client_id, a.broker_id, a.brand_id, a.cycle_id, a.appointment_date, a.ends_at, a.method, a.status, a.graph_event_id, a.calendar_provider, a.reschedule_count, a.call_number,\n       l.first_name, l.last_name, l.phone, l.email, l.email_status, l.conv_state, l.opted_out_at, l.language, l.stage,\n       b.contact_person, b.whatsapp_number, b.email AS broker_email, b.methods_supported, b.calendar_email, b.calendar_status, b.calendar_mode, b.calendar_status_detail, b.buffer_minutes, b.slot_minutes,\n       br.booking_ui, br.booking_flow_id,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'inbound') AS last_inbound_at,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.broker_id = b.id AND c.lead_id IS NULL AND c.direction = 'inbound' AND c.sender_type = 'broker') AS broker_last_inbound_at\n  FROM public.appointments a\n  JOIN public.leads l ON l.id = a.client_id\n  JOIN public.brokers b ON b.id = a.broker_id\n  JOIN public.brands br ON br.id = a.brand_id\n WHERE a.brand_id IS NOT NULL\n   AND (a.id = $1::uuid OR ($1::uuid IS NULL AND a.client_id = $2::uuid))\n ORDER BY a.appointment_date DESC\n LIMIT 1;",
         "options": {
           "queryReplacement": "={{ [$json.booking_id, $json.lead_id] }}"
         }
@@ -82,7 +82,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const i = $('Classify op').item.json; const r = $json;\nreturn { json: { ...i, bk: { id: r.id, client_id: r.client_id, broker_id: r.broker_id, brand_id: r.brand_id, cycle_id: r.cycle_id, appointment_date: r.appointment_date, ends_at: r.ends_at, method: r.method, status: r.status, graph_event_id: r.graph_event_id, reschedule_count: r.reschedule_count }, ld: { id: r.client_id, first_name: r.first_name, last_name: r.last_name, phone: r.phone, email: r.email, email_status: r.email_status, conv_state: r.conv_state || {}, opted_out_at: r.opted_out_at, language: r.language, stage: r.stage }, br: { id: r.broker_id, contact_person: r.contact_person, whatsapp_number: r.whatsapp_number, email: r.broker_email, methods_supported: r.methods_supported, calendar_email: r.calendar_email, buffer_minutes: r.buffer_minutes || 15, slot_minutes: r.slot_minutes || 30, last_inbound_ms: r.broker_last_inbound_at ? Date.parse(r.broker_last_inbound_at) : NaN }, brand: { booking_ui: r.booking_ui || $env.BOOKING_UI_DEFAULT || 'list', booking_flow_id: r.booking_flow_id }, last_inbound_ms: r.last_inbound_at ? Date.parse(r.last_inbound_at) : NaN } };"
+        "jsCode": "const i = $('Classify op').item.json; const r = $json;\nreturn { json: { ...i, bk: { id: r.id, client_id: r.client_id, broker_id: r.broker_id, brand_id: r.brand_id, cycle_id: r.cycle_id, appointment_date: r.appointment_date, ends_at: r.ends_at, method: r.method, status: r.status, graph_event_id: r.graph_event_id, calendar_provider: r.calendar_provider, reschedule_count: r.reschedule_count }, ld: { id: r.client_id, first_name: r.first_name, last_name: r.last_name, phone: r.phone, email: r.email, email_status: r.email_status, conv_state: r.conv_state || {}, opted_out_at: r.opted_out_at, language: r.language, stage: r.stage }, br: { id: r.broker_id, contact_person: r.contact_person, whatsapp_number: r.whatsapp_number, email: r.broker_email, methods_supported: r.methods_supported, calendar_email: r.calendar_email, calendar_status: r.calendar_status, calendar_mode: r.calendar_mode, calendar_status_detail: r.calendar_status_detail, buffer_minutes: r.buffer_minutes || 15, slot_minutes: r.slot_minutes || 30, last_inbound_ms: r.broker_last_inbound_at ? Date.parse(r.broker_last_inbound_at) : NaN }, brand: { booking_ui: r.booking_ui || $env.BOOKING_UI_DEFAULT || 'list', booking_flow_id: r.booking_flow_id }, last_inbound_ms: r.last_inbound_at ? Date.parse(r.last_inbound_at) : NaN } };"
       }
     },
     {
@@ -579,7 +579,7 @@
       ],
       "parameters": {
         "method": "PATCH",
-        "url": "=https://graph.microsoft.com/v1.0/users/{{ encodeURIComponent($('Merge context').item.json.br.calendar_email) }}/events/{{ $('Merge context').item.json.bk.graph_event_id }}",
+        "url": "={{ $('Graph target (move)').item.json.gt.url }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -842,7 +842,7 @@
       ],
       "parameters": {
         "method": "DELETE",
-        "url": "=https://graph.microsoft.com/v1.0/users/{{ encodeURIComponent($('Decide cancel (w10.applyCancel)').item.json.br.calendar_email) }}/events/{{ $('Decide cancel (w10.applyCancel)').item.json.bk.graph_event_id }}",
+        "url": "={{ $('Graph target (cancel)').item.json.gt.url }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -1589,6 +1589,278 @@
         "mode": "runOnceForEachItem",
         "jsCode": "const L = require('lv-automation').w10;\n// I-39a: change -> METHOD_CHANGED (or delegate.body); reject -> lead_lines + SAME_METHOD with the adviser's methods.\nconst j = $('Decide method change').item.json;\nconst m = L.methodMessage(j.d, j.bk, j.ld, j.br, j.delegate || null, j.method);\nreturn { json: { to: 'lead', ld: j.ld, wa: L.toWa(j.ld.phone, m) } };"
       }
+    },
+    {
+      "id": "n57",
+      "name": "Graph target (move)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w05;\nconst s = $('Merge context').item.json;\nconst t = L.graphEventTarget(s.bk, s.br, { HOWZIT_MAILBOX: $env.HOWZIT_MAILBOX, SMC_SHARED_CALENDAR_ID: $env.SMC_SHARED_CALENDAR_ID });\nreturn { json: { ...$json, gt: { ...t, route: t.error || t.route === 'none' ? 'skip' : t.route } } };"
+      }
+    },
+    {
+      "id": "n58",
+      "name": "Graph calendar? (move)",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "shared",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s0",
+                    "leftValue": "={{ $json.gt.route }}",
+                    "rightValue": "shared",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "broker",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s1",
+                    "leftValue": "={{ $json.gt.route }}",
+                    "rightValue": "broker",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "skip",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s2",
+                    "leftValue": "={{ $json.gt.route }}",
+                    "rightValue": "skip",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n59",
+      "name": "Graph PATCH event (howzit@ shared calendar)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        -200
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $('Graph target (move)').item.json.gt.url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "microsoftOutlookOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ start: { dateTime: $('Decide move (w10.applyReschedule)').item.json.new_start, timeZone: 'Africa/Johannesburg' }, end: { dateTime: $('Decide move (w10.applyReschedule)').item.json.new_end, timeZone: 'Africa/Johannesburg' } }) }}",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "",
+          "name": "Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n60",
+      "name": "Graph target (cancel)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w05;\nconst s = $('Decide cancel (w10.applyCancel)').item.json;\nconst t = L.graphEventTarget(s.bk, s.br, { HOWZIT_MAILBOX: $env.HOWZIT_MAILBOX, SMC_SHARED_CALENDAR_ID: $env.SMC_SHARED_CALENDAR_ID });\nreturn { json: { ...$json, gt: { ...t, route: t.error || t.route === 'none' ? 'skip' : t.route } } };"
+      }
+    },
+    {
+      "id": "n61",
+      "name": "Graph calendar? (cancel)",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        440,
+        400
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "shared",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s0",
+                    "leftValue": "={{ $json.gt.route }}",
+                    "rightValue": "shared",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "broker",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s1",
+                    "leftValue": "={{ $json.gt.route }}",
+                    "rightValue": "broker",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "skip",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s2",
+                    "leftValue": "={{ $json.gt.route }}",
+                    "rightValue": "skip",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n62",
+      "name": "Graph DELETE event (howzit@ shared calendar)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        200
+      ],
+      "parameters": {
+        "method": "DELETE",
+        "url": "={{ $('Graph target (cancel)').item.json.gt.url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "microsoftOutlookOAuth2Api",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "",
+          "name": "Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     }
   ],
   "connections": {
@@ -1802,7 +2074,7 @@
       "main": [
         [
           {
-            "node": "Graph token for broker",
+            "node": "Graph target (move)",
             "type": "main",
             "index": 0
           }
@@ -1935,7 +2207,7 @@
       "main": [
         [
           {
-            "node": "Graph token for broker (cancel)",
+            "node": "Graph target (cancel)",
             "type": "main",
             "index": 0
           }
@@ -2231,6 +2503,100 @@
         [
           {
             "node": "Has WhatsApp payload + live?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graph target (move)": {
+      "main": [
+        [
+          {
+            "node": "Graph calendar? (move)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graph calendar? (move)": {
+      "main": [
+        [
+          {
+            "node": "Graph PATCH event (howzit@ shared calendar)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Graph token for broker",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "W09 rebuild reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graph PATCH event (howzit@ shared calendar)": {
+      "main": [
+        [
+          {
+            "node": "W09 rebuild reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graph target (cancel)": {
+      "main": [
+        [
+          {
+            "node": "Graph calendar? (cancel)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graph calendar? (cancel)": {
+      "main": [
+        [
+          {
+            "node": "Graph DELETE event (howzit@ shared calendar)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Graph token for broker (cancel)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "W09 cancel all reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graph DELETE event (howzit@ shared calendar)": {
+      "main": [
+        [
+          {
+            "node": "W09 cancel all reminders",
             "type": "main",
             "index": 0
           }

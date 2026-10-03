@@ -1459,7 +1459,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT (SELECT to_jsonb(k) FROM (SELECT a.id, a.client_id, a.broker_id, a.appointment_date, a.ends_at, a.method, a.status, a.graph_event_id, a.idempotency_key, a.booked_via FROM public.appointments a WHERE a.id::text = $1) k) AS booking,\n       (SELECT to_jsonb(q) FROM (SELECT l.id, l.first_name, l.phone, l.email, l.email_status, l.email_purpose, l.age_band, l.budget_band, l.consent_text_version, l.consent_at, l.origin, l.ad_id, l.call_number, l.language, l.brand_id FROM public.leads l JOIN public.appointments a ON a.client_id = l.id WHERE a.id::text = $1) q) AS lead,\n       (SELECT to_jsonb(r) FROM (SELECT b.id, b.brand_id, b.status, b.adviser_name, b.contact_person, b.practice_name, b.firm_name, b.fsp_number, b.adviser_whatsapp, b.whatsapp_number, b.email,\n         b.methods_supported, b.meeting_hours, b.slot_minutes, b.buffer_minutes, b.min_notice_hours, b.horizon_days, b.max_meetings_per_day,\n         b.max_meetings_per_week, b.bookings_paused, b.add_client_as_attendee, b.calendar_provider, b.calendar_status, b.calendar_mode,\n         b.calendar_email, b.ms_tenant_id, b.calendar_status_at, b.calendar_status_detail, b.current_cycle_id FROM public.brokers b JOIN public.appointments a ON a.broker_id = b.id WHERE a.id::text = $1) r) AS broker;",
+        "query": "SELECT (SELECT to_jsonb(k) FROM (SELECT a.id, a.client_id, a.broker_id, a.appointment_date, a.ends_at, a.method, a.status, a.graph_event_id, a.calendar_provider, a.idempotency_key, a.booked_via FROM public.appointments a WHERE a.id::text = $1) k) AS booking,\n       (SELECT to_jsonb(q) FROM (SELECT l.id, l.first_name, l.phone, l.email, l.email_status, l.email_purpose, l.age_band, l.budget_band, l.consent_text_version, l.consent_at, l.origin, l.ad_id, l.call_number, l.language, l.brand_id FROM public.leads l JOIN public.appointments a ON a.client_id = l.id WHERE a.id::text = $1) q) AS lead,\n       (SELECT to_jsonb(r) FROM (SELECT b.id, b.brand_id, b.status, b.adviser_name, b.contact_person, b.practice_name, b.firm_name, b.fsp_number, b.adviser_whatsapp, b.whatsapp_number, b.email,\n         b.methods_supported, b.meeting_hours, b.slot_minutes, b.buffer_minutes, b.min_notice_hours, b.horizon_days, b.max_meetings_per_day,\n         b.max_meetings_per_week, b.bookings_paused, b.add_client_as_attendee, b.calendar_provider, b.calendar_status, b.calendar_mode,\n         b.calendar_email, b.ms_tenant_id, b.calendar_status_at, b.calendar_status_detail, b.current_cycle_id FROM public.brokers b JOIN public.appointments a ON a.broker_id = b.id WHERE a.id::text = $1) r) AS broker;",
         "options": {
           "queryReplacement": "={{ [$json.req.booking_id] }}"
         }
@@ -1570,7 +1570,7 @@
     },
     {
       "id": "n51",
-      "name": "graph_token input (method)",
+      "name": "Method calendar target (w05.graphEventTarget)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -1579,16 +1579,149 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w05;\nreturn [{ json: { op: 'graph_token', broker_id: $json.booking.broker_id } }];"
+        "jsCode": "const L = require('lv-automation').w05;\nconst x = $('Plan method change (w05.planUpdateMethod)').first().json;\nconst t = L.graphEventTarget(x.booking, x.broker, { HOWZIT_MAILBOX: $env.HOWZIT_MAILBOX, SMC_SHARED_CALENDAR_ID: $env.SMC_SHARED_CALENDAR_ID });\nreturn [{ json: { target: t, route: t.error || t.route === 'none' ? 'skip' : t.route, broker_id: x.booking.broker_id } }];"
       }
     },
     {
       "id": "n52",
+      "name": "Method event calendar?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        720,
+        1200
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "shared",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "shared"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "broker",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "broker"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "skip",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "skip"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "n53",
+      "name": "Graph PATCH event (method, howzit@ shared calendar)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        1200
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $('Method calendar target (w05.graphEventTarget)').first().json.target.url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "microsoftOutlookOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Plan method change (w05.planUpdateMethod)').first().json.graph_patch) }}",
+        "options": {
+          "timeout": 8000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "",
+          "name": "Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n54",
+      "name": "graph_token input (method)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        1200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nreturn [{ json: { op: 'graph_token', broker_id: $json.broker_id } }];"
+      }
+    },
+    {
+      "id": "n55",
       "name": "W04 graph_token (method, waits)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        720,
+        1440,
         1200
       ],
       "parameters": {
@@ -1605,17 +1738,17 @@
       }
     },
     {
-      "id": "n53",
+      "id": "n56",
       "name": "Graph PATCH event (method, ASSUMPTION)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        960,
+        1680,
         1200
       ],
       "parameters": {
         "method": "PATCH",
-        "url": "=https://graph.microsoft.com/v1.0/me/events/{{ $('Plan method change (w05.planUpdateMethod)').first().json.booking.graph_event_id }}",
+        "url": "={{ $('Method calendar target (w05.graphEventTarget)').first().json.target.url }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -1643,17 +1776,17 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n54",
+      "id": "n57",
       "name": "Save method",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        1200,
-        1200
+        0,
+        1400
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE public.appointments SET method = $2, call_number = NULLIF($3, ''), invite_email_status = $4, updated_at = now() WHERE id = $1::uuid RETURNING id;",
+        "query": "UPDATE public.appointments SET method = $2, call_number = NULLIF($3, ''), invite_email_status = $4, join_url = CASE WHEN $2 IN ('teams','zoom','meet') THEN join_url ELSE NULL END, updated_at = now() WHERE id = $1::uuid RETURNING id;",
         "options": {
           "queryReplacement": "={{ (() => { const p = $('Plan method change (w05.planUpdateMethod)').first().json; return [p.booking.id, p.appointment_update.method, p.appointment_update.call_number || '', p.appointment_update.invite_email_status]; })() }}"
         }
@@ -1667,13 +1800,13 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n55",
+      "id": "n58",
       "name": "Method invite?",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1440,
-        1200
+        240,
+        1400
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -1681,13 +1814,13 @@
       }
     },
     {
-      "id": "n56",
+      "id": "n59",
       "name": "ask_email input (method)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1680,
-        1200
+        480,
+        1400
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -1695,12 +1828,12 @@
       }
     },
     {
-      "id": "n57",
+      "id": "n60",
       "name": "Mark invite bounced",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        0,
+        720,
         1400
       ],
       "parameters": {
@@ -1719,12 +1852,12 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n58",
+      "id": "n61",
       "name": "Bounce prompt (w05.bounceEffect)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        240,
+        960,
         1400
       ],
       "parameters": {
@@ -1733,12 +1866,12 @@
       }
     },
     {
-      "id": "n59",
+      "id": "n62",
       "name": "-> WhatsApp Send (invite bounce)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        480,
+        1200,
         1400
       ],
       "parameters": {
@@ -2379,7 +2512,7 @@
       "main": [
         [
           {
-            "node": "graph_token input (method)",
+            "node": "Method calendar target (w05.graphEventTarget)",
             "type": "main",
             "index": 0
           }
@@ -2394,6 +2527,53 @@
         [
           {
             "node": "Log subcall_rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Method calendar target (w05.graphEventTarget)": {
+      "main": [
+        [
+          {
+            "node": "Method event calendar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Method event calendar?": {
+      "main": [
+        [
+          {
+            "node": "Graph PATCH event (method, howzit@ shared calendar)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "graph_token input (method)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save method",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graph PATCH event (method, howzit@ shared calendar)": {
+      "main": [
+        [
+          {
+            "node": "Save method",
             "type": "main",
             "index": 0
           }
