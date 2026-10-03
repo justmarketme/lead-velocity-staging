@@ -1635,6 +1635,28 @@
                   }
                 ]
               }
+            },
+            {
+              "outputKey": "hop_limit",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s_hop",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "hop_limit",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
             }
           ]
         },
@@ -2005,7 +2027,7 @@
         "operation": "executeQuery",
         "query": "UPDATE public.leads\n   SET conv_state = COALESCE(conv_state, '{}'::jsonb) || $2::jsonb,\n       language = COALESCE($3, language),\n       stage = COALESCE($4, stage),\n       health_flag = health_flag OR $5::boolean,\n       last_contact_at = now(),\n       updated_at = now()\n WHERE id = $1::uuid;",
         "options": {
-          "queryReplacement": "={{ (() => { const s = $('Assemble (verdict + toneCheck + fallbacks)').item.json; return [s.lead ? s.lead.id : null, JSON.stringify({ state: s.plan.next_state, unanswered: s.plan.unanswered, disclosed: s.disclosed_after === true, prev_deferred: s.plan.actions.includes('defer'), last_turn_at: new Date().toISOString() }), s.plan.lead_updates.language || null, s.plan.lead_updates.stage || null, !!s.pre.health]; })() }}"
+          "queryReplacement": "={{ (() => { const s = $('Assemble (verdict + toneCheck + fallbacks)').item.json; return [s.lead ? s.lead.id : null, JSON.stringify((() => { const p = { unanswered: s.plan.unanswered, disclosed: s.disclosed_after === true, prev_deferred: s.plan.actions.includes('defer'), last_turn_at: new Date().toISOString() }; if (!(s.plan.delegate || []).some((d) => d && d.to === 'W03')) p.state = s.plan.next_state; return p; })()), s.plan.lead_updates.language || null, s.plan.lead_updates.stage || null, !!s.pre.health]; })() }}"
         }
       },
       "credentials": {
@@ -2017,7 +2039,8 @@
       "alwaysOutputData": true,
       "retryOnFail": true,
       "maxTries": 3,
-      "waitBetweenTries": 2000
+      "waitBetweenTries": 2000,
+      "notes": "I-48k: on a turn handed to W03 the state key is left out (W03 writes leads.conv_state.state itself; same rule as lib/w07.mjs convStatePatch)."
     },
     {
       "id": "n61",
@@ -2218,6 +2241,85 @@
           ]
         }
       }
+    },
+    {
+      "id": "i48Reply",
+      "name": "Reply claim (w07:reply:{wamid})",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -220,
+        1400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- I-48b: one inbound message -> at most one lead-facing reply. Claim key w07:reply:{wamid} in the same idempotency\n-- table as the wamid claim (webhook_events); W03 takes the same key. Already claimed -> 0 rows -> this branch ends (no send,\n-- no outbound row). Turns with no inbound wamid (W05 post-booking contact start) get a one-off key.\nWITH c AS (\n  INSERT INTO public.webhook_events (source, external_id, brand_id, signature_ok)\n  VALUES ('whatsapp', 'w07:reply:' || coalesce(nullif($1, ''), 'none:' || gen_random_uuid()::text), nullif($2, '')::uuid, true)\n  ON CONFLICT (source, external_id) DO NOTHING\n  RETURNING id)\nSELECT c.id AS reply_claim_id, $3::jsonb AS wa FROM c;",
+        "options": {
+          "queryReplacement": "={{ [ ($json.msg && $json.msg.wamid) || '', $json.brand_id || '', JSON.stringify($json.wa || {}) ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "i48Logho",
+      "name": "Log hop limit (W07)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2000,
+        1700
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- I-48b: more than 3 W03/W05/W07 hand-offs for one inbound message: logged once per wamid, nothing more is sent.\nINSERT INTO public.webhook_events (source, external_id, brand_id, signature_ok, processed_at, error)\nVALUES ('whatsapp', 'hop_limit:' || $1, nullif($2, '')::uuid, true, now(), 'hop limit exceeded at ' || $3 || ' (hops ' || $4 || ')')\nON CONFLICT (source, external_id) DO UPDATE SET attempts = public.webhook_events.attempts + 1\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [ ($json.msg && $json.msg.wamid) || '', $json.brand_id || '', 'W07 -> ' + (($json.hop_limit && $json.hop_limit.to) || $json.route || '?'), String(($json.hop_limit && $json.hop_limit.hops) || ($json.msg && $json.msg.hops) || '') ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "i48Hopli",
+      "name": "Hop limit ok? (W03 forward, I-48b)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        1240
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(Number(($json.msg && $json.msg.hops) || 0) <= 3) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "notes": "3 = lib/w07.mjs MAX_HOPS (I-48b)."
     }
   ],
   "connections": {
@@ -2768,6 +2870,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Log hop limit (W07)",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -2869,7 +2978,7 @@
       "main": [
         [
           {
-            "node": "Live send? (reply)",
+            "node": "Reply claim (w07:reply:{wamid})",
             "type": "main",
             "index": 0
           }
@@ -2971,7 +3080,7 @@
       "main": [
         [
           {
-            "node": "Load context (lead, broker, live booking, window)",
+            "node": "Hop limit ok? (W03 forward, I-48b)",
             "type": "main",
             "index": 0
           }
@@ -2990,6 +3099,35 @@
         [
           {
             "node": "Assemble (verdict + toneCheck + fallbacks)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply claim (w07:reply:{wamid})": {
+      "main": [
+        [
+          {
+            "node": "Live send? (reply)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hop limit ok? (W03 forward, I-48b)": {
+      "main": [
+        [
+          {
+            "node": "Load context (lead, broker, live booking, window)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log hop limit (W07)",
             "type": "main",
             "index": 0
           }

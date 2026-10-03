@@ -69,6 +69,20 @@ export const PRE_LIVE_BROKER = new Set(['invited', 'prospect', 'onboarding', 'on
  *         broker_status, suppressed: bool }
  * I-37e loop guard: a message W03 handed back (msg.origin === 'w03') is never routed to W03 again.
  */
+// I-48k: q_method (4.6 step 3, last tap) is a qualifying state W03 owns too.
+export const QUALIFYING_TAP_STATES = ['consent_pending', 'q_age', 'q_budget', 'q_budget_clarify', 'q_bond', 'q_dependants', 'q_method'];
+// I-48b: at most MAX_HOPS W03/W05/W07 hand-backs per inbound message; the count travels as msg.hops.
+export const MAX_HOPS = 3;
+export function hopNext(hops) { const h = (Number(hops) || 0) + 1; return { hops: h, over: h > MAX_HOPS }; }
+/** I-48b: the per-wamid reply claim key (public.webhook_events, source 'whatsapp'); W03 takes the same key. */
+export const replyClaimKey = (wamid) => `w07:reply:${wamid}`;
+/** I-48k: conv_state patch W07 writes. On a turn handed to W03, W03 writes `state` itself, so W07 leaves it out. */
+export function convStatePatch(plan = {}, { disclosed_after = false, now_iso = new Date().toISOString() } = {}) {
+  const p = { unanswered: plan.unanswered, disclosed: disclosed_after === true, prev_deferred: (plan.actions || []).includes('defer'), last_turn_at: now_iso };
+  if (!(plan.delegate || []).some((d) => d && d.to === 'W03')) p.state = plan.next_state;
+  return p;
+}
+
 export function routeInbound(msg, ctx = {}) {
   const r = routeCore(msg, ctx);
   if (msg.origin === 'w03' && r.route === 'W03') {
@@ -93,7 +107,7 @@ function routeCore(msg, ctx) {
   if (!ctx.lead) return msg.referral || /check my life cover/iu.test(msg.text || '') ? { route: 'W03', reason: 'CTWA entry' } : { route: 'W03', reason: 'unknown number: W03 consent first' };
   if (ctx.lead.opted_out_at) return { route: 'ignore_opted_out', reason: 'opted out: logged only, no reply (W15 sent the one confirmation)' };
   const state = ctx.lead.conv_state?.state || 'unbooked';
-  if (['consent_pending', 'q_age', 'q_bond', 'q_dependants', 'q_budget', 'q_budget_clarify'].includes(state) && (msg.payload || msg.list_id)) return { route: 'W03', reason: 'qualifying tap' };
+  if (QUALIFYING_TAP_STATES.includes(state) && (msg.payload || msg.list_id)) return { route: 'W03', reason: 'qualifying tap' };
   if (/^slot_.+:resched:/u.test(msg.list_id || msg.payload || '')) return { route: 'W10', reason: 'reschedule slot picked' };
   if (msg.list_id && /^slot_/u.test(msg.list_id)) return { route: 'W05', reason: 'slot picked from the 10-slot list' };
   if (msg.list_id && BEST_TIME[msg.list_id]) return { route: 'W07_contact', reason: 'best time tap' };
@@ -494,7 +508,12 @@ export function explodeDelegations(items = []) {
       if (!cur) byTarget.set(d.to, { ...d, actions: d.action ? [d.action] : [] });
       else if (d.action && !cur.actions.includes(d.action)) cur.actions.push(d.action);
     }
-    for (const [to, delegate] of byTarget) out.push({ json: { ...j, route: to, delegate } });
+    for (const [to, delegate] of byTarget) {
+      // I-48b hop limit: each delegation is a hand-off; over the limit the item goes to the log branch, nowhere else.
+      const h = hopNext(j.msg && j.msg.hops);
+      if (h.over) { out.push({ json: { ...j, route: 'hop_limit', delegate, hop_limit: { hops: h.hops, max: MAX_HOPS, at: 'W07', to } } }); continue; }
+      out.push({ json: { ...j, msg: { ...(j.msg || {}), hops: h.hops }, route: to, delegate } });
+    }
   }
   return out;
 }

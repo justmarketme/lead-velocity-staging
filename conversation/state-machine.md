@@ -24,11 +24,13 @@
 | State | What the lead sees | Layer | Leaves on | Next |
 |---|---|---|---|---|
 | `consent_pending` | Disclosure + consent, `Yes, continue` · `No thanks` | L1 (typed text → L2) | Yes / No / STOP | `q_age` / `closed_no_consent` / `opted_out` |
-| `q_age` | "Great. Four quick taps… which age band are you in?" list | L1 | band tapped or typed | `q_bond`, or `closed_oob` if `Under 35` / `51 or over` |
-| `q_bond` | "Do you have a bond on your home?" | L1 | Yes/No | `q_dependants` |
-| `q_dependants` | "Does anyone depend on your income…?" | L1 | Yes/No | `q_budget` |
-| `q_budget` | "Last one: what monthly amount…?" list | L1 | band | route → `unbooked`; `Under R750` → `closed_oob`; `Not sure yet` → `q_budget_clarify` |
-| `q_budget_clarify` | "No problem, a rough idea is fine…" | L1 | band | route → `unbooked`; `Under R750` / `Really not sure` → `closed_oob` |
+| `q_age` | "Great. Four quick taps… which age band are you in?" list | L1 | band tapped or typed | `q_budget`, or `closed_oob` if `Under 35` / `51 or over` |
+| `q_budget` | "Roughly what could you put towards cover each month?" list | L1 | band | `q_bond`; `Under R750` → `closed_oob`; `Not sure yet` → `q_budget_clarify` |
+| `q_budget_clarify` | "No problem, a rough idea is fine…" | L1 | band | `q_bond`; `Under R750` / `Really not sure` → `closed_oob` |
+| `q_bond` | "Do you have a bond or people who depend on your income?" list (bond and dependants in one tap) | L1 | tapped or typed | `q_method` (`q_dependants` is kept only for rows written before NH-59 and also moves to `q_method`) |
+| `q_method` | "How would you like to talk to {adviser_first}?" (only the broker's `methods_supported`) | L1 | tapped or typed | route → `unbooked` |
+
+Order note (NH-59, default applied 2026-10-03): the questions follow master prompt 4.6 step 3, age → budget → bond/dependants → method, so a budget non-fit ends one question earlier; W03 asks every question and writes `leads.conv_state.state`, W07 hands typed answers to W03 (CONTRACTS.md "Inbound ownership").
 | *(route, 1.3)* | nothing; code picks the broker before any adviser is named. Capacity ≥ 80% for 7 days → later dates offered (4.6) | code | | |
 | `unbooked` | `broker_intro_slots` (3 slots + `Other times`) or `_v2` (Flow button "Pick a time"); intro card = disclosure (adviser, practice, FSP) | L1 | slot tapped / Flow opened / free text with a day/time | `booking` |
 | `booking` | WhatsApp Flow (W28): method → CalendarPicker → slots (W04 `data_exchange`) → email only for Teams/Zoom/Meet → summary. Fallback: list of the next 10 slots; last resort: L2 asks for a preferred day and offers 3. | L1 | Flow complete / slot picked | W05 → `booked_await_commit`; slot gone → next 3 offered |

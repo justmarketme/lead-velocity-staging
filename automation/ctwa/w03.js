@@ -74,6 +74,44 @@ const AGE_TO_DB = { under_35: 'lt35', '35_44': '35_44', '45_50': '45_50', '51_pl
 const BUDGET_TO_DB = { under_500: 'lt750', '500_750': 'lt750', '750_1250': '750_1250', '1250_plus': '1250plus' };
 const METHOD_TO_DB = { teams: 'teams', zoom: 'zoom', meet: 'meet', google_meet: 'meet', whatsapp_call: 'whatsapp_call', phone: 'phone' };
 const STALL_HOURS = [1, 20, 68]; // 4.6 step 7, inside the 72-h CTWA window
+BUDGET_TO_DB.lt750 = 'lt750'; // typed "<750" (I-47a)
+// I-47a: qualifying order is 4.6 step 3 (age -> budget -> bond/dependants -> method); NH-59 default applied.
+const Q_STAGES = ['q_age', 'q_budget', 'q_budget_clarify', 'q_bond', 'q_dependants', 'q_method'];
+const STAGE_OF = { q_age: 'q_age', q_budget: 'q_budget', q_budget_clarify: 'q_budget_clarify', q_bond: 'q_bond', q_dependants: 'q_bond', q_method: 'q_method' };
+const NEXT_STATE = { q_age: 'q_budget', q_budget: 'q_bond', q_budget_clarify: 'q_bond', q_bond: 'q_method', q_method: 'unbooked' }; // leads.conv_state.state after an answer
+// NLU bands (conversation/logic.mjs BANDS) -> the tap id W03 would have received (then -> DB codes via AGE_TO_DB / BUDGET_TO_DB).
+const NLU_AGE = { '<35': 'age_under_35', '35-44': 'age_35_44', '45-50': 'age_45_50', '51+': 'age_51_plus' };
+const NLU_BUDGET = { '<750': 'budget_lt750', '750-1250': 'budget_750_1250', '1250+': 'budget_1250_plus' };
+const DB_TO_AGE = { lt35: 'under_35', '35_44': '35_44', '45_50': '45_50', '51plus': '51_plus' };
+const DB_TO_BUDGET = { lt750: 'lt750', '750_1250': '750_1250', '1250plus': '1250_plus' };
+const MAX_HOPS = 3; // I-48b: at most 3 W03/W05/W07 hand-backs per inbound message
+/** I-48b hop limit: hops already taken by this message -> { hops (after this hand-back), over }. */
+function hopNext(hops) { const h = (Number(hops) || 0) + 1; return { hops: h, over: h > MAX_HOPS }; }
+
+/** I-47a: typed answer (W07 intent-slot NLU slots) -> tap id for the current stage; 'unsure' for a budget "not sure"; null = no answer. */
+function typedTap(stage, slots) {
+  const s = slots || {};
+  if (stage === 'q_age') return NLU_AGE[s.age_band] || null;
+  if (stage === 'q_budget' || stage === 'q_budget_clarify') return s.budget_band === 'unsure' ? 'unsure' : NLU_BUDGET[s.budget_band] || null;
+  if (stage === 'q_bond') {
+    if (typeof s.bond !== 'boolean' && typeof s.dependants !== 'boolean') return null;
+    return `bond_${s.bond === true ? 'yes' : 'no'}_dependants_${s.dependants === true ? 'yes' : 'no'}`;
+  }
+  if (stage === 'q_method') return s.method && METHOD_TO_DB[s.method] ? `method_${s.method}` : null;
+  return null;
+}
+
+/** I-47a: a lead W07 owns (no wa_thread) whose conv_state is q_*: rebuild the thread from the lead row. */
+function threadFromLead(lead) {
+  const st = lead && lead.conv_state && lead.conv_state.state;
+  if (!lead || !lead.id || !Q_STAGES.includes(st)) return null;
+  const answers = {};
+  if (lead.age_band && DB_TO_AGE[lead.age_band]) answers.age_band = DB_TO_AGE[lead.age_band];
+  if (lead.budget_band && DB_TO_BUDGET[lead.budget_band]) answers.budget_band = DB_TO_BUDGET[lead.budget_band];
+  if (typeof lead.bond === 'boolean') answers.bond = lead.bond;
+  if (typeof lead.dependants === 'boolean') answers.dependants = lead.dependants;
+  return { stage: STAGE_OF[st], lead_id: lead.id, answers, from_lead: true, broker_id: lead.broker_id || null };
+}
 
 const list = (body, button, rows) => ({ type: 'list', body, button, rows: rows.map(([id, title]) => ({ id, title })) });
 const buttons = (body, rows) => ({ type: 'button', body, buttons: rows.map(([id, title]) => ({ id, title })) });
@@ -112,12 +150,19 @@ const hashMobile = (e164) => crypto.createHash('sha256').update(e164).digest('he
  */
 function step(thread, msg, ctx) {
   const actions = [];
-  const t = thread ? { ...thread, answers: { ...(thread.answers || {}) } } : null;
+  // a stored placeholder ({ stage: 'none' }, written before I-47a when there was no thread) counts as no thread
+  const t = thread && thread.stage && thread.stage !== 'none' ? { ...thread, answers: { ...(thread.answers || {}) } } : null;
   const send = (m) => actions.push({ kind: 'send', message: m });
   const stall = (stage) => actions.push({ kind: 'schedule_stall', stage, hours: STALL_HOURS, from: ctx.at, replaces: true });
 
+  // I-47b: no brand row for the receiving number -> log + W22 signal; never stop silently, never store a thread.
+  if (!ctx.brand || !ctx.brand.brand_id) return { thread: null, no_thread: true, actions: [{ kind: 'log_no_brand', phone_number_id: ctx.phone_number_id || null },
+    { kind: 'alert', signal_key: 'w03_no_brand', scope: `pnid:${ctx.phone_number_id || 'none'}`, severity: 'red', source: 'W03', what: 'WhatsApp message to a number with no brands row (phone_number_id)', impact: 'CTWA leads on this number get no consent prompt', first_action: 'Set brands.phone_number_id for the receiving number' }] };
   if (ctx.suppressed) return { thread: t, actions: [{ kind: 'ignore', reason: 'suppressed' }] }; // STOP'd number: W15 owns it
-  if (ctx.existing_open_lead_id && (!t || t.stage === 'done')) {
+  // a thread W03 rebuilt from a W07-owned lead (from_lead) is a cache only: the lead's conv_state stays the truth
+  if (ctx.existing_open_lead_id && (!t || t.stage === 'done' || t.from_lead)) {
+    const lt = threadFromLead(ctx.lead && ctx.lead.id === ctx.existing_open_lead_id ? ctx.lead : null);
+    if (lt) return qualify(lt, msg, ctx, actions);
     return { thread: t, actions: [{ kind: 'forward_w07', lead_id: ctx.existing_open_lead_id, reason: 'existing_lead_90d' }] }; // merge, no new consent, no new WhatsApp card
   }
 
@@ -154,6 +199,7 @@ function step(thread, msg, ctx) {
       if (row.ctwa_clid) actions.push({ kind: 'capi', event_name: 'Lead', event_id: `evt_${row.id}_ctwa_lead`, action_source: 'business_messaging' });
       t.stage = 'q_age';
       t.lead_id = row.id;
+      row.conv_state = { state: 'q_age' }; // I-48k: W03 owns leads.conv_state.state while qualifying
       send(question('q_age'));
       stall('q_age');
       return { thread: t, actions };
@@ -162,41 +208,75 @@ function step(thread, msg, ctx) {
     return { thread: t, actions };
   }
 
-  const ORDER = { q_age: 'age_', q_budget: 'budget_', q_bond: 'bond_', q_method: 'method_' };
+  return qualify(t, msg, ctx, actions);
+}
+
+/** Qualifying (4.6 step 3 order): a tap, or a typed answer W07 handed over (ctx.typed = { slots, actions }, I-47a). */
+function qualify(t, msg, ctx, actions) {
+  const send = (m) => actions.push({ kind: 'send', message: m });
+  const stall = (stage) => actions.push({ kind: 'schedule_stall', stage, hours: STALL_HOURS, from: ctx.at, replaces: true });
+  const ORDER = { q_age: 'age_', q_budget: 'budget_', q_budget_clarify: 'budget_', q_bond: 'bond_', q_method: 'method_' };
   const prefix = ORDER[t.stage];
-  if (!prefix) return { thread: t, actions: [{ kind: 'forward_w07', lead_id: t.lead_id, reason: 'after_qualifying' }] };
+  if (!prefix) return { thread: t, actions: [{ kind: 'forward_w07', lead_id: t.lead_id, reason: 'after_qualifying', hops: ctx.hops || 0 }] };
+  let id = tapId(msg);
+  if ((!id || !id.startsWith(prefix)) && ctx.typed) id = typedTap(t.stage, ctx.typed.slots) || id;
+  if (id === 'unsure') {
+    // logic.mjs budget_clarify: one clarifying re-ask, a second "not sure" closes (state-machine.md q_budget_clarify)
+    if (t.stage === 'q_budget_clarify') { t.answers.budget_band = 'unsure'; return outOfBand(t, ctx, 'budget_band', actions); }
+    t.stage = 'q_budget_clarify';
+    actions.push({ kind: 'update_lead', id: t.lead_id, set: { conv_state_state: 'q_budget_clarify' } });
+    send({ ...question('q_budget', ctx.broker), body: `No problem, a rough idea is fine. ${question('q_budget', ctx.broker).body}` });
+    stall('q_budget');
+    return { thread: t, actions };
+  }
   if (!id || !id.startsWith(prefix)) {
-    // tap-only: free text mid-question is logged for the brief (W07) and the same question is shown again
-    if (msg.type === 'text') actions.push({ kind: 'forward_w07', lead_id: t.lead_id, reason: 'free_text_mid_qualifying', reply: false });
-    send({ ...question(t.stage, ctx.broker), body: `Please tap one of the options. ${question(t.stage, ctx.broker).body}` });
+    // tap-only: free text mid-question is logged for the brief (W07) and the same question is shown again.
+    // A message W07 already handed over (ctx.typed) is not forwarded back: W07 logged it (I-48b, no extra hop).
+    if (msg.type === 'text' && !ctx.typed) actions.push({ kind: 'forward_w07', lead_id: t.lead_id, reason: 'free_text_mid_qualifying', reply: false, hops: ctx.hops || 0 });
+    const q = question(STAGE_OF[t.stage] === 'q_budget_clarify' ? 'q_budget' : t.stage, ctx.broker);
+    send({ ...q, body: `Please tap one of the options. ${q.body}` });
     return { thread: t, actions };
   }
   const val = id.slice(prefix.length);
-  if (t.stage === 'q_age') {
+  const from = t.stage;
+  let set;
+  if (from === 'q_age') {
     t.answers.age_band = val;
     if (!QUAL_AGE.has(val)) return outOfBand(t, ctx, 'age_band', actions);
     t.stage = 'q_budget';
-  } else if (t.stage === 'q_budget') {
+    set = { age_band: AGE_TO_DB[val] };
+  } else if (from === 'q_budget' || from === 'q_budget_clarify') {
     t.answers.budget_band = val;
     if (!QUAL_BUDGET.has(val)) return outOfBand(t, ctx, 'budget_band', actions);
     t.stage = 'q_bond';
-  } else if (t.stage === 'q_bond') {
-    t.answers.bond = val.startsWith('yes');
-    t.answers.dependants = val.endsWith('dependants_yes');
+    set = { budget_band: BUDGET_TO_DB[val] };
+  } else if (from === 'q_bond') {
+    const typedBond = ctx.typed && !(tapId(msg) || '').startsWith('bond_') ? ctx.typed.slots || {} : null;
+    t.answers.bond = typedBond ? (typeof typedBond.bond === 'boolean' ? typedBond.bond : null) : val.startsWith('yes');
+    t.answers.dependants = typedBond ? (typeof typedBond.dependants === 'boolean' ? typedBond.dependants : null) : val.endsWith('dependants_yes');
     t.stage = 'q_method';
-  } else if (t.stage === 'q_method') {
+    set = { bond: t.answers.bond, dependants: t.answers.dependants };
+  } else if (from === 'q_method') {
     t.answers.method_pref = METHOD_TO_DB[val] || null;
     t.stage = 'done';
     actions.push({ kind: 'cancel_stall' });
     actions.push({
       kind: 'update_lead', id: t.lead_id,
-      set: { age_band: AGE_TO_DB[t.answers.age_band], budget_band: BUDGET_TO_DB[t.answers.budget_band], bond: t.answers.bond, dependants: t.answers.dependants, method_pref: t.answers.method_pref, qualified_at: ctx.at, stage: 'qualified' },
+      set: { age_band: AGE_TO_DB[t.answers.age_band], budget_band: BUDGET_TO_DB[t.answers.budget_band], bond: t.answers.bond, dependants: t.answers.dependants, method_pref: t.answers.method_pref, qualified_at: ctx.at, stage: 'qualified', conv_state_state: NEXT_STATE.q_method },
     });
+    if (t.from_lead && t.broker_id) {
+      // already routed (W07-owned lead): hand back; W07 offers slots from 'unbooked'
+      actions.push({ kind: 'forward_w07', lead_id: t.lead_id, reason: 'after_qualifying', hops: ctx.hops || 0 });
+      return { thread: t, actions };
+    }
     // route (1.3) is W01 core's job: same routing for every intake path; it writes broker_id/cycle_id/routed_at
     // before W06 exists (W01 rule), then W06 sends broker_intro_slots (or _v2 with the Flow button) < 60 s.
     actions.push({ kind: 'route_and_first_touch', lead_id: t.lead_id, template_hint: 'broker_intro_slots', deadline_s: 60 });
     return { thread: t, actions };
   }
+  // I-47a/I-48k: W03 records each answer and writes leads.conv_state.state itself (W07 skips `state` on hand-off turns)
+  for (const k of Object.keys(set)) if (set[k] === null || set[k] === undefined) delete set[k];
+  actions.push({ kind: 'update_lead', id: t.lead_id, set: { ...set, conv_state_state: NEXT_STATE[from] } });
   send(question(t.stage, ctx.broker));
   stall(t.stage);
   return { thread: t, actions };
@@ -207,7 +287,7 @@ function outOfBand(t, ctx, reason, actions) {
   actions.push({ kind: 'cancel_stall' });
   actions.push({
     kind: 'update_lead', id: t.lead_id,
-    set: { age_band: AGE_TO_DB[t.answers.age_band] || null, budget_band: BUDGET_TO_DB[t.answers.budget_band] || null, disqualified_reason: reason, broker_id: null, stage: 'disqualified', retention_delete_after: del },
+    set: { age_band: AGE_TO_DB[t.answers.age_band] || null, budget_band: BUDGET_TO_DB[t.answers.budget_band] || null, disqualified_reason: reason, broker_id: null, stage: 'disqualified', retention_delete_after: del, conv_state_state: 'closed_oob' },
   });
   actions.push({ kind: 'send', message: { type: 'text', body: 'Thanks for your answers. Based on them, we’re not the right fit for you right now, so we won’t pass your details on. Take care.' } });
   return { thread: { ...t, stage: 'closed', closed_reason: reason }, actions };
@@ -223,4 +303,4 @@ function toCloudApi(to, m) {
   return { ...base, type: 'interactive', interactive: { type: 'list', body: { text: m.body }, action: { button: m.button.slice(0, 20), sections: [{ title: 'Options', rows: m.rows.map((r) => ({ id: r.id, title: r.title.slice(0, 24) })) }] } } };
 }
 
-module.exports = { redirectFor, readOrigin, consentFor, CONSENT_NAMED_VERSION, CONSENT_NAMED_FOOTER, WA_BUTTON_BODY_MAX, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_V1, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };
+module.exports = { typedTap, threadFromLead, hopNext, MAX_HOPS, Q_STAGES, NEXT_STATE, redirectFor, readOrigin, consentFor, CONSENT_NAMED_VERSION, CONSENT_NAMED_FOOTER, WA_BUTTON_BODY_MAX, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_V1, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };

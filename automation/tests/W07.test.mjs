@@ -258,9 +258,11 @@ test('I-37e loop guard: a W03-originated message is never routed back to W03', (
   const wf = JSON.parse(readFileSync(new URL('../W07.json', import.meta.url), 'utf8'));
   const sw = wf.nodes.find((n) => n.name === 'Sub-call from? (W03 forward / W05)');
   assert.ok(sw, 'sub-call entry splits W03 hand-backs from W05 contact confirms');
-  assert.equal(wf.connections['W03 forward: loop guard (origin w03)'].main[0][0].node, 'Load context (lead, broker, live booking, window)');
+  assert.equal(wf.connections['W03 forward: loop guard (origin w03)'].main[0][0].node, 'Hop limit ok? (W03 forward, I-48b)', 'I-48b hop gate first');
+  assert.equal(wf.connections['Hop limit ok? (W03 forward, I-48b)'].main[0][0].node, 'Load context (lead, broker, live booking, window)');
   const w03 = JSON.parse(readFileSync(new URL('../W03.json', import.meta.url), 'utf8'));
-  assert.equal(w03.connections['Mark origin w03 (loop guard)'].main[0][0].node, 'W07 Conversation agent (forward)');
+  assert.equal(w03.connections['Mark origin w03 (loop guard)'].main[0][0].node, 'Hop limit ok? (I-48b)');
+  assert.equal(w03.connections['Hop limit ok? (I-48b)'].main[0][0].node, 'W07 Conversation agent (forward)');
 });
 
 test('I-37e W32 Approve/Later taps from ops numbers -> W32 decision sub-call; I-37d broker media -> W23', () => {
@@ -430,4 +432,65 @@ test('W07 "Verify signature + normalise": wrong or missing X-Hub-Signature-256 -
   }
   const good = await run('sha256=' + createHmac('sha256', secret).update(raw).digest('hex'));
   assert.equal(good[0].json.valid, true); assert.equal(good[0].json.kind, 'message'); assert.equal(code(good[0].json), 200);
+});
+
+// ---------------------------------------------------------------- I-47a / I-48b / I-48k (2026-10-03)
+test('I-48k: q_method is a qualifying-tap state (tap -> W03); qualifying order is 4.6 (age -> budget -> bond/dependants -> method, NH-59)', () => {
+  const ld = { id: 'lead_q', phone: '+27600000097', conv_state: { state: 'q_method' } };
+  assert.equal(W.routeInbound({ from: ld.phone, payload: 'method_phone' }, { lead: ld }).route, 'W03');
+  assert.ok(W.QUALIFYING_TAP_STATES.includes('q_method'));
+  const n = (slots) => ({ intent: 'answer', topics: [], slots, confidence: 0.9 });
+  const pre = W.preStep({ text: 'x', wamid: 'w', from: ld.phone }, ld, BROKER_ROW).pre;
+  assert.equal(decide('q_age', n({ age_band: '45-50' }), pre, {}).next_state, 'q_budget');
+  assert.equal(decide('q_budget', n({ budget_band: '1250+' }), pre, {}).next_state, 'q_bond');
+  assert.equal(decide('q_bond', n({ dependants: true }), pre, {}).next_state, 'q_method', 'dependants alone answers the combined question');
+  assert.equal(decide('q_method', n({ method: 'phone' }), pre, {}).next_state, 'unbooked');
+  const d = decide('q_age', n({ age_band: '45-50' }), pre, {});
+  assert.deepEqual(d.actions.slice(-2), ['record_answer', 'next_question']);
+});
+
+test('I-48k: "Save conv_state" leaves `state` out on a turn handed to W03 (W03 writes it); other turns write it', () => {
+  const node = WF.nodes.find((x) => x.name === 'Save conv_state / language / stage / health_flag');
+  const expr = node.parameters.options.queryReplacement.replace(/^=\{\{([\s\S]*)\}\}$/, '$1');
+  const evalWith = (plan) => new Function('$', `return (${expr});`)(() => ({ item: { json: { lead: { id: 'l1' }, plan: { unanswered: 0, actions: [], lead_updates: {}, ...plan }, disclosed_after: true, pre: {} } } }));
+  const handed = JSON.parse(evalWith({ next_state: 'q_budget', delegate: [{ to: 'W03', action: 'record_answer' }] })[1]);
+  assert.equal('state' in handed, false);
+  const own = JSON.parse(evalWith({ next_state: 'booked', delegate: [] })[1]);
+  assert.equal(own.state, 'booked');
+  assert.equal('state' in W.convStatePatch({ next_state: 'q_budget', delegate: [{ to: 'W03' }], actions: [] }), false);
+  assert.equal(W.convStatePatch({ next_state: 'booked', delegate: [], actions: [] }).state, 'booked');
+});
+
+test('I-48b reply claim: W07 claims w07:reply:{wamid} (webhook_events, DO NOTHING) before any lead-facing send; 0 rows = no send, no outbound row', async () => {
+  assert.equal(W.replyClaimKey('wamid.A'), 'w07:reply:wamid.A');
+  assert.equal(WF.connections['Anything to send?'].main[0][0].node, 'Reply claim (w07:reply:{wamid})');
+  assert.equal(WF.connections['Reply claim (w07:reply:{wamid})'].main[0][0].node, 'Live send? (reply)');
+  const claim = WF.nodes.find((x) => x.name === 'Reply claim (w07:reply:{wamid})');
+  assert.match(claim.parameters.query, /INSERT INTO public\.webhook_events[\s\S]*'w07:reply:'[\s\S]*ON CONFLICT \(source, external_id\) DO NOTHING[\s\S]*FROM c;/);
+  const rep = claim.parameters.options.queryReplacement.replace(/^=\{\{([\s\S]*)\}\}$/, '$1');
+  const args = new Function('$json', `return (${rep});`)({ msg: { wamid: 'wamid.R1' }, brand_id: 'b1', wa: { to: '+27', type: 'text' } });
+  assert.equal(args[0], 'wamid.R1'); assert.equal(JSON.parse(args[2]).type, 'text');
+  // W03 takes the same key, so W03 + W07 together send at most one reply per inbound message
+  const w03 = JSON.parse(readFileSync(new URL('../W03.json', import.meta.url), 'utf8'));
+  assert.match(w03.nodes.find((x) => x.name === 'Reply claim (w07:reply:{wamid})').parameters.query, /'w07:reply:' \|\| \$1/);
+  // Simulated table: the second claim on the same wamid returns no row
+  const table = new Set(); const claimRow = (k) => (table.has(k) ? [] : (table.add(k), [{ reply_claim_id: table.size }]));
+  assert.equal(claimRow(W.replyClaimKey('wamid.R1')).length, 1); assert.equal(claimRow(W.replyClaimKey('wamid.R1')).length, 0);
+});
+
+test('I-48b hop limit: each delegation adds a hop on msg.hops; the 4th hand-off goes to "Log hop limit (W07)" and nowhere else', async () => {
+  const mk = (hops) => ({ json: { msg: { wamid: 'w', from: '+27', hops }, plan: { delegate: [{ to: 'W03', action: 'record_answer', slots: { age_band: '45-50' } }] } } });
+  const ok = await runCode(WF, 'Explode delegations', { items: [mk(0).json] });
+  assert.equal(ok.length, 1); assert.equal(ok[0].json.route, 'W03'); assert.equal(ok[0].json.msg.hops, 1);
+  const over = await runCode(WF, 'Explode delegations', { items: [mk(3).json] });
+  assert.equal(over[0].json.route, 'hop_limit'); assert.equal(over[0].json.hop_limit.hops, 4);
+  const sw = WF.nodes.find((x) => x.name === 'Delegate to');
+  const idx = sw.parameters.rules.values.findIndex((r) => r.outputKey === 'hop_limit');
+  assert.equal(WF.connections['Delegate to'].main[idx][0].node, 'Log hop limit (W07)');
+  assert.match(WF.nodes.find((x) => x.name === 'Log hop limit (W07)').parameters.query, /'hop_limit:' \|\| \$1/);
+  const gate = WF.nodes.find((x) => x.name === 'Hop limit ok? (W03 forward, I-48b)').parameters.conditions.conditions[0].leftValue.replace(/^=\{\{([\s\S]*)\}\}$/, '$1');
+  const pass = (hops) => new Function('$json', `return (${gate});`)({ msg: { hops } });
+  assert.equal(pass(3), 'true'); assert.equal(pass(4), 'false');
+  assert.equal(W.MAX_HOPS, 3);
+  assert.equal(WF.connections['Hop limit ok? (W03 forward, I-48b)'].main[1][0].node, 'Log hop limit (W07)');
 });

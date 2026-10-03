@@ -71,13 +71,18 @@ for (const it of $input.all()) {
   else if (m.type === 'button') m.button = { payload: g.payload, text: g.text || '' };
   else if (m.type === 'interactive') m.interactive = g.list_id != null ? { type: 'list_reply', list_reply: { id: g.list_id, title: g.text || '' } } : { type: 'button_reply', button_reply: { id: g.payload, title: g.text || '' } };
   else if (g.media) m[m.type] = { caption: g.text || '' };
-  out.push({ json: { kind: 'lead', source: j.source || 'W07', external_id: g.wamid, phone_number_id: g.phone_number_id, mobile: '+' + m.from, profile_name: j.profile_name || null, msg: m, at: new Date(Number(m.timestamp) * 1000).toISOString() } });
+  // I-47a: a W07 delegation carries the intent-slot NLU slots (typed answer); I-48b: msg.hops = hand-offs so far.
+  const d = j.delegate && typeof j.delegate === 'object' ? j.delegate : null;
+  const typed = d && d.to === 'W03' ? { slots: d.slots || {}, actions: d.actions || (d.action ? [d.action] : []) } : null;
+  out.push({ json: { kind: 'lead', source: j.source || 'W07', external_id: g.wamid, phone_number_id: g.phone_number_id || (j.metadata && j.metadata.phone_number_id) || null, mobile: '+' + m.from, profile_name: j.profile_name || null, msg: m, at: new Date(Number(m.timestamp) * 1000).toISOString(), lead_id: (j.lead && j.lead.id) || null, typed, hops: Number(g.hops) || 0 } });
 }
 return out;`));
   n.push(pg('Load context', [1340, 200],
 `-- brand by receiving number; routed candidate (named consent needs the broker before the prompt, 0.1);
 -- 90-day open lead; LV-wide or brand suppression (a past CTWA "No thanks" may be asked again: they wrote to us);
 -- pre-consent thread (public.wa_threads, needs_human schema pass 3).
+-- I-47b: always one row; brand_id NULL = no brand for this receiving number -> W03 step logs it + W22 signal.
+-- I-47a: lead = the open lead W07 passed (or W03's own 90-day match), so a q_* answer without a wa_thread is qualified.
 SELECT br.id AS brand_id,
        (SELECT row_to_json(k) FROM (
           SELECT b.id AS broker_id, b.practice_name, b.fsp_number, b.adviser_name, split_part(b.adviser_name, ' ', 1) AS adviser_first_name,
@@ -86,21 +91,27 @@ SELECT br.id AS brand_id,
            WHERE b.brand_id = br.id AND b.active AND b.routing_on AND NOT b.bookings_paused AND b.status = 'active'
            ORDER BY b.next_free_slot_at NULLS LAST, b.created_at
            LIMIT 1) k) AS broker,
-       (SELECT l.id FROM public.leads l
-         WHERE l.brand_id = br.id AND l.dedupe_hash = public.smc_hash_contact($2)
-           AND l.created_at > now() - interval '90 days' AND l.opted_out_at IS NULL
-           AND coalesce(l.stage, 'new') NOT IN ('disqualified', 'unbooked_closed', 'opted_out')
-         ORDER BY l.created_at DESC LIMIT 1) AS existing_open_lead_id,
+       ol.id AS existing_open_lead_id,
+       (SELECT row_to_json(x) FROM (
+          SELECT l2.id, l2.conv_state, l2.age_band, l2.budget_band, l2.bond, l2.dependants, l2.broker_id, l2.language
+            FROM public.leads l2 WHERE l2.id = ol.id) x) AS lead,
        EXISTS (SELECT 1 FROM public.suppression s
                 WHERE s.mobile_hash = public.smc_hash_contact($2) AND (s.brand_id IS NULL OR s.brand_id = br.id)
                   AND s.source <> 'no_consent_ctwa') AS suppressed,
        (SELECT t.state FROM public.wa_threads t
          WHERE t.brand_id = br.id AND t.mobile_hash = public.smc_hash_contact($2) AND t.expires_at > now()) AS thread,
        gen_random_uuid() AS new_lead_id
-  FROM public.brands br
- WHERE br.phone_number_id = $1
+  FROM (SELECT 1) one
+  LEFT JOIN public.brands br ON br.phone_number_id = $1
+  LEFT JOIN LATERAL (
+       SELECT l.id FROM public.leads l
+        WHERE l.brand_id = br.id
+          AND (l.id = nullif($3, '')::uuid OR l.dedupe_hash = public.smc_hash_contact($2))
+          AND l.created_at > now() - interval '90 days' AND l.opted_out_at IS NULL
+          AND coalesce(l.stage, 'new') NOT IN ('disqualified', 'unbooked_closed', 'opted_out')
+        ORDER BY (l.id = nullif($3, '')::uuid) DESC, l.created_at DESC LIMIT 1) ol ON true
  LIMIT 1;`,
-    '={{ [ $json.phone_number_id, $json.mobile ] }}'));
+    '={{ [ $json.phone_number_id || "", $json.mobile, $json.lead_id || "" ] }}'));
   n.push(code('W03 step', [1560, 200], W3 +
 `const out = [];
 for (const [i, item] of $input.all().entries()) {
@@ -109,13 +120,16 @@ for (const [i, item] of $input.all().entries()) {
   const broker = ctxRow.broker || null;
   const brand = { brand_id: ctxRow.brand_id, consent_mode: broker ? broker.consent_mode : 'named' };
   const r = W3.step(ctxRow.thread || null, m.msg, { at: m.at, mobile: m.mobile, profile_name: m.profile_name, lead_id: ctxRow.new_lead_id,
-    broker, brand, existing_open_lead_id: ctxRow.existing_open_lead_id, suppressed: ctxRow.suppressed, wamid: m.external_id, is_synthetic: false });
+    broker, brand, existing_open_lead_id: ctxRow.existing_open_lead_id, suppressed: ctxRow.suppressed, wamid: m.external_id, is_synthetic: false,
+    lead: ctxRow.lead || null, typed: m.typed || null, hops: m.hops || 0, phone_number_id: m.phone_number_id });
   const st = r.actions.find((a) => a.kind === 'schedule_stall');
   const cancel = r.actions.some((a) => a.kind === 'cancel_stall');
   const stallDue = st && !cancel ? new Date(Date.parse(m.at) + st.hours[0] * 3600e3).toISOString() : null;
-  out.push({ json: { brand_id: ctxRow.brand_id, mobile: m.mobile, wamid: m.external_id, at: m.at, phone_number_id: m.phone_number_id, broker, thread: r.thread, actions: r.actions, stall_due_at: stallDue } });
+  const leadId = (r.thread && r.thread.lead_id) || ctxRow.existing_open_lead_id || null;
+  out.push({ json: { brand_id: ctxRow.brand_id, mobile: m.mobile, wamid: m.external_id, at: m.at, phone_number_id: m.phone_number_id, broker, thread: r.thread, actions: r.actions, stall_due_at: stallDue, lead_id: leadId, hops: m.hops || 0, store_thread: !!ctxRow.brand_id && !r.no_thread && !!r.thread } });
 }
 return out;`));
+  n.push(ifTrue('Store thread? (brand known)', [1700, 60], '={{ $json.store_thread === true }}'));
   n.push(pg('Save thread', [1780, 120],
 `-- No PII in state: stage, answers (bands), origin (ad id / ctwa_clid / ref), consent text + version. Purged after expires_at.
 -- W08 polls stall_due_at for the +1 h / +20 h / +68 h nudges (4.6 step 7); a reply moves it forward.
@@ -127,23 +141,49 @@ ON CONFLICT (brand_id, mobile_hash) DO UPDATE
 RETURNING stage;`,
     '={{ [ $json.brand_id, $json.mobile, JSON.stringify($json.thread || { stage: "none" }), $json.at, $json.stall_due_at ] }}'));
   n.push(code('Fan out actions', [1780, 280],
-    "return $input.all().flatMap((it) => it.json.actions.filter((a) => !['schedule_stall', 'cancel_stall', 'ignore'].includes(a.kind)).map((a) => ({ json: { ...a, _brand_id: it.json.brand_id, _mobile: it.json.mobile, _wamid: it.json.wamid, _at: it.json.at, _pnid: it.json.phone_number_id, _broker: it.json.broker } })));"));
-  n.push(switchOn('Action?', [2000, 280], '={{ $json.kind }}', ['send', 'insert_lead', 'update_lead', 'suppress', 'capi', 'route_and_first_touch', 'forward_w07', 'alert']));
-  n.push(code('Build Cloud API body', [2240, 0], W3 + "return $input.all().map((it) => ({ json: { pnid: it.json._pnid, body: W3.toCloudApi(it.json._mobile, it.json.message) } }));"));
-  n.push(node('WhatsApp send (session)', 'httpRequest', 4.2, [2460, 0], {
-    method: 'POST', url: "={{ 'https://graph.facebook.com/' + $env.META_GRAPH_VERSION + '/' + $json.pnid + '/messages' }}",
-    authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth', sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.body) }}',
+    "return $input.all().flatMap((it) => it.json.actions.filter((a) => !['schedule_stall', 'cancel_stall', 'ignore'].includes(a.kind)).map((a) => ({ json: { ...a, _brand_id: it.json.brand_id, _mobile: it.json.mobile, _wamid: it.json.wamid, _at: it.json.at, _pnid: it.json.phone_number_id, _broker: it.json.broker, _lead_id: it.json.lead_id, _hops: it.json.hops } })));"));
+  n.push(switchOn('Action?', [2000, 280], '={{ $json.kind }}', ['send', 'insert_lead', 'update_lead', 'suppress', 'capi', 'route_and_first_touch', 'forward_w07', 'alert', 'log_no_brand']));
+  // I-48b/I-48k: every lead-facing W03 message takes the per-inbound reply claim (same key as W07: w07:reply:{wamid}),
+  // then DRY_RUN_SENDS decides live send vs stored only; the outbound communications row is written either way (W07 parity).
+  n.push(code('Build Cloud API body', [2240, 0], W3 + "return $input.all().map((it) => ({ json: { pnid: it.json._pnid, body: W3.toCloudApi(it.json._mobile, it.json.message), brand_id: it.json._brand_id, lead_id: it.json._lead_id || null, mobile: it.json._mobile, wamid: it.json._wamid, content: it.json.message.body } }));"));
+  n.push(pg('Reply claim (w07:reply:{wamid})', [2460, -120],
+`-- I-48b: one inbound message -> at most one lead-facing reply (W03 and W07 share the key). Second claim -> 0 rows -> nothing sent.
+WITH c AS (
+  INSERT INTO public.webhook_events (source, external_id, brand_id, signature_ok)
+  VALUES ('whatsapp', 'w07:reply:' || $1, nullif($2, '')::uuid, true)
+  ON CONFLICT (source, external_id) DO NOTHING
+  RETURNING id)
+SELECT c.id AS reply_claim_id, $3::jsonb AS out FROM c;`,
+    '={{ [ $json.wamid, $json.brand_id || "", JSON.stringify($json) ] }}'));
+  n.push(ifTrue('Live send? (W03)', [2680, -120], "={{ $env.DRY_RUN_SENDS !== 'true' }}"));
+  n.push(node('WhatsApp send (session)', 'httpRequest', 4.2, [2900, -200], {
+    method: 'POST', url: "={{ 'https://graph.facebook.com/' + $env.META_GRAPH_VERSION + '/' + $json.out.pnid + '/messages' }}",
+    authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth', sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.out.body) }}',
     options: { timeout: 10000, retry: { maxTries: 3, waitBetweenTries: 1000 } },
   }, { credentials: WA, retryOnFail: true, maxTries: 3, waitBetweenTries: 2000 }));
+  n.push(pg('Store outbound (W03)', [3120, -120],
+`-- Same row shape as W07 "Store outbound"; DRY_RUN rows carry external_id dry:w03:{wamid}.
+INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, author, workflow, template_category, metadata)
+VALUES (nullif($1, '')::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, $3, 'sent', $4, nullif($5, '')::uuid, 'bot', 'W03', 'service', jsonb_build_object('dry_run', $6::boolean, 'reply_to', $7::text))
+ON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING
+RETURNING id;`,
+    "={{ (() => { const o = $('Reply claim (w07:reply:{wamid})').item.json.out; const id = ($json.messages && $json.messages[0] && $json.messages[0].id) || ('dry:w03:' + o.wamid); return [o.brand_id || '', o.mobile, o.content || '', id, o.lead_id || '', !($json.messages && $json.messages[0]), o.wamid]; })() }}"));
+  n.push(pg('Log no brand (I-47b)', [2240, 1120],
+`-- I-47b: the receiving phone_number_id matches no brands row. Logged (not silent) + W22 signal w03_no_brand.
+INSERT INTO public.webhook_events (source, external_id, signature_ok, processed_at, error)
+VALUES ('whatsapp', 'w03:no_brand:' || $1, true, now(), 'W03: no brands row for phone_number_id ' || coalesce(nullif($2, ''), '(none)'))
+ON CONFLICT (source, external_id) DO UPDATE SET attempts = public.webhook_events.attempts + 1
+RETURNING id;`,
+    '={{ [ $json._wamid, $json.phone_number_id || "" ] }}'));
   n.push(pg('Insert lead (consent at the tap)', [2240, 140],
 `-- Row is created at "Yes, continue" (W01 parity): consent text = exact words shown, verified by the tap (3.3).
 -- campaign/adset from the W21 ad_objects cache; W21 back-fills when null. Idempotent on id and on the activity key.
 WITH ins AS (
   INSERT INTO public.leads (id, brand_id, origin, ref, ad_id, ctwa_clid, phone, first_name, consent_text, consent_text_version,
                             consent_mode, consent_at, consent_source, verified_at, wa_delivered_at, stage, stage_entered_at,
-                            is_synthetic, campaign_id, adset_id)
+                            is_synthetic, campaign_id, adset_id, conv_state)
   SELECT $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::timestamptz, 'ctwa', $12::timestamptz, $13::timestamptz,
-         'verified', $12::timestamptz, $14::boolean, a.campaign_id, a.adset_id
+         'verified', $12::timestamptz, $14::boolean, a.campaign_id, a.adset_id, jsonb_build_object('state', 'q_age')
     FROM (SELECT 1) one
     LEFT JOIN public.ad_objects a ON a.id = $5 AND a.level = 'ad'
   ON CONFLICT (id) DO NOTHING
@@ -170,6 +210,10 @@ UPDATE public.leads
        retention_delete_after = coalesce(($2::jsonb->>'retention_delete_after')::timestamptz, retention_delete_after),
        stage                  = coalesce($2::jsonb->>'stage', stage),
        stage_entered_at       = CASE WHEN $2::jsonb ? 'stage' THEN now() ELSE stage_entered_at END,
+       -- I-48k: W03 writes leads.conv_state.state itself on every qualifying turn (W07 skips state on hand-off turns)
+       conv_state             = CASE WHEN $2::jsonb ? 'conv_state_state'
+                                     THEN coalesce(conv_state, '{}'::jsonb) || jsonb_build_object('state', $2::jsonb->>'conv_state_state', 'last_turn_at', now())
+                                     ELSE conv_state END,
        last_contact_at        = now(),
        updated_at             = now()
  WHERE id = $1::uuid
@@ -181,8 +225,17 @@ RETURNING id;`,
   n.push(sub('CAPI business-messaging Lead', [2240, 560], 'CAPI Send'));
   n.push(sub('W01 Lead core (route + W06 first touch < 60 s)', [2240, 700], 'W01 Lead core'));
   // I-37e loop guard: everything W03 hands back to W07 carries origin 'w03'; W07 routeInbound never sends it to W03 again.
-  n.push(code('Mark origin w03 (loop guard)', [2240, 840], "const m = $('Called by W07 (CTWA lead)').first().json.msg || {}; return $input.all().map((it) => ({ json: { origin: 'w03', source: 'W03', lead_id: it.json.lead_id, reason: it.json.reason, brand_id: it.json._brand_id || null, msg: { ...m, origin: 'w03' } } }));"));
-  n.push(sub('W07 Conversation agent (forward)', [2460, 840], 'W07 Conversation agent'));
+  // I-48b: the hand-back counts as a hop; over MAX_HOPS (3) it is logged and stops here.
+  n.push(code('Mark origin w03 (loop guard)', [2240, 840], W3 + "const m = $('Called by W07 (CTWA lead)').first().json.msg || {}; return $input.all().map((it) => { const h = W3.hopNext(m.hops); return { json: { origin: 'w03', source: 'W03', lead_id: it.json.lead_id, reason: it.json.reason, brand_id: it.json._brand_id || null, hop_over: h.over, hops: h.hops, msg: { ...m, origin: 'w03', hops: h.hops } } }; });"));
+  n.push(ifTrue('Hop limit ok? (I-48b)', [2460, 760], '={{ $json.hop_over !== true }}'));
+  n.push(sub('W07 Conversation agent (forward)', [2680, 760], 'W07 Conversation agent'));
+  n.push(pg('Log hop limit (W03)', [2680, 920],
+`-- I-48b: a message went round W03/W05/W07 more than 3 times; logged once per wamid, nothing more is sent.
+INSERT INTO public.webhook_events (source, external_id, brand_id, signature_ok, processed_at, error)
+VALUES ('whatsapp', 'hop_limit:' || $1, nullif($2, '')::uuid, true, now(), 'hop limit exceeded at W03 (hops ' || $3 || ')')
+ON CONFLICT (source, external_id) DO UPDATE SET attempts = public.webhook_events.attempts + 1
+RETURNING id;`,
+    '={{ [ $json.msg.wamid, $json.brand_id || "", String($json.hops) ] }}'));
   n.push(sub('W22 Alerts: W03', [2240, 980], 'W22 Alerts'));
 
   // tracked redirect (I-09)
@@ -208,13 +261,20 @@ RETURNING id;`,
   link(c, 'Called by W07 (CTWA lead)', 'W07 hand-off -> Cloud API message');
   link(c, 'W07 hand-off -> Cloud API message', 'Load context');
   link(c, 'Load context', 'W03 step');
-  link(c, 'W03 step', 'Save thread');
+  link(c, 'W03 step', 'Store thread? (brand known)');
+  link(c, 'Store thread? (brand known)', 'Save thread');
   link(c, 'W03 step', 'Fan out actions');
   link(c, 'Fan out actions', 'Action?');
   ['Build Cloud API body', 'Insert lead (consent at the tap)', 'Update lead (answers / out-of-band)', 'Suppress (hash only)', 'CAPI business-messaging Lead',
-    'W01 Lead core (route + W06 first touch < 60 s)', 'Mark origin w03 (loop guard)', 'W22 Alerts: W03'].forEach((t, i) => link(c, 'Action?', t, i));
-  link(c, 'Mark origin w03 (loop guard)', 'W07 Conversation agent (forward)');
-  link(c, 'Build Cloud API body', 'WhatsApp send (session)');
+    'W01 Lead core (route + W06 first touch < 60 s)', 'Mark origin w03 (loop guard)', 'W22 Alerts: W03', 'Log no brand (I-47b)'].forEach((t, i) => link(c, 'Action?', t, i));
+  link(c, 'Mark origin w03 (loop guard)', 'Hop limit ok? (I-48b)');
+  link(c, 'Hop limit ok? (I-48b)', 'W07 Conversation agent (forward)', 0);
+  link(c, 'Hop limit ok? (I-48b)', 'Log hop limit (W03)', 1);
+  link(c, 'Build Cloud API body', 'Reply claim (w07:reply:{wamid})');
+  link(c, 'Reply claim (w07:reply:{wamid})', 'Live send? (W03)');
+  link(c, 'Live send? (W03)', 'WhatsApp send (session)', 0);
+  link(c, 'Live send? (W03)', 'Store outbound (W03)', 1);
+  link(c, 'WhatsApp send (session)', 'Store outbound (W03)');
   link(c, 'Insert lead (consent at the tap)', 'Mint lead_token');
   link(c, 'CTWA redirect (GET /wa/:ref)', 'Build redirect');
   link(c, 'Build redirect', 'Respond 302 to wa.me');

@@ -219,3 +219,120 @@ test('I-44d GET verify: right token -> 200 text/plain with the challenge; wrong 
   assert.equal(answer({ 'hub.mode': 'subscribe', 'hub.verify_token': TOKEN, 'hub.challenge': '<script>' }).status, 400, 'challenge is echoed only when it is a plain token');
   assert.ok(!/\$json\.challenge/.test(resp.parameters.responseBody), 'the verify node has no challenge field');
 });
+
+// ---------------------------------------------------------------- I-47a / I-47b / I-48b / I-48k (2026-10-03)
+import { runCode } from './_n8ncode.mjs';
+const QLEAD = (state, over = {}) => ({ id: 'lead_q1', conv_state: { state }, broker_id: MARK.broker_id, ...over });
+const typedStep = (state, slots, over = {}, thread = null) => W3.step(thread, { type: 'text', text: { body: 'typed' } },
+  { at: '2026-10-13T10:00:00+02:00', mobile: '+27600000047', lead_id: 'unused', broker: MARK, brand: BRAND, existing_open_lead_id: 'lead_q1', lead: QLEAD(state, over), typed: { slots, actions: ['record_answer', 'next_question'] }, hops: 1 });
+
+test('I-47a: typed "I\'m 47" at q_age with no wa_thread -> age_band 45_50 recorded, conv_state q_budget written by W03, budget question asked, no forward back', () => {
+  const r = typedStep('q_age', { age_band: '45-50' });
+  const upd = r.actions.find((a) => a.kind === 'update_lead');
+  assert.deepEqual(upd.set, { age_band: '45_50', conv_state_state: 'q_budget' });
+  assert.equal(r.thread.stage, 'q_budget');
+  assert.match(r.actions.find((a) => a.kind === 'send').message.body, /each month/);
+  assert.equal(r.actions.some((a) => a.kind === 'forward_w07'), false);
+});
+
+test('I-47a: NLU bands map to leads_smc_checks codes (lt35/35_44/45_50/51plus; lt750/750_1250/1250plus); out-of-band closes', () => {
+  for (const [nlu, db] of [['35-44', '35_44'], ['45-50', '45_50']]) assert.equal(typedStep('q_age', { age_band: nlu }).actions.find((a) => a.kind === 'update_lead').set.age_band, db);
+  for (const [nlu, db] of [['<35', 'lt35'], ['51+', '51plus']]) {
+    const r = typedStep('q_age', { age_band: nlu });
+    const u = r.actions.find((a) => a.kind === 'update_lead').set;
+    assert.equal(u.age_band, db); assert.equal(u.stage, 'disqualified'); assert.equal(u.conv_state_state, 'closed_oob'); assert.equal(r.thread.stage, 'closed');
+  }
+  for (const [nlu, db] of [['750-1250', '750_1250'], ['1250+', '1250plus']]) {
+    const r = typedStep('q_budget', { budget_band: nlu }, { age_band: '45_50' });
+    assert.deepEqual(r.actions.find((a) => a.kind === 'update_lead').set, { budget_band: db, conv_state_state: 'q_bond' });
+  }
+  const lo = typedStep('q_budget', { budget_band: '<750' }).actions.find((a) => a.kind === 'update_lead').set;
+  assert.equal(lo.budget_band, 'lt750'); assert.equal(lo.disqualified_reason, 'budget_band');
+  const u1 = typedStep('q_budget', { budget_band: 'unsure' });
+  assert.equal(u1.actions.find((a) => a.kind === 'update_lead').set.conv_state_state, 'q_budget_clarify');
+  assert.equal(typedStep('q_budget_clarify', { budget_band: 'unsure' }).actions.find((a) => a.kind === 'update_lead').set.stage, 'disqualified');
+});
+
+test('I-47a: 4.6 order to the end; bond/dependants typed; method -> hand back after_qualifying (routed lead) or W01 route (unrouted)', () => {
+  const b = typedStep('q_bond', { dependants: true });
+  assert.deepEqual(b.actions.find((a) => a.kind === 'update_lead').set, { dependants: true, conv_state_state: 'q_method' });
+  assert.equal(b.actions.find((a) => a.kind === 'send').message.body, 'How would you like to talk to Mark?'.replace('Mark', MARK.adviser_first_name || 'the adviser'));
+  const m = typedStep('q_method', { method: 'phone' }, { age_band: '45_50', budget_band: '1250plus' });
+  const fin = m.actions.find((a) => a.kind === 'update_lead').set;
+  assert.equal(fin.method_pref, 'phone'); assert.equal(fin.age_band, '45_50'); assert.equal(fin.budget_band, '1250plus'); assert.equal(fin.conv_state_state, 'unbooked');
+  assert.ok(m.actions.some((a) => a.kind === 'forward_w07' && a.reason === 'after_qualifying'));
+  const m2 = typedStep('q_method', { method: 'phone' }, { broker_id: null });
+  assert.ok(m2.actions.some((a) => a.kind === 'route_and_first_touch'));
+  // a tap at q_method for a W07-owned lead works the same way (W07 routes q_method taps here, I-48k)
+  const tap = W3.step(null, { type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'method_teams' } } }, { at: '2026-10-13T10:00:00+02:00', mobile: '+27600000047', broker: MARK, brand: BRAND, existing_open_lead_id: 'lead_q1', lead: QLEAD('q_method') });
+  assert.equal(tap.actions.find((a) => a.kind === 'update_lead').set.method_pref, 'teams');
+  // no answer in the typed text -> the same question again, nothing forwarded back to W07 (it already has the text)
+  const none = typedStep('q_age', {});
+  assert.equal(none.thread.stage, 'q_age'); assert.equal(none.actions.some((a) => a.kind === 'forward_w07'), false);
+  // a lead that is not mid-qualifying is still handed back
+  assert.equal(typedStep('booked', { age_band: '45-50' }).actions[0].reason, 'existing_lead_90d');
+});
+
+test('I-47b: no brands row for the receiving number -> log row + W22 signal, no thread stored', () => {
+  const r = W3.step(null, { type: 'text', text: { body: 'hi' } }, { at: '2026-10-13T10:00:00+02:00', mobile: '+27600000047', brand: { brand_id: null }, phone_number_id: '999' });
+  assert.equal(r.no_thread, true);
+  assert.equal(r.actions[0].kind, 'log_no_brand');
+  assert.equal(r.actions[1].signal_key, 'w03_no_brand');
+  const sw = WF.nodes.find((n) => n.name === 'Action?');
+  const i = sw.parameters.rules.values.findIndex((v) => v.outputKey === 'log_no_brand');
+  assert.equal(WF.connections['Action?'].main[i][0].node, 'Log no brand (I-47b)');
+  assert.match(WF.nodes.find((n) => n.name === 'Load context').parameters.query, /FROM \(SELECT 1\) one\s+LEFT JOIN public\.brands br/);
+  assert.equal(WF.connections['W03 step'].main[0].some((x) => x.node === 'Save thread'), false, 'Save thread only behind the brand gate');
+});
+
+test('I-47a via the real Code nodes: W07 delegation -> adapter carries typed slots, lead id, hops; "W03 step" records the band', async () => {
+  const deleg = { source: 'W07', route: 'W03', lead: { id: 'lead_q1' }, delegate: { to: 'W03', action: 'record_answer', actions: ['record_answer', 'next_question'], slots: { age_band: '45-50' } },
+    msg: { wamid: 'wamid.I47', from: '+27600000047', at_ms: Date.parse('2026-10-13T08:00:00Z'), type: 'text', text: "I'm 47", phone_number_id: '100000000000001', hops: 1 } };
+  const [ad] = await runCode(WF, 'W07 hand-off -> Cloud API message', { items: [deleg] });
+  assert.deepEqual(ad.json.typed.slots, { age_band: '45-50' }); assert.equal(ad.json.lead_id, 'lead_q1'); assert.equal(ad.json.hops, 1);
+  const ctxRow = { brand_id: 'b-smc', broker: { ...MARK, consent_mode: 'named' }, existing_open_lead_id: 'lead_q1', lead: QLEAD('q_age'), suppressed: false, thread: null, new_lead_id: 'n1' };
+  const [st] = await runCode(WF, 'W03 step', { items: [ctxRow], refs: { 'W07 hand-off -> Cloud API message': ad.json } });
+  assert.equal(st.json.lead_id, 'lead_q1'); assert.equal(st.json.store_thread, true);
+  assert.deepEqual(st.json.actions.find((a) => a.kind === 'update_lead').set, { age_band: '45_50', conv_state_state: 'q_budget' });
+  const fan = await runCode(WF, 'Fan out actions', { items: [st.json] });
+  const send = fan.find((x) => x.json.kind === 'send');
+  const [body] = await runCode(WF, 'Build Cloud API body', { items: [send.json] });
+  assert.equal(body.json.lead_id, 'lead_q1'); assert.equal(body.json.wamid, 'wamid.I47'); assert.match(body.json.content, /each month/);
+  const [noBrand] = await runCode(WF, 'W03 step', { items: [{ ...ctxRow, brand_id: null }], refs: { 'W07 hand-off -> Cloud API message': ad.json } });
+  assert.equal(noBrand.json.store_thread, false);
+});
+
+test('I-48b/I-48k: W03 sends behind the shared reply claim + DRY_RUN_SENDS gate and writes the outbound communications row; hand-back hop limit', async () => {
+  const c = WF.connections;
+  assert.equal(c['Build Cloud API body'].main[0][0].node, 'Reply claim (w07:reply:{wamid})');
+  assert.equal(c['Reply claim (w07:reply:{wamid})'].main[0][0].node, 'Live send? (W03)');
+  assert.equal(c['Live send? (W03)'].main[0][0].node, 'WhatsApp send (session)');
+  assert.equal(c['Live send? (W03)'].main[1][0].node, 'Store outbound (W03)');
+  assert.equal(c['WhatsApp send (session)'].main[0][0].node, 'Store outbound (W03)');
+  assert.match(WF.nodes.find((n) => n.name === 'Live send? (W03)').parameters.conditions.conditions[0].leftValue, /DRY_RUN_SENDS !== 'true'/);
+  const store = WF.nodes.find((n) => n.name === 'Store outbound (W03)');
+  assert.match(store.parameters.query, /INSERT INTO public\.communications[\s\S]*'W03'/);
+  const rep = store.parameters.options.queryReplacement.replace(/^=\{\{([\s\S]*)\}\}$/, '$1');
+  const out = { brand_id: 'b', mobile: '+27600000047', content: 'q', wamid: 'wamid.I47', lead_id: 'lead_q1' };
+  const args = new Function('$json', '$', `return (${rep});`)({}, () => ({ item: { json: { out } } }));
+  assert.equal(args[3], 'dry:w03:wamid.I47'); assert.equal(args[5], true);
+  const fwd = await runCode(WF, 'Mark origin w03 (loop guard)', { items: [{ lead_id: 'l', reason: 'after_qualifying' }], refs: { 'Called by W07 (CTWA lead)': { msg: { wamid: 'w', hops: 3 } } } });
+  assert.equal(fwd[0].json.hop_over, true); assert.equal(fwd[0].json.msg.hops, 4);
+  assert.equal(c['Hop limit ok? (I-48b)'].main[1][0].node, 'Log hop limit (W03)');
+  assert.deepEqual(W3.hopNext(2), { hops: 3, over: false });
+});
+
+test('I-47a: a stored placeholder thread { stage: "none" } is no thread (the lead path runs); a null thread is never stored', async () => {
+  const r = W3.step({ stage: 'none', answers: {} }, { type: 'text', text: { body: "I'm 47" } }, { at: '2026-10-13T10:00:00+02:00', mobile: '+27600000047', broker: MARK, brand: BRAND, existing_open_lead_id: 'lead_q1', lead: QLEAD('q_age'), typed: { slots: { age_band: '45-50' } } });
+  assert.equal(r.actions.find((a) => a.kind === 'update_lead').set.age_band, '45_50');
+  const ad = { msg: { type: 'text', text: { body: 'x' } }, at: '2026-10-13T08:00:00Z', mobile: '+27600000047', external_id: 'w', typed: null, hops: 0 };
+  const [st] = await runCode(WF, 'W03 step', { items: [{ brand_id: 'b', broker: null, existing_open_lead_id: 'lead_q1', lead: QLEAD('booked'), thread: null }], refs: { 'W07 hand-off -> Cloud API message': ad } });
+  assert.equal(st.json.thread, null); assert.equal(st.json.store_thread, false);
+});
+
+test('I-47a: for a W07-owned lead the lead row wins over a stale rebuilt thread (from_lead)', () => {
+  const stale = { stage: 'q_budget', lead_id: 'lead_q1', answers: { age_band: '45_50' }, from_lead: true };
+  const r = W3.step(stale, { type: 'text', text: { body: "I'm 47" } }, { at: '2026-10-13T10:00:00+02:00', mobile: '+27600000047', broker: MARK, brand: BRAND, existing_open_lead_id: 'lead_q1', lead: QLEAD('q_age'), typed: { slots: { age_band: '45-50' } } });
+  assert.equal(r.actions.find((a) => a.kind === 'update_lead').set.conv_state_state, 'q_budget');
+  assert.equal(r.thread.stage, 'q_budget');
+});

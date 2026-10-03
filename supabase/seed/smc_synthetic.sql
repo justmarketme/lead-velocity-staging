@@ -25,6 +25,11 @@ END $$;
 
 SELECT set_config('smc.source', 'seed', true), set_config('smc.reason', 'synthetic seed', true);
 
+-- I-47b: the SortMyCover brand row needs a receiving WhatsApp number id, or W03 "Load context" finds no brand.
+-- '100000000000001' is a synthetic id (the one the local smoke and W07 tests post as metadata.phone_number_id);
+-- only filled when empty, so a real id set on staging is never overwritten.
+UPDATE public.brands SET phone_number_id = '100000000000001' WHERE code = 'SMC' AND phone_number_id IS NULL;
+
 -- -----------------------------------------------------------------------------
 -- Fictional broker: auth user + broker role + brokers row (status active, Bronze)
 -- -----------------------------------------------------------------------------
