@@ -500,8 +500,6 @@ const rowsOf = (name) => { try { return $(name).all().map((i) => i.json); } catc
 const ids = (r) => ({ broker_id: r.broker_id, cycle_id: r.cycle_id || null, lead_id: null });
 const waTemplate = (to, t, r, key) => ({ to, kind: 'template', template: { name: t.name, body: t.body.map(clean), buttons: (t.buttons || []).map(clean) },
   variables: t.body.map(clean), buttons: (t.buttons || []).map(clean), ...ids(r), correlation: key, idempotency_key: key });
-// No approved template yet for these (needs_human): session text, which the sender sends only inside the 24-h window (§7 rule 5).
-const waText = (to, text, r, key) => ({ to, kind: 'text', template: null, variables: [], buttons: [], text, ...ids(r), correlation: key, idempotency_key: key });
 const checkout = (ref) => 'https://app.leadvelocity.co.za/billing/checkout/?ref=' + encodeURIComponent(ref || '');
 `;
 const W19_MAIL_TO = '={{ ($("Claimed rows only").all().find((i) => i.json.cycle_id === $json.cycle_id) || { json: {} }).json.email }}';
@@ -626,24 +624,30 @@ for (const it of $input.all().map((i) => i.json || {})) {
   const to = clean(r.whatsapp_number); if (!to) continue;
   const ref = clean(c.reference || r.open_ref);
   const cardFailed = !!c.authorization_code;
+  const end = r.effective_end || r.ends_at; // smc_02 cycles: coalesce(extended_until, ends_at), from 'Actions due today'
+  const endDay = end ? clean(new Date(end).toLocaleDateString('en-ZA', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Africa/Johannesburg' }).replace(/,/g, '')) : 'the end date on your invoice';
+  // I-50h: broker_cycle_ended {{1}} first name {{2}} reason (lower case, no full stop) {{3}} cycle end date {{4}} reference; Pay now URL suffix = reference, Manage billing static.
+  const template = { name: 'broker_cycle_ended', body: [firstName(r.contact_person), cardFailed ? 'the card payment was declined' : 'it reached its end date', endDay, ref || 'on your invoice'], buttons: [ref] };
+  // text feeds the unchanged email leg ("Email: pay link from howzit@" reads $json.text); the sender uses the template.
   const text = 'Hi ' + firstName(r.contact_person) + ', ' + (cardFailed ? 'your card was declined, so your SortMyCover cycle was not renewed and new leads have stopped. Update your card or pay any time to start again: '
     : 'your SortMyCover cycle has ended and new leads have stopped. Pay any time to start again: ') + checkout(ref) + ' . Payment reference: *' + (ref || 'on your invoice') + '*. Manual EFT has no fees if you use the reference exactly. Your delivered leads stay yours.';
-  out.push({ json: waText(to, text, { broker_id: c.broker_id || r.broker_id, cycle_id: cycleId }, 'W19:pay_link:' + cycleId + ':' + sastDay()) });
+  out.push({ json: { ...waTemplate(to, template, { broker_id: c.broker_id || r.broker_id, cycle_id: cycleId }, 'W19:pay_link:' + cycleId + ':' + sastDay()), text } });
 }
 return out;
 `), { v: 2, row: 4, col: 15 });
-  const payLink = w.add('n8n-nodes-base.executeWorkflow', 'WhatsApp + email: pay link (card failed / cycle ended)', execWf('smc-whatsapp-send', 'payload: { to, kind: "text", text, broker_id, cycle_id, correlation } (I-48g). No approved template yet (needs_human): session text inside the 24-h window only; the email leg "Email: pay link from howzit@" always goes.'), { v: 1.2, row: 4, col: 16 });
+  const payLink = w.add('n8n-nodes-base.executeWorkflow', 'WhatsApp + email: pay link (card failed / cycle ended)', execWf('smc-whatsapp-send', 'payload: { to, kind: "template", template { name: broker_cycle_ended, body[4]: first name, reason, cycle end date, reference; buttons[1]: Pay now = reference }, variables, buttons, broker_id, cycle_id, correlation } (I-50h). The email leg "Email: pay link from howzit@" always goes.'), { v: 1.2, row: 4, col: 16 });
   const payMail = w.add('n8n-nodes-base.microsoftOutlook', 'Email: pay link from howzit@', { resource: 'message', operation: 'send', toRecipients: W19_MAIL_TO, subject: 'Your SortMyCover cycle has ended: pay any time to start again', bodyContent: W19_MAIL_HTML('$json.text'), additionalFields: { bodyContentType: 'html' } }, { v: 2, row: 5, col: 16, credentials: OUTLOOK });
 
   // retry day 1 and 3 (routing already off: no grace)
   const retryCtx = w.add('n8n-nodes-base.noOp', 'Retry day 1 / day 3 uses the same charge path', {}, { row: 5, col: 5 });
   const backMap = w.add('n8n-nodes-base.code', "Come back: map to sender input", code(W19_WA + `
 // I-48g: day 7 after a lapse, once (billing_actions_log). No offer pressure.
-return $input.all().map((i) => i.json).filter((r) => r && r.action === 'come_back' && clean(r.whatsapp_number)).map((r) => ({ json: waText(clean(r.whatsapp_number),
-  'Hi ' + firstName(r.contact_person) + ', a short note: your SortMyCover leads stopped when your last cycle ended. If you want to start again, pay any time with reference *' + (clean(r.open_ref) || 'on your invoice') + '*: ' + checkout(r.open_ref) + ' . No lock-in, and your delivered leads stay yours.',
-  r, 'W19:come_back:' + r.cycle_id) }));
+// I-50h: broker_come_back {{1}} first name {{2}} reference; Start again URL suffix = reference. text feeds the unchanged email leg.
+return $input.all().map((i) => i.json).filter((r) => r && r.action === 'come_back' && clean(r.whatsapp_number)).map((r) => ({ json: {
+  ...waTemplate(clean(r.whatsapp_number), { name: 'broker_come_back', body: [firstName(r.contact_person), clean(r.open_ref) || 'on your invoice'], buttons: [clean(r.open_ref)] }, r, 'W19:come_back:' + r.cycle_id),
+  text: 'Hi ' + firstName(r.contact_person) + ', a short note: your SortMyCover leads stopped when your last cycle ended. If you want to start again, pay any time with reference *' + (clean(r.open_ref) || 'on your invoice') + '*: ' + checkout(r.open_ref) + ' . No lock-in, and your delivered leads stay yours.' } }));
 `), { v: 2, row: 6, col: 5 });
-  const comeBack = w.add('n8n-nodes-base.executeWorkflow', "WhatsApp + email: 'come back any time' (once, day 7)", execWf('smc-whatsapp-send', 'payload: { to, kind: "text", text, broker_id, cycle_id, correlation } (I-48g). No offer pressure; one message; data retention per POPIA schedule. No approved template yet (needs_human); email leg in W19.'), { v: 1.2, row: 6, col: 6 });
+  const comeBack = w.add('n8n-nodes-base.executeWorkflow', "WhatsApp + email: 'come back any time' (once, day 7)", execWf('smc-whatsapp-send', 'payload: { to, kind: "template", template { name: broker_come_back, body[2]: first name, reference; buttons[1]: Start again = reference }, variables, buttons, broker_id, cycle_id, correlation } (I-50h). No offer pressure; one message; data retention per POPIA schedule. Email leg in W19.'), { v: 1.2, row: 6, col: 6 });
   const backMail = w.add('n8n-nodes-base.microsoftOutlook', "Email: 'come back any time' from howzit@", { resource: 'message', operation: 'send', toRecipients: W19_MAIL_TO, subject: 'SortMyCover: start again any time', bodyContent: W19_MAIL_HTML('$json.text'), additionalFields: { bodyContentType: 'html' } }, { v: 2, row: 7, col: 6, credentials: OUTLOOK });
 
   // --- I-30e: portal "Switch off" card auto-renew (Bearer Supabase JWT; off only; opt-in happens at checkout)

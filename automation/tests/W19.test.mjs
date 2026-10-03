@@ -60,24 +60,30 @@ test("I-48g W19: routing off -> ads lower { op, broker_id, cycle_id, amount_zar:
   assert.deepEqual(retry, [], "never on a card retry");
 });
 
-test("I-48g W19: pay link (cycle ended / card failed) and day-7 come-back map to { to, kind: text, ... } with the reference in bold", async () => {
+test("I-50h W19: pay link (cycle ended / card failed) -> broker_cycle_ended, day-7 come-back -> broker_come_back; email legs keep the bold reference", async () => {
   assert.deepEqual(next19("Card auto-renew on?", 1), ["Pay link: map to sender input"]);
   assert.deepEqual(next19("Day-3 retry failed? -> pay link"), ["Pay link: map to sender input"]);
   assert.deepEqual(next19("Pay link: map to sender input").sort(), ["Email: pay link from howzit@", "WhatsApp + email: pay link (card failed / cycle ended)"]);
-  const claimed = [{ ...ROW, action: "cycle_end" }];
+  const claimed = [{ ...ROW, action: "cycle_end", effective_end: "2026-11-27T22:00:00Z" }]; // extended cycle: the end date is effective_end
   const ended = await run("Pay link: map to sender input", { items: [{ op: "lower", broker_id: "b-1", cycle_id: "c-1" }], refs: { "Cycle end: open invoice + card token": CTX, "Claimed rows only": claimed } });
   const declined = await run("Pay link: map to sender input", { items: [{ success: true }], refs: { "Cycle end: open invoice + card token": { ...CTX, action: "retry_card", authorization_code: "AUTH_x" }, "Claimed rows only": claimed } });
-  for (const [out, re] of [[ended, /cycle has ended/], [declined, /card was declined/]]) {
+  for (const [out, reason, re] of [[ended, "it reached its end date", /cycle has ended/], [declined, "the card payment was declined", /card was declined/]]) {
     assert.equal(out.length, 1); const j = out[0].json;
-    for (const k of SHAPE) assert.ok(k in j, k);
-    assert.equal(j.kind, "text"); assert.equal(j.to, "+27820000000"); assert.equal(j.broker_id, "b-1"); assert.equal(j.cycle_id, "c-1");
-    assert.match(j.text, re); assert.match(j.text, /\*LV-1042-B-202611\*/); assert.match(j.text, /checkout\/\?ref=LV-1042-B-202611/);
+    assertTemplatePayload(j, "broker_cycle_ended");
+    assert.equal(j.cycle_id, "c-1");
+    assert.deepEqual(j.variables, ["Test", reason, "Sat 28 Nov", "LV-1042-B-202611"]);
+    assert.doesNotMatch(reason, /[A-Z.]/, "reason is lower case with no full stop");
+    assert.deepEqual(j.buttons, ["LV-1042-B-202611"]);
+    assert.match(j.correlation, /^W19:pay_link:c-1:\d{4}-\d{2}-\d{2}$/);
+    assert.match(j.text, re); assert.match(j.text, /\*LV-1042-B-202611\*/); assert.match(j.text, /checkout\/\?ref=LV-1042-B-202611/); // email leg
     assert.doesNotMatch(JSON.stringify(j), /example\.invalid|AUTH_x/);
   }
   const back = await run("Come back: map to sender input", { items: [{ ...ROW, action: "come_back" }] });
-  assert.equal(back.length, 1); assert.equal(back[0].json.kind, "text"); assert.equal(back[0].json.correlation, "W19:come_back:c-1");
+  assert.equal(back.length, 1); assertTemplatePayload(back[0].json, "broker_come_back"); assert.equal(back[0].json.correlation, "W19:come_back:c-1");
+  assert.deepEqual(back[0].json.variables, ["Test", "LV-1042-B-202611"]); assert.deepEqual(back[0].json.buttons, ["LV-1042-B-202611"]);
   assert.match(back[0].json.text, /^Hi Test, /); assert.doesNotMatch(back[0].json.text, /guarantee|hurry|free\b/i);
   assert.deepEqual(next19("Come back: map to sender input").sort(), ["Email: 'come back any time' from howzit@", "WhatsApp + email: 'come back any time' (once, day 7)"]);
+  for (const n of ["Email: pay link from howzit@", "Email: 'come back any time' from howzit@"]) assert.match(WF19.nodes.find((x) => x.name === n).parameters.bodyContent, /\$json\.text/);
 });
 
 test("I-48g W19: every sender call is fed by a Code node; every sub-workflow call is fire-and-forget", () => {
