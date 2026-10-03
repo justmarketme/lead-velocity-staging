@@ -314,6 +314,20 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-52a ✅ | F2: `webhook_events.source` CHECK (migration 02/06) rejects w01_ip / w01_num and other workflow literals — migration 13 §7 extends the list from a scan of every workflow; test that every literal is allowed; stub rebuilt (constraint restored) | platform-architect — dispatched |
 | I-52b ✅ | F3: L01 fixture consent version `named-v1-DRAFT` / practice text unknown to the registry → render from landing/config/consent.json with the seeded broker; BRAND_ID non-uuid fails fast (F1); fixture numbers must not collide with the seed broker | automation-engineer — dispatched |
 | I-52c | F0: n8n 2.x refuses to call an unpublished sub-workflow — W26 restore publishes every Execute Workflow target (their cron triggers start too); CREDENTIALS/W26.md note | devops-security |
-| I-52d (re-run dispatched) | Re-run the rehearsal stages 1–8 after I-52a/b land (harness + env under the scratchpad `rh/`); only stub-local DDL allowed is the chain rebuild | automation-engineer, next |
+| I-52d ✅ (round 2: stages 1-7 run, 3 pass) | Re-run the rehearsal stages 1–8 after I-52a/b land (harness + env under the scratchpad `rh/`); only stub-local DDL allowed is the chain rebuild | automation-engineer, next |
 | I-52e | GATE-TEST-W01 note: the approved fixture changed — consent version/text rendered from the registry, practice/FSP = the seed's synthetic values, lead numbers +27600000101..110, named routing now also requires the FSP | orchestrator at GATE-TEST-W01 (recorded in needs-human-log) |
 | I-52f | W20 wrote webhook_events.source 'w20' (same CHECK bug as F2) — fixed by migration 13 §7; no workflow change | — (closed) |
+
+### I-53 · 2026-10-03 (rehearsal L01 round 2 findings)
+| # | Item | Owner |
+|---|---|---|
+| I-53a | F4 W06: DRY_RUN false outputs unconnected — no communications row / disclosure evidence on a dry run | automation-engineer — dispatched |
+| I-53b | F9 W09: what_to_expect scheduled from the real clock, not the booking/test clock | automation-engineer — dispatched |
+| I-53c | F10 W29: insights node loses `$json.o` after the ad_metrics query ("Query Parameters must be…") | automation-engineer — dispatched |
+| I-53d | F11 W13: alertNote pairedItem error when Claim replacement returns two items | automation-engineer — dispatched |
+| I-53e | F8 W05: shared-fallback POST with an empty calendar id; graph_event_id never stored; SMC_SHARED_CALENDAR_ID env | automation-engineer — dispatched |
+| I-53f | F6 seed: broker calendar_status null → represent a go-live-ready broker (shared_fallback, ok, synthetic shared calendar id) | automation-engineer (seed values) — dispatched |
+| I-53g | F7 runtime: W04/W05/CAPI/W22 executions stay "running" with no saved data; W28 never produced an execution — settings or runner cause | automation-engineer — dispatched |
+| I-53h | F5 process: workflows published from an older version mid-run — W26 restore + RUN-LOCAL re-import everything before a run (add a checksum step) | devops-security |
+| I-53i | Local MX stub for the fixture's Teams/Zoom/Meet email path (scratch egress guard only) | automation-engineer — dispatched |
+| I-53j | Stage 8 (W15 STOP) + CAPI capi_log row + W28 list path still unrehearsed → round 3 after I-53a–g | automation-engineer, next |
