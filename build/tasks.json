@@ -2607,6 +2607,17 @@
       "human_gate": true,
       "status": "needs_human",
       "section": "4.12a / 4.4a"
+    },
+    {
+      "id": "NH-64",
+      "title": "Ad money split (money, relayed): cycle-1 live set of 6 ads, not 10 — C01 H1 amber, C01 H1 teal (colour test), C03 new bond, C04 new baby, C05 turned 40, and the new bond-paperwork concept C16 once compliance passes (C14 holds the slot until then); refresh pool C17 policy review, C14, C13, C08, C10; hold C06, C12. Needs Jonathan confirmation in the build thread.",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.4 cycle 1 reality / 4D"
     }
   ]
 }
