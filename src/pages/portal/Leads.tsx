@@ -4,8 +4,8 @@
  * Writes: outcomes(outcome → disposition (4.12a / NH-19 labels) → quality 1-5) on own bookings ("smc broker mark own" / "correct own"),
  *         then smc_portal_event('outcome.marked') → W12/W13/W29. Full names only inside the portal (portal rule 6); health detail never (2.1.7).
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import PortalShell, { StepClip, usePortal } from "./PortalShell";
 import { AGE_LABEL, BUDGET_LABEL, CLIPS_BASE, DISPOSITIONS, dispositionLabel, errText, fmtDay, fmtTime, methodLabel, portalEvent, saDate, smcDb } from "@/lib/smc";
 import type { SmcBooking, SmcCycleProgress, SmcDispositionCode, SmcLead, SmcOutcome, SmcOutcomeKind, SmcReplacement } from "@/integrations/supabase/smc-types";
@@ -92,6 +92,13 @@ function Body() {
   const [edit, setEdit] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  // Deep link from the opted-out WhatsApp template: /s/leads?lead=<id> -> /broker/leads?lead=<id> (I-55c).
+  const [params, setParams] = useSearchParams();
+  const deepLead = useRef(params.get("lead"));
+  const [hl, setHl] = useState<string | null>(null);
+  const [missing, setMissing] = useState(false);
+  const mark = (id: string) => ({ "data-lead-id": id, "aria-current": hl === id ? ("true" as const) : undefined, className: hl === id ? "lead-hl" : undefined });
 
   const load = useCallback(async () => {
     const { data: p } = await smcDb.from("v_cycle_progress").select("*").eq("broker_id", broker.id).in("status", ["active", "extended"]).order("cycle_no", { ascending: false }).limit(1);
@@ -116,8 +123,21 @@ function Body() {
       const { data: rp } = await smcDb.from("replacements").select("*").eq("broker_id", broker.id).eq("cycle_id", cp.cycle_id).order("claimed_at");
       setReps((rp as SmcReplacement[]) || []);
     }
+    setLoaded(true);
   }, [broker.id]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const id = deepLead.current;
+    if (!loaded || !id) return;
+    deepLead.current = null; // apply once; a refresh finds no param
+    const el = Array.from(document.querySelectorAll<HTMLElement>("[data-lead-id]")).find((e) => e.dataset.leadId === id);
+    if (el) {
+      setHl(id);
+      const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      el.scrollIntoView({ block: "center", behavior: still ? "auto" : "smooth" });
+    } else setMissing(true);
+    const next = new URLSearchParams(params); next.delete("lead"); setParams(next, { replace: true });
+  }, [loaded, params, setParams]);
 
   const now = Date.now();
   const today = saDate();
@@ -154,6 +174,7 @@ function Body() {
         ) : <p className="muted">Your first lead will land here. We'll WhatsApp you the moment someone books.</p>}
       </section>
       {err && <p className="err">{err}</p>}
+      {missing && <p className="muted" role="status">That lead is no longer in your list</p>}
 
       <section className="card">
         <h2>Today: {groups.today.length} meeting{groups.today.length === 1 ? "" : "s"}</h2>
@@ -162,7 +183,7 @@ function Body() {
           {groups.today.map((b) => {
             const l = leads[b.lead_id];
             return (
-              <tr key={b.id}><td>
+              <tr key={b.id} {...mark(b.lead_id)}><td>
                 <b>{fmtTime(b.starts_at)}</b><br />{fullName(l)}<br />
                 <span className="small">{methodLabel(b.method)}{l?.language ? ` · ${l.language}` : ""}{l?.age_band ? ` · ${AGE_LABEL[l.age_band]}` : ""}{l?.budget_band ? ` · ${BUDGET_LABEL[l.budget_band]}` : ""}</span>
                 {open === b.id && <Brief b={b} l={l} />}
@@ -176,7 +197,7 @@ function Body() {
         <h2>{groups.toMark.length ? `${groups.toMark.length} meeting${groups.toMark.length === 1 ? "" : "s"} to mark` : "Nothing to mark"}</h2>
         <p className="muted">Takes about 20 seconds each. Same buttons you get on WhatsApp.</p>
         {flash && <div className="next-slot" role="status"><span style={{ fontSize: 24 }}>✓</span><div><b>{flash}</b>{groups.toMark.length ? `${groups.toMark.length} more to mark.` : ""}</div></div>}
-        {groups.toMark.map((b) => <MarkOne key={b.id} b={b} l={leads[b.lead_id]} existing={outcomes[b.id]} onDone={(m) => { setFlash(m); void load(); }} />)}
+        {groups.toMark.map((b) => <div key={b.id} {...mark(b.lead_id)}><MarkOne b={b} l={leads[b.lead_id]} existing={outcomes[b.id]} onDone={(m) => { setFlash(m); void load(); }} /></div>)}
         <p className="hint">A no-show, "Not a fit – criteria" or "Unreachable/wrong number" can become a replacement after a 48-hour check. Not marked within 24 hours? We record it as attended and flag it, so please mark in time.</p>
       </section>
 
@@ -192,14 +213,14 @@ function Body() {
         {!groups.coming.length && <p className="muted">Nothing booked yet.</p>}
         <table className="tbl"><tbody>
           {groups.coming.map((b) => { const l = leads[b.lead_id]; return (
-            <tr key={b.id}><td>{fmtDay(b.starts_at)} {fmtTime(b.starts_at)} · {fullName(l)}{open === b.id && <Brief b={b} l={l} />}</td><td>{methodLabel(b.method)}</td>
+            <tr key={b.id} {...mark(b.lead_id)}><td>{fmtDay(b.starts_at)} {fmtTime(b.starts_at)} · {fullName(l)}{open === b.id && <Brief b={b} l={l} />}</td><td>{methodLabel(b.method)}</td>
               <td style={{ textAlign: "right" }}><button className="tap g" type="button" onClick={() => setOpen(open === b.id ? null : b.id)}>Brief</button></td></tr>); })}
         </tbody></table>
         <h3 style={{ marginTop: 12 }}>Past (this cycle)</h3>
         {!groups.past.length && <p className="muted">No marked meetings yet.</p>}
         <table className="tbl"><tbody>
           {groups.past.map((b) => { const o = outcomes[b.id]; const l = leads[b.lead_id]; return (
-            <tr key={b.id}><td>{fmtDay(b.starts_at)} · {fullName(l)}{edit === b.id && <MarkOne b={b} l={l} existing={o} onDone={(m) => { setFlash(m); setEdit(null); void load(); }} />}</td>
+            <tr key={b.id} {...mark(b.lead_id)}><td>{fmtDay(b.starts_at)} · {fullName(l)}{edit === b.id && <MarkOne b={b} l={l} existing={o} onDone={(m) => { setFlash(m); setEdit(null); void load(); }} />}</td>
               <td><span className={`st${o.outcome === "attended" ? " ok" : " w"}`}>{o.outcome.replace("_", "-")}</span>{o.disposition_code ? <><br /><span className="small">{dispositionLabel(o.disposition_code)}{o.quality_score ? ` · ${o.quality_score} of 5` : ""}</span></> : null}</td>
               <td style={{ textAlign: "right" }}>{!repLeadIds.has(b.lead_id) && edit !== b.id && <button className="tap g" type="button" onClick={() => setEdit(b.id)}>Change</button>}</td></tr>); })}
         </tbody></table>

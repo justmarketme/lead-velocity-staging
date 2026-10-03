@@ -135,3 +135,6 @@
 .smc-portal .days button{font:700 13px var(--sm-font);padding:9px 0;border-radius:var(--sm-radius-sm);border:1.5px solid var(--sm-border);background:var(--sm-surface);color:var(--sm-text);cursor:pointer}
 .smc-portal .days button.on{background:var(--sm-accent);border-color:var(--sm-accent);color:var(--sm-accent-text)}
 .smc-portal .bars div{grid-template-columns:minmax(120px,170px) 1fr 24px}
+
+/* I-55c: deep-linked lead row. Ring + tint, not colour alone (aria-current is set too). */
+.smc-portal .lead-hl{outline:2.5px solid var(--sm-accent);outline-offset:-2px;border-radius:var(--sm-radius-sm);background:var(--sm-surface-raised)}
