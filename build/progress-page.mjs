@@ -179,7 +179,7 @@ summary:focus-visible,a:focus-visible{outline:2px solid var(--amber);outline-off
         <div class="kpi"><b>${running.length}</b><span>tasks in progress</span></div>
         <div class="kpi"><b>${decisions.length}</b><span>decisions waiting on you</span></div>
         <div class="kpi"><b>${openGates.length}</b><span>logins / money / approvals</span></div>
-        <div class="kpi"><b>692</b><span>offline tests green</span></div>
+        <div class="kpi"><b>781</b><span>offline tests green</span></div>
       </div>
     </div>
   </section>
