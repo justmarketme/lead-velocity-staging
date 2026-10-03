@@ -14,7 +14,7 @@
       "parameters": {
         "width": 900,
         "height": 380,
-        "content": "W06 First touch (< 60 s) - DRAFT pending GATE-TEST-W06 (automation-engineer). Logic: automation/lib/w06.mjs (tested by automation/tests/W06.test.mjs, which also checks this file).\nEntry: Execute Workflow from W01 / W01 Lead core (op routed), W01 POST /lead/skip (op skip), W05 (op booking: page booking inside the hold) and W07 (op status: delivery receipt of a disclosure card).\nPage leads are held 45 s for the in-page booking; lead-ad and CTWA leads go at once. ONE claim per lead (lead_activities w06:first:{lead_id}) so exactly one intro card is ever sent. Templates: broker_intro_booked (7 vars, URL + 2 quick replies), broker_intro_slots (7 vars, slot_{ISO} x3 + other_times; slots from the W04 sub-workflow, never invented), broker_intro_slots_v2 (4 vars + Flow button, flow_token per CONTRACTS.md) when brands.booking_ui = flow.\nEvidence: communications row (wamid, template, latency_ms) + leads.first_message_at / disclosure_msg_id / last_contact_at (CONTRACTS I-38d) in one statement. Delivered -> disclosure_delivered_at; failed or rejected -> SMS (Twilio) with the same disclosure words. No quiet hours on the first touch (HBR). DRY_RUN_SENDS=true sends nothing and touches nothing.\nEnv: META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, LEAD_TOKEN_SECRET, TWILIO_ACCOUNT_SID, TWILIO_SMS_FROM, DRY_RUN_SENDS."
+        "content": "W06 First touch (< 60 s) - DRAFT pending GATE-TEST-W06 (automation-engineer). Logic: automation/lib/w06.mjs (tested by automation/tests/W06.test.mjs, which also checks this file).\nEntry: Execute Workflow from W01 / W01 Lead core (op routed), W01 POST /lead/skip (op skip), W05 (op booking: page booking inside the hold) and W07 (op status: delivery receipt of a disclosure card).\nPage leads are held 45 s for the in-page booking; lead-ad and CTWA leads go at once. ONE claim per lead (lead_activities w06:first:{lead_id}) so exactly one intro card is ever sent. Templates: broker_intro_booked (7 vars, URL + 2 quick replies), broker_intro_slots (7 vars, slot_{ISO} x3 + other_times; slots from the W04 sub-workflow, never invented), broker_intro_slots_v2 (4 vars + Flow button, flow_token per CONTRACTS.md) when brands.booking_ui = flow.\nEvidence: communications row (wamid, template, latency_ms) + leads.first_message_at / disclosure_msg_id / last_contact_at (CONTRACTS I-38d) in one statement. Delivered -> disclosure_delivered_at; failed or rejected -> SMS (Twilio) with the same disclosure words. No quiet hours on the first touch (HBR). DRY_RUN_SENDS=true skips the Graph call only: the same communications / lead_activities / disclosure rows are written with external_id dry:<claim key>; last_contact_at never moves for a dry id.\nEnv: META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, LEAD_TOKEN_SECRET, TWILIO_ACCOUNT_SID, TWILIO_SMS_FROM, DRY_RUN_SENDS."
       }
     },
     {
@@ -511,6 +511,20 @@
     },
     {
       "id": "n20",
+      "name": "Dry run: stand-in response (external_id dry:w06:booking_confirmed:{booking_id})",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $json;\nif (!j.wa || !j.dry) return [];\nreturn [{ json: { messaging_product: 'whatsapp', dry_run: true, messages: [{ id: 'dry:w06:booking_confirmed:' + String(j.booking_id) }] } }];"
+      }
+    },
+    {
+      "id": "n21",
       "name": "Log booking_confirmed + last_contact_at (only with a wamid)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -520,7 +534,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH c AS (\n  INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id,\n                                     lead_id, broker_id, author, workflow, template_name, template_category, metadata)\n  SELECT $1::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, 'template:booking_confirmed', 'sent', $3, $4::uuid, $5::uuid, 'system', 'W06',\n         'booking_confirmed', 'UTILITY', jsonb_build_object('booking_id', $6::text)\n   WHERE $3 <> ''\n  ON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING\n  RETURNING id)\nUPDATE public.leads l SET last_contact_at = now(), updated_at = now() WHERE l.id = $4::uuid AND $3 <> '';",
+        "query": "WITH c AS (\n  INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id,\n                                     lead_id, broker_id, author, workflow, template_name, template_category, metadata)\n  SELECT $1::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, 'template:booking_confirmed', 'sent', $3, $4::uuid, $5::uuid, 'system', 'W06',\n         'booking_confirmed', 'UTILITY', jsonb_build_object('booking_id', $6::text, 'dry_run', $3 LIKE 'dry:%')\n   WHERE $3 <> ''\n  ON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING\n  RETURNING id)\nUPDATE public.leads l SET last_contact_at = now(), updated_at = now() WHERE l.id = $4::uuid AND $3 <> '' AND $3 NOT LIKE 'dry:%';",
         "options": {
           "queryReplacement": "={{ (() => { const p = $('booking_confirmed item (w06.lateBookingConfirmed, claimed only)').first().json; const w = ($json.messages && $json.messages[0] && $json.messages[0].id) || ''; return [p.l.brand_id, p.l.phone, w, p.l.id, p.l.broker_id, String(p.booking_id)]; })() }}"
         }
@@ -537,7 +551,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n21",
+      "id": "n22",
       "name": "List card needs slots?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -569,7 +583,7 @@
       }
     },
     {
-      "id": "n22",
+      "id": "n23",
       "name": "W04 Slots API (list, limit 10)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -592,7 +606,7 @@
       "notes": "Called with { broker_id, limit: 10 }; waits -> { slots: [{start,end}], fallback? }. Same rules as GET /slots."
     },
     {
-      "id": "n23",
+      "id": "n24",
       "name": "Plan card (w06.planFirstTouch + toCloudApi)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -606,7 +620,7 @@
       }
     },
     {
-      "id": "n24",
+      "id": "n25",
       "name": "Send live? (not DRY_RUN_SENDS)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -638,7 +652,7 @@
       }
     },
     {
-      "id": "n25",
+      "id": "n26",
       "name": "Send WhatsApp (intro card)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -679,7 +693,21 @@
       "waitBetweenTries": 3000
     },
     {
-      "id": "n26",
+      "id": "n27",
+      "name": "Dry run: stand-in response (external_id dry:w06:first:{lead_id})",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        -200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j = $json;\nif (!j.wa || !j.dry) return [];\nreturn [{ json: { messaging_product: 'whatsapp', dry_run: true, messages: [{ id: 'dry:w06:first:' + String(j.l.id) }] } }];"
+      }
+    },
+    {
+      "id": "n28",
       "name": "Evidence rows (w06.communicationRow + sentUpdate)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -689,11 +717,11 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w06;\nconst p = $('Plan card (w06.planFirstTouch + toCloudApi)').first().json;\nconst wamid = L.wamidOf($input.first().json);\nconst sentAt = Date.now();\nconst b = { id: p.l.broker_id };\nconst comm = L.communicationRow(p.plan, { ...p.l }, b, wamid, sentAt);\nconst upd = wamid ? L.sentUpdate(p.l, p.plan, wamid, sentAt) : null;\nconst sms = wamid ? null : { to: p.l.phone, text: L.smsText(p.plan.template, p.plan.variables) };\nreturn [{ json: { ...p, wamid, comm, upd, sms, slow: upd ? !upd.within_60s : false, error: wamid ? null : JSON.stringify($input.first().json.error || $input.first().json).slice(0, 500) } }];"
+        "jsCode": "const L = require('lv-automation').w06;\nconst p = $('Plan card (w06.planFirstTouch + toCloudApi)').first().json;\nconst wamid = L.wamidOf($input.first().json);\nconst sentAt = Date.now();\nconst b = { id: p.l.broker_id };\nconst c0 = L.communicationRow(p.plan, { ...p.l }, b, wamid, sentAt);\nconst dry_run = typeof wamid === 'string' && wamid.startsWith('dry:');\nconst comm = { ...c0, metadata: { ...(c0.metadata || {}), dry_run } };\nconst upd = wamid ? L.sentUpdate(p.l, p.plan, wamid, sentAt) : null;\nconst sms = wamid ? null : { to: p.l.phone, text: L.smsText(p.plan.template, p.plan.variables) };\nreturn [{ json: { ...p, wamid, comm, upd, sms, slow: upd ? !upd.within_60s : false, error: wamid ? null : JSON.stringify($input.first().json.error || $input.first().json).slice(0, 500) } }];"
       }
     },
     {
-      "id": "n27",
+      "id": "n29",
       "name": "Log card + stamp lead + timeline (one statement; last_contact_at only with a wamid)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -703,7 +731,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH c AS (\n  INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id,\n                                     lead_id, broker_id, author, workflow, template_name, template_category, latency_ms, failed_reason, metadata)\n  SELECT $1::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, $3, CASE WHEN $4 <> '' THEN 'sent' ELSE 'failed' END, NULLIF($4, ''),\n         $5::uuid, $6::uuid, 'system', 'W06', $7, 'UTILITY', $8::int, NULLIF($9, ''), $10::jsonb\n  ON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING\n  RETURNING id),\nu AS (\n  UPDATE public.leads l\n     SET first_message_at = COALESCE(l.first_message_at, now()), disclosure_msg_id = $4,\n         last_contact_at = now(), stage = CASE WHEN l.stage IS NULL OR l.stage = 'new' THEN 'disclosed' ELSE l.stage END, updated_at = now()\n   WHERE l.id = $5::uuid AND $4 <> ''\n  RETURNING l.id)\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($5::uuid, $1::uuid, $6::uuid, 'W06', 'system', CASE WHEN $4 <> '' THEN 'first_touch_sent' ELSE 'first_touch_failed' END,\n        jsonb_build_object('template', $7::text, 'wamid', NULLIF($4, ''), 'latency_ms', $8::int, 'trigger', $11::text), now(), 'w06:sent:' || $5::text)\nON CONFLICT (idempotency_key) DO NOTHING;",
+        "query": "WITH c AS (\n  INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id,\n                                     lead_id, broker_id, author, workflow, template_name, template_category, latency_ms, failed_reason, metadata)\n  SELECT $1::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, $3, CASE WHEN $4 <> '' THEN 'sent' ELSE 'failed' END, NULLIF($4, ''),\n         $5::uuid, $6::uuid, 'system', 'W06', $7, 'UTILITY', $8::int, NULLIF($9, ''), $10::jsonb\n  ON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING\n  RETURNING id),\nu AS (\n  UPDATE public.leads l\n     SET first_message_at = COALESCE(l.first_message_at, now()), disclosure_msg_id = $4,\n         last_contact_at = CASE WHEN $4 NOT LIKE 'dry:%' THEN now() ELSE l.last_contact_at END, stage = CASE WHEN l.stage IS NULL OR l.stage = 'new' THEN 'disclosed' ELSE l.stage END, updated_at = now()\n   WHERE l.id = $5::uuid AND $4 <> ''\n  RETURNING l.id)\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($5::uuid, $1::uuid, $6::uuid, 'W06', 'system', CASE WHEN $4 <> '' THEN 'first_touch_sent' ELSE 'first_touch_failed' END,\n        jsonb_build_object('template', $7::text, 'wamid', NULLIF($4, ''), 'latency_ms', $8::int, 'trigger', $11::text), now(), 'w06:sent:' || $5::text)\nON CONFLICT (idempotency_key) DO NOTHING;",
         "options": {
           "queryReplacement": "={{ [$json.l.brand_id, $json.l.phone, $json.comm.content, $json.wamid || '', $json.l.id, $json.l.broker_id, $json.plan.template, $json.comm.latency_ms, $json.error || '', JSON.stringify($json.comm.metadata), $json.plan.trigger] }}"
         }
@@ -720,7 +748,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n28",
+      "id": "n30",
       "name": "WhatsApp rejected? -> SMS now",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -752,7 +780,7 @@
       }
     },
     {
-      "id": "n29",
+      "id": "n31",
       "name": "Twilio SMS (same disclosure)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -803,7 +831,7 @@
       "waitBetweenTries": 5000
     },
     {
-      "id": "n30",
+      "id": "n32",
       "name": "Log SMS disclosure",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -830,7 +858,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n31",
+      "id": "n33",
       "name": "Slower than 60 s or slots short? -> W22",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -862,7 +890,7 @@
       }
     },
     {
-      "id": "n32",
+      "id": "n34",
       "name": "W22 signal",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -876,7 +904,7 @@
       }
     },
     {
-      "id": "n33",
+      "id": "n35",
       "name": "W22 Alerts (W06)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -898,7 +926,7 @@
       }
     },
     {
-      "id": "n34",
+      "id": "n36",
       "name": "Load disclosure message by wamid",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -925,7 +953,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n35",
+      "id": "n37",
       "name": "Status effect (w06.statusEffect)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -939,7 +967,7 @@
       }
     },
     {
-      "id": "n36",
+      "id": "n38",
       "name": "Stamp disclosure evidence (first delivery wins)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -966,7 +994,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n37",
+      "id": "n39",
       "name": "Failed disclosure? -> SMS once",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -998,7 +1026,7 @@
       }
     },
     {
-      "id": "n38",
+      "id": "n40",
       "name": "Claim SMS fallback (w06:sms:{wamid})",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1025,7 +1053,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n39",
+      "id": "n41",
       "name": "SMS item (claimed only)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1039,7 +1067,7 @@
       }
     },
     {
-      "id": "n40",
+      "id": "n42",
       "name": "Live SMS? (not DRY_RUN_SENDS)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -1071,7 +1099,7 @@
       }
     },
     {
-      "id": "n41",
+      "id": "n43",
       "name": "Twilio SMS (status fallback)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -1122,7 +1150,7 @@
       "waitBetweenTries": 5000
     },
     {
-      "id": "n42",
+      "id": "n44",
       "name": "Log SMS disclosure (status fallback)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1149,7 +1177,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n43",
+      "id": "n45",
       "name": "Unknown W06 call (logged, never guessed)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1368,6 +1396,24 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Dry run: stand-in response (external_id dry:w06:booking_confirmed:{booking_id})",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry run: stand-in response (external_id dry:w06:booking_confirmed:{booking_id})": {
+      "main": [
+        [
+          {
+            "node": "Log booking_confirmed + last_contact_at (only with a wamid)",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -1427,6 +1473,24 @@
         [
           {
             "node": "Send WhatsApp (intro card)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dry run: stand-in response (external_id dry:w06:first:{lead_id})",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry run: stand-in response (external_id dry:w06:first:{lead_id})": {
+      "main": [
+        [
+          {
+            "node": "Evidence rows (w06.communicationRow + sentUpdate)",
             "type": "main",
             "index": 0
           }

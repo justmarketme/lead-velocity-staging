@@ -360,3 +360,34 @@ test('I-45f W06 nodes: { event: booking } from W05 is op booking; a booking that
   const wired = (RUN.connections['Claimed by this event?'].main[1] || []).map((c) => c.node);
   assert.deepEqual(wired, ['Booking after the card? -> booking_confirmed']);
 });
+
+test('F4 (REHEARSAL-L01 exec 21/40) DRY_RUN_SENDS: the dry branch of both "Send live?" IFs writes the same evidence rows with external_id dry:<correlation>', async () => {
+  const fx = lead('L02');
+  const l = dbRow(fx);
+  const p = planFirstTouch(leadRow(fx), B, ctxFor(fx));
+  const DRY_CARD = 'Dry run: stand-in response (external_id dry:w06:first:{lead_id})';
+  const DRY_BC = 'Dry run: stand-in response (external_id dry:w06:booking_confirmed:{booking_id})';
+  const out = (name, i) => ((RUN.connections[name] || {}).main || [])[i] || [];
+  // The rehearsal failure: output 1 (false = dry) of both IFs went nowhere.
+  assert.deepEqual(out('Send live? (not DRY_RUN_SENDS)', 1).map((c) => c.node), [DRY_CARD]);
+  assert.deepEqual(out(DRY_CARD, 0).map((c) => c.node), [N.evidence], 'dry card -> the same evidence node as a live send');
+  assert.deepEqual(out('Send booking_confirmed live? (not DRY_RUN_SENDS)', 1).map((c) => c.node), [DRY_BC]);
+  assert.deepEqual(out(DRY_BC, 0).map((c) => c.node), ['Log booking_confirmed + last_contact_at (only with a wamid)']);
+  // Stand-in response: only for a planned, dry item; correlation = the claim key.
+  const planned = { l, plan: p, wa: { to: l.phone }, dry: true };
+  const r = await runCode(RUN, DRY_CARD, { json: planned, env: { DRY_RUN_SENDS: 'true' } });
+  assert.equal(r[0].json.messages[0].id, `dry:w06:first:${l.id}`);
+  assert.deepEqual(await runCode(RUN, DRY_CARD, { json: { ...planned, wa: null } }), [], 'nothing planned -> nothing logged (as before)');
+  const ev = (await runCode(RUN, N.evidence, { json: r[0].json, refs: { [N.plan]: { ...planned } } }))[0].json;
+  assert.equal(ev.wamid, `dry:w06:first:${l.id}`);
+  assert.equal(ev.comm.metadata.dry_run, true);
+  assert.equal(ev.sms, null, 'a dry run never falls back to SMS');
+  assert.ok(ev.upd && ev.upd.disclosure_msg_id === `dry:w06:first:${l.id}`, 'first-touch timing + disclosure evidence stamped');
+  const bc = await runCode(RUN, DRY_BC, { json: { l, booking_id: 'bkg_L02', wa: { to: l.phone }, dry: true } });
+  assert.equal(bc[0].json.messages[0].id, 'dry:w06:booking_confirmed:bkg_L02');
+  // A dry id is evidence but not contact: last_contact_at only moves for a real wamid (same rule as wa.touchesLastContact).
+  for (const name of ['Log card + stamp lead + timeline (one statement; last_contact_at only with a wamid)', 'Log booking_confirmed + last_contact_at (only with a wamid)']) {
+    const q = RUN.nodes.find((n) => n.name === name).parameters.query;
+    assert.match(q, /NOT LIKE 'dry:%'/, `${name}: last_contact_at guarded for dry ids`);
+  }
+});

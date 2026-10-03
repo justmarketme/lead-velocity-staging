@@ -239,9 +239,12 @@ export function dueFromRow(r = {}, now) {
 }
 
 /** planFromRow(row, op, now_ms) -> { plan, rows } for W09.json "Plan": schedule plans from booked_at, rebuild from now. */
-export function planFromRow(r = {}, op, now) {
+export function planFromRow(r = {}, op, now, { clockShifted = false } = {}) {
   const lineage = Array.isArray(r.lineage_sent) ? r.lineage_sent.filter(Boolean) : [];
-  const bookedAt = op === 'schedule' && r.booked_at ? r.booked_at : now;
+  // T0 lives on the same clock as the appointment. A time-shifted run (x-test-now / now_iso, F9 REHEARSAL-L01) books on
+  // the test clock while appointments.booked_at/created_at is the wall clock, so T0 = the caller's now there; production
+  // (clock not shifted) keeps the stored booking time.
+  const bookedAt = op === 'schedule' && r.booked_at && !clockShifted ? r.booked_at : now;
   const plan = reminderPlan({
     bookingId: r.booking_id, start: r.appointment_date, bookedAt,
     lead: { id: r.lead_id, language: r.language, opted_out_at: r.opted_out_at },

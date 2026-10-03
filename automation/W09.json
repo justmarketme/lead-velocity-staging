@@ -330,7 +330,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const L = require('lv-automation').w09;\nconst c = $('Classify + validate (w09.classifyOp)').item.json;\nconst r = $json;\nif (!r.booking_id) return { json: { skip: true } };\nconst p = L.planFromRow(r, c.op, Date.parse(c.now_iso));\nreturn { json: { ...r, op: c.op, start: p.start, compressed: p.plan.compressed, rows: p.rows } };"
+        "jsCode": "const L = require('lv-automation').w09;\nconst c = $('Classify + validate (w09.classifyOp)').item.json;\nconst r = $json;\nif (!r.booking_id) return { json: { skip: true } };\nconst p = L.planFromRow(r, c.op, Date.parse(c.now_iso), { clockShifted: c.synthetic_only === true });\nreturn { json: { ...r, op: c.op, start: p.start, compressed: p.plan.compressed, rows: p.rows } };"
       }
     },
     {

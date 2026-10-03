@@ -340,7 +340,7 @@ function buildW06() {
     'W06 First touch (< 60 s) - DRAFT pending GATE-TEST-W06 (automation-engineer). Logic: automation/lib/w06.mjs (tested by automation/tests/W06.test.mjs, which also checks this file).\n' +
     'Entry: Execute Workflow from W01 / W01 Lead core (op routed), W01 POST /lead/skip (op skip), W05 (op booking: page booking inside the hold) and W07 (op status: delivery receipt of a disclosure card).\n' +
     'Page leads are held 45 s for the in-page booking; lead-ad and CTWA leads go at once. ONE claim per lead (lead_activities w06:first:{lead_id}) so exactly one intro card is ever sent. Templates: broker_intro_booked (7 vars, URL + 2 quick replies), broker_intro_slots (7 vars, slot_{ISO} x3 + other_times; slots from the W04 sub-workflow, never invented), broker_intro_slots_v2 (4 vars + Flow button, flow_token per CONTRACTS.md) when brands.booking_ui = flow.\n' +
-    'Evidence: communications row (wamid, template, latency_ms) + leads.first_message_at / disclosure_msg_id / last_contact_at (CONTRACTS I-38d) in one statement. Delivered -> disclosure_delivered_at; failed or rejected -> SMS (Twilio) with the same disclosure words. No quiet hours on the first touch (HBR). DRY_RUN_SENDS=true sends nothing and touches nothing.\n' +
+    'Evidence: communications row (wamid, template, latency_ms) + leads.first_message_at / disclosure_msg_id / last_contact_at (CONTRACTS I-38d) in one statement. Delivered -> disclosure_delivered_at; failed or rejected -> SMS (Twilio) with the same disclosure words. No quiet hours on the first touch (HBR). DRY_RUN_SENDS=true skips the Graph call only: the same communications / lead_activities / disclosure rows are written with external_id dry:<claim key>; last_contact_at never moves for a dry id.\n' +
     'Env: META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, LEAD_TOKEN_SECRET, TWILIO_ACCOUNT_SID, TWILIO_SMS_FROM, DRY_RUN_SENDS.', 380));
   n.push(node('Called by W01 / W05 / W07 (op routed | skip | booking | status)', 'executeWorkflowTrigger', 1.1, pos(0, 0), { inputSource: 'passthrough' }));
   // I-45f: W05 sends { event: 'booking', ... } (w06.normaliseEvent maps it to op 'booking').
@@ -414,16 +414,20 @@ const c = L.lateBookingConfirmed(j.l, j.l.booking);
 return c ? [{ json: { l: j.l, booking_id: j.l.booking.id, template: c.template, wa: c.wa, dry: $env.DRY_RUN_SENDS === 'true' } }] : [];`));
   n.push(ifTrue('Send booking_confirmed live? (not DRY_RUN_SENDS)', pos(14, 1), '!!$json.wa && !$json.dry'));
   n.push(waSend('Send WhatsApp (booking_confirmed)', pos(15, 1)));
+  // F4 (REHEARSAL-L01): DRY_RUN_SENDS writes the same rows as a live send, minus the Graph call, with external_id
+  // dry:<correlation> (correlation = the claim key), the way W03 / W07 / smc-whatsapp-send do.
+  n.push(code('Dry run: stand-in response (external_id dry:w06:booking_confirmed:{booking_id})', pos(15, 2),
+"const j = $json;\nif (!j.wa || !j.dry) return [];\nreturn [{ json: { messaging_product: 'whatsapp', dry_run: true, messages: [{ id: 'dry:w06:booking_confirmed:' + String(j.booking_id) }] } }];"));
   n.push(pg('Log booking_confirmed + last_contact_at (only with a wamid)', pos(16, 1),
 `WITH c AS (
   INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id,
                                      lead_id, broker_id, author, workflow, template_name, template_category, metadata)
   SELECT $1::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, 'template:booking_confirmed', 'sent', $3, $4::uuid, $5::uuid, 'system', 'W06',
-         'booking_confirmed', 'UTILITY', jsonb_build_object('booking_id', $6::text)
+         'booking_confirmed', 'UTILITY', jsonb_build_object('booking_id', $6::text, 'dry_run', $3 LIKE 'dry:%')
    WHERE $3 <> ''
   ON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING
   RETURNING id)
-UPDATE public.leads l SET last_contact_at = now(), updated_at = now() WHERE l.id = $4::uuid AND $3 <> '';`,
+UPDATE public.leads l SET last_contact_at = now(), updated_at = now() WHERE l.id = $4::uuid AND $3 <> '' AND $3 NOT LIKE 'dry:%';`,
     "={{ (() => { const p = $('booking_confirmed item (w06.lateBookingConfirmed, claimed only)').first().json; const w = ($json.messages && $json.messages[0] && $json.messages[0].id) || ''; return [p.l.brand_id, p.l.phone, w, p.l.id, p.l.broker_id, String(p.booking_id)]; })() }}"));
   n.push(ifTrue('List card needs slots?', pos(11, 0), '$json.need_slots'));
   n.push(sub('W04 Slots API (list, limit 10)', pos(12, -1), 'W04 Slots API', true, 'Called with { broker_id, limit: 10 }; waits -> { slots: [{start,end}], fallback? }. Same rules as GET /slots.'));
@@ -446,12 +450,16 @@ const wa = plan ? L.toCloudApi(plan, { to: l.phone, flow_token, lang: 'en' }) : 
 return [{ json: { ...j, plan, wa, flow_token: flow_token ? 'minted' : null, dry: $env.DRY_RUN_SENDS === 'true', planned_at: now } }];`));
   n.push(ifTrue('Send live? (not DRY_RUN_SENDS)', pos(14, 0), '!!$json.wa && !$json.dry'));
   n.push(waSend('Send WhatsApp (intro card)', pos(15, 0)));
+  n.push(code('Dry run: stand-in response (external_id dry:w06:first:{lead_id})', pos(15, -1),
+"const j = $json;\nif (!j.wa || !j.dry) return [];\nreturn [{ json: { messaging_product: 'whatsapp', dry_run: true, messages: [{ id: 'dry:w06:first:' + String(j.l.id) }] } }];"));
   n.push(code('Evidence rows (w06.communicationRow + sentUpdate)', pos(16, 0), prelude('w06.mjs') +
 `const p = $('Plan card (w06.planFirstTouch + toCloudApi)').first().json;
 const wamid = L.wamidOf($input.first().json);
 const sentAt = Date.now();
 const b = { id: p.l.broker_id };
-const comm = L.communicationRow(p.plan, { ...p.l }, b, wamid, sentAt);
+const c0 = L.communicationRow(p.plan, { ...p.l }, b, wamid, sentAt);
+const dry_run = typeof wamid === 'string' && wamid.startsWith('dry:');
+const comm = { ...c0, metadata: { ...(c0.metadata || {}), dry_run } };
 const upd = wamid ? L.sentUpdate(p.l, p.plan, wamid, sentAt) : null;
 const sms = wamid ? null : { to: p.l.phone, text: L.smsText(p.plan.template, p.plan.variables) };
 return [{ json: { ...p, wamid, comm, upd, sms, slow: upd ? !upd.within_60s : false, error: wamid ? null : JSON.stringify($input.first().json.error || $input.first().json).slice(0, 500) } }];`));
@@ -466,7 +474,7 @@ return [{ json: { ...p, wamid, comm, upd, sms, slow: upd ? !upd.within_60s : fal
 u AS (
   UPDATE public.leads l
      SET first_message_at = COALESCE(l.first_message_at, now()), disclosure_msg_id = $4,
-         last_contact_at = now(), stage = CASE WHEN l.stage IS NULL OR l.stage = 'new' THEN 'disclosed' ELSE l.stage END, updated_at = now()
+         last_contact_at = CASE WHEN $4 NOT LIKE 'dry:%' THEN now() ELSE l.last_contact_at END, stage = CASE WHEN l.stage IS NULL OR l.stage = 'new' THEN 'disclosed' ELSE l.stage END, updated_at = now()
    WHERE l.id = $5::uuid AND $4 <> ''
   RETURNING l.id)
 INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
@@ -543,11 +551,15 @@ ON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS
   link(c, 'Booking after the card? -> booking_confirmed', 'Already sent by another event (stop)', 1);
   chain(c, 'Claim booking_confirmed (w06:booking_confirmed:{booking_id})', 'booking_confirmed item (w06.lateBookingConfirmed, claimed only)', 'Send booking_confirmed live? (not DRY_RUN_SENDS)');
   link(c, 'Send booking_confirmed live? (not DRY_RUN_SENDS)', 'Send WhatsApp (booking_confirmed)', 0);
+  link(c, 'Send booking_confirmed live? (not DRY_RUN_SENDS)', 'Dry run: stand-in response (external_id dry:w06:booking_confirmed:{booking_id})', 1);
+  chain(c, 'Dry run: stand-in response (external_id dry:w06:booking_confirmed:{booking_id})', 'Log booking_confirmed + last_contact_at (only with a wamid)');
   chain(c, 'Send WhatsApp (booking_confirmed)', 'Log booking_confirmed + last_contact_at (only with a wamid)');
   link(c, 'List card needs slots?', 'W04 Slots API (list, limit 10)', 0);
   link(c, 'List card needs slots?', 'Plan card (w06.planFirstTouch + toCloudApi)', 1);
   chain(c, 'W04 Slots API (list, limit 10)', 'Plan card (w06.planFirstTouch + toCloudApi)', 'Send live? (not DRY_RUN_SENDS)');
   link(c, 'Send live? (not DRY_RUN_SENDS)', 'Send WhatsApp (intro card)', 0);
+  link(c, 'Send live? (not DRY_RUN_SENDS)', 'Dry run: stand-in response (external_id dry:w06:first:{lead_id})', 1);
+  chain(c, 'Dry run: stand-in response (external_id dry:w06:first:{lead_id})', 'Evidence rows (w06.communicationRow + sentUpdate)');
   chain(c, 'Send WhatsApp (intro card)', 'Evidence rows (w06.communicationRow + sentUpdate)', 'Log card + stamp lead + timeline (one statement; last_contact_at only with a wamid)');
   link(c, 'Evidence rows (w06.communicationRow + sentUpdate)', 'WhatsApp rejected? -> SMS now');
   link(c, 'Evidence rows (w06.communicationRow + sentUpdate)', 'Slower than 60 s or slots short? -> W22');

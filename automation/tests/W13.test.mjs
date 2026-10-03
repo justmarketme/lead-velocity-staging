@@ -266,3 +266,25 @@ test('W13.json: shortfall is W19\'s (emit replacement_approved only, never touch
   assert.match(node('Send WhatsApp').parameters.url, /PHONE_NUMBER_ID/);
   assert.ok(WF.connections['Send WhatsApp'].main[0].some((c) => c.node === 'Touch leads.last_contact_at (lead outbound)'));
 });
+
+test('F11 (REHEARSAL-L01 exec 79) "Claim replacement" emits the lock row + the insert row: the alert node runs once over all items, no pairedItem lookup, one alert per real row', async () => {
+  const NOTE = 'Alert + timeline text (w13.alertNote, committed wording)';
+  const n = node(NOTE);
+  assert.equal(n.parameters.mode, 'runOnceForAllItems', 'per-item mode resolved $(...).item through the lock row -> "reading \'pairedItem\'"');
+  assert.ok(!/\.item\.json/.test(n.parameters.jsCode), 'no paired-item lookups');
+  const decide = { lead_id: 'lead_test_L06', brand_id: 'brand_smc', broker_id: 'brk_mark', cycle_id: 'cyc_1', first_name: 'Pieter', last_name: 'V' };
+  const lock = { pg_advisory_xact_lock: '' };
+  const ins = { id: '070070bc-0951-42f6-af52-183d352ed3ba', lead_id: 'lead_test_L06', cycle_id: 'cyc_1', status: 'due', note: null, cap_position: 3, over_cap: false, dispute_window_ends_at: '2026-10-20T11:00:00Z', reason_code: 'no_show', cap: 4, used_after: 3 };
+  const out = await runCode(WF, NOTE, { items: [lock, ins], refs: { 'Decide claim (w13.claimDecision)': decide } });
+  assert.equal(out.length, 1, 'exactly one item: the replacements row');
+  const r = out[0].json;
+  assert.equal(r.id, ins.id); assert.equal(r.cap_position, 3); assert.equal(r.over_cap, false); assert.equal(r.status, 'due');
+  assert.equal(r.brand_id, 'brand_smc'); assert.equal(r.broker_id, 'brk_mark'); assert.equal(r.activity, 'replacement_due');
+  assert.match(r.note_text, /Pieter/);
+  assert.deepEqual(out[0].pairedItem, { item: 1 }, 'paired to its own input row, so downstream $(NOTE).item resolves');
+  // Over cap: the row is still written ('rejected' / cap_reached) and Jonathan is told, urgently.
+  const over = await runCode(WF, NOTE, { items: [lock, { ...ins, status: 'rejected', note: 'cap_reached', cap_position: 5, over_cap: true }], refs: { 'Decide claim (w13.claimDecision)': decide } });
+  assert.equal(over[0].json.cap_reached, true); assert.equal(over[0].json.severity, 'urgent'); assert.equal(over[0].json.over_cap, true);
+  // Lead already has a replacement (insert skipped): only the lock row arrives -> nothing to alert.
+  assert.deepEqual(await runCode(WF, NOTE, { items: [lock], refs: { 'Decide claim (w13.claimDecision)': decide } }), []);
+});

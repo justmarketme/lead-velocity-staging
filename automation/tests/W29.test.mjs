@@ -132,3 +132,22 @@ test('I-45k: W29 -> W13 sends { op, outcome_id, reason, reason_code, idempotency
   assert.deepEqual(WF.connections['Tell W13?'].main[0].map((c) => c.node), [name]);
   assert.deepEqual(WF.connections[name].main[0].map((c) => c.node), ['-> W13 claim / withdraw replacement']);
 });
+
+import { evalParam } from './_n8ncode.mjs';
+test('F10 (REHEARSAL-L01 execs 56/58/61/72) "insights" params come from the Ad quality item, not $json (the ad_metrics UPDATE output replaces it)', () => {
+  const AQ = 'Ad quality + tuning (w29.adQuality / tuning)';
+  const INS = 'insights: kill/scale + tuning (once per 24 h per kind)';
+  const o = { brand_id: 'brand_smc', broker_id: 'brk_mark', cycle_id: 'cyc_1', ad_id: 'ad_123', angle: 'bond' };
+  const insights = [{ kind: 'kill_signal', text: 'Lead quality 2.1 from 5 calls', n: 5 }];
+  const aq = { o, q: { quality_index: 2.1, quality_n: 5, nofit_rate: 0.4 }, insights };
+  // What the rehearsal's insights node actually received: the Postgres UPDATE result, no `o`.
+  const pgOut = { success: true };
+  const p = evalParam(WF, INS, 'options.queryReplacement', { json: pgOut, refs: { [AQ]: aq } });
+  assert.ok(Array.isArray(p), 'query parameters are an array');
+  assert.deepEqual(p, ['brand_smc', 'brk_mark', 'cyc_1', 'ad_123', 'bond', JSON.stringify(insights)]);
+  // An outcome with no ad (organic / CTWA without referral) still gives a valid array.
+  const p2 = evalParam(WF, INS, 'options.queryReplacement', { json: pgOut, refs: { [AQ]: { ...aq, o: { ...o, ad_id: undefined, angle: undefined }, insights: [] } } });
+  assert.deepEqual(p2, ['brand_smc', 'brk_mark', 'cyc_1', null, null, '[]']);
+  const q = evalParam(WF, 'ad_metrics quality (latest row for the ad)', 'options.queryReplacement', { json: aq, refs: { [AQ]: aq } });
+  assert.deepEqual(q, ['ad_123', 2.1, 5, 0.4]);
+});

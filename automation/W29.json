@@ -694,7 +694,7 @@
         "operation": "executeQuery",
         "query": "INSERT INTO public.insights (brand_id, source, broker_id, cycle_id, ad_id, angle, kind, text, n)\nSELECT $1::uuid, 'disposition', $2::uuid, $3::uuid, $4, COALESCE(x.p->>'angle', $5), x.p->>'kind', x.p->>'text', COALESCE((x.p->>'n')::int, 1)\n  FROM jsonb_array_elements($6::jsonb) AS x(p)\n WHERE NOT EXISTS (SELECT 1 FROM public.insights i\n                    WHERE i.kind = x.p->>'kind' AND i.broker_id = $2::uuid\n                      AND COALESCE(i.ad_id, '') = COALESCE($4, '') AND i.created_at > now() - interval '24 hours');",
         "options": {
-          "queryReplacement": "={{ [$json.o.brand_id, $json.o.broker_id, $json.o.cycle_id, $json.o.ad_id || null, $json.o.angle || null, JSON.stringify($json.insights)] }}"
+          "queryReplacement": "={{ (() => { const a = $('Ad quality + tuning (w29.adQuality / tuning)').first().json; const o = a.o || {}; return [o.brand_id, o.broker_id, o.cycle_id, o.ad_id || null, o.angle || null, JSON.stringify(a.insights || [])]; })() }}"
         }
       },
       "credentials": {

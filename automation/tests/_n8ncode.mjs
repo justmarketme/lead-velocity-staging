@@ -78,3 +78,21 @@ export function lvViolations(wf, expectId, { builtins = [] } = {}) {
   }
   return out;
 }
+
+/**
+ * Evaluates an n8n parameter expression ("={{ ... }}") of a node the way n8n resolves it for one item: $json is the
+ * node's input item, $('<name>') reads `refs` (same shape as runCode). Used for Postgres queryReplacement arrays.
+ */
+export function evalParam(wf, nodeName, path, { json = {}, env = {}, refs = {} } = {}) {
+  const n = wf.nodes.find((x) => x.name === nodeName);
+  if (!n) throw new Error(`no node "${nodeName}"`);
+  const raw = path.split('.').reduce((o, k) => (o == null ? o : o[k]), n.parameters);
+  const m = /^=\{\{([\s\S]*)\}\}$/.exec(String(raw).trim());
+  if (!m) return raw;
+  const $ = (k) => {
+    if (!(k in refs)) throw new Error(`$('${k}') not provided to the test`);
+    const r = refs[k];
+    return { item: { json: r }, first: () => ({ json: r }), itemMatching: () => ({ json: r }), all: () => [{ json: r }] };
+  };
+  return new Function('$json', '$env', '$', `return (${m[1]});`)(json, env, $);
+}

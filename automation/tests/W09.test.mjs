@@ -315,3 +315,20 @@ test('W09 last_contact_at rule (I-38d): only lead sends Meta accepted', () => {
   assert.equal(R.touchesLastContact('lead', 'dry:w09:x'), false);
   assert.equal(R.touchesLastContact('broker', 'wamid.X'), false);
 });
+
+test('F9 (REHEARSAL-L01 execs 42-50) time-shifted schedule (x-test-now): what_to_expect is anchored on the test-clock booking, not the wall-clock booked_at', async () => {
+  const fx = lead('L01');
+  // The rehearsal: appointments.created_at is the real clock (3 Oct), the booking happened on the test clock (12 Oct).
+  const row = planRow(fx, { booked_at: '2026-10-03T07:50:00+02:00', appointment_date: '2026-10-15T10:00:00+02:00' });
+  const shifted = (await runCode(WF, 'Plan (w09.planFromRow)', { json: row, refs: { 'Classify + validate (w09.classifyOp)': c09({ now_iso: '2026-10-12T08:14:41+02:00', synthetic_only: true }) } })).json;
+  const wte = shifted.rows.find((r) => r.touch === 'what_to_expect');
+  assert.ok(wte, 'what_to_expect is scheduled');
+  assert.equal(wte.at, '2026-10-12T08:24:41+02:00', 'T0 + 10 min on the test clock (was 2026-10-03T08:00:00+02:00)');
+  assert.ok(shifted.rows.every((r) => Date.parse(r.at) > Date.parse('2026-10-12T08:14:41+02:00')), 'no job is planned before the virtual booking');
+  // Quiet hours still apply on the test clock: a virtual 21:30 booking sends what_to_expect at 08:00 next morning.
+  const late = (await runCode(WF, 'Plan (w09.planFromRow)', { json: row, refs: { 'Classify + validate (w09.classifyOp)': c09({ now_iso: '2026-10-12T21:30:00+02:00', synthetic_only: true }) } })).json;
+  assert.equal(late.rows.find((r) => r.touch === 'what_to_expect').at, '2026-10-13T08:00:00+02:00');
+  // Production (clock not shifted) keeps the stored booked_at as T0.
+  const prod = (await runCode(WF, 'Plan (w09.planFromRow)', { json: planRow(fx), refs: { 'Classify + validate (w09.classifyOp)': c09({ synthetic_only: false }) } })).json;
+  assert.deepEqual(prod.rows.map((r) => ({ touch: r.touch, at: r.at })), fx.expected.W09.schedule);
+});

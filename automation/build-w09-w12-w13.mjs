@@ -143,7 +143,7 @@ return { json: { ...j, op: v.ok ? op : 'reject', asked_op: op, missing: v.ok ? [
 `const c = $('Classify + validate (w09.classifyOp)').item.json;
 const r = $json;
 if (!r.booking_id) return { json: { skip: true } };
-const p = L.planFromRow(r, c.op, Date.parse(c.now_iso));
+const p = L.planFromRow(r, c.op, Date.parse(c.now_iso), { clockShifted: c.synthetic_only === true });
 return { json: { ...r, op: c.op, start: p.start, compressed: p.plan.compressed, rows: p.rows } };`);
   link(load, plan);
   const cancelOld = pg('Cancel unsent jobs for an older time (rebuild)', [6, -1],
@@ -625,10 +625,20 @@ SELECT ins.*, cap.cap, (SELECT n FROM used) + 1 AS used_after FROM ins, cap;`,
     '={{ [$json.lead_id, $json.outcome_id || null, null, $json.cycle_id, $json.broker_id, $json.brand_id, $json.trig.reason, $json.trig.reason_code, $json.trig.due_at] }}');
   link(doClaim, claim, 0);
   const note = code('Alert + timeline text (w13.alertNote, committed wording)', [9, -1], IMPORT('w13') +
-`const c = $('Decide claim (w13.claimDecision)').item.json; const r = $json;
-const capReached = r.status === 'rejected' && r.note === 'cap_reached';
-const text = L.alertNote(capReached ? 'cap_reached' : 'due', { lead: { first_name: c.first_name, last_name: c.last_name }, used: r.cap_position, cap: r.cap, reason_code: r.reason_code, window_ends_at: r.dispute_window_ends_at ? L.iso(r.dispute_window_ends_at) : null });
-return { json: { ...r, brand_id: c.brand_id, broker_id: c.broker_id, cap_reached: capReached, note_text: text, esc_kind: capReached ? 'other' : 'replacement_dispute', severity: capReached ? 'urgent' : 'normal', activity: capReached ? 'replacement_cap_reached' : 'replacement_due' } };`);
+`// F11 (REHEARSAL-L01): the claim batch returns the pg_advisory_xact_lock row as well as the insert row, so this node runs
+// once over all items, keeps only real replacements rows (id + lead_id) and finds its claim by lead_id (no .item lookup).
+// Lead already holds a replacement -> only the lock row arrives -> nothing to alert.
+const decided = $('Decide claim (w13.claimDecision)').all().map((i) => i.json);
+const out = [];
+$input.all().forEach((it, idx) => {
+  const r = it.json || {};
+  if (!r.id || !r.lead_id) return;
+  const c = decided.find((d) => d.lead_id === r.lead_id) || decided[0] || {};
+  const capReached = r.status === 'rejected' && r.note === 'cap_reached';
+  const text = L.alertNote(capReached ? 'cap_reached' : 'due', { lead: { first_name: c.first_name, last_name: c.last_name }, used: r.cap_position, cap: r.cap, reason_code: r.reason_code, window_ends_at: r.dispute_window_ends_at ? L.iso(r.dispute_window_ends_at) : null });
+  out.push({ json: { ...r, brand_id: c.brand_id, broker_id: c.broker_id, cap_reached: capReached, note_text: text, esc_kind: capReached ? 'other' : 'replacement_dispute', severity: capReached ? 'urgent' : 'normal', activity: capReached ? 'replacement_cap_reached' : 'replacement_due' }, pairedItem: { item: idx } });
+});
+return out;`, 'runOnceForAllItems');
   link(claim, note);
   const record = pg('Escalate + timeline + lead stage', [10, -1],
 `WITH e AS (
