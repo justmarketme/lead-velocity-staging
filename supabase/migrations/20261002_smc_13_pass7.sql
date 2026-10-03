@@ -12,6 +12,9 @@
 --   6. I-49g (pass 2): proposals.source + ads_budget; notification kinds for smc-w26 / W03 / W20 signal keys;
 --      unique smc-whatsapp-send correlation; verified_credentials object shape (I-43b); facts.broker_pulse 4-arg +
 --      facts.w14_broker_report with the held lead pulse (I-43c).
+--   7. I-52a (REHEARSAL-L01 F2): webhook_events_source_check widened to every source the workflows write
+--      (w01_ip / w01_num rate counters, w20 Graph-notification dedupe). Superset of 02; guarded by
+--      automation/tests/webhook-sources.test.mjs.
 -- Inventory lines extended: INV-T03 (brokers), 0.3 #4 (Graph consent fallback).
 -- =============================================================================
 
@@ -470,3 +473,35 @@ ALTER FUNCTION facts.broker_pulse(uuid, date, int, int)  SECURITY DEFINER SET se
 ALTER FUNCTION facts.w14_broker_report(uuid, date, text) SECURITY DEFINER SET search_path = public, facts, pg_temp;
 REVOKE ALL ON FUNCTION facts.broker_pulse(uuid, date, int, int), facts.w14_broker_report(uuid, date, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION facts.broker_pulse(uuid, date, int, int), facts.w14_broker_report(uuid, date, text) TO n8n_app;
+
+-- =============================================================================
+-- 7. I-52a — webhook_events.source CHECK covers every writer (REHEARSAL-L01 F2: every page lead 500'd).
+--    02 §13 created the inline CHECK (auto-named webhook_events_source_check); no later migration touched it
+--    (06 only reads webhook_events in facts.fact_system_day). Widened here, superset of 02, nothing removed.
+--    Values and their writers (literal `source` in INSERT INTO public.webhook_events, automation/W*.json + SUB-*.json):
+--      meta_leadgen, meta_feed, meta_messages, graph, flow, other  — 02 reserved values (no workflow literal today)
+--      whatsapp  — W07 wamid claim, W07 + W03 reply claim (external_id 'w07:reply:{wamid}'),
+--                  W03 'w03:no_brand:{phone_number_id}', W03/W07 'hop_limit:{wamid}' (prefixes are external_id, not source)
+--      paystack  — W16 Paystack webhook idempotency
+--      w01_ip    — W01 per-IP rate counter (HMAC of IP, no raw IP)
+--      w01_num   — W01 per-number rate counter (digits-only hash)
+--      w20       — W20 Microsoft Graph change-notification dedupe
+--    automation/tests/webhook-sources.test.mjs re-extracts the literals and fails if one is missing from this list.
+--    Idempotent: re-created only when the live definition lacks the newest value.
+-- =============================================================================
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                  WHERE conrelid = 'public.webhook_events'::regclass
+                    AND conname  = 'webhook_events_source_check'
+                    AND pg_get_constraintdef(oid) LIKE '%w01_num%'
+                    AND pg_get_constraintdef(oid) LIKE '%''w20''%') THEN
+    ALTER TABLE public.webhook_events DROP CONSTRAINT IF EXISTS webhook_events_source_check;
+    ALTER TABLE public.webhook_events ADD CONSTRAINT webhook_events_source_check CHECK (source IN
+      ('meta_leadgen','whatsapp','meta_feed','meta_messages','paystack','graph','flow','other',   -- 02
+       'w01_ip','w01_num',                                                                        -- W01 rate counters
+       'w20'));                                                                                   -- W20 Graph dedupe
+  END IF;
+END $$;
+COMMENT ON CONSTRAINT webhook_events_source_check ON public.webhook_events IS
+  'SMC 13 §7 (I-52a): 02 values + w01_ip/w01_num (W01 rate counters) + w20 (W20 Graph dedupe). W03/W07 claim keys use source whatsapp. Guarded by automation/tests/webhook-sources.test.mjs.';
