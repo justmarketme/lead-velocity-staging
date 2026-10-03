@@ -270,6 +270,17 @@ test('ads-budget: every raise / lower becomes a proposal (faculty media, source 
   assert.equal(lower.proposal.cost_zar, 0);
   const bad = (await runCode(AB, 'Normalise input', { json: { op: 'raise', broker_id: 'b1', amount_zar: 0 } })).json;
   assert.equal(bad.valid, false);
+  // I-49f: W19's cycle-end shape (amount_zar 0 + media_share_zar) means "lower this broker's share to 0" = pause spend,
+  // never an invalid/dropped call and never a R0 proposal.
+  const w19 = (await runCode(AB, 'Normalise input', { json: { op: 'lower', action: 'lower', broker_id: 'b1', cycle_id: 'c1', amount_zar: 0, media_share_zar: 3000, reason: 'cycle_not_renewed' } })).json;
+  assert.equal(w19.valid, true); assert.equal(w19.amount_zar, 3000); assert.equal(w19.target_zar, 0); assert.equal(w19.mode, 'pause');
+  const pause = (await runCode(AB, 'Build proposal + approval row', { json: w19 })).json;
+  assert.match(pause.proposal.title, /^Pause the Meta spend for broker b1: remove its R3000 media share \(about R100\/day\), target R0/);
+  assert.equal(pause.proposal.cost_zar, 0); assert.equal(pause.notification.payload.target_zar, 0); assert.equal(pause.notification.payload.mode, 'pause');
+  assert.equal(pause.notification.dedupe_key, 'ads_budget:b1:c1:lower');
+  // a lower with its own amount is a plain reduction; raise keeps mode 'raise'
+  assert.equal((await runCode(AB, 'Normalise input', { json: { op: 'lower', broker_id: 'b1', amount_zar: 1000, media_share_zar: 3000 } })).json.mode, 'reduce');
+  assert.equal(n.mode, 'raise'); assert.equal(n.target_zar, null);
 });
 
 test('ads-budget: never calls the Meta write path; the sticky note documents alternative (b)', () => {

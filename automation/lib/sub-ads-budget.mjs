@@ -5,11 +5,20 @@
 // confirmToken (6.2 confirm-to-apply), so the change is applied by ads-api-engineer after the Approve tap.
 // Input: { op: 'raise'|'lower', broker_id, cycle_id, amount_zar, reason }; the §7 shape { action, broker_id,
 // media_share_zar } is accepted as well.
+// I-49f "lower" definition: W19 sends amount_zar 0 + media_share_zar at cycle end. amount_zar 0 is the TARGET for this
+// broker's share (pause spend), media_share_zar is the amount removed. normalise() therefore returns
+// { amount_zar: media_share_zar, target_zar: 0, mode: 'pause' } for that call; a lower with its own amount_zar > 0 is a
+// plain reduction ({ target_zar: null, mode: 'reduce' }). Raise is unchanged ({ mode: 'raise' }).
 export function normalise(input = {}) {
   const i = input || {};
   const op = i.op || i.action || null;
-  const amount = Number(i.amount_zar ?? i.media_share_zar);
-  const out = { op, broker_id: i.broker_id ? String(i.broker_id) : null, cycle_id: i.cycle_id ? String(i.cycle_id) : null, amount_zar: Number.isFinite(amount) ? Math.round(amount * 100) / 100 : null, reason: String(i.reason || (op === 'raise' ? 'cycle resumed after payment' : op === 'lower' ? 'cycle ended, not renewed' : '')).slice(0, 300) };
+  const r2 = (x) => Math.round(x * 100) / 100;
+  const raw = i.amount_zar === undefined || i.amount_zar === null ? NaN : Number(i.amount_zar);
+  const share = i.media_share_zar === undefined || i.media_share_zar === null ? NaN : Number(i.media_share_zar);
+  let amount, target_zar = null, mode = op === 'raise' ? 'raise' : op === 'lower' ? 'reduce' : null;
+  if (op === 'lower' && (!(raw > 0)) && share > 0) { amount = share; target_zar = 0; mode = 'pause'; } // W19 cycle-end shape (I-49f)
+  else amount = Number.isFinite(raw) ? raw : share;
+  const out = { op, broker_id: i.broker_id ? String(i.broker_id) : null, cycle_id: i.cycle_id ? String(i.cycle_id) : null, amount_zar: Number.isFinite(amount) ? r2(amount) : null, target_zar, mode, reason: String(i.reason || (op === 'raise' ? 'cycle resumed after payment' : op === 'lower' ? 'cycle ended, not renewed' : '')).slice(0, 300) };
   const missing = [];
   if (!['raise', 'lower'].includes(op)) missing.push('op');
   if (!out.broker_id) missing.push('broker_id');
@@ -21,11 +30,14 @@ export function normalise(input = {}) {
 export function proposal(n) {
   const daily = Math.round((n.amount_zar / 30) * 100) / 100;
   const verb = n.op === 'raise' ? 'Raise' : 'Lower';
+  const title = n.mode === 'pause'
+    ? `Pause the Meta spend for broker ${n.broker_id}: remove its R${n.amount_zar} media share (about R${daily}/day), target R0 until a new cycle is paid`
+    : `${verb} the Meta budget for broker ${n.broker_id} by R${n.amount_zar} media share (about R${daily}/day)`;
   return {
     proposal: {
       source: 'ads_budget',
       faculty: 'media',
-      title: `${verb} the Meta budget for broker ${n.broker_id} by R${n.amount_zar} media share (about R${daily}/day)`,
+      title,
       metric: 'media_share_zar',
       number_at_decision: n.amount_zar,
       cost_zar: n.op === 'raise' ? n.amount_zar : 0,
@@ -36,7 +48,7 @@ export function proposal(n) {
     notification: {
       kind: 'approval', recipient: 'jonathan', channel: 'console', source: 'ads_budget', status: 'queued', ref_table: 'proposals',
       dedupe_key: `ads_budget:${n.broker_id}:${n.cycle_id || '-'}:${n.op}`,
-      payload: { op: n.op, broker_id: n.broker_id, cycle_id: n.cycle_id, amount_zar: n.amount_zar, daily_budget_zar: daily, reason: n.reason, via: 'ads_budget' },
+      payload: { op: n.op, mode: n.mode || null, broker_id: n.broker_id, cycle_id: n.cycle_id, amount_zar: n.amount_zar, target_zar: n.target_zar ?? null, daily_budget_zar: daily, reason: n.reason, via: 'ads_budget' },
     },
   };
 }
