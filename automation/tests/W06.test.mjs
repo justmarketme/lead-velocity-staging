@@ -331,3 +331,32 @@ test('W06 node "Evidence rows": a wamid stamps first_message_at / last_contact_a
   assert.equal(bad.upd, null, 'no wamid -> last_contact_at untouched');
   assert.ok(bad.sms.text.includes('Reply STOP to opt out.'));
 });
+
+test('I-45f W06 nodes: { event: booking } from W05 is op booking; a booking that lost the claim -> booking_confirmed once', async () => {
+  const fx = lead('L02');
+  const l = dbRow(fx);
+  const bk = { id: 'bkg_L02', created_at: '2026-10-12T09:05:00+02:00', start: '2026-10-15T10:00:00+02:00', method: 'phone' };
+  const hold = (await runCode(RUN, N.hold, { json: dbRow(fx, { booking: bk }), refs: { [N.trigger]: { event: 'booking', lead_id: l.id, booking_id: bk.id, start: bk.start, method: bk.method } } }))[0].json;
+  assert.equal(hold.ev.op, 'booking');
+  assert.equal(hold.hold_s, 0, 'a booking event never waits');
+  const claimedRef = { ...hold, l: { ...l, booking: bk } };
+  const lost = await runCode(RUN, N.claimed, { items: [{}], refs: { [N.hold]: claimedRef, [N.afterHold]: {} } });
+  assert.equal(lost[0].json.claimed, false);
+  assert.equal(lost[0].json.late_booking, true, 'claim taken by the slots card -> booking_confirmed path');
+  const won = await runCode(RUN, N.claimed, { items: [{ lead_id: l.id }], refs: { [N.hold]: claimedRef, [N.afterHold]: {} } });
+  assert.equal(won[0].json.late_booking, false, 'claim won -> broker_intro_booked (the intro card is the confirmation)');
+  const cname = 'booking_confirmed item (w06.lateBookingConfirmed, claimed only)';
+  const item = (await runCode(RUN, cname, { items: [{ lead_id: l.id }], env: { DRY_RUN_SENDS: 'false' }, refs: { [N.claimed]: { l: { ...l, booking: bk } } } }))[0].json;
+  assert.equal(item.template, 'booking_confirmed');
+  assert.equal(item.wa.template.name, 'booking_confirmed');
+  assert.equal(item.wa.to, '27600000002');
+  const qr = item.wa.template.components.filter((c) => c.sub_type === 'quick_reply').map((c) => c.parameters[0].payload);
+  assert.deepEqual(qr, ['confirm:bkg_L02', 'reschedule:bkg_L02', 'cancel:bkg_L02']);
+  assert.equal(item.wa.template.components.find((c) => c.type === 'body').parameters.length, templateCounts('booking_confirmed').body);
+  const none = await runCode(RUN, cname, { items: [{}], refs: { [N.claimed]: { l: { ...l, booking: bk } } } });
+  assert.deepEqual(none, [], 'claim not won (already confirmed, or this booking sent broker_intro_booked) -> nothing');
+  const claim = RUN.nodes.find((n) => n.name === 'Claim booking_confirmed (w06:booking_confirmed:{booking_id})');
+  assert.match(claim.parameters.query, /payload->>'booking_id' = \$2::text/, 'never after this booking\'s own broker_intro_booked');
+  const wired = (RUN.connections['Claimed by this event?'].main[1] || []).map((c) => c.node);
+  assert.deepEqual(wired, ['Booking after the card? -> booking_confirmed']);
+});

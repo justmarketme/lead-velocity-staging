@@ -119,3 +119,16 @@ test('W29.json: physical columns only; disposition cast to the enum; W13 owns re
   assert.deepEqual(execs, ['W13 No-show & replacement']);
   assert.ok(s.includes('CASE WHEN o.auto_marked THEN o.unconfirmed ELSE false END'), 'respects outcomes CHECK (auto_marked => unconfirmed)');
 });
+
+test('I-45k: W29 -> W13 sends { op, outcome_id, reason, reason_code, idempotency_key } (W13 contract), never just { lead_id }', async () => {
+  const { runCode } = await import('./_n8ncode.mjs');
+  const name = 'W13 claim item (op, outcome_id, reason, reason_code, idempotency_key)';
+  const o = attended({ id: 'out_L01' });
+  const d = F.applyDisposition(o, 'unreachable', DISP_AT);
+  const out = (await runCode(WF, name, { items: [{ lead_id: L01.lead_id }], refs: { 'Apply disposition': { o, d } } })).map((x) => x.json);
+  assert.deepEqual(out, [{ op: 'claim', outcome_id: 'out_L01', reason: 'uncontactable', reason_code: 'unreachable', idempotency_key: 'w29:claim:out_L01:unreachable' }]);
+  const w = F.applyDisposition(attended({ id: 'out_L01', disposition_code: 'unreachable' }), 'fit_proceeding', DISP_AT);
+  assert.deepEqual(F.w13Call({ id: 'out_L01' }, w), { op: 'withdraw', outcome_id: 'out_L01', reason: null, reason_code: 'unreachable', idempotency_key: 'w29:withdraw:out_L01:unreachable' });
+  assert.deepEqual(WF.connections['Tell W13?'].main[0].map((c) => c.node), [name]);
+  assert.deepEqual(WF.connections[name].main[0].map((c) => c.node), ['-> W13 claim / withdraw replacement']);
+});

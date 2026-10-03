@@ -342,7 +342,8 @@ function buildW06() {
     'Evidence: communications row (wamid, template, latency_ms) + leads.first_message_at / disclosure_msg_id / last_contact_at (CONTRACTS I-38d) in one statement. Delivered -> disclosure_delivered_at; failed or rejected -> SMS (Twilio) with the same disclosure words. No quiet hours on the first touch (HBR). DRY_RUN_SENDS=true sends nothing and touches nothing.\n' +
     'Env: META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, LEAD_TOKEN_SECRET, TWILIO_ACCOUNT_SID, TWILIO_SMS_FROM, DRY_RUN_SENDS.', 380));
   n.push(node('Called by W01 / W05 / W07 (op routed | skip | booking | status)', 'executeWorkflowTrigger', 1.1, pos(0, 0), { inputSource: 'passthrough' }));
-  n.push(switchOn('Op?', pos(1, 0), "={{ $json.op === 'status' ? 'status' : ['routed', 'skip', 'booking', 'hold'].includes($json.op) ? 'send' : 'other' }}", ['send', 'status', 'other']));
+  // I-45f: W05 sends { event: 'booking', ... } (w06.normaliseEvent maps it to op 'booking').
+  n.push(switchOn('Op?', pos(1, 0), "={{ $json.op === 'status' ? 'status' : ['routed', 'skip', 'booking', 'hold'].includes($json.op || ($json.event === 'booking' ? 'booking' : '')) ? 'send' : 'other' }}", ['send', 'status', 'other']));
   n.push(pg('Load lead, broker, brand, live booking', pos(2, 0),
 `SELECT l.id, l.brand_id, l.origin, l.first_name, l.phone, l.language, l.broker_id, l.routed_at, l.stage, l.opted_out_at, l.duplicate_of,
        l.disqualified_reason, l.first_message_at,
@@ -359,7 +360,7 @@ function buildW06() {
  WHERE l.id = $1::uuid;`,
     '={{ [$json.lead_id, $json.booking_id || null] }}'));
   n.push(code('Hold for the in-page booking? (w06.holdSeconds)', pos(3, 0), prelude('w06.mjs') +
-`const ev = $('Called by W01 / W05 / W07 (op routed | skip | booking | status)').first().json;
+`const ev = L.normaliseEvent($('Called by W01 / W05 / W07 (op routed | skip | booking | status)').first().json);
 const l = $input.first().json;
 if (!l || !l.id) return [{ json: { blocked: 'no_lead', lead_id: ev.lead_id, hold_s: 0 } }];
 const block = L.blockReason(l);
@@ -377,21 +378,52 @@ ON CONFLICT (idempotency_key) DO NOTHING;`,
   n.push(pg('Claim the one first touch (w06:first:{lead_id})', pos(8, 0),
 `-- Exactly one intro card per lead: whichever event (hold expiry, skip, page booking) inserts this row first sends.
 INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
-SELECT l.id, l.brand_id, l.broker_id, 'W06', 'system', 'first_touch_claimed', jsonb_build_object('op', $2::text), now(), 'w06:first:' || l.id::text
+SELECT l.id, l.brand_id, l.broker_id, 'W06', 'system', 'first_touch_claimed', jsonb_build_object('op', $2::text, 'booking_id', NULLIF($3, '')), now(), 'w06:first:' || l.id::text
   FROM public.leads l
  WHERE l.id = $1::uuid AND l.opted_out_at IS NULL AND l.broker_id IS NOT NULL AND l.first_message_at IS NULL
 ON CONFLICT (idempotency_key) DO NOTHING
 RETURNING lead_id;`,
-    '={{ [$json.l.id, $json.ev.op] }}'));
+    "={{ [$json.l.id, $json.ev.op, ($json.ev.op === 'booking' && $json.l.booking) ? String($json.l.booking.id) : ''] }}"));
   n.push(code('Claimed? -> need W04 slots?', pos(9, 0),
 `const j = $('Hold for the in-page booking? (w06.holdSeconds)').first().json;
 const ev = $('Event after hold').isExecuted ? { ...j.ev, op: 'hold' } : j.ev;
 const claimed = $input.all().some((i) => i.json && i.json.lead_id);
 const booked = ev.op === 'booking' && j.l.booking;
 const need_slots = claimed && !booked && j.l.booking_ui !== 'flow';
-return [{ json: { ...j, ev, claimed, need_slots, broker_id: j.l.broker_id, limit: 10 } }];`));
+// I-45f: a booking event that lost the claim (slots card already out, or a chat booking) -> booking_confirmed instead.
+const late_booking = !claimed && !!booked;
+return [{ json: { ...j, ev, claimed, need_slots, late_booking, broker_id: j.l.broker_id, limit: 10 } }];`));
   n.push(ifTrue('Claimed by this event?', pos(10, 0), '$json.claimed'));
-  n.push(noop('Already sent by another event (stop)', pos(11, 1)));
+  n.push(ifTrue('Booking after the card? -> booking_confirmed', pos(11, 1), '$json.late_booking'));
+  n.push(noop('Already sent by another event (stop)', pos(12, 2)));
+  n.push(pg('Claim booking_confirmed (w06:booking_confirmed:{booking_id})', pos(12, 1),
+`-- Once per booking, and never when this booking's own event sent broker_intro_booked (that card is the confirmation).
+INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
+SELECT l.id, l.brand_id, l.broker_id, 'W06', 'system', 'booking_confirmed_claimed', jsonb_build_object('booking_id', $2::text), now(), 'w06:booking_confirmed:' || $2::text
+  FROM public.leads l
+ WHERE l.id = $1::uuid AND l.opted_out_at IS NULL
+   AND NOT EXISTS (SELECT 1 FROM public.lead_activities f WHERE f.idempotency_key = 'w06:first:' || l.id::text AND f.payload->>'booking_id' = $2::text)
+ON CONFLICT (idempotency_key) DO NOTHING
+RETURNING lead_id;`,
+    '={{ [$json.l.id, String($json.l.booking.id)] }}'));
+  n.push(code('booking_confirmed item (w06.lateBookingConfirmed, claimed only)', pos(13, 1), prelude('w06.mjs') +
+`const j = $('Claimed? -> need W04 slots?').first().json;
+if (!$input.all().some((i) => i.json && i.json.lead_id)) return [];
+const c = L.lateBookingConfirmed(j.l, j.l.booking);
+return c ? [{ json: { l: j.l, booking_id: j.l.booking.id, template: c.template, wa: c.wa, dry: $env.DRY_RUN_SENDS === 'true' } }] : [];`));
+  n.push(ifTrue('Send booking_confirmed live? (not DRY_RUN_SENDS)', pos(14, 1), '!!$json.wa && !$json.dry'));
+  n.push(waSend('Send WhatsApp (booking_confirmed)', pos(15, 1)));
+  n.push(pg('Log booking_confirmed + last_contact_at (only with a wamid)', pos(16, 1),
+`WITH c AS (
+  INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id,
+                                     lead_id, broker_id, author, workflow, template_name, template_category, metadata)
+  SELECT $1::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, 'template:booking_confirmed', 'sent', $3, $4::uuid, $5::uuid, 'system', 'W06',
+         'booking_confirmed', 'UTILITY', jsonb_build_object('booking_id', $6::text)
+   WHERE $3 <> ''
+  ON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING
+  RETURNING id)
+UPDATE public.leads l SET last_contact_at = now(), updated_at = now() WHERE l.id = $4::uuid AND $3 <> '';`,
+    "={{ (() => { const p = $('booking_confirmed item (w06.lateBookingConfirmed, claimed only)').first().json; const w = ($json.messages && $json.messages[0] && $json.messages[0].id) || ''; return [p.l.brand_id, p.l.phone, w, p.l.id, p.l.broker_id, String(p.booking_id)]; })() }}"));
   n.push(ifTrue('List card needs slots?', pos(11, 0), '$json.need_slots'));
   n.push(sub('W04 Slots API (list, limit 10)', pos(12, -1), 'W04 Slots API', true, 'Called with { broker_id, limit: 10 }; waits -> { slots: [{start,end}], fallback? }. Same rules as GET /slots.'));
   n.push(code('Plan card (w06.planFirstTouch + toCloudApi)', pos(13, 0), prelude('w06.mjs') +
@@ -505,7 +537,12 @@ ON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS
   link(c, 'Page lead: hold 45 s?', 'Claim the one first touch (w06:first:{lead_id})', 1);
   chain(c, 'Wait 45 s (booking or skip may claim first)', 'Event after hold', 'Claim the one first touch (w06:first:{lead_id})', 'Claimed? -> need W04 slots?', 'Claimed by this event?');
   link(c, 'Claimed by this event?', 'List card needs slots?', 0);
-  link(c, 'Claimed by this event?', 'Already sent by another event (stop)', 1);
+  link(c, 'Claimed by this event?', 'Booking after the card? -> booking_confirmed', 1);
+  link(c, 'Booking after the card? -> booking_confirmed', 'Claim booking_confirmed (w06:booking_confirmed:{booking_id})', 0);
+  link(c, 'Booking after the card? -> booking_confirmed', 'Already sent by another event (stop)', 1);
+  chain(c, 'Claim booking_confirmed (w06:booking_confirmed:{booking_id})', 'booking_confirmed item (w06.lateBookingConfirmed, claimed only)', 'Send booking_confirmed live? (not DRY_RUN_SENDS)');
+  link(c, 'Send booking_confirmed live? (not DRY_RUN_SENDS)', 'Send WhatsApp (booking_confirmed)', 0);
+  chain(c, 'Send WhatsApp (booking_confirmed)', 'Log booking_confirmed + last_contact_at (only with a wamid)');
   link(c, 'List card needs slots?', 'W04 Slots API (list, limit 10)', 0);
   link(c, 'List card needs slots?', 'Plan card (w06.planFirstTouch + toCloudApi)', 1);
   chain(c, 'W04 Slots API (list, limit 10)', 'Plan card (w06.planFirstTouch + toCloudApi)', 'Send live? (not DRY_RUN_SENDS)');

@@ -13,10 +13,12 @@
 //    enforced by ONE idempotency claim per lead (lead_activities 'w06:first:{lead_id}').
 //  - Lead-ad and CTWA leads: no page booking step, so the card goes as soon as routing is written.
 //  - booking_ui = flow -> broker_intro_slots_v2 (Flow button, flow_token per CONTRACTS.md "W28 flow_token").
-//  - A booking that arrives after the slots card got the card -> W05 sends booking_confirmed only (never a 2nd card).
+//  - A booking that arrives after the slots card got the card -> W06 sends booking_confirmed only (never a 2nd card;
+//    I-45f: W05 calls W06 op 'booking' for every first booking, W06 chooses broker_intro_booked vs booking_confirmed).
 //  - Never for: unrouted, out-of-band, duplicate, suppressed or opted-out leads.
 //  - Message id + delivery are the disclosure evidence; a failed WhatsApp falls back to SMS with the same words.
 //  - No quiet hours on the first touch: the lead just asked (HBR speed beats a quiet-hours delay).
+import * as W05 from './w05.mjs';
 
 export const HOLD_S = 45;
 export const DEADLINE_S = 60;
@@ -203,6 +205,28 @@ export function sentUpdate(lead, plan, wamid, sentAtMs) {
  *   op 'skip'    (POST /lead/skip, the page's "I'll pick on WhatsApp") -> broker_intro_slots at once.
  * Whichever event claims 'w06:first:{lead_id}' first sends the one card; the others find the claim taken and stop.
  */
+/**
+ * I-45f: W05 sends { event: 'booking', lead_id, booking_id, created_at, start, method } (flat). Accept that shape as
+ * op 'booking' with a booking object; every other caller already sends `op`. Nothing is guessed: no op and no known
+ * event -> op stays undefined and the workflow logs subcall_rejected.
+ */
+export function normaliseEvent(input = {}) {
+  const op = input.op || (input.event === 'booking' ? 'booking' : undefined);
+  const booking = input.booking || (op === 'booking' && input.booking_id ? { id: input.booking_id, created_at: input.created_at, start: input.start, method: input.method } : undefined);
+  return { ...input, op, booking_id: input.booking_id || (booking && booking.id) || null, ...(booking ? { booking } : {}) };
+}
+
+/**
+ * A booking event whose first-touch claim was already taken (slots card sent first, or a chat booking) -> the short
+ * booking_confirmed (W05's builder, same template + buttons), never a second intro card. l = the W06 load row
+ * (first_name, phone, language, adviser_name), booking = { id, start, method }.
+ */
+export function lateBookingConfirmed(l, booking) {
+  if (!booking || !booking.id || !booking.start) return null;
+  const wa = W05.bookingConfirmed({ lead: { ...l, mobile: l.phone }, broker: { adviser_name: l.adviser_name, contact_person: l.adviser_name } }, { start: booking.start, method: booking.method }, { id: booking.id });
+  return { template: 'booking_confirmed', wa };
+}
+
 export function ctxFromEvent(input = {}, now = Date.now()) {
   const ctx = { bookingUi: input.booking_ui === 'flow' ? 'flow' : 'list', slots: input.slots || [] };
   if (input.op === 'booking' && input.booking) ctx.booking = { id: input.booking.id, created_at: input.booking.created_at || now, start: input.booking.start, method: input.booking.method };

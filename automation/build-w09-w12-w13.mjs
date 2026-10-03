@@ -483,6 +483,23 @@ SELECT $1::uuid, $2, $3, 'appointments', $4, $5::uuid, $6::uuid, now(), $7
     '={{ [$json.brand_id, $json.kind, $json.severity, $json.booking_id, $json.lead_id, $json.broker_id, $json.note] }}');
   link(fuSw, capi, 1); link(fuSw, w29, 2); link(fuSw, w13, 3); link(fuSw, w10, 4); link(fuSw, alert, 5);
 
+  // ---- I-50f: a broker mark after the Schedule D apology went out -> KG conflict (escalation), nothing else
+  const lateQ = pg('Late broker mark? (apology already sent)', [5, -2],
+`SELECT o.id AS outcome_id, o.outcome, a.id AS booking_id, a.client_id AS lead_id, a.brand_id, a.broker_id, $2::text AS mark,
+       l.first_name, l.last_name, b.adviser_name, b.contact_person,
+       EXISTS (SELECT 1 FROM public.lead_activities s WHERE s.idempotency_key = 'w12:apology:' || a.id::text) AS apology_sent
+  FROM public.outcomes o
+  JOIN public.appointments a ON a.id = o.booking_id
+  JOIN public.leads l ON l.id = a.client_id
+  JOIN public.brokers b ON b.id = a.broker_id
+ WHERE o.booking_id = $1::uuid AND o.outcome = 'broker_no_show';`,
+    "={{ [$('Classify + validate (w12.classifyOp)').item.json.booking_id, $json.mark || ''] }}");
+  const lateFu = code('Late mark conflict (w12.lateMarkConflict)', [6, -2], IMPORT('w12') +
+`const out = [];
+for (const it of $input.all()) for (const x of L.lateMarkConflict(it.json)) out.push({ json: x });
+return out;`, 'runOnceForAllItems');
+  link(markB, lateQ); link(lateQ, lateFu); link(lateFu, fuSw);
+
   // ---- Attended tap -> disposition ask at once (list in window)
   const attTap = ifTrue('Attended tap? (ask disposition now)', [5, 1], "$json.mark === 'attended'");
   link(markB, attTap);

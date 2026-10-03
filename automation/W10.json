@@ -298,7 +298,7 @@
           "cachedResultName": "W04 Slots API"
         },
         "options": {
-          "waitForSubWorkflow": false
+          "waitForSubWorkflow": true
         }
       },
       "notes": "Called with { broker_id, exclude_booking_id, limit: 10 }; returns { slots: [{start,end}] } using the same rules as GET /slots."
@@ -362,7 +362,7 @@
           "cachedResultName": "W04 Slots API"
         },
         "options": {
-          "waitForSubWorkflow": false
+          "waitForSubWorkflow": true
         }
       },
       "notes": "Called with { op: 'is_free', broker_id, start, end, exclude_booking_id }; returns { free, next_slots }. Calendar error -> free=false (fail closed)."
@@ -563,7 +563,7 @@
           "cachedResultName": "W04 Slots API"
         },
         "options": {
-          "waitForSubWorkflow": false
+          "waitForSubWorkflow": true
         }
       },
       "notes": "Called with { op: 'graph_token', broker_id } (W04 owns token refresh + calendar.refresh_failed activities)."
@@ -826,7 +826,7 @@
           "cachedResultName": "W04 Slots API"
         },
         "options": {
-          "waitForSubWorkflow": false
+          "waitForSubWorkflow": true
         }
       },
       "notes": "Called with { op: 'graph_token', broker_id }."

@@ -510,9 +510,10 @@ export function finish(ctx, p, booking, ev = { ok: false }, opts = {}) {
     lead_update: leadUpdate(ctx, p),
     invite,
     broker: brokerNotice(ctx, p),
-    // W06 owns the first lead-facing confirmation (broker_intro_booked inside its hold, booking_confirmed after the
-    // slots card: lib/w06.mjs afterLateBooking). A rebooking (previous_booking_id) gets booking_confirmed from here.
-    w06: rebook ? null : { event: 'booking', lead_id: lead.id, booking_id: booking.id, created_at: booking.booked_at || iso(ctx.now), start: p.start, method: p.method, booked_via: p.booked_via, idempotency_key: `w06:booking:${booking.id}` },
+    // W06 owns the first lead-facing confirmation (I-45f): W05 calls W06 op 'booking' for every first booking (page
+    // inside the 45-s hold, page after it, chat, Flow); W06 sends broker_intro_booked if this booking wins its
+    // first-touch claim, else booking_confirmed (lib/w06.mjs lateBookingConfirmed). A rebooking gets it from here.
+    w06: rebook ? null : { op: 'booking', event: 'booking', lead_id: lead.id, booking_id: booking.id, created_at: booking.booked_at || iso(ctx.now), start: p.start, method: p.method, booked_via: p.booked_via, idempotency_key: `w06:booking:${booking.id}` },
     lead_wa: rebook ? bookingConfirmed(ctx, p, bk) : null,
     w09: { op: rebook ? 'rebuild' : 'schedule', booking_id: booking.id, idempotency_key: `w09:${rebook ? 'rebuild' : 'schedule'}:${booking.id}` },
     w07: CALL_METHODS.has(p.method) ? { source: 'W05', booking: { id: booking.id, method: p.method }, broker: { contact_person: brokerConfig(ctx.broker).adviser_name }, lead: { id: lead.id, phone: lead.phone, brand_id: lead.brand_id || null, language: lead.language || 'en', conv_state: lead.conv_state || {} } } : null,

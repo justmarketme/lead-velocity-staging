@@ -51,7 +51,7 @@ test('router: STOP, CTWA, opted out, broker numbers, every tap, handoff pause, f
   assert.equal(r({ from: B.adviser_whatsapp, payload: 'attended:bk1' }), 'W12');
   assert.equal(r({ from: B.adviser_whatsapp, list_id: 'nofit_budget' }), 'W29');
   assert.equal(r({ from: B.adviser_whatsapp, media: 'audio' }), 'W29');
-  const taps = { 'confirm:bk1': 'W09', 'reschedule:bk1': 'W10', 'cancel:bk1': 'W10', 'see_open_times:x': 'W04_list', 'not_now:x': 'W08', 'no_thanks:x': 'W08', 'reach_no:x': 'W12', 'pulse_yes:x': 'W35', 'call_number_yes': 'W07_contact', 'flow_complete': 'W28', 'slot_2026-10-14T14:00:00+02:00': 'W05' };
+  const taps = { 'confirm:bk1': 'W09', 'reschedule:bk1': 'W10', 'cancel:bk1': 'W10', 'see_open_times:x': 'W04_list', 'not_now:x': 'W08', 'no_thanks:x': 'W08', 'reach_no:x': 'W12', 'pulse_yes:x': 'W35', 'call_number_yes': 'W07_contact', 'flow_complete': 'W05', 'slot_2026-10-14T14:00:00+02:00': 'W05' };
   for (const [p, want] of Object.entries(taps)) assert.equal(r({ payload: p }), want, p);
   assert.equal(r({ payload: 'slot_2026-10-14T14:00:00+02:00:resched:bk_L03' }), 'W10');
   assert.equal(r({ list_id: 'slot_2026-10-14T14:00:00+02:00' }), 'W05');
@@ -493,4 +493,28 @@ test('I-48b hop limit: each delegation adds a hop on msg.hops; the 4th hand-off 
   assert.equal(pass(3), 'true'); assert.equal(pass(4), 'false');
   assert.equal(W.MAX_HOPS, 3);
   assert.equal(WF.connections['Hop limit ok? (W03 forward, I-48b)'].main[1][0].node, 'Log hop limit (W07)');
+});
+
+test('I-45d: Flow completion -> W05; W04 called by id smc-w04 (plain name); W06 card receipts forwarded to W06 op status', async () => {
+  const msg = W.normaliseInbound({ entry: [{ changes: [{ value: { metadata: { phone_number_id: 'p' }, messages: [{ id: 'wamid.F1', from: '27600000001', timestamp: '1', type: 'interactive', interactive: { type: 'nfm_reply', nfm_reply: { response_json: '{"flow_token":"ft1.x"}' } } }] } }] }] })[0];
+  assert.equal(msg.payload, 'flow_complete');
+  const w04 = WF.nodes.find((n) => n.name === '-> W04_list').parameters.workflowId;
+  assert.deepEqual([w04.mode, w04.value, w04.cachedResultName], ['id', 'smc-w04', 'W04 Slots API']);
+  const st = 'Status receipt -> communications + disclosure evidence';
+  assert.match(WF.nodes.find((n) => n.name === st).parameters.query, /AS w06_card/);
+  assert.deepEqual(WF.connections[st].main[0].map((c) => c.node), ['W06 card receipt? (w07.w06StatusItem)']);
+  assert.deepEqual(WF.connections['W06 card receipt? (w07.w06StatusItem)'].main[0].map((c) => c.node), ['-> W06 status receipt']);
+  const ex = WF.nodes.find((n) => n.name === '-> W06 status receipt').parameters;
+  assert.equal(ex.workflowId.value, 'smc-w06');
+  const rows = [
+    { wamid: 'wamid.A', status: 'failed', at: '2026-10-12T07:02:40.000Z', error: '131026 Message undeliverable', w06_card: true },
+    { wamid: 'wamid.B', status: 'delivered', at: '2026-10-12T07:02:41.000Z', error: null, w06_card: true },
+    { wamid: 'wamid.C', status: 'sent', at: '2026-10-12T07:02:41.000Z', error: null, w06_card: true },
+    { wamid: 'wamid.D', status: 'failed', at: '2026-10-12T07:02:41.000Z', error: 'x', w06_card: false },
+  ];
+  const out = (await runCode(WF, 'W06 card receipt? (w07.w06StatusItem)', { items: rows })).map((x) => x.json);
+  assert.deepEqual(out, [
+    { op: 'status', wamid: 'wamid.A', status: 'failed', at: '2026-10-12T07:02:40.000Z', errors: ['131026 Message undeliverable'] },
+    { op: 'status', wamid: 'wamid.B', status: 'delivered', at: '2026-10-12T07:02:41.000Z', errors: [] },
+  ]);
 });

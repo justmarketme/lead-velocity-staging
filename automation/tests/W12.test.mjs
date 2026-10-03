@@ -174,6 +174,14 @@ test(`W12 [${MODE}] sides disagree -> console queue, never an automatic replacem
   const b = resolveOutcome({ ...base, brokerMark: 'attended', reach: 'no' }, ms('2026-10-15T12:00:00+02:00'));
   assert.equal(b.outcome, 'attended');
   assert.equal(b.dispute_status, 'open');
+  // I-50f: CAPI Attended is held (emitted nowhere) until KG decides; the console note says so (attribution-analyst)
+  assert.deepEqual(b.capi, []);
+  assert.deepEqual(b.capi_held, ['Attended']);
+  const fu = R.followUps(b, { booking_id: 'bk', lead_id: 'x', broker_mark: 'attended', reach: 'no' }, 'o1');
+  assert.ok(!fu.some((f) => f.fu === 'capi'), 'no CAPI Attended on an Attended-vs-No conflict');
+  assert.match(fu.find((f) => f.fu === 'alert').note, /CAPI Attended held until KG decides/);
+  const plain = resolveOutcome({ ...base, brokerMark: 'attended', reach: 'yes' }, ms('2026-10-15T12:00:00+02:00'));
+  assert.equal(plain.capi.length, 1, 'no conflict -> Attended fires as before');
 });
 
 test(`W12 [${MODE}] Rescheduled -> hands over to W10; opted-out lead gets no thank-you`, (t) => {
@@ -347,4 +355,18 @@ test('W12 sends match the submitted templates (variable counts)', () => {
   assert.deepEqual(R.parseTap({ payload: 'no_show:bk1' }), { side: 'broker', mark: 'no_show', booking_id: 'bk1' });
   assert.deepEqual(R.parseTap({ payload: 'reach_no:bk1' }), { side: 'lead', answer: 'no', booking_id: 'bk1' });
   assert.ok(allWorkflows().every(({ file, wf }) => file === 'W12.json' || !JSON.stringify(wf).includes("'w12:mark:'")), 'only W12 writes the broker mark rows');
+});
+
+test('I-50f: a broker mark after the Schedule D apology went out -> one KG conflict escalation, nothing else', async () => {
+  const row = { outcome_id: 'o1', outcome: 'broker_no_show', booking_id: 'bk1', lead_id: 'ld1', brand_id: 'smc', broker_id: 'brk', mark: 'attended', first_name: 'Lerato', last_name: 'Mokoena', adviser_name: 'Mark Smith', apology_sent: true };
+  const out = (await runCode(WF, 'Late mark conflict (w12.lateMarkConflict)', { items: [row, { ...row, apology_sent: false }, {}] })).map((x) => x.json);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].fu, 'alert');
+  assert.equal(out[0].kind, 'outcome_unmarked', 'same escalation kind W12 already uses for console disputes');
+  assert.equal(out[0].to, 'KG');
+  assert.match(out[0].note, /^esc_kind=late_broker_mark; Lerato M\.?: Mark marked attended after the Schedule D apology/);
+  const q = WF.nodes.find((n) => n.name === 'Late broker mark? (apology already sent)');
+  assert.match(q.parameters.query, /'w12:apology:' \|\| a\.id::text/);
+  assert.deepEqual(WF.connections['Late mark conflict (w12.lateMarkConflict)'].main[0].map((c) => c.node), ['Follow-up']);
+  assert.ok(WF.connections['Record broker mark (w12:mark, last tap wins)'].main[0].some((c) => c.node === 'Late broker mark? (apology already sent)'));
 });

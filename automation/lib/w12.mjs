@@ -76,7 +76,11 @@ export function resolveOutcome(m, now) {
     if (m.brokerMark === 'rescheduled') return Object.assign(r, { outcome: 'rescheduled', dispute_status: 'open', next: 'console_queue' }); // no W10 offer until KG decides
     if (m.brokerMark === 'attended') {
       if (m.disposition === 'unreachable') { attended(); r.lead_message = null; return r; } // W29 -> W13 replacement
-      attended({ dispute_status: 'open', next: 'console_queue' }); r.lead_message = null; return r; // no thank-you either
+      attended({ dispute_status: 'open', next: 'console_queue' }); r.lead_message = null; // no thank-you either
+      // I-50f: CAPI Attended is HELD (emitted nowhere) while KG decides; Meta must not learn a meeting the lead denies.
+      // Release on KG's decision is attribution-analyst's (console decision -> CAPI Send), not built here.
+      r.capi_held = r.capi.map((c) => c.event_name); r.capi = [];
+      return r;
     }
     if (m.brokerMark === 'no_show') return Object.assign(r, { outcome: 'disputed', dispute_status: 'open', next: 'console_queue' });
     if (now < ms(p.broker_nudge_at)) return r; // pending: the existing sweep wakes at broker_nudge_at, no new timer
@@ -305,8 +309,20 @@ export function followUps(r, row = {}, outcomeId, brandId = row.brand_id) {
   if (r.outcome === 'broker_no_show') out.push({ fu: 'w10', ...w10Rebook(booking, lead, 'broker_no_show') });
   if (r.outcome === 'rescheduled' && r.dispute_status !== 'open') out.push({ fu: 'w10', ...w10Rebook(booking, lead, 'broker_rescheduled') });
   for (const a of r.alerts || []) out.push({ fu: 'alert', to: a, kind: 'other', severity: 'urgent', lead_id: row.lead_id, broker_id: row.broker_id, brand_id: brandId, booking_id: row.booking_id, note: `esc_kind=broker_no_show; ${firstAndInitial(lead)}: the lead says ${firstName(broker.adviser_name || broker.contact_person)} did not call (Schedule D: apology sent, rebooking at our cost, no replacement).` });
-  if (r.outcome === 'disputed' || r.dispute_status === 'open') out.push({ fu: 'alert', to: 'console', kind: 'outcome_unmarked', severity: 'normal', lead_id: row.lead_id, broker_id: row.broker_id, brand_id: brandId, booking_id: row.booking_id, note: `esc_kind=outcome_disputed; ${firstAndInitial(lead)}: broker marked ${row.broker_mark || 'nothing'}, lead answered ${row.reach || 'nothing'}. KG reviews in the console; nothing goes to the lead until KG decides, and no replacement is opened automatically (an Unreachable/wrong number disposition takes the normal W13 path).` });
+  if (r.outcome === 'disputed' || r.dispute_status === 'open') out.push({ fu: 'alert', to: 'console', kind: 'outcome_unmarked', severity: 'normal', lead_id: row.lead_id, broker_id: row.broker_id, brand_id: brandId, booking_id: row.booking_id, note: `esc_kind=outcome_disputed; ${firstAndInitial(lead)}: broker marked ${row.broker_mark || 'nothing'}, lead answered ${row.reach || 'nothing'}. KG reviews in the console; nothing goes to the lead until KG decides, and no replacement is opened automatically (an Unreachable/wrong number disposition takes the normal W13 path).${(r.capi_held || []).length ? ` CAPI ${r.capi_held.join(', ')} held until KG decides (not sent).` : ''}` });
   return out;
+}
+
+/**
+ * I-50f: a broker mark (any of Attended / No-show / Rescheduled) that arrives after the Schedule D apology went out
+ * (outcome broker_no_show, w12:apology claimed) is a conflict for KG: one escalation (same kind and table as the
+ * console dispute), nothing to the lead, no CAPI, no W10/W13 call. row = the "Late broker mark?" query row.
+ */
+export function lateMarkConflict(row = {}) {
+  if (row.outcome !== 'broker_no_show' || !row.apology_sent || !row.mark) return [];
+  const { lead, broker } = partsOf(row);
+  return [{ fu: 'alert', to: 'KG', kind: 'outcome_unmarked', severity: 'normal', lead_id: row.lead_id, broker_id: row.broker_id, brand_id: row.brand_id, booking_id: row.booking_id,
+    note: `esc_kind=late_broker_mark; ${firstAndInitial(lead)}: ${firstName(broker.adviser_name || broker.contact_person)} marked ${row.mark} after the Schedule D apology went out (lead said the adviser did not call). KG decides; nothing more goes to the lead, no CAPI event, no replacement.` }];
 }
 
 /** Disposition ask item after an Attended tap (the tap opened the broker's window -> list) or a portal `feedback` op. */

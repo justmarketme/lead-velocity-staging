@@ -92,6 +92,7 @@ export async function book(st, req, now) {
   if (fin.invite) st.invites.push({ from: W5.INVITE_FROM, to: fin.invite.to, join_url: evRes.join_url, ics: fin.invite.message.attachments.some((x) => x.contentType === 'text/calendar'), lead_id: row0.id });
   st.notifications.push({ to: fin.broker.to, template: fin.broker.template, vars: fin.broker.vars });
   if (fin.capi) st.capi.push(fin.capi);
+  if (fin.w06) (st.w06 = st.w06 || []).push(fin.w06);
   return asHttp(fin.response.status, fin.response.body);
 }
 
@@ -392,4 +393,25 @@ test('W05.json invite_bounced: EMAIL_BOUNCED inside 24 h, invite_email_bounced (
   assert.equal(sendNode.parameters.workflowId.value, 'smc-whatsapp-send');
   assert.equal(sendNode.parameters.options.waitForSubWorkflow, false);
   assert.equal(wf5.connections['Bounce prompt (w05.bounceEffect)'].main[0][0].node, '-> WhatsApp Send (invite bounce)');
+});
+
+test('I-45f: a first booking calls W06 op booking (W06 picks broker_intro_booked vs booking_confirmed); W06 reads it as a booking', async () => {
+  const W6 = await import('../lib/w06.mjs');
+  const st = newBookState();
+  const fx = lead('L01');
+  const id = seedLead(st, fx);
+  const r = await book(st, reqFor(fx, id), ms(fx.booking_request.requested_at));
+  assert.equal(r.http_status ?? r.status, fx.expected.W05.http_status);
+  assert.equal(st.w06.length, 1);
+  const call = st.w06[0];
+  assert.equal(call.op, 'booking', 'W06 Op? switch routes on op');
+  assert.equal(call.lead_id, id);
+  const ev = W6.normaliseEvent(call);
+  assert.equal(ev.booking.id, call.booking_id);
+  assert.equal(ev.booking.start, call.start);
+  const legacy = W6.normaliseEvent({ event: 'booking', lead_id: id, booking_id: 'b1', start: call.start, method: 'teams' });
+  assert.equal(legacy.op, 'booking', 'the older { event: booking } shape is still accepted');
+  const W06WF = JSON.parse(readFileSync(new URL('../W06.json', import.meta.url), 'utf8'));
+  const op = W06WF.nodes.find((n) => n.name === 'Op?');
+  assert.match(JSON.stringify(op.parameters), /event === 'booking'/);
 });

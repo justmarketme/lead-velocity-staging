@@ -336,7 +336,7 @@
           "waitForSubWorkflow": false
         }
       },
-      "notes": "Called with { op: 'claim'|'withdraw', outcome_id, reason: 'uncontactable'|'disqualified', reason_code }. W13 owns replacements (cap per cycle, over_cap, 48-h dispute window)."
+      "notes": "Input from 'W13 claim item': { op: 'claim'|'withdraw', outcome_id, reason, reason_code, idempotency_key } (W13 contract, I-45k)."
     },
     {
       "id": "n12",
@@ -910,6 +910,20 @@
         "mode": "runOnceForEachItem",
         "jsCode": "const L = require('lv-automation').w29;\nconst r = $('fit_followup due').item.json; if (!$json.id) return { json: { skip: true } };\nconst d = new Date(Date.parse(r.marked_at) + 7200000); const lbl = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getUTCDay()] + ' ' + d.getUTCDate() + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getUTCMonth()];\nconst who = (r.first_name || '') + (r.last_name ? ' ' + r.last_name.slice(0, 1) + '.' : '');\nreturn { json: { skip: false, wa: { messaging_product: 'whatsapp', to: r.whatsapp_number, type: 'template', template: { name: 'broker_fit_followup', language: { code: 'en' }, components: [{ type: 'body', parameters: [String(r.contact_person).split(' ')[0], lbl, who].map((t) => ({ type: 'text', text: t })) }, { type: 'button', sub_type: 'quick_reply', index: '0', parameters: [{ type: 'payload', payload: 'fit_followup:' + r.lead_id + ':done' }] }, { type: 'button', sub_type: 'quick_reply', index: '1', parameters: [{ type: 'payload', payload: 'fit_followup:' + r.lead_id + ':open' }] }, { type: 'button', sub_type: 'url', index: '2', parameters: [{ type: 'text', text: 'leads/' + r.lead_id }] }] } } } };"
       }
+    },
+    {
+      "id": "n34",
+      "name": "W13 claim item (op, outcome_id, reason, reason_code, idempotency_key)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        360
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-45k: W13 contract { op, outcome_id, reason, reason_code, idempotency_key } (CONTRACTS 'Sub-workflow interfaces').\nconst L = require('lv-automation').w29;\nconst out = [];\n$input.all().forEach((it, i) => {\n  const a = $('Apply disposition').itemMatching(i).json;\n  const call = L.w13Call(a.o, a.d);\n  if (call) out.push({ json: call });\n});\nreturn out;"
+      }
     }
   ],
   "connections": {
@@ -1043,7 +1057,7 @@
       "main": [
         [
           {
-            "node": "-> W13 claim / withdraw replacement",
+            "node": "W13 claim item (op, outcome_id, reason, reason_code, idempotency_key)",
             "type": "main",
             "index": 0
           }
@@ -1253,6 +1267,17 @@
         [
           {
             "node": "Live send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W13 claim item (op, outcome_id, reason, reason_code, idempotency_key)": {
+      "main": [
+        [
+          {
+            "node": "-> W13 claim / withdraw replacement",
             "type": "main",
             "index": 0
           }

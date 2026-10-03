@@ -853,6 +853,44 @@
     },
     {
       "id": "n27",
+      "name": "Late broker mark? (apology already sent)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1200,
+        -400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT o.id AS outcome_id, o.outcome, a.id AS booking_id, a.client_id AS lead_id, a.brand_id, a.broker_id, $2::text AS mark,\n       l.first_name, l.last_name, b.adviser_name, b.contact_person,\n       EXISTS (SELECT 1 FROM public.lead_activities s WHERE s.idempotency_key = 'w12:apology:' || a.id::text) AS apology_sent\n  FROM public.outcomes o\n  JOIN public.appointments a ON a.id = o.booking_id\n  JOIN public.leads l ON l.id = a.client_id\n  JOIN public.brokers b ON b.id = a.broker_id\n WHERE o.booking_id = $1::uuid AND o.outcome = 'broker_no_show';",
+        "options": {
+          "queryReplacement": "={{ [$('Classify + validate (w12.classifyOp)').item.json.booking_id, $json.mark || ''] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "id": "n28",
+      "name": "Late mark conflict (w12.lateMarkConflict)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        -400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w12;\nconst out = [];\nfor (const it of $input.all()) for (const x of L.lateMarkConflict(it.json)) out.push({ json: x });\nreturn out;"
+      }
+    },
+    {
+      "id": "n29",
       "name": "Attended tap? (ask disposition now)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -882,7 +920,7 @@
       }
     },
     {
-      "id": "n28",
+      "id": "n30",
       "name": "Load meeting (disposition ask)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -906,7 +944,7 @@
       "alwaysOutputData": false
     },
     {
-      "id": "n29",
+      "id": "n31",
       "name": "Disposition ask (w12.dispositionItem)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -920,7 +958,7 @@
       }
     },
     {
-      "id": "n30",
+      "id": "n32",
       "name": "Voice note reference (w12.voiceNoteRef)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -934,7 +972,7 @@
       }
     },
     {
-      "id": "n31",
+      "id": "n33",
       "name": "Store voice note reference (no audio, no transcript here)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -958,7 +996,7 @@
       "alwaysOutputData": false
     },
     {
-      "id": "n32",
+      "id": "n34",
       "name": "Log subcall_rejected (CONTRACTS: never guessed)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -982,7 +1020,7 @@
       "alwaysOutputData": false
     },
     {
-      "id": "n33",
+      "id": "n35",
       "name": "Live send?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -1012,7 +1050,7 @@
       }
     },
     {
-      "id": "n34",
+      "id": "n36",
       "name": "Send WhatsApp",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -1050,7 +1088,7 @@
       }
     },
     {
-      "id": "n35",
+      "id": "n37",
       "name": "Store outbound",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1077,7 +1115,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n36",
+      "id": "n38",
       "name": "Touch leads.last_contact_at (lead outbound)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1101,7 +1139,7 @@
       "alwaysOutputData": false
     },
     {
-      "id": "n37",
+      "id": "n39",
       "name": "Accepted by Meta? (wamid)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -1131,7 +1169,7 @@
       }
     },
     {
-      "id": "n38",
+      "id": "n40",
       "name": "Log send failed (once; W22 reads it)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1258,6 +1296,11 @@
         [
           {
             "node": "Meeting state (ended, no outcome yet)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Late broker mark? (apology already sent)",
             "type": "main",
             "index": 0
           },
@@ -1455,6 +1498,28 @@
         [
           {
             "node": "Escalate (KG broker no-show / console dispute)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Late broker mark? (apology already sent)": {
+      "main": [
+        [
+          {
+            "node": "Late mark conflict (w12.lateMarkConflict)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Late mark conflict (w12.lateMarkConflict)": {
+      "main": [
+        [
+          {
+            "node": "Follow-up",
             "type": "main",
             "index": 0
           }

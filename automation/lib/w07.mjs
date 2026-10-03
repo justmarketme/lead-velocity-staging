@@ -53,9 +53,22 @@ const LEAD_TAPS = {
   see_open_times: 'W04_list', not_now: 'W08', no_thanks: 'W08',
   reach_yes: 'W12', reach_no: 'W12', pulse_yes: 'W35', pulse_no: 'W35',
   call_number_yes: 'W07_contact', call_number_other: 'W07_contact', alt_add: 'W07_contact', alt_no: 'W07_contact',
-  play_voice_note: 'W09', looking_forward: 'W09', flow_complete: 'W28'
+  play_voice_note: 'W09', looking_forward: 'W09',
+  // I-45d: the Flow completion (nfm_reply) books through W05 (booking-flow-endpoint.md 'complete'); W28 is only the
+  // encrypted data_exchange endpoint and never sees the closing message.
+  flow_complete: 'W05'
 };
 const STOP_WORDS = /^\s*(stop|unsubscribe|opt[ -]?out|stopp?|stop all)\s*[.!]*\s*$/iu;
+/**
+ * I-45d: a delivery receipt for a W06 intro card / booking_confirmed -> W06 { op:'status' } (disclosure evidence +
+ * the once-only SMS fallback live there). row = the "Status receipt" query row { wamid, status, at, error, w06_card }.
+ * Only delivered / read / failed are forwarded; 'sent' carries no evidence. Anything else -> null (nothing sent).
+ */
+export function w06StatusItem(row = {}) {
+  if (!row.w06_card || !row.wamid || !['delivered', 'read', 'failed'].includes(row.status)) return null;
+  const at = row.at ? new Date(row.at).toISOString() : null;
+  return { op: 'status', wamid: row.wamid, status: row.status, at, errors: row.error ? [String(row.error)] : [] };
+}
 export const BEST_TIME = { best_mornings: 'mornings', best_lunchtime: 'lunchtime', best_afternoons: 'afternoons', best_evenings: 'evenings', best_any: 'any' };
 
 // W32 Approve / Later quick replies (optimisation/n8n-code/w32-pulse-messages.js + w32-escalate.js: "approve:<uuid>" | "later:<uuid>").

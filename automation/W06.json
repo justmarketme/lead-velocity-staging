@@ -55,7 +55,7 @@
                 "conditions": [
                   {
                     "id": "s0",
-                    "leftValue": "={{ $json.op === 'status' ? 'status' : ['routed', 'skip', 'booking', 'hold'].includes($json.op) ? 'send' : 'other' }}",
+                    "leftValue": "={{ $json.op === 'status' ? 'status' : ['routed', 'skip', 'booking', 'hold'].includes($json.op || ($json.event === 'booking' ? 'booking' : '')) ? 'send' : 'other' }}",
                     "rightValue": "send",
                     "operator": {
                       "type": "string",
@@ -78,7 +78,7 @@
                 "conditions": [
                   {
                     "id": "s1",
-                    "leftValue": "={{ $json.op === 'status' ? 'status' : ['routed', 'skip', 'booking', 'hold'].includes($json.op) ? 'send' : 'other' }}",
+                    "leftValue": "={{ $json.op === 'status' ? 'status' : ['routed', 'skip', 'booking', 'hold'].includes($json.op || ($json.event === 'booking' ? 'booking' : '')) ? 'send' : 'other' }}",
                     "rightValue": "status",
                     "operator": {
                       "type": "string",
@@ -101,7 +101,7 @@
                 "conditions": [
                   {
                     "id": "s2",
-                    "leftValue": "={{ $json.op === 'status' ? 'status' : ['routed', 'skip', 'booking', 'hold'].includes($json.op) ? 'send' : 'other' }}",
+                    "leftValue": "={{ $json.op === 'status' ? 'status' : ['routed', 'skip', 'booking', 'hold'].includes($json.op || ($json.event === 'booking' ? 'booking' : '')) ? 'send' : 'other' }}",
                     "rightValue": "other",
                     "operator": {
                       "type": "string",
@@ -156,7 +156,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w06;\nconst ev = $('Called by W01 / W05 / W07 (op routed | skip | booking | status)').first().json;\nconst l = $input.first().json;\nif (!l || !l.id) return [{ json: { blocked: 'no_lead', lead_id: ev.lead_id, hold_s: 0 } }];\nconst block = L.blockReason(l);\nreturn [{ json: { ev, l, blocked: block, hold_s: block ? 0 : L.holdSeconds(l, ev.op) } }];"
+        "jsCode": "const L = require('lv-automation').w06;\nconst ev = L.normaliseEvent($('Called by W01 / W05 / W07 (op routed | skip | booking | status)').first().json);\nconst l = $input.first().json;\nif (!l || !l.id) return [{ json: { blocked: 'no_lead', lead_id: ev.lead_id, hold_s: 0 } }];\nconst block = L.blockReason(l);\nreturn [{ json: { ev, l, blocked: block, hold_s: block ? 0 : L.holdSeconds(l, ev.op) } }];"
       }
     },
     {
@@ -290,9 +290,9 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "-- Exactly one intro card per lead: whichever event (hold expiry, skip, page booking) inserts this row first sends.\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT l.id, l.brand_id, l.broker_id, 'W06', 'system', 'first_touch_claimed', jsonb_build_object('op', $2::text), now(), 'w06:first:' || l.id::text\n  FROM public.leads l\n WHERE l.id = $1::uuid AND l.opted_out_at IS NULL AND l.broker_id IS NOT NULL AND l.first_message_at IS NULL\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING lead_id;",
+        "query": "-- Exactly one intro card per lead: whichever event (hold expiry, skip, page booking) inserts this row first sends.\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT l.id, l.brand_id, l.broker_id, 'W06', 'system', 'first_touch_claimed', jsonb_build_object('op', $2::text, 'booking_id', NULLIF($3, '')), now(), 'w06:first:' || l.id::text\n  FROM public.leads l\n WHERE l.id = $1::uuid AND l.opted_out_at IS NULL AND l.broker_id IS NOT NULL AND l.first_message_at IS NULL\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING lead_id;",
         "options": {
-          "queryReplacement": "={{ [$json.l.id, $json.ev.op] }}"
+          "queryReplacement": "={{ [$json.l.id, $json.ev.op, ($json.ev.op === 'booking' && $json.l.booking) ? String($json.l.booking.id) : ''] }}"
         }
       },
       "credentials": {
@@ -317,7 +317,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const j = $('Hold for the in-page booking? (w06.holdSeconds)').first().json;\nconst ev = $('Event after hold').isExecuted ? { ...j.ev, op: 'hold' } : j.ev;\nconst claimed = $input.all().some((i) => i.json && i.json.lead_id);\nconst booked = ev.op === 'booking' && j.l.booking;\nconst need_slots = claimed && !booked && j.l.booking_ui !== 'flow';\nreturn [{ json: { ...j, ev, claimed, need_slots, broker_id: j.l.broker_id, limit: 10 } }];"
+        "jsCode": "const j = $('Hold for the in-page booking? (w06.holdSeconds)').first().json;\nconst ev = $('Event after hold').isExecuted ? { ...j.ev, op: 'hold' } : j.ev;\nconst claimed = $input.all().some((i) => i.json && i.json.lead_id);\nconst booked = ev.op === 'booking' && j.l.booking;\nconst need_slots = claimed && !booked && j.l.booking_ui !== 'flow';\n// I-45f: a booking event that lost the claim (slots card already out, or a chat booking) -> booking_confirmed instead.\nconst late_booking = !claimed && !!booked;\nreturn [{ json: { ...j, ev, claimed, need_slots, late_booking, broker_id: j.l.broker_id, limit: 10 } }];"
       }
     },
     {
@@ -354,17 +354,190 @@
     },
     {
       "id": "n14",
-      "name": "Already sent by another event (stop)",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
+      "name": "Booking after the card? -> booking_confirmed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
       "position": [
         2420,
         200
       ],
-      "parameters": {}
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.late_booking) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
     },
     {
       "id": "n15",
+      "name": "Already sent by another event (stop)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2640,
+        400
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "n16",
+      "name": "Claim booking_confirmed (w06:booking_confirmed:{booking_id})",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2640,
+        200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Once per booking, and never when this booking's own event sent broker_intro_booked (that card is the confirmation).\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT l.id, l.brand_id, l.broker_id, 'W06', 'system', 'booking_confirmed_claimed', jsonb_build_object('booking_id', $2::text), now(), 'w06:booking_confirmed:' || $2::text\n  FROM public.leads l\n WHERE l.id = $1::uuid AND l.opted_out_at IS NULL\n   AND NOT EXISTS (SELECT 1 FROM public.lead_activities f WHERE f.idempotency_key = 'w06:first:' || l.id::text AND f.payload->>'booking_id' = $2::text)\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING lead_id;",
+        "options": {
+          "queryReplacement": "={{ [$json.l.id, String($json.l.booking.id)] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n17",
+      "name": "booking_confirmed item (w06.lateBookingConfirmed, claimed only)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w06;\nconst j = $('Claimed? -> need W04 slots?').first().json;\nif (!$input.all().some((i) => i.json && i.json.lead_id)) return [];\nconst c = L.lateBookingConfirmed(j.l, j.l.booking);\nreturn c ? [{ json: { l: j.l, booking_id: j.l.booking.id, template: c.template, wa: c.wa, dry: $env.DRY_RUN_SENDS === 'true' } }] : [];"
+      }
+    },
+    {
+      "id": "n18",
+      "name": "Send booking_confirmed live? (not DRY_RUN_SENDS)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$json.wa && !$json.dry) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n19",
+      "name": "Send WhatsApp (booking_confirmed)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3300,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION }}/{{ $env.PHONE_NUMBER_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.META_SYSTEM_USER_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.wa) }}",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "n20",
+      "name": "Log booking_confirmed + last_contact_at (only with a wamid)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        3520,
+        200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH c AS (\n  INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id,\n                                     lead_id, broker_id, author, workflow, template_name, template_category, metadata)\n  SELECT $1::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, 'template:booking_confirmed', 'sent', $3, $4::uuid, $5::uuid, 'system', 'W06',\n         'booking_confirmed', 'UTILITY', jsonb_build_object('booking_id', $6::text)\n   WHERE $3 <> ''\n  ON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING\n  RETURNING id)\nUPDATE public.leads l SET last_contact_at = now(), updated_at = now() WHERE l.id = $4::uuid AND $3 <> '';",
+        "options": {
+          "queryReplacement": "={{ (() => { const p = $('booking_confirmed item (w06.lateBookingConfirmed, claimed only)').first().json; const w = ($json.messages && $json.messages[0] && $json.messages[0].id) || ''; return [p.l.brand_id, p.l.phone, w, p.l.id, p.l.broker_id, String(p.booking_id)]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n21",
       "name": "List card needs slots?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -396,7 +569,7 @@
       }
     },
     {
-      "id": "n16",
+      "id": "n22",
       "name": "W04 Slots API (list, limit 10)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -419,7 +592,7 @@
       "notes": "Called with { broker_id, limit: 10 }; waits -> { slots: [{start,end}], fallback? }. Same rules as GET /slots."
     },
     {
-      "id": "n17",
+      "id": "n23",
       "name": "Plan card (w06.planFirstTouch + toCloudApi)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -433,7 +606,7 @@
       }
     },
     {
-      "id": "n18",
+      "id": "n24",
       "name": "Send live? (not DRY_RUN_SENDS)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -465,7 +638,7 @@
       }
     },
     {
-      "id": "n19",
+      "id": "n25",
       "name": "Send WhatsApp (intro card)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -506,7 +679,7 @@
       "waitBetweenTries": 3000
     },
     {
-      "id": "n20",
+      "id": "n26",
       "name": "Evidence rows (w06.communicationRow + sentUpdate)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -520,7 +693,7 @@
       }
     },
     {
-      "id": "n21",
+      "id": "n27",
       "name": "Log card + stamp lead + timeline (one statement; last_contact_at only with a wamid)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -547,7 +720,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n22",
+      "id": "n28",
       "name": "WhatsApp rejected? -> SMS now",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -579,7 +752,7 @@
       }
     },
     {
-      "id": "n23",
+      "id": "n29",
       "name": "Twilio SMS (same disclosure)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -630,7 +803,7 @@
       "waitBetweenTries": 5000
     },
     {
-      "id": "n24",
+      "id": "n30",
       "name": "Log SMS disclosure",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -657,7 +830,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n25",
+      "id": "n31",
       "name": "Slower than 60 s or slots short? -> W22",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -689,7 +862,7 @@
       }
     },
     {
-      "id": "n26",
+      "id": "n32",
       "name": "W22 signal",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -703,7 +876,7 @@
       }
     },
     {
-      "id": "n27",
+      "id": "n33",
       "name": "W22 Alerts (W06)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -725,7 +898,7 @@
       }
     },
     {
-      "id": "n28",
+      "id": "n34",
       "name": "Load disclosure message by wamid",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -752,7 +925,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n29",
+      "id": "n35",
       "name": "Status effect (w06.statusEffect)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -766,7 +939,7 @@
       }
     },
     {
-      "id": "n30",
+      "id": "n36",
       "name": "Stamp disclosure evidence (first delivery wins)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -793,7 +966,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n31",
+      "id": "n37",
       "name": "Failed disclosure? -> SMS once",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -825,7 +998,7 @@
       }
     },
     {
-      "id": "n32",
+      "id": "n38",
       "name": "Claim SMS fallback (w06:sms:{wamid})",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -852,7 +1025,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n33",
+      "id": "n39",
       "name": "SMS item (claimed only)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -866,7 +1039,7 @@
       }
     },
     {
-      "id": "n34",
+      "id": "n40",
       "name": "Live SMS? (not DRY_RUN_SENDS)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -898,7 +1071,7 @@
       }
     },
     {
-      "id": "n35",
+      "id": "n41",
       "name": "Twilio SMS (status fallback)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -949,7 +1122,7 @@
       "waitBetweenTries": 5000
     },
     {
-      "id": "n36",
+      "id": "n42",
       "name": "Log SMS disclosure (status fallback)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -976,7 +1149,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n37",
+      "id": "n43",
       "name": "Unknown W06 call (logged, never guessed)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1140,7 +1313,69 @@
         ],
         [
           {
+            "node": "Booking after the card? -> booking_confirmed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Booking after the card? -> booking_confirmed": {
+      "main": [
+        [
+          {
+            "node": "Claim booking_confirmed (w06:booking_confirmed:{booking_id})",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
             "node": "Already sent by another event (stop)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim booking_confirmed (w06:booking_confirmed:{booking_id})": {
+      "main": [
+        [
+          {
+            "node": "booking_confirmed item (w06.lateBookingConfirmed, claimed only)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "booking_confirmed item (w06.lateBookingConfirmed, claimed only)": {
+      "main": [
+        [
+          {
+            "node": "Send booking_confirmed live? (not DRY_RUN_SENDS)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send booking_confirmed live? (not DRY_RUN_SENDS)": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp (booking_confirmed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp (booking_confirmed)": {
+      "main": [
+        [
+          {
+            "node": "Log booking_confirmed + last_contact_at (only with a wamid)",
             "type": "main",
             "index": 0
           }

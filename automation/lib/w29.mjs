@@ -111,3 +111,13 @@ export function thanksLine(q) {
 
 /** fit_followup reminder due? (+7 d after the disposition; once) */
 export const followupDue = (outcome, now_ms, sent) => outcome.disposition_code === 'fit_followup' && now_ms >= Date.parse(outcome.marked_at) + FOLLOWUP_AFTER && !sent;
+
+/**
+ * I-45k: the W29 -> W13 sub-call body per the W13 contract. o = the outcome row ("Apply disposition" item .o),
+ * d = applyDisposition() result. Correction taps are distinct calls (claim and withdraw keys differ by op + code).
+ */
+export function w13Call(o = {}, d = {}) {
+  const w = d.w13;
+  if (!w || !o.id) return null;
+  return { op: w.op, outcome_id: o.id, reason: w.reason || null, reason_code: w.reason_code, idempotency_key: `w29:${w.op}:${o.id}:${w.reason_code}` };
+}

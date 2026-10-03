@@ -288,3 +288,9 @@ test('I-39a W10.json: builders pass the delegate; no hard-coded English bodies l
   assert.equal(mr[2].filter((c) => c.node === 'Method lead message (one message)').length, 1);
   assert.equal(mr[1].some((c) => c.node === 'Method lead message (one message)'), false);
 });
+
+test('I-45e: every W04 sub-call (list, is_free, graph_token) waits for its answer (CONTRACTS "Sub-workflow interfaces")', () => {
+  const w04 = WF.nodes.filter((n) => n.type === 'n8n-nodes-base.executeWorkflow' && n.parameters.workflowId.value === 'smc-w04');
+  assert.equal(w04.length, 4);
+  for (const n of w04) assert.equal(n.parameters.options.waitForSubWorkflow, true, n.name);
+});

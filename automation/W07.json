@@ -141,7 +141,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "-- delivery receipts: sent / delivered / read / failed (W06 disclosure evidence uses the same rows)\nWITH c AS (\n  UPDATE public.communications\n     SET status = $2,\n         delivered_at = CASE WHEN $2 IN ('delivered','read') THEN COALESCE(delivered_at, to_timestamp($3)) ELSE delivered_at END,\n         read_at = CASE WHEN $2 = 'read' THEN COALESCE(read_at, to_timestamp($3)) ELSE read_at END,\n         failed_reason = CASE WHEN $2 = 'failed' THEN $4 ELSE failed_reason END,\n         updated_at = now()\n   WHERE channel = 'whatsapp' AND external_id = $1 AND brand_id IS NOT NULL\n  RETURNING lead_id)\nUPDATE public.leads l\n   SET wa_delivered_at = COALESCE(l.wa_delivered_at, to_timestamp($3)),\n       disclosure_delivered_at = CASE WHEN l.disclosure_msg_id = $1 THEN COALESCE(l.disclosure_delivered_at, to_timestamp($3)) ELSE l.disclosure_delivered_at END\n  FROM c\n WHERE l.id = c.lead_id AND $2 IN ('delivered','read');",
+        "query": "-- delivery receipts: sent / delivered / read / failed (W06 disclosure evidence uses the same rows).\n-- I-45d: the row says whether the message was a W06 card, so W06 { op:'status' } gets delivered/failed (SMS fallback).\nWITH c AS (\n  UPDATE public.communications\n     SET status = $2,\n         delivered_at = CASE WHEN $2 IN ('delivered','read') THEN COALESCE(delivered_at, to_timestamp($3)) ELSE delivered_at END,\n         read_at = CASE WHEN $2 = 'read' THEN COALESCE(read_at, to_timestamp($3)) ELSE read_at END,\n         failed_reason = CASE WHEN $2 = 'failed' THEN $4 ELSE failed_reason END,\n         updated_at = now()\n   WHERE channel = 'whatsapp' AND external_id = $1 AND brand_id IS NOT NULL\n  RETURNING lead_id, workflow),\nu AS (\n  UPDATE public.leads l\n     SET wa_delivered_at = COALESCE(l.wa_delivered_at, to_timestamp($3)),\n         disclosure_delivered_at = CASE WHEN l.disclosure_msg_id = $1 THEN COALESCE(l.disclosure_delivered_at, to_timestamp($3)) ELSE l.disclosure_delivered_at END\n    FROM c\n   WHERE l.id = c.lead_id AND $2 IN ('delivered','read')\n  RETURNING l.id)\nSELECT $1 AS wamid, $2 AS status, to_timestamp($3) AS at, $4 AS error,\n       EXISTS (SELECT 1 FROM c WHERE c.workflow = 'W06') AS w06_card,\n       (SELECT count(*) FROM u)::int AS leads_stamped;",
         "options": {
           "queryReplacement": "={{ [$json.wamid, $json.status, $json.ts, $json.error] }}"
         }
@@ -940,7 +940,7 @@
           "__rl": true,
           "mode": "id",
           "value": "smc-w04",
-          "cachedResultName": "W04 Slots API (10-slot list in chat)"
+          "cachedResultName": "W04 Slots API"
         },
         "options": {
           "waitForSubWorkflow": false
@@ -992,7 +992,7 @@
           "waitForSubWorkflow": false
         }
       },
-      "notes": "Called with { source: 'W07', route, msg, lead, booking }. Sub-workflow owns its reply."
+      "notes": "Reserved, no route reaches it since I-45d: the Flow completion (nfm_reply, payload flow_complete) goes to W05 (booking-flow-endpoint.md). W28 is the encrypted data_exchange endpoint only."
     },
     {
       "id": "n26",
@@ -2320,6 +2320,43 @@
         "options": {}
       },
       "notes": "3 = lib/w07.mjs MAX_HOPS (I-48b)."
+    },
+    {
+      "id": "n469",
+      "name": "W06 card receipt? (w07.w06StatusItem)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w07;\nconst out = [];\nfor (const it of $input.all()) { const s = L.w06StatusItem(it.json || {}); if (s) out.push({ json: s }); }\nreturn out;"
+      }
+    },
+    {
+      "id": "n470",
+      "name": "-> W06 status receipt",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1540,
+        0
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w06",
+          "cachedResultName": "W06 First touch"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "I-45d / CONTRACTS W06: { op: 'status', wamid, status, at, errors } for delivered/read/failed receipts of W06 cards. W06 stamps disclosure evidence and sends the SMS fallback once (w06:sms:{wamid})."
     }
   ],
   "connections": {
@@ -3128,6 +3165,28 @@
         [
           {
             "node": "Log hop limit (W07)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status receipt -> communications + disclosure evidence": {
+      "main": [
+        [
+          {
+            "node": "W06 card receipt? (w07.w06StatusItem)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W06 card receipt? (w07.w06StatusItem)": {
+      "main": [
+        [
+          {
+            "node": "-> W06 status receipt",
             "type": "main",
             "index": 0
           }
