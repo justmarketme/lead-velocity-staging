@@ -2,6 +2,30 @@
 
 Owner: automation-engineer. Date: 2026-10-03. Never the live Supabase project; `DRY_RUN_SENDS=true`; synthetic numbers only.
 
+## Round 5 (I-57a): full regression of stages 1 to 8 after today's changes
+
+**Stages 1 to 8 pass from a real `POST /lead`, in a fresh container.** Changes under test: W02, W05 `/book` guard + .ics (`ics_url` now carries `?k=`), W07 re-check, W12 NH-62, W13, W14 PDF email, W15 `broker_lead_opted_out`, W20 token sub-workflow, W22, W28 crypto, NH-61 billing flags, visit beacon. One defect was found and fixed (W11, below). Stub saw **0** WhatsApp `/messages` POSTs, **0** Twilio, **0** Graph sendMail. **0** non-loopback sockets. Suite 773/776 (the 3 known credential-doc reds; +1 new W11 test).
+
+**Setup.** Postgres stub rebuilt from the repo chain (legacy + SMC 01 to 14 + seed, 0 errors). n8n sqlite recreated, 31 synthetic credentials, 40 repo workflows + harness imported one per process and published. `pubcheck --check`: 27 targets equal; `--only-published`: 40 equal; 0 problems (re-run after the W11 fix, still 0). Egress stub and sockwatch started before n8n; controls: unguarded SYN to 10.255.255.1 flagged by sockwatch, guarded call redirected to the stub. `n8n.env` gained INCONTACT_ENABLED, STATEMENT_IMPORT_ENABLED and SUPABASE_S3_* (new names in `.env.example`). **`BRAND_ID` must be re-pointed to the new seed brand uuid after every stub rebuild** (the seed uuid changes; the first POST /lead was a 500 until I did). `TURNSTILE_SECRET_KEY` is unset, so the `/book` Turnstile guard is skipped and was not exercised. W09/W12/W13 harness ticks need `is_synthetic:true` as well as `now`.
+
+| # | Stage | Exec | Evidence | Result |
+|---|---|---|---|---|
+| 1 | W01 POST /lead (x-test-now 12 Oct 08:14:05), +27600000151 | 4 | lead `affe60c7-bf40-4b94-aa20-b4abf9fc7d40`, routed single_broker | **OK** 200 accepted + lead_token |
+| 2 | W06 first touch | 6 | `broker_intro_booked` utility `dry:w06:first:affe60c7...`, first_message_at + disclosure_msg_id | **OK** |
+| 3 | W04 GET /slots | 8 | 77 slots 12 to 16 Oct | **OK** |
+| 4 | W05 POST /book (Teams) 15 Oct 10:00 | 9 | `21648c03-4725-48dd-9b54-6c7399ce4aa9`, `graph_event_id=AAMkSTUB-1791038366202`, calendar_provider shared_lv, invite sent (gated), `ics_url` with `?k=`, lead mx_ok | **OK** 201 |
+| 5 | W09 reminders (4 ticks) | n/a | 5 jobs, 5 done, 5 dry communications incl. what_to_expect 08:24:41 | **OK** |
+| 6 | W12 outcome + CAPI hold/release | n/a | attended / fit_followup / 4 / auto_marked false; `capi_attended_held` (awaiting_lead), `capi_attended_release` (send, lead_window_closed); W29 x3 success | **OK** |
+| 7 | W13 no-show + replacement | n/a | booking `b04b0438-...`, outcome no_show, reach_check + missed_you dry, replacement `0196d7c6-...` approved, cap_position 3, over_cap false | **OK** |
+| 8 | W15 STOP | 90 | booking `130fec62-...` cancelled, opted_out, suppression stop, reminder_paused, 3 dry communications, STOP_ACK_CANCELLED text; Graph DELETE hit the shared calendar path (F15 fixed) | **OK** |
+
+**Finding fixed (W11):** the `Every minute (T-15 briefs)` cron failed on every idle minute (execs 3 and 4 in the run). `Meetings starting within 15 min` has `alwaysOutputData`, `Brief input` turned the empty row into `{skip:true}`, and `Claim brief` then threw "Query Parameters must be a string of comma-separated values". Live that is a W22 error alert every minute with no meetings. Fix: IF `Meeting to brief? (empty minute stops here)` between them (hand-edited `W11.json`, no generator); W11 re-imported and republished, the 14:44 run succeeded. Test added in `W11.test.mjs`.
+
+**Open (not fixed):** `broker_lead_opted_out` (no-booking cancel mode, window closed) was not reached because L01 had a live booking at STOP; it is unit-tested only. F16 (W12 `reach_check` skipped after a broker Attended mark, so `lead_confirmed` cannot fire) is still open and needs_human.
+
+**Egress proof (round 5).** `stub.log` 11 requests: graph.facebook.com `/messages` POST 0, Twilio 0, Graph sendMail 0; graph.microsoft.com 3 shared-calendar event POSTs + 1 event DELETE + 4 `GET /me/messages` (W17); api.n8n.io 3. `guard.log` 14: 11 redirects to the stub and 3 `dns.resolveMx example.test` stub answers, none refused or unknown. `sock.log` 0 non-loopback sockets. n8n, stub and sockwatch stopped; Postgres stub left up (loopback only).
+
+## History: round 4 (I-54e)
 **Round 4 (I-54e): stages 1 to 8 pass from a real `POST /lead`, in a fresh container.** F13 and F14 are confirmed fixed: stage 8 had a live booking, STOP cancelled it with `STOP_ACK_CANCELLED`, and W15 wrote dry `communications` rows. W12 parked CAPI `Attended` and then released it as the CAPI hold/release design says. The stub saw **0** WhatsApp `/messages` POSTs, **0** Twilio calls and **0** Graph sendMail. There were 0 non-loopback sockets. No repo code changed (suite 633/633).
 
 ## Round 4 setup (fresh container; everything under `<scratchpad>/n8n-local`, outside the repo)

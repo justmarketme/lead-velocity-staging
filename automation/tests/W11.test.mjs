@@ -151,3 +151,15 @@ test('S7-03 call-number taps (other number, alt number, best time) flow from W07
   const f2 = K.fallbackBrief(l2, b, K.briefInput(l2, b, [], {}, []));
   assert.equal(f2.template_vars[4], '+27600000004');
 });
+
+test('I-57a: an empty minute (alwaysOutputData -> {skip:true}) stops at an IF and never reaches Claim brief (it threw "Query Parameters must be a string..." every minute)', () => {
+  const prev = (to) => Object.entries(WF.connections).filter(([, v]) => (v.main || []).some((o) => o.some((c) => c.node === to))).map(([k]) => k);
+  const claim = 'Claim brief (idempotency)';
+  const gate = prev(claim);
+  assert.equal(gate.length, 1);
+  const node = WF.nodes.find((n) => n.name === gate[0]);
+  assert.equal(node.type, 'n8n-nodes-base.if', 'Claim brief must sit behind an IF, not directly behind Brief input');
+  assert.match(node.parameters.conditions.conditions[0].leftValue, /\$json\.skip !== true/);
+  assert.deepEqual(prev(gate[0]), ['Brief input (w11.briefInput)']);
+  assert.equal(WF.connections[gate[0]].main.length, 1, 'only the true output is wired');
+});
