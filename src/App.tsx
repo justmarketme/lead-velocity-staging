@@ -114,6 +114,7 @@ const App = () => {
                 {/* WhatsApp template buttons (I-37c): short links on app.leadvelocity.co.za/s/* forward to the portal pages, query kept */}
                 <Route path="/s/calendar" element={<SmcShortLink to="/broker/calendar" />} />
                 <Route path="/s/billing" element={<SmcShortLink to="/broker/billing" />} />
+                <Route path="/s/leads" element={<SmcShortLink to="/broker/leads" />} />
               </>
             )}
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
