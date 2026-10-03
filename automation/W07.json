@@ -559,28 +559,6 @@
               }
             },
             {
-              "outputKey": "W28",
-              "renameOutput": true,
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "typeValidation": "strict"
-                },
-                "combinator": "and",
-                "conditions": [
-                  {
-                    "id": "s10",
-                    "leftValue": "={{ $json.route }}",
-                    "rightValue": "W28",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ]
-              }
-            },
-            {
               "outputKey": "W07_contact",
               "renameOutput": true,
               "conditions": {
@@ -591,7 +569,7 @@
                 "combinator": "and",
                 "conditions": [
                   {
-                    "id": "s11",
+                    "id": "s10",
                     "leftValue": "={{ $json.route }}",
                     "rightValue": "W07_contact",
                     "operator": {
@@ -613,7 +591,7 @@
                 "combinator": "and",
                 "conditions": [
                   {
-                    "id": "s12",
+                    "id": "s11",
                     "leftValue": "={{ $json.route }}",
                     "rightValue": "paused",
                     "operator": {
@@ -635,7 +613,7 @@
                 "combinator": "and",
                 "conditions": [
                   {
-                    "id": "s13",
+                    "id": "s12",
                     "leftValue": "={{ $json.route }}",
                     "rightValue": "ignore_opted_out",
                     "operator": {
@@ -657,7 +635,7 @@
                 "combinator": "and",
                 "conditions": [
                   {
-                    "id": "s14",
+                    "id": "s13",
                     "leftValue": "={{ $json.route }}",
                     "rightValue": "nlu",
                     "operator": {
@@ -679,7 +657,7 @@
                 "combinator": "and",
                 "conditions": [
                   {
-                    "id": "s15",
+                    "id": "s14",
                     "leftValue": "={{ $json.route }}",
                     "rightValue": "W32_decision",
                     "operator": {
@@ -701,7 +679,7 @@
                 "combinator": "and",
                 "conditions": [
                   {
-                    "id": "s16",
+                    "id": "s15",
                     "leftValue": "={{ $json.route }}",
                     "rightValue": "W23",
                     "operator": {
@@ -723,7 +701,7 @@
                 "combinator": "and",
                 "conditions": [
                   {
-                    "id": "s17",
+                    "id": "s16",
                     "leftValue": "={{ $json.route }}",
                     "rightValue": "ignore_loop",
                     "operator": {
@@ -970,29 +948,6 @@
         }
       },
       "notes": "Called with { source: 'W07', route, msg, lead, booking }. Sub-workflow owns its reply."
-    },
-    {
-      "id": "n25",
-      "name": "-> W28",
-      "type": "n8n-nodes-base.executeWorkflow",
-      "typeVersion": 1.2,
-      "position": [
-        0,
-        600
-      ],
-      "parameters": {
-        "source": "database",
-        "workflowId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "smc-w28",
-          "cachedResultName": "W28 Booking Flow"
-        },
-        "options": {
-          "waitForSubWorkflow": false
-        }
-      },
-      "notes": "Reserved, no route reaches it since I-45d: the Flow completion (nfm_reply, payload flow_complete) goes to W05 (booking-flow-endpoint.md). W28 is the encrypted data_exchange endpoint only."
     },
     {
       "id": "n26",
@@ -2557,13 +2512,6 @@
         [
           {
             "node": "-> W08",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "-> W28",
             "type": "main",
             "index": 0
           }

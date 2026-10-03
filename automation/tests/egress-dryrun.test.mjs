@@ -17,7 +17,6 @@ const load = (f) => JSON.parse(fs.readFileSync(path.join(root, f), 'utf8'));
 
 // Known gaps owned by another task. An entry must still be ungated (stale entries fail), so the list can only shrink.
 const KNOWN_UNGATED = {
-  'W05.json': ['Email from howzit@ (Graph sendMail)'], // I-54c: W05 generator is being edited in parallel; the invite email needs a DRY_RUN gate there.
 };
 
 test('egress: at least the known workflows are scanned', () => {

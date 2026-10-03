@@ -518,3 +518,17 @@ test('I-45d: Flow completion -> W05; W04 called by id smc-w04 (plain name); W06 
     { op: 'status', wamid: 'wamid.B', status: 'delivered', at: '2026-10-12T07:02:41.000Z', errors: [] },
   ]);
 });
+
+test('I-51c: Route outputs keep their targets (W28 removed, nothing else rewired)', () => {
+  const before = JSON.parse(readFileSync(new URL('./fixtures/w07-route-before-I51c.json', import.meta.url), 'utf8'));
+  const route = WF.nodes.find((n) => n.name === 'Route');
+  const keys = route.parameters.rules.values.map((v) => v.outputKey);
+  const main = WF.connections.Route.main;
+  assert.equal(main.length, keys.length + 1, 'one connection list per rule + fallback');
+  const now = Object.fromEntries(main.map((outs, i) => [i < keys.length ? keys[i] : 'fallback', outs.map((t) => t.node)]));
+  const { W28, ...expected } = before;
+  assert.deepEqual(W28, ['-> W28']);
+  assert.deepEqual(now, expected);
+  assert.ok(!WF.nodes.some((n) => n.name === '-> W28'));
+  route.parameters.rules.values.forEach((v, i) => assert.equal(v.conditions.conditions[0].id, 's' + i));
+});

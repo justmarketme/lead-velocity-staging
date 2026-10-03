@@ -8,7 +8,10 @@
 import { writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { GRAPH_SCOPE } from './lib/w04.mjs';
+// I-54f: every sender (the howzit@ invite email) ends up behind a DRY_RUN_SENDS gate (lib/egress-gate.cjs; idempotent).
+const { gateSenders } = createRequire(import.meta.url)('./lib/egress-gate.cjs');
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PG = { postgres: { id: '', name: 'LV Supabase - n8n_app (least privilege)' } };
@@ -284,5 +287,5 @@ SELECT l.id, l.email, l.phone, l.language, l.first_name, bk.method, bk.adviser_n
 }
 
 writeFileSync(join(HERE, 'W04.json'), JSON.stringify(buildW04(), null, 2) + '\n');
-writeFileSync(join(HERE, 'W05.json'), JSON.stringify(buildW05(), null, 2) + '\n');
+writeFileSync(join(HERE, 'W05.json'), JSON.stringify(gateSenders(buildW05()), null, 2) + '\n');
 console.log('wrote W04.json, W05.json');

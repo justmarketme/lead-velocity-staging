@@ -1753,6 +1753,53 @@
           "waitForSubWorkflow": false
         }
       }
+    },
+    {
+      "id": "545c4f0b-e64f-22c9-e646-9e2289cbc433",
+      "name": "Live send? (Email from howzit@ (Graph sendMail))",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -200,
+        1000
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $env.DRY_RUN_SENDS !== 'true' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "09d7a4ce-8d62-0463-8ce0-9a96b9571edc",
+      "name": "Dry-run stub (Email from howzit@ (Graph sendMail))",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1160
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// DRY_RUN_SENDS=true: nothing leaves the box (email). Pass the input on with a fake 2xx so downstream logging still runs.\nreturn $input.all().map((i, n) => ({ json: { ...i.json, dry_run: true, statusCode: 200, body: { messages: [{ id: 'dry:' + n }] } } }));"
+      }
     }
   ],
   "connections": {
@@ -2235,7 +2282,7 @@
         ],
         [
           {
-            "node": "Email from howzit@ (Graph sendMail)",
+            "node": "Live send? (Email from howzit@ (Graph sendMail))",
             "type": "main",
             "index": 0
           }
@@ -2401,7 +2448,7 @@
       "main": [
         [
           {
-            "node": "Email from howzit@ (Graph sendMail)",
+            "node": "Live send? (Email from howzit@ (Graph sendMail))",
             "type": "main",
             "index": 0
           }
@@ -2439,6 +2486,29 @@
             "index": 0
           }
         ]
+      ]
+    },
+    "Live send? (Email from howzit@ (Graph sendMail))": {
+      "main": [
+        [
+          {
+            "node": "Email from howzit@ (Graph sendMail)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dry-run stub (Email from howzit@ (Graph sendMail))",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry-run stub (Email from howzit@ (Graph sendMail))": {
+      "main": [
+        []
       ]
     }
   },
