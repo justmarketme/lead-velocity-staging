@@ -30,7 +30,9 @@
         "httpMethod": "GET",
         "path": "slots",
         "responseMode": "responseNode",
-        "options": {}
+        "options": {
+          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://app.leadvelocity.co.za' }}"
+        }
       },
       "webhookId": "w04-slots-get"
     },

@@ -44,6 +44,9 @@ services:
       AUTOMATION_DIR: /repo/automation
       NODE_FUNCTION_ALLOW_BUILTIN: crypto,dns,url,fs,path
       NODE_FUNCTION_ALLOW_EXTERNAL: lv-automation
+      # I-06: W23 has two Execute Command nodes (ffmpeg / ffprobe on intro media). n8n 2.x excludes that node by default;
+      # re-enable it, keep only the file-watch trigger excluded. The VPS overlay repeats this value. Security note: SECURITY.md.
+      NODES_EXCLUDE: '["n8n-nodes-base.localFileTrigger"]'
     # Link step for lv-automation (I-46d). $HOME/.node_modules is one of Node's global module folders and HOME
     # reaches the task runner; the container user (node) cannot write /usr/local/lib/node_modules, so the link
     # lives in /home/node (container layer, not a volume: recreated on every start, hence ln -sfn each time).

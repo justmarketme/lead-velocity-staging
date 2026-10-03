@@ -155,7 +155,7 @@ test('Normalise: W27 meta_asset_health is a registered red signal, never unknown
 });
 
 // ---------------------------------------------------------------- registered producer kinds (exact list)
-const REGISTERED_KINDS = ['broker_dsr_erase', 'dsar_due', 'dsar_erased', 'dsar_overdue', 'dsar_received', 'meta_asset_health', 'ms_client_secret_invalid', 'popia_breach', 'w34_monthly_report', 'w34_retention_failure'];
+const REGISTERED_KINDS = ['broker_dsr_erase', 'comment_sentiment', 'community_escalation', 'dsar_due', 'dsar_erased', 'dsar_overdue', 'dsar_received', 'hostile_thread', 'meta_asset_health', 'ms_client_secret_invalid', 'popia_breach', 'w34_monthly_report', 'w34_retention_failure', 'webhook_signature_invalid'];
 test('PRODUCER_SIGNALS: the registered kinds are exactly this list, each documented in W22.md', () => {
   const code = node('Normalise inbound signal').parameters.jsCode;
   const block = code.slice(code.indexOf('const PRODUCER_SIGNALS = {'), code.indexOf('\n};', code.indexOf('const PRODUCER_SIGNALS = {')));
@@ -541,4 +541,24 @@ test('I-47g: W30/W31/W23 alerts reach W22 by Execute Workflow smc-w22 with a rea
     }
   }
   assert.equal(seen, 10, 'W30 x4, W31 x2, W23 x4');
+});
+
+test('I-31b: community kinds are registered; sensitive / dm_handoff / dm_after_link and kind_requested are read, never unknown_signal', () => {
+  const base = { signal_key: 'community_escalation', scope: 'escalation:7', severity: 'amber', source: 'W31', what: 'Community DM', deep_link: 'https://c.test/x' };
+  for (const kind of ['sensitive', 'dm_handoff', 'dm_after_link']) {
+    const out = runCode('Normalise inbound signal', { input: [{ ...base, esc_kind: 'human_handoff', kind_requested: kind }] });
+    assert.equal(out.length, 1);
+    assert.equal(out[0].signal_key, 'community_escalation');
+    assert.deepEqual([out[0].severity, out[0].kind_requested, out[0].esc_kind_known], ['amber', kind, true]);
+  }
+  const fb = runCode('Normalise inbound signal', { input: [{ ...base, esc_kind: 'complaint' }] })[0];
+  assert.deepEqual([fb.kind_requested, fb.esc_kind_known], ['complaint', true], 'falls back to esc_kind');
+  const unk = runCode('Normalise inbound signal', { input: [{ ...base, kind_requested: 'brand_new' }] })[0];
+  assert.deepEqual([unk.signal_key, unk.severity, unk.esc_kind_known], ['community_escalation', 'amber', false], 'unknown kind still alerts, flagged');
+  const red = runCode('Normalise inbound signal', { input: [{ ...base, severity: 'red', kind_requested: 'sensitive' }] })[0];
+  assert.equal(red.severity, 'amber', 'never on the red ladder');
+  const bare = runCode('Normalise inbound signal', { input: [{ signal_key: 'hostile_thread' }, { signal_key: 'comment_sentiment' }, { signal_key: 'webhook_signature_invalid' }] });
+  assert.equal(bare.filter((s) => s.signal_key === 'unknown_signal').length, 0);
+  assert.deepEqual(bare.map((s) => s.severity), ['amber', 'amber', 'red']);
+  assert.ok(bare.every((s) => s.what && s.impact && s.first_action));
 });

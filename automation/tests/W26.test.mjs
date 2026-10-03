@@ -181,3 +181,45 @@ test('apply-analytics.sh (I-35k): fixed order, one transaction, dry run rolls ba
   const p = readFileSync(join(A, 'vps/provision.sh'), 'utf8');
   assert.match(p, /--analytics-dry-run\) ANALYTICS_MODE=--dry-run/);
 });
+
+test('I-06: Execute Command enabled for W23 in both compose files (only localFileTrigger excluded), documented', () => {
+  const base = readFileSync(join(A, 'docker-compose.yml'), 'utf8');
+  const vps = readFileSync(join(A, 'vps/traefik/docker-compose.traefik.yml'), 'utf8');
+  for (const y of [base, vps]) {
+    assert.match(y, /^\s+NODES_EXCLUDE: '\["n8n-nodes-base\.localFileTrigger"\]'$/m);
+    assert.doesNotMatch(y, /NODES_EXCLUDE:.*executeCommand/);
+  }
+  const w23 = readFileSync(join(A, 'W23.json'), 'utf8');
+  assert.ok((w23.match(/n8n-nodes-base\.executeCommand/g) || []).length >= 2, 'W23 really uses Execute Command');
+  assert.match(readFileSync(join(A, 'security/SECURITY.md'), 'utf8'), /5a\. \*\*Execute Command is enabled for W23/);
+  assert.match(readFileSync(join(A, 'local/LOCAL-STAGING.md'), 'utf8'), /NODES_EXCLUDE/);
+});
+
+test('I-37b: W23/W19/W04 browser webhooks take Allowed Origins from PUBLIC_ALLOWED_ORIGINS, never a hard-coded list', () => {
+  const expr = "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://app.leadvelocity.co.za' }}";
+  const want = { 'W23.json': 8, 'W19.json': 1, 'W04.json': 1 };
+  for (const [f, n] of Object.entries(want)) {
+    const wf = JSON.parse(readFileSync(join(A, f), 'utf8'));
+    const withCors = wf.nodes.filter((x) => x.type === 'n8n-nodes-base.webhook' && x.parameters.options && x.parameters.options.allowedOrigins);
+    assert.ok(withCors.length >= n, `${f}: ${n} browser webhooks`);
+    for (const x of withCors) assert.equal(x.parameters.options.allowedOrigins, expr, `${f} ${x.name}`);
+  }
+  assert.ok(!/"allowedOrigins": "https:/.test(readFileSync(join(A, 'W23.json'), 'utf8')), 'no literal origin left in W23');
+});
+
+test('I-44e / I-55e: Traefik maps /wa/:ref and /c/:id to the webhookId-prefixed n8n paths, same ids as W03/W05', () => {
+  const y = readFileSync(join(A, 'vps/traefik/docker-compose.traefik.yml'), 'utf8');
+  const wh = (f, path) => JSON.parse(readFileSync(join(A, f), 'utf8')).nodes.find((n) => n.type === 'n8n-nodes-base.webhook' && n.parameters.path === path).webhookId;
+  const c = wh('W05.json', 'c/:booking_id'), wa = wh('W03.json', 'wa/:ref');
+  assert.equal(c, 'w05-ics-get'); assert.equal(wa, 'w03-ctwa-redirect');
+  assert.match(y, new RegExp(`link-rewrite-c\\.replacepathregex\\.replacement=/webhook/${c}/c/\\$\\$1`));
+  assert.match(y, new RegExp(`link-rewrite-wa\\.replacepathregex\\.replacement=/webhook/${wa}/wa/\\$\\$1`));
+  for (const r of ['n8n-link', 'n8n-link-c', 'n8n-link-wa']) {
+    assert.match(y, new RegExp(`routers\\.${r}\\.tls\\.certresolver=le`));
+    assert.match(y, new RegExp(`routers\\.${r}\\.entrypoints=websecure`));
+    assert.ok(y.includes(`routers.${r}.rule=Host(\`\${LINK_HOST:-link.invalid}\`) && PathPrefix`), `${r} rule on LINK_HOST`);
+  }
+  assert.match(y, /n8n-link-c\.rule=.*PathPrefix\(`\/c\/`\)/);
+  assert.match(y, /n8n-link-wa\.rule=.*PathPrefix\(`\/wa\/`\)/);
+  assert.doesNotMatch(y, /regex=\^\/\(c\|j\)/, 'the old shared c|j rewrite (gives /webhook/c/{id}, 404) is gone');
+});

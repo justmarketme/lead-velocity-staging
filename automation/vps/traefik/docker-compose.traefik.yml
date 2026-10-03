@@ -55,6 +55,9 @@ services:
       NODE_FUNCTION_ALLOW_BUILTIN: crypto,dns,url,fs,path
       NODE_FUNCTION_ALLOW_EXTERNAL: lv-automation
       N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      # I-06: W23 has two Execute Command nodes (ffmpeg / ffprobe on intro media). n8n 2.x excludes that node by default, so
+      # re-enable it and keep only the file-watch trigger excluded. Same value as automation/docker-compose.yml. See SECURITY.md.
+      NODES_EXCLUDE: '["n8n-nodes-base.localFileTrigger"]'
       GENERIC_TIMEZONE: Africa/Johannesburg
       TZ: Africa/Johannesburg
     # lv-automation link step (I-46d), identical to automation/docker-compose.yml; repeated so the overlay cannot drop it.
@@ -97,13 +100,30 @@ services:
       - traefik.http.middlewares.api-cors.headers.accessControlAllowCredentials=false
       - traefik.http.middlewares.api-cors.headers.accessControlMaxAge=600
       - traefik.http.middlewares.api-cors.headers.addVaryHeader=true
-      # Consumer links on the SortMyCover domain: /c/{ref} (.ics) and /j/{ref} (join redirect) -> n8n webhooks.
-      - traefik.http.routers.n8n-link.rule=Host(`${LINK_HOST:-link.invalid}`) && (PathPrefix(`/c/`) || PathPrefix(`/j/`))
+      # Consumer links on the SortMyCover domain (LINK_HOST), one router per path so each gets its own rewrite.
+      # n8n puts the webhookId in front of any path with a :param, so /c/{id} and /wa/{ref} cannot map to /webhook/c|wa/... (404):
+      #   /c/{booking_id}  -> /webhook/w05-ics-get/c/{booking_id}      (W05 GET c/:booking_id, I-55e / I-45j; query ?k= is kept)
+      #   /wa/{ref}        -> /webhook/w03-ctwa-redirect/wa/{ref}      (W03 GET wa/:ref, I-44e / I-09)
+      #   /j/{ref}         -> /webhook/j/{ref}                         (join redirect; no webhook built yet, so it 404s until it exists)
+      # Same webhookIds as W05.json / W03.json (asserted in W26.test.mjs). Public, GET only; rate-limited and header-hardened like n8n-api.
+      - traefik.http.routers.n8n-link.rule=Host(`${LINK_HOST:-link.invalid}`) && PathPrefix(`/j/`)
       - traefik.http.routers.n8n-link.entrypoints=websecure
       - traefik.http.routers.n8n-link.tls.certresolver=le
-      - traefik.http.routers.n8n-link.middlewares=link-rewrite,sec-headers
-      - traefik.http.middlewares.link-rewrite.replacepathregex.regex=^/(c|j)/(.*)
-      - traefik.http.middlewares.link-rewrite.replacepathregex.replacement=/webhook/$$1/$$2
+      - traefik.http.routers.n8n-link.middlewares=link-rewrite,api-ratelimit,sec-headers
+      - traefik.http.middlewares.link-rewrite.replacepathregex.regex=^/j/(.*)
+      - traefik.http.middlewares.link-rewrite.replacepathregex.replacement=/webhook/j/$$1
+      - traefik.http.routers.n8n-link-c.rule=Host(`${LINK_HOST:-link.invalid}`) && PathPrefix(`/c/`)
+      - traefik.http.routers.n8n-link-c.entrypoints=websecure
+      - traefik.http.routers.n8n-link-c.tls.certresolver=le
+      - traefik.http.routers.n8n-link-c.middlewares=link-rewrite-c,api-ratelimit,sec-headers
+      - traefik.http.middlewares.link-rewrite-c.replacepathregex.regex=^/c/(.*)
+      - traefik.http.middlewares.link-rewrite-c.replacepathregex.replacement=/webhook/w05-ics-get/c/$$1
+      - traefik.http.routers.n8n-link-wa.rule=Host(`${LINK_HOST:-link.invalid}`) && PathPrefix(`/wa/`)
+      - traefik.http.routers.n8n-link-wa.entrypoints=websecure
+      - traefik.http.routers.n8n-link-wa.tls.certresolver=le
+      - traefik.http.routers.n8n-link-wa.middlewares=link-rewrite-wa,api-ratelimit,sec-headers
+      - traefik.http.middlewares.link-rewrite-wa.replacepathregex.regex=^/wa/(.*)
+      - traefik.http.middlewares.link-rewrite-wa.replacepathregex.replacement=/webhook/w03-ctwa-redirect/wa/$$1
       # Security headers (ASVS V14)
       - traefik.http.middlewares.sec-headers.headers.stsSeconds=31536000
       - traefik.http.middlewares.sec-headers.headers.stsIncludeSubdomains=true
