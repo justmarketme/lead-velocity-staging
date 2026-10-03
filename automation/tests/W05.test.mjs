@@ -415,3 +415,39 @@ test('I-45f: a first booking calls W06 op booking (W06 picks broker_intro_booked
   const op = W06WF.nodes.find((n) => n.name === 'Op?');
   assert.match(JSON.stringify(op.parameters), /event === 'booking'/);
 });
+
+// F8 (REHEARSAL-L01): shared-fallback calendar id from calendar_status_detail, else SMC_SHARED_CALENDAR_ID; both empty ->
+// fail-closed error item (never calendars//events) -> W22 shared_calendar_id_missing; a Graph 201 stores its id.
+test('F8 W05.json shared calendar: empty id -> error item + alert, never an empty URL; stub response id -> graph_event_id', async () => {
+  const { runCode: run } = await import('./_n8ncode.mjs');
+  const wf5 = JSON.parse(readFileSync(new URL('../W05.json', import.meta.url), 'utf8'));
+  const ctx = { now: Date.parse('2026-10-12T07:00:00Z'), broker: { id: 'b1', adviser_name: 'Mark Smith', practice_name: 'Synthetic Practice', calendar_mode: 'shared_fallback', calendar_status: 'ok', calendar_status_detail: {} }, lead: { id: 'l1', first_name: 'Lerato', phone: '+27820000001', language: 'en' } };
+  const plan = { lead_id: 'l1', broker_id: 'b1', route: 'shared', method: 'phone', start: '2026-10-13T08:00:00.000Z', end: '2026-10-13T08:30:00.000Z', idempotency_key: 'book_f8', booked_via: 'page' };
+  const decide = { ctx, dec: { plan }, lane: 'http' };
+  const none = (await run(wf5, 'Event body (shared)', { refs: { 'Decide (w05.decide + MX)': decide }, env: {} }))[0].json;
+  assert.equal(none.error, 'shared_calendar_id_missing');
+  assert.equal(none.url, null);
+  const gate = wf5.connections['Shared calendar id?'].main;
+  assert.equal(gate[0][0].node, 'Graph create event (howzit@ shared calendar, ASSUMPTION)');
+  assert.equal(gate[1][0].node, 'After event (w05.finish)', 'missing id skips Graph and goes straight to finish');
+  assert.equal(wf5.connections['Event body (shared)'].main[0][0].node, 'Shared calendar id?');
+  const row = { id: 'appt-1', broker_id: 'b1', cycle_id: null, booked_at: '2026-10-12T07:00:00.000Z', appointment_date: plan.start, ends_at: plan.end, method: 'phone', status: 'booked' };
+  const fail = (await run(wf5, 'After event (w05.finish)', { json: none, refs: { 'Decide (w05.decide + MX)': decide, 'Insert appointment (re-check overlap + buffer, idempotent)': row } }))[0].json;
+  assert.equal(fail.ev.reason, 'shared_calendar_id_missing');
+  assert.equal(fail.f.appointment_update.graph_event_id, null);
+  assert.equal(fail.f.alert.signal_key, 'shared_calendar_id_missing');
+  assert.equal(fail.status, 201, 'the booking is kept');
+  const envId = (await run(wf5, 'Event body (shared)', { refs: { 'Decide (w05.decide + MX)': decide }, env: { SMC_SHARED_CALENDAR_ID: 'env-cal', HOWZIT_MAILBOX: 'howzit@example.test' } }))[0].json;
+  assert.equal(envId.url, 'https://graph.microsoft.com/v1.0/users/howzit%40example.test/calendars/env-cal/events');
+  const det = { ...decide, ctx: { ...ctx, broker: { ...ctx.broker, calendar_status_detail: '{"shared_calendar_id":"synthetic-shared-cal"}' } } };
+  const detId = (await run(wf5, 'Event body (shared)', { refs: { 'Decide (w05.decide + MX)': det }, env: { SMC_SHARED_CALENDAR_ID: 'env-cal' } }))[0].json;
+  assert.match(detId.url, /\/calendars\/synthetic-shared-cal\/events$/, 'broker detail wins over env');
+  assert.ok(detId.event && detId.event.subject);
+  const ok = (await run(wf5, 'After event (w05.finish)', { json: { statusCode: 201, body: { id: 'AAMk-stub-1', iCalUId: 'ical-1' } }, refs: { 'Decide (w05.decide + MX)': det, 'Insert appointment (re-check overlap + buffer, idempotent)': row } }))[0].json;
+  assert.equal(ok.f.appointment_update.graph_event_id, 'AAMk-stub-1');
+  assert.equal(ok.f.alert, null);
+  const save = wf5.nodes.find((n) => n.name === 'Save event ids + lead (stage, broker, cycle, invite email)');
+  assert.match(save.parameters.query, /graph_event_id = NULLIF\(\$2, ''\)/);
+  assert.match(save.parameters.options.queryReplacement, /u\.graph_event_id/);
+  assert.throws(() => W5.graphEventUrl('shared', { sharedCalendarId: '' }), /shared_calendar_id_missing/);
+});

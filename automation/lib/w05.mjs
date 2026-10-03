@@ -369,10 +369,33 @@ export function graphEvent(ctx, p, opts = {}) {
 /** Graph transactionId: stable per idempotency key, <= 40 chars, no secrets (the key may contain a flow token hash). */
 export const txId = (key) => `smc-${sha(key).slice(0, 32)}`;
 
-/** Graph event URL. route 'graph' -> the broker's own calendar (delegated); 'shared' -> howzit@'s shared calendar. */
+/**
+ * Shared-fallback calendar id (0.3 #4, F8): brokers.calendar_status_detail.shared_calendar_id, else
+ * $env.SMC_SHARED_CALENDAR_ID. Empty -> null (the caller fails closed; never an empty path segment).
+ */
+export function sharedCalendarId(broker = {}, env = {}) {
+  let det = broker && broker.calendar_status_detail;
+  if (typeof det === 'string') { try { det = JSON.parse(det); } catch { det = {}; } }
+  const id = String((det && det.shared_calendar_id) || (env && env.SMC_SHARED_CALENDAR_ID) || '').trim();
+  return id || null;
+}
+
+/** Graph event URL. route 'graph' -> the broker's own calendar (delegated); 'shared' -> howzit@'s shared calendar.
+ * Shared without a calendar id throws `shared_calendar_id_missing` (F8: never POST calendars//events). */
 export function graphEventUrl(route, { howzit = INVITE_FROM, sharedCalendarId = '' } = {}) {
-  if (route === 'shared') return `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(howzit)}/calendars/${encodeURIComponent(sharedCalendarId)}/events`;
+  if (route === 'shared') {
+    const id = String(sharedCalendarId || '').trim();
+    if (!id) { const e = new Error('shared_calendar_id_missing'); e.code = 'shared_calendar_id_missing'; throw e; }
+    return `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(howzit)}/calendars/${encodeURIComponent(id)}/events`;
+  }
   return 'https://graph.microsoft.com/v1.0/me/events';
+}
+
+/** W05 'Event body (shared)' item: { url, event } or the fail-closed error item { error:'shared_calendar_id_missing' }. */
+export function sharedEventItem(ctx = {}, p = {}, env = {}, opts = {}) {
+  const id = sharedCalendarId(ctx.broker || {}, env);
+  if (!id) return { error: 'shared_calendar_id_missing', url: null, broker_id: p.broker_id || null };
+  return { url: graphEventUrl('shared', { howzit: env.HOWZIT_MAILBOX || INVITE_FROM, sharedCalendarId: id }), event: graphEvent(ctx, p, opts) };
 }
 
 /**
@@ -381,6 +404,7 @@ export function graphEventUrl(route, { howzit = INVITE_FROM, sharedCalendarId = 
  * graph_event_id stays null and W22 gets `calendar_event_create_failed` (red) to add it by hand.
  */
 export function afterEvent(res) {
+  if (res && res.error === 'shared_calendar_id_missing') return { ok: false, reason: 'shared_calendar_id_missing', code: null };
   const body = res && res.body && typeof res.body === 'object' ? res.body : (res || {});
   const code = Number((res && res.statusCode) || (body.id ? 201 : 0));
   if (code >= 200 && code < 300 && typeof body.id === 'string' && body.id) {
@@ -519,7 +543,7 @@ export function finish(ctx, p, booking, ev = { ok: false }, opts = {}) {
     w07: CALL_METHODS.has(p.method) ? { source: 'W05', booking: { id: booking.id, method: p.method }, broker: { contact_person: brokerConfig(ctx.broker).adviser_name }, lead: { id: lead.id, phone: lead.phone, brand_id: lead.brand_id || null, language: lead.language || 'en', conv_state: lead.conv_state || {} } } : null,
     ask_email: p.ask_email ? { op: 'ask_email', lead_id: lead.id, method: p.method, booking_id: booking.id, reason: 'book', delegate: ctx.req && ctx.req.delegate ? ctx.req.delegate : null } : null,
     capi,
-    alert: ev.ok || p.route === 'none' ? null : { signal_key: 'calendar_event_create_failed', scope: `broker:${booking.broker_id}`, severity: 'red', what: `Outlook event not created for booking ${booking.id} (${ev.reason || 'error'})`, impact: 'The meeting is booked and the broker was told on WhatsApp, but it is not in his calendar', first_action: 'Add the event by hand or reconnect the calendar', source: 'W05' },
+    alert: ev.ok || p.route === 'none' ? null : { signal_key: ev.reason === 'shared_calendar_id_missing' ? 'shared_calendar_id_missing' : 'calendar_event_create_failed', scope: `broker:${booking.broker_id}`, severity: 'red', what: `Outlook event not created for booking ${booking.id} (${ev.reason || 'error'})`, impact: 'The meeting is booked and the broker was told on WhatsApp, but it is not in his calendar', first_action: ev.reason === 'shared_calendar_id_missing' ? 'Set brokers.calendar_status_detail.shared_calendar_id (or SMC_SHARED_CALENDAR_ID), then add the event by hand' : 'Add the event by hand or reconnect the calendar', source: 'W05' },
   };
 }
 

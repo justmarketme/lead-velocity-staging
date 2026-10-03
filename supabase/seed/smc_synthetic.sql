@@ -60,6 +60,14 @@ SELECT
 FROM public.brands b WHERE b.code = 'SMC'
 ON CONFLICT (id) DO NOTHING;
 
+-- F6 (REHEARSAL-L01): the seed broker stands for a go-live-ready broker, so W04/W05 must route a calendar.
+-- Synthetic shared-fallback (0.3 #4): howzit@'s shared calendar 'synthetic-shared-cal' (W05 also reads
+-- SMC_SHARED_CALENDAR_ID). Only filled while calendar_status is empty, so a real connection is never overwritten.
+UPDATE public.brokers
+   SET calendar_mode = 'shared_fallback', calendar_status = 'ok', calendar_status_at = now(), calendar_connected_at = now(),
+       calendar_status_detail = '{"shared_calendar_id":"synthetic-shared-cal"}'::jsonb
+ WHERE id = '00000000-0000-4000-8000-0000000b0001' AND calendar_status IS NULL;
+
 -- -----------------------------------------------------------------------------
 -- Money: manual-EFT credit matched to the cycle-1 invoice, then the cycle
 -- -----------------------------------------------------------------------------

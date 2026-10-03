@@ -782,16 +782,47 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w05;\nconst d = $('Decide (w05.decide + MX)').first().json;\nconst det = (d.ctx.broker && d.ctx.broker.calendar_status_detail) || {};\nreturn [{ json: { url: L.graphEventUrl('shared', { howzit: $env.HOWZIT_MAILBOX || L.INVITE_FROM, sharedCalendarId: det.shared_calendar_id || $env.SMC_SHARED_CALENDAR_ID || '' }), event: L.graphEvent(d.ctx, d.dec.plan, { portalUrl: $env.PORTAL_URL }) } }];"
+        "jsCode": "const L = require('lv-automation').w05;\nconst d = $('Decide (w05.decide + MX)').first().json;\nreturn [{ json: L.sharedEventItem(d.ctx, d.dec.plan, { HOWZIT_MAILBOX: $env.HOWZIT_MAILBOX, SMC_SHARED_CALENDAR_ID: $env.SMC_SHARED_CALENDAR_ID }, { portalUrl: $env.PORTAL_URL }) }];"
       }
     },
     {
       "id": "n28",
+      "name": "Shared calendar id?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        600
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!$json.error && !!$json.url) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n29",
       "name": "Graph create event (howzit@ shared calendar, ASSUMPTION)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        720,
+        960,
         600
       ],
       "parameters": {
@@ -823,12 +854,12 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n29",
+      "id": "n30",
       "name": "After event (w05.finish)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        960,
+        1200,
         600
       ],
       "parameters": {
@@ -837,12 +868,12 @@
       }
     },
     {
-      "id": "n30",
+      "id": "n31",
       "name": "Save event ids + lead (stage, broker, cycle, invite email)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        1200,
+        1440,
         600
       ],
       "parameters": {
@@ -861,12 +892,12 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n31",
+      "id": "n32",
       "name": "Timeline: booked",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        1440,
+        1680,
         600
       ],
       "parameters": {
@@ -885,13 +916,13 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n32",
+      "id": "n33",
       "name": "Answer",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1680,
-        600
+        0,
+        800
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -899,12 +930,12 @@
       }
     },
     {
-      "id": "n33",
+      "id": "n34",
       "name": "HTTP lane?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        0,
+        240,
         800
       ],
       "parameters": {
@@ -930,12 +961,12 @@
       }
     },
     {
-      "id": "n34",
+      "id": "n35",
       "name": "Respond (book JSON)",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        240,
+        480,
         800
       ],
       "parameters": {
@@ -955,12 +986,12 @@
       }
     },
     {
-      "id": "n35",
+      "id": "n36",
       "name": "Fan out effects",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        480,
+        720,
         800
       ],
       "parameters": {
@@ -969,12 +1000,12 @@
       }
     },
     {
-      "id": "n36",
+      "id": "n37",
       "name": "Effect?",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
       "position": [
-        720,
+        960,
         800
       ],
       "parameters": {
@@ -1156,12 +1187,12 @@
       }
     },
     {
-      "id": "n37",
+      "id": "n38",
       "name": "Live send?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        960,
+        1200,
         800
       ],
       "parameters": {
@@ -1187,12 +1218,12 @@
       }
     },
     {
-      "id": "n38",
+      "id": "n39",
       "name": "Send WhatsApp",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1200,
+        1440,
         800
       ],
       "parameters": {
@@ -1225,12 +1256,12 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n39",
+      "id": "n40",
       "name": "Touch leads.last_contact_at (lead sends)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        1440,
+        1680,
         800
       ],
       "parameters": {
@@ -1249,13 +1280,13 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n40",
+      "id": "n41",
       "name": "Email from howzit@ (Graph sendMail)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1680,
-        800
+        0,
+        1000
       ],
       "parameters": {
         "method": "POST",
@@ -1286,12 +1317,12 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n41",
+      "id": "n42",
       "name": "-> W06 First touch (booking event)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        0,
+        240,
         1000
       ],
       "parameters": {
@@ -1308,12 +1339,12 @@
       }
     },
     {
-      "id": "n42",
+      "id": "n43",
       "name": "-> W09 Reminder sequence (schedule / rebuild)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        240,
+        480,
         1000
       ],
       "parameters": {
@@ -1330,12 +1361,12 @@
       }
     },
     {
-      "id": "n43",
+      "id": "n44",
       "name": "-> W07 post-booking contact confirm",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        480,
+        720,
         1000
       ],
       "parameters": {
@@ -1352,12 +1383,12 @@
       }
     },
     {
-      "id": "n44",
+      "id": "n45",
       "name": "-> CAPI Send (Schedule, no email)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        720,
+        960,
         1000
       ],
       "parameters": {
@@ -1374,12 +1405,12 @@
       }
     },
     {
-      "id": "n45",
+      "id": "n46",
       "name": "-> W28 ask_email",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        960,
+        1200,
         1000
       ],
       "parameters": {
@@ -1396,12 +1427,12 @@
       }
     },
     {
-      "id": "n46",
+      "id": "n47",
       "name": "-> W22 Alerts",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        1200,
+        1440,
         1000
       ],
       "parameters": {
@@ -1418,12 +1449,12 @@
       }
     },
     {
-      "id": "n47",
+      "id": "n48",
       "name": "Load booking for method change",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        1440,
+        1680,
         1000
       ],
       "parameters": {
@@ -1442,13 +1473,13 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n48",
+      "id": "n49",
       "name": "Plan method change (w05.planUpdateMethod)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1680,
-        1000
+        0,
+        1200
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -1456,12 +1487,12 @@
       }
     },
     {
-      "id": "n49",
+      "id": "n50",
       "name": "Method plan?",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
       "position": [
-        0,
+        240,
         1200
       ],
       "parameters": {
@@ -1538,12 +1569,12 @@
       }
     },
     {
-      "id": "n50",
+      "id": "n51",
       "name": "graph_token input (method)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        240,
+        480,
         1200
       ],
       "parameters": {
@@ -1552,12 +1583,12 @@
       }
     },
     {
-      "id": "n51",
+      "id": "n52",
       "name": "W04 graph_token (method, waits)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        480,
+        720,
         1200
       ],
       "parameters": {
@@ -1574,12 +1605,12 @@
       }
     },
     {
-      "id": "n52",
+      "id": "n53",
       "name": "Graph PATCH event (method, ASSUMPTION)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        720,
+        960,
         1200
       ],
       "parameters": {
@@ -1612,12 +1643,12 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n53",
+      "id": "n54",
       "name": "Save method",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        960,
+        1200,
         1200
       ],
       "parameters": {
@@ -1636,22 +1667,8 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n54",
-      "name": "Method invite?",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1200,
-        1200
-      ],
-      "parameters": {
-        "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w05;\nconst p = $('Plan method change (w05.planUpdateMethod)').first().json;\nreturn p.mail ? [{ json: { kind: 'mail', mail: p.mail } }] : [];"
-      }
-    },
-    {
       "id": "n55",
-      "name": "ask_email input (method)",
+      "name": "Method invite?",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -1660,17 +1677,31 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w05;\nreturn [{ json: $json.ask }];"
+        "jsCode": "const L = require('lv-automation').w05;\nconst p = $('Plan method change (w05.planUpdateMethod)').first().json;\nreturn p.mail ? [{ json: { kind: 'mail', mail: p.mail } }] : [];"
       }
     },
     {
       "id": "n56",
+      "name": "ask_email input (method)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        1200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nreturn [{ json: $json.ask }];"
+      }
+    },
+    {
+      "id": "n57",
       "name": "Mark invite bounced",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        1680,
-        1200
+        0,
+        1400
       ],
       "parameters": {
         "operation": "executeQuery",
@@ -1688,12 +1719,12 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n57",
+      "id": "n58",
       "name": "Bounce prompt (w05.bounceEffect)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        0,
+        240,
         1400
       ],
       "parameters": {
@@ -1702,12 +1733,12 @@
       }
     },
     {
-      "id": "n58",
+      "id": "n59",
       "name": "-> WhatsApp Send (invite bounce)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        240,
+        480,
         1400
       ],
       "parameters": {
@@ -2073,7 +2104,25 @@
       "main": [
         [
           {
+            "node": "Shared calendar id?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shared calendar id?": {
+      "main": [
+        [
+          {
             "node": "Graph create event (howzit@ shared calendar, ASSUMPTION)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "After event (w05.finish)",
             "type": "main",
             "index": 0
           }

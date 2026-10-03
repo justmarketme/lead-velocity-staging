@@ -184,7 +184,10 @@ RETURNING id, client_id, broker_id, cycle_id, appointment_date, ends_at, method,
   const evBody = "={{ JSON.stringify($('Event body').first().json.event) }}";
   n.push(code('Event body', 'w05.mjs', `const d = $('Decide (w05.decide + MX)').first().json;\nreturn [{ json: { access_token: $input.first().json.access_token || '', event: L.graphEvent(d.ctx, d.dec.plan, { portalUrl: $env.PORTAL_URL }) } }];`));
   n.push(http('Graph create event (broker calendar, ASSUMPTION)', 'POST', '=https://graph.microsoft.com/v1.0/me/events', { params: { sendHeaders: true, headerParameters: { parameters: [{ name: 'Authorization', value: '=Bearer {{ $json.access_token }}' }, { name: 'Prefer', value: 'outlook.timezone="Africa/Johannesburg"' }] }, sendBody: true, specifyBody: 'json', jsonBody: evBody } }));
-  n.push(code('Event body (shared)', 'w05.mjs', `const d = $('Decide (w05.decide + MX)').first().json;\nconst det = (d.ctx.broker && d.ctx.broker.calendar_status_detail) || {};\nreturn [{ json: { url: L.graphEventUrl('shared', { howzit: $env.HOWZIT_MAILBOX || L.INVITE_FROM, sharedCalendarId: det.shared_calendar_id || $env.SMC_SHARED_CALENDAR_ID || '' }), event: L.graphEvent(d.ctx, d.dec.plan, { portalUrl: $env.PORTAL_URL }) } }];`));
+  // F8: shared calendar id = calendar_status_detail.shared_calendar_id, else $env.SMC_SHARED_CALENDAR_ID; neither ->
+  // fail-closed error item (no Graph call, booking kept, W22 alert shared_calendar_id_missing), never calendars//events.
+  n.push(code('Event body (shared)', 'w05.mjs', `const d = $('Decide (w05.decide + MX)').first().json;\nreturn [{ json: L.sharedEventItem(d.ctx, d.dec.plan, { HOWZIT_MAILBOX: $env.HOWZIT_MAILBOX, SMC_SHARED_CALENDAR_ID: $env.SMC_SHARED_CALENDAR_ID }, { portalUrl: $env.PORTAL_URL }) }];`));
+  n.push(ifTrue('Shared calendar id?', '!$json.error && !!$json.url'));
   n.push(http('Graph create event (howzit@ shared calendar, ASSUMPTION)', 'POST', '={{ $json.url }}', { cred: HOWZIT_CAL, params: { authentication: 'predefinedCredentialType', nodeCredentialType: 'microsoftOutlookOAuth2Api', sendBody: true, specifyBody: 'json', jsonBody: "={{ JSON.stringify($json.event) }}" } }));
   n.push(code('After event (w05.finish)', 'w05.mjs', `const d = $('Decide (w05.decide + MX)').first().json;\nconst row = $('Insert appointment (re-check overlap + buffer, idempotent)').first().json;\nconst ev = L.afterEvent($input.first().json);\nconst f = L.finish(d.ctx, d.dec.plan, row, ev, { site: $env.SITE_URL });\nreturn [{ json: { ...d, booking: row, ev, f, lane: d.lane, status: f.response.status, body: f.response.body } }];`));
   n.push(pg('Save event ids + lead (stage, broker, cycle, invite email)', `WITH a AS (
@@ -264,7 +267,9 @@ SELECT l.id, l.email, l.phone, l.language, l.first_name, bk.method, bk.adviser_n
   chain(c, 'Re-select by idempotency key', 'Lost the race: replay or next 3', 'Answer');
   link(c, 'Broker calendar (graph)?', 'graph_token input', 0); link(c, 'Broker calendar (graph)?', 'Event body (shared)', 1);
   chain(c, 'graph_token input', 'W04 graph_token (waits)', 'Event body', 'Graph create event (broker calendar, ASSUMPTION)', 'After event (w05.finish)');
-  chain(c, 'Event body (shared)', 'Graph create event (howzit@ shared calendar, ASSUMPTION)', 'After event (w05.finish)');
+  chain(c, 'Event body (shared)', 'Shared calendar id?');
+  link(c, 'Shared calendar id?', 'Graph create event (howzit@ shared calendar, ASSUMPTION)', 0); link(c, 'Shared calendar id?', 'After event (w05.finish)', 1);
+  chain(c, 'Graph create event (howzit@ shared calendar, ASSUMPTION)', 'After event (w05.finish)');
   chain(c, 'After event (w05.finish)', 'Save event ids + lead (stage, broker, cycle, invite email)', 'Timeline: booked', 'Answer', 'HTTP lane?');
   link(c, 'HTTP lane?', 'Respond (book JSON)', 0); link(c, 'HTTP lane?', 'Fan out effects', 1);
   chain(c, 'Respond (book JSON)', 'Fan out effects', 'Effect?');
