@@ -6,7 +6,10 @@
 import { writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { inlineModule } from './security/inline-for-n8n.mjs';
+// I-54c: every sender node ends up behind a DRY_RUN_SENDS gate (lib/egress-gate.cjs; idempotent, W03 already gated).
+const { gateSenders } = createRequire(import.meta.url)('./lib/egress-gate.cjs');
 import { LINES } from '../conversation/lines.mjs';
 // I-39k: the lines.mjs keys W28 uses outside the Flow screens, inlined as data (n8n Code nodes cannot import ESM).
 const LINES_W28 = `const LINES = ${JSON.stringify(Object.fromEntries(Object.entries(LINES).map(([lang, L]) => [lang, { SLOTS_INTRO: L.SLOTS_INTRO, METHOD_CHANGED: L.METHOD_CHANGED, EMAIL_Q: L.EMAIL_Q, TZ: L.TZ }])))};\n`;
@@ -450,6 +453,6 @@ function EP_SAFE() { return W28; }
 
 // GEN_OUT_DIR: write elsewhere (automation/tests/generators.test.mjs regenerates into a temp dir and compares, I-40a).
 const OUT_DIR = process.env.GEN_OUT_DIR || HERE;
-writeFileSync(join(OUT_DIR, 'W03.json'), JSON.stringify(buildW03(), null, 1) + '\n');
-writeFileSync(join(OUT_DIR, 'W28.json'), JSON.stringify(buildW28(), null, 1) + '\n');
+writeFileSync(join(OUT_DIR, 'W03.json'), JSON.stringify(gateSenders(buildW03()), null, 1) + '\n');
+writeFileSync(join(OUT_DIR, 'W28.json'), JSON.stringify(gateSenders(buildW28()), null, 1) + '\n');
 console.log(`wrote ${OUT_DIR === HERE ? 'automation' : OUT_DIR}/W03.json, W28.json`);

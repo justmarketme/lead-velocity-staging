@@ -1076,6 +1076,194 @@
     "height": 340,
     "width": 480
    }
+  },
+  {
+   "id": "9b2bfc45-7e5c-e10a-a8f6-3f449f388e47",
+   "name": "Live send? (Email: renewal offer from howzit@)",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2,
+   "position": [
+    1720,
+    200
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "loose"
+     },
+     "conditions": [
+      {
+       "id": "c1",
+       "leftValue": "={{ $env.DRY_RUN_SENDS !== 'true' }}",
+       "rightValue": true,
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "69c99228-3a0f-f676-96b7-7e4ee8dd6c8f",
+   "name": "Dry-run stub (Email: renewal offer from howzit@)",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1920,
+    360
+   ],
+   "parameters": {
+    "mode": "runOnceForAllItems",
+    "jsCode": "// DRY_RUN_SENDS=true: nothing leaves the box (email). Pass the input on with a fake 2xx so downstream logging still runs.\nreturn $input.all().map((i, n) => ({ json: { ...i.json, dry_run: true, statusCode: 200, body: { messages: [{ id: 'dry:' + n }] } } }));"
+   }
+  },
+  {
+   "id": "7e1ff247-89a6-b6fb-3336-5f6c866662fe",
+   "name": "Live send? (Email: renewal reminder from howzit@)",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2,
+   "position": [
+    1480,
+    600
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "loose"
+     },
+     "conditions": [
+      {
+       "id": "c1",
+       "leftValue": "={{ $env.DRY_RUN_SENDS !== 'true' }}",
+       "rightValue": true,
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "37c9a582-b81b-3fce-0891-935685881757",
+   "name": "Dry-run stub (Email: renewal reminder from howzit@)",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1680,
+    760
+   ],
+   "parameters": {
+    "mode": "runOnceForAllItems",
+    "jsCode": "// DRY_RUN_SENDS=true: nothing leaves the box (email). Pass the input on with a fake 2xx so downstream logging still runs.\nreturn $input.all().map((i, n) => ({ json: { ...i.json, dry_run: true, statusCode: 200, body: { messages: [{ id: 'dry:' + n }] } } }));"
+   }
+  },
+  {
+   "id": "6a5ffde7-ddb5-e37b-daa7-ae15d65f39f0",
+   "name": "Live send? (Email: pay link from howzit@)",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2,
+   "position": [
+    3640,
+    1000
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "loose"
+     },
+     "conditions": [
+      {
+       "id": "c1",
+       "leftValue": "={{ $env.DRY_RUN_SENDS !== 'true' }}",
+       "rightValue": true,
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "2ff39867-6ac0-bca1-034b-cf906d065756",
+   "name": "Dry-run stub (Email: pay link from howzit@)",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    3840,
+    1160
+   ],
+   "parameters": {
+    "mode": "runOnceForAllItems",
+    "jsCode": "// DRY_RUN_SENDS=true: nothing leaves the box (email). Pass the input on with a fake 2xx so downstream logging still runs.\nreturn $input.all().map((i, n) => ({ json: { ...i.json, dry_run: true, statusCode: 200, body: { messages: [{ id: 'dry:' + n }] } } }));"
+   }
+  },
+  {
+   "id": "495be00c-2158-67cb-0a16-16732c9be08f",
+   "name": "Live send? (Email: 'come back any time' from howzit@)",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2,
+   "position": [
+    1240,
+    1400
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "loose"
+     },
+     "conditions": [
+      {
+       "id": "c1",
+       "leftValue": "={{ $env.DRY_RUN_SENDS !== 'true' }}",
+       "rightValue": true,
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "bac12556-8f80-98ca-0bdf-b983c2ec2a85",
+   "name": "Dry-run stub (Email: 'come back any time' from howzit@)",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1440,
+    1560
+   ],
+   "parameters": {
+    "mode": "runOnceForAllItems",
+    "jsCode": "// DRY_RUN_SENDS=true: nothing leaves the box (email). Pass the input on with a fake 2xx so downstream logging still runs.\nreturn $input.all().map((i, n) => ({ json: { ...i.json, dry_run: true, statusCode: 200, body: { messages: [{ id: 'dry:' + n }] } } }));"
+   }
   }
  ],
  "connections": {
@@ -1211,7 +1399,7 @@
       "index": 0
      },
      {
-      "node": "Email: renewal offer from howzit@",
+      "node": "Live send? (Email: renewal offer from howzit@)",
       "type": "main",
       "index": 0
      }
@@ -1238,7 +1426,7 @@
       "index": 0
      },
      {
-      "node": "Email: renewal reminder from howzit@",
+      "node": "Live send? (Email: renewal reminder from howzit@)",
       "type": "main",
       "index": 0
      }
@@ -1345,7 +1533,7 @@
       "index": 0
      },
      {
-      "node": "Email: pay link from howzit@",
+      "node": "Live send? (Email: pay link from howzit@)",
       "type": "main",
       "index": 0
      }
@@ -1434,7 +1622,7 @@
       "index": 0
      },
      {
-      "node": "Email: 'come back any time' from howzit@",
+      "node": "Live send? (Email: 'come back any time' from howzit@)",
       "type": "main",
       "index": 0
      }
@@ -1528,6 +1716,98 @@
       "index": 0
      }
     ]
+   ]
+  },
+  "Live send? (Email: renewal offer from howzit@)": {
+   "main": [
+    [
+     {
+      "node": "Email: renewal offer from howzit@",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Dry-run stub (Email: renewal offer from howzit@)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Dry-run stub (Email: renewal offer from howzit@)": {
+   "main": [
+    []
+   ]
+  },
+  "Live send? (Email: renewal reminder from howzit@)": {
+   "main": [
+    [
+     {
+      "node": "Email: renewal reminder from howzit@",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Dry-run stub (Email: renewal reminder from howzit@)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Dry-run stub (Email: renewal reminder from howzit@)": {
+   "main": [
+    []
+   ]
+  },
+  "Live send? (Email: pay link from howzit@)": {
+   "main": [
+    [
+     {
+      "node": "Email: pay link from howzit@",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Dry-run stub (Email: pay link from howzit@)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Dry-run stub (Email: pay link from howzit@)": {
+   "main": [
+    []
+   ]
+  },
+  "Live send? (Email: 'come back any time' from howzit@)": {
+   "main": [
+    [
+     {
+      "node": "Email: 'come back any time' from howzit@",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Dry-run stub (Email: 'come back any time' from howzit@)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Dry-run stub (Email: 'come back any time' from howzit@)": {
+   "main": [
+    []
    ]
   }
  },

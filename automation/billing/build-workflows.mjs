@@ -7,6 +7,9 @@
 // Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto on the n8n container. Credentials are referenced by name only.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
+// I-54c: every sender node ends up behind a DRY_RUN_SENDS gate (automation/lib/egress-gate.cjs; idempotent).
+const { gateSenders } = createRequire(import.meta.url)('../lib/egress-gate.cjs');
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -769,6 +772,6 @@ where tier_code = $1 and $4::boolean and nullif($3, '') is not null
 });
 
 for (const [id, obj] of [['W16', W16], ['W17', W17], ['W18', W18], ['W19', W19], ['W25', W25]]) {
-  writeFileSync(join(OUT, `${id}.json`), JSON.stringify(obj, null, 1) + '\n');
+  writeFileSync(join(OUT, `${id}.json`), JSON.stringify(gateSenders(obj), null, 1) + '\n');
   console.log(`wrote automation/${id}.json (${obj.nodes.length} nodes)`);
 }

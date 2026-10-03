@@ -840,6 +840,100 @@
    "retryOnFail": true,
    "maxTries": 3,
    "waitBetweenTries": 2000
+  },
+  {
+   "id": "3cc86dab-a3dc-5d0a-1640-3f26a56e1334",
+   "name": "Live send? (WhatsApp send list)",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2,
+   "position": [
+    1120,
+    460
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "loose"
+     },
+     "conditions": [
+      {
+       "id": "c1",
+       "leftValue": "={{ $env.DRY_RUN_SENDS !== 'true' }}",
+       "rightValue": true,
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "c30e910a-0630-3cb4-391a-c159b79fd959",
+   "name": "Dry-run stub (WhatsApp send list)",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1320,
+    620
+   ],
+   "parameters": {
+    "mode": "runOnceForAllItems",
+    "jsCode": "// DRY_RUN_SENDS=true: nothing leaves the box (whatsapp). Pass the input on with a fake 2xx so downstream logging still runs.\nreturn $input.all().map((i, n) => ({ json: { ...i.json, dry_run: true, statusCode: 200, body: { messages: [{ id: 'dry:' + n }] } } }));"
+   }
+  },
+  {
+   "id": "a19bdb0f-5570-cdf0-e04d-bc1bccc7b389",
+   "name": "Live send? (WhatsApp send ask_email)",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2,
+   "position": [
+    680,
+    900
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "loose"
+     },
+     "conditions": [
+      {
+       "id": "c1",
+       "leftValue": "={{ $env.DRY_RUN_SENDS !== 'true' }}",
+       "rightValue": true,
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "fb7afde3-2f39-0e08-1701-0713ab3cb1c1",
+   "name": "Dry-run stub (WhatsApp send ask_email)",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    880,
+    1060
+   ],
+   "parameters": {
+    "mode": "runOnceForAllItems",
+    "jsCode": "// DRY_RUN_SENDS=true: nothing leaves the box (whatsapp). Pass the input on with a fake 2xx so downstream logging still runs.\nreturn $input.all().map((i, n) => ({ json: { ...i.json, dry_run: true, statusCode: 200, body: { messages: [{ id: 'dry:' + n }] } } }));"
+   }
   }
  ],
  "connections": {
@@ -883,7 +977,7 @@
    "main": [
     [
      {
-      "node": "WhatsApp send ask_email",
+      "node": "Live send? (WhatsApp send ask_email)",
       "type": "main",
       "index": 0
      }
@@ -1088,7 +1182,7 @@
    "main": [
     [
      {
-      "node": "WhatsApp send list",
+      "node": "Live send? (WhatsApp send list)",
       "type": "main",
       "index": 0
      }
@@ -1122,6 +1216,58 @@
       "index": 0
      }
     ]
+   ]
+  },
+  "Live send? (WhatsApp send list)": {
+   "main": [
+    [
+     {
+      "node": "WhatsApp send list",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Dry-run stub (WhatsApp send list)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Dry-run stub (WhatsApp send list)": {
+   "main": [
+    [
+     {
+      "node": "Log list sent",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Live send? (WhatsApp send ask_email)": {
+   "main": [
+    [
+     {
+      "node": "WhatsApp send ask_email",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Dry-run stub (WhatsApp send ask_email)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Dry-run stub (WhatsApp send ask_email)": {
+   "main": [
+    []
    ]
   }
  },

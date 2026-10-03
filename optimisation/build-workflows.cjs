@@ -307,7 +307,9 @@ function buildW32() {
   return w.json();
 }
 
-function generate() { return { 'automation/W32.json': buildW32(), 'automation/W33.json': buildW33() }; }
+// I-54c: every sender node ends up behind a DRY_RUN_SENDS gate (automation/lib/egress-gate.cjs; idempotent).
+const { gateSenders } = require('../automation/lib/egress-gate.cjs');
+function generate() { return { 'automation/W32.json': gateSenders(buildW32()), 'automation/W33.json': buildW33() }; }
 module.exports = { generate };
 if (require.main === module) {
   const root = path.join(here, '..');

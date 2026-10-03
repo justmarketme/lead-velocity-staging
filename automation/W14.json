@@ -393,6 +393,53 @@
           "name": "LV Supabase - n8n_app (least privilege)"
         }
       }
+    },
+    {
+      "id": "645c7189-1cb9-69d6-b1b7-be478be6c462",
+      "name": "Live send? (WhatsApp send)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        460,
+        420
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $env.DRY_RUN_SENDS !== 'true' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "6682d6a2-b0e3-3891-6671-4834c302d162",
+      "name": "Dry-run stub (WhatsApp send)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        580
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// DRY_RUN_SENDS=true: nothing leaves the box (whatsapp). Pass the input on with a fake 2xx so downstream logging still runs.\nreturn $input.all().map((i, n) => ({ json: { ...i.json, dry_run: true, statusCode: 200, body: { messages: [{ id: 'dry:' + n }] } } }));"
+      }
     }
   ],
   "connections": {
@@ -473,7 +520,7 @@
       "main": [
         [
           {
-            "node": "WhatsApp send",
+            "node": "Live send? (WhatsApp send)",
             "type": "main",
             "index": 0
           }
@@ -536,6 +583,35 @@
         [
           {
             "node": "Store Lead Velocity weekly",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Live send? (WhatsApp send)": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp send",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dry-run stub (WhatsApp send)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry-run stub (WhatsApp send)": {
+      "main": [
+        [
+          {
+            "node": "Sent or failed",
             "type": "main",
             "index": 0
           }

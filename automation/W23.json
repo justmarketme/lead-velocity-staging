@@ -3619,6 +3619,147 @@
         2380,
         5000
       ]
+    },
+    {
+      "id": "1270c35b-2123-83bc-c817-85c6dae28f6b",
+      "name": "Live send? (WhatsApp: got it)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1240,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $env.DRY_RUN_SENDS !== 'true' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "2566577d-88cf-e872-11f4-3843cc654cd6",
+      "name": "Dry-run stub (WhatsApp: got it)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        560
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// DRY_RUN_SENDS=true: nothing leaves the box (whatsapp). Pass the input on with a fake 2xx so downstream logging still runs.\nreturn $input.all().map((i, n) => ({ json: { ...i.json, dry_run: true, statusCode: 200, body: { messages: [{ id: 'dry:' + n }] } } }));"
+      }
+    },
+    {
+      "id": "f83f9c7c-fdcf-d64f-a773-dbc034035cae",
+      "name": "Live send? (WhatsApp: ready to approve)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        7240,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $env.DRY_RUN_SENDS !== 'true' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f1a87179-625b-1eee-8c69-390cef92b073",
+      "name": "Dry-run stub (WhatsApp: ready to approve)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7440,
+        160
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// DRY_RUN_SENDS=true: nothing leaves the box (whatsapp). Pass the input on with a fake 2xx so downstream logging still runs.\nreturn $input.all().map((i, n) => ({ json: { ...i.json, dry_run: true, statusCode: 200, body: { messages: [{ id: 'dry:' + n }] } } }));"
+      }
+    },
+    {
+      "id": "397a4fa0-4ec5-2e65-5802-bab1f8e9fac8",
+      "name": "Live send? (Reply on WhatsApp with the reason)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        5560,
+        240
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $env.DRY_RUN_SENDS !== 'true' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f954b48f-9fe7-7015-2457-ac4deba32004",
+      "name": "Dry-run stub (Reply on WhatsApp with the reason)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5760,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// DRY_RUN_SENDS=true: nothing leaves the box (whatsapp). Pass the input on with a fake 2xx so downstream logging still runs.\nreturn $input.all().map((i, n) => ({ json: { ...i.json, dry_run: true, statusCode: 200, body: { messages: [{ id: 'dry:' + n }] } } }));"
+      }
     }
   ],
   "connections": {
@@ -3763,7 +3904,7 @@
             "index": 0
           },
           {
-            "node": "WhatsApp: got it",
+            "node": "Live send? (WhatsApp: got it)",
             "type": "main",
             "index": 0
           }
@@ -4102,7 +4243,7 @@
       "main": [
         [
           {
-            "node": "WhatsApp: ready to approve",
+            "node": "Live send? (WhatsApp: ready to approve)",
             "type": "main",
             "index": 0
           }
@@ -4124,7 +4265,7 @@
       "main": [
         [
           {
-            "node": "Reply on WhatsApp with the reason",
+            "node": "Live send? (Reply on WhatsApp with the reason)",
             "type": "main",
             "index": 0
           },
@@ -5254,6 +5395,75 @@
             "index": 0
           }
         ]
+      ]
+    },
+    "Live send? (WhatsApp: got it)": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp: got it",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dry-run stub (WhatsApp: got it)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry-run stub (WhatsApp: got it)": {
+      "main": [
+        []
+      ]
+    },
+    "Live send? (WhatsApp: ready to approve)": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp: ready to approve",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dry-run stub (WhatsApp: ready to approve)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry-run stub (WhatsApp: ready to approve)": {
+      "main": [
+        []
+      ]
+    },
+    "Live send? (Reply on WhatsApp with the reason)": {
+      "main": [
+        [
+          {
+            "node": "Reply on WhatsApp with the reason",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dry-run stub (Reply on WhatsApp with the reason)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry-run stub (Reply on WhatsApp with the reason)": {
+      "main": [
+        []
       ]
     }
   },

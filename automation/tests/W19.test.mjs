@@ -8,7 +8,8 @@ test("W19 via billing.test.js", () => { const r = spawnSync(process.execPath, ["
 import { readFileSync } from "node:fs";
 import { codeNode, nodeRequire, runCode, templateCounts } from "./_n8ncode.mjs";
 const WF19 = JSON.parse(readFileSync(new URL("../W19.json", import.meta.url), "utf8"));
-const next19 = (name, out = 0) => ((WF19.connections[name] || { main: [] }).main[out] || []).map((c) => c.node);
+// I-54c: send nodes sit behind a generated "Live send? (X)" DRY_RUN gate; topology assertions look through it to X.
+const next19 = (name, out = 0) => ((WF19.connections[name] || { main: [] }).main[out] || []).map((c) => c.node.replace(/^Live send\? \((.*)\)$/, "$1"));
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
 async function run(name, { items = [{}], refs = {} } = {}) { // runCode plus $(name).all()
   const fn = new AsyncFunction("$json", "$env", "$", "$input", "require", codeNode(WF19, name).parameters.jsCode);
