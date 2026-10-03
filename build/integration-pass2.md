@@ -207,10 +207,10 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 ### I-44 · 2026-10-03 (first real n8n import + smoke, devops pass 7)
 | # | Item | Owner |
 |---|---|---|
-| I-44a | Code nodes cannot load repo modules on n8n 2.41.6 (path `require` disallowed; `import()` of .mjs unsupported). Decision: one allowlisted package `lv-automation` (= automation/), `require('lv-automation/lib/x.mjs')` via Node 24 require(esm), fallback generated CJS; compose/VPS/local set `NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation`; every workflow + generator updated | automation-engineer — dispatched |
-| I-44b | Committed workflows need a stable top-level `id` (`smc-wNN`) and filled Execute Workflow references (40 blank); test that every reference resolves | automation-engineer — dispatched |
+| I-44a ✅ | Code nodes cannot load repo modules on n8n 2.41.6 (path `require` disallowed; `import()` of .mjs unsupported). Decision: one allowlisted package `lv-automation` (= automation/), `require('lv-automation/lib/x.mjs')` via Node 24 require(esm), fallback generated CJS; compose/VPS/local set `NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation`; every workflow + generator updated | automation-engineer — dispatched |
+| I-44b ✅ | Committed workflows need a stable top-level `id` (`smc-wNN`) and filled Execute Workflow references (40 blank); test that every reference resolves | automation-engineer — dispatched |
 | I-44c ✅ | W23 duplicate node names → "(upload-url)" lane | intro-media-producer |
-| I-44d | W03 GET verify returns an empty body (`$json.challenge` → `body`) | automation-engineer — dispatched |
+| I-44d ✅ | W03 GET verify returns an empty body (`$json.challenge` → `body`) | automation-engineer — dispatched |
 | I-44e | W03 CTWA redirect path is `/webhook/w03-ctwa-redirect/wa/:ref`; landing/templates assume `/wa/:ref` — align (reverse proxy rule or path) | devops-security + landing-page-builder |
 | I-44f | One missing credential blocks a whole workflow at activation (W03 needed "WhatsApp Cloud API (system user)"): LOCAL-STAGING §1 must list every credential name per workflow; W26 restore step verifies them | devops-security |
 
@@ -219,7 +219,7 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 |---|---|---|
 | I-45a | W05 offline booking adapter still uses the test's reference book(); swap to lib/w05.mjs | automation-engineer |
 | I-45b | Append W04/W05 request/response contracts to CONTRACTS.md | automation-engineer |
-| I-45c | Rewire W01/W06/W15 tests to the real libs + JSON (4 fixture contradictions logged) | automation-engineer — dispatched |
+| I-45c ✅ | Rewire W01/W06/W15 tests to the real libs + JSON (4 fixture contradictions logged) | automation-engineer — dispatched |
 | I-45d | W07: route `flow_complete` to W05 (not W28); call W04 by its real name; forward delivery/failure receipts for intro cards to W06 `op:'status'` | automation-engineer (W07) |
 | I-45e | W10: W04 is_free / graph_token sub-calls must wait (`waitForSubWorkflow: true` per CONTRACTS) | automation-engineer (W10) |
 | I-45f | W06 accepts `{event:'booking'}` from W05 and chooses broker_intro_booked vs booking_confirmed; W05 calls W06 `op:'booking'` for a page booking inside the hold | automation-engineer |
@@ -235,3 +235,13 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-45p | `broker_lead_opted_out` template for the WhatsApp broker notice when the window is closed (today email only) | conversation-designer + meta-operator |
 | I-45q | Shared-calendar route needs credential "Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)" + per-broker `calendar_status_detail.shared_calendar_id` (else `SMC_SHARED_CALENDAR_ID`) | devops-security + platform-architect |
 | I-45r | W14-broker.md + W14.test.mjs: add `lead_pulse` to the s4_quality key list | broker-success |
+
+### I-46 · 2026-10-03 (after the loader pass)
+| # | Item | Owner |
+|---|---|---|
+| I-46a | Local smoke must have zero egress: LLM/Graph/Paystack/Microsoft base URLs from env, pointed at a logging stub on 127.0.0.1; proof via the stub log + `ss -tnp` (the last run reached api.anthropic.com on a synthetic key — refused, no spend, nobody contacted) | automation-engineer — dispatched |
+| I-46b | W07 node 20 "Explode delegations": "A 'json' property isn't an object [item 0]" on the synthetic lead — fix + node-shape test, continue the smoke past it | automation-engineer — dispatched |
+| I-46c | Core-path drafts W01/W04/W05/W06/W09/W12/W13/W15: exact-name require form `require('lv-automation').wNN`, top-level ids, references by id, errorWorkflow smc-w22; workflow-ids todos → pass | automation-engineer — dispatched |
+| I-46d | docker-compose.yml + VPS overlay: `NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation`, link step `ln -sfn /repo/automation /home/node/.node_modules/lv-automation` in the entrypoint (link inside the full repo mount: w01 reads landing/config, w15 reads conversation/); loader test; docs | devops-security — dispatched |
+| I-46e | Four referenced sub-workflows with ids but no file: smc-whatsapp-send (shared sender, called by W34 and the core-path drafts), smc-capi-send (W01/W05), smc-ads-budget (W21), smc-w26 (runner status) — spec in LOCAL-STAGING (devops), build (automation-engineer) | devops-security (spec) → automation-engineer |
+| I-46f | n8n import: credentials must exist before workflows import/activate; `--separate` folder import fails on a duplicate tag — import one file at a time (runbook) | devops-security (CREDENTIALS.md, I-44f) |
