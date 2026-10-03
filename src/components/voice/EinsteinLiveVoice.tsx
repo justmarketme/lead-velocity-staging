@@ -288,7 +288,7 @@ export const EinsteinLiveVoice: React.FC<EinsteinLiveVoiceProps> = ({
                     <div className="flex items-center gap-1.5 mt-1 ml-1 overflow-hidden h-3">
                         <div className="flex gap-1 items-center animate-[pulse_3s_infinite]">
                             <div className="w-1 h-1 rounded-full bg-emerald-500" />
-                            <p className="text-[8px] md:text-[9px] text-slate-400 font-bold uppercase tracking-[0.2em] whitespace-nowrap opacity-70 group-hover:opacity-100 transition-all">
+                            <p className="text-[8px] md:text-[9px] text-slate-300 font-bold uppercase tracking-[0.2em] whitespace-nowrap opacity-100 transition-all">
                                 Neural Link 2.0 Hybrid Ready
                             </p>
                         </div>
