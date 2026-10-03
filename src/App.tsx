@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from "react-router-dom";
 import Home from "./pages/Home";
 import About from "./pages/About";
 import Services from "./pages/Services";
@@ -59,6 +59,11 @@ function SmcShortLink({ to }: { to: string }) {
   const { search } = useLocation();
   return <Navigate to={`${to}${search}`} replace />;
 }
+/** Report buttons (WhatsApp/email): r/<week key> opens the report, ask/<week key> goes to the ask's screen. */
+function SmcReportLink({ ask }: { ask?: boolean }) {
+  const { key } = useParams();
+  return <Navigate to={`/broker/reports?wk=${encodeURIComponent(key || "")}${ask ? "&ask=1" : ""}`} replace />;
+}
 const smc = (el: ReactNode) => <Suspense fallback={<div className="min-h-screen bg-background" />}>{el}</Suspense>;
 /** Legacy route that SMC brokers share: SMC page for brand brokers, the legacy page for everyone else (flag off = legacy only). */
 const shared = (smcEl: ReactNode, legacyEl: ReactNode) => (SMC_ENABLED ? smc(<SmcBrokerSwitch smc={smcEl} legacy={legacyEl} />) : legacyEl);
@@ -114,6 +119,8 @@ const App = () => {
                 {/* WhatsApp template buttons (I-37c): short links on app.leadvelocity.co.za/s/* forward to the portal pages, query kept */}
                 <Route path="/s/calendar" element={<SmcShortLink to="/broker/calendar" />} />
                 <Route path="/s/billing" element={<SmcShortLink to="/broker/billing" />} />
+                <Route path="/r/:key" element={<SmcReportLink />} />
+                <Route path="/ask/:key" element={<SmcReportLink ask />} />
                 <Route path="/s/leads" element={<SmcShortLink to="/broker/leads" />} />
               </>
             )}

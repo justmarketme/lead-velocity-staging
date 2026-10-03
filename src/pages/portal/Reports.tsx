@@ -14,7 +14,8 @@ import type { SmcFig, SmcReport, SmcReportPoliciesWrittenArgs } from "@/integrat
 const ASK_ROUTE: Record<string, string> = {
   mark_outcomes: "/broker/leads#mark", reconnect_calendar: "/broker/calendar", check_hours: "/broker/calendar#hours",
   record_intro: "/broker/intro-media", rerecord_intro: "/broker/intro-media", approve_card: "/broker/intro-card",
-  call_not_reached: "/broker/leads", sign_agreement: "/broker/agreement", renew: "/broker/agreement#billing",
+  call_not_reached: "/broker/leads", not_reached: "/broker/leads", open_capacity: "/broker/calendar#hours",
+  add_close_rate: "/broker/reports#roi", followup_due: "/broker/leads#followups", sign_agreement: "/broker/agreement", renew: "/broker/agreement#billing",
 };
 const light = (l?: string) => (l === "green" ? "tl-g" : l === "amber" ? "tl-a" : l === "red" ? "tl-r" : "");
 const pctOrNum = (v: number | null | undefined) => (v === null || v === undefined ? "n/a" : v > 0 && v <= 1 ? fmtPct(v) : String(v));
@@ -45,7 +46,11 @@ function Body() {
     })();
   }, [broker.id]);
 
-  const rep = useMemo(() => reports.find((r) => r.id === params.get("id")) || reports[0] || null, [reports, params]);
+  // WhatsApp / email buttons carry the week key (r/rp_2026w41, ask/rp_2026w41); the portal id (uuid) still works too.
+  const wk = (params.get("wk") || "").replace(/^rp_/, "");
+  const rep = useMemo(() => reports.find((r) => r.id === params.get("id")) || (wk && reports.find((r) => String(r.payload_json?.week || "").toLowerCase().replace("-", "") === wk)) || reports[0] || null, [reports, params, wk]);
+  // "Do it now" (ask/<key>) lands on the exact screen for the ask.
+  useEffect(() => { const c = rep?.payload_json?.s7_ask?.code; if (params.get("ask") === "1" && c && !rep?.ask_done_at) nav(ASK_ROUTE[c] || "/broker/start", { replace: true }); }, [rep, params, nav]);
   useEffect(() => { if (rep && !rep.opened_portal_at) void smcDb.rpc("smc_mark_report_opened", { p_report_id: rep.id }); }, [rep]);
 
   async function doAsk() {
