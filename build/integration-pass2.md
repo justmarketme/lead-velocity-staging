@@ -225,12 +225,12 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 | I-45f | W06 accepts `{event:'booking'}` from W05 and chooses broker_intro_booked vs booking_confirmed; W05 calls W06 `op:'booking'` for a page booking inside the hold | automation-engineer |
 | I-45g | Drop the "(DRAFT pending …)" name suffix on each workflow at gate approval (callers bind by name) | orchestrator at GATE-TEST-* |
 | I-45h | /book and /lead Turnstile + rate limits need the Public guard (W03-notes B.3); `ops.rate_counters` table (today W01 counts in webhook_events) | automation-engineer + platform-architect |
-| I-45i | lines.mjs EMAIL_BOUNCED (EN/AF) + a utility template for the bounce prompt outside 24 h; W17 forwards bounce notices to W05 `invite_bounced` | conversation-designer + billing-automation (W17) |
+| I-45i (line + template ✅, W17/W05 wiring → I-49b) | lines.mjs EMAIL_BOUNCED (EN/AF) + a utility template for the bounce prompt outside 24 h; W17 forwards bounce notices to W05 `invite_bounced` | conversation-designer + billing-automation (W17) |
 | I-45j | Serve `/c/{booking_id}` for the .ics link; Zoom meeting creation and Google Meet path not built (Teams + phone + WhatsApp-call are) | automation-engineer, Phase 5 |
 | I-45k | W29 → W13 call sends only `{lead_id}`; add a Code node sending `{op, outcome_id, reason, reason_code, idempotency_key}` | automation-engineer (W29) |
 | I-45l | Voice-note owner: W29 transcribes today, W12 stores `whatsapp-media:{id}` only; pick one (P17/Q22) | conversation-designer + compliance-qa |
 | I-45m | W13 claim query must run as one transaction (two statements, batching `single`) — confirm on staging | compliance-qa, Phase 5 |
-| I-45n | `BROKER_NO_SHOW_APOLOGY` (EN/AF) in lib/w12.mjs is draft wording → approve into lines.mjs | conversation-designer |
+| I-45n ✅ | `BROKER_NO_SHOW_APOLOGY` (EN/AF) in lib/w12.mjs is draft wording → approve into lines.mjs | conversation-designer |
 | I-45o | Landing "I'll pick on WhatsApp" button must call `POST /lead/skip` | landing-page-builder |
 | I-45p | `broker_lead_opted_out` template for the WhatsApp broker notice when the window is closed (today email only) | conversation-designer + meta-operator |
 | I-45q | Shared-calendar route needs credential "Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)" + per-broker `calendar_status_detail.shared_calendar_id` (else `SMC_SHARED_CALENDAR_ID`) | devops-security + platform-architect |
@@ -249,9 +249,9 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 ### I-47 · 2026-10-03 (after the real W07 smoke + devops pass 8)
 | # | Item | Owner |
 |---|---|---|
-| I-47a | Typed qualifying answers when `conv_state` is q_* but W03 has no pre-consent thread are dropped (smoke 2 "I'm 47"): decide the owner (W03 qualifies any q_* answer handed by W07, or W07 records it itself) and build + test it | automation-engineer (W03/W07) — dispatched |
-| I-47b | Synthetic seed: `brands.phone_number_id` for SortMyCover (W03 Load context returns 0 rows and stops silently) + a W03 log row when no brand matches | platform-architect (seed) + automation-engineer (W03) — dispatched |
-| I-47c | Build the four referenced sub-workflows per LOCAL-STAGING §7: smc-whatsapp-send (shared sender), smc-capi-send (+ `capi` in index.cjs), smc-w26 (status webhook + first-payment hook, broker still onboarding), smc-ads-budget as a proposal → ops_gate (raise needs Jonathan's confirm, NH-57); callers switch to waitForSubWorkflow where CONTRACTS says they wait | automation-engineer — dispatched |
+| I-47a ✅ | Typed qualifying answers when `conv_state` is q_* but W03 has no pre-consent thread are dropped (smoke 2 "I'm 47"): decide the owner (W03 qualifies any q_* answer handed by W07, or W07 records it itself) and build + test it | automation-engineer (W03/W07) — dispatched |
+| I-47b ✅ | Synthetic seed: `brands.phone_number_id` for SortMyCover (W03 Load context returns 0 rows and stops silently) + a W03 log row when no brand matches | platform-architect (seed) + automation-engineer (W03) — dispatched |
+| I-47c ✅ | Build the four referenced sub-workflows per LOCAL-STAGING §7: smc-whatsapp-send (shared sender), smc-capi-send (+ `capi` in index.cjs), smc-w26 (status webhook + first-payment hook, broker still onboarding), smc-ads-budget as a proposal → ops_gate (raise needs Jonathan's confirm, NH-57); callers switch to waitForSubWorkflow where CONTRACTS says they wait | automation-engineer — dispatched |
 | I-47d ✅ | W11/W29/W32/W33: Anthropic host from `$env.ANTHROPIC_BASE_URL` like W07/W23/W30/W31 | automation-engineer — dispatched |
 | I-47e ✅ | Three Postgres nodes without a credential (W21 "Stamp brands.insights_last_fetched_at", W21 "Cache ad status/budget", W27 "Record alerts") → the shared credential name; inventory todo → pass | ads-api-engineer / automation-engineer — dispatched |
 | I-47f | Microsoft access to howzit@: delegated sign-in (W05, W15, W17, W19, W32, W34) vs app-only (W20, W22) — pick one model (default: app-only for server flows; delegated only for the broker's own calendar connect) | devops-security + platform-architect |
@@ -263,14 +263,27 @@ The landing page calls `/slots` and `/book` but has no defined way to prove whic
 ### I-48 · 2026-10-03 (review 6 + the I-47 wave)
 | # | Item | Owner |
 |---|---|---|
-| I-48a | R6-01 test: a Monday weekly then a midcycle edition two days later shows the same pulse figure (predicate fixed by orchestrator: `rh.week <= d`); R6-05: a POPIA erase must not shift a held figure (hold on the stored n, not a recount) | analytics-reporter — dispatched |
-| I-48b | R6-02: W07 reply claim per inbound wamid (`w07:reply:{wamid}`) + hop limit across W03/W05/W07 (max 3 hand-backs per message) | automation-engineer (W07) — dispatched with I-47a |
-| I-48c | R6-03: W12 L03 — wait for the broker's mark or the +3 h nudge before resolving a broker no-show on the lead's "No, not yet"; neutral apology wording (conversation-designer) | automation-engineer (W12) + conversation-designer — dispatched |
-| I-48d | R6-04: STOP with a live booking tells the lead the call is off — `STOP_ACK_CANCELLED` EN/AF in lines.mjs, W15 sends it as the one confirmation | conversation-designer + automation-engineer (W15) — dispatched |
+| I-48a ✅ | R6-01 test: a Monday weekly then a midcycle edition two days later shows the same pulse figure (predicate fixed by orchestrator: `rh.week <= d`); R6-05: a POPIA erase must not shift a held figure (hold on the stored n, not a recount) | analytics-reporter — dispatched |
+| I-48b ✅ | R6-02: W07 reply claim per inbound wamid (`w07:reply:{wamid}`) + hop limit across W03/W05/W07 (max 3 hand-backs per message) | automation-engineer (W07) — dispatched with I-47a |
+| I-48c (lines ✅, W12 wiring → I-49b) | R6-03: W12 L03 — wait for the broker's mark or the +3 h nudge before resolving a broker no-show on the lead's "No, not yet"; neutral apology wording (conversation-designer) | automation-engineer (W12) + conversation-designer — dispatched |
+| I-48d (line ✅, W15 wiring → I-49b) | R6-04: STOP with a live booking tells the lead the call is off — `STOP_ACK_CANCELLED` EN/AF in lines.mjs, W15 sends it as the one confirmation | conversation-designer + automation-engineer (W15) — dispatched |
 | I-48e | R6-11: held leads (consent names another practice / no capacity) should not send a CAPI Lead until handed over | automation-engineer (W01) |
-| I-48f | I-47c re-run (nothing was built): build smc-whatsapp-send + smc-capi-send first, then smc-w26 + smc-ads-budget; widen every test scan from `^W\d\d\.json$` to include `SUB-*.json`; `capi` in index.cjs; CAPI evidence file path must be writable (not under the read-only /repo mount) | automation-engineer — dispatched |
-| I-48g | W16/W19 caller inputs for the sub-workflows: W16 passes W20's passthrough to smc-w26 and the "Resume" output to ads; W19 passes Postgres outputs with no `to`/template to 4 of 5 WhatsApp calls and "Routing off" output (no broker_id) to ads lower — mapping nodes in billing/build-workflows.mjs; W19 email leg stays in W19 (default) | billing-automation — dispatched |
+| I-48f ✅ | I-47c re-run (nothing was built): build smc-whatsapp-send + smc-capi-send first, then smc-w26 + smc-ads-budget; widen every test scan from `^W\d\d\.json$` to include `SUB-*.json`; `capi` in index.cjs; CAPI evidence file path must be writable (not under the read-only /repo mount) | automation-engineer — dispatched |
+| I-48g ✅ | W16/W19 caller inputs for the sub-workflows: W16 passes W20's passthrough to smc-w26 and the "Resume" output to ads; W19 passes Postgres outputs with no `to`/template to 4 of 5 WhatsApp calls and "Routing off" output (no broker_id) to ads lower — mapping nodes in billing/build-workflows.mjs; W19 email leg stays in W19 (default) | billing-automation — dispatched |
 | I-48h | CTWA leads never get `consent_ads_at`, so the CAPI consent gate would block every CTWA Lead/Schedule event — rule: CTWA consent (ctwa-named-v2) covers measurement, set consent_ads_at at consent time (NH-60 to confirm) | compliance-qa + attribution-analyst |
 | I-48i | ops.proposals.source for the ads-budget proposal: none of the allowed values fits (`routing` suggested) — add `ads_budget` to the check in migration 13 | platform-architect |
 | I-48j | W30/W31 community escalations sent amber while their text promises a human within 30 min — red, or change the promise | community-response-lead |
-| I-48k | W03 writes `leads.conv_state.state`; W07 "Save conv_state" skips `state` on hand-off turns; `q_method` in W07's qualifying-tap states; W03 DRY_RUN gate + outbound communications row — all part of I-47a | automation-engineer — dispatched |
+| I-48k ✅ | W03 writes `leads.conv_state.state`; W07 "Save conv_state" skips `state` on hand-off turns; `q_method` in W07's qualifying-tap states; W03 DRY_RUN gate + outbound communications row — all part of I-47a | automation-engineer — dispatched |
+
+### I-49 · 2026-10-03 (after the I-48 wave)
+| # | Item | Owner |
+|---|---|---|
+| I-49a | Re-check on a fresh n8n that an unsigned `POST {}` to /webhook/whatsapp returns 401 (a probe returned 200 on a run that may have hit a stale process; the offline test asserts 401) | automation-engineer — dispatched |
+| I-49b | Wire the review-6 lines: W15 sends STOP_ACK_CANCELLED when a booking is cancelled; W12 L03 waits for the broker's mark or broker_nudge_at before the no-show + BROKER_NO_SHOW_APOLOGY (lines-r6.md); W05 `invite_bounced` sends EMAIL_BOUNCED (or the invite_email_bounced template outside 24 h) and W17 forwards bounce notices | automation-engineer — dispatched |
+| I-49c | R6-11: W01 held leads (consent names another practice / no capacity) send no CAPI Lead until handed over | automation-engineer — dispatched |
+| I-49d | Templates broker_cycle_ended + broker_come_back for the W19 pay-link and come-back messages (session text today); runbook count 53 → 55 | conversation-designer + meta-operator |
+| I-49e | smc-whatsapp-send returns `email_fallback:true` when no approved template and the window is closed — W19 already sends its email legs; other callers (W34, core-path) decide per call (default: log only) | automation-engineer (W34) |
+| I-49f | Ads lower: callers send amount_zar 0 + media_share_zar — define "lower" as lower-to media_share_zar × 0 = pause spend (default) and document in SUB-ads-budget | ads-api-engineer |
+| I-49g | Migration 13 additions: `ops.proposals.source` check + 'ads_budget'; `facts.broker_pulse` 4-arg + `w14_broker_report` body from analytics/I-43c-migration-note.md; partial unique index on communications (metadata->>'correlation') where not null; `verified_credentials` COMMENT (I-43b); go_live notification kinds used by smc-w26 (`go_live`, signal keys go_live_ready / go_live_vps_gate / go_live_pending) allowed; chain validation on the stub incl. analytics/tests/pulse-hold.test.sql | platform-architect — dispatched |
+| I-49h | readiness.mjs S7-11 / S7-14 read `CAPI_EVIDENCE_PATH` when set (default build/evidence/capi-test-events.jsonl) | platform-architect — dispatched |
+| I-49i | smc-w26 to-dos use source `manual` because `build` is not an allowed proposals source — add `build` or keep manual (platform-architect decides in I-49g) | platform-architect |
