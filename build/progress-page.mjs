@@ -52,7 +52,7 @@ const BUILT = [
   ['Billing', 'done', 'Paystack checkout, Instant EFT, manual EFT with inContact parsing, renewals and reminders (W16–W19, W25). Live only after Paystack KYC (your login).'],
   ['Compliance QA', 'done', '5 reviews done; fix waves 1–5 applied (every review-4 blocking item is closed in code; review 6 runs after the next build wave).'],
   ['Infrastructure', 'wait', 'Docker + tunnel for local staging, VPS runbook, backups, CORS, secrets guard, edge function skeleton. VPS is bought only after first payment (GATE-VPS).'],
-  ['Tests', 'done', '628 offline tests green, including a repo-wide check that no workflow can send WhatsApp, SMS or email while dry-run is on. Rehearsal round 3: stages 1-7 pass end to end on the local n8n; stage 8 (STOP) partial.'],
+  ['Tests', 'done', '633 offline tests green, including a repo-wide check that no workflow can send WhatsApp, SMS or email while dry-run is on. Rehearsal round 3: stages 1-7 pass end to end on the local n8n; stage 8 (STOP) partial.'],
 ];
 const PILL = { done: ['Drafted & tested', 'p-ok'], run: ['In progress', 'p-run'], wait: ['Waiting on you', 'p-wait'] };
 
@@ -66,7 +66,7 @@ const TODAY = [
   'The eight core-path workflows (lead intake, first touch, slots, book, reminders, outcome and broker feedback, no-show and replacement counter, opt-out) exist as inactive drafts against their drafted tests; they turn green when you approve the tests.',
   'n8n runs for real in the sandbox: all committed workflows import, and a synthetic WhatsApp message now runs end to end through the assistant in dry-run (rows in the database, reply drafted, nothing sent), and the run caught a real loop that would have made 55 paid AI calls per message in production. Fixed.',
   'Section 7 readiness checker, make check, WCAG AA pass, portal explainer clip, consumer terms page.',
-  'Session 2: round 3 findings fixed - the test clock now reaches the slot check, STOP leaves an evidence trail, and the 12 WhatsApp sends that slipped past dry-run were traced to the ops-alert sender and closed in 10 workflows. Next: last ungated invite email, CAPI Attended hold fix, then rehearsal round 4.',
+  'Session 2: round 3 findings fixed - the test clock now reaches the slot check, STOP leaves an evidence trail, and the 12 WhatsApp sends that slipped past dry-run were traced to the ops-alert sender and closed in 10 workflows. Wave 2: the last ungated sender (the meeting-invite email) is gated, and Meta now only hears a meeting was attended once the lead has confirmed or KG has decided. Rehearsal round 4 is running.',
   'Compliance review 6 (33 pass, 4 medium items being fixed) and a real security bug caught before it mattered: inbound WhatsApp signatures were not actually being checked. Fixed and tested.',
   'Microsoft connect hardening: refresh token never lands in an error log; expired app secret raises a red alert; FSCA check records the verified FSP on the broker row.',
   'Template review samples signed off (FSP 00000, SAMPLE tag from frame 0).',
@@ -175,7 +175,7 @@ summary:focus-visible,a:focus-visible{outline:2px solid var(--amber);outline-off
         <div class="kpi"><b>${running.length}</b><span>tasks in progress</span></div>
         <div class="kpi"><b>${decisions.length}</b><span>decisions waiting on you</span></div>
         <div class="kpi"><b>${openGates.length}</b><span>logins / money / approvals</span></div>
-        <div class="kpi"><b>628</b><span>offline tests green</span></div>
+        <div class="kpi"><b>633</b><span>offline tests green</span></div>
       </div>
     </div>
   </section>
