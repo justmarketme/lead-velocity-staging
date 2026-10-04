@@ -2,6 +2,22 @@
 
 Owner: automation-engineer. Date: 2026-10-03. Never the live Supabase project; `DRY_RUN_SENDS=true`; synthetic numbers only.
 
+## Round 6 (I-57b): Turnstile /book guard, broker_lead_opted_out, Meta-provider smoke
+
+**All three pass; no repo code changed.** Same scratch env as round 5 (egress stub, guard and sockwatch up before n8n; `DRY_RUN_SENDS=true`; synthetic numbers 0161/0162/0163). The scratch stub gained a `challenges.cloudflare.com/turnstile/v0/siteverify` handler: Cloudflare's documented test secrets (`1x...AA` always pass, `2x...AA` always fail) and the dummy token `XXXX.DUMMY.TOKEN.XXXX`. ASSUMPTION: the stub's pass reply carries `hostname: sortmycover.co.za` and no `action`; a token containing `WRONGHOST` returns another hostname. `W07` and `SUB-whatsapp-send` were re-imported and republished for the provider commit (pubcheck 27 equal, 0 problems).
+
+| # | Check | Result |
+|---|---|---|
+| 1a | Pass secret, page-lane `/book` (no test headers): no token, wrong hostname, dummy token | 400 `try_again` (no siteverify call), 400 `try_again`, **201 booked** (`0db183b1-...`). `/lead` also 200 through the same siteverify |
+| 1b | Fail secret, dummy token | 400 `try_again`, no booking |
+| 1c | Stub stopped (siteverify refused), `TURNSTILE_FAIL_MODE=open` | **503 `try_again`, `retry_after_s` 30**: /book fails closed (NH-32) |
+| 2 | Lead `42742f31-...` with no booking, broker last inbound 3 days old, signed `STOP` (exec 121) | opted_out, suppression `stop`; template `broker_lead_opted_out` vars [Synthetic, Lerato] + url suffix `leads?lead=<id>`; `communications` `dry:w15:broker_wa`, `broker_email`, `confirm` (dry_run true) |
+| 3 | `WHATSAPP_PROVIDER=meta`: lead `e12ef6d1-...`, `/slots`, `/book` Teams | 200 / 200 / 201; `broker_intro_slots` and `booking_confirmed` dry utility rows; event on the shared calendar; disclosure_msg_id set |
+
+Notes: W05 saves no data on success, so the guard reason (`turnstile_missing` etc.) is shown only by status codes and the siteverify count; the reasons are unit-tested in `W05.test.mjs`. The first touch went out as `broker_intro_slots` because the booking came after the 45 s hold.
+
+**Egress (round 6).** Stub: graph.facebook.com `/messages` 0, Twilio 0, Graph sendMail 0; siteverify 4 answered by the stub plus 1 refused (stub down); 1 shared-calendar event POST (post-truncation count). `guard.log` 15 redirects, 0 refused or unknown. `sock.log` 0 non-loopback sockets. Controls: unguarded SYN to 10.255.255.1 flagged, guarded call redirected. n8n, stub, sockwatch stopped; Postgres stub left up.
+
 ## Round 5 (I-57a): full regression of stages 1 to 8 after today's changes
 
 **Stages 1 to 8 pass from a real `POST /lead`, in a fresh container.** Changes under test: W02, W05 `/book` guard + .ics (`ics_url` now carries `?k=`), W07 re-check, W12 NH-62, W13, W14 PDF email, W15 `broker_lead_opted_out`, W20 token sub-workflow, W22, W28 crypto, NH-61 billing flags, visit beacon. One defect was found and fixed (W11, below). Stub saw **0** WhatsApp `/messages` POSTs, **0** Twilio, **0** Graph sendMail. **0** non-loopback sockets. Suite 773/776 (the 3 known credential-doc reds; +1 new W11 test).
