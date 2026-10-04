@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-04T00:37:58.783Z",
+  "generated": "2026-10-04T00:39:05.334Z",
   "date": "20261003",
   "pipeline": "4D.5 code-rendered (HTML/SVG + headless Chromium + ffmpeg). No Google Flow, no people, no AI imagery (ai_label=false everywhere).",
   "source_of_truth_for_timelines": "performance-creative-director/creative-briefs (hook-library-v2.md present: true)",
@@ -76,7 +76,7 @@
       "C07"
     ]
   },
-  "count": 120,
+  "count": 121,
   "files": [
     {
       "concept": "C01",
@@ -3514,6 +3514,33 @@
       "colour_variant": "amber",
       "palette_colours": 128,
       "file": "C16_trigger-bond-paperwork_9x16_20261003.png",
+      "pipeline_v": 2,
+      "render_date": "20261003"
+    },
+    {
+      "concept": "C16",
+      "hook_id": "H1",
+      "angle": "trigger: bond paperwork",
+      "hook": "Bond signing day is busy.",
+      "headline": "Bond signing day is busy",
+      "cta": "Check my cover",
+      "status": "DRAFT: pending NH-64 (Jonathan); not in cycle-1 batch",
+      "first_submit": false,
+      "brief_source": "performance-creative-director/creative-briefs/C16.md",
+      "frame1_text": "Bond signing day is busy.",
+      "end_card_line": "Sort your cover. 30 minutes. A real adviser.",
+      "ai_label": false,
+      "format": "srt",
+      "kind": "srt",
+      "ratio": "9:16",
+      "width": null,
+      "height": null,
+      "bytes": 572,
+      "duration": 20,
+      "colour_variant": "amber",
+      "cues": 8,
+      "sidecar_of": "C16_trigger-bond-paperwork_9x16_20261003.mp4",
+      "file": "C16_trigger-bond-paperwork_9x16_20261003.srt",
       "pipeline_v": 2,
       "render_date": "20261003"
     },
