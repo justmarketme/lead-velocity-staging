@@ -46,20 +46,19 @@
       "C03_H3_vid-amb",
       "C04_H4_vid-amb",
       "C05_H5_vid-amb",
-      "C14_H10_vid-amb"
+      "C16_H1_vid-amb"
     ],
     "live_count": 6,
     "concept_count": 5,
     "note_colour": "C01 amber + teal are ONE concept; colour result not readable in cycle 1 (NH-22 d).",
     "slot_6": {
-      "holder": "C14",
-      "reserved_for": "C16",
-      "swap_condition": "compliance-qa clean PASS (currently PASS-WITH-FIXES, rendered-frame re-check not logged) + native 4:5 video rendered + landing page out of _draft/ + Jonathan confirms",
-      "status": "C14 stays 2026-10-03"
+      "holder": "C16",
+      "replaced": "C14",
+      "status": "C16 swapped in 2026-10-04 after compliance-qa clean PASS; 9:16 + 4:5 mp4; /bond-paperwork/"
     },
     "refresh_pool_in_order": [
       "C17 (blocked: practitioner s14 answer + compliance-qa clean pass)",
-      "C14/C16",
+      "C14",
       "C13",
       "C11",
       "C08",
