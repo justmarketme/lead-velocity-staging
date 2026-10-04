@@ -285,3 +285,24 @@ After a 201 (fan-out, not part of the response): appointment row (`appointments_
 | Never stored | IP, user agent, referrer, session id, raw event. The session id only keys the rate window. No Pixel, no CAPI, no send, no `lead` link. |
 | Env | `BRAND_ID` (uuid, as W01), optional `BEACON_ANGLE_SLUGS`, `PUBLIC_ALLOWED_ORIGINS`. Traefik: route `/webhook/smc/beacon` publicly like `/lead`. |
 | Counting limits | A visit is counted once per page load per tab; reloads and a second tab count again. No cross-day or cross-device identity (by design). Bots that run JS are counted; the rate limit only bounds floods. |
+
+## WhatsApp provider switch: `WHATSAPP_PROVIDER = meta | twilio` (2026-10-04)
+
+Default `meta`. One env flag; no workflow edits to switch. Logic: `automation/lib/wa-provider.mjs` (loader name `waProvider`), `lib/sub-whatsapp-send.mjs`, generator `build-sub-workflows.mjs`, W07 ingress node.
+
+**Outbound (SUB-whatsapp-send).** Normalise, suppression, allow-list, 24-h window, `DRY_RUN_SENDS`, the `communications` claim row and `correlation` idempotency are unchanged and run before the transport. Under `twilio`, `Provider is twilio?` routes to `Build Twilio request` then `Twilio POST /Messages` (`api.twilio.com`, Basic auth from `TWILIO_API_KEY_SID/SECRET` built in the Code node, so no new n8n credential). `StatusCallback` = `WEBHOOK_URL/webhook/whatsapp-twilio`. `communications.external_id` = the Twilio `MessageSid`.
+
+| Existing shape | Twilio mapping |
+|---|---|
+| text | `Body` |
+| media (public `link`) | `MediaUrl` (+ `Body` = caption). A Meta media `id` has no Twilio equivalent: skip `twilio_media_needs_public_link` |
+| template + variables | `ContentSid` = `TWILIO_CONTENT_SIDS[template name]`, `ContentVariables` = `{"1":..}`. No SID: skip `twilio_content_sid_missing` (`email_fallback`, as for an unapproved Meta template). Meta template approval status is not consulted under Twilio |
+| interactive buttons / list | **Needs a Twilio Content template** (`twilio/quick-reply`, `twilio/list-picker`) registered under `TWILIO_CONTENT_SIDS[<content_key>]`, with `interactive.content_key` set by the caller. Without one the message is sent as plain `Body` with the option titles ("Reply with: A / B"), and the reply arrives as free text for W07's agent |
+
+ASSUMPTION (verify on a live account): Twilio Content variables are one numbered namespace; we number body variables first, then header, then button variables, so the Content template must be authored in that order. Quick-reply payloads are fixed in the Content template, not set at send time as on Meta; authors must reuse the same payload ids (`confirm:<id>` etc.) the W07 router expects. Twilio's own template approval and its pricing apply instead of Meta's.
+
+**Inbound (W07).** Second webhook `POST /whatsapp-twilio` in W07 (`Verify Twilio signature + normalise`): `X-Twilio-Signature` HMAC-SHA1 over `WEBHOOK_URL/webhook/whatsapp-twilio` + sorted params, timing-safe (`verifyTwilioSignature`, `TWILIO_AUTH_TOKEN`), 401 when invalid or when `WHATSAPP_PROVIDER` is not `twilio`. It emits the same items as the Meta node, so claim, context, routing and status handling are shared. `From` -> `from`; `Body` -> `text`; `ButtonPayload`/`ButtonText` -> `payload`/`text`; `ListId`/`ListTitle` -> `list_id`/`text`; `NumMedia`/`MediaUrl0` -> `media` + `media_id = twilio:<url>` (fetch with `twilioMediaRequest`, Basic auth; W23/W12 media download nodes still call Graph and are Meta-only until switched); `MessageSid` -> `wamid`; `To` digits -> `phone_number_id` (so under Twilio set `brands.phone_number_id` to the sender's number digits). Status callbacks: `queued/sent` -> sent, `delivered`, `read`, `undelivered/failed` -> failed, into the existing receipt query. Twilio sends no timestamp, so `at_ms` is receipt time. ASSUMPTION: CTWA referral arrives as `Referral*` params (`ReferralSourceId`, `ReferralCtwaClid`, ...); verify.
+
+**Flows (W28) are Meta-only. ASSUMPTION, not a fact:** Twilio's WhatsApp API is not known to support Flow messages / `nfm_reply` / the `data_exchange` endpoint. Under `twilio`, `brands.booking_ui` must stay `list` (the 10-slot list is already the launch path; W28 auto-reverts when its ping fails). Verify with Twilio before relying on it.
+
+**Not yet switched (gap, needs owner decision):** 12 workflows (W05, W06, W07 session/ops sends, W08-W13, W15, W29, W35) still POST to Graph directly; only SUB-whatsapp-send callers and the W07 ingress are provider-aware. Move those sends behind SUB-whatsapp-send before choosing Twilio for production.

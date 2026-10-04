@@ -22,7 +22,7 @@ for (const [f, id] of Object.entries(FILES)) {
     const pgCreds = new Set(wf.nodes.filter((n) => n.type === 'n8n-nodes-base.postgres').map((n) => n.credentials?.postgres?.name));
     assert.deepEqual([...pgCreds], [PG_CRED]);
     assert.deepEqual(checkSql(workflowSql(wf)), []);
-    for (const n of wf.nodes.filter((x) => x.type === 'n8n-nodes-base.code' && !/W22 signal/.test(x.name))) assert.match(n.parameters.jsCode, /require\('lv-automation'\)\.sub(WhatsappSend|CapiSend|W26|AdsBudget|VisitBeacon)\b/, `${n.name} loads its lib`);
+    for (const n of wf.nodes.filter((x) => x.type === 'n8n-nodes-base.code' && !/W22 signal/.test(x.name))) assert.match(n.parameters.jsCode, /require\('lv-automation'\)\.(sub(WhatsappSend|CapiSend|W26|AdsBudget|VisitBeacon)|waProvider)\b/, `${n.name} loads its lib`);
     assert.ok(wf.nodes.some((n) => n.type === 'n8n-nodes-base.executeWorkflowTrigger' || n.type === 'n8n-nodes-base.webhook'), 'has an entry point');
   });
 }
@@ -120,7 +120,8 @@ test('whatsapp-send: duplicate correlation sends nothing; the row is claimed bef
   assert.doesNotMatch(rec.parameters.query, /\$1, NULL, /);
   assert.match(rec.parameters.options.queryReplacement, /'\+' \+ String\(L\.to/);
   const order = (name) => Object.entries(WA.connections).find(([, c]) => c.main.flat().some((x) => x.node === name))?.[0];
-  assert.equal(order('Graph POST /messages'), 'Claimed and a live send?');
+  assert.equal(order('Graph POST /messages'), 'Provider is twilio?');
+  assert.equal(order('Provider is twilio?'), 'Claimed and a live send?');
   const http = WA.nodes.find((n) => n.name === 'Graph POST /messages');
   assert.equal(http.credentials.httpHeaderAuth.name, 'WhatsApp Cloud API (system user)');
   assert.match(http.parameters.url, /\$env\.META_GRAPH_VERSION/);

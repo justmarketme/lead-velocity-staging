@@ -2402,6 +2402,39 @@
       "maxTries": 2,
       "waitBetweenTries": 1500,
       "onError": "continueRegularOutput"
+    },
+    {
+      "id": "n_twilio_in",
+      "name": "WhatsApp webhook (Twilio)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        220,
+        260
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-twilio",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "webhookId": "w07-whatsapp-twilio-post"
+    },
+    {
+      "id": "n_twilio_verify",
+      "name": "Verify Twilio signature + normalise",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        260
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const V = require('lv-automation').verifyWebhooks;\nconst P = require('lv-automation').waProvider;\nconst crypto = require('crypto');\n// WHATSAPP_PROVIDER=twilio ingress (X-Twilio-Signature = HMAC-SHA1 over URL + sorted params, timing-safe). Emits the same items as the Meta node.\nif (P.providerOf($env) !== 'twilio') return [{ json: { valid: false, reason: 'provider_not_twilio' } }];\nconst it = $input.first().json; const h = it.headers || {};\nconst params = it.body || {};\nconst base = String($env.WEBHOOK_URL || '').replace(/\\/$/, '');\nconst vr = V.verifyTwilioSignature({ url: base + '/webhook/whatsapp-twilio', params, signatureHeader: h['x-twilio-signature'], authToken: $env.TWILIO_AUTH_TOKEN });\nif (!vr || vr.ok !== true) return [{ json: { valid: false, reason: (vr && vr.reason) || 'unverified' } }];\nconst out = [];\nfor (const e of P.normaliseTwilioInbound(params, Date.now())) {\n  if (e.kind === 'message') out.push({ json: { valid: true, kind: 'message', msg: e.msg, payload_hash: crypto.createHash('sha256').update(JSON.stringify(e.msg)).digest('hex') } });\n  else out.push({ json: { valid: true, ...e } });\n}\nreturn out.length ? out : [{ json: { valid: true, kind: 'empty' } }];"
+      }
     }
   ],
   "connections": {
@@ -3265,6 +3298,33 @@
         [
           {
             "node": "Assemble (verdict + toneCheck + fallbacks)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp webhook (Twilio)": {
+      "main": [
+        [
+          {
+            "node": "Verify Twilio signature + normalise",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Twilio signature + normalise": {
+      "main": [
+        [
+          {
+            "node": "Respond 200 / 401",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Message or status?",
             "type": "main",
             "index": 0
           }

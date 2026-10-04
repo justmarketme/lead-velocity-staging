@@ -11,6 +11,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { templateMessage, textMessage, paramCounts } from './wa.mjs';
+import { providerOf, interpretTwilio } from './wa-provider.mjs';
 
 const TEMPLATES = join(dirname(fileURLToPath(import.meta.url)), '..', 'templates');
 const KINDS = ['template', 'text', 'interactive', 'media'];
@@ -118,7 +119,8 @@ export function allowListed(to, env = {}) {
  * Order: duplicate -> suppression -> allow-list -> template/window rules -> DRY_RUN -> send.
  */
 export function decide(n, ctx = {}, env = {}, nowMs = Date.now()) {
-  const base = { to: n.to, kind: n.kind, template: n.template, lead_id: n.lead_id, broker_id: n.broker_id, brand_id: ctx.brand_id || null, correlation: n.correlation };
+  const provider = providerOf(env);
+  const base = { provider, to: n.to, kind: n.kind, template: n.template, lead_id: n.lead_id, broker_id: n.broker_id, brand_id: ctx.brand_id || null, correlation: n.correlation };
   const skip = (reason, extra = {}) => ({ ...base, action: 'skip', reason, ...extra });
   if (!n.valid) return skip('invalid_input', { missing: n.missing });
   if (ctx.duplicate) return { ...base, action: 'duplicate', reason: 'already_sent', external_id: ctx.duplicate_external_id || null };
@@ -129,7 +131,8 @@ export function decide(n, ctx = {}, env = {}, nowMs = Date.now()) {
   if (n.kind === 'template') {
     const spec = templateSpec(n.template);
     if (!spec) return skip('unknown_template');
-    if (!templateApproved(ctx.template_status, n.template)) {
+    // provider=twilio: approval is the Twilio Content SID (TWILIO_CONTENT_SIDS), checked when the request is built.
+    if (provider !== 'twilio' && !templateApproved(ctx.template_status, n.template)) {
       // §7 (5): template not approved yet -> session text inside the window, otherwise the email leg (caller / howzit@).
       if (n.text && open) { payload = textMessage(n.to, n.text); sentAs = 'text'; }
       else return skip('template_not_approved', { email_fallback: true, window_open: open });
@@ -159,6 +162,9 @@ export const logContent = (d) => (d.sent_as === 'template' || (d.kind === 'templ
 /** Graph response -> { ok, external_id, error }. */
 export function interpret(res = {}) {
   const body = res.body !== undefined ? res.body : res;
+  // provider=twilio: a skipped request (no Content SID, no sender) or Twilio's { sid } / { code, message } body.
+  if (res && res.twilio_skip) return { ok: false, external_id: null, error: String(res.twilio_skip) };
+  if (body && (body.sid || (body.code && body.message && !body.error))) return interpretTwilio(res);
   const id = body && body.messages && body.messages[0] && body.messages[0].id;
   if (id) return { ok: true, external_id: id, error: null };
   const e = (body && body.error) || res.error || {};

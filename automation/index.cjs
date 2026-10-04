@@ -38,6 +38,7 @@ const MODULES = {
   wa: './lib/wa.mjs',
   // sub-workflows SUB-*.json (LOCAL-STAGING §7, I-48f)
   subWhatsappSend: './lib/sub-whatsapp-send.mjs',
+  waProvider: './lib/wa-provider.mjs',
   subCapiSend: './lib/sub-capi-send.mjs',
   subW26: './lib/sub-w26.mjs',
   subAdsBudget: './lib/sub-ads-budget.mjs',

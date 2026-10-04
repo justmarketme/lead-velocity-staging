@@ -234,17 +234,133 @@
       ]
     },
     {
-      "name": "Interpret Graph response",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "name": "Provider is twilio?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
       "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "const L = require('lv-automation').subWhatsappSend;\nreturn { json: L.interpret($json) };"
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $('Decide (suppression, allow-list, window, template, dry run)').item.json.provider === 'twilio' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
       },
       "id": "smc-whatsapp-send-11",
       "position": [
         2420,
         340
+      ]
+    },
+    {
+      "name": "Build Twilio request (Messages API form)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const P = require('lv-automation').waProvider;\nconst d = $('Decide (suppression, allow-list, window, template, dry run)').item.json;\nconst cb = $env.WEBHOOK_URL ? String($env.WEBHOOK_URL).replace(/\\/$/, '') + '/webhook/whatsapp-twilio' : undefined;\nconst r = P.toTwilioRequest(d.payload, $env, { statusCallback: cb });\nif (r.skip) return { json: { twilio_skip: r.reason, email_fallback: /content_sid_missing/.test(r.reason) } };\nconst body = new URLSearchParams(r.form).toString();\nconst auth = 'Basic ' + Buffer.from($env.TWILIO_API_KEY_SID + ':' + $env.TWILIO_API_KEY_SECRET).toString('base64');\nreturn { json: { body, auth, via: r.via || 'native' } };"
+      },
+      "id": "smc-whatsapp-send-12",
+      "position": [
+        2640,
+        380
+      ]
+    },
+    {
+      "name": "Twilio request built?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ !$json.twilio_skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-whatsapp-send-13",
+      "position": [
+        2860,
+        300
+      ]
+    },
+    {
+      "name": "Twilio POST /Messages",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.twilio.com/2010-04-01/Accounts/{{ $env.TWILIO_ACCOUNT_SID }}/Messages.json",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.auth }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/x-www-form-urlencoded",
+        "body": "={{ $json.body }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "smc-whatsapp-send-14",
+      "position": [
+        3080,
+        340
+      ]
+    },
+    {
+      "name": "Interpret Graph response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').subWhatsappSend;\n// Both providers land here (name kept for callers/tests): Graph { messages[0].id } or Twilio { sid } / { twilio_skip }.\nreturn { json: L.interpret($json) };"
+      },
+      "id": "smc-whatsapp-send-15",
+      "position": [
+        3300,
+        380
       ]
     },
     {
@@ -264,10 +380,10 @@
           "queryReplacement": "={{ [ $('Record communications row (claim before the Graph call)').item.json.comm_id, $json.ok ? 'sent' : 'failed', $json.external_id || '', $json.error || '' ] }}"
         }
       },
-      "id": "smc-whatsapp-send-12",
+      "id": "smc-whatsapp-send-16",
       "position": [
-        2640,
-        380
+        3520,
+        300
       ]
     },
     {
@@ -295,10 +411,10 @@
         },
         "options": {}
       },
-      "id": "smc-whatsapp-send-13",
+      "id": "smc-whatsapp-send-17",
       "position": [
-        2860,
-        300
+        3740,
+        340
       ]
     },
     {
@@ -309,10 +425,10 @@
         "mode": "runOnceForEachItem",
         "jsCode": "// I-47g: W22 producer contract (automation/W22.md section 3), handed over by Execute Workflow smc-w22.\nconst d = $('Decide (suppression, allow-list, window, template, dry run)').item.json;\nconst r = $('Interpret Graph response').item.json;\nreturn { json: { signal_key: 'whatsapp_send_failed', scope: d.broker_id ? 'broker:' + d.broker_id : 'lead:' + d.lead_id, severity: 'amber', what: 'WhatsApp send failed (' + (d.template || d.sent_as) + '): ' + (r.error || 'non-2xx'), impact: 'A broker or ops message was not delivered', first_action: 'Check the template status and the Graph error in the execution', source: 'smc-whatsapp-send' } };"
       },
-      "id": "smc-whatsapp-send-14",
+      "id": "smc-whatsapp-send-18",
       "position": [
-        3080,
-        340
+        3960,
+        380
       ]
     },
     {
@@ -331,10 +447,10 @@
           "waitForSubWorkflow": false
         }
       },
-      "id": "smc-whatsapp-send-15",
+      "id": "smc-whatsapp-send-19",
       "position": [
-        3300,
-        380
+        4180,
+        300
       ]
     },
     {
@@ -345,10 +461,10 @@
         "mode": "runOnceForEachItem",
         "jsCode": "// { ok, external_id, error } (callers do not wait today; kept for a waiting caller).\nconst L = require('lv-automation').subWhatsappSend;\nconst d = $('Decide (suppression, allow-list, window, template, dry run)').item.json;\nlet r = null; try { r = $('Interpret Graph response').item.json; } catch (e) { r = null; }\nreturn { json: L.result(d, r) };"
       },
-      "id": "smc-whatsapp-send-16",
+      "id": "smc-whatsapp-send-20",
       "position": [
-        3520,
-        300
+        4400,
+        340
       ]
     },
     {
@@ -360,11 +476,11 @@
         0
       ],
       "parameters": {
-        "content": "## smc-whatsapp-send (LOCAL-STAGING §7)\nInput: `{ to, kind, template, variables, buttons, text?, interactive?, media?, lead_id?, broker_id?, correlation }` or the §7 shape `{ broker_id, to, template: { name, body, buttons }, idempotency_key }`.\n- Idempotent on `correlation` / `idempotency_key` (communications.metadata.correlation, claimed before the Graph call).\n- Suppression via smc_hash_contact (digits). WHATSAPP_TEST_RECIPIENTS allow-list. DRY_RUN_SENDS -> external_id `dry:<correlation>`.\n- Template not approved -> session text inside 24 h if `text`/`reminder.text` given, else skipped with `email_fallback: true` (the email leg stays with the caller, needs_human).\n- Content logged as `template:<name>` / `[text]`, never the body.",
+        "content": "## smc-whatsapp-send (LOCAL-STAGING §7)\nInput: `{ to, kind, template, variables, buttons, text?, interactive?, media?, lead_id?, broker_id?, correlation }` or the §7 shape `{ broker_id, to, template: { name, body, buttons }, idempotency_key }`.\n- Idempotent on `correlation` / `idempotency_key` (communications.metadata.correlation, claimed before the Graph call).\n- Suppression via smc_hash_contact (digits). WHATSAPP_TEST_RECIPIENTS allow-list. DRY_RUN_SENDS -> external_id `dry:<correlation>`.\n- Template not approved -> session text inside 24 h if `text`/`reminder.text` given, else skipped with `email_fallback: true` (the email leg stays with the caller, needs_human).\n- WHATSAPP_PROVIDER=meta (default) posts to Graph; =twilio builds a Messages API form (ContentSid from TWILIO_CONTENT_SIDS) and posts to api.twilio.com, same gate, claim and idempotency.\n- Content logged as `template:<name>` / `[text]`, never the body.",
         "width": 520,
         "height": 300
       },
-      "id": "smc-whatsapp-send-17"
+      "id": "smc-whatsapp-send-21"
     }
   ],
   "connections": {
@@ -463,7 +579,7 @@
       "main": [
         [
           {
-            "node": "Graph POST /messages",
+            "node": "Provider is twilio?",
             "type": "main",
             "index": 0
           }
@@ -471,6 +587,64 @@
         [
           {
             "node": "Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Provider is twilio?": {
+      "main": [
+        [
+          {
+            "node": "Build Twilio request (Messages API form)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Graph POST /messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Twilio request (Messages API form)": {
+      "main": [
+        [
+          {
+            "node": "Twilio request built?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twilio request built?": {
+      "main": [
+        [
+          {
+            "node": "Twilio POST /Messages",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Interpret Graph response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twilio POST /Messages": {
+      "main": [
+        [
+          {
+            "node": "Interpret Graph response",
             "type": "main",
             "index": 0
           }
