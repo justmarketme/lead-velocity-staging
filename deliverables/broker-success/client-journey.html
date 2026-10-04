@@ -1,0 +1,367 @@
+<title>SortMyCover Client Journey</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,800&family=DM+Mono:wght@500&display=swap">
+<style>
+/* Layout: a single vertical route. Each stop has two lanes, "What your client sees" and "What you get", stacked on phones. Brand tokens from the SortMyCover kit (charcoal field, off-white text, amber for one thing). */
+:root{
+  --bg:#FBF8F2; --fg:#1F2933; --muted:#52606D; --line:#E4DED2; --card:#FFFFFF;
+  --amber:#F5A623; --on-amber:#2A1B02; --field:#1F2933; --on-field:#FBF8F2;
+  --wa-bg:#EFE7DA; --wa-in:#FFFFFF; --wa-out:#DCF5D0; --wa-ink:#1F2933;
+  --ok:#2F7D4F; --warn:#9A5B00;
+  --font:"DM Sans",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  --mono:"DM Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --max:62rem;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#171D23; --fg:#F1ECE2; --muted:#A9B4BF; --line:#2E3842; --card:#1F2730;
+  --field:#0F1418; --on-field:#FBF8F2;
+  --wa-bg:#12181D; --wa-in:#26313B; --wa-out:#1E4A35; --wa-ink:#F1ECE2;
+  --ok:#6CC795; --warn:#F5B850; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#171D23; --fg:#F1ECE2; --muted:#A9B4BF; --line:#2E3842; --card:#1F2730;
+  --field:#0F1418; --on-field:#FBF8F2;
+  --wa-bg:#12181D; --wa-in:#26313B; --wa-out:#1E4A35; --wa-ink:#F1ECE2;
+  --ok:#6CC795; --warn:#F5B850; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:400 1rem/1.6 var(--font);margin:0}
+.wrap{max-width:var(--max);margin:0 auto;padding-inline:16px}
+h1,h2,h3{text-wrap:balance;line-height:1.15;margin:0}
+p{margin:0}
+.eyebrow{font:500 .75rem/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+
+/* Hero */
+.hero{background:var(--field);color:var(--on-field);padding-block:2.75rem 2.5rem}
+.brand{display:flex;align-items:center;gap:.5rem;font-weight:800;font-size:1.125rem;letter-spacing:-.01em}
+.brand svg{width:1.25rem;height:1.25rem}
+.hero h1{font-size:clamp(1.9rem,4.5vw,3rem);font-weight:800;letter-spacing:-.02em;margin-top:1.5rem;max-width:20ch}
+.hero h1 em{font-style:normal;color:var(--amber)}
+.hero .lede{margin-top:1rem;max-width:58ch;color:#D9D4CA;font-size:1.0625rem}
+.legend{display:flex;flex-wrap:wrap;gap:.5rem 1.25rem;margin-top:1.75rem;font-size:.875rem;color:#D9D4CA}
+.legend span{display:inline-flex;align-items:center;gap:.5rem}
+.dot{width:.7rem;height:.7rem;border-radius:50%;display:inline-block}
+.dot.c{background:var(--on-field)}
+.dot.b{background:var(--amber)}
+
+/* Route */
+.route{padding-block:2.5rem 1rem}
+.stop{display:grid;grid-template-columns:4.5rem 1fr;gap:0 1.25rem;position:relative}
+.stop::before{content:"";position:absolute;left:2.25rem;top:0;bottom:0;width:2px;background:var(--line);transform:translateX(-1px)}
+.stop:first-child::before{top:1.25rem}
+.stop:last-child::before{bottom:auto;height:1.25rem}
+.marker{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;padding-top:.25rem}
+.num{width:2.5rem;height:2.5rem;border-radius:50%;display:grid;place-items:center;background:var(--bg);border:2px solid var(--fg);font-weight:800;font-variant-numeric:tabular-nums}
+.when{margin-top:.5rem;font:500 .6875rem/1.25 var(--mono);text-align:center;color:var(--muted);letter-spacing:.02em}
+.body{padding-bottom:2.75rem;min-width:0}
+.body h2{font-size:1.375rem;font-weight:800;letter-spacing:-.01em;padding-top:.45rem}
+.body .sum{color:var(--muted);margin-top:.35rem;max-width:62ch}
+.lanes{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1.1rem}
+.lane{min-width:0;border-top:3px solid var(--fg);padding-top:.75rem}
+.lane.you{border-top-color:var(--amber)}
+.lane h3{font:500 .75rem/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:.6rem}
+.lane ul{margin:0;padding-left:1.1rem;display:grid;gap:.35rem}
+.lane li::marker{color:var(--muted)}
+
+/* WhatsApp mock */
+.wa{background:var(--wa-bg);border-radius:14px;padding:.75rem;display:grid;gap:.45rem;margin-top:.75rem;max-width:24rem}
+.msg{background:var(--wa-in);color:var(--wa-ink);border-radius:10px 10px 10px 2px;padding:.55rem .7rem;font-size:.875rem;line-height:1.45;max-width:92%;box-shadow:0 1px 0 rgba(0,0,0,.06)}
+.msg.out{background:var(--wa-out);justify-self:end;border-radius:10px 10px 2px 10px}
+.msg b{font-weight:700}
+.btns{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.45rem}
+.btns span{border:1px solid var(--line);border-radius:999px;padding:.15rem .6rem;font-size:.8125rem;font-weight:500;background:var(--bg);color:var(--fg)}
+.slots{display:grid;grid-template-columns:repeat(3,1fr);gap:.3rem;margin-top:.45rem}
+.slots span{text-align:center;border-radius:6px;padding:.25rem 0;font:500 .75rem/1.3 var(--mono);background:var(--bg);color:var(--fg);border:1px solid var(--line)}
+.slots span.pick{background:var(--amber);color:var(--on-amber);border-color:var(--amber)}
+.ph{background:color-mix(in srgb,var(--amber) 22%,transparent);border-radius:4px;padding:0 .2rem;font-weight:500}
+
+/* Reminder ladder */
+.ladder{margin-top:.75rem;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card)}
+.ladder div{display:grid;grid-template-columns:5.5rem 1fr;gap:.75rem;padding:.5rem .75rem;border-top:1px solid var(--line);font-size:.875rem}
+.ladder div:first-child{border-top:0}
+.ladder code{font:500 .75rem/1.6 var(--mono);color:var(--muted)}
+
+/* Side paths */
+.forks{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:1rem}
+.fork{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem;min-width:0}
+.fork h3{font-size:1rem;font-weight:700;margin-bottom:.35rem}
+.fork p{font-size:.9375rem;color:var(--muted)}
+
+/* Reference band */
+.ref{border-top:1px solid var(--line);padding-block:2.5rem}
+.ref h2{font-size:1.5rem;font-weight:800;letter-spacing:-.01em;margin-bottom:1rem}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:2rem}
+.grid2>div{min-width:0}
+ol.crit{margin:0;padding-left:1.25rem;display:grid;gap:.5rem}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:.9375rem}
+th,td{text-align:left;padding:.55rem .6rem;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font:500 .6875rem/1.2 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+td.num2{text-align:right}
+th.num2{text-align:right}
+.note{font-size:.875rem;color:var(--muted);margin-top:.75rem}
+.disp{display:grid;gap:.4rem;margin-top:.25rem}
+.disp div{display:flex;justify-content:space-between;gap:1rem;font-size:.9375rem;border-bottom:1px dashed var(--line);padding-bottom:.35rem}
+.disp i{font-style:normal;font-size:.8125rem;white-space:nowrap}
+.disp i.r{color:var(--warn);font-weight:700}
+.disp i.d{color:var(--ok)}
+footer{padding-block:1.5rem 3rem;color:var(--muted);font-size:.8125rem}
+
+@media (max-width:720px){
+  .lanes,.forks,.grid2{grid-template-columns:1fr}
+  .stop{grid-template-columns:3rem 1fr;gap:0 .75rem}
+  .stop::before{left:1.5rem}
+  .num{width:2.25rem;height:2.25rem;font-size:.9375rem}
+  .when{font-size:.625rem}
+}
+@media (prefers-reduced-motion:no-preference){
+  .num{transition:background .2s,color .2s}
+  .stop:hover .num{background:var(--amber);color:var(--on-amber);border-color:var(--amber)}
+}
+</style>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="brand">
+      <svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="50" fill="#F5A623"/><path d="M28 52 L44 67 L73 36" fill="none" stroke="#1F2933" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      SortMyCover <span style="font-weight:500;opacity:.7">· by Lead Velocity</span>
+    </div>
+    <h1>From a scroll on Facebook to <em>a booked call in your diary</em>.</h1>
+    <p class="lede">Every step your client goes through, and what lands with you at each one. We run the ads, check every lead and handle the booking and reminders. You take the call and spend 20 seconds telling us how it went.</p>
+    <div class="legend">
+      <span><i class="dot c"></i>What your client sees</span>
+      <span><i class="dot b"></i>What you get or do</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="route" aria-label="The client journey, step by step">
+
+    <article class="stop">
+      <div class="marker"><span class="num">1</span><span class="when">Day 0</span></div>
+      <div class="body">
+        <h2>They see a SortMyCover ad</h2>
+        <p class="sum">Short, educational ads on Facebook and Instagram about the gap in their cover and the moments that change it, like a new baby, a bond or a new job.</p>
+        <div class="lanes">
+          <div class="lane"><h3>Your client</h3><ul>
+            <li>A plain ad from SortMyCover. No insurer names, premiums or "best price" claims.</li>
+            <li>One clear offer: a free 30-minute call with a licensed adviser.</li>
+          </ul></div>
+          <div class="lane you"><h3>You</h3><ul>
+            <li>Nothing to do. Lead Velocity pays for the ads from its own ad account and runs them.</li>
+            <li>You never fund, run or own the ads.</li>
+          </ul></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="stop">
+      <div class="marker"><span class="num">2</span><span class="when">~60 sec</span></div>
+      <div class="body">
+        <h2>They answer a short quiz</h2>
+        <p class="sum">On sortmycover.co.za, a few taps on a phone. The quiz filters people out before they ever reach you.</p>
+        <div class="lanes">
+          <div class="lane"><h3>Your client</h3><ul>
+            <li>Picks an age band and a monthly budget band. No exact income.</li>
+            <li>Chooses how they'd like to talk: WhatsApp call, phone, or video.</li>
+            <li>Gives a mobile number and ticks a consent line that names your practice.</li>
+          </ul></div>
+          <div class="lane you"><h3>Behind the scenes</h3><ul>
+            <li>Only ages 35–50 and budgets from R750 a month go through.</li>
+            <li>The number is checked as a real SA mobile, not a landline or VoIP number.</li>
+            <li>Anyone who already came through in the last 90 days is turned away.</li>
+          </ul></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="stop">
+      <div class="marker"><span class="num">3</span><span class="when">under 60 sec</span></div>
+      <div class="body">
+        <h2>Your intro card arrives on WhatsApp</h2>
+        <p class="sum">Within a minute they get a personal WhatsApp that introduces you by name, with your practice and FSP number, before anything else happens.</p>
+        <div class="lanes">
+          <div class="lane"><h3>Your client</h3>
+            <div class="wa" aria-label="Example WhatsApp message">
+              <div class="msg">Hi Lerato 👋 Thanks for your answers. Your call will be with <b><span class="ph">Your name</span></b> from <span class="ph">Your Practice</span>, an authorised financial services provider (FSP <span class="ph">00000</span>).<br>Shall we find a time?
+                <div class="btns"><span>Pick a time</span><span>Not now</span></div></div>
+              <div class="msg out">Pick a time</div>
+            </div>
+          </div>
+          <div class="lane you"><h3>Why it matters</h3><ul>
+            <li>Your name and FSP number are disclosed before any meeting, with a timestamp as proof.</li>
+            <li>A lead only counts towards your number once they reply or tap within 72 hours. That proves the number is real and theirs.</li>
+          </ul></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="stop">
+      <div class="marker"><span class="num">4</span><span class="when">same chat</span></div>
+      <div class="body">
+        <h2>They book straight into your calendar</h2>
+        <p class="sum">A calendar opens inside WhatsApp showing only your real free slots, read live from your Outlook. They never leave the chat to book.</p>
+        <div class="lanes">
+          <div class="lane"><h3>Your client</h3>
+            <div class="wa" aria-label="Example booking in WhatsApp">
+              <div class="msg">Here are <span class="ph">Your name</span>'s next free times:
+                <div class="slots"><span>Tue 10:00</span><span class="pick">Tue 14:30</span><span>Wed 09:00</span><span>Wed 16:00</span><span>Thu 11:30</span><span>More</span></div></div>
+              <div class="msg out">Tue 14:30 · WhatsApp call</div>
+            </div>
+            <ul style="margin-top:.75rem"><li>We only ask for an email if they choose Teams, Zoom or Meet, and only to send the invite.</li></ul>
+          </div>
+          <div class="lane you"><h3>You</h3><ul>
+            <li>The meeting appears in your Outlook straight away, with a Teams link if it's a video call.</li>
+            <li>You set your hours and how many meetings a day. We never book outside them.</li>
+            <li>A WhatsApp tells you a new meeting is booked.</li>
+          </ul></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="stop">
+      <div class="marker"><span class="num">5</span><span class="when">until the call</span></div>
+      <div class="body">
+        <h2>We get them to show up</h2>
+        <p class="sum">Helpful, never pushy. Each message is useful to the client, and they can stop them at any time. We ask them to type the time back, because people who write it down show up more.</p>
+        <div class="lanes">
+          <div class="lane"><h3>Your client</h3>
+            <div class="ladder">
+              <div><code>At booking</code><span>"Reply with the date and time so it's in your diary."</span></div>
+              <div><code>+10 min</code><span>What to expect: 30 minutes, what you'll ask, nothing to buy on the call. Plus a calendar file.</span></div>
+              <div><code>2 days before</code><span>Your 25-second intro video or voice note.</span></div>
+              <div><code>1 day before</code><span>Reminder with Confirm or Reschedule buttons.</span></div>
+              <div><code>2 hours before</code><span>"<span class="ph">Your name</span> has set aside 30 minutes for you."</span></div>
+              <div><code>10 min before</code><span>The link, or "calling you now".</span></div>
+            </div>
+          </div>
+          <div class="lane you"><h3>You</h3><ul>
+            <li><b>07:30 each day:</b> a WhatsApp list of today's meetings.</li>
+            <li><b>15 minutes before each call:</b> a short brief covering their age band, budget band, why they came, what they asked, and how they want to talk.</li>
+            <li>Record your intro video once in the portal. We write three short scripts in your own words. It's optional, but it lifts show rates.</li>
+          </ul></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="stop">
+      <div class="marker"><span class="num">6</span><span class="when">30 min</span></div>
+      <div class="body">
+        <h2>You meet and give the advice</h2>
+        <p class="sum">The client is yours from here. We step back.</p>
+        <div class="lanes">
+          <div class="lane"><h3>Your client</h3><ul>
+            <li>Talks to you on the method they chose.</li>
+            <li>Afterwards they get one thank-you: "<span class="ph">Your name</span> will follow up directly." We send nothing else.</li>
+          </ul></div>
+          <div class="lane you"><h3>You</h3><ul>
+            <li>You own the advice, the quote and every follow-up.</li>
+            <li>The lead is yours to use exclusively. It's never sold to another broker.</li>
+          </ul></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="stop">
+      <div class="marker"><span class="num">7</span><span class="when">+15 min</span></div>
+      <div class="body">
+        <h2>You tell us how it went, in about 20 seconds</h2>
+        <p class="sum">A WhatsApp asks three quick taps, plus a voice note if you'd like to add one. This is how every cycle gets better than the last.</p>
+        <div class="lanes">
+          <div class="lane you"><h3>You</h3>
+            <div class="wa" aria-label="Example feedback message">
+              <div class="msg">How did your 14:30 with Lerato go?
+                <div class="btns"><span>Attended</span><span>No-show</span><span>Rescheduled</span></div></div>
+              <div class="msg out">Attended</div>
+              <div class="msg">Thanks. How was the fit?
+                <div class="btns"><span>Good fit – proceeding</span><span>Needs follow-up</span><span>Not a fit</span></div></div>
+              <div class="msg">Lead quality, 1 to 5?
+                <div class="btns"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span></div></div>
+            </div>
+          </div>
+          <div class="lane you"><h3>What we do with it</h3><ul>
+            <li>We put more budget behind the ads that bring you good-fit meetings, and cut the ones that don't.</li>
+            <li>No-shows and wrong numbers start a replacement automatically.</li>
+            <li>If you haven't answered after 24 hours, the meeting is marked attended and flagged for a check.</li>
+          </ul></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="stop">
+      <div class="marker"><span class="num">8</span><span class="when">Mondays 07:00</span></div>
+      <div class="body">
+        <h2>Your weekly report, and replacements</h2>
+        <p class="sum">One short WhatsApp report every Monday. It shows delivered against committed, your show rate, lead quality, and the one thing we need from you that week.</p>
+        <div class="lanes">
+          <div class="lane you"><h3>You get</h3><ul>
+            <li>A one-line summary first, then the numbers, each next to its target and last week's figure.</li>
+            <li>Themes from what your leads asked, to help you prepare.</li>
+          </ul></div>
+          <div class="lane you"><h3>Replaced for you</h3><ul>
+            <li>No-shows, unreachable or wrong numbers, and leads who turn out to be outside the agreed age or budget.</li>
+            <li>A client who decides not to buy is not replaced.</li>
+          </ul></div>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <section aria-labelledby="forks-h">
+    <p class="eyebrow" id="forks-h">When things don't go to plan</p>
+    <div class="forks">
+      <div class="fork"><h3>They don't book straight away</h3><p>Three gentle nudges at 2 hours, 24 hours and 72 hours. Each adds one useful detail about the call. No discounts and no fake deadlines.</p></div>
+      <div class="fork"><h3>They don't show up</h3><p>"No stress, things happen. Here are 3 new times." One offer, no guilt. If they don't rebook, the lead is replaced.</p></div>
+      <div class="fork"><h3>They need to move the time</h3><p>They tap Reschedule in WhatsApp and pick a new free slot. Your Outlook updates on its own.</p></div>
+    </div>
+  </section>
+
+  <section class="ref" aria-labelledby="ref-h">
+    <h2 id="ref-h">The fine print, in plain words</h2>
+    <div class="grid2">
+      <div>
+        <p class="eyebrow" style="margin-bottom:.75rem">What counts as a qualified lead</p>
+        <ol class="crit">
+          <li>Aged 35 to 50.</li>
+          <li>Monthly budget of R750–R1,250, or R1,250 and up.</li>
+          <li>A real SA mobile number, consent given, and they replied or tapped on WhatsApp within 72 hours.</li>
+          <li>Happy to have a video, WhatsApp or phone call.</li>
+          <li>Not a duplicate from the last 90 days.</li>
+        </ol>
+        <p class="eyebrow" style="margin:1.75rem 0 .5rem">Your post-meeting buttons</p>
+        <div class="disp">
+          <div>Good fit – proceeding <i class="d">counts as delivered</i></div>
+          <div>Good fit – needs follow-up <i class="d">counts as delivered</i></div>
+          <div>Not a fit – budget <i class="d">counts as delivered</i></div>
+          <div>Not a fit – already well covered <i class="d">counts as delivered</i></div>
+          <div>Not a fit – outside criteria <i class="r">can be replaced</i></div>
+          <div>Unreachable or wrong number <i class="r">can be replaced</i></div>
+        </div>
+      </div>
+      <div>
+        <p class="eyebrow" style="margin-bottom:.75rem">Price per 30-day cycle (excl. VAT, ads included)</p>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Tier</th><th class="num2">Price</th><th class="num2">Qualified leads committed</th><th class="num2">Replacements per cycle</th></tr></thead>
+            <tbody>
+              <tr><td>Bronze</td><td class="num2">R16,500</td><td class="num2">20</td><td class="num2">up to 4</td></tr>
+              <tr><td>Silver</td><td class="num2">R24,500</td><td class="num2">30</td><td class="num2">up to 6</td></tr>
+              <tr><td>Gold</td><td class="num2">R35,500</td><td class="num2">45</td><td class="num2">up to 9</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <ul class="note" style="padding-left:1.1rem;display:grid;gap:.4rem;margin-top:1rem">
+          <li>Month to month. No contract and no notice period. If you don't renew, the next cycle simply doesn't start.</li>
+          <li>The price never depends on how many policies you write.</li>
+          <li>If we fall short, the cycle runs up to 14 extra days to deliver. Anything still missing comes back as a pro-rata credit on your next cycle, or a refund if you don't renew.</li>
+          <li>Pay by Instant EFT or normal EFT. Card auto-renew is only on if you switch it on.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap">
+  SortMyCover is a Lead Velocity service. Example messages use a fictional client and placeholder adviser details. Your own name, practice and FSP number appear in the live messages. Final wording is subject to the signed broker agreement.
+</footer>
