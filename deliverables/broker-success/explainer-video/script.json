@@ -1,0 +1,62 @@
+{
+  "voice": "bf_emma",
+  "speed": 1.0,
+  "gap": 0.35,
+  "scenes": [
+    { "id": "s1", "lines": [
+      { "say": "Hi, and welcome to Sort My Cover, by Lead Velocity.", "show": "Welcome to SortMyCover, by Lead Velocity." },
+      { "say": "In the next three minutes, you'll see exactly what your clients see, from the first ad to the call with you.", "show": "In three minutes: exactly what your clients see, from the first ad to the call with you." },
+      { "say": "And what lands on your phone along the way.", "show": "And what lands on your phone along the way." }
+    ]},
+    { "id": "s2", "lines": [
+      { "say": "It starts with a short ad on Facebook or Instagram.", "show": "It starts with a short ad on Facebook or Instagram." },
+      { "say": "Each one names a moment that changes how much cover a family needs.", "show": "Each one names a moment that changes how much cover a family needs." },
+      { "say": "A new bond. A new baby. Turning forty. Or work cover that stops at a few times salary.", "show": "A new bond. A new baby. Turning 40. Or work cover that stops at a few times salary." },
+      { "say": "There are no insurer names, no premiums, and no best price claims.", "show": "No insurer names, no premiums, no “best price” claims." },
+      { "say": "We pay for the ads and run them. You never fund or manage them.", "show": "We pay for the ads and run them. You never fund or manage them." }
+    ]},
+    { "id": "s3", "lines": [
+      { "say": "One tap opens a one minute check on sort my cover dot co dot zed ay.", "show": "One tap opens a one-minute check on sortmycover.co.za." },
+      { "say": "Five quick taps. Age, bond, family, work cover, and budget.", "show": "Five quick taps: age, bond, family, work cover and budget." },
+      { "say": "Anyone outside thirty five to fifty, or under seven hundred and fifty rand a month, is thanked and stopped right here.", "show": "Outside 35–50, or under R750 a month? Thanked and stopped right here." },
+      { "say": "Then a name, a WhatsApp number, and a consent tick that names your practice.", "show": "Then a name, a WhatsApp number, and a consent tick that names your practice." },
+      { "say": "They can pick a time straight from your live Outlook calendar.", "show": "They pick a time straight from your live Outlook calendar." }
+    ]},
+    { "id": "s4", "lines": [
+      { "say": "Within sixty seconds, they get a WhatsApp that introduces you by name, with your practice and your F S P number.", "show": "Within 60 seconds: a WhatsApp introducing you by name, practice and FSP number." },
+      { "say": "A lead only counts once they reply or tap. That proves the number is real, and theirs.", "show": "A lead only counts once they reply or tap. That proves the number is real, and theirs." },
+      { "say": "If they haven't booked yet, a calendar opens right inside WhatsApp, showing only your free slots.", "show": "Not booked yet? A calendar opens inside WhatsApp, showing only your free slots." }
+    ]},
+    { "id": "s5", "lines": [
+      { "say": "Then we help them show up.", "show": "Then we help them show up." },
+      { "say": "We ask them to type the time back, because people who write it down are more likely to attend.", "show": "They type the time back. People who write it down are more likely to attend." },
+      { "say": "They get a short note on what to expect, and your own twenty five second intro video.", "show": "A short “what to expect” note, and your own 25-second intro video." },
+      { "say": "Then a reminder the day before, another two hours before, and a final one ten minutes before the call.", "show": "Reminders the day before, two hours before, and ten minutes before." },
+      { "say": "No pressure, and nothing to buy.", "show": "No pressure, and nothing to buy." }
+    ]},
+    { "id": "s6", "lines": [
+      { "say": "On your side, you get a heads up the moment they book. It's already in your Outlook.", "show": "On your side: a heads-up the moment they book. It's already in your Outlook." },
+      { "say": "At half past seven each morning, a list of the day's calls.", "show": "07:30 every morning: the day's calls." },
+      { "say": "And fifteen minutes before each call, a short brief, with their age band, budget band, and what they asked.", "show": "15 minutes before each call: a brief with age band, budget band and what they asked." }
+    ]},
+    { "id": "s7", "lines": [
+      { "say": "You take the call and give the advice. From there, the client is yours.", "show": "You take the call and give the advice. From there, the client is yours." },
+      { "say": "Fifteen minutes later, we ask for three quick taps. Did they attend? How good was the fit? And a score out of five.", "show": "15 minutes later, three taps: attended? how good a fit? a score out of 5." },
+      { "say": "It takes about twenty seconds, and it tells us which ads deserve more of the budget.", "show": "About 20 seconds. It tells us which ads deserve more of the budget." }
+    ]},
+    { "id": "s8", "lines": [
+      { "say": "If someone doesn't book, they get three gentle nudges over three days, and then we stop.", "show": "Didn't book? Three gentle nudges over three days, then we stop." },
+      { "say": "If they miss the call, they get one friendly message with three new times.", "show": "Missed the call? One friendly message with three new times." },
+      { "say": "No shows, wrong numbers, and leads outside the agreed criteria are replaced.", "show": "No-shows, wrong numbers and leads outside the criteria are replaced." }
+    ]},
+    { "id": "s9", "lines": [
+      { "say": "You pay one flat price for each thirty day cycle, with the ads included.", "show": "One flat price per 30-day cycle, ads included." },
+      { "say": "There's no contract and no notice period, and the price never depends on how many policies you write.", "show": "No contract, no notice period. Never tied to how many policies you write." },
+      { "say": "If we fall short of your committed number, the cycle runs on for up to fourteen days, and anything still missing is credited.", "show": "Short of your committed number? Up to 14 extra days, then a pro-rata credit." }
+    ]},
+    { "id": "s10", "lines": [
+      { "say": "Every Monday morning, a short report on WhatsApp shows how your week went.", "show": "Every Monday: a short WhatsApp report on your week." },
+      { "say": "That's it. We fill your diary with people who want to talk. You do what you do best.", "show": "We fill your diary with people who want to talk. You do what you do best." }
+    ]}
+  ]
+}
