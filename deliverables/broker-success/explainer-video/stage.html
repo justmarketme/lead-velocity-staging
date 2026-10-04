@@ -6,12 +6,37 @@
      data-at="2" = start of voice line 2 in this scene, "2+1.5" = 1.5 s after it, "end-2" = 2 s before the scene ends.
      data-out works the same way for hiding. -->
 <style>
+@font-face{font-family:"Inter";src:url("media/fonts/InterVariable.woff2") format("woff2");font-weight:100 900}
 @font-face{font-family:"DM Sans";src:url("../../../brand/fonts/dm-sans-latin-500-normal.woff2") format("woff2");font-weight:400 600}
 @font-face{font-family:"DM Sans";src:url("../../../brand/fonts/dm-sans-latin-800-normal.woff2") format("woff2");font-weight:700 900}
 :root{--ch:#1F2933;--ch2:#27333F;--ow:#FBF8F2;--am:#F5A623;--on-am:#2A1B02;--mut:#AEB6BF;--line:#3A4651;
   --wa-bg:#ECE5DA;--wa-in:#FFFFFF;--wa-out:#D9F7C9;--wa-ink:#1F2933;--wa-meta:#6B7781;--wa-btn:#1B7C6E;
   --font:"DM Sans",system-ui,"Segoe UI",Roboto,Arial,sans-serif;--mono:"DM Mono",ui-monospace,Menlo,monospace}
 *{box-sizing:border-box;margin:0}
+/* Two worlds. Lead Velocity (the broker's partner) frames the video: near-black, purple to pink, Inter.
+   SortMyCover (what the client sees) keeps its own kit: charcoal, amber, off-white, DM Sans. */
+:root{--lv-bg:#09090B;--lv-p:#A53BF2;--lv-s:#EE4B8F;--lv-a:#F8C83E;--lv-grad:linear-gradient(90deg,#A53BF2,#EE4B8F);--lv-card:#141218;--lv-line:#2D2537;--lv-mut:#A9A3B5}
+body[data-world=lv]{background:radial-gradient(900px 600px at 85% 15%,rgba(165,59,242,.22),transparent 60%),radial-gradient(800px 600px at 10% 100%,rgba(238,75,143,.16),transparent 60%),var(--lv-bg);font-family:"Inter",var(--font)}
+body[data-world=lv] .h{font-weight:800;letter-spacing:-.035em}
+body[data-world=lv] .h em,body[data-world=lv] .center .big em{background:var(--lv-grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+body[data-world=lv] .eye{color:#D69BFF}
+body[data-world=lv] .pts li i{background:var(--lv-grad);color:#fff}
+body[data-world=lv] .pts li small{color:var(--lv-mut)}
+body[data-world=lv] .badge{background:var(--lv-grad);color:#fff}
+body[data-world=lv] .phone{box-shadow:0 0 0 2px rgba(165,59,242,.6),0 30px 90px -20px rgba(165,59,242,.55)}
+body[data-world=lv] .tier{background:var(--lv-card);border-color:var(--lv-line)}
+body[data-world=lv] .tier.mid{border-color:transparent;background:linear-gradient(var(--lv-card),var(--lv-card)) padding-box,var(--lv-grad) border-box}
+body[data-world=lv] .tier p,body[data-world=lv] .tier .pr small{color:var(--lv-mut)}
+body[data-world=smc]{background:var(--ch)}
+/* brand bar */
+.lvmark{position:absolute;left:84px;top:34px;height:112px;z-index:5}
+.world{position:absolute;right:96px;top:52px;display:flex;align-items:center;gap:14px;border-radius:999px;padding:12px 26px 12px 14px;font-size:24px;font-weight:700;z-index:5}
+.world small{font:500 18px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;opacity:.85}
+.world svg{width:34px;height:34px}
+.world.smc{background:var(--am);color:var(--on-am)}
+.world.lv{background:var(--lv-grad);color:#fff;padding-left:26px}
+.world .dot{width:12px;height:12px;border-radius:50%;background:#fff}
+
 html,body{width:1920px;height:1080px;overflow:hidden;background:var(--ch);color:var(--ow);font-family:var(--font)}
 .scene{position:absolute;inset:0;display:none}
 .scene.on{display:block}
@@ -28,7 +53,7 @@ html,body{width:1920px;height:1080px;overflow:hidden;background:var(--ch);color:
 .cap:empty{display:none}
 
 /* left column */
-.left{position:absolute;left:120px;top:190px;width:900px}
+.left{position:absolute;left:120px;top:200px;width:900px}
 .eye{font:500 24px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--am)}
 .h{font-size:76px;font-weight:800;line-height:1.05;letter-spacing:-.02em;margin-top:22px}
 .h em{font-style:normal;color:var(--am)}
@@ -112,6 +137,16 @@ html,body{width:1920px;height:1080px;overflow:hidden;background:var(--ch);color:
 .split span{border:2px solid var(--line);border-radius:999px;padding:14px 30px;font-size:30px;font-weight:700}
 .split span b{color:var(--am)}
 
+.duo2{display:flex;gap:48px;margin-top:10px}
+.bcard{width:620px;border-radius:30px;padding:40px 44px;text-align:left}
+.bcard .bh{display:flex;align-items:center;gap:16px;font-size:48px;font-weight:800;letter-spacing:-.02em}
+.bcard .bh svg{width:58px;height:58px}.bcard .bh img{height:84px;margin:-14px -6px -14px -12px}
+.bcard p{font-size:40px;margin-top:22px;font-weight:500}
+.bcard small{display:block;font-size:26px;margin-top:10px;opacity:.75}
+.bcard.smc{background:#1F2933;border:3px solid var(--am);font-family:"DM Sans",sans-serif;color:var(--ow)}
+.bcard.smc p b{color:var(--am)}
+.bcard.lv{background:#0E0C12;border:3px solid transparent;background:linear-gradient(#0E0C12,#0E0C12) padding-box,var(--lv-grad) border-box;font-family:"Inter",sans-serif;color:#fff}
+.bcard.lv p b{background:var(--lv-grad);-webkit-background-clip:text;background-clip:text;color:transparent}
 /* tiers */
 .tiers{position:absolute;right:120px;top:200px;width:760px;display:grid;gap:22px}
 .tier{display:grid;grid-template-columns:1fr auto;align-items:center;background:var(--ch2);border:2px solid var(--line);border-radius:22px;padding:26px 34px}
@@ -133,23 +168,25 @@ html,body{width:1920px;height:1080px;overflow:hidden;background:var(--ch);color:
   <symbol id="tick" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="#F5A623"/><path d="M28 52 L44 67 L73 36" fill="none" stroke="#1F2933" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 </defs></svg>
 
-<div class="wm" id="wm"><svg><use href="#tick"/></svg>SortMyCover<small>by Lead Velocity</small></div>
-<div class="chap" id="chap"></div>
+<img class="lvmark" id="lvmark" src="media/lv-logo.png" alt="Lead Velocity">
+<div class="world smc" id="w-smc"><svg><use href="#tick"/></svg><span><small>What your client sees</small><br>SortMyCover</span></div>
+<div class="world lv" id="w-lv"><span class="dot"></span><span><small>What you see</small><br>Lead Velocity</span></div>
 <div class="cap" id="cap"></div>
 
 <!-- S1 TITLE -->
-<section class="scene" id="s1" data-chap="">
-  <div class="center">
-    <div class="logo" data-at="0"><svg><use href="#tick"/></svg>SortMyCover</div>
-    <div class="big" data-at="0+0.8">From a scroll on Facebook to <em>a booked call in your diary.</em></div>
-    <div class="split" data-at="1+1">
-      <span><b>●</b> What your client sees</span><span><b>●</b> What lands on your phone</span>
+<section class="scene" id="s1" data-world="lv" data-chap="">
+  <div class="center" style="padding-bottom:160px">
+    <img src="media/lv-logo.png" alt="" style="height:300px" data-at="0" data-out="1">
+    <div class="big" data-at="0+0.6" data-out="1">Hi, it's the team at <em>Lead Velocity.</em></div>
+    <div class="duo2" data-at="1">
+      <div class="bcard smc"><div class="bh"><svg><use href="#tick"/></svg>SortMyCover</div><p>What <b>your clients</b> see</p><small>Ads · landing page · WhatsApp</small></div>
+      <div class="bcard lv"><div class="bh"><img src="media/lv-logo.png" alt="">Lead Velocity</div><p>What <b>you</b> see</p><small>Your bookings · briefs · reports</small></div>
     </div>
   </div>
 </section>
 
 <!-- S2 THE AD -->
-<section class="scene" id="s2" data-chap="<b>01</b> · The ad">
+<section class="scene" id="s2" data-world="smc" data-chap="<b>01</b> · The ad">
   <div class="left">
     <div class="eye" data-at="0">01 · The ad</div>
     <div class="h" data-at="0">They see a short ad on <em>Facebook or Instagram.</em></div>
@@ -176,7 +213,7 @@ html,body{width:1920px;height:1080px;overflow:hidden;background:var(--ch);color:
 </section>
 
 <!-- S3 LANDING PAGE -->
-<section class="scene" id="s3" data-chap="<b>02</b> · The landing page">
+<section class="scene" id="s3" data-world="smc" data-chap="<b>02</b> · The landing page">
   <div class="left">
     <div class="eye" data-at="0">02 · The landing page</div>
     <div class="h" data-at="0">A one-minute check on <em>sortmycover.co.za</em></div>
@@ -198,7 +235,7 @@ html,body{width:1920px;height:1080px;overflow:hidden;background:var(--ch);color:
 </section>
 
 <!-- S4 FIRST WHATSAPP -->
-<section class="scene" id="s4" data-chap="<b>03</b> · WhatsApp">
+<section class="scene" id="s4" data-world="smc" data-chap="<b>03</b> · WhatsApp">
   <div class="left">
     <div class="eye" data-at="0">03 · Within 60 seconds</div>
     <div class="h" data-at="0">Your intro card <em>arrives on WhatsApp.</em></div>
@@ -225,7 +262,7 @@ html,body{width:1920px;height:1080px;overflow:hidden;background:var(--ch);color:
 </section>
 
 <!-- S5 REMINDERS -->
-<section class="scene" id="s5" data-chap="<b>03</b> · WhatsApp">
+<section class="scene" id="s5" data-world="smc" data-chap="<b>03</b> · WhatsApp">
   <div class="left">
     <div class="eye" data-at="0">03 · Getting them to show up</div>
     <div class="h" data-at="0">Helpful reminders, <em>never pushy.</em></div>
@@ -255,7 +292,7 @@ html,body{width:1920px;height:1080px;overflow:hidden;background:var(--ch);color:
 </section>
 
 <!-- S6 BROKER PHONE -->
-<section class="scene" id="s6" data-chap="<b>04</b> · Your phone">
+<section class="scene" id="s6" data-world="lv" data-chap="<b>04</b> · Your phone">
   <div class="left">
     <div class="eye" data-at="0">04 · On your phone</div>
     <div class="h" data-at="0">Everything you need, <em>right on time.</em></div>
@@ -276,7 +313,7 @@ html,body{width:1920px;height:1080px;overflow:hidden;background:var(--ch);color:
 </section>
 
 <!-- S7 FEEDBACK -->
-<section class="scene" id="s7" data-chap="<b>04</b> · Your phone">
+<section class="scene" id="s7" data-world="lv" data-chap="<b>04</b> · Your phone">
   <div class="left">
     <div class="eye" data-at="0">05 · After the call</div>
     <div class="h" data-at="0">You advise. <em>The client is yours.</em></div>
@@ -303,7 +340,7 @@ html,body{width:1920px;height:1080px;overflow:hidden;background:var(--ch);color:
 </section>
 
 <!-- S8 FOLLOW-UPS -->
-<section class="scene" id="s8" data-chap="<b>05</b> · Follow-ups">
+<section class="scene" id="s8" data-world="smc" data-chap="<b>05</b> · Follow-ups">
   <div class="toph" data-at="0">When things don't go to plan</div>
   <div class="duo">
     <div data-at="0">
@@ -331,7 +368,7 @@ html,body{width:1920px;height:1080px;overflow:hidden;background:var(--ch);color:
 </section>
 
 <!-- S9 TERMS -->
-<section class="scene" id="s9" data-chap="<b>06</b> · What you pay">
+<section class="scene" id="s9" data-world="lv" data-chap="<b>06</b> · What you pay">
   <div class="left">
     <div class="eye" data-at="0">06 · What you pay</div>
     <div class="h" data-at="0">One flat price <em>per 30-day cycle.</em></div>
@@ -350,21 +387,23 @@ html,body{width:1920px;height:1080px;overflow:hidden;background:var(--ch);color:
 </section>
 
 <!-- S10 CLOSE -->
-<section class="scene" id="s10" data-chap="">
-  <div class="left" data-out="1+1.5">
+<section class="scene" id="s10" data-world="lv" data-chap="">
+  <div class="left" data-out="1">
     <div class="eye" data-at="0">Every Monday, 07:00</div>
     <div class="h" data-at="0">Your week, <em>in one message.</em></div>
   </div>
-  <div class="phone" data-at="0" data-out="1+1.5">
+  <div class="phone" data-at="0" data-out="1">
     <div class="p-top"><span class="av"><svg><use href="#tick"/></svg></span><div><b>SortMyCover by Lead Velocity</b><small>Business account</small></div></div>
     <div class="chat">
       <div class="bw" data-at="0+0.6"><div class="m"><span class="hd">Your SortMyCover week</span>This week: 6 meetings held, 5 good fit.<br>Delivered: 14 of 20 committed<br>Booked: 8 · Show rate: 88%<br>One ask: mark Thursday's 10:00 call.<span class="ts">Mon 07:00</span></div><div class="bts g2"><span>Do it now</span><span>Open report</span></div></div>
     </div>
   </div>
-  <div class="center" data-at="1+1.5">
-    <div class="logo"><svg><use href="#tick"/></svg>SortMyCover</div>
-    <div class="big">We fill your diary. <em>You do what you do best.</em></div>
-    <div class="sub">sortmycover.co.za · a Lead Velocity service</div>
+  <div class="center" data-at="1" style="padding-bottom:160px">
+    <div class="duo2">
+      <div class="bcard smc"><div class="bh"><svg><use href="#tick"/></svg>SortMyCover</div><p>Fills your diary</p><small>sortmycover.co.za</small></div>
+      <div class="bcard lv"><div class="bh"><img src="media/lv-logo.png" alt="">Lead Velocity</div><p>Runs everything behind it</p><small>Your partner</small></div>
+    </div>
+    <div class="big" data-at="2" style="margin-top:56px;font-size:84px">You do what <em>you do best.</em></div>
   </div>
 </section>
 
@@ -381,7 +420,10 @@ window.show = function (id, timing) {
   document.querySelectorAll('.scene').forEach(s => s.classList.toggle('on', s.id === id));
   T = timing;
   const sc = document.getElementById(id);
-  document.getElementById('chap').innerHTML = sc.dataset.chap || '';
+  const w = sc.dataset.world; document.body.dataset.world = w;
+  document.getElementById('w-smc').style.display = w === 'smc' ? 'flex' : 'none';
+  document.getElementById('w-lv').style.display = (w === 'lv' && id !== 's1' && id !== 's10') ? 'flex' : 'none';
+  document.getElementById('lvmark').style.display = (id === 's1') ? 'none' : 'block';
   sc.querySelectorAll('[data-at],[data-out]').forEach(el => { el._in = cue(el.dataset.at, T); el._out = cue(el.dataset.out, T); });
 };
 const ease = p => 1 - Math.pow(1 - p, 3);
