@@ -42,6 +42,9 @@ html,body{width:1920px;height:1080px;overflow:hidden;background:var(--ch);color:
 .scene.on{display:block}
 [data-at]{opacity:0}
 .hid{display:none!important}
+/* in the left column, hidden items keep their space so nothing below jumps */
+.left .pts li.hid{display:grid!important;visibility:hidden}
+.left .chips .chip.hid{display:flex!important;visibility:hidden}
 
 /* chrome */
 .wm{position:absolute;left:96px;top:56px;display:flex;align-items:center;gap:14px;font-weight:800;font-size:34px;letter-spacing:-.01em;z-index:5}
@@ -147,6 +150,9 @@ html,body{width:1920px;height:1080px;overflow:hidden;background:var(--ch);color:
 .bcard.smc p b{color:var(--am)}
 .bcard.lv{background:#0E0C12;border:3px solid transparent;background:linear-gradient(#0E0C12,#0E0C12) padding-box,var(--lv-grad) border-box;font-family:"Inter",sans-serif;color:#fff}
 .bcard.lv p b{background:var(--lv-grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.ein{border-radius:28px;overflow:hidden;border:3px solid transparent;background:linear-gradient(#0E0C12,#0E0C12) padding-box,var(--lv-grad) border-box;box-shadow:0 20px 60px -20px rgba(165,59,242,.6)}
+.ein img{display:block;width:100%;height:100%;object-fit:cover}
+.ein-cap{position:absolute;left:14px;bottom:12px;background:rgba(9,9,11,.75);color:#fff;font:600 20px/1 "Inter",sans-serif;padding:8px 12px;border-radius:10px}
 /* tiers */
 .tiers{position:absolute;right:120px;top:200px;width:760px;display:grid;gap:22px}
 .tier{display:grid;grid-template-columns:1fr auto;align-items:center;background:var(--ch2);border:2px solid var(--line);border-radius:22px;padding:26px 34px}
@@ -176,8 +182,8 @@ html,body{width:1920px;height:1080px;overflow:hidden;background:var(--ch);color:
 <!-- S1 TITLE -->
 <section class="scene" id="s1" data-world="lv" data-chap="">
   <div class="center" style="padding-bottom:160px">
-    <img src="media/lv-logo.png" alt="" style="height:300px" data-at="0" data-out="1">
-    <div class="big" data-at="0+0.6" data-out="1">Hi, it's the team at <em>Lead Velocity.</em></div>
+    <div style="display:flex;align-items:center;gap:60px" data-at="0" data-out="1"><div class="ein" style="width:400px;height:400px"><img src="media/einstein-wave.jpg" alt="" style="object-position:30% 50%"></div><img src="media/lv-logo.png" alt="" style="height:340px"></div>
+    <div class="big" data-at="0+0.6" data-out="1" style="margin-top:30px">Hi, it's the team at <em>Lead Velocity.</em></div>
     <div class="duo2" data-at="1">
       <div class="bcard smc"><div class="bh"><svg><use href="#tick"/></svg>SortMyCover</div><p>What <b>your clients</b> see</p><small>Ads · landing page · WhatsApp</small></div>
       <div class="bcard lv"><div class="bh"><img src="media/lv-logo.png" alt="">Lead Velocity</div><p>What <b>you</b> see</p><small>Your bookings · briefs · reports</small></div>
@@ -301,6 +307,7 @@ html,body{width:1920px;height:1080px;overflow:hidden;background:var(--ch);color:
       <li data-at="1"><i>✓</i>07:30 · Today's calls</li>
       <li data-at="2"><i>✓</i>15 min before · The brief</li>
     </ul>
+    <div class="ein" data-at="0+1" style="position:relative;width:420px;height:236px;margin-top:44px"><img src="media/einstein-calls.jpg" alt=""><span class="ein-cap">Booked, briefed, on time</span></div>
   </div>
   <div class="phone">
     <div class="p-top"><span class="av"><svg><use href="#tick"/></svg></span><div><b>SortMyCover by Lead Velocity</b><small>Business account</small></div></div>
@@ -322,7 +329,7 @@ html,body{width:1920px;height:1080px;overflow:hidden;background:var(--ch);color:
       <li data-at="1+2"><i>2</i>How good a fit?</li>
       <li data-at="1+4"><i>3</i>Score out of 5</li>
     </ul>
-    <div class="badge" data-at="2">⏱ About 20 seconds</div>
+    <div style="display:flex;align-items:center;gap:28px;margin-top:40px" data-at="2"><div class="ein" style="position:relative;width:380px;height:214px"><img src="media/einstein-roi-new.jpg" alt=""><span class="ein-cap">More budget to what works</span></div><div class="badge" style="margin-top:0">⏱ About 20 seconds</div></div>
   </div>
   <div class="phone">
     <div class="p-top"><span class="av"><svg><use href="#tick"/></svg></span><div><b>SortMyCover by Lead Velocity</b><small>Business account</small></div></div>
@@ -399,11 +406,12 @@ html,body{width:1920px;height:1080px;overflow:hidden;background:var(--ch);color:
     </div>
   </div>
   <div class="center" data-at="1" style="padding-bottom:160px">
+    <div class="ein" style="width:190px;height:190px;border-radius:50%;margin-bottom:34px"><img src="media/einstein-chatbot-avatar.jpg" alt=""></div>
     <div class="duo2">
       <div class="bcard smc"><div class="bh"><svg><use href="#tick"/></svg>SortMyCover</div><p>Fills your diary</p><small>sortmycover.co.za</small></div>
       <div class="bcard lv"><div class="bh"><img src="media/lv-logo.png" alt="">Lead Velocity</div><p>Runs everything behind it</p><small>Your partner</small></div>
     </div>
-    <div class="big" data-at="2" style="margin-top:56px;font-size:84px">You do what <em>you do best.</em></div>
+    <div class="big" data-at="2" style="margin-top:40px;font-size:80px">You do what <em>you do best.</em></div>
   </div>
 </section>
 
