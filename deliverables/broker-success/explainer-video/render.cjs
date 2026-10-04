@@ -13,7 +13,7 @@ const FPS = 25;
   const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
   const work = async sc => {
     const p = await b.newPage({ viewport: { width: 1920, height: 1080 } });
-    await p.goto('file://' + path.join(__dirname, 'stage.html'));
+    await p.goto('file://' + (process.env.STAGE ? path.resolve(process.env.STAGE) : path.join(__dirname, 'stage.html')));
     await p.evaluate(() => document.fonts.ready);
     await p.evaluate(([id, t]) => window.show(id, t), [sc.id, sc]);
     if (preview != null) { await p.evaluate(t => window.seek(t), preview); await p.screenshot({ path: path.join(out, `${sc.id}-preview.png`) }); await p.close(); return; }

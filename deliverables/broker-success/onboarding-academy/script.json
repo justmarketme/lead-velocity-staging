@@ -1,0 +1,49 @@
+{
+ "voice": "bf_emma", "speed": 1.0, "gap": 0.35,
+ "scenes": [
+  {"id": "c1", "lines": [
+   {"say": "Welcome to Lead Velocity. This short course walks you through getting set up, step by step.", "show": "Welcome to Lead Velocity. This short course walks you through getting set up."},
+   {"say": "About twelve minutes gets you ready to go live. Your intro video takes about ten more, whenever it suits you.", "show": "About 12 minutes to go live. Your intro video takes about 10 more, whenever suits you."},
+   {"say": "Jump to any chapter, and try things out as you go.", "show": "Jump to any chapter, and try things out as you go."}]},
+  {"id": "c2", "lines": [
+   {"say": "Before a client meets you, they need two things. To know who you are, and to trust that you're real.", "show": "Before a client meets you: who you are, and proof you're real."},
+   {"say": "By law, your name, your practice and your F S P number must reach the client before any meeting. We send them in the very first WhatsApp.", "show": "Your name, practice and FSP number reach the client before any meeting, in the very first WhatsApp."},
+   {"say": "We also check your F S P number on the public F S C A register, so leads only ever go to a licensed adviser.", "show": "We check your FSP number on the public FSCA register. Leads only go to licensed advisers."},
+   {"say": "And your face matters. People show up for people. A client who has seen and heard you for twenty five seconds is far less likely to miss the call.", "show": "People show up for people. Seeing you for 25 seconds makes a no-show far less likely."}]},
+  {"id": "c3", "lines": [
+   {"say": "Setting up takes seven short steps in your portal.", "show": "Setting up takes seven short steps in your portal."},
+   {"say": "Watch the overview. Add your details and F S P number. Connect your Outlook calendar. Set your hours and how you meet. Sign the agreement. Approve your intro card. And record your intro.", "show": "Overview · Details & FSP · Outlook · Hours · Agreement · Intro card · Intro video"},
+   {"say": "Four things must be done before you go live. Your F S P checked, your calendar connected, your agreement signed, and your intro card approved. The video can come later.", "show": "Before go-live: FSP checked, calendar connected, agreement signed, intro card approved."}]},
+  {"id": "c4", "lines": [
+   {"say": "First, your details. Your practice name exactly as it appears on your licence, and your F S P number.", "show": "Your practice name, exactly as on your licence, and your FSP number."},
+   {"say": "We check the register while you carry on. Most checks take under ten seconds.", "show": "We check the FSCA register while you carry on. Usually under 10 seconds."},
+   {"say": "Then your name, your WhatsApp number, a photo, two lines about who you help, your languages, and your years advising.", "show": "Then: name, WhatsApp number, photo, two lines about you, languages, years advising."},
+   {"say": "Write the two lines in your own words. No product names, premiums or promises. If a word trips the check, we show you exactly which one.", "show": "Your own words. No products, premiums or promises. We show you any word that trips the check."}]},
+  {"id": "c5", "lines": [
+   {"say": "Next, one tap connects your Outlook calendar. We only look at when you're free, and add your meetings. We never read your emails.", "show": "One tap connects Outlook. We see when you're free and add meetings. We never read your emails."},
+   {"say": "When it works, you'll see your next free slot straight away.", "show": "When it works, you see your next free slot straight away."},
+   {"say": "Then check your hours, how you like to meet, and how many calls a day. We've filled in a sensible start.", "show": "Check your hours, how you meet, and calls per day. We've filled in a sensible start."},
+   {"say": "Last, sign the agreement. It's in plain words. One optional tick lets us use your photo, voice and video to introduce you.", "show": "Sign the agreement, in plain words. One optional tick lets us use your photo, voice and video."}]},
+  {"id": "c6", "lines": [
+   {"say": "Now the part that helps most, your intro video. It starts with eight quick questions about you.", "show": "Your intro video starts with eight quick questions about you."},
+   {"say": "Who you help most. What happens in your first ten minutes. What people say afterwards. A myth you keep correcting. What you don't do. Where you're based, and your languages. Your years, and why you do this. And how people should prepare.", "show": "Who you help · first 10 minutes · what people say · a myth · what you don't do · where & languages · why you do this · how to prepare"},
+   {"say": "Type your answers, or just talk. We turn your voice into text you can fix.", "show": "Type, or just talk. We turn your voice into text you can fix."},
+   {"say": "From your answers, we write three short scripts in your own words, about twenty five seconds each. Every one is checked. No products, no premiums, no advice, and your practice and F S P number included.", "show": "Three scripts in your words, ~25 seconds each. Checked: no products, premiums or advice; FSP included."}]},
+  {"id": "c7", "lines": [
+   {"say": "Before you record, a quick setup. Two minutes, and it makes a big difference.", "show": "Before you record: a two-minute setup that makes a big difference."},
+   {"say": "Face a window or a lamp. Never have a window behind you, or you'll be a silhouette.", "show": "Face a window or lamp. Never a window behind you."},
+   {"say": "Hold the phone upright, at eye level, about an arm's length away. Look at the lens, not at yourself.", "show": "Phone upright, at eye level, an arm's length away. Look at the lens."},
+   {"say": "Pick a quiet room. Door closed, fan and aircon off. Your voice matters more than the picture.", "show": "Quiet room: door closed, fan and aircon off. Your voice matters most."},
+   {"say": "Choose a background with some depth, like a tidy room, not a wall right behind you. And wear what you'd wear to meet a client.", "show": "A tidy room behind you, not a wall. Dress as you would for a client."}]},
+  {"id": "c8", "lines": [
+   {"say": "Then press record. After a three, two, one countdown, your script scrolls on screen like a teleprompter.", "show": "Press record. After 3-2-1, your script scrolls like a teleprompter."},
+   {"say": "Smile first, and speak like you're on the phone to one person. Twenty to thirty seconds. One take is fine.", "show": "Smile first. Speak to one person. 20 to 30 seconds. One take is fine."},
+   {"say": "We check your take instantly. If it's too dark, too noisy or too long, we tell you in plain words how to fix it.", "show": "Instant checks. Too dark, noisy or long? We tell you how to fix it."},
+   {"say": "Camera shy? Record a voice note instead. Or film it on your phone, and send it to us on WhatsApp.", "show": "Camera shy? Record a voice note. Or film it and send it on WhatsApp."}]},
+  {"id": "c9", "lines": [
+   {"say": "We add captions, a name tag with your practice and F S P number, and a closing frame.", "show": "We add captions, a name tag with your practice and FSP number, and a closing frame."},
+   {"say": "You see exactly what a client will receive, and tap approve.", "show": "You see exactly what a client receives, and tap Approve."},
+   {"say": "From then on, your video goes out after each booking, or two days before the call, and to people who haven't booked yet.", "show": "It goes out after each booking or 2 days before, and to people who haven't booked yet."},
+   {"say": "That's it. Finish your steps, and we'll switch you on. Welcome aboard.", "show": "Finish your steps and we'll switch you on. Welcome aboard."}]}
+ ]
+}

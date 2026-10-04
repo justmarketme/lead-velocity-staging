@@ -2,7 +2,7 @@
 import json, sys, os, numpy as np, soundfile as sf
 from kokoro_onnx import Kokoro
 here = os.path.dirname(os.path.abspath(__file__)); tts = sys.argv[1]; out = sys.argv[2]
-S = json.load(open(os.path.join(here, 'script.json')))
+S = json.load(open(sys.argv[3] if len(sys.argv) > 3 else os.path.join(here, 'script.json')))
 k = Kokoro(os.path.join(tts, 'model_q8.onnx'), os.path.join(tts, 'voices.npz'))
 os.makedirs(out, exist_ok=True); SR = 24000; timing = []
 for sc in S['scenes']:

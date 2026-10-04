@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en-ZA">
+<meta charset="utf-8">
+<title>Lead Velocity onboarding academy: stage</title>
+<!-- 1920x1080 stage for the nine chapter clips. Same cue engine as ../explainer-video/stage.html:
+     data-at="2" = start of voice line 2, "2+1.5" = 1.5 s later, "end-2" = 2 s before the end; data-out hides. -->
+<style>
+@font-face{font-family:"Inter";src:url("../explainer-video/media/fonts/InterVariable.woff2") format("woff2");font-weight:100 900}
+@font-face{font-family:"DM Sans";src:url("../../../brand/fonts/dm-sans-latin-500-normal.woff2") format("woff2");font-weight:400 600}
+@font-face{font-family:"DM Sans";src:url("../../../brand/fonts/dm-sans-latin-800-normal.woff2") format("woff2");font-weight:700 900}
+:root{--bg:#09090B;--p:#A53BF2;--s:#EE4B8F;--a:#F8C83E;--grad:linear-gradient(90deg,#A53BF2,#EE4B8F);--card:#141218;--line:#2D2537;--mut:#A9A3B5;--ok:#4ADE80;--bad:#F87171;
+  --am:#F5A623;--on-am:#2A1B02;--wa-bg:#ECE5DA;--wa-in:#fff;--wa-out:#D9F7C9;--wa-ink:#1F2933;--wa-meta:#6B7781;--wa-btn:#1B7C6E}
+*{box-sizing:border-box;margin:0}
+html,body{width:1920px;height:1080px;overflow:hidden;color:#fff;font-family:"Inter",system-ui,sans-serif;
+  background:radial-gradient(900px 600px at 85% 15%,rgba(165,59,242,.22),transparent 60%),radial-gradient(800px 600px at 10% 100%,rgba(238,75,143,.16),transparent 60%),var(--bg)}
+.scene{position:absolute;inset:0;display:none}.scene.on{display:block}
+[data-at]{opacity:0}.hid{display:none!important}
+.keep .hid,.keep.hid{display:revert!important;visibility:hidden}
+.lvmark{position:absolute;left:84px;top:34px;height:112px;z-index:5}
+.chip-ch{position:absolute;right:96px;top:56px;background:var(--grad);border-radius:999px;padding:14px 28px;font:600 22px/1 "Inter";letter-spacing:.02em;z-index:5}
+.chip-ch b{font-family:ui-monospace,Menlo,monospace;font-weight:600;margin-right:10px;opacity:.85}
+.cap{position:absolute;left:50%;bottom:34px;transform:translateX(-50%);max-width:1760px;width:max-content;text-align:center;font-size:36px;line-height:1.3;font-weight:500;background:rgba(9,9,11,.85);padding:14px 30px;border-radius:14px;z-index:9}
+.cap:empty{display:none}
+.left{position:absolute;left:120px;top:200px;width:920px}
+.eye{font:600 24px/1 ui-monospace,Menlo,monospace;letter-spacing:.1em;text-transform:uppercase;color:#D69BFF}
+.h{font-size:74px;font-weight:800;line-height:1.05;letter-spacing:-.035em;margin-top:20px}
+.h em,.big em{font-style:normal;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.pts{list-style:none;padding:0;margin-top:40px;display:grid;gap:20px}
+.pts li{display:grid;grid-template-columns:46px 1fr;column-gap:18px;align-items:start;font-size:34px;line-height:1.25;font-weight:500}
+.pts li i{width:46px;height:46px;border-radius:50%;background:var(--grad);display:grid;place-items:center;font-style:normal;font-weight:800;font-size:22px;margin-top:-4px}
+.pts li i.x{background:transparent;border:3px solid var(--bad);color:var(--bad)}
+.pts li small{grid-column:2;color:var(--mut);font-size:25px;font-weight:400;margin-top:4px}
+.pts li.hid{display:grid!important;visibility:hidden}
+.ein{border-radius:28px;overflow:hidden;border:3px solid transparent;background:linear-gradient(#0E0C12,#0E0C12) padding-box,var(--grad) border-box;box-shadow:0 20px 60px -20px rgba(165,59,242,.6)}
+.ein img{display:block;width:100%;height:100%;object-fit:cover}
+.center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 160px 160px}
+.big{font-size:92px;font-weight:800;line-height:1.04;letter-spacing:-.035em;max-width:1500px}
+.row{display:flex;gap:26px;margin-top:44px;justify-content:center;flex-wrap:wrap}
+.pill{border:2px solid var(--line);background:var(--card);border-radius:999px;padding:16px 30px;font-size:30px;font-weight:600}
+.pill b{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+/* phone */
+.phone{position:absolute;right:250px;top:118px;width:410px;height:770px;border:12px solid #0E1317;border-radius:56px;background:#FBF8F2;overflow:hidden;box-shadow:0 0 0 2px rgba(165,59,242,.6),0 30px 90px -20px rgba(165,59,242,.55)}
+.shot{position:absolute;inset:0}.shot img{width:100%;display:block}
+.wa{background:var(--wa-bg)}
+.p-top{height:84px;background:#1F2933;color:#FBF8F2;display:flex;align-items:center;gap:12px;padding:18px 18px 0;font-family:"DM Sans"}
+.p-top .av{width:42px;height:42px;border-radius:50%;background:#FBF8F2;display:grid;place-items:center}
+.p-top .av svg{width:28px;height:28px}
+.p-top b{font-size:19px;display:block;line-height:1.15}.p-top small{font-size:14px;color:#C9CED4}
+.chat{position:absolute;left:0;right:0;top:84px;bottom:0;padding:12px;display:flex;flex-direction:column;justify-content:flex-end;gap:8px;font-family:"DM Sans"}
+.m{background:var(--wa-in);color:var(--wa-ink);border-radius:12px 12px 12px 4px;padding:9px 11px 6px;font-size:16px;line-height:1.4;max-width:90%;align-self:flex-start;box-shadow:0 1px 0 rgba(0,0,0,.1)}
+.m img.card{width:calc(100% + 12px);max-width:none;margin:-4px -6px 8px;border-radius:8px;display:block}
+.m .ts{display:block;text-align:right;color:var(--wa-meta);font-size:12px}
+.hl{background:#FDEFD3;border-radius:4px;padding:0 3px;box-shadow:0 0 0 2px var(--am)}
+.vid{position:relative;border-radius:8px;overflow:hidden;margin:-4px -6px 8px;height:330px;background:linear-gradient(160deg,#5B4B6B,#2B2433 60%,#1F2933)}
+.vid .face{position:absolute;left:50%;top:70px;transform:translateX(-50%);width:120px;height:120px;border-radius:50%;background:#C9A88E}
+.vid .body{position:absolute;left:50%;top:180px;transform:translateX(-50%);width:230px;height:200px;border-radius:110px 110px 0 0;background:#3C5A7A}
+.vid .lt{position:absolute;left:10px;right:10px;bottom:46px;background:rgba(31,41,51,.88);color:#FBF8F2;border-left:4px solid var(--am);border-radius:6px;padding:7px 10px;font-size:13px;line-height:1.3}
+.vid .lt b{font-size:15px;display:block}
+.vid .cc{position:absolute;left:14px;right:14px;bottom:10px;text-align:center;color:#fff;font-size:14px;font-weight:700;text-shadow:0 1px 3px #000}
+.bts{display:grid;grid-template-columns:1fr 1fr;gap:2px;margin:2px -11px -6px;border-top:1px solid #eee}
+.bts span{background:#fff;color:var(--wa-btn);text-align:center;font-weight:700;font-size:15px;padding:8px 4px}
+/* 7 steps */
+.steps{position:absolute;left:120px;right:120px;top:330px;display:grid;grid-template-columns:repeat(7,1fr);gap:18px}
+.st{background:var(--card);border:2px solid var(--line);border-radius:22px;padding:24px 20px;min-height:250px;position:relative}
+.st .n{font:700 22px/1 ui-monospace,Menlo,monospace;color:#D69BFF}
+.st h4{font-size:28px;line-height:1.15;margin-top:14px;font-weight:700}
+.st p{font-size:21px;color:var(--mut);margin-top:10px}
+.st .lock{position:absolute;right:16px;top:16px;font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:var(--grad);padding:6px 10px;border-radius:999px}
+.st.must{border-color:transparent;background:linear-gradient(var(--card),var(--card)) padding-box,var(--grad) border-box}
+/* lint demo */
+.lint{margin-top:34px;display:grid;gap:14px;width:860px}
+.lint div{background:var(--card);border:2px solid var(--line);border-radius:16px;padding:18px 22px;font-size:28px;line-height:1.35}
+.lint .bad mark{background:rgba(248,113,113,.25);color:#FECACA;border-bottom:3px solid var(--bad);padding:0 4px;border-radius:4px}
+.lint small{display:block;font-size:20px;margin-top:6px}
+.lint .bad small{color:var(--bad)}.lint .good small{color:var(--ok)}
+/* questions grid */
+.qs{position:absolute;left:120px;top:440px;width:1040px;display:grid;grid-template-columns:1fr 1fr;gap:14px 22px}
+.q{display:flex;gap:14px;align-items:center;background:var(--card);border:2px solid var(--line);border-radius:16px;padding:14px 18px;font-size:25px;font-weight:600}
+.q i{flex:none;width:38px;height:38px;border-radius:50%;background:var(--grad);display:grid;place-items:center;font-style:normal;font-size:18px;font-weight:800}
+.q.hid{display:flex!important;visibility:hidden}
+/* setup cards */
+.setup{position:absolute;left:120px;right:120px;top:345px;display:grid;grid-template-columns:repeat(4,1fr);gap:26px}
+.sc{background:var(--card);border:2px solid var(--line);border-radius:24px;overflow:hidden}
+.sc svg{display:block;width:100%;height:auto;background:#1B1722}
+.sc .t{padding:16px 20px 20px}
+.sc .t b{font-size:26px;display:block}
+.sc .t span{font-size:21px;color:var(--mut);display:block;margin-top:6px;line-height:1.3}
+.sc .dd{display:grid;grid-template-columns:1fr 1fr}
+.sc .dd div{position:relative}
+.sc .tag{position:absolute;left:10px;top:10px;font:700 15px/1 "Inter";padding:6px 9px;border-radius:999px}
+.tag.y{background:var(--ok);color:#052e16}.tag.n{background:var(--bad);color:#450a0a}
+.sc.hid{display:block!important;visibility:hidden}
+/* recorder */
+.rec{position:absolute;inset:0;background:linear-gradient(170deg,#6E5A52,#3A3140 55%,#26202E)}
+.rec .face{position:absolute;left:50%;top:180px;transform:translateX(-50%);width:170px;height:170px;border-radius:50%;background:#C9A88E}
+.rec .body{position:absolute;left:50%;top:330px;transform:translateX(-50%);width:330px;height:440px;border-radius:160px 160px 0 0;background:#3C5A7A}
+.rec .prompt{position:absolute;left:0;right:0;top:0;height:250px;overflow:hidden;background:linear-gradient(rgba(0,0,0,.72),rgba(0,0,0,.45) 75%,transparent)}
+.rec .prompt p{padding:24px 26px;font:700 26px/1.4 "Inter";color:#fff}
+.rec .cd{position:absolute;inset:0;display:grid;place-items:center;font:800 220px/1 "Inter";color:#fff;text-shadow:0 10px 40px rgba(0,0,0,.6)}
+.rec .bar{position:absolute;left:0;right:0;bottom:0;height:110px;display:flex;align-items:center;justify-content:center;gap:30px;background:rgba(0,0,0,.45)}
+.rec .dot{width:70px;height:70px;border-radius:50%;border:5px solid #fff;display:grid;place-items:center}
+.rec .dot i{width:44px;height:44px;border-radius:50%;background:#EF4444}
+.rec .tm{font:700 24px/1 ui-monospace,Menlo,monospace;color:#fff}
+.checks{position:absolute;left:24px;right:24px;top:270px;background:rgba(9,9,11,.88);border-radius:20px;padding:20px 22px;display:grid;gap:10px;font-size:22px;font-weight:600}
+.checks span{color:var(--ok)}
+.alt{display:flex;gap:18px;margin-top:34px}
+.alt div{background:var(--card);border:2px solid var(--line);border-radius:18px;padding:18px 24px;font-size:26px;font-weight:600}
+.timeline{display:flex;gap:16px;margin-top:34px;flex-wrap:wrap}
+.timeline div{background:var(--card);border:2px solid var(--line);border-radius:16px;padding:14px 20px;font-size:24px;font-weight:600}
+.timeline div b{display:block;font:600 16px/1 ui-monospace,Menlo,monospace;color:#D69BFF;margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em}
+</style>
+<svg width="0" height="0" style="position:absolute"><defs>
+ <symbol id="tick" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="#F5A623"/><path d="M28 52 L44 67 L73 36" fill="none" stroke="#1F2933" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+ <!-- a person in a 9:16 frame; variants via the scene around it -->
+ <symbol id="person" viewBox="0 0 90 160"><circle cx="45" cy="62" r="17"/><path d="M14 160c0-32 14-56 31-56s31 24 31 56z"/></symbol>
+</defs></svg>
+
+<img class="lvmark" id="lvmark" src="../explainer-video/media/lv-logo.png" alt="Lead Velocity">
+<div class="chip-ch" id="chip"></div>
+<div class="cap" id="cap"></div>
+
+<!-- C1 WELCOME -->
+<section class="scene" id="c1" data-chip="">
+  <div class="center">
+    <div style="display:flex;align-items:center;gap:60px" data-at="0">
+      <div class="ein" style="width:380px;height:380px"><img src="../explainer-video/media/einstein-wave.jpg" alt="" style="object-position:30% 50%"></div>
+      <img src="../explainer-video/media/lv-logo.png" alt="" style="height:330px">
+    </div>
+    <div class="big" data-at="0+0.8" style="margin-top:30px">Getting you <em>set up.</em></div>
+    <div class="row">
+      <div class="pill" data-at="1"><b>~12 min</b> to go live</div>
+      <div class="pill" data-at="1+2"><b>+10 min</b> intro video, any time</div>
+      <div class="pill" data-at="2"><b>9</b> short chapters</div>
+    </div>
+  </div>
+</section>
+
+<!-- C2 WHY -->
+<section class="scene" id="c2" data-chip="<b>01</b>Why we need this">
+  <div class="left">
+    <div class="eye" data-at="0">Why we need this</div>
+    <div class="h" data-at="0">Who you are, and <em>proof you're real.</em></div>
+    <ul class="pts">
+      <li data-at="1"><i>1</i>Your name, practice and FSP number<small>Reach the client before any meeting</small></li>
+      <li data-at="2"><i>2</i>Checked on the FSCA register<small>Leads only ever go to licensed advisers</small></li>
+      <li data-at="3"><i>3</i>Your face and voice<small>People show up for people</small></li>
+    </ul>
+  </div>
+  <div class="phone wa">
+    <div class="p-top"><span class="av"><svg><use href="#tick"/></svg></span><div><b>SortMyCover</b><small>What your client receives</small></div></div>
+    <div class="chat">
+      <div class="m" data-at="1"><img class="card" src="../client-journey-assets/intro-card.png" alt="">Hi Lerato, your details have been passed to <span class="hl">Example Financial Planning (FSP 00000)</span>, an authorised financial services provider. <b>Sam</b> can do a 30-minute call.<span class="ts">19:42</span></div>
+      <div class="m" data-at="3"><div class="vid" style="height:190px"><div class="face" style="top:30px;width:80px;height:80px"></div><div class="body" style="top:105px;width:150px"></div><div class="lt" style="bottom:10px"><b>Sam Example</b>Example Financial Planning · FSP 00000</div></div>Sam recorded this short video so you know who you'll be speaking to.<span class="ts">19:53</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- C3 SEVEN STEPS -->
+<section class="scene" id="c3" data-chip="<b>02</b>The seven steps">
+  <div class="left" style="top:180px;width:1700px">
+    <div class="eye" data-at="0">Your portal</div>
+    <div class="h" data-at="0">Seven short steps. <em>About 12 minutes.</em></div>
+  </div>
+  <div class="steps">
+    <div class="st" data-at="1"><span class="n">1</span><h4>Watch the overview</h4><p>3 min</p></div>
+    <div class="st must-later" data-at="1+1.2" data-must="2"><span class="lock" data-at="2">Go-live</span><span class="n">2</span><h4>Details &amp; FSP</h4><p>3 min</p></div>
+    <div class="st must-later" data-at="1+3" data-must="2"><span class="lock" data-at="2+0.6">Go-live</span><span class="n">3</span><h4>Connect Outlook</h4><p>1 min</p></div>
+    <div class="st" data-at="1+4.4"><span class="n">4</span><h4>Hours &amp; how you meet</h4><p>1 min</p></div>
+    <div class="st must-later" data-at="1+6" data-must="2"><span class="lock" data-at="2+1.6">Go-live</span><span class="n">5</span><h4>Sign the agreement</h4><p>3 min</p></div>
+    <div class="st must-later" data-at="1+7.2" data-must="2"><span class="lock" data-at="2+2.4">Go-live</span><span class="n">6</span><h4>Approve your intro card</h4><p>1 min</p></div>
+    <div class="st" data-at="1+8.4"><span class="n">7</span><h4>Record your intro</h4><p>10 min · can come later</p></div>
+  </div>
+</section>
+
+<!-- C4 DETAILS & FSP -->
+<section class="scene" id="c4" data-chip="<b>03</b>Details &amp; FSP">
+  <div class="left">
+    <div class="eye" data-at="0">Step 2 · 3 minutes</div>
+    <div class="h" data-at="0">Your details <em>and FSP number.</em></div>
+    <ul class="pts" data-out="3">
+      <li data-at="0+1.5"><i>✓</i>Practice name, as on your licence</li>
+      <li data-at="1"><i>✓</i>FSCA register check<small>Usually under 10 seconds</small></li>
+      <li data-at="2"><i>✓</i>Name, WhatsApp, photo, languages, years</li>
+    </ul>
+    <div class="lint" data-at="3">
+      <div class="bad">“I offer the <mark>best</mark> cover at the <mark>cheapest</mark> <mark>premiums</mark>.”<small>✕ “best”, “cheapest” and “premiums” aren't allowed</small></div>
+      <div class="good" data-at="3+2.5">“I help young families work out if the cover they have still fits.”<small>✓ Passes the check</small></div>
+    </div>
+  </div>
+  <div class="phone"><div class="shot" data-at="0"><img src="media/shots/profile.png" alt=""></div></div>
+</section>
+
+<!-- C5 CALENDAR, HOURS, AGREEMENT -->
+<section class="scene" id="c5" data-chip="<b>04</b>Calendar &amp; agreement">
+  <div class="left">
+    <div class="eye" data-at="0">Steps 3, 4 and 5</div>
+    <div class="h" data-at="0">Connect, check, <em>sign.</em></div>
+    <ul class="pts">
+      <li data-at="0+1"><i>✓</i>One tap: Sign in with Microsoft<small>Free/busy and meetings only. Never your email</small></li>
+      <li data-at="1"><i>✓</i>Your next free slot appears<small>That's how you know it worked</small></li>
+      <li data-at="2"><i>✓</i>Hours, how you meet, calls a day</li>
+      <li data-at="3"><i>✓</i>Agreement in plain words<small>Photo, voice and video consent is optional</small></li>
+    </ul>
+  </div>
+  <div class="phone">
+    <div class="shot" data-at="0" data-out="3"><img src="media/shots/calendar.png" alt=""></div>
+    <div class="shot" data-at="3"><img src="media/shots/agreement.png" alt=""></div>
+  </div>
+</section>
+
+<!-- C6 INTERVIEW -->
+<section class="scene" id="c6" data-chip="<b>05</b>The interview">
+  <div class="left" style="top:190px">
+    <div class="eye" data-at="0">Step 7 · Part 1</div>
+    <div class="h" data-at="0">Eight quick questions <em>about you.</em></div>
+  </div>
+  <div class="qs" data-out="3">
+    <div class="q" data-at="1"><i>1</i>Who do you help most?</div>
+    <div class="q" data-at="1+1.6"><i>2</i>Your first 10 minutes on a call</div>
+    <div class="q" data-at="1+3.4"><i>3</i>What people say afterwards</div>
+    <div class="q" data-at="1+5"><i>4</i>A myth you keep correcting</div>
+    <div class="q" data-at="1+6.6"><i>5</i>What you don't do</div>
+    <div class="q" data-at="1+8.2"><i>6</i>Where you're based · languages</div>
+    <div class="q" data-at="1+10.4"><i>7</i>Your years, and why you do this</div>
+    <div class="q" data-at="1+12.4"><i>8</i>How people should prepare</div>
+  </div>
+  <div class="left" style="top:440px" data-at="3">
+    <ul class="pts" style="margin-top:0">
+      <li><i>✓</i>Three scripts, in your words<small>About 25 seconds each</small></li>
+      <li><i>✓</i>Every script is checked<small>No products, premiums or advice · FSP included</small></li>
+      <li><i>✓</i>Pick one, edit anything</li>
+    </ul>
+  </div>
+  <div class="phone">
+    <div class="shot" data-at="0" data-out="3"><img src="media/shots/im-interview.png" alt=""></div>
+    <div class="shot" data-at="3"><img src="media/shots/im-scripts.png" alt=""></div>
+  </div>
+</section>
+
+<!-- C7 SETUP -->
+<section class="scene" id="c7" data-chip="<b>06</b>Look &amp; setting">
+  <div class="left" style="top:170px">
+    <div class="eye" data-at="0">Step 7 · Part 2 · 2 minutes</div>
+    <div class="h" data-at="0" style="font-size:68px">Your setup, <em>before you record.</em></div>
+  </div>
+  <div class="setup">
+    <div class="sc" data-at="1">
+      <div class="dd">
+        <div><svg viewBox="0 0 90 160"><rect x="20" y="20" width="50" height="70" fill="#F8F3D6"/><use href="#person" fill="#120F17"/></svg><span class="tag n">✕</span></div>
+        <div><svg viewBox="0 0 90 160"><rect width="90" height="160" fill="#3A3346"/><use href="#person" fill="#E8C5A8"/><rect x="0" y="0" width="90" height="160" fill="url(#none)" /></svg><span class="tag y">✓</span></div>
+      </div>
+      <div class="t"><b>Light on your face</b><span>Face a window or lamp. Never a window behind you.</span></div>
+    </div>
+    <div class="sc" data-at="2">
+      <div class="dd">
+        <div><svg viewBox="0 0 90 160"><rect width="90" height="160" fill="#3A3346"/><g transform="translate(0,30) scale(1,1.1)"><use href="#person" fill="#B8A090"/></g><rect x="25" y="138" width="40" height="22" fill="#2A2433"/></svg><span class="tag n">✕</span></div>
+        <div><svg viewBox="0 0 90 160"><rect width="90" height="160" fill="#3A3346"/><use href="#person" fill="#E8C5A8"/><circle cx="45" cy="38" r="3" fill="#F8C83E"/></svg><span class="tag y">✓</span></div>
+      </div>
+      <div class="t"><b>Eye level, upright</b><span>An arm's length away. Look at the lens.</span></div>
+    </div>
+    <div class="sc" data-at="3">
+      <div class="dd">
+        <div><svg viewBox="0 0 90 160"><rect width="90" height="160" fill="#3A3346"/><use href="#person" fill="#E8C5A8"/><g fill="none" stroke="#F87171" stroke-width="3"><path d="M10 30q8-8 0-16M18 34q14-14 0-28"/><path d="M80 30q-8-8 0-16M72 34q-14-14 0-28"/></g></svg><span class="tag n">✕</span></div>
+        <div><svg viewBox="0 0 90 160"><rect width="90" height="160" fill="#3A3346"/><use href="#person" fill="#E8C5A8"/><rect x="62" y="16" width="20" height="30" rx="2" fill="#2A2433" stroke="#4ADE80" stroke-width="2"/></svg><span class="tag y">✓</span></div>
+      </div>
+      <div class="t"><b>Quiet room</b><span>Door closed, fan and aircon off. Voice matters most.</span></div>
+    </div>
+    <div class="sc" data-at="4">
+      <div class="dd">
+        <div><svg viewBox="0 0 90 160"><rect width="90" height="160" fill="#D9D4CC"/><use href="#person" fill="#E8C5A8"/></svg><span class="tag n">✕</span></div>
+        <div><svg viewBox="0 0 90 160"><rect width="90" height="160" fill="#4A4052"/><rect x="0" y="90" width="90" height="70" fill="#3A3146"/><rect x="6" y="30" width="22" height="34" fill="#6B5A7A"/><rect x="62" y="40" width="18" height="50" fill="#5A4A66"/><circle cx="71" cy="36" r="8" fill="#4ADE80" opacity=".5"/><use href="#person" fill="#E8C5A8"/><path d="M28 160c0-26 8-50 17-50s17 24 17 50z" fill="#2E4A6A"/></svg><span class="tag y">✓</span></div>
+      </div>
+      <div class="t"><b>Depth behind you</b><span>A tidy room, not a wall. Dress as for a client.</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- C8 RECORD -->
+<section class="scene" id="c8" data-chip="<b>07</b>Recording">
+  <div class="left">
+    <div class="eye" data-at="0">Step 7 · Part 3</div>
+    <div class="h" data-at="0">Press record. <em>Read. Done.</em></div>
+    <ul class="pts">
+      <li data-at="0+1"><i>1</i>3-2-1, then the teleprompter scrolls</li>
+      <li data-at="1"><i>2</i>Smile. Speak to one person<small>20–30 seconds. One take is fine</small></li>
+      <li data-at="2"><i>3</i>Instant check, plain-English fixes</li>
+    </ul>
+    <div class="alt" data-at="3"><div>🎙 Voice note instead</div><div>📱 Send it on WhatsApp</div></div>
+  </div>
+  <div class="phone">
+    <div class="rec">
+      <div class="face"></div><div class="body"></div>
+      <div class="prompt" data-at="0+3.2"><p id="tp" data-scroll="0+3.2,2+2,0,-330">Hi, I'm Sam from Example Financial Planning, FSP 00000. I work with families who've got a bond and people depending on them. On our call I'll ask a few questions and tell you plainly where you stand. There's nothing to buy and no pressure. Thirty minutes is usually all it takes. Looking forward to speaking with you.</p></div>
+      <div class="cd" data-at="0+0.2" data-out="0+1.1">3</div>
+      <div class="cd" data-at="0+1.1" data-out="0+2">2</div>
+      <div class="cd" data-at="0+2" data-out="0+2.9">1</div>
+      <div class="bar"><div class="dot"><i></i></div><span class="tm" id="tm" data-timer="0+3,2+1.6">0:00</span></div>
+      <div class="checks" data-at="2+0.6" data-out="3+0.5"><div><span>✓</span> Face centred</div><div><span>✓</span> Good light on your face</div><div><span>✓</span> Clear audio</div><div><span>✓</span> 26 seconds</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- C9 APPROVE & WHAT HAPPENS -->
+<section class="scene" id="c9" data-chip="<b>08</b>Approve &amp; go">
+  <div class="left" data-out="3">
+    <div class="eye" data-at="0">What we do with it</div>
+    <div class="h" data-at="0">Captions, name tag, <em>approve.</em></div>
+    <div class="timeline" data-at="2">
+      <div><b>After booking</b>If the call is soon</div>
+      <div><b>2 days before</b>As a reminder</div>
+      <div><b>Not booked yet</b>As a friendly nudge</div>
+    </div>
+  </div>
+  <div class="phone wa" data-out="3">
+    <div class="p-top"><span class="av"><svg><use href="#tick"/></svg></span><div><b>SortMyCover</b><small>What your client receives</small></div></div>
+    <div class="chat">
+      <div class="m" data-at="0+0.5"><div class="vid"><div class="face"></div><div class="body"></div><div class="lt" data-at="0+1.5"><b>Sam Example</b>Example Financial Planning · FSP 00000</div><div class="cc" data-at="0+0.8">I'll ask a few questions and tell you plainly where you stand.</div></div>Hi Lerato, Sam recorded this short video so you know who you will be speaking to. Your call is on <b>Tue 6 Oct at 14:30</b>.<span class="ts">19:53</span><div class="bts"><span>Looking forward to it</span><span>Reschedule</span></div></div>
+    </div>
+  </div>
+  <div class="phone" data-at="1" data-out="2" style="right:720px;transform:none"><div class="shot"><img src="media/shots/im-approve.png" alt=""></div></div>
+  <div class="center" data-at="3">
+    <div class="ein" style="width:220px;height:220px;border-radius:50%;margin-bottom:34px"><img src="../explainer-video/media/einstein-chatbot-avatar.jpg" alt=""></div>
+    <div class="big">Welcome <em>aboard.</em></div>
+    <div class="row"><div class="pill">Finish your steps · <b>we switch you on</b></div></div>
+  </div>
+</section>
+
+<script>
+let T = null;
+function cue(spec, sc) {
+  if (spec == null || spec === '') return null;
+  const m = String(spec).match(/^(end|\d+)([+-][\d.]+)?$/); if (!m) return 0;
+  return (m[1] === 'end' ? sc.dur : sc.lines[+m[1]].start) + (m[2] ? parseFloat(m[2]) : 0);
+}
+window.show = function (id, timing) {
+  document.querySelectorAll('.scene').forEach(s => s.classList.toggle('on', s.id === id));
+  T = timing; const sc = document.getElementById(id);
+  document.getElementById('chip').innerHTML = sc.dataset.chip || ''; document.getElementById('chip').style.display = sc.dataset.chip ? 'block' : 'none';
+  document.getElementById('lvmark').style.display = id === 'c1' ? 'none' : 'block';
+  sc.querySelectorAll('[data-at],[data-out]').forEach(el => { el._in = cue(el.dataset.at, T); el._out = cue(el.dataset.out, T); });
+  sc.querySelectorAll('[data-must]').forEach(el => el._must = cue(el.dataset.must, T));
+  sc.querySelectorAll('[data-scroll]').forEach(el => { const [a, b, y0, y1] = el.dataset.scroll.split(','); el._sc = [cue(a, T), cue(b, T), +y0, +y1]; });
+  sc.querySelectorAll('[data-timer]').forEach(el => { const [a, b] = el.dataset.timer.split(','); el._tm = [cue(a, T), cue(b, T)]; });
+};
+const ease = p => 1 - Math.pow(1 - p, 3);
+window.seek = async function (t) {
+  const sc = document.querySelector('.scene.on');
+  sc.querySelectorAll('[data-at],[data-out]').forEach(el => {
+    const tin = el._in == null ? -1 : el._in, tout = el._out;
+    if (t < tin || (tout != null && t >= tout + 0.3)) { el.classList.add('hid'); return; }
+    el.classList.remove('hid');
+    let p = Math.min(1, Math.max(0, (t - tin) / 0.4));
+    if (tout != null && t >= tout) p = Math.min(p, 1 - (t - tout) / 0.3);
+    const e = ease(Math.max(0, p)); el.style.opacity = e;
+    if (!el.classList.contains('shot') && !el.classList.contains('cd') && !el.classList.contains('phone')) el.style.transform = `translateY(${(1 - e) * 18}px)`;
+    if (el.classList.contains('cd')) el.style.transform = `scale(${1.4 - 0.4 * e})`;
+  });
+  sc.querySelectorAll('[data-must]').forEach(el => el.classList.toggle('must', t >= el._must));
+  sc.querySelectorAll('[data-scroll]').forEach(el => { const [a, b, y0, y1] = el._sc; const p = Math.min(1, Math.max(0, (t - a) / (b - a))); el.style.transform = `translateY(${y0 + (y1 - y0) * p}px)`; });
+  sc.querySelectorAll('[data-timer]').forEach(el => { const [a, b] = el._tm; const s = Math.max(0, Math.min(t, b) - a) * (26 / (b - a)); el.textContent = '0:' + String(Math.floor(s)).padStart(2, '0'); });
+  const cur = T.lines.filter(ln => t >= ln.start - 0.05 && t <= ln.end + 0.3).pop();
+  document.getElementById('cap').textContent = cur ? cur.show : '';
+};
+</script>
+</html>
