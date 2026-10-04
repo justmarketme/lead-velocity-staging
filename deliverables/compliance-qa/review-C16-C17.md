@@ -48,3 +48,6 @@ Checked: `visual-producer/review/C16-frames.png` (9:16 and 4:5 rows), manifest.j
 - **FAIL on one item: no C16 `.srt` sidecar exists** (`assets/` has none; the manifest has no srt rows for C16, unlike C01 to C15). I cannot check captions I cannot see.
 - **Fix (visual-producer):** emit `C16_trigger-bond-paperwork_9x16_20261003.srt` and its manifest row, with cue text identical to the burned-in rows (frames above). Then I re-check the SRT text only (about 2 min).
 - **Not moved:** `_draft/bond-paperwork.json` stays in `_draft/` until the SRT is in. Its `_status` string also needs updating on the move.
+
+### C16 rendered-frame check, update (2026-10-04): PASS
+`C16_trigger-bond-paperwork_9x16_20261003.srt` now exists (8 cues, 0 to 19.95 s). Text matches the burned-in rows and the approved wording. No insurer, product, premium, figure or second-person claim. The disclosure line is on the burned-in end card; the SRT mirrors the C03 precedent. Frames, manifest and landing JSON passed above. **C16 is PASS.** `landing/angles/_draft/bond-paperwork.json` moved to `landing/angles/bond-paperwork.json`. Its `_status` string still says DRAFT; landing-page owner to update it. Publish remains behind NH-64.
