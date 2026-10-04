@@ -10,6 +10,6 @@ set -euo pipefail
 if [ "${1:-}" = join ]; then
   out=$2; final=$3; list=$(mktemp)
   for i in $(seq 1 10); do echo "file '$out/s$i.mp4'" >> "$list"; done
-  ffmpeg -loglevel error -y -f concat -safe 0 -i "$list" -c:v libx264 -preset slow -crf 23 -pix_fmt yuv420p -c:a aac -b:a 128k -movflags +faststart "$final"
+  ffmpeg -loglevel error -y -f concat -safe 0 -i "$list" -c:v libx264 -preset slow -crf 23 -pix_fmt yuv420p -af "loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000" -ac 2 -c:a aac -b:a 192k -movflags +faststart "$final"
   rm "$list"; echo "wrote $final"
 fi
