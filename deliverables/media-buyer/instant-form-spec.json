@@ -62,9 +62,11 @@
         { "key": "lt500", "value": "Under R500" },
         { "key": "500_750", "value": "R500-R750" },
         { "key": "750_1250", "value": "R750-R1,250" },
-        { "key": "1250plus", "value": "R1,250 or more" }
+        { "key": "1250_1499", "value": "R1,250-R1,499" },
+        { "key": "1500_plus", "value": "R1,500+" }
       ],
-      "_qualifies": ["750_1250", "1250plus"],
+      "_qualifies": ["750_1250", "1250_1499", "1500_plus", "1250plus"],
+      "_priority_tag": "1500_plus (tag only; never a disqualifier or routing filter). 1250plus kept valid for pre-split leads.",
       "_routes_out": ["lt500", "500_750"]
     },
     {

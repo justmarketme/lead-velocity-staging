@@ -77,10 +77,13 @@ export const AGE_TO_DB = {
 };
 export const BUDGET_TO_DB = {
   lt750: 'lt750', under_500: 'lt750', '500_750': 'lt750', '<500': 'lt750', '500-750': 'lt750', '<750': 'lt750',
-  '750_1250': '750_1250', '750-1250': '750_1250', '1250plus': '1250plus', '1250_plus': '1250plus', '1250+': '1250plus',
+  '750_1250': '750_1250', '750-1250': '750_1250', '1250plus': '1250plus', '1250_plus': '1250plus', '1250+': '1250plus', // legacy "R1,250+ (before split)"
+  '1250_1499': '1250_1499', '1250-1499': '1250_1499', '1500_plus': '1500_plus', '1500plus': '1500_plus', '1500+': '1500_plus',
 };
+export const PRIORITY_BUDGET = new Set(['1500_plus']); // priority TAG only: never a disqualifier, never a routing filter
+export const isPriority1500 = (band) => PRIORITY_BUDGET.has(band);
 export const QUAL_AGE = new Set(['35_44', '45_50']);
-export const QUAL_BUDGET = new Set(['750_1250', '1250plus']); // 0.1: R750-R1,250 and R1,250+ both qualify
+export const QUAL_BUDGET = new Set(['750_1250', '1250plus', '1250_1499', '1500_plus']); // 0.1: every band from R750 up qualifies (1250plus = legacy pre-split)
 const METHODS = new Set(['teams', 'zoom', 'meet', 'whatsapp_call', 'phone']);
 const METHOD_ALIAS = { google_meet: 'meet', whatsapp: 'whatsapp_call' };
 

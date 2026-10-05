@@ -64,14 +64,14 @@ function consentFor(mode, broker) {
 
 // ---------------------------------------------------------------- tap-only questions (4.6 step 3)
 const AGE_ROWS = [['age_under_35', 'Under 35'], ['age_35_44', '35 to 44'], ['age_45_50', '45 to 50'], ['age_51_plus', '51 or older']];
-const BUDGET_ROWS = [['budget_under_500', 'Under R500 a month'], ['budget_500_750', 'R500 to R750'], ['budget_750_1250', 'R750 to R1,250'], ['budget_1250_plus', 'R1,250 or more']];
+const BUDGET_ROWS = [['budget_under_500', 'Under R500 a month'], ['budget_500_750', 'R500 to R750'], ['budget_750_1250', 'R750 to R1,250'], ['budget_1250_1499', 'R1,250 to R1,499'], ['budget_1500_plus', 'R1,500 or more']];
 const BOND_ROWS = [['bond_yes_dependants_yes', 'Bond and dependants'], ['bond_yes_dependants_no', 'Bond, no dependants'], ['bond_no_dependants_yes', 'Dependants, no bond'], ['bond_no_dependants_no', 'Neither']];
 const METHOD_TITLES = { teams: 'Teams video call', zoom: 'Zoom video call', meet: 'Google Meet', whatsapp_call: 'WhatsApp call', phone: 'Phone call' };
 const QUAL_AGE = new Set(['35_44', '45_50']); // 0.1 bands; 45-50 qualifies, 51+ does not
-const QUAL_BUDGET = new Set(['750_1250', '1250_plus']); // 0.1: both upper bands qualify
+const QUAL_BUDGET = new Set(['750_1250', '1250_plus', '1250_1499', '1500_plus']); // 0.1: every band from R750 up qualifies (1250_plus = legacy pre-split)
 // fixture/quiz codes -> leads_smc_checks codes (schema uses lt35 / 51plus / lt750 / 1250plus)
 const AGE_TO_DB = { under_35: 'lt35', '35_44': '35_44', '45_50': '45_50', '51_plus': '51plus' };
-const BUDGET_TO_DB = { under_500: 'lt750', '500_750': 'lt750', '750_1250': '750_1250', '1250_plus': '1250plus' };
+const BUDGET_TO_DB = { under_500: 'lt750', '500_750': 'lt750', '750_1250': '750_1250', '1250_plus': '1250plus', '1250_1499': '1250_1499', '1500_plus': '1500_plus' };
 const METHOD_TO_DB = { teams: 'teams', zoom: 'zoom', meet: 'meet', google_meet: 'meet', whatsapp_call: 'whatsapp_call', phone: 'phone' };
 const STALL_HOURS = [1, 20, 68]; // 4.6 step 7, inside the 72-h CTWA window
 BUDGET_TO_DB.lt750 = 'lt750'; // typed "<750" (I-47a)
@@ -81,9 +81,9 @@ const STAGE_OF = { q_age: 'q_age', q_budget: 'q_budget', q_budget_clarify: 'q_bu
 const NEXT_STATE = { q_age: 'q_budget', q_budget: 'q_bond', q_budget_clarify: 'q_bond', q_bond: 'q_method', q_method: 'unbooked' }; // leads.conv_state.state after an answer
 // NLU bands (conversation/logic.mjs BANDS) -> the tap id W03 would have received (then -> DB codes via AGE_TO_DB / BUDGET_TO_DB).
 const NLU_AGE = { '<35': 'age_under_35', '35-44': 'age_35_44', '45-50': 'age_45_50', '51+': 'age_51_plus' };
-const NLU_BUDGET = { '<750': 'budget_lt750', '750-1250': 'budget_750_1250', '1250+': 'budget_1250_plus' };
+const NLU_BUDGET = { '<750': 'budget_lt750', '750-1250': 'budget_750_1250', '1250+': 'budget_1250_plus', '1250-1499': 'budget_1250_1499', '1500+': 'budget_1500_plus' };
 const DB_TO_AGE = { lt35: 'under_35', '35_44': '35_44', '45_50': '45_50', '51plus': '51_plus' };
-const DB_TO_BUDGET = { lt750: 'lt750', '750_1250': '750_1250', '1250plus': '1250_plus' };
+const DB_TO_BUDGET = { lt750: 'lt750', '750_1250': '750_1250', '1250plus': '1250_plus', '1250_1499': '1250_1499', '1500_plus': '1500_plus' };
 const MAX_HOPS = 3; // I-48b: at most 3 W03/W05/W07 hand-backs per inbound message
 /** I-48b hop limit: hops already taken by this message -> { hops (after this hand-back), over }. */
 function hopNext(hops) { const h = (Number(hops) || 0) + 1; return { hops: h, over: h > MAX_HOPS }; }

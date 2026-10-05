@@ -26,7 +26,7 @@ Schema:
   "consent_answer": "yes" | "no" | null,
   "slots": {
     "age_band": "<35" | "35-44" | "45-50" | "51+",
-    "budget_band": "<750" | "750-1250" | "1250+" | "unsure",
+    "budget_band": "<750" | "750-1250" | "1250+" | "1250-1499" | "1500+" | "unsure",
     "dependants": "yes" | "no",
     "bond": "yes" | "no",
     "method": "teams" | "zoom" | "meet" | "whatsapp_call" | "phone",
@@ -59,7 +59,7 @@ complaint, language_chat (they want to chat in another language), my_booking (wh
 
 Slot rules:
 - Map ages to bands: under 35 = "<35"; 35 to 44 = "35-44"; 45 to 50 = "45-50"; 51 and over = "51+".
-- Map a monthly amount they say they can put towards cover: below R750 = "<750"; R750 to R1,249 = "750-1250"; R1,250 or more = "1250+"; "not sure", "depends" = "unsure". Only set budget_band when they talk about what they can afford each month, never from a cover amount or a salary.
+- Map a monthly amount they say they can put towards cover: below R750 = "<750"; R750 to R1,249 = "750-1250"; R1,250 to R1,499 = "1250-1499"; R1,500 or more = "1500+"; (R1,250 or more with no detail = "1250+", legacy, still qualifies); "not sure", "depends" = "unsure". Only set budget_band when they talk about what they can afford each month, never from a cover amount or a salary.
 - "Kids", "a wife", "my mom depends on me" = dependants "yes". "Just me", "no kids" = dependants "no".
 - "Home loan", "bond", "mortgage", "verband" = bond "yes".
 - "Teams", "video" = teams; "Zoom" = zoom; "Google Meet" = meet; "WhatsApp call", "WhatsApp video" = whatsapp_call; "phone", "call my cell" = phone.

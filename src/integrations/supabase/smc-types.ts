@@ -101,7 +101,7 @@ export interface SmcLead {
   brand_id: Uuid | null; cycle_id: Uuid | null; tier_code: string | null; origin: string | null;
   campaign_id: string | null; adset_id: string | null; ad_id: string | null;
   verified_at: Ts | null; qualified_at: Ts | null; age_band: "lt35" | "35_44" | "45_50" | "51plus" | null;
-  budget_band: "lt750" | "750_1250" | "1250plus" | null; bond: boolean | null; dependants: boolean | null;
+  budget_band: "lt750" | "750_1250" | "1250plus" | "1250_1499" | "1500_plus" | null; premium_1500?: boolean; bond: boolean | null; dependants: boolean | null;
   work_cover: boolean | null; method_pref: SmcMethod | null; call_number: string | null;
   call_number_line_type: string | null; best_time: string | null; language: string | null;
   stage: string | null; stage_entered_at: Ts | null; health_flag: boolean; created_at: Ts;

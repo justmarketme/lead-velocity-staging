@@ -17,7 +17,7 @@ export const AUTO_ATTEND_AFTER_END = 24 * H;
 const LIVE = new Set(['booked', 'confirmed']);
 export const METHOD_WORDS = { teams: 'Teams', zoom: 'Zoom', meet: 'Google Meet', whatsapp_call: 'WhatsApp call', phone: 'phone call' };
 export const AGE_WORDS = { lt35: 'under 35', '35_44': '35-44', '45_50': '45-50', '51plus': '51+' };
-export const BUDGET_WORDS = { lt750: 'under R750 a month', '750_1250': 'R750 to R1,250 a month', '1250plus': 'R1,250+ a month' };
+export const BUDGET_WORDS = { lt750: 'under R750 a month', '750_1250': 'R750 to R1,250 a month', '1250plus': 'R1,250+ (before split) a month', '1250_1499': 'R1,250 to R1,499 a month', '1500_plus': 'R1,500+ a month (priority)' };
 const LANG_WORDS = { en: 'English', af: 'Afrikaans', zu: 'isiZulu', xh: 'isiXhosa', st: 'Sesotho', tn: 'Setswana' };
 
 export const sastDate = (t) => new Date(t + SAST).toISOString().slice(0, 10);
