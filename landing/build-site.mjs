@@ -34,7 +34,7 @@ const scan = (dir) => {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
     if (e.isDirectory()) scan(p);
-    else if (e.name.endsWith('.html') && /\{\{[A-Z_]+\}\}/.test(fs.readFileSync(p, 'utf8'))) left.push(path.relative(out, p));
+    else if (e.name.endsWith('.html') && /\{\{[A-Za-z_]+\}\}|\[[A-Z][A-Z _]{3,}\]/.test(fs.readFileSync(p, 'utf8'))) left.push(path.relative(out, p));
   }
 };
 scan(out);
