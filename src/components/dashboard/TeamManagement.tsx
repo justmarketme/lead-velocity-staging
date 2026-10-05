@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { TIERS, ALL_PLANS, planByName, zar } from "@/lib/pricing";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Card,
@@ -58,10 +59,10 @@ const TeamManagement = () => {
     firmName: "",
     contactPerson: "",
     email: "",
-    tier: "Bronze",
+    tier: TIERS[0].name,
     portalType: "Lead Growth", // New: Distinguish between generating leads vs dialing their book
     isLeadLoading: true,
-    leadQuota: 17,
+    leadQuota: TIERS[0].committed_leads,
     tempPassword: "",
   });
 
@@ -342,17 +343,16 @@ const TeamManagement = () => {
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase text-slate-500">Service Tier</Label>
                 <Select value={formData.tier} onValueChange={v => {
-                  const quota = v === 'Gold' ? 40 : v === 'Silver' ? 26 : v === 'Bronze' ? 17 : 6;
-                  setFormData({ ...formData, tier: v, leadTargetQuota: quota });
+                  const quota = planByName(v)?.committed_leads ?? formData.leadQuota;
+                  setFormData({ ...formData, tier: v, leadQuota: quota });
                 }}>
                   <SelectTrigger className="bg-slate-900 border-white/10">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-900 border-white/10 text-white">
-                    <SelectItem value="Pilot">Pilot Plan</SelectItem>
-                    <SelectItem value="Bronze">Bronze Tier</SelectItem>
-                    <SelectItem value="Silver">Silver Tier</SelectItem>
-                    <SelectItem value="Gold">Gold Tier</SelectItem>
+                    {ALL_PLANS.map((t) => (
+                      <SelectItem key={t.tier_code} value={t.name}>{t.name} · {t.committed_leads} leads · {zar(t.price_zar)}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

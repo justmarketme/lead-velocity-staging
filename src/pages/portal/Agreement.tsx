@@ -8,6 +8,8 @@
 import { useEffect, useState } from "react";
 import PortalShell, { StepClip, usePortal } from "./PortalShell";
 import { CHECKOUT_URL, CLIPS_BASE, PAYSTACK_ENABLED, errText, fmtDay, fmtDayTime, fmtZar, portalEvent, postWebhook, sha256Hex, smcDb } from "@/lib/smc";
+import { TERMS } from "@/lib/pricing";
+import { AGREEMENT_STRUCTURE } from "@/lib/contract/agreement";
 import type { SmcAdminDocument, SmcAgreementAcceptances, SmcCycle, SmcInvoice, SmcPricing, SmcSignDocumentArgs } from "@/integrations/supabase/smc-types";
 
 const DOC_BUCKET = "admin-documents"; // INV-08; must be private (NH-15 S3)
@@ -36,11 +38,12 @@ function Body() {
   const [tiers, setTiers] = useState<SmcPricing[]>([]);
   const [invoices, setInvoices] = useState<SmcInvoice[]>([]);
   const [read, setRead] = useState(false);
-  const [c112, setC112] = useState(false);
-  const [annex, setAnnex] = useState(false);
-  const [noPage, setNoPage] = useState(false);
-  const [page, setPage] = useState(broker.fb_page_name || "");
-  const [pageId, setPageId] = useState(broker.fb_page_id || "");
+  // Clause 17.3 (Client Materials) is a term of the agreement, so it is accepted with the main tick and stored
+  // as acceptances.clause_11_2 = true (DB key kept from the old numbering). The new agreement has no Annex 1 /
+  // Facebook-Page fallback, so annex_1 / no_page are written as false and the Page fields are left untouched.
+  const c112 = true;
+  const annex = false;
+  const noPage = false;
   const [name, setName] = useState(broker.signatory_name || broker.contact_person || "");
   const [role, setRole] = useState(broker.signatory_role || "");
   const [busy, setBusy] = useState(false);
@@ -63,9 +66,8 @@ function Body() {
   }, [broker.id]);
 
   const agreement = docs.find((d) => d.kind === "agreement") || null;
-  const letter = docs.find((d) => d.kind === "authorisation_letter" && !d.signed_at) || null;
   const signed = !!agreement?.signed_at;
-  const canSign = read && annex && name.trim().length >= 3 && !!agreement && !signed;
+  const canSign = read && name.trim().length >= 3 && !!agreement && !signed;
 
   async function sign() {
     if (!agreement) return;
@@ -82,15 +84,10 @@ function Body() {
       const args: SmcSignDocumentArgs = { p_document_id: f.id, p_signed_by_name: name.trim(), p_doc_sha256: hash, p_signer_ip: null, p_user_agent: ua, p_acceptances: acceptances };
       const { error } = await smcDb.rpc("smc_sign_document", args);
       if (error) throw error;
-      let letterHash: string | null = null;
-      if (letter && annex) {
-        letterHash = await docHash(letter);
-        const r2 = await smcDb.rpc("smc_sign_document", { ...args, p_document_id: letter.id, p_doc_sha256: letterHash } satisfies SmcSignDocumentArgs);
-        if (r2.error) throw r2.error;
-      }
-      await smcDb.from("brokers").update({ signatory_name: name.trim(), signatory_role: role.trim() || null, fb_page_name: noPage ? null : page.trim() || null, fb_page_id: noPage ? null : pageId.trim() || null }).eq("id", broker.id);
+      const letterHash: string | null = null; // the Annex 1 authorisation letter is no longer part of signing
+      await smcDb.from("brokers").update({ signatory_name: name.trim(), signatory_role: role.trim() || null }).eq("id", broker.id);
       await portalEvent("step.completed", "agreement", {
-        document_id: f.id, version: f.version, doc_sha256: hash, letter_id: letter?.id || null, letter_sha256: letterHash,
+        document_id: f.id, version: f.version, doc_sha256: hash, letter_id: null, letter_sha256: letterHash,
         acceptances: { read: true, clause_11_2: c112, annex_1: annex, no_page: noPage }, signed_by_name: name.trim(), signed_at_client: new Date().toISOString(),
       });
       setDone(hash);
@@ -122,13 +119,14 @@ function Body() {
     <>
       <section className="card">
         <h2>Sign your agreement</h2>
-        <p className="muted">It is written in plain words. Flat price per 30-day cycle, month to month, no lock-in. Read it, tick the boxes, type your name. Done.</p>
+        <p className="muted">It is written in plain words. Flat price per {TERMS.cycle_days}-day cycle, month to month, no lock-in. Read it, tick the boxes, type your name. Done.</p>
+        {/* Summary of the Lead Generation Services Agreement (clauses 6, 7, 8.3, 11, 12); numbers from src/lib/pricing.ts */}
         <ul style={{ margin: "6px 0 10px", paddingLeft: 18, fontSize: 14 }}>
-          <li>One flat price per cycle, never linked to policies.</li>
-          <li>Month to month, no notice. No lock-in.</li>
-          <li>Delivered leads are yours to use exclusively. We keep the campaign data, pages and ad account.</li>
-          <li>Replacements for no-shows, unreachable and outside-criteria leads, up to your tier limit.</li>
-          <li>Shortfall: the cycle extends up to 14 days, then a pro-rata credit.</li>
+          <li>One flat price per cycle, never linked to policies, premiums or sales. No commission, ever.</li>
+          <li>Month to month. Cancel with {TERMS.cancel_notice_days} days' written notice before your next cycle. If you don't pay for the next cycle, the agreement simply ends.</li>
+          <li>We won't give the same consumer's enquiry to another broker. We keep the campaign data, pages, ad accounts and consent records.</li>
+          <li>No-show replacements are goodwill, not a right: up to {TERMS.goodwill_replacements_per_week} requests a week, with proof.</li>
+          <li>Shortfall: we deliver the balance within {TERMS.shortfall_rollover_days} days after the cycle. Anything still owed carries into your next paid cycle, or is refunded if you stop.</li>
         </ul>
         {!agreement && <p className="alert">Your agreement is being prepared. We'll message you on WhatsApp when it's ready to sign.</p>}
         {agreement && (
@@ -143,16 +141,7 @@ function Body() {
           <div className="next-slot" role="status" style={{ marginTop: 12 }}><span style={{ fontSize: 26 }}>✓</span><div><b>Signed{agreement.signed_at ? ` ${fmtDayTime(agreement.signed_at)}` : ""}{agreement.signed_by_name ? ` by ${agreement.signed_by_name}` : ""}.</b>A copy is on its way to your email and to howzit@leadvelocity.co.za. Document fingerprint (SHA-256) {(done || agreement.doc_sha256 || "").slice(0, 12)}… saved.</div></div>
         ) : agreement && (
           <div className="sig" style={{ marginTop: 12 }}>
-            <label className="chip" style={{ display: "flex" }}><input type="checkbox" checked={read} onChange={(e) => setRead(e.target.checked)} /> I have read clauses 1 to 16 and Schedules A to D.</label>
-            <label className="chip" style={{ display: "flex", marginTop: 8 }}><input type="checkbox" checked={c112} onChange={(e) => setC112(e.target.checked)} /> I agree to clause 11.2: you may use my photo, voice and video to introduce me to leads. <span className="small">(Optional. You can change your mind later in the portal.)</span></label>
-            <label className="chip" style={{ display: "flex", marginTop: 8 }}><input type="checkbox" checked={annex} onChange={(e) => setAnnex(e.target.checked)} /> I sign Annex 1: you may run ads from my Facebook Page if Meta needs that. I approve every ad first and I can withdraw it any time.</label>
-            <div style={{ margin: "8px 0 0" }}>
-              <label htmlFor="pg">Your Facebook Page name (for Annex 1)</label>
-              <input id="pg" type="text" value={page} disabled={noPage} placeholder="e.g. your practice's Page" onChange={(e) => setPage(e.target.value)} />
-              <label className="chip" style={{ display: "flex", marginTop: 6 }}><input type="checkbox" checked={noPage} onChange={(e) => setNoPage(e.target.checked)} /> I do not have a Facebook Page yet</label>
-              <label htmlFor="pgid">Page ID <span className="small">(optional)</span></label>
-              <input id="pgid" type="text" inputMode="numeric" value={pageId} disabled={noPage} onChange={(e) => setPageId(e.target.value)} />
-            </div>
+            <label className="chip" style={{ display: "flex" }}><input type="checkbox" checked={read} onChange={(e) => setRead(e.target.checked)} /> I have read and agree to clauses 1 to {AGREEMENT_STRUCTURE.lastClause} and Schedules 1 to {AGREEMENT_STRUCTURE.schedules}, including clause {AGREEMENT_STRUCTURE.clientMaterialsClause}: you may use my name, photograph, practice name, FSP number and short biography in the Intro Card and WhatsApp messages to consumers you introduce to me (never in ads).</label>
             <div className="row2">
               <div><label htmlFor="sn">Your full name</label><input id="sn" type="text" value={name} onChange={(e) => setName(e.target.value)} /></div>
               <div><label htmlFor="sr">Your role</label><input id="sr" type="text" value={role} placeholder="e.g. Director" onChange={(e) => setRole(e.target.value)} /></div>

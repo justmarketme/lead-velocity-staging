@@ -37,19 +37,14 @@ const EXCLUDE = [
   ['evals/', 'golden sets and judge rubrics quote amounts as test inputs'],
   ['brand/node_modules/', 'third-party code'],
   // Legacy B2B Lead Velocity tiers: Jonathan's money decision, not changed or removed here.
-  ['src/components/dashboard/ProposalGenerator.tsx', 'legacy B2B tiers: NH-14 pending'],
-  ['src/components/dashboard/InvoiceGenerator.tsx', 'legacy B2B tiers: NH-14 pending'],
   ['src/components/dashboard/ContractGenerator.tsx', 'legacy B2B tiers: NH-14 pending'],
-  ['supabase/functions/_shared/knowledge.ts', 'legacy B2B tiers: NH-14 pending'],
+  ['supabase/functions/_shared/pricing.generated.ts', 'generated from pricing.seed.json by gen-edge-pricing.mjs (edge functions cannot import the seed)'],
 ];
 // Surfaces that live under an excluded folder but must be clean.
 const REINCLUDE = ['deliverables/contracts-drafter/broker-services-agreement.md'];
 
 const LEGACY_LOCATIONS = [
-  'src/components/dashboard/ProposalGenerator.tsx',
-  'src/components/dashboard/InvoiceGenerator.tsx',
   'src/components/dashboard/ContractGenerator.tsx',
-  'supabase/functions/_shared/knowledge.ts',
 ];
 
 const TEXT_EXT = new Set(['.ts', '.tsx', '.js', '.mjs', '.cjs', '.jsx', '.json', '.md', '.html', '.htm', '.css', '.sql', '.txt', '.py', '.sh', '.ps1', '.yml', '.yaml', '.svg', '.csv', '.xml', '.toml', '.env', '.example']);

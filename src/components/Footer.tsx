@@ -35,7 +35,7 @@ const Footer = () => {
               </li>
               <li>
                 <Link to="/pricing" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                  Talk to us
+                  Pricing
                 </Link>
               </li>
               <li>

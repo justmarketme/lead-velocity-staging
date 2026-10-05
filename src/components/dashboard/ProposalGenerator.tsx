@@ -12,6 +12,25 @@ import { supabase } from "@/integrations/supabase/client";
 import { getProposalEmailSignature } from "@/utils/emailSignature";
 import { callLegalAI } from "@/utils/legalAI";
 import { BrokerSelector } from "./BrokerSelector";
+import { TIERS, ALL_PLANS, isPilot, TERMS, TOPUP, QUALIFIED, zar, perLead, topupMinimumZar, VAT_NOTE, SHORTFALL_TEXT, LATE_PAYMENT_TEXT, type PricingTier } from "@/lib/pricing";
+
+// Plan fields for the proposal, built from the pricing source (3.6) - no price is typed in this file.
+// FAIS: nothing here may tie the fee to sales or policies, or promise outcomes (Raspberry Academy v Oaksure).
+const proposalTierFields = (t: PricingTier) => ({
+    subtitle: isPilot(t)
+        ? `${t.name}: ${t.committed_leads} Qualified Leads in one introductory ${TERMS.cycle_days}-day cycle`
+        : `${t.name} plan: ${t.committed_leads} Qualified Leads per ${TERMS.cycle_days}-day cycle`,
+    investment: isPilot(t) ? `${zar(t.price_zar)} once-off (excl. VAT)` : `${zar(t.price_zar)} per month (excl. VAT)`,
+    guaranteedLeads: `${t.committed_leads} Qualified Leads per cycle`,
+    costPerLead: `${zar(perLead(t))} effective per lead`,
+    commissionRate: "",
+    alignmentText: `Paid monthly in advance, before each cycle starts. All-inclusive of advertising media spend. Top-ups once the cycle's leads are delivered: ${zar(TOPUP.price_per_lead_zar)} per Qualified Lead, minimum ${TOPUP.min_leads} (${zar(topupMinimumZar())}), with ${TOPUP.notice_days} days' notice. ${VAT_NOTE}`,
+    purposeTitle: "Lead Generation & Marketing Services",
+    purposeText: `We run broker-neutral advertising, capture consumer interest and consent, pre-qualify on stated age and budget, and book an introductory appointment into your calendar with reminders. Your ${t.name} plan delivers <strong>${t.committed_leads} Qualified Leads</strong> per cycle.`,
+    purposeSubText: `${isPilot(t) ? `Once-off introductory cycle for first-time clients only, paid upfront as a flat fee; afterwards you may continue on Bronze or higher. ` : `Month to month. `}Either party may cancel with ${TERMS.cancel_notice_days} days' written notice before the next cycle. Fees for a cycle that has started are not refundable. ${SHORTFALL_TEXT(t)} ${LATE_PAYMENT_TEXT}`,
+    alignmentBoxText: "The fee pays for marketing and lead-delivery services. It is payable regardless of any appointment outcome, sale or policy, and no commission or success fee is ever payable.",
+});
+
 
 interface ProposalGeneratorProps {
     onBack: () => void;
@@ -95,9 +114,9 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
     const [isConversational, setIsConversational] = useState(false);
     const [aiResponse, setAiResponse] = useState("");
     const [aiSuggestions, setAiSuggestions] = useState<string[]>([
-        "Make it sound more premium",
+        "Make it sound more polished",
         "Shorten the qualification criteria",
-        "Emphasize the performance guarantee"
+        "Explain the Qualified Lead definition"
     ]);
     const [pendingChanges, setPendingChanges] = useState<any>(null);
 
@@ -105,36 +124,25 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
         // Variables
         clientName: "Valued Partner",
         date: new Date().toLocaleDateString('en-ZA', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-        investment: "R8,500 (p/m)",
-        guaranteedLeads: "± 17 qualified business leads",
-        costPerLead: "R500 per lead",
-        contentsCover: "R1,000,000 or more",
-        buildingValue: "R4,000,000 or more",
-        commissionRate: "0%",
+        ...proposalTierFields(TIERS[0]),
 
         // Static Text Blocks
         // Token Model Aligned
         title: "Your <span class='text-[#D035D0]'>Mission</span> <span class='text-[#F48C57]'>Control</span> for Growth",
-        subtitle: "Growth Starter Lead Strategy (Bronze Tier)",
 
-        purposeTitle: "Strategic Lead Generation",
-        purposeText: "Our core solution provides a <strong class='text-pink-900 bg-pink-50 px-1 rounded'>Lead Token</strong> engine. If you exhaust your tokens early, you can Top-Up at <strong>R500 per lead (minimum 5 tokens / R2,500)</strong> with 1 week's notice.",
-        purposeSubText: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment. Cancellation during an active cycle is effective immediately but is subject to a strict no-refund policy.",
 
         overviewTitle: "Campaign Overview",
-        quoteText: `"Each qualified lead is one token. Minimum top-up is 5 tokens. Should the Client breach material terms (non-payment or commission violations), lead delivery will be suspended until re-activated. No refunds are provided for premature cancellation within an active 30-day cycle."`,
+        quoteText: `"A Qualified Lead counts toward your number once the consumer has booked an appointment with you and confirmed they will attend. What happens in the appointment is yours."`,
 
         criteriaTitle: "Qualification Criteria",
-        criteria1: "<strong>Decision Maker:</strong> Business owner, director, or key decision-maker.",
-        criteria2: "<strong>SME Value Threshold:</strong> Contents cover of <strong>R1,000,000+</strong> or Building value of <strong>R4,000,000+</strong>.",
-        criteria3: "<strong>Target Sectors:</strong> Logistics, Engineering, and Established SMEs.",
+        criteria1: `<strong>Consent:</strong> South African consumer who responded to our campaign and gave POPIA-compliant consent to be contacted and introduced to you.`,
+        criteria2: `<strong>Self-declared fit:</strong> Age ${QUALIFIED.age_min}–${QUALIFIED.age_max} and a monthly budget for life cover of ${zar(QUALIFIED.budget_min_zar)} or more (self-declared; we don't verify income or underwrite).`,
+        criteria3: `<strong>Booked & confirmed:</strong> Booked an appointment with you and confirmed they will attend.`,
 
         excludedTitle: "Strictly Excluded",
-        excludedText: "Personal lines, micro businesses below threshold, and qualified enquiry replacements.",
+        excludedText: "Advice, product comparisons, quotes and premiums are always yours as the licensed adviser. We don't promise attendance, sales or policy outcomes.",
 
-        alignmentTitle: "Performance Alignment",
-        alignmentText: "Tokens are paid monthly in advance. Top-Ups require one (1) week's notice. Service pauses automatically if not renewed.",
-        alignmentBoxText: ""
+        alignmentTitle: "Fees & Terms"
     });
 
     useEffect(() => {
@@ -196,70 +204,15 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
         const clientCompany = broker.firm_name || broker.company_name || "Client Company (Pty) Ltd";
         const leads = broker.desired_leads_weekly || 0;
 
-        let tierData = {
-            subtitle: "Bronze: Growth Starter",
-            investment: "R8,500 (p/m)",
-            leads: "± 17 qualified business leads",
-            cost: "± R500",
-            comm: "0%",
-            alignment: "Where we prove consistency. Qualified SME decision-maker leads, core targeting & messaging, monthly performance check-in.",
-            purposeTitle: "Strategic Lead Generation",
-            purposeText: "Our core solution provides a consistent lead engine delivering qualified prospects directly to your sales pipeline. We operate on a Lead Token model (paid monthly in advance).",
-            purposeSubText: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment. Cancellation during an active cycle is effective immediately but is subject to a strict no-refund policy."
-        };
-
-        if (leads <= 10 && leads > 0) {
-            tierData = {
-                subtitle: "Pilot Phase: Where We Prove Consistency",
-                investment: "R6,000 (once-off)",
-                leads: "± 10 qualified business leads",
-                cost: "R600",
-                comm: "10%",
-                alignment: "The pilot investment covers the delivery of the first ten qualified business leads. Beyond that, we align with your success.",
-                purposeTitle: "Purpose of the Pilot",
-                purposeText: "This 30-day pilot is designed to provide a structured, low-risk starting point while generating enough real performance data to assess quality and ROI.",
-                purposeSubText: "Terminates automatically after 30 days or lead completion. Cancellation during an active cycle is effective immediately but is subject to a strict no-refund policy. Commission and NDA obligations survive for 24 months."
-            };
-        } else if (leads > 32) {
-            tierData = {
-                subtitle: "Gold: Performance Partner",
-                investment: "R16,500+ (p/m)",
-                leads: "33-40+ qualified business leads",
-                cost: "± R350-R400",
-                comm: "0%",
-                alignment: "Where we operate as a revenue partner. Maximum lead volume, advanced qualification, and dedicated campaign management.",
-                purposeTitle: "Revenue Partnership",
-                purposeText: "Our premium tier where we operate as a full revenue partner. Token-based delivery ensures consistent ROI and inventory management.",
-                purposeSubText: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment. Cancellation during an active cycle is effective immediately but is subject to a strict no-refund policy."
-            };
-        } else if (leads >= 20) {
-            tierData = {
-                subtitle: "Silver: Scale & Optimise",
-                investment: "R10,500 (p/m)",
-                leads: "± 23-26 qualified business leads",
-                cost: "± R400-R450",
-                comm: "0%",
-                alignment: "Where results become predictable. Higher lead volume, ongoing optimisation, messaging testing, and bi-weekly reviews.",
-                purposeTitle: "Predictable Scaling",
-                purposeText: "The Silver tier provides systematic growth for scaling brokers. Delivery follows the Lead Token model, ensuring transparency and inventory control.",
-                purposeSubText: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment. Cancellation during an active cycle is effective immediately but is subject to a strict no-refund policy."
-            };
-        }
+        // Pick the smallest plan that covers the broker's stated volume (weekly x 4 = per cycle).
+        const wantedPerCycle = Math.round(Number(leads) * 4);
+        const tier = TIERS.find((t) => t.committed_leads >= wantedPerCycle) || TIERS[TIERS.length - 1];
 
         setFormData(prev => ({
             ...prev,
             clientName,
             clientCompany,
-            subtitle: tierData.subtitle,
-            investment: tierData.investment,
-            guaranteedLeads: tierData.leads,
-            costPerLead: tierData.cost,
-            commissionRate: tierData.comm,
-            alignmentText: tierData.alignment,
-            purposeTitle: tierData.purposeTitle,
-            purposeText: tierData.purposeText,
-            purposeSubText: tierData.purposeSubText,
-            alignmentBoxText: tierData.comm !== "0%" ? `Additional placed policies attract a <span class='text-pink-400 font-bold'>${tierData.comm} commission</span> calculated on the first-year premium.` : ""
+            ...proposalTierFields(tier),
         }));
 
         if (broker.email) {
@@ -269,7 +222,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
             setSelectedBrokerId(broker.id);
         }
         if (broker.phone_number || broker.phone) setRecipientPhone(broker.phone_number || broker.phone);
-        toast({ title: "Broker & Tier Loaded", description: `Selected ${tierData.subtitle.split(':')[0]} based on ${leads} leads.` });
+        toast({ title: "Broker & Tier Loaded", description: `Selected ${tier.name} based on ${leads} leads/week.` });
     };
 
     // Robust PDF Generation with Clone Strategy
@@ -389,7 +342,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                         const base64Pdf = await blobToBase64(pdfBlob);
 
                         const subject = `Proposal: ${formData.clientName} - Lead Velocity`;
-                        const emailBody = `<p>Hi ${formData.clientName},</p><p>Please find the proposal for the Premium Business Insurance Lead Pilot attached to this email.</p><p>I'd be happy to walk you through the details at your convenience.</p><br/>${getProposalEmailSignature()}`;
+                        const emailBody = `<p>Hi ${formData.clientName},</p><p>Please find the proposal for the Lead Velocity lead generation plan attached to this email.</p><p>I'd be happy to walk you through the details at your convenience.</p><br/>${getProposalEmailSignature()}`;
 
                         const { error: fnError } = await supabase.functions.invoke('send-communication', {
                             body: {
@@ -442,7 +395,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
 
             // For now, let's just open WhatsApp with the text
             const cleanPhone = recipientPhone.replace(/[^\d]/g, "");
-            const text = encodeURIComponent(`Hi ${formData.clientName}, I've prepared the proposal for the Premium Business Insurance Lead Pilot. Sending it to you now.`);
+            const text = encodeURIComponent(`Hi ${formData.clientName}, I've prepared the proposal for the Lead Velocity lead generation plan. Sending it to you now.`);
 
             window.open(`https://wa.me/${cleanPhone}?text=${text}`, '_blank');
             toast({ title: "Opening WhatsApp...", description: "Don't forget to attach the downloaded PDF!" });
@@ -629,83 +582,18 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                             <div className="space-y-3">
                                 <h3 className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Pricing Tiers</h3>
                                 <div className="grid grid-cols-1 gap-2">
-                                    {[
-                                        {
-                                            name: "Pilot Phase",
-                                            subtitle: "Pilot Phase: Where We Prove Consistency",
-                                            investment: "R6,000 (once-off)",
-                                            leads: "± 10 qualified business leads",
-                                            cost: "R600",
-                                            comm: "10%",
-                                            alignment: "The pilot investment covers the delivery of the first ten qualified business leads. Beyond that, we align with your success.",
-                                            purposeTitle: "Purpose of the Pilot",
-                                            purposeText: "This 30-day pilot is designed to provide a structured, low-risk starting point while generating enough real performance data to assess quality and ROI.",
-                                            purposeSubText: "Terminates automatically after 30 days or lead completion. No refund for early exit. Commission and NDA obligations survive for 24 months.",
-                                            color: "border-pink-500/20 hover:border-pink-500/50 hover:bg-pink-500/10 text-pink-200"
-                                        },
-                                        {
-                                            name: "Bronze",
-                                            subtitle: "Bronze: Growth Starter",
-                                            investment: "R8,500 (p/m)",
-                                            leads: "± 17 qualified business leads",
-                                            cost: "± R500",
-                                            comm: "0%",
-                                            alignment: "Where we prove consistency. Qualified SME decision-maker leads, core targeting & messaging, monthly performance check-in.",
-                                            purposeTitle: "Strategic Lead Generation",
-                                            purposeText: "Our core solution provides a consistent lead engine delivering qualified prospects directly to your sales pipeline. We operate on a Lead Token model (paid monthly in advance).",
-                                            purposeSubText: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment.",
-                                            color: "border-orange-500/20 hover:border-orange-500/50 hover:bg-orange-500/10 text-orange-200"
-                                        },
-                                        {
-                                            name: "Silver",
-                                            subtitle: "Silver: Scale & Optimise",
-                                            investment: "R10,500 (p/m)",
-                                            leads: "± 23-26 qualified business leads",
-                                            cost: "± R400-R450",
-                                            comm: "0%",
-                                            alignment: "Where results become predictable. Higher lead volume, ongoing optimisation, messaging testing, and bi-weekly reviews.",
-                                            purposeTitle: "Predictable Scaling",
-                                            purposeText: "The Silver tier provides systematic growth for scaling brokers. Delivery follows the Lead Token model, ensuring transparency and inventory control.",
-                                            purposeSubText: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment.",
-                                            color: "border-slate-400/20 hover:border-slate-400/50 hover:bg-slate-400/10 text-slate-200"
-                                        },
-                                        {
-                                            name: "Gold",
-                                            subtitle: "Gold: Performance Partner",
-                                            investment: "R16,500+ (p/m)",
-                                            leads: "33-40+ qualified business leads",
-                                            cost: "± R350-R400",
-                                            comm: "0%",
-                                            alignment: "Where we operate as a revenue partner. Maximum lead volume, advanced qualification, and dedicated campaign management.",
-                                            purposeTitle: "Revenue Partnership",
-                                            purposeText: "Our premium tier where we operate as a full revenue partner. Token-based delivery ensures consistent ROI and inventory management.",
-                                            purposeSubText: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment.",
-                                            color: "border-yellow-500/20 hover:border-yellow-500/50 hover:bg-yellow-500/10 text-yellow-200"
-                                        }
-                                    ].map((tier) => (
+                                    {ALL_PLANS.map((tier) => (
                                         <button
-                                            key={tier.name}
+                                            key={tier.tier_code}
                                             onClick={() => {
-                                                setFormData(prev => ({
-                                                    ...prev,
-                                                    subtitle: tier.subtitle,
-                                                    investment: tier.investment,
-                                                    guaranteedLeads: tier.leads,
-                                                    costPerLead: tier.cost,
-                                                    commissionRate: tier.comm,
-                                                    alignmentText: tier.alignment,
-                                                    purposeTitle: tier.purposeTitle,
-                                                    purposeText: tier.purposeText,
-                                                    purposeSubText: tier.purposeSubText,
-                                                    alignmentBoxText: tier.comm !== "0%" ? `Additional placed policies attract a <span class='text-pink-400 font-bold'>${tier.comm} commission</span> calculated on the first-year premium.` : ""
-                                                }));
+                                                setFormData(prev => ({ ...prev, ...proposalTierFields(tier) }));
                                                 toast({ title: `${tier.name} Applied`, description: "Proposal template updated." });
                                             }}
-                                            className={`w-full text-left p-3 rounded-xl border ${tier.color} transition-all duration-200 text-xs font-medium`}
+                                            className="w-full text-left p-3 rounded-xl border border-slate-400/20 hover:border-slate-400/50 hover:bg-slate-400/10 text-slate-200 transition-all duration-200 text-xs font-medium"
                                         >
                                             <div className="flex justify-between items-center">
-                                                <span>{tier.name}</span>
-                                                <span className="opacity-60 font-mono">{tier.investment.split(' ')[0]}</span>
+                                                <span>{tier.name} · {tier.committed_leads} leads</span>
+                                                <span className="opacity-60 font-mono">{zar(tier.price_zar)}</span>
                                             </div>
                                         </button>
                                     ))}
@@ -920,21 +808,21 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                                             <div className="grid grid-cols-2 gap-y-4 gap-x-8">
                                                 <div>
                                                     <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Duration</p>
-                                                    <p className="text-slate-900 font-bold text-base">30 Days</p>
+                                                    <p className="text-slate-900 font-bold text-base">{TERMS.cycle_days} days, month to month</p>
                                                 </div>
                                                 <div>
                                                     <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Investment</p>
                                                     <Editable className="text-pink-600 font-bold text-xl" value={formData.investment} onChange={(val) => updateField('investment', val)} />
                                                 </div>
                                                 <div>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Guaranteed Output</p>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Committed Qualified Leads</p>
                                                     <div className="flex items-center gap-2">
                                                         <span className="flex h-5 w-5 items-center justify-center rounded-full bg-pink-100 text-pink-700 text-[10px] font-bold">✓</span>
                                                         <Editable className="text-slate-900 font-bold" value={formData.guaranteedLeads} onChange={(val) => updateField('guaranteedLeads', val)} />
                                                     </div>
                                                 </div>
                                                 <div>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Est. Cost per Lead</p>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Effective Price per Lead</p>
                                                     <Editable className="text-slate-900 font-bold" value={formData.costPerLead} onChange={(val) => updateField('costPerLead', val)} />
                                                 </div>
                                             </div>
@@ -995,7 +883,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                                     <div className="mt-8 pt-6 border-t-2 border-slate-100 flex justify-between items-center text-[10px] uppercase tracking-widest text-slate-400 font-bold">
                                         <div>
                                             <p className="text-[#0F172A]">Lead Velocity Team</p>
-                                            <p>Performance-First Business Insurance leads</p>
+                                            <p>Lead Generation & Marketing Services</p>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-pink-600">www.leadvelocity.co.za</p>

@@ -29,6 +29,7 @@ import PremiumDocuments from "@/components/broker/PremiumDocuments";
 import { useToast } from "@/hooks/use-toast";
 import logo from "@/assets/lead-velocity-logo.webp";
 import SEO from "@/components/SEO";
+import { TIERS, planByName } from "@/lib/pricing";
 
 const PremiumBrokerPortalPage = () => {
     const [loading, setLoading] = useState(true);
@@ -148,10 +149,10 @@ const PremiumBrokerPortalPage = () => {
 
             const enrichedBroker = {
                 ...broker,
-                tier: broker.tier || "Bronze",
+                tier: broker.tier || TIERS[0].name,
                 is_lead_loading: broker.is_lead_loading !== undefined ? broker.is_lead_loading : true,
-                leads_used: (broker as any).leads_used || 42,
-                lead_quota: (broker as any).lead_quota || (broker.tier === "Gold" ? 200 : broker.tier === "Silver" ? 100 : 50)
+                leads_used: (broker as any).leads_used || 0,
+                lead_quota: (broker as any).lead_quota || planByName(broker.tier || TIERS[0].name)?.committed_leads || TIERS[0].committed_leads
             };
 
             setBrokerData(enrichedBroker);

@@ -13,7 +13,9 @@ interface AIAssistantResult {
 export async function callLegalAI(
     command: string,
     currentState: Record<string, any>,
-    documentType: string = "Document"
+    documentType: string = "Document",
+    /** Document-specific rules the model must follow (e.g. fixed contract wording, flat-fee model). */
+    guidance?: string
 ): Promise<AIAssistantResult> {
     const modelConfigs = [
         { name: "gemini-2.0-flash", version: "v1beta" },
@@ -39,7 +41,7 @@ The JSON object must have exactly three keys:
 2. "changes": A flat object of key-value pairs representing ONLY the fields in the document state that should be updated. The keys must match the existing keys in the data, and the values should be the newly drafted text. Do NOT include fields that do not need to change. If no changes make sense, return an empty object for "changes".
 3. "suggestions": An array of 2 to 3 strings, each containing a short, actionable follow-up prompt suggestion for the user (e.g., "Add a confidentiality clause", "Ensure NCA compliance", "Make the tone more formal"). These should be highly contextual to the current draft.
 
-Current ${documentType} State:
+${guidance ? `Rules for this ${documentType} (these override anything above):\n${guidance}\n\n` : ""}Current ${documentType} State:
 ${JSON.stringify(currentState, null, 2)}
 
 User Command/Intent:

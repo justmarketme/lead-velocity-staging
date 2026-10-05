@@ -2,7 +2,7 @@
  * 08 Reports (portal/spec/08-reports.md; prototype reports.html, templatised from docs/design/broker-weekly-report.html).
  * One `reports` row (view over report_history, INV-T21) feeds WhatsApp, email and this page: payload_json (broker_report/1,
  * automation/W14-broker.md) is the only source of numbers — this page computes nothing. Opens → smc_mark_report_opened();
- * one-ask → smc_report_ask_done() + deep link; ROI inputs → own brokers.close_rate / avg_commission_zar and
+ * one-ask → smc_report_ask_done() + deep link; ROI inputs → own brokers.close_rate (avg_commission_zar no longer collected: agreement clause 8.4) and
  * smc_report_policies_written(p_count) → own cycle's policies_written_reported (FAIS: his view only, never in any fee).
  */
 import { useEffect, useMemo, useState } from "react";
@@ -34,7 +34,6 @@ function Body() {
   const [reports, setReports] = useState<SmcReport[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [cr, setCr] = useState(broker.close_rate !== null ? String(Math.round(Number(broker.close_rate) * 100)) : "");
-  const [ac, setAc] = useState(broker.avg_commission_zar?.toString() || "");
   const [msg, setMsg] = useState<string | null>(null);
   const [pw, setPw] = useState<string | null>(null);
 
@@ -63,11 +62,10 @@ function Body() {
     setMsg(null);
     const rate = cr.trim() === "" ? null : Number(cr) / 100;
     if (rate !== null && !(rate >= 0 && rate <= 1)) return setMsg("Close rate: 0 to 100.");
-    const com = ac.trim() === "" ? null : Number(ac.replace(/[^\d.]/g, ""));
     const pwRaw = pw ?? (rep?.payload_json?.s6_roi?.policies_reported?.toString() || "");
     const count = pwRaw.trim() === "" ? null : Number(pwRaw);
     if (count !== null && !(Number.isInteger(count) && count >= 0 && count <= 1000)) return setMsg("Policies written: a whole number from 0 to 1000.");
-    const { error } = await smcDb.from("brokers").update({ close_rate: rate, avg_commission_zar: com }).eq("id", broker.id);
+    const { error } = await smcDb.from("brokers").update({ close_rate: rate }).eq("id", broker.id);
     let e2: unknown = null;
     if (!error && count !== null && pw !== null) {
       const args: SmcReportPoliciesWrittenArgs = { p_count: count, p_cycle_id: rep?.cycle_id || null };
@@ -156,8 +154,6 @@ function Body() {
               <input id="cr" type="number" inputMode="numeric" min={0} max={100} value={cr} onChange={(e) => setCr(e.target.value)} /> %
               <label htmlFor="pw">Policies written this cycle (your number)</label>
               <input id="pw" type="number" inputMode="numeric" min={0} max={1000} value={pw ?? (s6?.policies_reported ?? "").toString()} onChange={(e) => setPw(e.target.value)} />
-              <label htmlFor="ac">Average commission per policy (optional)</label>
-              <input id="ac" type="text" inputMode="numeric" placeholder="R" value={ac} onChange={(e) => setAc(e.target.value)} />
               <div style={{ height: 10 }} />
               <button className="tap" type="submit">Save</button>
             </form>

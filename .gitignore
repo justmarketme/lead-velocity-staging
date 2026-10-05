@@ -81,3 +81,11 @@ compliance/
 !portal/**/*.json
 !community/**/*.json
 !conversation/**/*.json
+
+# Client invoices carry bank details (NH-61) - never committed
+deliverables/billing/invoice-*
+deliverables/billing/outbox-*/
+
+# Client-specific copies stay out of git
+deliverables/contracts-drafter/lead-generation-agreement/*mark-weston*
+deliverables/contracts-drafter/lead-generation-agreement/email-to-*.md

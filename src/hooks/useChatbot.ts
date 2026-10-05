@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { pricingSummaryText, QUALIFIED_LEAD_TEXT } from "@/lib/pricing";
 
 
 export interface Message {
@@ -30,10 +31,11 @@ Lead Velocity is structured and intentional. We're not another lead vendor hopin
 **KEY DIFFERENTIATOR: We don't just sell leads — we book confirmed appointments and place them directly into the broker's calendar.**
 
 ### WHAT "QUALIFIED" MEANS
-A lead qualifies if it matches geographic/demographic criteria, has expressed interest, provided verified contact details, opted in, and is reachable.
+${QUALIFIED_LEAD_TEXT}
 
-### PRICING
-Do not quote prices, lead volumes or guarantees. Say options depend on the brokerage and invite them to talk to the team via the contact page or the Readiness Assessment.
+### PRICING (from the pricing source; quote exactly, never round or discount)
+${pricingSummaryText()}
+Never promise attendance, sales, policies or results, and never link the fee to policies or commission. Point brokers to /pricing or the contact page.
 
 ### BROKER READINESS ASSESSMENT (Onboarding)
 A 6-step diagnostic to tailor recommendations. Meeting becomes an alignment call.
