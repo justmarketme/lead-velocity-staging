@@ -16,7 +16,9 @@ Status: DRAFT · 5 Oct 2026 · Rules: setup-checklist G8, master prompt 2.1.8 + 
 
 Images are re-rendered by `node brand/scripts/build-warmup.mjs` (data only, existing templates, `lib.mjs` `shot()`).
 
-## Proposed 7-day schedule (18:00 SAST)
+> **Superseded 5 Oct:** the live schedule is now `../week1-posts/README.md`: these 5 posts plus Reel R01 and the FAQ carousel over 7 days. Open item 1 (video) is answered there.
+
+## Proposed 7-day schedule (18:00 SAST), superseded
 
 Day 1 = the first full day after the SortMyCover Page and Instagram exist (G2 done).
 
@@ -31,6 +33,8 @@ Day 1 = the first full day after the SortMyCover Page and Instagram exist (G2 do
 Post the same image + text on Facebook and Instagram (Business Suite can do both in one post; use the IG caption with hashtags for Instagram).
 
 **Edits 5 Oct (`../profile-kit.md` §3):** stronger first lines on WU01, WU03, WU05 and "free" on WU04. Every post now ends its body with the soft CTA "Questions about the free 30-minute call? Send us a message." (to the Page "Send message" button), then the hashtags (IG) and DISC-S97-v1. Keyword comment CTAs ("comment CALL") are not used: 4.14 bans comment-bait. WU05 is the pinned post. FB lengths are now 542–674 chars.
+
+**Changed again 5 Oct (Jonathan, supersedes the soft CTA and DISC-S97-v1 on social):** every post now ends with the CTA `Pick a time for a free 30-minute call with a licensed adviser: sortmycover.co.za` (scheduled wording, Jonathan 5 Oct: never imply the call happens now) (WhatsApp version with `{{WA_LINK}}` in each file), then hashtags (IG), then `SortMyCover gives no financial advice, product comparisons or premium quotes.` No "Lead Velocity" in any social copy or image (competitors must not see the link). WU04's image footer must be re-rendered (`build-warmup.mjs` data updated). WU05's fee line now says "Advisers pay SortMyCover…" (compliance-qa to re-pass P-4).
 
 ## Open items (not solved here)
 

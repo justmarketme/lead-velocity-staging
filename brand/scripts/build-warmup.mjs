@@ -17,7 +17,7 @@ const jobs = [
   { t: 'feed.html', w: 1080, h: 1350, out: 'WU03-life-events-1080x1350.png',
     data: feed45('Cover that fitted then\n**may not fit now.**', 'A new bond, a baby or a job change can change what a family needs.', ['Life event', 'New bond'], ['Life event', 'Job change']) },
   { t: 'what-to-expect-card.html', w: 1080, h: 1080, out: 'WU04-30-minute-call-1080x1080.png',
-    data: { title: 'What happens on a\n**30-minute call**', s1: 'Hello and licence details', s1m: 'The adviser shares them first', s2: 'The family, in plain words', s2m: 'No trick questions', s3: 'Options explained', s3m: 'No pressure. Decide later, or not.', footer_line: '30 minutes · Free · No obligation', who: 'A service of Lead Velocity (Pty) Ltd' } },
+    data: { title: 'What happens on a\n**30-minute call**', s1: 'Hello and licence details', s1m: 'The adviser shares them first', s2: 'The family, in plain words', s2m: 'No trick questions', s3: 'Options explained', s3m: 'No pressure. Decide later, or not.', footer_line: '30 minutes · Free · No obligation', who: 'Pick a time at sortmycover.co.za' } }, // 5 Oct (Jonathan): no Lead Velocity on social images; scheduled-call wording
   { t: 'feed.html', w: 1080, h: 1350, out: 'WU05-how-sortmycover-works-1080x1350.png',
     data: feed45('Who gives the advice?\n**Not SortMyCover.**', 'SortMyCover books a free call with a licensed adviser. It never takes commission.', ['SortMyCover', 'Books the call'], ['Licensed adviser', 'Gives advice']) },
 ];

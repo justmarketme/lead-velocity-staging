@@ -6,16 +6,17 @@
   "source": [
    "FAQ-01"
   ],
-  "prefix": "The quiz takes about a minute. "
+  "prefix": "The quiz takes about a minute. ",
+  "suffix": " The call is booked for a time you pick."
  },
  {
   "id": "cost",
   "q": "Does the call cost anything?",
-  "a": "No, the call is free, and there's no obligation to buy anything. Advisers pay Lead Velocity the same flat fee for each 30-day cycle, and you pay nothing. It is never a commission and never a share of any policy.",
+  "a": "No, the call is free, and there's no obligation to buy anything. Advisers pay SortMyCover the same flat fee for each 30-day cycle, and you pay nothing. It is never a commission and never a share of any policy.",
   "source": [
-   "FAQ-02",
-   "FAQ-09"
-  ]
+   "FAQ-02"
+  ],
+  "suffix": " Advisers pay SortMyCover the same flat fee for each 30-day cycle, and you pay nothing. It is never a commission and never a share of any policy."
  },
  {
   "id": "adviser",
@@ -25,7 +26,7 @@
  {
   "id": "info",
   "q": "What happens to my information?",
-  "a": "Lead Velocity (Pty) Ltd looks after it under POPIA. Your details go to one adviser, the one you are introduced to, and we never sell them. The service providers we use are listed in the privacy notice, and Meta gets a coded (hashed) contact for ad measurement, as the consent line says. Reply STOP to any message and we stop. You can ask us to delete your details at any time."
+  "a": "SortMyCover looks after it under POPIA. The privacy notice names the company responsible for it. Your details go to one adviser, the one you are introduced to, and we never sell them. The service providers we use are listed in the privacy notice, and Meta gets a coded (hashed) contact for ad measurement, as the consent line says. Reply STOP to any message and we stop. You can ask us to delete your details at any time."
  },
  {
   "id": "cancel",

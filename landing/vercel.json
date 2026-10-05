@@ -4,29 +4,28 @@
   "buildCommand": "node build-site.mjs",
   "outputDirectory": "site",
   "framework": null,
-  "trailingSlash": false,
   "redirects": [
     {
-      "source": "/:path*",
+      "source": "/(.*)",
       "has": [
         {
           "type": "host",
           "value": "(www\\.)?sortmycover\\.com"
         }
       ],
-      "destination": "https://sortmycover.co.za/:path*",
-      "permanent": true
+      "destination": "https://sortmycover.co.za/$1",
+      "statusCode": 301
     },
     {
-      "source": "/:path*",
+      "source": "/(.*)",
       "has": [
         {
           "type": "host",
           "value": "www.sortmycover.co.za"
         }
       ],
-      "destination": "https://sortmycover.co.za/:path*",
-      "permanent": true
+      "destination": "https://sortmycover.co.za/$1",
+      "statusCode": 301
     }
   ],
   "headers": [

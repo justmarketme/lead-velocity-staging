@@ -60,7 +60,7 @@ if __name__ == '__main__':
     # drop footer legal disclosure (verbatim required text) and the consent block (verbatim legal text) from the page grade, report both
     full = p.units
     g, w, s = grade(full)
-    legal = [u for u in full if u.startswith('I agree that Lead Velocity') or u.startswith('SortMyCover is a service of')]
+    legal = [u for u in full if u.startswith('I agree that SortMyCover') or u.startswith('SortMyCover gives no financial advice')]
     body = [u for u in full if u not in legal]
     gb, wb, sb = grade(body)
     print(f'{f}\n  all visible copy:      grade {g:4.1f}  ({w} words, {s} sentences)')

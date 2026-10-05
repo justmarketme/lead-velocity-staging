@@ -31,7 +31,7 @@
   "cal_desc": "Your adviser’s details are in your WhatsApp.",
   "result_yes": "A licensed adviser can check what your work cover includes, and what it does not.",
   "result_unsure": "A licensed adviser can find out what is in place and look at your actual numbers.",
-  "result_no": "Based on your answers, a licensed adviser can look at your actual numbers in a 30-minute call.",
+  "result_no": "Based on your answers, a licensed adviser can look at your actual numbers in a free 30-minute call, booked for a time that suits.",
   "methods": {
     "teams": "Video (Teams)", "zoom": "Video (Zoom)", "google_meet": "Video (Google Meet)",
     "whatsapp_call": "WhatsApp call", "phone": "Phone"

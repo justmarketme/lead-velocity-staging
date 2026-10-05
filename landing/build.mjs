@@ -34,7 +34,7 @@ const faqDefault = faqFallback.map((q) => {
   if (!q.source) return q;
   const parts = q.source.map((id) => corpus[id]);
   if (parts.some((x) => !x || /\{\w+\}/.test(x))) { warnings.push(`faq ${q.id}: source ${q.source.join('+')} missing or has placeholders; using config/faq.json text`); return q; }
-  return { ...q, a: (q.prefix || '') + parts.join(' ') };
+  return { ...q, a: (q.prefix || '') + parts.join(' ') + (q.suffix || '') };
 });
 const strings = json(R('config/strings.json'));
 const prod = site.env === 'production';
@@ -132,8 +132,7 @@ for (const f of angleFiles) {
     gap_h2: a.gap_h2 || GAP.h2, gap_p: a.gap_p || GAP.p,
     consent_html: consentHtml, consent_text: consentPlain, consent_version: c.version, footer_line: consentCfg.footer_line,
     proof_html: proofHtml, faq_html: faqHtml,
-    reg_html: site.company_reg_no ? ` · Company Reg No ${esc(site.company_reg_no)}` : '',
-    contact_email: site.contact_email, privacy_url: site.privacy_url, how_we_make_money_url: site.how_we_make_money_url, complaints_url: site.complaints_url, optout_url: site.optout_url,
+    contact_email: site.contact_email, privacy_url: site.privacy_url, terms_url: site.terms_url, how_we_make_money_url: site.how_we_make_money_url, complaints_url: site.complaints_url, optout_url: site.optout_url,
     strings_json: JSON.stringify(strings).replace(/</g, '\\u003c'),
   };
   const html = render(tpl, vars);
@@ -159,7 +158,7 @@ function thanksPage(v, a) {
   return `<!doctype html><html lang="${esc(v.lang)}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Thank you | SortMyCover</title><meta name="robots" content="noindex,nofollow"><meta name="smc-pixel-id" content="${esc(v.pixel_id)}"><style>${v.css}</style><script src="/shared/pixel.js" defer></script></head><body>
 <header class="top"><div class="wrap"><span class="logo">SortMyC<span class="tick" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>ver</span></div></header>
 <main><section class="quiz"><div class="wrap"><div class="card"><div class="done"><div class="big" aria-hidden="true">✓</div><h1 style="font-size:22px;margin:10px 0 6px">Thanks. Check your WhatsApp.</h1><p>${esc(strings.done_not_p)}</p></div></div></div></section></main>
-<footer><div class="wrap"><span>${esc(v.footer_line)}</span><nav aria-label="Footer" class="links"><a href="${esc(v.privacy_url)}">Privacy notice</a><a href="${esc(v.optout_url)}">Opt-out</a></nav></div></footer></body></html>`;
+<footer><div class="wrap"><span>${esc(v.footer_line)}</span><nav aria-label="Footer" class="links"><a href="${esc(v.privacy_url)}">Privacy notice</a><a href="${esc(v.terms_url)}">Terms</a><a href="${esc(v.optout_url)}">Opt-out</a></nav></div></footer></body></html>`;
 }
 
 for (const w of warnings) console.warn('WARN  ' + w);

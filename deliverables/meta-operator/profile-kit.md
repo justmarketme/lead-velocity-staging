@@ -1,6 +1,6 @@
 # SortMyCover Page + Instagram: profile kit (paste-ready)
 
-Status: DRAFT v1 · 5 Oct 2026 · Owner: creative-strategist (for meta-operator / Jonathan to paste) · compliance-qa pass needed on every new string marked NEW.
+Status: DRAFT v1.1 · 5 Oct 2026 (v1.1 = changes from `page-optimisation-research.md`: away message §1 #11, badge target §4 #4, IG pins, cadence §4 #1) · Owner: creative-strategist (for meta-operator / Jonathan to paste) · compliance-qa pass needed on every new string marked NEW.
 Rules applied: 0.1, 1.1 (ICP), 1.2 (no broker/FSP on Page, IG, ads, site), 2.1.8 (no second-person claims about money, family or health), 4D.2, 4D.4a, 4.14 (W30/W31), disclosure-wording.md §4a (bios are consumer copy, not disclosure).
 Character counts include spaces and punctuation. A line break counts as 1.
 
@@ -19,7 +19,8 @@ Character counts include spaces and punctuation. A line break counts as 1.
 | 7 | Action button if the domain is live but WhatsApp is not | **Learn more** → `https://sortmycover.co.za` | — | Never the staging host. |
 | 8 | Website / email | Leave empty until GATE-DOMAINS and the hello@ alias test pass | — | setup-checklist G2a #6–7. |
 | 9 | Messenger ice-breakers (Page → Inbox → Automations → FAQs) | 1. `How does the free call work?` 2. `Does SortMyCover give advice?` 3. `Who are the advisers?` | 28 / 29 / 21 | 4.14 setup. Questions, not claims. Answers come from the FAQ corpus (W31) or a person until W31 is live. Instant reply: **off** (4.14: we own the first reply). |
-| 10 | Reviews / Recommendations tab | Off for now | — | 4D.4b.5 #6: proof only once it is real. Switch on after the first real calls. |
+| 10 | Reviews / Recommendations tab | Off for now | — | 4D.4b.5 #6: proof only once it is real. Switch on after the first real calls. Meta can't delete single reviews; switching off removes all (page-optimisation-research.md #5). |
+| 11 | Away message (Inbox → Automations), 22:00–07:00 SAST **NEW** | `Thanks for the message. SortMyCover replies from 07:00. We don't give advice ourselves.` | 85 | Added 5 Oct (research spec #3). It doesn't conflict with "Instant reply off": it only runs outside hours. Target: Meta's **Very responsive** badge (≥ 90 % response rate, < 15 min). Spam → Spam folder, finished → Done, so neither counts against the rate. compliance-qa to check the wording. (6 Oct self-check: "your message" changed to "the message" to keep the no-you/your rule; no advice, product, price or broker named.) |
 
 **Pinned post (Facebook allows one): WU05 "Who gives the advice? Not SortMyCover."**
 Why: anyone who sees an ad and taps through to the Page is checking one thing: "is this legit, and what's the catch?" WU05 answers it in the first line (no advice, a licensed adviser gives it, flat fee, no commission). It is the objection-busting post (Ethos pattern: remove the fear first), it backs every "scam?" reply in W30 (4.14 objection row), and it is the only post that shows the business model, which is what makes a broker-neutral Page believable. Swap to the WU04 Reel (§2, post 6) only if Page-visit → message rate is flat after 2 weeks of ads.
@@ -66,12 +67,12 @@ Titles ≤ 15 characters so they don't truncate. A highlight needs at least one 
 | 3 | WU02 Payslip cover line (4:5) | Ready | Practical, saveable; speaks to the employed ICP |
 | 4 | WU03 Life events (4:5) | Ready | Trigger events: bond, baby, marriage, job, business |
 | 5 | WU04 30-minute call (1:1) | Ready | Removes fear of the unknown (main no-show driver, H10) |
-| 6 | Reel: WU04 as a 15–20 s captioned video | **To make** (README open item 1) | First video → fills `SMC_ENG_video75_30d` |
-| 7 | Carousel: "Does SortMyCover give advice? 4 straight answers" | **To make** | Feeds the FAQ highlight; pre-answers W30 objections |
+| 6 | Reel R01 "Who gives the advice?" (20 s, 9:16) | **Scripted + build data** (`week1-posts/D3-reel-R01.md`) | First video → fills `SMC_ENG_video75_30d` |
+| 7 | Carousel C-FAQ "Four straight answers" (5 cards, 4:5) | **Copy + build data** (`week1-posts/D5-faq-carousel.md`) | Feeds the FAQ highlight; pre-answers W30 objections. Card 5 = "Who are the advisers?" (replaces post 9's content) |
 | 8 | Reel: H4 "New bond. New baby. Same old cover?" | **To make** (from 4D.4a, organic cut) | Second video; trigger-event hook |
 | 9 | Static: "Who are the advisers?" (copy in Advisers row above) | **To make** | Trust; feeds the Advisers highlight |
 
-**Pin on IG (3 allowed):** WU05, WU04 (replace with post 6 once it is up), WU01. The top row then always answers "who are you, what happens, why bother".
+**Pin on IG (3 allowed), updated 5 Oct:** WU05, Reel R01 (post 6), FAQ carousel (post 7). Until R01 and the carousel are up, pin WU04 and WU01 in those slots. Why the change (page-optimisation-research.md #3): people who come from an ad have already seen the gap angle, so the top row should answer "is this legit, what happens, what's the catch". Carousels are also IG's highest-engagement format (Socialinsider, B).
 **Grid crop:** the IG profile grid shows a 3:4 crop. Check each thumbnail after posting (Edit → Adjust preview) so the headline isn't cut; WU04 (1:1) loses the most at the sides.
 Posts 6–9 go to visual-producer (code-rendered, brand lock) and compliance-qa, same rules as WU01–05.
 
@@ -101,10 +102,10 @@ Checked: no advice, no price, no guarantee, no "you/your", no link. It points at
 
 ## 4. Conversion rules for this Page (FB + IG)
 
-1. **Cadence.** Warm-up: the 5 WU posts over 7 days at 18:00 SAST (README). After that: 2–3 posts a week, at least 1 video a week, always educational. Every post = one idea, third person, ends with DISC-S97-v1. Same post to FB and IG.
+1. **Cadence (updated 5 Oct, research spec #1, #6, #7).** Warm-up: 7 posts over 7 days at 18:00 SAST (`week1-posts/README.md`: 5 WU stills + Reel R01 + FAQ carousel). After that: **3–4 posts a week** (Rival IQ financial-services median ≈ 4.3/wk, B), with **at least 1 Reel and 1 carousel a week**. Always educational and original (IG stops recommending accounts that mostly repost). Every post = one idea, third person, ends with DISC-S97-v1. Same post to FB and IG. **≤ 5 hashtags** (IG hard cap since Dec 2025; extra tags are ignored). Share each feed post to Stories the same day; that feeds Highlights. Test a 07:00 slot against 18:00 only after 4 weeks of Insights.
 2. **Comment-to-DM (W30).** One public reply per comment (≤ 2 sentences, Grade 5–7, no link) + one private reply (once, within 7 days) with one line on what happens and, once live, the WhatsApp (CTWA) link with `ref=cmt_{ad_id}`. Max 2 public exchanges per person per post, then "let's continue privately". Until W30 is live, Jonathan/KG do exactly this by hand.
 3. **DMs (W31).** Say it's SortMyCover (and "assistant (AI)" once W31 answers); answer from the FAQ; one qualifying question only if they reply; move to WhatsApp. **Before WhatsApp is live:** answer the question, never ask for or store a phone number in Messenger/IG, and don't message again unless they reply (no consent to market, 2.1.2).
-4. **Response time.** Public replies < 15 min, 07:00–22:00 SAST (5 min in a new ad's first 2 h); private reply ≤ 5 min after the public one; overnight queue answered from 07:15. Complaints: a human within 30 min. Sensitive (illness, death, claims): human only, private only.
+4. **Response time.** Public replies < 15 min, 07:00–22:00 SAST (5 min in a new ad's first 2 h); private reply ≤ 5 min after the public one; **Messenger/IG DMs < 15 min with ≥ 90 % answered** (Meta's "Very responsive" badge threshold, A; away message §1 #11 covers 22:00–07:00); overnight queue answered from 07:15. Complaints: a human within 30 min. Sensitive (illness, death, claims): human only, private only.
 5. **Hide, don't delete.** Spam, abuse, competitor links: hide within 10 min. Someone posts their own number or ID: hide at once (POPIA) and send one private note. Never delete criticism; answer objections once, calmly, in public.
 6. **Profanity filter on; hidden-words list** (slurs, scam phrases, competitor URLs, phone-number pattern): HUMAN GATE, Jonathan approves the list (4.14).
 7. **Every objection seen 3 times** becomes a line in an ad, a FAQ frame or a post (4.14 hygiene → creative-strategist).

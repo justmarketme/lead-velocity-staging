@@ -1,5 +1,108 @@
 # SortMyCover: disclosure line and approved short forms
 
+Version: **DW-v2 · 5 Oct 2026** (supersedes DW-v1 of 2 Oct 2026; v1 is kept below in Appendix A as the disclosure evidence trail, per §5) · Owner: brand-naming-lead (form and placement) · **contracts-drafter owns the legal wording** · compliance-qa checks every surface
+
+## V2-0. The decision (Jonathan, 5 Oct 2026)
+
+**Competitors must not be able to see that SortMyCover belongs to Lead Velocity.** From today, Lead Velocity (Pty) Ltd is named on a consumer surface only where the law requires it.
+
+| Placement | Names Lead Velocity? | Why |
+|---|---|---|
+| `privacy.html` | **Yes**: name, registration number, address, Information Officer | POPIA s18(1)(b): the responsible party's name and address must be given where personal information is collected |
+| `terms.html` | **Yes**: legal party and address | The terms need a named counterparty |
+| Consent text beside any form or WhatsApp opt-in | **No**: it says "SortMyCover". The privacy notice link beside it names the company | The consent wording may use the brand while the notice carries the legal name. New versions `CONSENT-NAMED-v2` and `CONSENT-GENERIC-v2` |
+| Everything else: site footer, About, How we make money, Learn, 404, Complaints, landing pages and thank-you pages, ad end-cards, Page and profile fields, WhatsApp profile, consumer email signature, intro card | **No** | Not required |
+| schema.org JSON-LD | **No**: Organization `name` is "SortMyCover" only. No `parentOrganization`, `legalName`, `identifier` or address | Structured data must match the visible text, and the visible text no longer names the company |
+
+Rules that go with it:
+1. Fact 1 of DW-v1 ("a service of Lead Velocity (Pty) Ltd") is dropped from every form outside the two legal pages. Facts 2 and 3 become one line (`DISC-FULL-v2`).
+2. The line says what SortMyCover does not do, and who does. It adds no claim about price, product or outcome.
+3. **No surface may say or imply that no company stands behind SortMyCover.** If a consumer asks who is responsible, the answer is the privacy notice and the terms. Hiding the name from competitors must never mislead a consumer.
+4. One inbox on consumer surfaces: `hello@sortmycover.co.za` (resolves M1 for the holding pages; see V2-4).
+5. Broker-facing documents (agreements, invoices, the weekly report, the broker portal) are not consumer surfaces. Lead Velocity stays the contracting party there.
+
+## V2-1. Approved forms
+
+Character counts are hand-counted, including spaces and punctuation. The person pasting re-checks them in the platform field.
+
+| ID | Surface | Text (verbatim) | Chars |
+|---|---|---|---|
+| `DISC-FULL-v2` | Site footer (every page), About, How we make money, Learn, 404, Complaints, landing pages and their thank-you pages, Facebook Page "About → details", A4 consumer documents | SortMyCover gives no financial advice, product comparisons or premium quotes. Licensed financial advisers do. | 109 |
+| `DISC-S91-v2` | **Ad end-card** small print (the brand is already on the card) | No financial advice, product comparisons or premium quotes. Licensed financial advisers do. | 91 |
+| `DISC-WA-DESC-v2` | WhatsApp Business profile: Description | SortMyCover gives no financial advice, product comparisons or premium quotes. Licensed financial advisers do. Our WhatsApp assistant uses AI. Type "person" at any time to reach a human. Reply STOP to opt out. Privacy: sortmycover.co.za/privacy.html | 248 |
+| `DISC-CARD-v2` | Broker intro card, strip under the broker's details | Introduced by SortMyCover. SortMyCover gives no financial advice, product comparisons or premium quotes. | 104 |
+| `DISC-EMAIL-v2` | Consumer email signature (below) | `DISC-FULL-v2` plus a privacy link | n/a |
+| `BIO-FB-v3`, `BIO-IG-v3` | Facebook intro, Instagram bio | **Unchanged** (§4a of v1): bios describe the service and carry no disclosure | 95, 131 |
+| `DISC-S97-v1`, `DISC-S148-v1` | Old short forms | **Withdrawn.** They named Lead Velocity. Use `DISC-S91-v2` on end-cards. Bios use `BIO-*-v3` | n/a |
+| `CONSENT-NAMED-v2` | Named consent, beside the form | I agree that SortMyCover may share my details with {practice_name} (FSP {fsp_number}), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. + `CONSENT-ADS-v1` sentence + "Privacy notice" link | n/a |
+| `CONSENT-GENERIC-v2` | Generic consent (only if the practitioner approves it) | I agree that SortMyCover may share my details with an authorised financial services provider (FSP), who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. + `CONSENT-ADS-v1` sentence + link | n/a |
+
+`DISC-CARD-v2` keeps the third person ("SortMyCover gives…", not "we") because the card carries the adviser's face. It still needs contracts-drafter sign-off (M6).
+
+### `DISC-EMAIL-v2` (consumer-facing sends from hello@sortmycover.co.za)
+```
+{Sender first name} · SortMyCover
+hello@sortmycover.co.za · sortmycover.co.za
+Sort your cover. 30 minutes. A real adviser.
+
+SortMyCover gives no financial advice, product comparisons or premium quotes. Licensed financial advisers do.
+Privacy: sortmycover.co.za/privacy.html
+```
+Broker-facing mail keeps the Lead Velocity signature from howzit@leadvelocity.co.za.
+
+### Footer pattern (built on the holding site and the landing template)
+`DISC-FULL-v2` · `hello@sortmycover.co.za` · links: Learn, About, How we make money, **Privacy, Terms**, Complaints (landing pages: Privacy notice, Terms, How we make money, Complaints, Opt-out). No company name, no registration number, no address. Privacy and Terms are on every page, so the legal party is one click away.
+
+## V2-2. Where each form goes (placement map, v2)
+
+| Surface | Form | Notes |
+|---|---|---|
+| Site footer, every page | `DISC-FULL-v2` | Endorsement lock-up, `hello@`, links incl. Privacy and Terms. **No Reg No** |
+| About page | `DISC-FULL-v2` | Says SortMyCover is a South African service and points to the privacy notice and terms for the responsible company. No address, Reg No or Information Officer |
+| Form / consent area | `CONSENT-*-v2` | Privacy link always beside it |
+| `privacy.html`, `terms.html` | Legal text, **names Lead Velocity** | The only two places. The footer on these two pages is the same `DISC-FULL-v2` |
+| Facebook Page | `DISC-FULL-v2` in About → details; intro = `BIO-FB-v3` | |
+| Instagram | `BIO-IG-v3` | |
+| WhatsApp Business profile | `DISC-WA-DESC-v2` + `DISC-WA-ABOUT-v1` | Privacy link in the Description |
+| WhatsApp templates and assistant | No company name | Needs automation-engineer and conversation-designer to align (V2-3) |
+| Ad end-card | `DISC-S91-v2` | Line + "Tap to check your cover". No broker, no FSP number (1.2) |
+| Consumer email | `DISC-EMAIL-v2` | |
+| A4 consumer documents | `DISC-FULL-v2` in the footer | |
+| Broker intro card | `DISC-CARD-v2` | |
+
+## V2-3. Files that still carry the v1 line (found 5 Oct; not changed by this decision's author)
+
+Done in this change set: `landing/holding/*` (all pages except the privacy and terms bodies), `landing/template`, `landing/config` (consent, faq, site), `landing/angles`, `landing/reference`, `landing/tests`.
+
+Still on v1. Each owner updates their own files and bumps their own version:
+| Owner | Files |
+|---|---|
+| visual-producer / brand | `brand/templates/{endcard-16x9,reels-endcard,a4-document,intro-card}.html`, `brand/tokens.json`, `brand/brand-bible.md`, `brand/scripts/build-bible-pdf.mjs`, `brand/scripts/build-week1.mjs`, `deliverables/visual-producer/**` (assets manifest, engine, render and review scripts) |
+| meta-operator | `deliverables/meta-operator/{profile-kit,setup-checklist,jonathan-clicks,appeal-playbook,existing-assets-inventory,setup-existing-lv-account,template-submission-runbook,first-principles}.md`, `warmup-posts/`, `current-posts/`, `week1-posts/`, `daily/` |
+| media-buyer | `deliverables/media-buyer/instant-form-spec.json` (consent text on the Instant Form) |
+| automation-engineer / conversation-designer | `automation/W03.json`, `automation/lib/w05.mjs`, `conversation/persona.md`, `knowledge/faq.md` (Thandi's intro line, FAQ-09, FAQ-15 and their Afrikaans lines; the landing FAQ no longer reads FAQ-09), `community/reply-corpus.md`, `evals/golden-set.json` (run the eval gate after the edit) |
+| contracts-drafter | `deliverables/contracts-drafter/consent-and-privacy.md` (CP-v0.1 consent text and Part 5 footer: align to `CONSENT-*-v2`), `consumer-terms.md`, `information-officer-pack.md`, `paia-manual.md`, `compliance-register.md` |
+| orchestrator | `docs/MASTER-PROMPT.md`: 2.1.2 default consent line, 2.1.3 ("Lead Velocity appears only in the footer/privacy notice"), 4.5 trust copy, 4D.2 rule 8 |
+| search-findability-lead | `deliverables/search-findability-lead/serp-plan.md` (Organization schema `parentOrganization`, "named author entity (Lead Velocity)") |
+| compliance-qa | Re-check every surface in V2-2 after the owners above finish. The `deliverables/compliance-qa/*` review notes are history and stay as written |
+
+## V2-4. Flags for the owners (nothing decided here)
+
+| # | Flag | Owner |
+|---|---|---|
+| F1 | **Consent version change.** `CONSENT-NAMED/GENERIC-v1` read "Lead Velocity may share…". v2 reads "SortMyCover may share…". CP-v0.1 asks for word-for-word text with a version ID, and every stored lead carries the exact wording shown. Align CP-v0.1 and re-sign before the quiz pages go live. Ask the practitioner (2.3) about brand-only consent plus a privacy link | contracts-drafter, compliance-qa |
+| F2 | **YMYL trust.** Google's guidance wants a named responsible entity. It is now on Privacy and Terms only (linked from every footer), no longer in the footer or About. Watch the Search Console brand queries and any Meta review for a "who is behind this" objection; the About page carries the pointer | search-findability-lead |
+| F3 | **Meta review.** If Meta asks who runs the Page, answer truthfully (Lead Velocity is the advertiser of record, 2.1.3). This decision is about competitor visibility, not about hiding from the platform or the regulator | meta-operator |
+| F4 | `privacy.html` and `terms.html` still give `howzit@leadvelocity.co.za` as the contact. It is the same inbox as `hello@sortmycover.co.za` (M1). Pick one; the legal pages are contracts-drafter's | contracts-drafter |
+| F5 | **Google Business Profile and any directory listing** must follow the footer: brand name only, no Lead Velocity name in the NAP block. The business address is no longer on the site (it is in the privacy notice), so a service-area listing is the fit | search-findability-lead |
+
+## V2-5. Change control
+Unchanged from v1 §5: any change to the full line starts in CP-v0.1 (contracts-drafter) and flows here; short forms are regenerated from it; compliance-qa re-checks every surface; version every change (`DISC-*-v3`) and keep the old text. v2 is a **brand decision by Jonathan**, so CP-v0.1 follows this file for the wording of the public line until the practitioner opinion says otherwise.
+
+---
+
+# Appendix A: DW-v1 (superseded 5 Oct 2026, kept as the evidence trail)
+
 Version: DW-v1 · 2 Oct 2026 · Owner: brand-naming-lead (form and placement) · **contracts-drafter owns the legal wording** · compliance-qa checks every surface
 
 **Source of truth:** 4D.2 rule 8, as already adopted word for word by contracts-drafter in `deliverables/contracts-drafter/consent-and-privacy.md` (CP-v0.1, `CONSENT-FOOTER-v1` §1.5 and Part 5). This file adds **no new claims**. It only fits the same three facts into shorter fields:

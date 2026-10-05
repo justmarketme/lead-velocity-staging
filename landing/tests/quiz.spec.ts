@@ -106,7 +106,7 @@ test('qualified path: validation, consent, /lead payload, Teams booking with ema
   // consent is unticked by default and the label carries the named line + ads sentence
   assert.equal(await page.locator('#consent').isChecked(), false);
   const consentText = await page.locator('#consentText').innerText();
-  assert.match(consentText, /I agree that Lead Velocity may share my details with \[PRACTICE NAME\] \(FSP \[FSP NUMBER\]\), an authorised financial services provider/);
+  assert.match(consentText, /I agree that SortMyCover may share my details with \[PRACTICE NAME\] \(FSP \[FSP NUMBER\]\), an authorised financial services provider/);
   assert.match(consentText, /We also use your details in coded \(hashed\) form to measure and improve our ads on Facebook and Instagram\./);
 
   // empty submit -> errors, nothing sent
@@ -140,7 +140,7 @@ test('qualified path: validation, consent, /lead payload, Teams booking with ema
   assert.equal(lead.body.angle, 'new-bond');
   assert.equal(lead.body.company_website, '');
   assert.deepEqual([lead.body.age_band, lead.body.bond, lead.body.dependants, lead.body.work_cover, lead.body.budget_band], ['45_50', 'soon', 'extended', 'unsure', '1250plus']);
-  assert.match(lead.body.consent_text, /^I agree that Lead Velocity may share my details with/);
+  assert.match(lead.body.consent_text, /^I agree that SortMyCover may share my details with/);
   assert.equal(lead.body.context.event_name, 'Lead');
   assert.ok(lead.body.context.event_id);
   assert.ok(!Object.keys(lead.body.context).some((k) => /^(fn|ln|em|ph|first_?name|phone|mobile|email)$/i.test(k)), 'context carries no PII keys');

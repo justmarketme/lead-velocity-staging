@@ -24,6 +24,15 @@ One Vercel project, `sortmycover` (team jonos-projects-8697404e), serves the who
 | Staging noindex | `X-Robots-Tag: noindex` on `*.vercel.app` hosts. Preview deployments are also behind Vercel login (SSO protection), which replaces the old basic-auth staging host |
 | Expires / cache rules | `Cache-Control` headers per file type |
 
+## Holding-only deploy (used 5 Oct 2026, 23:10 SAST, before the quiz pages and n8n were ready)
+```
+node landing/prepare-holding-deploy.mjs <deploy-dir>      # copies landing/holding (no staging/, deploy.md, README.md), writes vercel.json, fails on {{placeholders}}, forms, or "Lead Velocity" outside privacy/terms
+cd <deploy-dir> && vercel link --yes --project sortmycover --scope jonos-projects-8697404e
+vercel deploy --prod --yes --scope jonos-projects-8697404e
+```
+Files land in `<deploy-dir>/landing/` because the project's Root Directory is `landing`. Redirects use `/(.*)` and `$1` with `statusCode: 301`: the `/:path*` form does not match `/` or `/learn/` on Vercel (www stayed 200 until fixed). Do not set `trailingSlash: false` (canonical URLs are `/learn/`).
+The one place to change when the WhatsApp number is ready: the `href` on `#book-link` in `landing/holding/book.html` (comment in the file). Every call-to-action on the site points to `/book.html`.
+
 ## 0. Pre-flight (before the first production deploy)
 - [x] `2025/637858/07` (CIPC) filled in.
 - [x] Information Officer: Jonathan West (privacy.html, terms.html).

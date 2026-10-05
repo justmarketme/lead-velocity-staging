@@ -3,7 +3,7 @@
     "purpose": "Create body for POST /{page_id}/leadgen_forms (Graph API, version pinned by ads-api-engineer; event-spec assumes v23.0). Keys starting with underscore are NOT API fields: strip them before sending.",
     "owner": "media-buyer (settings) -> ads-api-engineer (API call) -> meta-operator (UI-only parts, human gate at publish)",
     "form_variant": "A1 Higher Intent (primary). A2 Rich Creative is a second form with the same questions and the content in _rich_creative_a2; build it paused.",
-    "consent_text_version": "CONSENT-NAMED-v1 + CONSENT-ADS-v1 (deliverables/contracts-drafter/consent-and-privacy.md sections 1.2, 1.4, 1.5, 1.7; status DRAFT for practitioner review). Wording must stay word for word the same as that file; if it changes, regenerate this file.",
+    "consent_text_version": "CONSENT-NAMED-v2 + CONSENT-ADS-v1 (deliverables/contracts-drafter/consent-and-privacy.md sections 1.2, 1.4, 1.5, 1.7; status DRAFT for practitioner review). Wording must stay word for word the same as that file; if it changes, regenerate this file.",
     "placeholders": "{practice_name} and {fsp_number} come from the brokers row (consent_mode = named). Fail closed: if either is empty, do not create or publish the form. {PRIVACY_URL} = https://sortmycover.co.za/privacy once live.",
     "verify_on_test_before_publish": [
       "Which field/value makes the form Higher Intent (assumed form_type or is_optimized_for_quality; confirm in the API reference or set in the UI)",
@@ -33,7 +33,7 @@
     "content": [
       "Sort your cover. 30 minutes. A real adviser.",
       "A few quick taps, then a licensed adviser's details and call times arrive on WhatsApp. No obligation.",
-      "SortMyCover is a service of Lead Velocity (Pty) Ltd. We connect you with authorised financial services providers. We do not give financial advice, compare products or quote premiums."
+      "SortMyCover gives no financial advice, product comparisons or premium quotes. Licensed financial advisers do."
     ],
     "button_text": "Continue"
   },
@@ -94,13 +94,13 @@
   "custom_disclaimer": {
     "title": "How we use your details",
     "body": {
-      "text": "SortMyCover is a service of Lead Velocity (Pty) Ltd. We connect you with authorised financial services providers. We do not give financial advice, compare products or quote premiums. Privacy notice: sortmycover.co.za/privacy"
+      "text": "SortMyCover gives no financial advice, product comparisons or premium quotes. Licensed financial advisers do. Privacy notice: sortmycover.co.za/privacy"
     },
     "checkboxes": [
       {
         "key": "consent_named_v1_ads_v1",
         "is_required": true,
-        "text": "I agree that Lead Velocity may share my details with {practice_name} (FSP {fsp_number}), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message."
+        "text": "I agree that SortMyCover may share my details with {practice_name} (FSP {fsp_number}), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message."
       }
     ],
     "_notes": [

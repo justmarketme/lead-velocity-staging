@@ -199,7 +199,7 @@ function ingestItem(fx, { withText = true } = {}) {
     bond_children: { bond: f.has_bond === 'yes', children: f.has_dependants === 'yes' }, preferred_method: f.preferred_method,
     consent: withText
       ? { given: p.custom_disclaimer_responses.some((r) => r.checkbox_key === 'consent' && r.is_checked === '1'), text_version: p.consent_text_version, text: FIX.consent_texts[p.consent_text_version], captured_at: p.created_time }
-      : { given: true, source: 'meta_instant_form', text_version: 'CONSENT-NAMED-v1+CONSENT-ADS-v1', captured_at: p.created_time },
+      : { given: true, source: 'meta_instant_form', text_version: 'CONSENT-NAMED-v2+CONSENT-ADS-v1', captured_at: p.created_time },
     is_synthetic: true } };
 }
 
@@ -480,7 +480,7 @@ test(`W02 parity [${MODE}] instant-form lead (L03) gets the same treatment as a 
   assert.equal(s.lead.mobile, fx.expected.W01.mobile);
   assert.equal(s.lead.leadgen_id, fx.expected.W01.leadgen_id);
   assert.equal(s.lead.broker_id, fx.expected.W01.broker_id);
-  assert.equal(s.lead.consent_text, FIX.consent_texts['CONSENT-NAMED-v1+CONSENT-ADS-v1']);
+  assert.equal(s.lead.consent_text, FIX.consent_texts['CONSENT-NAMED-v2+CONSENT-ADS-v1']);
   assert.deepEqual(s.capi.map((e) => e.event_id), [`evt_${r.body.lead_id}_lead`]);
 });
 
@@ -490,7 +490,7 @@ test(`W02 parity [${MODE}] the production ingest item (registry version, no text
   const r = await sys.leadAd(ingestItem(lead('L03'), { withText: false }));
   assert.equal(r.body.status, 'accepted');
   const l = (await sys.state(r.body.lead_id)).lead;
-  assert.equal(l.consent_text_version, 'CONSENT-NAMED-v1+CONSENT-ADS-v1');
+  assert.equal(l.consent_text_version, 'CONSENT-NAMED-v2+CONSENT-ADS-v1');
   assert.ok(l.consent_text.includes(`${broker().practice_name} (FSP ${broker().fsp_number})`), l.consent_text);
   assert.equal(l.broker_id, broker().broker_id);
   assert.equal(r.result.outcome, 'accepted');

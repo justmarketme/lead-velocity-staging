@@ -31,7 +31,7 @@
 <a class="skip" href="#quiz">Skip to the check</a>
 <header class="top"><div class="wrap">
   <span class="logo" role="img" aria-label="SortMyCover">SortMyC<span class="tick" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>ver</span>
-  <small>Free 30-min call with a licensed adviser</small>
+  <small>Free 30-min call, pick your time</small>
 </div></header>
 
 <main id="smc" data-api-base="{{api_base}}" data-angle="{{slug}}" data-lang="{{lang}}" data-consent-mode="{{consent_mode}}" data-booking="{{booking}}" data-turnstile-sitekey="{{turnstile_sitekey}}" data-thanks-url="{{thanks_url}}">
@@ -119,7 +119,7 @@
 
     <fieldset class="q" data-step="6" aria-labelledby="h6q">
       <legend><h3 id="h6q" tabindex="-1">A licensed adviser can look at your actual numbers.</h3></legend>
-      <p class="hint" id="h6hint">One 30-minute call. You decide after. Where should we send your adviser’s details and some times?</p>
+      <p class="hint" id="h6hint">One free 30-minute call, booked for a time you pick. You decide after. Where should we send your adviser’s details and some times?</p>
       <div class="field" id="fName"><label for="name">First name</label><input id="name" name="first_name" autocomplete="given-name" autocapitalize="words" maxlength="40" required placeholder="e.g. Thabo" aria-describedby="eName"><span class="err" id="eName">Please add your first name.</span></div>
       <div class="field" id="fPhone"><label for="phone">Mobile number (WhatsApp)</label><input id="phone" name="mobile" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" required pattern="(\+?27|0027|0)[\s\-]?[678][0-9][\s\-]?[0-9]{3}[\s\-]?[0-9]{4}" placeholder="e.g. 082 123 4567" aria-describedby="ePhone"><span class="err" id="ePhone">Please enter a valid South African mobile number.</span><span class="ok" id="oPhone"></span></div>
       <div class="consent-wrap" id="fConsent">
@@ -138,7 +138,7 @@
       <p class="fine">{{footer_line}}</p>
       <div class="beside">
         <b>What happens next</b>
-        <span>A licensed financial adviser. 30-minute video or phone call. No obligation.</span>
+        <span>A licensed financial adviser. A 30-minute video or phone call, at a time you pick. No obligation.</span>
         <span>In about a minute you get a WhatsApp with your adviser’s name, practice and FSP number.</span>
         <span>You pick a time that suits you. Reminders before the call.</span>
         <span>No obligation to buy. Any next step is your choice.</span>
@@ -184,7 +184,7 @@
   <div class="steps">
     <div class="step"><div class="n" aria-hidden="true">1</div><div><b>Answer five quick questions</b><span>About a minute. No typing until the end.</span></div></div>
     <div class="step"><div class="n" aria-hidden="true">2</div><div><b>Meet your adviser on WhatsApp</b><span>You get their name, practice and FSP number straight away.</span></div></div>
-    <div class="step"><div class="n" aria-hidden="true">3</div><div><b>Have the call</b><span>30 minutes, video or phone. They look at your actual numbers. You decide after.</span></div></div>
+    <div class="step"><div class="n" aria-hidden="true">3</div><div><b>Have the call</b><span>30 minutes, video or phone, at the time you picked. They look at your actual numbers. You decide after.</span></div></div>
   </div>
 </div></section>
 
@@ -197,11 +197,11 @@
 <footer><div class="wrap">
   <span class="logo" role="img" aria-label="SortMyCover">SortMyC<span class="tick" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>ver</span>
   <span>{{footer_line}}</span>
-  <span>Lead Velocity (Pty) Ltd{{{reg_html}}} · <a href="mailto:{{contact_email}}">{{contact_email}}</a></span>
-  <nav aria-label="Footer" class="links"><a href="{{privacy_url}}">Privacy notice</a><a href="{{how_we_make_money_url}}">How we make money</a><a href="{{complaints_url}}">Complaints</a><a href="{{optout_url}}">Opt-out</a></nav>
+  <span><a href="mailto:{{contact_email}}">{{contact_email}}</a></span>
+  <nav aria-label="Footer" class="links"><a href="{{privacy_url}}">Privacy notice</a><a href="{{terms_url}}">Terms</a><a href="{{how_we_make_money_url}}">How we make money</a><a href="{{complaints_url}}">Complaints</a><a href="{{optout_url}}">Opt-out</a></nav>
 </div></footer>
 
-<aside class="sticky" id="sticky" aria-label="Start the cover check"><div class="wrap"><small>Free · 30 minutes · licensed adviser</small><a class="btn" href="#quiz" id="stickyCta">Check my cover in 60 seconds</a></div></aside>
+<aside class="sticky" id="sticky" aria-label="Start the cover check"><div class="wrap"><small>Free · 30-minute call · at a time you pick</small><a class="btn" href="#quiz" id="stickyCta">Check my cover in 60 seconds</a></div></aside>
 <script type="application/json" id="smc-strings">{{{strings_json}}}</script>
 </body>
 </html>
