@@ -1,3 +1,4 @@
 dist/
 reports/*
 !reports/*.report.json
+site/

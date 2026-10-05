@@ -57,6 +57,7 @@ Your job:
 | Payment default | **Instant EFT** (Paystack/Ozow); manual EFT = zero-fee alternative; card auto-renew = opt-in only. |
 | Lead ownership | Delivered leads are the **broker's to use exclusively**; Lead Velocity retains the campaign data, pages, ad account and anonymised performance data. |
 | **Consumer brand** | **SortMyCover** — own domain `sortmycover.co.za` (+ `.com` redirect) from the first impression; `sortmycover.leadvelocity.co.za` is **staging only**, password-protected, never shown to consumers or Meta. **CoverKlaar** held as the Afrikaans variant (domains reserved). The ~R250 for the two domains is the one allowed pre-payment spend. |
+| **Website hosting** | **Vercel** (Jonathan, 5 Oct 2026). sortmycover.co.za = Vercel project `sortmycover` (Root Directory `landing`, `node build-site.mjs` → `site/`: holding site at the apex + quiz pages at `/{slug}/`); runbook `landing/holding/deploy.md`. Domain + DNS stay at Hostinger (A @ 76.76.21.21, CNAME www). The Hostinger VPS (W26) still hosts n8n + Postgres. |
 | Consent mode | **`named` by default while one broker**; `generic` only after the practitioner opinion approves it. |
 | Infrastructure spend | **Nothing before first payment except the ~R250 brand domains.** VPS bought as step 1 of W26 after payment lands; local n8n + tunnel covers the gap. |
 | Qualifying bands | Age: <35 / 35–44 / **45–50** / 51+ (no overlap). Budget: R750–R1,250 **and R1,250+ both qualify**. |
@@ -78,7 +79,7 @@ Before Phase 1, the orchestrator asks Jonathan for repo/tool access and produces
 - **Vantage Stack orchestration prompts & EMMA research assistant** → base for the orchestrator and `market-research-analyst`.
 - **Ultravox/ElevenLabs voice-agent system prompts (insurance broker use case)** → persona, tone and FAIS deferral language for the WhatsApp agent (4.11); voice fallback already half-built.
 - **Existing proposal / invoice / contract generators** → rewired to the `pricing` table (3.6), not rebuilt.
-- **leadvelocity.co.za** (Hostinger) → wording update in place (3.5a); same hosting serves `go.` and `app.`.
+- **leadvelocity.co.za** (Vercel project `lead-velocity-staging`, CLI-deployed; DNS at GoDaddy) → wording update in place (3.5a); new pricing live 5 Oct 2026.
 - **Content-engine brand system** → colours, type, voice for intro cards, pages and the explainer video.
 - **Microsoft 365 (howzit@), FNB, GoDaddy DNS, Hostinger** → already in place; wired, not procured.
 - **Lead Velocity CRM (existing repo)** → the system of record and admin console; the broker portal is a role-scoped view inside it, not a separate app.
@@ -123,7 +124,7 @@ Operating principle: **facts over assumptions.** Every claim an agent makes abou
 | Package (Mark) | **Bronze — R16,500/month, all-in (includes media spend)** — this is the current website "Gold"; the tier ladder is being re-cut per 3.5 |
 | Website currently advertises | 33–40 estimated leads on the R16,500 tier — to be replaced by the 3.5 ladder |
 | **Committed deliverable for Mark** | **20 verified qualified leads per 30-day cycle + up to 4 replacements per cycle (0.1)** |
-| Stack (bootstrap — no new subscriptions unless unavoidable) | Claude Code, self-hosted n8n (from GitHub), WhatsApp Cloud API direct from Meta (no BSP), existing **Hostinger** web hosting plan (1,000 sites, paid for the year) for all static sites/pages/portal, a small **Hostinger VPS (KVM 2 class, ~$9/month)** for n8n + Postgres, Paystack for payments, Microsoft 365 for howzit@ mail, Google Flow (images/video), Tavily, Exa, Serper.dev, Apollo, Twilio and ElevenLabs/Ultravox (available but NOT the default for confirmation) |
+| Stack (bootstrap — no new subscriptions unless unavoidable) | Claude Code, self-hosted n8n (from GitHub), WhatsApp Cloud API direct from Meta (no BSP), **Vercel** for the websites (sortmycover.co.za = project `sortmycover`; leadvelocity.co.za = project `lead-velocity-staging`; decided by Jonathan 5 Oct 2026, superseding the Hostinger web hosting plan for these sites), Hostinger for domain registration/DNS of sortmycover.co.za, a small **Hostinger VPS (KVM 2 class, ~$9/month)** for n8n + Postgres, Paystack for payments, Microsoft 365 for howzit@ mail, Google Flow (images/video), Tavily, Exa, Serper.dev, Apollo, Twilio and ElevenLabs/Ultravox (available but NOT the default for confirmation) |
 | Browser | Claude in Chrome extension for Meta Business Suite / Ads Manager setup |
 
 ### 1.1 Ideal client profile (evidence-based starting hypothesis)
@@ -296,7 +297,7 @@ We sell verified qualified leads; the broker buys meetings and policies. Model b
 
 ### 3.6 Everything that reads from pricing must read from ONE source
 A single `pricing` table (Postgres) holds: `tier_code`, `name`, `price_zar`, `committed_leads`, `replacement_cap_cycle`, `media_share_zar` (the media budget the tier unlocks in Meta), `paystack_plan_code`, `active_from`. **Nothing else hard-codes a price.** Consumers of that table, all updated as part of this build:
-1. **Website pricing page** (Hostinger static, regenerated from the table — W25).
+1. **Website pricing page** (leadvelocity.co.za on Vercel, reads `automation/billing/pricing.seed.json` — W25).
 2. **Checkout page + Paystack Plans** (one plan per tier, created/updated by API; manual-EFT amount and reference `LV-{broker_id}-{tier}-{YYYYMM}`).
 3. **Proposal generator** (existing automation — point it at the table; template shows tier, leads, replacements, price, what's included).
 4. **Broker Services Agreement generator** (contracts-drafter template merges tier values into Schedule A).
@@ -1341,7 +1342,7 @@ Email is stored on the lead with purpose `meeting_invite` only (POPIA purpose li
 ### 4D.4 Decision: own domain from day one (subdomain = staging only)
 - **Why not launch on the subdomain:** the URL would name a different company than the ad (trust mismatch at the landing moment); Search-Lift traffic types the brand, not the subdomain; Google treats a subdomain as a separate site so nothing carries over; Meta domain verification, Pixel and CAPI are domain-bound and would have to be redone. The domain costs ~R250; a second launch costs weeks of re-indexing and a second set of Meta approvals.
 - **Do:** register `sortmycover.co.za` + `sortmycover.com` (and `coverklaar.co.za`/`.com` defensively) on Day 0 under a HUMAN GATE; `.com` 301s to `.co.za`; holding page + privacy + About live immediately so Google indexes before ads run; **Meta domain verification on `sortmycover.co.za`** from the start.
-- **Staging:** `sortmycover.leadvelocity.co.za` (or a Hostinger password-protected staging site) for previews during the build. `noindex`, basic-auth, never linked from anywhere public.
+- **Staging:** Vercel preview deployments of the `sortmycover` project (behind Vercel login, `X-Robots-Tag: noindex` on `*.vercel.app`; see `landing/holding/deploy.md`). Never linked from anywhere public.
 - **Footer on the consumer site:** the 4D.2 rule-8 disclosure naming Lead Velocity (Pty) Ltd. The consumer site never links to the B2B pricing pages.
 
 ### 4D.4a Creative direction for SortMyCover — hooks, angles, colour, logo (evidence first, then decisions)

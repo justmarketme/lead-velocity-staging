@@ -26,8 +26,7 @@
 <link rel="mask-icon" href="/mask-icon.svg" color="#F5A623">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="stylesheet" href="/styles.css">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","@id":"https://sortmycover.co.za/privacy.html#webpage","url":"https://sortmycover.co.za/privacy.html","name":"Privacy notice | SortMyCover","inLanguage":"en-ZA","isPartOf":{"@type":"WebSite","name":"SortMyCover","url":"https://sortmycover.co.za/"},"publisher":{"@type":"Organization","name":"Lead Velocity (Pty) Ltd"}}</script>
-<style>.draftnote{border:2px solid var(--charcoal);background:#fff;padding:.75rem 1rem;font-size:var(--fs-5)}.ph{background:#FFE9B8;padding:0 .25rem;border-radius:3px}.optbox{border:2px solid var(--charcoal);background:#fff;padding:1rem 1.25rem;border-radius:8px}.optbtn{min-height:var(--tap);padding:0 1.25rem;font:inherit;font-weight:var(--w-head);background:var(--amber);color:var(--on-amber);border:2px solid var(--charcoal);border-radius:8px;cursor:pointer}.optbtn:focus-visible{outline:3px solid var(--charcoal);outline-offset:3px}.prose table{border-collapse:collapse;width:100%;font-size:var(--fs-5)}.prose th,.prose td{border:1px solid var(--muted);padding:.5rem;text-align:left;vertical-align:top}</style>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","@id":"https://sortmycover.co.za/privacy.html#webpage","url":"https://sortmycover.co.za/privacy.html","name":"Privacy notice | SortMyCover","inLanguage":"en-ZA","isPartOf":{"@type":"WebSite","name":"SortMyCover","url":"https://sortmycover.co.za/"},"publisher":{"@type":"Organization","name":"SortMyCover"}}</script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -36,7 +35,7 @@
 <div class="wrap prose">
 <h1>Privacy notice</h1>
 <p>Last updated: 5 October 2026 &middot; Version PN-v1.1 &middot; Cookie notice CN-v1.1</p>
-<p class="draftnote"><strong>DRAFT for practitioner review.</strong> This text is not approved yet. Items in shaded boxes are still to be filled in.</p>
+<p class="draftnote"><strong>DRAFT for practitioner review.</strong> This text is not approved yet.</p>
 <p>This notice tells you how we use your details. It follows the Protection of Personal Information Act (POPIA).</p>
 
 <h2>Who is responsible</h2>
@@ -71,7 +70,8 @@
 <table>
 <thead><tr><th>Provider</th><th>What they do for us</th><th>Where data may go</th></tr></thead>
 <tbody>
-<tr><td>Hostinger</td><td>Hosts our website and systems</td><td><span class="ph">{{hostinger_region}}</span></td></tr>
+<tr><td>Vercel</td><td>Hosts our website pages (it sees your IP address and browser details when you load a page; your form answers go to our booking system, not Vercel)</td><td>United States, served from a global network</td></tr>
+<tr><td>Hostinger</td><td>Hosts our booking and messaging systems</td><td><span class="ph">{{hostinger_region}}</span></td></tr>
 <tr><td>Supabase</td><td>Holds our database</td><td>Ireland (EU)</td></tr>
 <tr><td>Meta (WhatsApp, Facebook, Instagram)</td><td>Sends our WhatsApp messages. Runs our ads. Measures our ads. We send your coded (hashed) number, your IP address and browser type as they are, and, after a call, the adviser&rsquo;s 1 to 5 rating as a number. We never send your email, the adviser&rsquo;s note, or what was said.</td><td>United States and Ireland</td></tr>
 <tr><td>Transcription service (named here before adviser voice notes are switched on)</td><td>Turns the adviser&rsquo;s voice note about your call into text. We do not keep the recording.</td><td>Named with the service</td></tr>
@@ -147,7 +147,7 @@
 <p>We answer within <strong>30 days</strong>. We may ask you to prove who you are first. If you ask us to delete your details, we also tell the adviser. The adviser must delete them unless a law says they must keep a record.</p>
 
 <h2>Information Officer and contact</h2>
-<p><strong>Information Officer:</strong> Jonathan <span class="ph">{{jonathan_surname}}</span><br>
+<p><strong>Information Officer:</strong> Jonathan West<br>
 <strong>Deputy Information Officer:</strong> Kgomotso Pule<br>
 <strong>Email:</strong> <a href="mailto:howzit@leadvelocity.co.za">howzit@leadvelocity.co.za</a><br>
 <strong>Phone:</strong> +27 10 976 5618<br>
@@ -161,26 +161,12 @@
 <h2>Age and changes</h2>
 <p>Our service is for people 18 and older. If we change this notice, we change the date at the top. For big changes, we also say so on our page.</p>
 </div>
-<script>
-(function(){
-var K='smc_ads_off',st=document.getElementById('ads-state'),off=document.getElementById('ads-off-btn'),on=document.getElementById('ads-on-link');
-function get(){try{return window.localStorage.getItem(K)==='1'}catch(e){return false}}
-function set(v){
- // Prefer the shared pixel.js switch when it is loaded; otherwise store the same first-party flag it reads.
- if(window.smc&&typeof window.smc[v?'adsOff':'adsOn']==='function'){window.smc[v?'adsOff':'adsOn']();return}
- try{if(v)window.localStorage.setItem(K,'1');else window.localStorage.removeItem(K)}catch(e){}
-}
-function show(){var o=get();st.textContent=o?'Ad measurement is OFF for this browser.':'Ad measurement is ON for this browser.';off.hidden=o;on.hidden=!o;}
-off.addEventListener('click',function(){set(true);show()});
-on.addEventListener('click',function(e){e.preventDefault();set(false);show()});
-show();
-})();
-</script>
+<script src="/privacy.js" defer></script>
 </main>
 <footer class="foot"><div class="wrap">
-<p class="disc">SortMyCover is a service of Lead Velocity (Pty) Ltd. We connect you with authorised financial services providers. We do not give financial advice, compare products or quote premiums.</p>
-<p>Lead Velocity (Pty) Ltd &middot; Company Reg No 2025/637858/07 &middot; <a href="mailto:hello@sortmycover.co.za">hello@sortmycover.co.za</a></p>
-<nav aria-label="Footer"><ul class="links"><li><a href="/about.html">About</a></li><li><a href="/how-we-make-money.html">How we make money</a></li><li><a href="/privacy.html">Privacy</a></li><li><a href="/terms.html">Terms</a></li><li><a href="/complaints.html">Complaints</a></li></ul></nav>
+<p class="disc">SortMyCover gives no financial advice, product comparisons or premium quotes. Licensed financial advisers do.</p>
+<p><a href="mailto:hello@sortmycover.co.za">hello@sortmycover.co.za</a></p>
+<nav aria-label="Footer"><ul class="links"><li><a href="/learn/">Learn</a></li><li><a href="/about.html">About</a></li><li><a href="/how-we-make-money.html">How we make money</a></li><li><a href="/privacy.html">Privacy</a></li><li><a href="/terms.html">Terms</a></li><li><a href="/complaints.html">Complaints</a></li></ul></nav>
 </div></footer>
 </body>
 </html>
