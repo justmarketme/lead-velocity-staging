@@ -9,6 +9,8 @@ Owner: devops-security with Jonathan (human gates). Nothing here is done yet.
 - [ ] Do not upload `staging/` or `deploy.md` / `README.md` (not needed on the server).
 
 ## 1. Domains (GATE-DOMAINS, Jonathan, ~R250 total)
+**Done 2026-10-05 (GATE-DOMAINS go):** `sortmycover.co.za` bought at **Hostinger** (not GoDaddy), so the domain and site both live in hPanel and section 3 is handled by Hostinger's own DNS. `sortmycover.com` and coverklaar are not bought yet.
+
 Register sortmycover.co.za and sortmycover.com (plus coverklaar.co.za/.com) at GoDaddy.
 
 ## 2. Hostinger site
