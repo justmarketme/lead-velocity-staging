@@ -8,7 +8,7 @@ Version: LGSA-v0.1 (5 October 2026) · Template for any authorised FSP client ·
 
 This Agreement is made between:
 
-**LEAD VELOCITY (PTY) LTD**, registration number [LV REG NO], of 210 Amarand Avenue, Pegasus Building 1, Menlyn Maine, Pretoria, 0184, telephone +27 10 976 5618, email howzit@leadvelocity.co.za, website www.leadvelocity.co.za, which trades to consumers under the brand **SortMyCover** ("**Lead Velocity**"), represented by Kgomotso Pule, Director, who is authorised to sign;
+**LEAD VELOCITY (PTY) LTD**, registration number 2025/637858/07, of 210 Amarand Avenue, Pegasus Building 1, Menlyn Maine, Pretoria, 0184, telephone +27 10 976 5618, email howzit@leadvelocity.co.za, website www.leadvelocity.co.za, which trades to consumers under the brand **SortMyCover** ("**Lead Velocity**"), represented by Kgomotso Pule, Director, who is authorised to sign;
 
 and
 
