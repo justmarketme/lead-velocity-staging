@@ -144,7 +144,7 @@ export function renderAgreementHtml(doc: ResolvedAgreement, fields: AgreementFie
     <div><img class="logo" src="${esc(opts.logoSrc)}" alt="Lead Velocity"><h1>${esc(AGREEMENT_TITLE)}</h1><div class="sub">${esc(subtitle)}</div>${
       ref && "inl" in ref ? `<div class="ref">${runs(ref.inl)}</div>` : ""
     }</div>
-    <div class="clientcard"><div class="lbl">The Client</div><div class="cn">${headerValue("[CLIENT FULL NAME]")}</div><div class="cc">${headerValue("[PRACTICE NAME]")}</div></div></header>`);
+    <div class="clientcard"><div class="lbl">The Client</div><div class="cn">${headerValue("[CLIENT FULL NAME]")}</div><div class="cc">${(fields.placeholders?.["[PRACTICE NAME]"] || "").trim() && !(fields.placeholders?.["[PRACTICE NAME]"] || "").trim().startsWith("(") ? headerValue("[PRACTICE NAME]") : "FSP No. " + headerValue("[FSP NUMBER]")}</div></div></header>`);
 
   const commercial = `<section class="terms"><div class="lbl">Commercial terms</div><div class="grid">
     <div><div class="k">Service fee</div><div class="fee">${esc(zar(tier.price_zar))}</div><div class="v2">${pilot ? "once-off" : `per ${TERMS.cycle_days}-day cycle`}, excl. VAT, paid in advance. Ad spend included</div></div>

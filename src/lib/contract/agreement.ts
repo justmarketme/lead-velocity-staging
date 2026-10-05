@@ -80,18 +80,21 @@ const CPA_TOKEN =
  */
 const NAMED_FIELDS: PrimaryField[] = [
   { token: "[CLIENT FULL NAME]", label: "Client full name" },
-  { token: "[PRACTICE NAME]", label: "Trading / practice name" },
   {
-    token: "[CLIENT LEGAL FORM — natural person / company]",
-    label: "Entity type",
-    options: ["natural person", "private company", "close corporation", "trust"],
+    token: "[CLIENT DESCRIPTION — e.g. a natural person contracting in his or her personal capacity / a company, registration number …, trading as …]",
+    label: "Who the client is",
+    hint: "e.g. a natural person contracting in his personal capacity / XYZ (Pty) Ltd, registration number …, trading as …",
   },
-  { token: "[CLIENT ID OR REG NO]", label: "ID or registration number", hint: "e.g. registration number 2019/123456/07" },
   { token: "[FSP NUMBER]", label: "FSP number", hint: "Check the FSCA register" },
   { token: "[CLIENT PHYSICAL ADDRESS]", label: "Physical address (domicilium)" },
   { token: "[CLIENT EMAIL]", label: "Email", email: true },
   { token: "[CLIENT SIGNATORY NAME]", label: "Signatory name" },
   { token: "[CLIENT SIGNATORY ROLE]", label: "Signatory role", hint: "e.g. Director" },
+  {
+    token: "[CLIENT SIGNING CAPACITY — e.g. who signs in his or her personal capacity / represented by NAME, ROLE, who is authorised to sign]",
+    label: "Signing capacity",
+    hint: "e.g. who signs in his personal capacity / represented by Jane Doe, Director, who is authorised to sign",
+  },
   { token: "[FIRST PAYMENT DATE]", label: "Start / first payment date", date: true },
   {
     token: "[WESTERN CAPE / GAUTENG — CONFIRM]",

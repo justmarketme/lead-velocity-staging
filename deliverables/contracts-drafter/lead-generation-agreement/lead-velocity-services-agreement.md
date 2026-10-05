@@ -12,13 +12,13 @@ This Agreement is made between:
 
 and
 
-**[CLIENT FULL NAME]**, [CLIENT LEGAL FORM — natural person / company], [CLIENT ID OR REG NO], trading as **[PRACTICE NAME]**, an authorised financial services provider with FSP number **[FSP NUMBER]**, of [CLIENT PHYSICAL ADDRESS], email [CLIENT EMAIL] (the "**Client**"), represented by [CLIENT SIGNATORY NAME], [CLIENT SIGNATORY ROLE], who is authorised to sign.
+**[CLIENT FULL NAME]**, [CLIENT DESCRIPTION — e.g. a natural person contracting in his or her personal capacity / a company, registration number …, trading as …], who renders financial services under FSP number **[FSP NUMBER]**, of [CLIENT PHYSICAL ADDRESS], email [CLIENT EMAIL] (the "**Client**"), [CLIENT SIGNING CAPACITY — e.g. who signs in his or her personal capacity / represented by NAME, ROLE, who is authorised to sign].
 
 ## Background
 
 A. Lead Velocity is a marketing and lead-generation agency acting for its own account. It markets its own lead-generation service and the SortMyCover brand, not any financial product. It runs broker-neutral advertising under the SortMyCover brand, captures consumer interest and consent, pre-qualifies consumers on objective criteria and books introductory appointments.
 
-B. The Client is an authorised financial services provider that advises consumers on life cover.
+B. The Client renders financial services under a licence issued under the FAIS Act and advises consumers on life cover.
 
 C. The Client wishes to buy marketing and lead-delivery services from Lead Velocity for a flat fee per Billing Cycle that does not depend on any financial product being sold. Lead Velocity does not render financial services and the Parties intend this Agreement to operate, in substance and in form, as a marketing services contract.
 
