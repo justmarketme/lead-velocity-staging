@@ -19,7 +19,7 @@ The numbers: **0** disputed replacements, **0** fee-structure challenges, every 
 | Opt-in consent for direct marketing | POPIA s69 and Form 4. Unticked box. We keep the exact words, time, page and source. |
 | Plain language | CPA s22. Plain language is the law, not a style choice. |
 | Register, renew and cleanse monthly | CPA 2026 Amendment Regulations (NCC opt-out registry). A registry block beats earlier consent. |
-| Meta policy | Ads target 18+. No questions about sensitive finances in forms. Broker's Page is the fallback only with a signed letter. |
+| Meta policy | Ads target 18+. No questions about sensitive finances in forms. The broker's Page is never used (Jonathan 2026-10-05). |
 | Money | Pay per 30-day cycle, in advance. Liability capped at the cycle price. |
 
 | Habit (convention) | What we did |

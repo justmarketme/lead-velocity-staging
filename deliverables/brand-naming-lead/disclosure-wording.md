@@ -67,6 +67,14 @@ I read `deliverables/contracts-drafter/consent-and-privacy.md` and the live hold
 | M5 | 2.1.2 vs 0.1 | Already raised by contracts-drafter as NH-CD-04 (named consent is the default) | No brand action | — |
 | M6 | `DISC-CARD-v1` (new short form, above) | A third-person variant of rule 8 for the intro card | Approve or replace before the intro card template is final | contracts-drafter + broker approves the card in writing (4.10 #5) |
 
+## 4a. Bios are not disclosures (Jonathan, 2026-10-05)
+
+Facebook Page intro and Instagram bio describe what SortMyCover does for consumers. They no longer carry S97/S148:
+- `BIO-FB-v3` (95): We connect South Africans with licensed advisers to sort their insurance. We don't give advice.
+- `BIO-IG-v3` (131): We connect South Africans with licensed advisers to sort their insurance, on a free 30-minute call. We don't give advice ourselves.
+
+DISC-FULL-v1 stays in Facebook Page About → details, the site footer and the WhatsApp description. S97 stays on the ad end-card. compliance-qa to confirm the bios (they claim no advice, no products, no prices).
+
 ## 5. Change control
 
 Any change to the full line starts in CP-v0.1 (contracts-drafter) and then flows here. Short forms are regenerated from it, and compliance-qa re-checks every surface listed in §3. Version every change (`DISC-*-v2`) and keep the old text for the consent and disclosure evidence trail.

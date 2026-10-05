@@ -13,7 +13,7 @@ Buy the cheapest verified, qualified, 35–50 life-cover lead who will actually 
 | Ads educational only; no product/insurer/premium/cover amount/comparison/broker; third-person copy; 18+; 3 ads approved by Meta before the full batch | 1.2, 2.1.8, 2.1.3 |
 | Opt-in consent, unticked, privacy link; exact consent text and version stored; out-of-band submissions deleted within 24 h; no contact without consent (so form-abandoners can never be messaged) | 2.1.2, 2.1.7 |
 | Special Ad Category must be checked at campaign creation and declared honestly; design must work without age targeting | 2.1.4 |
-| Meta may ask for licensing proof; fallback = broker's Page + authorisation letter, then stop and escalate | 2.1.3 |
+| Meta may ask for licensing proof; appeal, then standby SortMyCover Page; never the broker's Page (Jonathan 2026-10-05); then stop and escalate | 2.1.3 |
 | Conversion Leads optimisation needs >= 200 leads/month; we make ~25–50 | 4.4 |
 | Native instant forms cannot book a slot; WhatsApp must contact within 60 s | 4.4, 4.6 |
 | Unit sold = qualified lead, counted only once verified on WhatsApp within 72 h | 0.1, 3.3 |

@@ -77,7 +77,7 @@ Common rejection causes to pre-empt (Meta Business Verification docs): legal nam
 |---|---|---|---|
 | 1 | Page name | `SortMyCover` | Not "SortMyCover Insurance", not "Life Cover" |
 | 2 | Category | `Website` (primary). If a second category is offered, `Education`. | **Never** "Insurance company", "Insurance broker", "Insurance agent", "Financial service", "Financial planner" or anything implying licensed status (4.7). If the screen forces a finance-type category, stop and RECORD |
-| 3 | Bio / Intro (short field) | `A service of Lead Velocity (Pty) Ltd. No financial advice, product comparisons or premium quotes.` | `DISC-S97-v1`, 97 characters. Re-count in the field |
+| 3 | Bio / Intro (short field) | `We connect South Africans with licensed advisers to sort their insurance. We don't give advice.` | `BIO-FB-v3`, 95 characters (Jonathan, 2026-10-05: the bio says what SortMyCover does for consumers, not legal disclosure). The disclosure lives in About (row 8). |
 | 4 | ★ Jonathan clicks Create Page | | Check the name and category on the confirmation before clicking |
 | 5 | Username | `sortmycover` (shows as @sortmycover) | If taken, stop and RECORD; do not use a variant without brand-naming-lead |
 | 6 | Website | `https://sortmycover.co.za` **only after GATE-DOMAINS is live and the holding page loads on that domain**. Until then leave empty. | Never the staging host (0.1). NH-MO-02 |
@@ -86,7 +86,7 @@ Common rejection causes to pre-empt (Meta Business Verification docs): legal nam
 | 9 | Phone, address, hours, price range | Leave empty. No address (virtual service; no fake address). Hours: "No hours available". | |
 | 10 | Profile picture | Upload `brand/exports/profile/fb-profile-1024.png` | Check the circle crop shows the whole tick mark |
 | 11 | Cover photo | Upload `brand/exports/cover/fb-cover-851x315@2x.png` (1702 x 630) | Check the mobile crop; safe-area note in `deliverables/visual-producer/SUMMARY.md` |
-| 12 | Action button | Until WABA is linked: `Learn more` to `https://sortmycover.co.za` (after domain). After G4: `Send WhatsApp message` to the Cloud API number | Never "Get quote", never "Call now" to a personal number |
+| 12 | Action button | Before the domain and WABA: `Send message` (Messenger; profile-kit §1). Until WABA is linked: `Learn more` to `https://sortmycover.co.za` (after domain). After G4: `Send WhatsApp message` to the Cloud API number | Never "Get quote", never "Call now" to a personal number |
 | 13 | Page access | Settings, Accounts, Pages, SortMyCover, Assign people: Jonathan full control, KG full control | No personal Page roles outside the portfolio |
 | 14 | Instant form terms | Not now. Accepted in G11 by Jonathan (★) | |
 | 15 | RECORD | `page_id`; `handles.fb = "sortmycover"`; screenshots `G2-01-page-about.png`, `G2-02-page-category.png`, `G2-03-page-access.png` | |
@@ -95,7 +95,7 @@ Common rejection causes to pre-empt (Meta Business Verification docs): legal nam
 
 | # | Action | Notes |
 |---|---|---|
-| 1 | Create a second Page in the same portfolio: name `SortMyCover South Africa`, category `Website`, same Bio (S97) and About (FULL), same profile/cover files, username left empty unless `sortmycoversa` is free | ★ Jonathan clicks Create. Name is a default (NH-MO-04) |
+| 1 | Create a second Page in the same portfolio: name `SortMyCover South Africa`, category `Website`, same Bio (`BIO-FB-v3`) and About (FULL), same profile/cover files, username left empty unless `sortmycoversa` is free | ★ Jonathan clicks Create. Name is a default (NH-MO-04) |
 | 2 | Publish it but run nothing on it. Two or three of the same organic educational posts as the main Page over the first month so it is not an empty shell. | Organic only; no posting scripts |
 | 3 | RECORD the standby Page ID. `brands` has no `standby_page_id` column: store it in `handles` as `{"fb_standby_page_id": "..."}` until platform-architect adds the column (NH-MO-05). `G2-04-standby-page.png` | |
 
@@ -106,7 +106,7 @@ Common rejection causes to pre-empt (Meta Business Verification docs): legal nam
 | 1 | Business Settings, Accounts, Instagram accounts, Add (or from the Page: Settings, Linked accounts, Instagram, Connect) | Create a **new** Instagram account from the Page; type **Business** (not Creator). ★ Jonathan clicks Create/Connect |
 | 2 | Username | `sortmycover`. If taken, stop and RECORD |
 | 3 | Name | `SortMyCover` |
-| 4 | Bio | `A service of Lead Velocity (Pty) Ltd. We connect you with authorised financial services providers. No advice, product comparisons or premium quotes.` (`DISC-S148-v1`, 148 characters; re-count in the field) |
+| 4 | Bio | `We connect South Africans with licensed advisers to sort their insurance, on a free 30-minute call. We don't give advice ourselves.` (`BIO-IG-v3`, 131 characters; Jonathan 2026-10-05: consumer-benefit bio, disclosure on the linked Page About and site) |
 | 5 | Link | `https://sortmycover.co.za` only after GATE-DOMAINS; empty until then |
 | 6 | Category | `Website` or `Education`; never a finance/insurance category. Display category on profile: off if the toggle exists |
 | 7 | Contact options | Email `hello@sortmycover.co.za` after the alias works; no phone; no address |

@@ -156,11 +156,11 @@ People show up more often when they have seen and heard you. But this is optiona
 
 11.6 You may download your intro video and use it yourself.
 
-## 12. Meta fallback: ads from your Page
+## 12. Our ads run only from our own Page
 
-12.1 Meta may ask for proof of a financial services licence before it runs our ads. If that happens, we may run the same ads from your Facebook Page, paid by our ad account. Annex 1 is your written permission for this. We use it only if Meta requires it.
+12.1 All advertising runs from the SortMyCover Page and Instagram account, on our ad account, paid by us. We never run ads from your Facebook Page, and we never ask for access to it.
 
-12.2 If we do, those ads become your advertising under the FAIS General Code of Conduct. We will show you each ad first. It runs only after you approve it in the portal. We pay all ad costs.
+12.2 Nothing in this agreement gives you any right in the SortMyCover brand, its Pages, accounts, ads, creative, pages, scripts, workflows or data (clause 10). If Meta asks for proof of a financial services licence, we deal with Meta ourselves; you only confirm your FSP details are current (clause 7 of Schedule D).
 
 ## 13. Pausing and ending
 
@@ -194,7 +194,7 @@ People show up more often when they have seen and heard you. But this is optiona
 
 16.1 South African law applies.
 
-16.2 This agreement, its Schedules and Annex 1 are the whole deal. It replaces any earlier agreement or term sheet for the same services.
+16.2 This agreement and its Schedules are the whole deal. It replaces any earlier agreement or term sheet for the same services.
 
 16.3 Changes must be in writing and accepted by both of us. Accepting in the portal counts as writing.
 
@@ -301,23 +301,6 @@ The system decides points 2 and 3 from the message log. These replacements count
 
 ---
 
-## Annex 1 — Authorisation letter (Meta fallback)
-
-*To: Meta Platforms, and to whom it may concern*
-
-I, **{{broker_signatory_name}}**, sign for **{{practice_legal_name}}**, an authorised financial services provider, FSP **{{fsp_number}}**.
-
-1. I authorise **Lead Velocity (Pty) Ltd** to run advertising for life cover enquiries from our Facebook Page **{{broker_page_name}}** (Page ID {{broker_page_id}}), using Lead Velocity's own ad account and paid by Lead Velocity.
-2. I will give Lead Velocity's Business Portfolio advertiser access to that Page for this purpose only.
-3. Lead Velocity may not post on the Page, change Page details, or reply as the Page, except to run and manage these ads.
-4. Each ad runs only after I approve it.
-5. I may withdraw this authorisation at any time by removing access or writing to howzit@leadvelocity.co.za. It ends automatically when the Broker Services Agreement ends.
-
-Signed: ______________________ Name: {{broker_signatory_name}} Date: {{date}}
-Licence evidence attached: FSCA register extract for FSP {{fsp_number}}, dated {{fsca_check_date}}.
-
----
-
 ## Signatures
 
 By signing, each person confirms they may sign for their business.
@@ -325,7 +308,6 @@ By signing, each person confirms they may sign for their business.
 **For you (the broker)**
 - [ ] I have read clauses 1 to 16 and Schedules A to D.
 - [ ] I agree to clause 11.2 (use of my photo, voice and video). *(Optional. You can sign without it and change your mind later in the portal.)*
-- [ ] I sign Annex 1 (Meta fallback authorisation).
 
 Name: {{broker_signatory_name}} · Role: {{broker_signatory_role}} · Signed: ______________ · Date and time: {{signed_at}} · Device/IP: {{signed_ip}}
 

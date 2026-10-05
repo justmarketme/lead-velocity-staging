@@ -319,7 +319,11 @@ Fed back for learning and seeds (not optimisation targets in cycle 1): `Schedule
 6. Campaigns A, B, C all follow the same decision; record it once in `campaign-spec` results and in the Section 7 readiness line.
 7. Policy (not category) disapprovals (personal attributes, 2.1.8): fix copy to third person, resubmit once; two disapprovals on the same ad for the same reason = stop and mark `needs_human` for creative-strategist and compliance-qa.
 
-### 10b. 2.1.3 fallback (broker's Page + authorisation letter): trigger conditions
+### 10b. 2.1.3 fallback: WITHDRAWN
+
+**Decision (Jonathan, 2026-10-05): the broker's Page is never used, not even as a fallback; Lead Velocity keeps full control of its brand, Pages, ad accounts, creative and data (its IP).** All ads run from the SortMyCover Page on Lead Velocity's ad account. If Meta demands licensing proof: appeal (appeal-playbook), then the standby SortMyCover Page/ad account; if Meta still refuses, stop and escalate to Jonathan.
+
+(Superseded text below kept for history only:)
 Stop all spend and escalate to Jonathan (never argue with Meta in review chat) if ANY of these occurs:
 - Meta requests proof of licensing/authorisation, an FSP number or "financial services license" for the Page, ad account or an ad.
 - Two or more of the first three pre-approval ads are disapproved citing licensing/authorisation for financial products.

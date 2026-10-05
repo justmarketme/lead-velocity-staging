@@ -27,7 +27,7 @@
 | Q12 | Are the replacement, 48-hour dispute, 14-day extension and pro-rata credit mechanics fair and enforceable (CPA s48 if it applies to the broker); is the liability cap at the cycle price acceptable? | As in Schedule C and clauses 5 and 14 | Your changes |
 | Q13 | Month to month with no notice period and no grace; card auto-renew opt-in only — any CPA issue? | As drafted | — |
 | Q14 | Likeness: is the clause 11 consent (photo, voice, video; optional and withdrawable) sufficient, or does it need a separate standalone consent? | Clause in the agreement with its own tick | Separate signed consent form |
-| Q15 | Meta fallback (ads from the broker's Page, paid by us, Annex 1): does this change who the "advertiser" is for FAIS, and is Annex 1 adequate? | Broker approves each ad; we pay | Do not use the fallback; appeal only |
+| Q15 | ~~Meta fallback via broker's Page~~ WITHDRAWN (Jonathan 2026-10-05): ads only ever run from the SortMyCover Page | — | — |
 | Q16 | PAIA manual: does any small-business exemption apply to us? | Publish anyway | Publish only if required |
 | Q17 | Health/ID details volunteered in chat: is redaction plus "has a health question" in the brief sufficient under s26–27? | As described | Block the message and ask the person not to share |
 | Q18 | Dispute resolution: talk → mediation → court. Suitable? | As drafted | Arbitration (e.g. AFSA) |

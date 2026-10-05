@@ -19,7 +19,7 @@
 | F4 | Replacements only for no-show / uncontactable / disqualified — never "didn't buy". Lead cancellations per Schedule C1A (default: `cancel_no_rebook` → uncontactable; `no_call` → disqualified; pending NH-42 / brief Q23) | automation-engineer (W10, W13) | Monthly | Replacement log by reason code, incl. `cancel_no_rebook` and `no_call` |
 | F5 | Broker's FSP verified on the FSCA register before routing; re-checked monthly | broker-success (W20) | Onboarding + monthly | FSCA check record |
 | F6 | Every lead receives the named disclosure (adviser, practice, FSP) before any meeting | automation-engineer (W06) | Continuous; monthly audit of 20 | WhatsApp message ID + delivery status per lead |
-| F7 | Ads run from a broker's Page only under a signed Annex 1, and each ad is approved by the broker | meta-operator | Per use | Signed Annex 1; approval record |
+| F7 | ~~Ads from a broker's Page under Annex 1~~ WITHDRAWN: the broker's Page is never used (Jonathan 2026-10-05). Annex 1 not needed for ads | — | — | — |
 | F8 | Banned words absent on site and in reports ("guaran…", "appointments" as unit sold, "best/cheapest", insurer names) | compliance-qa | Every deploy | W25 diff check; W33 |
 
 ### 1.2 POPIA

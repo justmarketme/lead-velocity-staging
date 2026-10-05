@@ -67,9 +67,9 @@ for (const [n, w] of logoJobs) {
 }
 await b.close();
 
-// Ad stills must stay <= 120 KB (4D.2.7): palette-quantise the few that exceed it (ImageMagick `convert`, flat-colour art so no visible change).
+// Ad stills must stay <= 120 KB (4D.2.7): palette-quantise the few that exceed it (ImageMagick `convert`; `magick` on Windows, where `convert` is the system disk tool; flat-colour art so no visible change).
 import { execFileSync } from 'child_process';
-for (const m of made) { const f = X(m.out); if (!/^(feed|whatsapp)\//.test(m.out) || fs.statSync(f).size <= 120000) continue; try { execFileSync('convert', [f, '-dither', 'None', '-colors', '192', 'PNG8:' + f]); } catch { console.warn('convert unavailable; ' + m.out + ' left > 120 KB'); } }
+for (const m of made) { const f = X(m.out); if (!/^(feed|whatsapp)\//.test(m.out) || fs.statSync(f).size <= 120000) continue; try { execFileSync(process.platform === 'win32' ? 'magick' : 'convert', [f, '-dither', 'None', '-colors', '192', 'PNG8:' + f]); } catch { console.warn('convert unavailable; ' + m.out + ' left > 120 KB'); } }
 
 // verify + manifest
 const manifest = []; let bad = 0;

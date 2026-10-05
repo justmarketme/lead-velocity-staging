@@ -98,11 +98,11 @@ The hour targets below are **our internal response targets**, measured from the 
 | 1. Pause all SortMyCover campaigns (console, confirm-to-apply) | Jonathan / KG | 1 h |
 | 2. Do **not** reply to Meta with a licence. Lead Velocity is not an FSP and must not imply it is. Save the request text and screenshot | meta-operator | 1 h |
 | 3. Respond with what is true, if a response box exists: Business Verification of Lead Velocity (Pty) Ltd (approved or submitted), plus: "Lead Velocity (Pty) Ltd is a marketing service. SortMyCover gives no financial advice and sells no financial products; people are connected to an authorised financial services provider who discloses its FSP number before any meeting." Business Verification is our only proof of identity here (Meta Business Verification docs) | Jonathan | 24 h |
-| 4. If Meta still requires a licensed advertiser: **fallback** = the same approved creative runs from the **broker's own Facebook Page** as the ad identity, paid by Lead Velocity's ad account, under the signed **broker authorisation letter** (GATE-AGREEMENT / contracts-drafter) | Jonathan decides (changes advertiser of record and disclosure, 1.2) | Decision within 2 business days |
+| 4. If Meta still requires a licensed advertiser: **no broker's-Page fallback** (Jonathan, 2026-10-05: full control of our IP). Use the standby SortMyCover Page/ad account per §9; if that is refused too, stop | Jonathan decides next step | Decision within 2 business days |
 | 5. Mechanics if approved: the broker adds Lead Velocity's portfolio as a **partner** on his Page with advertising access (he clicks in his own Business Settings); his Page is connected to our ad account; a new instant form is created on his Page (named consent already names his practice); compliance-qa re-reviews the ads and the form for the new identity; campaigns re-created (not edited) and published ★ | broker + Jonathan; meta-operator prepares | 2 to 3 business days |
 | 6. Record the decision in the console and `build/decisions.md` (orchestrator) | — | same day |
 
-Nothing public is prepared on the broker's Page before Jonathan approves step 4.
+Nothing is ever prepared or run on a broker's Page.
 
 ## 9. Standby switch procedure (ad account, Page, phone number)
 
