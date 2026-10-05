@@ -46,7 +46,8 @@ Check: `node landing/build-site.mjs` prints no placeholder warning, and `grep -r
 
 ## 3. Git link (Jonathan)
 - [ ] Give the Vercel GitHub app access to `justmarketme/lead-velocity-staging`. This needs GitHub sudo approval on Jonathan's phone. After that, pushes deploy automatically: the production branch deploys to sortmycover.co.za and other branches to preview URLs.
-- Until then, deploy with the CLI from a checkout at the repo root: `npx vercel link --project sortmycover --scope jonos-projects-8697404e`, then `npx vercel deploy` (preview) and `npx vercel deploy --prod`.
+- Until then, deploy with the CLI from a checkout at the repo root: `npx vercel link --project sortmycover --scope jonos-projects-8697404e`.
+- **Warning:** on this project, a plain `vercel deploy` (no `--prod`) went to **production** and was aliased to sortmycover.co.za. That happened on 5 Oct, because the project has no Git link and no earlier deployment. The holding site was public for about 3 minutes before it was removed. **Don't CLI-deploy until pre-flight passes.** To check the build safely, run `npx vercel pull --yes` and then `npx vercel build`; nothing is uploaded. Project settings (Root Directory `landing`, outside files ON, no build/output overrides) were applied on 5 Oct, and `vercel build` passes on 8950e24.
 
 ## 3a. Leaked-file guard
 The CLI uploads the working tree. The repo-root `.vercelignore` keeps `.env*`, keys, `deliverables/billing/` and `*.docx`/`*.pdf` out of the upload. Never deploy from a checkout whose `.env` holds secrets without that file present.
