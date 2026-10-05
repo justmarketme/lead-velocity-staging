@@ -1,0 +1,10 @@
+# CLI deploys upload the working tree; keep secrets and client documents out of the upload.
+# Don't exclude automation/billing or deliverables/contracts-drafter: the app imports pricing.seed.json and the agreement .md.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+deliverables/billing/
+*.docx
+*.pdf

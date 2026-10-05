@@ -34,9 +34,13 @@ Lead Velocity is structured and intentional. We're not another lead vendor hopin
 A lead qualifies if it matches geographic/demographic criteria, has expressed interest, provided verified contact details, opted in, and is reachable.
 
 ### PRICING TIERS
-- Bronze (R8,500/mo): ~17 leads p/mo.
-- Silver (R10,500/mo) - RECOMMENDED: ~23-26 leads p/mo.
-- Gold (R16,500+/mo): 33-40+ leads p/mo.
+All prices excl. VAT, flat fee paid in advance per 30-day cycle, ad spend included. Never linked to policies, premiums or commission.
+- Pilot (R8,500 once-off): 10 Qualified Leads (R850 each), first-time clients only.
+- Bronze (R16,500/cycle): 20 Qualified Leads.
+- Silver (R24,500/cycle): 30 Qualified Leads.
+- Gold (R35,500/cycle): 45 Qualified Leads.
+- Top-ups: R850 per extra Qualified Lead, minimum 10, 7 days' notice.
+- Month-to-month, 7 days' written notice before the next cycle. Shortfall rolls over 14 days.
 
 ### BROKER READINESS ASSESSMENT (Onboarding)
 A 6-step diagnostic to tailor recommendations. Meeting becomes an alignment call.
