@@ -242,7 +242,7 @@ test('I-47a: NLU bands map to leads_smc_checks codes (lt35/35_44/45_50/51plus; l
     const u = r.actions.find((a) => a.kind === 'update_lead').set;
     assert.equal(u.age_band, db); assert.equal(u.stage, 'disqualified'); assert.equal(u.conv_state_state, 'closed_oob'); assert.equal(r.thread.stage, 'closed');
   }
-  for (const [nlu, db] of [['750-1250', '750_1250'], ['1250+', '1250plus']]) {
+  for (const [nlu, db] of [['750-1250', '750_1250'], ['1250+', '1250plus'], ['1250-1499', '1250_1499'], ['1500+', '1500_plus']]) {
     const r = typedStep('q_budget', { budget_band: nlu }, { age_band: '45_50' });
     assert.deepEqual(r.actions.find((a) => a.kind === 'update_lead').set, { budget_band: db, conv_state_state: 'q_bond' });
   }

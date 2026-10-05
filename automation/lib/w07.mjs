@@ -20,7 +20,7 @@ const SAST = 2 * 3600_000;
 
 // ---------- band mapping (NLU vocabulary in logic.mjs  <->  physical CHECK values in leads) ----------
 export const AGE_TO_DB = { '<35': 'lt35', '35-44': '35_44', '45-50': '45_50', '51+': '51plus' };
-export const BUDGET_TO_DB = { '<750': 'lt750', '750-1250': '750_1250', '1250+': '1250plus' };
+export const BUDGET_TO_DB = { '<750': 'lt750', '750-1250': '750_1250', '1250+': '1250plus', '1250-1499': '1250_1499', '1500+': '1500_plus' };
 export const AGE_FROM_DB = Object.fromEntries(Object.entries(AGE_TO_DB).map(([k, v]) => [v, k]));
 export const BUDGET_FROM_DB = Object.fromEntries(Object.entries(BUDGET_TO_DB).map(([k, v]) => [v, k]));
 

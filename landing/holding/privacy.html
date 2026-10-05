@@ -8,7 +8,7 @@
 <link rel="canonical" href="https://sortmycover.co.za/privacy.html">
 <link rel="alternate" hreflang="en-ZA" href="https://sortmycover.co.za/privacy.html">
 <meta name="theme-color" content="#F5A623">
-<meta name="facebook-domain-verification" content="{{META_DOMAIN_VERIFICATION}}">
+<!-- facebook-domain-verification: paste the Meta token here at GATE-PIXEL (deploy.md section 9) -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="SortMyCover">
 <meta property="og:locale" content="en_ZA">
@@ -35,12 +35,12 @@
 <main id="main">
 <div class="wrap prose">
 <h1>Privacy notice</h1>
-<p>Last updated: <span class="ph">{{date}}</span> &middot; Version PN-v1.1 &middot; Cookie notice CN-v1.1</p>
-<p class="draftnote"><strong>DRAFT for practitioner review.</strong> This text is not approved yet. Items in <span class="ph">shaded boxes</span> are still to be filled in.</p>
+<p>Last updated: 5 October 2026 &middot; Version PN-v1.1 &middot; Cookie notice CN-v1.1</p>
+<p class="draftnote"><strong>DRAFT for practitioner review.</strong> This text is not approved yet. Items in shaded boxes are still to be filled in.</p>
 <p>This notice tells you how we use your details. It follows the Protection of Personal Information Act (POPIA).</p>
 
 <h2>Who is responsible</h2>
-<p>SortMyCover is a service of <strong>Lead Velocity (Pty) Ltd</strong>, registration number <span class="ph">{{CIPC_REG_NO}}</span>, <span class="ph">{{ADDRESS_STREET}}, {{ADDRESS_CITY}}, {{ADDRESS_POSTCODE}}</span>. We are the <strong>responsible party</strong> for the details you give us. That means we decide how they are used, and we must keep them safe.</p>
+<p>SortMyCover is a service of <strong>Lead Velocity (Pty) Ltd</strong>, registration number 2025/637858/07, Pegasus Building 1, 210 Amarand Avenue, Menlyn Maine, Pretoria, 0184. We are the <strong>responsible party</strong> for the details you give us. That means we decide how they are used, and we must keep them safe.</p>
 <p>We connect you with authorised financial services providers. We do not give financial advice, compare products or quote premiums.</p>
 
 <h2>What we collect and why</h2>
@@ -50,7 +50,7 @@
 <li><strong>Only if you give it:</strong> another number to call, a backup number, and the best time to reach you.</li>
 <li><strong>Automatically:</strong> the ad or link you came from, your device type, your IP address and cookies.</li>
 <li><strong>Your chats</strong> with our WhatsApp assistant.</li>
-<li><strong>From the adviser, after your call:</strong> how the call went (for example, attended or missed), a 1 to 5 rating of the call and a short note. The adviser may also leave a short voice note. Our provider, <span class="ph">{{TRANSCRIPTION_PROVIDER}}</span>, turns it into text. We do not keep the recording. We keep only the text, after we remove any health or ID details. We use all of this to improve our ads and our questions, and to replace leads under our agreement with the adviser.</li>
+<li><strong>From the adviser, after your call:</strong> how the call went (for example, attended or missed), a 1 to 5 rating of the call and a short note. The adviser may also leave a short voice note. A transcription service turns it into text (we will name it here before adviser voice notes are switched on). We do not keep the recording. We keep only the text, after we remove any health or ID details. We use all of this to improve our ads and our questions, and to replace leads under our agreement with the adviser.</li>
 </ul>
 <p>We do not ask for your ID number, bank details or exact income. If you send health details or an ID number in chat, we remove them from our records. We tell the adviser only that you have a question for them.</p>
 <p>We use your details to:</p>
@@ -72,14 +72,14 @@
 <thead><tr><th>Provider</th><th>What they do for us</th><th>Where data may go</th></tr></thead>
 <tbody>
 <tr><td>Hostinger</td><td>Hosts our website and systems</td><td><span class="ph">{{hostinger_region}}</span></td></tr>
-<tr><td>Supabase</td><td>Holds our database</td><td><span class="ph">{{supabase_region}}</span></td></tr>
-<tr><td>Meta (WhatsApp, Facebook, Instagram)</td><td>Sends our WhatsApp messages. Runs our ads. Measures our ads. We send your coded (hashed) number, your IP address and browser type as they are, and, after a call, the adviser&rsquo;s 1 to 5 rating as a number. We never send your email, the adviser&rsquo;s note, or what was said.</td><td><span class="ph">{{meta_regions}}</span></td></tr>
-<tr><td><span class="ph">{{TRANSCRIPTION_PROVIDER}}</span></td><td>Turns the adviser&rsquo;s voice note about your call into text. We do not keep the recording.</td><td><span class="ph">{{transcription_regions &mdash; confirm}}</span></td></tr>
-<tr><td>Anthropic</td><td>The AI model that helps our WhatsApp assistant reply</td><td><span class="ph">{{anthropic_regions}}</span></td></tr>
-<tr><td>Google</td><td>Calendar and video calls for some advisers, and website tools</td><td><span class="ph">{{google_regions}}</span></td></tr>
-<tr><td>Microsoft</td><td>Email, calendars and Teams</td><td><span class="ph">{{microsoft_regions}}</span></td></tr>
-<tr><td>Twilio</td><td>Checks that a number is a mobile. Sends SMS backup.</td><td><span class="ph">{{twilio_regions}}</span></td></tr>
-<tr><td>Paystack</td><td>Takes payments from advisers (not from you)</td><td><span class="ph">{{paystack_regions}}</span></td></tr>
+<tr><td>Supabase</td><td>Holds our database</td><td>Ireland (EU)</td></tr>
+<tr><td>Meta (WhatsApp, Facebook, Instagram)</td><td>Sends our WhatsApp messages. Runs our ads. Measures our ads. We send your coded (hashed) number, your IP address and browser type as they are, and, after a call, the adviser&rsquo;s 1 to 5 rating as a number. We never send your email, the adviser&rsquo;s note, or what was said.</td><td>United States and Ireland</td></tr>
+<tr><td>Transcription service (named here before adviser voice notes are switched on)</td><td>Turns the adviser&rsquo;s voice note about your call into text. We do not keep the recording.</td><td>Named with the service</td></tr>
+<tr><td>Anthropic</td><td>The AI model that helps our WhatsApp assistant reply</td><td>United States</td></tr>
+<tr><td>Google</td><td>Calendar and video calls for some advisers, and website tools</td><td>United States and other countries where Google operates</td></tr>
+<tr><td>Microsoft</td><td>Email, calendars and Teams</td><td>South Africa and other Microsoft regions</td></tr>
+<tr><td>Twilio</td><td>Checks that a number is a mobile. Sends SMS backup.</td><td>United States</td></tr>
+<tr><td>Paystack</td><td>Takes payments from advisers (not from you)</td><td>South Africa and other countries where Paystack operates</td></tr>
 </tbody></table>
 <p>Some of these providers may keep data outside South Africa. When that happens, we only use providers that are bound by law or by a written agreement to protect it to a standard like POPIA. Section 72 of POPIA asks for this.</p>
 
@@ -121,14 +121,14 @@
 <h2>How long we keep it</h2>
 <p>Our system deletes records on these dates every night.</p>
 <ul>
-<li>Your details, messages, booking and the adviser&rsquo;s feedback about your call: <strong><span class="ph">{{retention_lead_months}}</span> months</strong> after our last contact with you. Then we delete them.</li>
+<li>Your details, messages, booking and the adviser&rsquo;s feedback about your call: <strong>12 months</strong> after our last contact with you. Then we delete them.</li>
 <li>Your email (only if you gave it for a video call): deleted with your other details.</li>
 <li>Voice notes from the adviser: we do not keep the recording. We keep the text with your other details.</li>
-<li>Answers in a WhatsApp chat you did not finish: deleted after <strong><span class="ph">{{retention_unfinished_hours}}</span> hours</strong>.</li>
-<li>Form entries that do not fit our criteria: deleted within <strong><span class="ph">{{retention_nonfit_hours}}</span> hours</strong>.</li>
-<li>Your consent record and any opt-out: <strong><span class="ph">{{retention_consent_years}}</span> years</strong>, as proof.</li>
+<li>Answers in a WhatsApp chat you did not finish: deleted after <strong>72 hours</strong>.</li>
+<li>Form entries that do not fit our criteria: deleted within <strong>24 hours</strong>.</li>
+<li>Your consent record and any opt-out: <strong>5 years</strong>, as proof.</li>
 <li>If you say &ldquo;No thanks&rdquo; or STOP: we keep a coded (hashed) copy of your number on our block list, so we never message you again. We delete your other details on the dates above.</li>
-<li>Backups: overwritten every <span class="ph">{{backup_days}}</span> days.</li>
+<li>Backups: overwritten every 30 days.</li>
 </ul>
 
 <h2>Automated checks and our AI assistant</h2>
@@ -148,15 +148,15 @@
 
 <h2>Information Officer and contact</h2>
 <p><strong>Information Officer:</strong> Jonathan <span class="ph">{{jonathan_surname}}</span><br>
-<strong>Deputy Information Officer:</strong> <span class="ph">{{kg_full_name}}</span><br>
+<strong>Deputy Information Officer:</strong> Kgomotso Pule<br>
 <strong>Email:</strong> <a href="mailto:howzit@leadvelocity.co.za">howzit@leadvelocity.co.za</a><br>
-<strong>Phone:</strong> <span class="ph">{{io_direct_phone}}</span><br>
-<strong>Postal address:</strong> <span class="ph">{{ADDRESS_STREET}}, {{ADDRESS_CITY}}, {{ADDRESS_POSTCODE}}</span></p>
+<strong>Phone:</strong> +27 10 976 5618<br>
+<strong>Postal address:</strong> Pegasus Building 1, 210 Amarand Avenue, Menlyn Maine, Pretoria, 0184</p>
 
 <h2>Complaints</h2>
 <p>Email <a href="mailto:howzit@leadvelocity.co.za">howzit@leadvelocity.co.za</a>, or send <strong>COMPLAINT</strong> on our WhatsApp. We reply within <strong>48 hours</strong>. See also <a href="/complaints.html">complaints</a>.</p>
 <p>Complaints about an adviser&rsquo;s advice go to the adviser&rsquo;s own complaints process. If it is not solved, you can go to the FAIS Ombud.</p>
-<p>You can also complain to the Information Regulator: <span class="ph">{{regulator_contact}}</span>.</p>
+<p>You can also complain to the Information Regulator: <a href="https://inforegulator.org.za/">inforegulator.org.za</a>, complaints.IR@inforegulator.org.za.</p>
 
 <h2>Age and changes</h2>
 <p>Our service is for people 18 and older. If we change this notice, we change the date at the top. For big changes, we also say so on our page.</p>
@@ -179,7 +179,7 @@ show();
 </main>
 <footer class="foot"><div class="wrap">
 <p class="disc">SortMyCover is a service of Lead Velocity (Pty) Ltd. We connect you with authorised financial services providers. We do not give financial advice, compare products or quote premiums.</p>
-<p>Lead Velocity (Pty) Ltd &middot; Company Reg No {{CIPC_REG_NO}} &middot; <a href="mailto:hello@sortmycover.co.za">hello@sortmycover.co.za</a></p>
+<p>Lead Velocity (Pty) Ltd &middot; Company Reg No 2025/637858/07 &middot; <a href="mailto:hello@sortmycover.co.za">hello@sortmycover.co.za</a></p>
 <nav aria-label="Footer"><ul class="links"><li><a href="/about.html">About</a></li><li><a href="/how-we-make-money.html">How we make money</a></li><li><a href="/privacy.html">Privacy</a></li><li><a href="/terms.html">Terms</a></li><li><a href="/complaints.html">Complaints</a></li></ul></nav>
 </div></footer>
 </body>

@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import PortalShell, { StepClip, usePortal } from "./PortalShell";
-import { AGE_LABEL, BUDGET_LABEL, CLIPS_BASE, DISPOSITIONS, dispositionLabel, errText, fmtDay, fmtTime, methodLabel, portalEvent, saDate, smcDb } from "@/lib/smc";
+import { AGE_LABEL, BUDGET_LABEL, CLIPS_BASE, isPremium1500, DISPOSITIONS, dispositionLabel, errText, fmtDay, fmtTime, methodLabel, portalEvent, saDate, smcDb } from "@/lib/smc";
 import type { SmcBooking, SmcCycleProgress, SmcDispositionCode, SmcLead, SmcOutcome, SmcOutcomeKind, SmcReplacement } from "@/integrations/supabase/smc-types";
 
 const CALL_METHODS = new Set(["phone", "whatsapp_call"]);
@@ -185,7 +185,7 @@ function Body() {
             return (
               <tr key={b.id} {...mark(b.lead_id)}><td>
                 <b>{fmtTime(b.starts_at)}</b><br />{fullName(l)}<br />
-                <span className="small">{methodLabel(b.method)}{l?.language ? ` · ${l.language}` : ""}{l?.age_band ? ` · ${AGE_LABEL[l.age_band]}` : ""}{l?.budget_band ? ` · ${BUDGET_LABEL[l.budget_band]}` : ""}</span>
+                <span className="small">{methodLabel(b.method)}{l?.language ? ` · ${l.language}` : ""}{l?.age_band ? ` · ${AGE_LABEL[l.age_band]}` : ""}{l?.budget_band ? ` · ${BUDGET_LABEL[l.budget_band]}` : ""}{isPremium1500(l?.budget_band) && <b className="tag"> · R1,500+</b>}</span>
                 {open === b.id && <Brief b={b} l={l} />}
               </td><td style={{ textAlign: "right" }}><button className="tap g" type="button" onClick={() => setOpen(open === b.id ? null : b.id)}>Brief</button></td></tr>
             );

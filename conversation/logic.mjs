@@ -7,7 +7,7 @@ export const INTENTS = ['book', 'reschedule', 'cancel', 'question', 'consent', '
 
 export const SLOT_ENUMS = {
   age_band: ['<35', '35-44', '45-50', '51+'],
-  budget_band: ['<750', '750-1250', '1250+', 'unsure'],
+  budget_band: ['<750', '750-1250', '1250+', '1250-1499', '1500+', 'unsure'],
   dependants: ['yes', 'no'],
   bond: ['yes', 'no'],
   method: ['teams', 'zoom', 'meet', 'whatsapp_call', 'phone'],

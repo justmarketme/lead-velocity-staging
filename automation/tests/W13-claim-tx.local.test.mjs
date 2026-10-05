@@ -51,11 +51,11 @@ test('W13 claim SQL concurrently: no over-cap claim, one per lead, no partial wr
   file(join(here, 'fixtures', 'pg-stub.sql'));
   const MIG = join(ROOT, 'supabase', 'migrations');
   const all = readdirSync(MIG).filter((f) => f.endsWith('.sql')).sort();
-  const legacy = all.filter((f) => !f.startsWith('20261002_smc_') && !f.startsWith('20260114094619'));
+  const legacy = all.filter((f) => !/^2026100\d_smc_/.test(f) && !f.startsWith('20260114094619'));
   const deferred = [];
   for (const f of legacy) { try { file(join(MIG, f), ['-1']); } catch { deferred.push(f); } }
   for (const f of deferred) file(join(MIG, f), ['-1']);
-  for (const f of all.filter((x) => x.startsWith('20261002_smc_'))) file(join(MIG, f), ['-1']);
+  for (const f of all.filter((x) => /^2026100\d_smc_/.test(x))) file(join(MIG, f), ['-1']);
 
   // ---- synthetic seed: one brand, one broker, two cycles (cap 4 and cap 2), many leads
   const uuid = () => crypto.randomUUID();

@@ -8,9 +8,10 @@
     "time_shift": "Offline tests use these times as-is (virtual clock). Online runs shift every time forward by whole weeks; see fixtures/time-shift.md.",
     "band_codes": {
       "age_band": ["under_35", "35_44", "45_50", "51_plus"],
-      "budget_band": ["under_500", "500_750", "750_1250", "1250_plus"],
+      "budget_band": ["under_500", "500_750", "750_1250", "1250_plus", "1250_1499", "1500_plus"],
       "qualifying_age": ["35_44", "45_50"],
-      "qualifying_budget": ["750_1250", "1250_plus"]
+      "qualifying_budget": ["750_1250", "1250_plus", "1250_1499", "1500_plus"],
+    "priority_tag_budget": ["1500_plus"]
     },
     "method_labels": { "teams": "Microsoft Teams", "zoom": "Zoom", "meet": "Google Meet", "whatsapp_call": "WhatsApp call", "phone": "phone" },
     "disposition_codes": ["fit_proceeding", "fit_followup", "nofit_budget", "nofit_covered", "nofit_criteria", "unreachable"],
@@ -199,7 +200,7 @@
         "first_name": "Sipho",
         "mobile": "+27 60 000 0102",
         "language": "en",
-        "quiz": { "age_band": "45_50", "has_bond": true, "has_dependants": false, "has_work_cover": false, "budget_band": "1250_plus" },
+        "quiz": { "age_band": "45_50", "has_bond": true, "has_dependants": false, "has_work_cover": false, "budget_band": "1500_plus" },
         "consent": {
           "checked": true,
           "version": "CONSENT-NAMED-v1+CONSENT-ADS-v1",
@@ -282,7 +283,7 @@
           { "name": "first_name", "values": ["Anele"] },
           { "name": "phone_number", "values": ["+27600000103"] },
           { "name": "age_band", "values": ["35_44"] },
-          { "name": "budget_band", "values": ["1250_plus"] },
+          { "name": "budget_band", "values": ["1250_1499"] },
           { "name": "has_bond", "values": ["yes"] },
           { "name": "has_dependants", "values": ["yes"] },
           { "name": "preferred_method", "values": ["whatsapp_call"] }
