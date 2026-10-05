@@ -20,6 +20,7 @@ import { checkSql, workflowSql } from './_sqlcheck.mjs';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, '..', '..');
 const require = createRequire(import.meta.url);
+import { nodeRequire } from './_n8ncode.mjs';
 const WF = JSON.parse(readFileSync(join(HERE, '..', 'W34.json'), 'utf8'));
 const H = 3600000; const D = 24 * H;
 const sha = (s) => createHash('sha256').update(s, 'utf8').digest('hex');
@@ -34,7 +35,7 @@ function runCode(name, { input = [], refs = {}, env = {}, now }) {
   const wrap = (arr) => ({ all: () => arr.map((j) => ({ json: j })), first: () => ({ json: arr[0] }) });
   const call = (NOW, items, item) => {
     class FakeDate extends Date { constructor(...a) { if (a.length) super(...a); else super(NOW); } static now() { return NOW; } }
-    const ctx = vm.createContext({ $input: { ...wrap(items), item: item && { json: item } }, $json: item ?? items[0] ?? {}, $env: env, require, Date: FakeDate,
+    const ctx = vm.createContext({ $input: { ...wrap(items), item: item && { json: item } }, $json: item ?? items[0] ?? {}, $env: env, require: (m) => (m === 'lv-automation' ? nodeRequire(m) : require(m)), Date: FakeDate,
       $: (n) => { if (!refs[n]) throw new Error(`node "${n}" has not run`); return wrap(refs[n]); } });
     return vm.runInContext(`(function () {\n${node(name).parameters.jsCode}\n})()`, ctx);
   };
@@ -623,6 +624,42 @@ test('B2 breach lane: true positives (English and Afrikaans) open one draft each
   for (const o of out) { assert.match(o.ref, /^[0-9a-f]{12}$/); assert.match(o.summary, /^DRAFT:/); assert.ok(o.matched.length); }
   assert.equal(new Set(out.map((o) => o.ref)).size, out.length, 'one ref per mail');
   assert.ok(!JSON.stringify(out).includes('lead export'), 'no message text is carried');
+});
+
+test('B2 breach lane G9 (breach drill P14): the 4 wrong-recipient drill emails (EN + AF) now open a draft each', () => {
+  // build/evidence/S7-28-2026-10-05/detector-check.cjs: 0 of 4 matched before the fix
+  const drill = [
+    mail('Wrong lead', 'Hi, I received a lead this morning that is not mine. The client details were sent to me by mistake. Please check.', undefined, 'g9-1'),
+    mail('Lead sent to the wrong broker', "You sent me someone else's client. Her name and number came through to me.", undefined, 'g9-2'),
+    mail('Who is this?', 'A stranger WhatsApped me saying your company gave him my number and my details. I never agreed to that.', undefined, 'g9-3'),
+    mail('Verkeerde lead', 'Ek het n lead gekry wat nie myne is nie. Die kliënt se besonderhede is per ongeluk aan my gestuur.', undefined, 'g9-4'),
+  ];
+  const out = detect(...drill);
+  assert.equal(out.length, 4, JSON.stringify(out.map((o) => o.matched)));
+  assert.ok(out.slice(0, 2).every((o) => o.matched.includes('en.misdirected')));
+  assert.ok(out[2].matched.includes('en.passed_without_consent'));
+  assert.ok(out[3].matched.includes('af.misdirected'));
+  // more phrasings from the drill note
+  const more = [
+    mail('Re: lead', 'This is not my client, please remove her from my list', undefined, 'g9-5'),
+    mail('Oops', "I think you sent me the wrong person's details", undefined, 'g9-6'),
+    mail('Lead', 'Dit is nie my kliënt nie. Julle het die verkeerde persoon se besonderhede gestuur.', undefined, 'g9-7'),
+    mail('Lead', 'Hierdie lead is per abuis vir my gestuur', undefined, 'g9-8'),
+  ];
+  assert.equal(detect(...more).length, more.length);
+});
+
+test('B2 breach lane G9: near-miss everyday wording still stays quiet', () => {
+  const quiet = [
+    mail('Booking', 'Sorry, I picked the wrong time. Can I move to Thursday?'),
+    mail('Re: call', 'Not my problem, thanks, all sorted'),
+    mail('Slot', 'The 10:00 slot is mine, see you then'),
+    mail('Vraag', 'Ek is nie seker nie, kan ons Donderdag praat?'),
+    mail('Missed call', 'Sorry, wrong number dialled earlier, I will call back'),
+    mail('Confirm', 'There was no mistake, I booked it myself'),
+    mail('Delete my details', 'Please delete my details, what data do you hold about me?'),
+  ];
+  assert.deepEqual(detect(...quiet), []);
 });
 
 test('B2 breach lane: DSR and ordinary mail do not trigger it', () => {

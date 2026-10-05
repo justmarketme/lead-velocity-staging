@@ -2039,7 +2039,7 @@
       }
     },
     {
-      "id": "n_fw4_63",
+      "id": "n471",
       "name": "W32 tap -> decision item",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -2053,7 +2053,7 @@
       }
     },
     {
-      "id": "n_fw4_64",
+      "id": "n472",
       "name": "-> W32 decision",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -2076,7 +2076,7 @@
       "notes": "I-37e: enters W32 at 'Console decision (sub-call)' -> 'Validate decision' (parses payload approve:<id> | later:<id>). Only OPS_WHATSAPP_JONATHAN / OPS_WHATSAPP_KG taps reach here."
     },
     {
-      "id": "n_fw4_65",
+      "id": "n473",
       "name": "W23 media -> trigger item",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -2090,7 +2090,7 @@
       }
     },
     {
-      "id": "n_fw4_66",
+      "id": "n474",
       "name": "-> W23 media",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -2113,7 +2113,7 @@
       "notes": "I-37d: W23 has no WhatsApp Trigger of its own; broker video (any status) and broker audio while pre-live arrive here."
     },
     {
-      "id": "n_fw4_67",
+      "id": "n475",
       "name": "Sub-call from? (W03 forward / W05)",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
@@ -2154,7 +2154,7 @@
       }
     },
     {
-      "id": "n_fw4_68",
+      "id": "n476",
       "name": "W03 forward: loop guard (origin w03)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -2168,7 +2168,7 @@
       }
     },
     {
-      "id": "n_aln_gate",
+      "id": "n477",
       "name": "outputGate passed?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -2198,7 +2198,7 @@
       }
     },
     {
-      "id": "i48Reply",
+      "id": "n478",
       "name": "Reply claim (w07:reply:{wamid})",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -2221,7 +2221,7 @@
       }
     },
     {
-      "id": "i48Logho",
+      "id": "n479",
       "name": "Log hop limit (W07)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -2244,7 +2244,7 @@
       }
     },
     {
-      "id": "i48Hopli",
+      "id": "n480",
       "name": "Hop limit ok? (W03 forward, I-48b)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -2314,7 +2314,7 @@
       "notes": "I-45d / CONTRACTS W06: { op: 'status', wamid, status, at, errors } for delivered/read/failed receipts of W06 cards. W06 stamps disclosure evidence and sends the SMS fallback once (w06:sms:{wamid})."
     },
     {
-      "id": "n_i39h_code",
+      "id": "n481",
       "name": "Parse verdict + re-check needed? (I-39h)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -2328,7 +2328,7 @@
       }
     },
     {
-      "id": "n_i39h_if",
+      "id": "n482",
       "name": "Low-confidence pass? (I-39h)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -2358,7 +2358,7 @@
       }
     },
     {
-      "id": "n_i39h_http",
+      "id": "n483",
       "name": "Guardrail re-check LLM (Sonnet, I-39h)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -2404,7 +2404,7 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "n_twilio_in",
+      "id": "n484",
       "name": "WhatsApp webhook (Twilio)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -2423,7 +2423,7 @@
       "webhookId": "w07-whatsapp-twilio-post"
     },
     {
-      "id": "n_twilio_verify",
+      "id": "n485",
       "name": "Verify Twilio signature + normalise",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -2435,6 +2435,82 @@
         "mode": "runOnceForAllItems",
         "jsCode": "const V = require('lv-automation').verifyWebhooks;\nconst P = require('lv-automation').waProvider;\nconst crypto = require('crypto');\n// WHATSAPP_PROVIDER=twilio ingress (X-Twilio-Signature = HMAC-SHA1 over URL + sorted params, timing-safe). Emits the same items as the Meta node.\nif (P.providerOf($env) !== 'twilio') return [{ json: { valid: false, reason: 'provider_not_twilio' } }];\nconst it = $input.first().json; const h = it.headers || {};\nconst params = it.body || {};\nconst base = String($env.WEBHOOK_URL || '').replace(/\\/$/, '');\nconst vr = V.verifyTwilioSignature({ url: base + '/webhook/whatsapp-twilio', params, signatureHeader: h['x-twilio-signature'], authToken: $env.TWILIO_AUTH_TOKEN });\nif (!vr || vr.ok !== true) return [{ json: { valid: false, reason: (vr && vr.reason) || 'unverified' } }];\nconst out = [];\nfor (const e of P.normaliseTwilioInbound(params, Date.now())) {\n  if (e.kind === 'message') out.push({ json: { valid: true, kind: 'message', msg: e.msg, payload_hash: crypto.createHash('sha256').update(JSON.stringify(e.msg)).digest('hex') } });\n  else out.push({ json: { valid: true, ...e } });\n}\nreturn out.length ? out : [{ json: { valid: true, kind: 'empty' } }];"
       }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Breach drill P14 gap G10: brokers report problems by WhatsApp, not by email to howzit@. Every inbound text from a broker\n// number runs through the SAME deterministic detector as W34's howzit@ lane (automation/lib/breach-detect.mjs, incl. the G9\n// wrong-recipient phrases). A hit opens the same incident DRAFT and raises the same W22 popia_breach alert; the broker's\n// message still continues on its normal path (W12 / W29 / W23). No message text is kept: only a hash of the wamid.\nconst B = require('lv-automation').breachDetect;\nconst out = [];\nfor (const i of $input.all()) {\n  const j = i.json || {};\n  if (!j.from_broker_id || !j.msg) continue;\n  const d = B.detectBrokerWhatsApp(j.msg, { broker_id: j.from_broker_id, nowIso: new Date().toISOString() });\n  if (d) out.push({ json: d });\n}\nreturn out;"
+      },
+      "id": "n486",
+      "name": "Broker breach report? (shared W34 detector, G10)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        820
+      ]
+    },
+    {
+      "id": "n487",
+      "name": "Open incident draft (broker WhatsApp)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        820
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- W34 B2: one incidents DRAFT row per breach-report e-mail (idempotent on the ref in the summary, so a re-poll never opens two).\n-- severity high until a person assesses it; affected_count unknown (null). No sender name, address or message text is stored.\n-- Existing table only (migration smc_03): the exposure window, data categories and notice wording have no columns yet (drill gap G5, platform-architect).\n-- $1 detector item (json)\nwith v as (\n  select * from jsonb_to_record($1::jsonb) as v(ref text, received_at timestamptz, summary text)\n), ins as (\n  insert into public.incidents (declared_at, severity, summary)\n  select v.received_at, 'high', v.summary from v\n  where not exists (select 1 from public.incidents i where i.summary like '%(ref ' || v.ref || ')%')\n  returning id\n)\nselect (select id from ins limit 1) as incident_id, (select ref from v) as ref, not exists (select 1 from ins) as duplicate;",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($json)] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "executeOnce": false,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Same alert builder as W34 (one W22 alert per NEW incident draft; duplicates silent; red, both phones; no text, name or contact).\nconst B = require('lv-automation').breachDetect;\nreturn $input.all().map((i) => B.breachAlert(i.json, { console_url: $env.CONSOLE_URL, source: 'broker_whatsapp', workflow: 'W07' })).filter(Boolean).map((json) => ({ json }));"
+      },
+      "id": "n488",
+      "name": "Build breach alert (broker WhatsApp)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        820
+      ]
+    },
+    {
+      "id": "n489",
+      "name": "Alert breach (W22, broker WhatsApp)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        820
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w22"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "executeOnce": true,
+      "notes": "W22 input: { kind: 'popia_breach', to: [both], severity: 'red', incident_id }. Producer contract W22.md section 3. No send here: W22 owns delivery and DRY_RUN."
     }
   ],
   "connections": {
@@ -2521,6 +2597,11 @@
         [
           {
             "node": "Known lead or broker? (store)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Broker breach report? (shared W34 detector, G10)",
             "type": "main",
             "index": 0
           }
@@ -3325,6 +3406,39 @@
           },
           {
             "node": "Message or status?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Broker breach report? (shared W34 detector, G10)": {
+      "main": [
+        [
+          {
+            "node": "Open incident draft (broker WhatsApp)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Open incident draft (broker WhatsApp)": {
+      "main": [
+        [
+          {
+            "node": "Build breach alert (broker WhatsApp)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build breach alert (broker WhatsApp)": {
+      "main": [
+        [
+          {
+            "node": "Alert breach (W22, broker WhatsApp)",
             "type": "main",
             "index": 0
           }

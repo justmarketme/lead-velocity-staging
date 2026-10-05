@@ -568,3 +568,30 @@ test('I-39h W07.json: Parse -> Low-confidence pass? -> Sonnet re-check -> Assemb
   const code = JSON.stringify(WF);
   assert.ok(code.includes('ANTHROPIC_MODEL_STRONG') && code.includes('resolveRecheck('));
 });
+
+// ---------------------------------------------------------------------------------------------
+// Breach drill P14 gap G10: a broker's WhatsApp goes through the same W34 detector and raises the same W22 alert
+// ---------------------------------------------------------------------------------------------
+test('G10: broker WhatsApp "wrong lead / not mine" -> same detector, same incident draft SQL, same W22 popia_breach alert', async () => {
+  const W34 = JSON.parse(readFileSync(new URL('../W34.json', import.meta.url), 'utf8'));
+  const nd = (wf, n) => wf.nodes.find((x) => x.name === n);
+  const DET = 'Broker breach report? (shared W34 detector, G10)';
+  assert.ok((WF.connections['Route (deterministic) + prefilter'].main[0] || []).some((c) => c.node === DET), 'runs beside the normal broker path');
+  assert.deepEqual(WF.connections[DET].main[0].map((c) => c.node), ['Open incident draft (broker WhatsApp)']);
+  assert.equal(nd(WF, 'Open incident draft (broker WhatsApp)').parameters.query, nd(W34, 'Open incident draft').parameters.query, 'identical incident SQL');
+  assert.deepEqual(nd(WF, 'Alert breach (W22, broker WhatsApp)').parameters.workflowId, nd(W34, 'Alert breach (W22)').parameters.workflowId);
+  const broker = '00000000-0000-4000-8000-0000000b0001';
+  const item = (text, extra = {}) => ({ route: 'W29', from_broker_id: broker, msg: { from: '+27600000099', text, wamid: `wamid.g10.${text.length}`, at_ms: Date.parse('2026-10-05T08:00:00Z') }, ...extra });
+  const hits = await runCode(WF, DET, { items: [
+    item('Hi, this lead is not mine. The client details were sent to me by mistake.'),
+    item('Ek het n lead gekry wat nie myne is nie, per ongeluk aan my gestuur.'),
+    item('Attended, good fit, proceeding'),                                   // ordinary feedback: quiet
+    item('This lead is not mine', { from_broker_id: null }),                   // not a broker number: W34 is not this lane
+  ] });
+  assert.equal(hits.length, 2, JSON.stringify(hits.map((h) => h.json.matched)));
+  for (const h of hits) { assert.equal(h.json.source, 'broker_whatsapp'); assert.match(h.json.summary, /^DRAFT: .*broker on WhatsApp \(ref [0-9a-f]{12}\)/); assert.ok(!JSON.stringify(h.json).includes('not mine'), 'no message text kept'); }
+  const alerts = await runCode(WF, 'Build breach alert (broker WhatsApp)', { items: [{ incident_id: 'i-9', ref: hits[0].json.ref, duplicate: false }, { incident_id: 'i-9', duplicate: true }], env: { CONSOLE_URL: 'https://app.example.test' } });
+  assert.equal(alerts.length, 1, 'a re-delivered message opens nothing new and alerts nothing');
+  assert.deepEqual([alerts[0].json.kind, alerts[0].json.severity, alerts[0].json.to, alerts[0].json.workflow], ['popia_breach', 'red', ['jonathan', 'kg'], 'W07']);
+  assert.match(alerts[0].json.message, /by a broker on WhatsApp/);
+});

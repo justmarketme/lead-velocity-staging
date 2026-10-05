@@ -191,7 +191,11 @@ const w34 = (kind, extra = {}) => ({ kind, workflow: 'W34', to: ['jonathan'], se
 
 test('W34 kinds: every kind W34.json emits is registered in W22 and documented in W22.md', () => {
   const W34 = readFileSync(join(here, '..', 'W34.json'), 'utf8');
-  const emitted = [...new Set([...W34.matchAll(/kind: (?:[\w.]+ \? )?'([a-z0-9_]+)'(?: : '([a-z0-9_]+)')?, workflow: 'W34'/g)].flatMap((m) => m.slice(1).filter(Boolean)))].sort();
+  const emitted = [...new Set([...W34.matchAll(/kind: (?:[\w.]+ \? )?'([a-z0-9_]+)'(?: : '([a-z0-9_]+)')?, workflow: 'W34'/g)].flatMap((m) => m.slice(1).filter(Boolean)))];
+  // G10: the breach alert is built in the shared lib (W34 howzit@ lane + W07 broker WhatsApp lane), called with workflow 'W34'
+  const BD = readFileSync(join(here, '..', 'lib', 'breach-detect.mjs'), 'utf8');
+  if (/breachDetect/.test(W34) && /workflow: 'W34'/.test(W34)) emitted.push(...[...BD.matchAll(/return \{ kind: '([a-z0-9_]+)'/g)].map((m) => m[1]));
+  emitted.sort();
   assert.deepEqual(emitted, [...W34_KINDS].sort(), 'W34 emits exactly the seven I-38b kinds');
   const code = node('Normalise inbound signal').parameters.jsCode;
   for (const k of W34_KINDS) {
@@ -561,4 +565,15 @@ test('I-31b: community kinds are registered; sensitive / dm_handoff / dm_after_l
   assert.equal(bare.filter((s) => s.signal_key === 'unknown_signal').length, 0);
   assert.deepEqual(bare.map((s) => s.severity), ['amber', 'amber', 'red']);
   assert.ok(bare.every((s) => s.what && s.impact && s.first_action));
+});
+
+test('G10: the broker-WhatsApp breach alert (W07) normalises to the same red popia_breach, both partners, as the howzit@ one (W34)', async () => {
+  const B = await import('../lib/breach-detect.mjs');
+  const row = { incident_id: '00000000-0000-4000-8000-0000000e0001', ref: 'abcdefabcdef', duplicate: false };
+  const [mail, wa] = runCode('Normalise inbound signal', { env: { W34_IO_RECIPIENT: 'kg' }, input: [
+    B.breachAlert(row, { console_url: 'https://app.example.test', source: 'howzit_mail', workflow: 'W34' }),
+    B.breachAlert(row, { console_url: 'https://app.example.test', source: 'broker_whatsapp', workflow: 'W07' }),
+  ] });
+  for (const s of [mail, wa]) assert.deepEqual([s.signal_key, s.severity, s.recipients.slice().sort(), s.scope], ['popia_breach', 'red', ['jonathan', 'kg'], `incident:${row.incident_id}`]);
+  assert.match(wa.what, /by a broker on WhatsApp/);
 });
