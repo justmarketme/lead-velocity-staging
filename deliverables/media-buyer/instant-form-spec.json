@@ -56,21 +56,6 @@
     },
     {
       "type": "CUSTOM",
-      "key": "budget_band",
-      "label": "Roughly what monthly amount could you set aside for life cover?",
-      "options": [
-        { "key": "lt500", "value": "Under R500" },
-        { "key": "500_750", "value": "R500-R750" },
-        { "key": "750_1250", "value": "R750-R1,250" },
-        { "key": "1250_1499", "value": "R1,250-R1,499" },
-        { "key": "1500_plus", "value": "R1,500+" }
-      ],
-      "_qualifies": ["750_1250", "1250_1499", "1500_plus", "1250plus"],
-      "_priority_tag": "1500_plus (tag only; never a disqualifier or routing filter). 1250plus kept valid for pre-split leads.",
-      "_routes_out": ["lt500", "500_750"]
-    },
-    {
-      "type": "CUSTOM",
       "key": "call_ok",
       "label": "Is a video, WhatsApp or phone call fine for your 30-minute chat?",
       "options": [
@@ -97,7 +82,14 @@
     { "type": "FULL_NAME" },
     { "type": "PHONE", "_label_note": "Meta prefills from the profile. Label shown to the user: Mobile number (WhatsApp). W02 runs the Twilio Lookup line-type check; landline/VoIP leads are not contacted." }
   ],
-  "_question_order_note": "Qualifying questions come first and name/phone/consent last, so anyone routed out leaves before giving contact details or ticking consent (data minimisation). Do not add email, ID number, income, health or bank questions (2.1.3, 4.6).",
+  "_budget_band_moved": {
+    "decided": "2026-10-05 (Jonathan): Meta Lead Ads terms forbid income / financial questions in instant forms without Meta's permission. The monthly budget band is NOT asked in the form.",
+    "where_now": "First WhatsApp step, inside 60 s of the form submit: W01 stores the lead unrouted (routing_reason held_budget_pending, conv_state q_budget, no CAPI Lead yet) and sends the utility template qualify_budget (automation/templates/qualify_budget.json), one quick reply per band. The tap goes W07 -> W03, which decides with the same bands as before.",
+    "qualifying_logic_unchanged": "Qualify: R750-R1,250 (750_1250), R1,250-R1,499 (1250_1499), R1,500+ (1500_plus; priority tag only) and legacy 1250plus. Route out: Under R500, R500-R750 -> polite close, never handed over, deleted within 24 h (W03 outOfBand, 2.1.7).",
+    "hand_over": "In band -> W01 routeExisting routes the lead, sends the CAPI Lead (held_* rule, I-49c) and W06 sends broker_intro_slots < 60 s after the tap. Nothing else is asked on WhatsApp: age, call_ok and bond/children stay in the form; the call method is chosen when booking.",
+    "removed_options_for_reference": ["Under R500", "R500-R750", "R750-R1,250", "R1,250-R1,499", "R1,500+"]
+  },
+  "_question_order_note": "Qualifying questions come first and name/phone/consent last, so anyone routed out leaves before giving contact details or ticking consent (data minimisation). Do not add email, ID number, income, budget/affordability, health or bank questions (2.1.3, 4.6; Meta Lead Ads terms, 2026-10-05: no income/financial questions without Meta's permission).",
 
   "custom_disclaimer": {
     "title": "How we use your details",
@@ -132,11 +124,10 @@
       "status": "Assumed UI-only. Configure in the form builder (conditional logic / custom ending). If Meta shows it as API-expressible, ads-api-engineer may move it into the create body.",
       "routing_rules": [
         { "if": "age_band in [lt35, 51plus]", "then": "show ending DISQUALIFIED" },
-        { "if": "budget_band in [lt500, 500_750]", "then": "show ending DISQUALIFIED" },
         { "if": "call_ok = no", "then": "show ending DISQUALIFIED" },
         { "otherwise": "continue to name, phone, consent, then thank_you_page" }
       ],
-      "evaluation_order": "age_band, budget_band, call_ok (any one out-of-band routes out; no combination logic)",
+      "evaluation_order": "age_band, call_ok (any one out-of-band routes out; no combination logic). The budget band is asked on WhatsApp, not here (_budget_band_moved).",
       "disqualified_ending": {
         "title": "Thanks for your time",
         "body": "Based on your answers, a call with an adviser is not the right fit at the moment, so we have not shared your details with anyone. You can read more at sortmycover.co.za.",
@@ -144,7 +135,7 @@
         "button_text": "Visit SortMyCover",
         "website_url": "https://sortmycover.co.za/"
       },
-      "server_side_backstop": "W02 re-checks every answer regardless of Meta routing. Any lead whose answers are out of band (or whose consent checkbox is missing) never enters the automation, gets no WhatsApp message, and its record is deleted within 24 h (2.1.7). Meta routing is for experience and Lead-event quality; W02 is the source of truth."
+      "server_side_backstop": "W02 re-checks every form answer regardless of Meta routing (no budget band = asked first on WhatsApp; a band from an older form version is still checked). Any lead whose answers are out of band (or whose consent checkbox is missing) never enters the automation, gets no WhatsApp message, and its record is deleted within 24 h (2.1.7). Meta routing is for experience and Lead-event quality; W02 is the source of truth."
     },
     "form_type_higher_intent_toggle": "Confirm in the builder that the review screen is on.",
     "rich_creative_a2": "Rich Creative form type is built in the UI (see _rich_creative_a2)."

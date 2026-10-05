@@ -378,7 +378,11 @@ export function decide(sub, ctx) {
   activities.push(created);
 
   const ageOut = !QUAL_AGE.has(row.age_band);
-  const budOut = !QUAL_BUDGET.has(row.budget_band);
+  // Meta Lead Ads terms (2026-10-05): the instant form no longer asks the monthly budget band. A lead-ad lead without
+  // one is not out of band: the band is the first WhatsApp step (automation/ctwa/w03.js budgetQuestion), decided there
+  // by the same QUAL_BUDGET set. A lead-ad lead that does carry a band (older form) is judged here as before.
+  const budgetPending = sub.channel === 'lead_ad' && row.budget_band == null && !ageOut;
+  const budOut = !budgetPending && !QUAL_BUDGET.has(row.budget_band);
   if (ageOut || budOut) {
     Object.assign(row, { stage: 'disqualified', disqualified_reason: ageOut ? 'age_band' : 'budget_band', retention_delete_after: isoSast(now + OUT_OF_BAND_RETENTION_H * H) });
     return { kind: 'insert', outcome: 'not_qualified', row, activities, first_touch: null, capi: null, mint_token: false,
@@ -390,6 +394,16 @@ export function decide(sub, ctx) {
     Object.assign(row, { stage: 'opted_out', opted_out_at: at, routing_reason: 'suppressed' });
     activities.push({ activity_type: 'suppressed_at_intake', actor_type: 'system', occurred_at: at, idempotency_key: `w01:suppressed:${ctx.lead_id}`, payload: { channel: sub.channel } });
     return { kind: 'insert', outcome: 'suppressed', row, activities, first_touch: null, capi: null, mint_token: false,
+      response: { http_status: 200, body: { ok: true, status: 'accepted', lead_id: row.id } } };
+  }
+
+  if (budgetPending) {
+    // Not routed, not handed over, no CAPI Lead yet: routeExisting() sends Lead at the hand-over (held_* rule, I-49c).
+    // The first WhatsApp (< 60 s, HBR) is the budget question; W07 sends the tap to W03 because conv_state is q_budget.
+    Object.assign(row, { routing_reason: 'held_budget_pending', conv_state: { state: 'q_budget' } });
+    activities.push({ activity_type: 'budget_question_pending', actor_type: 'system', occurred_at: at, idempotency_key: `w01:budget_pending:${ctx.lead_id}`, payload: { channel: sub.channel } });
+    return { kind: 'insert', outcome: 'budget_pending', row, activities, capi: null, mint_token: false,
+      first_touch: { workflow: 'W03', op: 'ask_budget', lead_id: row.id, not_before: at, origin: row.origin, deadline_s: FIRST_TOUCH_DEADLINE_S },
       response: { http_status: 200, body: { ok: true, status: 'accepted', lead_id: row.id } } };
   }
 
@@ -412,6 +426,42 @@ export function decide(sub, ctx) {
     first_touch: { workflow: 'W06', op: 'routed', lead_id: row.id, not_before: row.routed_at, origin: row.origin, deadline_s: FIRST_TOUCH_DEADLINE_S },
     response: { http_status: 200, body: { ok: true, status: 'accepted', lead_id: row.id, methods_supported: b.methods_supported || ['whatsapp_call', 'phone'] } },
   };
+}
+
+/**
+ * The first WhatsApp for a lead-ad lead whose instant form no longer asks the budget band (Meta Lead Ads terms,
+ * 2026-10-05): utility template qualify_budget, one quick reply per band. The payload ids are exactly W03's BUDGET_ROWS
+ * ids (automation/ctwa/w03.js), so the tap is decided by W03's own QUAL_BUDGET set (W01.test.mjs pins the match).
+ * Input for the shared sender (SUB-whatsapp-send, "decided" shape); correlation makes a retried W01 run send once.
+ */
+export const BUDGET_TEMPLATE = 'qualify_budget';
+export const BUDGET_TAP_IDS = ['budget_under_500', 'budget_500_750', 'budget_750_1250', 'budget_1250_1499', 'budget_1500_plus'];
+export function budgetQuestion(row) {
+  return {
+    to: row.phone, kind: 'template', template: BUDGET_TEMPLATE, variables: [String(row.first_name || '').trim() || 'there'],
+    buttons: BUDGET_TAP_IDS.map((id) => ({ quick_reply: id })), lead_id: row.id, correlation: `w01:ask_budget:${row.id}`,
+  };
+}
+
+/**
+ * The ONE budget reminder (decided 2026-10-05): no tap within 3 h of the first qualify_budget -> the same template once
+ * more, never inside lead quiet hours (20:00-08:00 SAST, same window as W08; a reminder due then goes at 08:00), then
+ * nothing. The reminder sets retention_delete_after = reminder + 24 h: a lead who never taps is never handed over and is
+ * deleted on the same 24-h rule as an out-of-band lead, counted from the reminder (a tap in time qualifies the lead and
+ * W03 clears the date). Marked before sending (conv_state.budget_reminded_at): a duplicate is worse than a miss.
+ */
+export const BUDGET_REMINDER_H = 3;
+export const BUDGET_REMINDER_QUIET = { from: 20, to: 8 };
+export const NO_TAP_RETENTION_H = 24;
+const inQuiet = (t) => { const h = new Date(t + 2 * H).getUTCHours(); return h >= BUDGET_REMINDER_QUIET.from || h < BUDGET_REMINDER_QUIET.to; };
+export function budgetReminder(lead, nowMs = Date.now()) {
+  const cs = lead && lead.conv_state || {};
+  if (!lead || lead.origin !== 'lead_ad' || lead.routing_reason !== 'held_budget_pending' || cs.state !== 'q_budget') return null;
+  if (lead.broker_id || lead.opted_out_at || lead.disqualified_reason || lead.qualified_at || cs.budget_reminded_at) return null;
+  if (nowMs < msOf(lead.created_at) + BUDGET_REMINDER_H * H || inQuiet(nowMs)) return null;
+  const at = isoSast(nowMs);
+  return { lead_id: lead.id, reminded_at: at, retention_delete_after: isoSast(nowMs + NO_TAP_RETENTION_H * H),
+    send: { ...budgetQuestion(lead), correlation: `w01:ask_budget_reminder:${lead.id}` } };
 }
 
 /**

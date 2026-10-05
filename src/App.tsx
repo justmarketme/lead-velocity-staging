@@ -44,6 +44,7 @@ const SmcToday = lazy(() => import("./pages/smc/Today"));
 const SmcAds = lazy(() => import("./pages/smc/Ads"));
 const SmcAsk = lazy(() => import("./pages/smc/Ask"));
 const SmcPayments = lazy(() => import("./pages/smc/Payments"));
+const SmcBrands = lazy(() => import("./pages/smc/Brands"));
 const PortalStart = lazy(() => import("./pages/portal/Start"));
 const PortalProfile = lazy(() => import("./pages/portal/Profile"));
 const PortalIntroCard = lazy(() => import("./pages/portal/IntroCard"));
@@ -111,6 +112,7 @@ const App = () => {
                 <Route path="/console/ads" element={smc(<SmcAds />)} />
                 <Route path="/console/ask" element={smc(<SmcAsk />)} />
                 <Route path="/console/payments" element={smc(<SmcPayments />)} />
+                <Route path="/console/settings/brands" element={smc(<SmcBrands />)} />
                 <Route path="/broker/start" element={smc(<PortalStart />)} />
                 <Route path="/broker/intro-card" element={smc(<PortalIntroCard />)} />
                 <Route path="/broker/intro-media" element={smc(<PortalIntroMedia />)} />

@@ -110,7 +110,7 @@ function threadFromLead(lead) {
   if (lead.budget_band && DB_TO_BUDGET[lead.budget_band]) answers.budget_band = DB_TO_BUDGET[lead.budget_band];
   if (typeof lead.bond === 'boolean') answers.bond = lead.bond;
   if (typeof lead.dependants === 'boolean') answers.dependants = lead.dependants;
-  return { stage: STAGE_OF[st], lead_id: lead.id, answers, from_lead: true, broker_id: lead.broker_id || null };
+  return { stage: STAGE_OF[st], lead_id: lead.id, answers, from_lead: true, broker_id: lead.broker_id || null, origin: lead.origin || null };
 }
 
 const list = (body, button, rows) => ({ type: 'list', body, button, rows: rows.map(([id, title]) => ({ id, title })) });
@@ -248,6 +248,7 @@ function qualify(t, msg, ctx, actions) {
   } else if (from === 'q_budget' || from === 'q_budget_clarify') {
     t.answers.budget_band = val;
     if (!QUAL_BUDGET.has(val)) return outOfBand(t, ctx, 'budget_band', actions);
+    if (t.from_lead && t.origin === 'lead_ad') return finishLeadAd(t, ctx, actions, val);
     t.stage = 'q_bond';
     set = { budget_band: BUDGET_TO_DB[val] };
   } else if (from === 'q_bond') {
@@ -282,6 +283,22 @@ function qualify(t, msg, ctx, actions) {
   return { thread: t, actions };
 }
 
+/**
+ * Meta Lead Ads terms (decided 2026-10-05): no income / financial question in an instant form without Meta's permission.
+ * The instant form keeps age, call_ok and bond/children; the monthly budget band is the FIRST WhatsApp step instead.
+ * W01 stores the lead unrouted (routing_reason held_budget_pending, conv_state q_budget) and sends the qualify_budget
+ * template (automation/lib/w01.mjs budgetQuestion, same row ids as BUDGET_ROWS) within 60 s; the tap comes back through W07 -> W03 (qualifying tap) and the SAME QUAL_BUDGET set decides:
+ * in band -> qualified -> W01 routes -> W06 broker intro; out of band -> outOfBand() (no hand-over, deleted in 24 h).
+ * Nothing else is asked: the instant form already covered the rest, and the method is chosen when booking.
+ */
+function finishLeadAd(t, ctx, actions, val) {
+  t.stage = 'done';
+  actions.push({ kind: 'cancel_stall' });
+  actions.push({ kind: 'update_lead', id: t.lead_id, set: { budget_band: BUDGET_TO_DB[val], qualified_at: ctx.at, stage: 'qualified', conv_state_state: NEXT_STATE.q_method } });
+  actions.push({ kind: 'route_and_first_touch', lead_id: t.lead_id, template_hint: 'broker_intro_slots', deadline_s: 60 });
+  return { thread: t, actions };
+}
+
 function outOfBand(t, ctx, reason, actions) {
   const del = new Date(Date.parse(ctx.at) + 24 * 3600 * 1000).toISOString();
   actions.push({ kind: 'cancel_stall' });
@@ -303,4 +320,4 @@ function toCloudApi(to, m) {
   return { ...base, type: 'interactive', interactive: { type: 'list', body: { text: m.body }, action: { button: m.button.slice(0, 20), sections: [{ title: 'Options', rows: m.rows.map((r) => ({ id: r.id, title: r.title.slice(0, 24) })) }] } } };
 }
 
-module.exports = { typedTap, threadFromLead, hopNext, MAX_HOPS, Q_STAGES, NEXT_STATE, redirectFor, readOrigin, consentFor, CONSENT_NAMED_VERSION, CONSENT_NAMED_FOOTER, WA_BUTTON_BODY_MAX, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_V1, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };
+module.exports = { BUDGET_ROWS, QUAL_BUDGET, typedTap, threadFromLead, hopNext, MAX_HOPS, Q_STAGES, NEXT_STATE, redirectFor, readOrigin, consentFor, CONSENT_NAMED_VERSION, CONSENT_NAMED_FOOTER, WA_BUTTON_BODY_MAX, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_V1, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };

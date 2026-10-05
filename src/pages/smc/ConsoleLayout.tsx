@@ -12,6 +12,7 @@ const NAV = [
   { to: "/console/ads", label: "Ads", end: false },
   { to: "/console/ask", label: "Ask", end: false },
   { to: "/console/payments", label: "Payments", end: false },
+  { to: "/console/settings/brands", label: "Settings · Brands", end: false },
 ];
 
 /** WCAG AA: the CRM --primary (280 90% 60%) gives 4.17:1 with white; scoped darker value for the console only (axe 2026-10-03). */

@@ -53,8 +53,8 @@ fi
 GRAPH="https://graph.facebook.com/${META_GRAPH_VERSION:-v23.0}"
 SAMPLES="${TEMPLATE_SAMPLE_DIR:-$HERE/samples}"
 
-# Submit order: the 6 core templates first (0.3 #1, 4.6 template strategy), then the rest.
-CORE=(broker_intro_booked broker_intro_slots booking_confirmed reminder_24h reminder_2h missed_you)
+# Submit order: the 7 core templates first (qualify_budget joined CORE 2026-10-05: first touch for every instant-form lead) (0.3 #1, 4.6 template strategy), then the rest.
+CORE=(broker_intro_booked broker_intro_slots booking_confirmed reminder_24h reminder_2h missed_you qualify_budget)
 REST=(
   reminder_10m what_to_expect reschedule_offer attended_thanks prep_nudge intro_media intro_media_voice
   unbooked_nudge_2h unbooked_nudge_24h unbooked_nudge_24h_text unbooked_nudge_72h reach_check lead_pulse invite_email_bounced

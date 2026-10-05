@@ -22,7 +22,7 @@ const PROMPTS = {
   scan_system: section(fixed, 'SYSTEM\n', '\nUSER\n'),
 };
 const RUBRICS = {};
-for (const f of fs.readdirSync(path.join(here, 'rubrics'))) RUBRICS[f.replace(/\.md$/, '')] = rd('rubrics/' + f);
+for (const f of fs.readdirSync(path.join(here, 'rubrics')).sort()) RUBRICS[f.replace(/\.md$/, '')] = rd('rubrics/' + f);
 const SLOS = JSON.parse(rd('slos.json'));
 const SOURCES = [];
 for (const line of section(fixed, '## 1. The list', '**Caps:**').split('\n')) {

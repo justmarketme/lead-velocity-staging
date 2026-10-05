@@ -210,7 +210,8 @@ UPDATE public.leads
        qualified_at           = coalesce(($2::jsonb->>'qualified_at')::timestamptz, qualified_at),
        disqualified_reason    = coalesce($2::jsonb->>'disqualified_reason', disqualified_reason),
        broker_id              = CASE WHEN $2::jsonb ? 'disqualified_reason' THEN NULL ELSE broker_id END,
-       retention_delete_after = coalesce(($2::jsonb->>'retention_delete_after')::timestamptz, retention_delete_after),
+       -- a qualified lead keeps nothing scheduled for deletion (lead-ad budget reminder sets reminder + 24 h; a tap in time clears it)
+       retention_delete_after = CASE WHEN $2::jsonb ? 'qualified_at' THEN NULL ELSE coalesce(($2::jsonb->>'retention_delete_after')::timestamptz, retention_delete_after) END,
        stage                  = coalesce($2::jsonb->>'stage', stage),
        stage_entered_at       = CASE WHEN $2::jsonb ? 'stage' THEN now() ELSE stage_entered_at END,
        -- I-48k: W03 writes leads.conv_state.state itself on every qualifying turn (W07 skips state on hand-off turns)

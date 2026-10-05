@@ -4,7 +4,7 @@ Owner: Jonathan (runs), KG (second pair of eyes), compliance-qa (writes the note
 
 | Quarter | Breach (P14, desk) | Restore (backup to clean server) | Failover (n8n/VPS down, fallbacks) | Red-team (abuse of public surfaces) |
 |---|---|---|---|---|
-| Q4 2026 | **2026-10-03 done, see `breach-drill-P14-2026-10-03.md`** | 2026-11-12 (only once W26 backups exist; if no VPS yet, move to 14 days after the first nightly backup and log why) | 2026-12-03 | 2026-12-10 |
+| Q4 2026 | **2026-10-03 done (`breach-drill-P14-2026-10-03.md`); extra desk drill 2026-10-05 done (`breach-drill-P14-2026-10-05.md`, wrong-recipient scenario, G9–G11)** | 2026-11-12 (only once W26 backups exist; if no VPS yet, move to 14 days after the first nightly backup and log why) | 2026-12-03 | 2026-12-10 |
 | Q1 2027 | 2027-01-21 | 2027-02-11 | 2027-03-04 | 2027-03-11 |
 | Q2 2027 | 2027-04-22 | 2027-05-13 | 2027-06-03 | 2027-06-10 |
 | Q3 2027 | 2027-07-22 | 2027-08-12 | 2027-09-02 | 2027-09-09 |
@@ -17,5 +17,5 @@ Owner: Jonathan (runs), KG (second pair of eyes), compliance-qa (writes the note
 
 ## Rules
 - A missed drill is logged as overdue on the obligations register (`due_at` set on the date above) and shown on the console.
-- Calendar invites to Jonathan and KG are NOT yet created (no sends in this session). Action: Jonathan to add the 16 dates above as recurring invites. Until then this document is the schedule of record.
-- The compliance register (Part 3 step 9, P14) says "twice a year"; this calendar is stricter (quarterly). Register wording to be updated to match.
+- Calendar file: `drill-calendar.ics` (2026-10-05) holds the 15 remaining dated drills (Thursdays 10:00–11:30 SAST, reminder 1 day before). Action (Jonathan): import it into the shared calendar and invite KG. Nothing was sent from the build. Until it is imported, this document is the schedule of record.
+- The compliance register (P14, Part 3 step 9) now says quarterly, matching this calendar (2026-10-05).

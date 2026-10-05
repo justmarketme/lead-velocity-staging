@@ -48,11 +48,11 @@ test('resolution through the container link: $HOME/.node_modules/lv-automation -
   const home = mkdtempSync(join(tmpdir(), 'lv-home-'));
   try {
     mkdirSync(join(home, '.node_modules'));
-    symlinkSync(A, join(home, '.node_modules', 'lv-automation'));
+    symlinkSync(A, join(home, '.node_modules', 'lv-automation'), process.platform === 'win32' ? 'junction' : 'dir');
     const probe = `const L = require('lv-automation'); const out = { at: require.resolve('lv-automation'), bad: [] };
       for (const k of Object.keys(L)) { try { if (!L[k] || typeof L[k] !== 'object') out.bad.push(k); } catch (e) { out.bad.push(k + ': ' + e.message); } }
       console.log(JSON.stringify(out));`;
-    const r = spawnSync(process.execPath, ['-e', probe], { cwd: home, env: { PATH: process.env.PATH, HOME: home }, encoding: 'utf8' });
+    const r = spawnSync(process.execPath, ['-e', probe], { cwd: home, env: { PATH: process.env.PATH, HOME: home, USERPROFILE: home }, encoding: 'utf8' });
     assert.equal(r.status, 0, r.stderr);
     const out = JSON.parse(r.stdout.trim().split('\n').pop());
     assert.equal(realpathSync(out.at), realpathSync(join(A, 'index.cjs')), 'the link resolves to the repo copy (relative ../conversation paths work)');

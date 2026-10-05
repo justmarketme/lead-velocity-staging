@@ -71,7 +71,7 @@ If the portal flow differs from these steps, follow the portal and record what d
 | 7 | Security safeguards (s19) | Access control, backups, redaction | IO; devops-security | Monthly | Backup restore test, access review |
 | 8 | Operator agreements (s20–21) | Written terms with every processor; broker agreement clause 9.3 | IO | On new processor | Contract file |
 | 9 | Cross-border transfers (s72) | List of processors and basis, kept current | IO | Quarterly | Privacy notice version |
-| 10 | Security compromises (s22) | Breach runbook; notify Regulator and people affected | IO; DIO | On incident; drill twice a year | Incident log, notifications |
+| 10 | Security compromises (s22) | Breach runbook; notify Regulator and people affected | IO; DIO | On incident; drill quarterly | Incident log, notifications |
 | 11 | Training and awareness | Everyone who touches lead data knows the rules (Jonathan, KG, contractors) | IO | Annual | Attendance note |
 | 12 | Complaints | Consumer complaints answered within 48 h | IO; DIO | Weekly check | Complaints log |
 | 13 | Registration details | Keep IO / DIO details current on the portal | IO | Annual + on change | Portal screenshot |

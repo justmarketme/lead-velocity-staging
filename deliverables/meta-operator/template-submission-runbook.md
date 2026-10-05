@@ -53,11 +53,11 @@ Same variables and buttons as before, so W08 needs no code change. The submitted
 
 ---
 
-## 2. Day-0 submission order (all 55, grouped)
+## 2. Day-0 submission order (all 56, grouped)
 
 `submit.sh` already holds this order (CORE, then REST in the order below). Batches are logged separately in §5.
 
-### Batch 1: CORE (6), per GATE-TEMPLATES
+### Batch 1: CORE (7), per GATE-TEMPLATES
 
 | # | Template | Header | Day-0 status |
 |---|---|---|---|
@@ -67,8 +67,9 @@ Same variables and buttons as before, so W08 needs no code change. The submitted
 | 4 | `reminder_24h` | TEXT | Go |
 | 5 | `reminder_2h` | none | Go |
 | 6 | `missed_you` | none | Go |
+| 7 | `qualify_budget` | none | Go (added 2026-10-05: the budget band moved out of the instant form, Meta Lead Ads terms; it is the first WhatsApp for every instant-form lead, plus one reminder at +3 h) |
 
-Run the go items one by one: `automation/templates/submit.sh --submit --only reminder_24h` (then `reminder_2h`, `missed_you`, `booking_confirmed`). Run `--submit --core` only when all six are clear; the duplicates already submitted are rejected by Meta and skipped (idempotent).
+Run the go items one by one: `automation/templates/submit.sh --submit --only reminder_24h` (then `reminder_2h`, `missed_you`, `qualify_budget`, `booking_confirmed`). Run `--submit --core` only when all seven are clear; the duplicates already submitted are rejected by Meta and skipped (idempotent).
 
 ### Batch 2: lead-facing (14). Every one ends "Reply STOP to opt out."
 
@@ -88,7 +89,7 @@ Onboarding (8): `broker_onb_welcome` · `broker_onb_next` · `broker_onb_calenda
 
 `broker_intro_slots_v2` (IMAGE: same §1a PNG and §1b NH-19a holds apply) · `reschedule_offer_v2`. `submit.sh` skips both while `BOOKING_FLOW_ID` / `RESCHEDULE_FLOW_ID` are unset.
 
-**Count check:** 6 + 14 + 26 + 7 + 2 = **55** = the README index = `submit.sh` CORE + REST.
+**Count check:** 7 + 14 + 26 + 7 + 2 = **56** = the README index = `submit.sh` CORE + REST.
 
 **Review samples (text)** for the reviewer notes field, never uploaded: `samples/{broker_booking_changed, broker_autorenew_off, broker_dsr_erase, broker_cycle_ended, broker_come_back, ops_action_confirmed, unbooked_nudge_2h, unbooked_nudge_72h, what_to_expect}.txt`.
 
@@ -128,7 +129,7 @@ If Manager warns the content looks like marketing or suggests another category: 
 
 **Log row per template:** `name`, `language`, `batch` (1-5), `submitted_at`, `submitted_by`, `route`, `template_id`, `category_requested` (UTILITY), `category_decided`, `decided_at`, `hours_to_decision`, `status`, `rejected_reason` (verbatim), `text_version` (for the two nudges: `NH-45`), `header_sample_file` + `sample_fsp_checked` (00000 yes/no), `cost_delta_note`, `action_taken`, `screenshot` (`screens/G10-{name}.png`, no secrets).
 
-Section 7 line: "the 6 core templates approved (any category; category cost logged); the rest submitted and tracked".
+Section 7 line: "the 7 core templates approved (any category; category cost logged); the rest submitted and tracked".
 
 ## 6. Booking Flow publish (W28; GATE-FLOW-PUBLISH ★)
 

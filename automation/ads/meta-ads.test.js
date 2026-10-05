@@ -17,10 +17,12 @@ function mock(handler) {
   };
   return { fetchImpl, calls };
 }
+// The SortMyCover brands row (code SMC). Every Page / ad-account ID the client uses comes from here.
+const BRAND = { id: 'brand-smc', code: 'SMC', ad_account_id: '999', page_id: 'P1', ig_user_id: 'IG1', pixel_id: 'PX1', dataset_id: 'DS1' };
 function client(handler, extra = {}) {
   const m = mock(handler);
   let t = 1_000_000_000_000;
-  const c = M.createClient({ token: 'TOK_SECRET', fetchImpl: m.fetchImpl, confirmSecret: SECRET, sleep: async () => {}, now: () => t, maxRetries: 3, ...extra });
+  const c = M.createClient({ token: 'TOK_SECRET', fetchImpl: m.fetchImpl, confirmSecret: SECRET, sleep: async () => {}, now: () => t, maxRetries: 3, brand: BRAND, ...extra });
   return { c, calls: m.calls, advance: (ms) => { t += ms; } };
 }
 const bucHeader = (pct, regainMin = 0) => ({ 'x-business-use-case-usage': JSON.stringify({ 123: [{ type: 'ads_insights', call_count: pct, total_cputime: 1, total_time: 2, estimated_time_to_regain_access: regainMin }] }) });
@@ -86,7 +88,7 @@ test('batch chunks to <= 50 calls and keeps order', async () => {
 test('confirm token: required, bound to params, single-use, expires, needs human', async () => {
   const { c, calls, advance } = client(() => ({ body: { success: true } }));
   const caps = { dailyCapZar: 500, monthlyCapZar: 12000 };
-  const base = { campaignId: 'C1', dailyBudgetZar: 350, caps, goLive: true, currentDailyBudgetZar: 0 };
+  const base = { campaignId: 'C1', dailyBudgetZar: 350, caps, currentDailyBudgetZar: 0 };
   await assert.rejects(() => c.setCampaignBudget(base), (e) => e.code === 'CONFIRM_REQUIRED');
   const p = { dailyBudgetZar: 350, setSpendCap: false, monthlyCapZar: 12000 };
   const t1 = tap(c, { action: 'set_campaign_budget', target: 'C1', params: p }).confirmToken;
@@ -139,7 +141,7 @@ test('cap is enforced even with a valid token (nothing sent)', async () => {
   const { c, calls } = client(() => ({ body: {} }));
   const caps = { dailyCapZar: 300, monthlyCapZar: 10500 };
   const confirmToken = tap(c, { action: 'set_campaign_budget', target: 'C1', params: { dailyBudgetZar: 350, setSpendCap: false, monthlyCapZar: 10500 } }).confirmToken;
-  await assert.rejects(() => c.setCampaignBudget({ campaignId: 'C1', dailyBudgetZar: 350, caps, confirmToken, confirmedBy: 'j', goLive: true }), (e) => e.code === 'DAILY_CAP');
+  await assert.rejects(() => c.setCampaignBudget({ campaignId: 'C1', dailyBudgetZar: 350, caps, confirmToken, confirmedBy: 'j' }), (e) => e.code === 'DAILY_CAP');
   assert.equal(calls.length, 0);
 });
 
@@ -235,10 +237,10 @@ test('insights: hourly guard, pagination, ad_metrics mapping', async () => {
 test('customer-list audience accepts hashed rows only', async () => {
   const { c, calls } = client(() => ({ body: { id: 'AUD1' } }));
   const schema = ['PHONE', 'FN'];
-  const tok = () => tap(c, { action: 'create_customer_list_audience', target: 'act_9', params: { name: 'SMC_EXC_leads_90d', rows: 1 } }).confirmToken;
-  await assert.rejects(() => c.createCustomerListAudience({ adAccountId: '9', name: 'SMC_EXC_leads_90d', schema, hashedRows: [['27821234567', '']], confirmToken: tok(), confirmedBy: 'j' }), (e) => e.code === 'RAW_PII_REJECTED');
+  const tok = () => tap(c, { action: 'create_customer_list_audience', target: 'act_999', params: { name: 'SMC_EXC_leads_90d', rows: 1 } }).confirmToken;
+  await assert.rejects(() => c.createCustomerListAudience({ adAccountId: '999', name: 'SMC_EXC_leads_90d', schema, hashedRows: [['27821234567', '']], confirmToken: tok(), confirmedBy: 'j' }), (e) => e.code === 'RAW_PII_REJECTED');
   assert.equal(calls.length, 0);
-  const r = await c.createCustomerListAudience({ adAccountId: '9', name: 'SMC_EXC_leads_90d', schema, hashedRows: [[hex('27821234567'), '']], confirmToken: tok(), confirmedBy: 'j' });
+  const r = await c.createCustomerListAudience({ adAccountId: '999', name: 'SMC_EXC_leads_90d', schema, hashedRows: [[hex('27821234567'), '']], confirmToken: tok(), confirmedBy: 'j' });
   assert.equal(r.result.audience.id, 'AUD1');
   assert.equal(calls.length, 2);
   assert.ok(calls[1].url.includes('AUD1/users'));
@@ -246,15 +248,15 @@ test('customer-list audience accepts hashed rows only', async () => {
 
 test('customer-list audience rejects an EMAIL column', async () => {
   const { c } = client(() => ({ body: { id: 'AUD1' } }));
-  await assert.rejects(() => c.createCustomerListAudience({ adAccountId: '9', name: 'x', schema: ['PHONE', 'EMAIL'], hashedRows: [], confirmToken: 'x', confirmedBy: 'j' }), (e) => e.code === 'EMAIL_NOT_ALLOWED' || e.code);
+  await assert.rejects(() => c.createCustomerListAudience({ adAccountId: '999', name: 'x', schema: ['PHONE', 'EMAIL'], hashedRows: [], confirmToken: 'x', confirmedBy: 'j' }), (e) => e.code === 'EMAIL_NOT_ALLOWED' || e.code);
 });
 
 test('lookalike seed gate and ratio', async () => {
   const { c } = client(() => ({ body: { id: 'L1' } }));
-  const mint = (ratio) => tap(c, { action: 'create_lookalike', target: 'act_9', params: { seedId: 'S1', ratio, country: 'ZA' } }).confirmToken;
-  await assert.rejects(() => c.createLookalike('S1', 0.01, { adAccountId: '9', seedSize: 400, confirmToken: mint(0.01), confirmedBy: 'j' }), (e) => e.code === 'SEED_TOO_SMALL');
-  await assert.rejects(() => c.createLookalike('S1', 0.5, { adAccountId: '9', seedSize: 4000, confirmToken: mint(0.5), confirmedBy: 'j' }), (e) => e.code === 'BAD_INPUT');
-  const r = await c.createLookalike('S1', 0.01, { adAccountId: '9', seedSize: 1200, confirmToken: mint(0.01), confirmedBy: 'j' });
+  const mint = (ratio) => tap(c, { action: 'create_lookalike', target: 'act_999', params: { seedId: 'S1', ratio, country: 'ZA' } }).confirmToken;
+  await assert.rejects(() => c.createLookalike('S1', 0.01, { adAccountId: '999', seedSize: 400, confirmToken: mint(0.01), confirmedBy: 'j' }), (e) => e.code === 'SEED_TOO_SMALL');
+  await assert.rejects(() => c.createLookalike('S1', 0.5, { adAccountId: '999', seedSize: 4000, confirmToken: mint(0.5), confirmedBy: 'j' }), (e) => e.code === 'BAD_INPUT');
+  const r = await c.createLookalike('S1', 0.01, { adAccountId: '999', seedSize: 1200, confirmToken: mint(0.01), confirmedBy: 'j' });
   assert.equal(r.result.id, 'L1');
 });
 
@@ -296,7 +298,7 @@ test('asset health: one batch, normalised statuses, urgent alerts, diff only rep
       return { code: 404, body: '{}' };
     }) };
   });
-  const h = await c.getAssetHealth({ businessId: 'B1', pageId: 'P1', igUserId: 'IG1', wabaId: 'W1', phoneNumberId: 'PN1', adAccountId: '9', pixelId: 'PX1' });
+  const h = await c.getAssetHealth({ businessId: 'B1', pageId: 'P1', igUserId: 'IG1', wabaId: 'W1', phoneNumberId: 'PN1', adAccountId: '999', pixelId: 'PX1' });
   assert.equal(calls.length, 1);
   assert.equal(h.ad_account_status, 'DISABLED'); assert.equal(h.waba_quality, 'YELLOW'); assert.equal(h.bv_status, 'pending');
   assert.equal(h.template_status.counts.REJECTED, 1); assert.equal(h.emq, 5.2); assert.equal(h.severity, 'urgent');
@@ -341,4 +343,92 @@ test('ad objects cache: three paged reads, minor units to ZAR, hourly guard, ids
   assert.equal(r.rows[0].daily_budget_zar, 150); assert.equal(r.rows[2].effective_status, 'PENDING_REVIEW'); assert.equal(r.rows[2].effective_object_story_id, 'P_1');
   assert.equal(r.rows[2].adset_id, 'S1'); assert.equal(r.rows[0].brand_id, 'b1');
   await assert.rejects(() => c.getAdObjects({ adAccountId: '999', brandId: 'b1' }), (e) => e.code === 'TOO_SOON');
+});
+
+/* ---------------------------------------------------------------- SortMyCover identity (2026-10-05): never a broker Page */
+test('brand row: SMC only, IDs come from it, missing IDs fail closed', () => {
+  assert.throws(() => M.smcAssets(null), (e) => e.code === 'BRAND_REQUIRED');
+  assert.throws(() => M.smcAssets({ ...BRAND, code: 'CK' }), (e) => e.code === 'BRAND_NOT_SMC');
+  const a = M.smcAssets(BRAND);
+  assert.equal(a.pageId, 'P1'); assert.equal(a.adAccountId, 'act_999'); assert.equal(a.igUserId, 'IG1'); assert.equal(a.pixelId, 'PX1'); assert.equal(a.datasetId, 'DS1');
+  assert.deepEqual(M.smcAssets({ code: 'SMC' }).missing, ['adAccountId', 'pageId', 'pixelId|datasetId']);
+  assert.throws(() => M.requireSmcAssets({ code: 'SMC', ad_account_id: '999' }), (e) => e.code === 'ASSET_MISSING' && e.missing.includes('pageId'));
+});
+
+test('campaign tree refuses any Page that is not the SMC brand Page (spec, ad set, creative, broker keys)', async () => {
+  const assets = M.smcAssets(BRAND);
+  assert.doesNotThrow(() => M.planCampaignTree(SPEC(), { assets }));
+  const s1 = SPEC(); s1.brand.page_id = 'BROKER_PAGE';
+  assert.throws(() => M.planCampaignTree(s1, { assets }), (e) => e.code === 'NOT_SMC_PAGE');
+  const s2 = SPEC(); s2.campaigns[0].adsets[0].promoted_object = { page_id: 'BROKER_PAGE' };
+  assert.throws(() => M.planCampaignTree(s2, { assets }), (e) => e.code === 'NOT_SMC_PAGE');
+  const s3 = SPEC(); s3.campaigns[0].adsets[0].ads[0].creative.page_id = 'BROKER_PAGE';
+  assert.throws(() => M.planCampaignTree(s3, { assets }), (e) => e.code === 'NOT_SMC_PAGE');
+  const s4 = SPEC(); s4.campaigns[0].adsets[0].ads[0].broker_page_id = 'X';
+  assert.throws(() => M.planCampaignTree(s4, { assets }), (e) => e.code === 'NOT_SMC_PAGE');
+  const s5 = SPEC(); s5.brand.ad_account_id = '1234';
+  assert.throws(() => M.planCampaignTree(s5, { assets }), (e) => e.code === 'NOT_SMC_PAGE');
+  const s6 = SPEC(); s6.brand.ig_user_id = 'BROKER_IG';
+  assert.throws(() => M.planCampaignTree(s6, { assets }), (e) => e.code === 'NOT_SMC_PAGE');
+  const s7 = SPEC(); s7.brand.code = 'CK';
+  assert.throws(() => M.planCampaignTree(s7, { assets }), (e) => e.code === 'NOT_SMC_PAGE');
+
+  // through the client: a wrong Page sends nothing, even with a valid token
+  const { c, calls } = client(() => ({ body: {} }));
+  const stable = (o) => JSON.stringify(o, (k, v) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.keys(v).sort().reduce((a, x) => { a[x] = v[x]; return a; }, {}) : v));
+  const tok = tap(c, { action: 'create_campaign_tree', target: 'act_999', params: { specHash: hex(stable(s1)) } }).confirmToken;
+  await assert.rejects(() => c.createCampaignTree(s1, { confirmToken: tok, confirmedBy: 'j' }), (e) => e.code === 'NOT_SMC_PAGE');
+  assert.equal(calls.length, 0);
+  // no brand row configured: page-bearing writes fail closed
+  const nb = client(() => ({ body: {} }), { brand: null });
+  const t2 = tap(nb.c, { action: 'create_campaign_tree', target: 'act_999', params: { specHash: hex(stable(SPEC())) } }).confirmToken;
+  await assert.rejects(() => nb.c.createCampaignTree(SPEC(), { confirmToken: t2, confirmedBy: 'j' }), (e) => e.code === 'BRAND_REQUIRED');
+  assert.equal(nb.calls.length, 0);
+});
+
+test('lead form, webhook subscription, audiences and reads are pinned to the SMC Page / account', async () => {
+  const { c, calls } = client(() => ({ body: { id: 'X', data: [] } }));
+  const form = { page_id: 'BROKER_PAGE', name: 'F', questions: [{ type: 'FULL_NAME' }], privacy_policy: { url: 'https://sortmycover.co.za/privacy' } };
+  const t1 = tap(c, { action: 'create_leadgen_form', target: 'BROKER_PAGE', params: { name: 'F' } }).confirmToken;
+  await assert.rejects(() => c.createLeadgenForm(form, { confirmToken: t1, confirmedBy: 'j' }), (e) => e.code === 'NOT_SMC_PAGE');
+  const t2 = tap(c, { action: 'subscribe_leadgen_webhook', target: 'BROKER_PAGE', params: { appId: 'APP1', callbackUrl: null } }).confirmToken;
+  await assert.rejects(() => c.subscribeLeadAdsWebhook('BROKER_PAGE', 'APP1', { confirmToken: t2, confirmedBy: 'j' }), (e) => e.code === 'NOT_SMC_PAGE');
+  const t3 = tap(c, { action: 'create_engagement_audiences', target: 'act_999', params: { names: [] } }).confirmToken;
+  await assert.rejects(() => c.createEngagementAudiences({ adAccountId: '999', pageId: 'BROKER_PAGE', confirmToken: t3, confirmedBy: 'j' }), (e) => e.code === 'NOT_SMC_PAGE');
+  await assert.rejects(() => c.getInsights({ adAccountId: '555', datePreset: 'last_7d' }), (e) => e.code === 'NOT_SMC_ACCOUNT');
+  await assert.rejects(() => c.getAdObjects({ adAccountId: 'act_555' }), (e) => e.code === 'NOT_SMC_ACCOUNT');
+  assert.equal(calls.length, 0);
+});
+
+/* ---------------------------------------------------------------- go-live raise bound to the broker share; campaign pause */
+test('go-live raise: needs the broker share, cannot exceed share / 1.15 / 30, lifts only the 20% step', async () => {
+  const caps = { dailyCapZar: 400, monthlyCapZar: 7384 };
+  const { c, calls } = client(() => ({ body: { success: true } }));
+  const params = { dailyBudgetZar: 246, setSpendCap: true, monthlyCapZar: 7384, goLive: true, goLiveShareZar: 8492 };
+  const tok = (p = params) => tap(c, { action: 'set_campaign_budget', target: 'CA', params: p, reason: 'go-live broker 1' }).confirmToken;
+  const go = { campaignId: 'CA', dailyBudgetZar: 246, setSpendCap: true, caps, currentDailyBudgetZar: 20, goLive: true, goLiveShareZar: 8492, confirmedBy: 'jonathan' };
+  // without the share the go-live flag is refused (the flag alone no longer lifts the step limit)
+  await assert.rejects(() => c.setCampaignBudget({ ...go, goLiveShareZar: undefined, confirmToken: tok() }), (e) => e.code === 'GO_LIVE_SHARE_MISSING');
+  // a raise bigger than the broker share is refused
+  const wide = { dailyCapZar: 400, monthlyCapZar: 20000 }; // caps wide enough that only the share binding can refuse
+  await assert.rejects(() => c.setCampaignBudget({ ...go, dailyBudgetZar: 390, caps: wide, confirmToken: tok({ ...params, dailyBudgetZar: 390, monthlyCapZar: 20000 }) }), (e) => e.code === 'GO_LIVE_EXCEEDS_SHARE');
+  assert.equal(calls.length, 0);
+  const r = await c.setCampaignBudget({ ...go, confirmToken: tok() });
+  assert.equal(r.ok, true);
+  const body = new URLSearchParams(calls[0].init.body);
+  assert.equal(body.get('daily_budget'), '24600'); assert.equal(body.get('spend_cap'), '738400'); // ZAR -> cents
+  assert.equal(r.audit[0].reason, 'go-live broker 1');
+  // the step limit still binds an ordinary increase
+  assert.throws(() => c.checkBudget({ dailyBudgetZar: 246, currentDailyBudgetZar: 20, caps }), (e) => e.code === 'STEP_LIMIT');
+});
+
+test('pause / resume campaign is confirm-to-apply and audited', async () => {
+  const { c, calls } = client(() => ({ body: { success: true } }));
+  await assert.rejects(() => c.pauseCampaign({ campaignId: 'CA', confirmedBy: 'j' }), (e) => e.code === 'CONFIRM_REQUIRED');
+  const tok = tap(c, { action: 'pause_campaign', target: 'CA', params: { status: 'PAUSED' }, reason: 'day-14 stop: cost per qualified R412' }).confirmToken;
+  await assert.rejects(() => c.resumeCampaign({ campaignId: 'CA', confirmToken: tok, confirmedBy: 'j' }), (e) => e.code === 'CONFIRM_MISMATCH');
+  const r = await c.pauseCampaign({ campaignId: 'CA', confirmToken: tok, confirmedBy: 'jonathan' });
+  assert.equal(r.audit[0].action, 'pause_campaign');
+  assert.equal(new URLSearchParams(calls[0].init.body).get('status'), 'PAUSED');
+  assert.equal(calls.length, 1);
 });

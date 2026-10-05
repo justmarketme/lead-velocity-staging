@@ -72,6 +72,7 @@ Each `*.json` file is the exact body for `POST /{WABA_ID}/message_templates`: `n
 | 42 | `broker_onb_nudge_72h` | 3 | UTILITY | TEXT | 1 first name · 2 stalled step · 3 reassurance sentence | URL Finish setup (1 = step key) | W20 sweep, 72 h without progress (+ email + console to-do) |
 | 43 | `broker_onb_issue` | 3 | UTILITY | TEXT | 1 first name · 2 what went wrong (sentence) · 3 what to do (sentence) | URL Fix it (1 = step key) | W20 FSCA block / pending, calendar 0 slots / failure, pre-flight calendar fail |
 | 44 | `broker_onb_live` | 3 | UTILITY | TEXT | 1 first name · 2 first report day ("Monday 12 Oct") | URL Open my leads (static) | W20 after Approve & go live and a good hand-off |
+| 45 | `qualify_budget` | **CORE** (first touch for every Campaign A instant-form lead; Day 1) | UTILITY | none | 1 first name | QR Under R500 · R500 to R750 · R750 to R1,250 · R1,250 to R1,499 · R1,500 or more (payload = W03 budget row id) | W01 (lead-ad lead, < 60 s): the budget band moved out of the instant form (Meta Lead Ads terms, 2026-10-05); the tap goes W07 -> W03 |
 
 **Category:** every template is submitted as UTILITY. Meta makes the final category decision. Following 0.3 #1, we accept it and log it (the cost difference is small). See SUMMARY `needs_human` about the conflicting 4.6 sentence ("rewrite rather than accept"). The templates most likely to be re-categorised as marketing are `unbooked_nudge_*`. Each one ties itself to "your enquiry", has no offer and no urgency, and the 72-h one closes the thread.
 

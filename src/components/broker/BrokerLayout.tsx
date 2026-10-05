@@ -60,6 +60,8 @@ const BrokerLayout = ({ children, menuItems: menuOverride }: BrokerLayoutProps) 
             <div className="flex items-center space-x-4">
               <button
                 className="lg:hidden text-foreground"
+                aria-label={sidebarOpen ? "Close menu" : "Open menu"}
+                aria-expanded={sidebarOpen}
                 onClick={() => setSidebarOpen(!sidebarOpen)}
               >
                 {sidebarOpen ? <X size={24} /> : <Menu size={24} />}

@@ -4,7 +4,7 @@
 // and checks the Graph sendMail body, the DRY_RUN gate, the dry evidence row and the credential name. No network, no database, no mail sent.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync, mkdtempSync } from 'node:fs';
+import { readFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
@@ -78,11 +78,14 @@ test('W14 email: command builder validates the row before anything reaches a she
 
 function buildAndCompose({ mailbox } = {}) {
   const [cmdItem] = run('Build email command', { input: [row()] });
-  const dir = mkdtempSync(join(tmpdir(), 'w14-email-'));
+  // forward slashes: the path goes through `sh -c`, which eats Windows backslashes (it wrote C:UsersJono... dirs into the repo root)
+  const dir = mkdtempSync(join(tmpdir(), 'w14-email-')).replace(/\\/g, '/');
   // the real builder, through the exact command. Without Chromium (this sandbox) the PDF step is faked after the real HTML build.
   let cmd = cmdItem.cmd.replace(/\/tmp\/w14-email\//g, dir + '/');
   if (!hasChromium) cmd = cmd.replace(' --pdf ', ' ').replace('echo \'@@PDF\'; base64 -w0 "$D"/*.pdf', 'echo \'@@PDF\'; printf %%PDF-1.4-fake | base64 -w0');
-  const stdout = execFileSync('sh', ['-c', cmd], { encoding: 'utf8', env: { ...process.env, REPO_DIR: ROOT, PORTAL_URL: 'https://app.leadvelocity.co.za' } });
+  let stdout;
+  try { stdout = execFileSync('sh', ['-c', cmd], { encoding: 'utf8', env: { ...process.env, REPO_DIR: ROOT, PORTAL_URL: 'https://app.leadvelocity.co.za' } }); }
+  finally { rmSync(dir, { recursive: true, force: true }); }
   const out = run('Compose Graph sendMail', { input: [{ stdout, exitCode: 0 }], refs: { 'Build email command': [cmdItem] }, env: mailbox ? { HOWZIT_MAILBOX: mailbox } : {} })[0];
   return { cmdItem, stdout, out };
 }

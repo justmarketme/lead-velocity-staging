@@ -39,7 +39,7 @@
 | P11 | Operator terms in place with every processor; broker agreement clause 9.3 signed | Jonathan | On new processor | Contract file |
 | P12 | Cross-border transfer basis recorded for each processor (s72) | compliance-qa | Quarterly | Processor list |
 | P13 | Security safeguards: role access, secrets in `.env`, backups off-server, restore tested | devops-security | Monthly | Restore test log; access review |
-| P14 | Breach runbook ready; drill held | Jonathan; devops-security | Twice a year | Drill note |
+| P14 | Breach runbook ready; drill held | Jonathan; devops-security | Quarterly (drill-calendar.md) | Drill note |
 | P15 | Consumer complaints (howzit@ + COMPLAINT) answered within 48 h | Jonathan; KG | Weekly check | Complaints log |
 | P16 | Hashed (SHA-256) uploads only; customer lists used only for exclusion and lookalike seeding | media-buyer; attribution-analyst | Monthly | Upload log |
 | P17 | Adviser feedback (outcome, 1–5 rating, note, voice-note text) disclosed in the Privacy Notice (s18); voice audio not stored; transcript redacted; transcription provider named in the processor table **before** W29 voice notes are switched on | contracts-drafter; automation-engineer (W29) | On change; quarterly | PN version; W29 config flag; redaction test results |
@@ -124,9 +124,9 @@
 | 3 | **Assess.** What data, how many people, which brokers, which processors, is it still exposed, can identity be established? | Jonathan; devops-security | Within 24 h |
 | 4 | **Tell brokers** whose leads are affected (agreement clause 9.8). Ask processors for their incident report. | Jonathan | Within 24 h of finding it |
 | 5 | **Notify the Information Regulator** on the prescribed security-compromise form / portal. | Jonathan (IO) | As soon as reasonably possible |
-| 6 | **Notify affected people** in writing (WhatsApp and/or email): what happened, what data, what we have done, what they can do, who to contact. Template in W34. Unless a public body responsible for crime prevention or the Regulator says to delay. | Jonathan | As soon as reasonably possible after step 5 |
+| 6 | **Notify affected people** in writing (WhatsApp and/or email): what happened, what data, what we have done, what they can do, who to contact. Drafts in `docs/breach-notification-drafts.md`; WhatsApp subject notice = template `breach_subject_notice`. Unless a public body responsible for crime prevention or the Regulator says to delay. | Jonathan | As soon as reasonably possible after step 5 |
 | 7 | **Fix the cause.** Root cause, fix, test. | devops-security | Within 7 days |
 | 8 | **Record.** Timeline, decisions, notifications sent, evidence. Update the register and the next quarterly memo. | compliance-qa | Within 14 days |
-| 9 | **Drill.** Run a table-top drill twice a year with a synthetic incident. | Jonathan; KG | Twice a year |
+| 9 | **Drill.** Run a table-top drill every quarter with a synthetic incident (dates in `deliverables/compliance-qa/drill-calendar.md`). | Jonathan; KG | Quarterly |
 
-Notification templates (Regulator, data subject, broker) live in W34 and must be checked by the practitioner before first use.
+Notification drafts (Regulator, data subject, broker) live in `docs/breach-notification-drafts.md` (WhatsApp subject notice: `automation/templates/breach_subject_notice.json`) and must be checked by the practitioner before first use.

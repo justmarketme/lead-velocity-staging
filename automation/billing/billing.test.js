@@ -399,3 +399,27 @@ test('price-diff: fails on a typed tier price, passes on a clean tree', () => {
   fs.writeFileSync(path.join(dir, 'src', 'bad.ts'), `export const price = "${money.formatZar(SILVER.price_zar * 100)}"; // price-diff:allow test\n`);
   assert.equal(run(), 0);
 });
+
+test('price-diff: generated reports and signed documents are not flagged (NH-18 d), surfaces still are', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pd-'));
+  const script = path.join(__dirname, 'price-diff.mjs');
+  const typed = money.formatZar(SILVER.price_zar * 100);
+  const put = (rel, body) => { fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true }); fs.writeFileSync(path.join(dir, rel), body); };
+  const run = () => { try { return { code: 0, out: execFileSync(process.execPath, [script, '--json'], { env: { ...process.env, PRICE_DIFF_ROOT: dir }, encoding: 'utf8' }) }; } catch (e) { return { code: e.status, out: String(e.stdout) }; } };
+  put('landing/reports/lighthouse-x.report.json', JSON.stringify({ text: `Silver ${typed}` }));
+  put('analytics/out/week-2.report.html', `<p>${typed}</p>`);
+  put('contracts/signed/term-sheet-acme.md', `Fee ${typed}\n`);
+  put('contracts/acme-agreement-signed.md', `Fee ${typed}\n`);
+  put('contracts/term-sheet-mark.md', `<!-- price-diff:signed-document 2026-10-02 -->\n# Term sheet\nFee ${typed}\n`);
+  let r = run();
+  assert.equal(r.code, 0, r.out);
+  assert.deepEqual(JSON.parse(r.out).signed_skipped, ['contracts/term-sheet-mark.md']);
+  // The marker only counts at the top of the file, and a page called "reports" is still a surface.
+  put('contracts/draft.md', `# Draft\n\n\n\n\nFee ${typed}\n<!-- price-diff:signed-document -->\n`);
+  assert.equal(run().code, 1);
+  fs.rmSync(path.join(dir, 'contracts', 'draft.md'));
+  put('src/pages/reports.tsx', `export const fee = "${typed}";\n`);
+  r = run();
+  assert.equal(r.code, 1);
+  assert.deepEqual(Object.keys(JSON.parse(r.out).failing_files), ['src/pages/reports.tsx']);
+});

@@ -452,7 +452,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH r AS (SELECT $1::jsonb AS j),\nins AS (\n  INSERT INTO public.leads (id, brand_id, origin, source, is_synthetic, created_at, first_name, phone, line_type, language,\n                            age_band, budget_band, bond, dependants, work_cover, method_pref, angle, email, email_purpose, email_status,\n                            consent_text, consent_text_version, consent_mode, consent_at, consent_page_url, consent_source, consent_ads_at,\n                            lead_event_id, fbclid, fbp, fbc, ad_id, adset_id, campaign_id, leadgen_id,\n                            utm_source, utm_medium, utm_campaign, utm_content, utm_term, page_url, client_ip, client_user_agent,\n                            broker_id, cycle_id, tier_code, routed_at, routing_reason, stage, disqualified_reason, retention_delete_after, opted_out_at)\n  SELECT (j->>'id')::uuid, (j->>'brand_id')::uuid, j->>'origin', j->>'source', COALESCE((j->>'is_synthetic')::boolean, false), (j->>'created_at')::timestamptz,\n         j->>'first_name', j->>'phone', j->>'line_type', j->>'language',\n         j->>'age_band', j->>'budget_band', (j->>'bond')::boolean, (j->>'dependants')::boolean, (j->>'work_cover')::boolean, j->>'method_pref', j->>'angle',\n         j->>'email', j->>'email_purpose', j->>'email_status',\n         j->>'consent_text', j->>'consent_text_version', j->>'consent_mode', (j->>'consent_at')::timestamptz, j->>'consent_page_url', j->>'consent_source', (j->>'consent_ads_at')::timestamptz,\n         j->>'lead_event_id', j->>'fbclid', j->>'fbp', j->>'fbc', j->>'ad_id', j->>'adset_id', j->>'campaign_id', j->>'leadgen_id',\n         j->>'utm_source', j->>'utm_medium', j->>'utm_campaign', j->>'utm_content', j->>'utm_term', j->>'page_url', j->>'client_ip', j->>'client_user_agent',\n         (j->>'broker_id')::uuid, (j->>'cycle_id')::uuid, j->>'tier_code', (j->>'routed_at')::timestamptz, j->>'routing_reason', j->>'stage', j->>'disqualified_reason',\n         (j->>'retention_delete_after')::timestamptz, (j->>'opted_out_at')::timestamptz\n    FROM r\n  ON CONFLICT DO NOTHING\n  RETURNING id, brand_id, broker_id, cycle_id)\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT ins.id, ins.brand_id, ins.broker_id, ins.cycle_id, 'W01', a->>'actor_type', a->>'activity_type', a->'payload', (a->>'occurred_at')::timestamptz, a->>'idempotency_key'\n  FROM ins, jsonb_array_elements($2::jsonb) a\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING lead_id;",
+        "query": "WITH r AS (SELECT $1::jsonb AS j),\nins AS (\n  INSERT INTO public.leads (id, brand_id, origin, source, is_synthetic, created_at, first_name, phone, line_type, language,\n                            age_band, budget_band, bond, dependants, work_cover, method_pref, angle, email, email_purpose, email_status,\n                            consent_text, consent_text_version, consent_mode, consent_at, consent_page_url, consent_source, consent_ads_at,\n                            lead_event_id, fbclid, fbp, fbc, ad_id, adset_id, campaign_id, leadgen_id,\n                            utm_source, utm_medium, utm_campaign, utm_content, utm_term, page_url, client_ip, client_user_agent,\n                            broker_id, cycle_id, tier_code, routed_at, routing_reason, stage, disqualified_reason, retention_delete_after, opted_out_at, conv_state)\n  SELECT (j->>'id')::uuid, (j->>'brand_id')::uuid, j->>'origin', j->>'source', COALESCE((j->>'is_synthetic')::boolean, false), (j->>'created_at')::timestamptz,\n         j->>'first_name', j->>'phone', j->>'line_type', j->>'language',\n         j->>'age_band', j->>'budget_band', (j->>'bond')::boolean, (j->>'dependants')::boolean, (j->>'work_cover')::boolean, j->>'method_pref', j->>'angle',\n         j->>'email', j->>'email_purpose', j->>'email_status',\n         j->>'consent_text', j->>'consent_text_version', j->>'consent_mode', (j->>'consent_at')::timestamptz, j->>'consent_page_url', j->>'consent_source', (j->>'consent_ads_at')::timestamptz,\n         j->>'lead_event_id', j->>'fbclid', j->>'fbp', j->>'fbc', j->>'ad_id', j->>'adset_id', j->>'campaign_id', j->>'leadgen_id',\n         j->>'utm_source', j->>'utm_medium', j->>'utm_campaign', j->>'utm_content', j->>'utm_term', j->>'page_url', j->>'client_ip', j->>'client_user_agent',\n         (j->>'broker_id')::uuid, (j->>'cycle_id')::uuid, j->>'tier_code', (j->>'routed_at')::timestamptz, j->>'routing_reason', j->>'stage', j->>'disqualified_reason',\n         (j->>'retention_delete_after')::timestamptz, (j->>'opted_out_at')::timestamptz, j->'conv_state'\n    FROM r\n  ON CONFLICT DO NOTHING\n  RETURNING id, brand_id, broker_id, cycle_id)\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT ins.id, ins.brand_id, ins.broker_id, ins.cycle_id, 'W01', a->>'actor_type', a->>'activity_type', a->'payload', (a->>'occurred_at')::timestamptz, a->>'idempotency_key'\n  FROM ins, jsonb_array_elements($2::jsonb) a\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING lead_id;",
         "options": {
           "queryReplacement": "={{ [JSON.stringify($json.decision.row), JSON.stringify($json.decision.activities)] }}"
         }
@@ -716,6 +716,75 @@
     },
     {
       "id": "n27",
+      "name": "Budget question first? (lead ad, no band in the form)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3960,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.first_touch.workflow === 'W03') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n28",
+      "name": "Budget question (w01.budgetQuestion)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4180,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Meta Lead Ads terms (2026-10-05): the instant form no longer asks the budget band; it is the first WhatsApp (< 60 s).\n// The tap returns through W07 -> W03 (conv_state q_budget) and W03's QUAL_BUDGET decides; in band -> W01 routes -> W06.\nconst L = require('lv-automation').w01;\nreturn $input.all().map((i) => ({ json: L.budgetQuestion(i.json.decision.row) }));"
+      }
+    },
+    {
+      "id": "n29",
+      "name": "WhatsApp Send (qualify_budget)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        4400,
+        400
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Shared sender (SUB-whatsapp-send): suppression, DRY_RUN_SENDS, allow-list and the correlation idempotency key run inside."
+    },
+    {
+      "id": "n30",
       "name": "W06 input",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -725,11 +794,11 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "return $input.all().map((i) => ({ json: { op: 'routed', lead_id: i.json.first_touch.lead_id, origin: i.json.first_touch.origin, not_before: i.json.first_touch.not_before } }));"
+        "jsCode": "return $input.all().filter((i) => i.json.first_touch.workflow !== 'W03').map((i) => ({ json: { op: 'routed', lead_id: i.json.first_touch.lead_id, origin: i.json.first_touch.origin, not_before: i.json.first_touch.not_before } }));"
       }
     },
     {
-      "id": "n28",
+      "id": "n31",
       "name": "W06 First touch (< 60 s)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -752,7 +821,7 @@
       "notes": "Called with { op: routed, lead_id, origin }. The lead row (broker_id, cycle_id, routed_at) is committed before this call. W06 holds page leads 45 s for the in-page booking."
     },
     {
-      "id": "n29",
+      "id": "n32",
       "name": "POST /lead/skip (I'll pick on WhatsApp)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -769,7 +838,7 @@
       "webhookId": "w01-lead-skip"
     },
     {
-      "id": "n30",
+      "id": "n33",
       "name": "Verify X-Lead-Token",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -783,7 +852,7 @@
       }
     },
     {
-      "id": "n31",
+      "id": "n34",
       "name": "Respond 202 / 401",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
@@ -808,7 +877,7 @@
       }
     },
     {
-      "id": "n32",
+      "id": "n35",
       "name": "Token ok?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -840,7 +909,7 @@
       }
     },
     {
-      "id": "n33",
+      "id": "n36",
       "name": "Lead still live + routed?",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -867,7 +936,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n34",
+      "id": "n37",
       "name": "W06 skip input",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -881,7 +950,7 @@
       }
     },
     {
-      "id": "n35",
+      "id": "n38",
       "name": "W06 First touch (skip)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -904,7 +973,7 @@
       "notes": "Called with { op: skip, lead_id }: the slots card goes now instead of at the end of the 45-s hold."
     },
     {
-      "id": "n36",
+      "id": "n39",
       "name": "Called as W01 Lead core (W02 ingest / W03 route)",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
@@ -917,7 +986,7 @@
       }
     },
     {
-      "id": "n37",
+      "id": "n40",
       "name": "Core action?",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
@@ -1005,7 +1074,7 @@
       }
     },
     {
-      "id": "n38",
+      "id": "n41",
       "name": "Lead ad -> submission (w01.normaliseLeadAd + screen)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1019,7 +1088,7 @@
       }
     },
     {
-      "id": "n39",
+      "id": "n42",
       "name": "Load CTWA lead + brokers",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1046,7 +1115,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n40",
+      "id": "n43",
       "name": "Route (w01.routeExisting)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1060,7 +1129,7 @@
       }
     },
     {
-      "id": "n41",
+      "id": "n44",
       "name": "Routed or held? (write it)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -1092,7 +1161,7 @@
       }
     },
     {
-      "id": "n42",
+      "id": "n45",
       "name": "Write routing (only if not routed yet) + timeline",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1119,7 +1188,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n43",
+      "id": "n46",
       "name": "CAPI Lead at hand-over (held -> routed)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1133,7 +1202,7 @@
       }
     },
     {
-      "id": "n44",
+      "id": "n47",
       "name": "CAPI Send (Lead at hand-over)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -1156,7 +1225,7 @@
       "notes": "I-49c: { event_name: Lead, event_id, ... } for a lead held at intake (no CAPI then). Consent gate inside the callee."
     },
     {
-      "id": "n45",
+      "id": "n48",
       "name": "W06 input (CTWA)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1170,7 +1239,7 @@
       }
     },
     {
-      "id": "n46",
+      "id": "n49",
       "name": "W06 First touch (CTWA)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -1193,7 +1262,7 @@
       "notes": "Called with { op: routed, lead_id, origin: ctwa }: slots card (or Flow v2) at once."
     },
     {
-      "id": "n47",
+      "id": "n50",
       "name": "Unknown core call (logged, never guessed)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1205,6 +1274,129 @@
         "mode": "runOnceForAllItems",
         "jsCode": "return [{ json: { outcome: 'subcall_rejected', reason: 'W01 Lead core needs action=ingest or kind=route_and_first_touch', keys: Object.keys($input.first().json || {}) } }];"
       }
+    },
+    {
+      "id": "n51",
+      "name": "Every 15 min: budget reminder sweep",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        1800
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n52",
+      "name": "Leads waiting on the budget tap (> 3 h, not reminded)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        220,
+        1800
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT l.id, l.phone, l.first_name, l.origin, l.routing_reason, l.broker_id, l.opted_out_at, l.disqualified_reason, l.qualified_at, l.created_at, l.conv_state\n  FROM public.leads l\n WHERE l.origin = 'lead_ad' AND l.routing_reason = 'held_budget_pending' AND l.broker_id IS NULL\n   AND l.opted_out_at IS NULL AND l.disqualified_reason IS NULL AND l.qualified_at IS NULL\n   AND l.conv_state->>'state' = 'q_budget' AND l.conv_state->>'budget_reminded_at' IS NULL\n   AND l.created_at <= now() - interval '3 hours'\n LIMIT 200;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n53",
+      "name": "Budget reminder (w01.budgetReminder)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        1800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// One reminder, same template, never in quiet hours (a lead due at night is picked up by the 08:00 sweep); then nothing.\nconst L = require('lv-automation').w01;\nreturn $input.all().filter((i) => i.json && i.json.id).map((i) => L.budgetReminder(i.json, Date.now())).filter(Boolean).map((r) => ({ json: r }));"
+      }
+    },
+    {
+      "id": "n54",
+      "name": "Mark reminded (at-most-once) + delete 24 h after",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        1800
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Marked BEFORE sending: a duplicate is worse than a miss. No tap -> deleted on the 24-h out-of-band rule, counted from the reminder.\nUPDATE public.leads\n   SET conv_state = coalesce(conv_state, '{}'::jsonb) || jsonb_build_object('budget_reminded_at', $2::text),\n       retention_delete_after = $3::timestamptz, updated_at = now()\n WHERE id = $1::uuid AND conv_state->>'budget_reminded_at' IS NULL AND broker_id IS NULL AND qualified_at IS NULL\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [ $json.lead_id, $json.reminded_at, $json.retention_delete_after ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n55",
+      "name": "Reminder send input (only rows just marked)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        1800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const marked = new Set($input.all().map((i) => i.json && i.json.id).filter(Boolean));\nreturn $('Budget reminder (w01.budgetReminder)').all().filter((i) => marked.has(i.json.lead_id)).map((i) => ({ json: i.json.send }));"
+      }
+    },
+    {
+      "id": "n56",
+      "name": "WhatsApp Send (qualify_budget reminder)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        1800
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Shared sender: suppression, DRY_RUN_SENDS, allow-list, correlation w01:ask_budget_reminder:<lead> (sent once)."
     }
   ],
   "connections": {
@@ -1501,6 +1693,11 @@
             "node": "W06 input",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Budget question first? (lead ad, no band in the form)",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -1510,6 +1707,28 @@
         [
           {
             "node": "W06 First touch (< 60 s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Budget question first? (lead ad, no band in the form)": {
+      "main": [
+        [
+          {
+            "node": "Budget question (w01.budgetQuestion)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Budget question (w01.budgetQuestion)": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp Send (qualify_budget)",
             "type": "main",
             "index": 0
           }
@@ -1694,6 +1913,61 @@
         [
           {
             "node": "CAPI Send (Lead at hand-over)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every 15 min: budget reminder sweep": {
+      "main": [
+        [
+          {
+            "node": "Leads waiting on the budget tap (> 3 h, not reminded)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leads waiting on the budget tap (> 3 h, not reminded)": {
+      "main": [
+        [
+          {
+            "node": "Budget reminder (w01.budgetReminder)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Budget reminder (w01.budgetReminder)": {
+      "main": [
+        [
+          {
+            "node": "Mark reminded (at-most-once) + delete 24 h after",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark reminded (at-most-once) + delete 24 h after": {
+      "main": [
+        [
+          {
+            "node": "Reminder send input (only rows just marked)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reminder send input (only rows just marked)": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp Send (qualify_budget reminder)",
             "type": "main",
             "index": 0
           }

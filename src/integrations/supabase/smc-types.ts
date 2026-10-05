@@ -335,3 +335,18 @@ export interface SmcConsoleRpcs {
   smc_console_set_watchlist_target: { args: { p_metric_no: number; p_target: number | null; p_stretch_target?: number | null; p_floor?: number | null; p_reason?: string | null }; returns: OpsWatchlistTarget };
   smc_faculty_tiles: { args: { p_days?: number; p_include_synthetic?: boolean }; returns: FacultyTile[] };
 }
+
+/** public.brands (smc_02 §1 + smc_06 §11). One row per consumer brand (SMC, CK); *_ref columns hold secret NAMES only. */
+export interface SmcBrandHandles { fb?: string; ig?: string; tiktok?: string; yt?: string; li?: string; x?: string; fb_standby_page_id?: string; [k: string]: unknown }
+export interface SmcBrand {
+  id: Uuid; code: string; name: string; language: string; domain: string | null; staging_url: string | null;
+  business_id: string | null; page_id: string | null; ig_user_id: string | null; waba_id: string | null;
+  phone_number_id: string | null; standby_phone_number_id: string | null; ad_account_id: string | null; standby_ad_account_id: string | null;
+  pixel_id: string | null; dataset_id: string | null; app_id: string | null; system_user_token_ref: string | null;
+  booking_flow_id: string | null; flow_public_key_ref: string | null; handles: SmcBrandHandles; verification_status: string | null;
+  disclosure_text: string | null; brand_kit_url: string | null; booking_ui: "list" | "flow";
+  /** W27 health (read-only in the console) */
+  page_status: string | null; ig_status: string | null; bv_status: string | null; ad_account_status: string | null; waba_quality: string | null;
+  template_status: Record<string, unknown>; emq: number | null; health_checked_at: Ts | null; health_alerts: unknown[]; insights_last_fetched_at: Ts | null;
+  is_active: boolean; status: "active" | "held"; created_at: Ts; updated_at: Ts;
+}

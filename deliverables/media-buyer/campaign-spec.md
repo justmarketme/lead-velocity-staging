@@ -109,21 +109,21 @@ Not "More volume". We trade volume for quality (Meta Help Center / Loomer test l
 | # | Field | Question text | Options (exact) | Qualifies | Routes out |
 |---|---|---|---|---|---|
 | 1 | Custom, multiple choice | Which age band are you in? | Under 35 / 35-44 / 45-50 / 51 or older | 35-44, 45-50 | Under 35, 51 or older |
-| 2 | Custom, multiple choice | Roughly what monthly amount could you set aside for life cover? | Under R500 / R500-R750 / R750-R1,250 / R1,250 or more | **R750-R1,250 and R1,250 or more (both qualify)** | Under R500, R500-R750 |
-| 3 | Custom, multiple choice | Is a video, WhatsApp or phone call fine for your 30-minute chat? | Yes / No | Yes | No |
-| 4 | Custom, multiple choice | Does your household have a bond or children at home? | A bond / Children / Both / Neither | all (never disqualifies; pre-call brief only) | none |
-| 5 | Full name | prefilled | | | |
-| 6 | Phone number | prefilled; label "Mobile number (WhatsApp)" | | | |
+| 2 | Custom, multiple choice | Is a video, WhatsApp or phone call fine for your 30-minute chat? | Yes / No | Yes | No |
+| 3 | Custom, multiple choice | Does your household have a bond or children at home? | A bond / Children / Both / Neither | all (never disqualifies; pre-call brief only) | none |
+| 4 | Full name | prefilled | | | |
+| 5 | Phone number | prefilled; label "Mobile number (WhatsApp)" | | | |
 
-Do not add: email (collected only inside WhatsApp, and only for Teams/Zoom/Meet), ID number, income, health, bank details (2.1.3, 4.6). Bands match 3.3 (no overlap).
+**No budget question in the form (decided 2026-10-05).** Meta's Lead Ads terms forbid income / financial questions in instant forms without Meta's permission. The monthly budget band is the **first WhatsApp step** instead: within 60 s of the submit, W01 stores the lead unrouted (`routing_reason = held_budget_pending`, `conv_state = q_budget`, no CAPI `Lead` yet) and sends the utility template `qualify_budget` (quick replies Under R500 / R500 to R750 / R750 to R1,250 / R1,250 to R1,499 / R1,500 or more). The tap goes W07 -> W03, with **the same qualifying logic as before**: R750-R1,250, R1,250-R1,499 and R1,500+ qualify (R1,500+ is a priority tag only); Under R500 and R500-R750 get the polite close, are never handed over and are deleted within 24 h. In band -> W01 routes, sends the CAPI `Lead` and W06 sends `broker_intro_slots` < 60 s after the tap. Expect some drop-off between form and tap; judge on cost per qualified lead (section 13).
+
+Do not add: email (collected only inside WhatsApp, and only for Teams/Zoom/Meet), ID number, income, budget/affordability, health, bank details (2.1.3, 4.6, Meta Lead Ads terms). Bands match 3.3 (no overlap).
 
 **3.4 Conditional logic and routing (UI, exact rules)**
 - Rule 1: if Q1 is "Under 35" or "51 or older" -> disqualified ending.
-- Rule 2: if Q2 is "Under R500" or "R500-R750" -> disqualified ending.
-- Rule 3: if Q3 is "No" -> disqualified ending.
-- Otherwise continue to Q4, name, phone, consent, thank-you.
+- Rule 2: if Q2 is "No" -> disqualified ending.
+- Otherwise continue to Q3, name, phone, consent, thank-you. (The budget band is asked on WhatsApp, 3.3.)
 - Disqualified ending text: Title "Thanks for your time". Body "Based on your answers, a call with an adviser is not the right fit at the moment, so we have not shared your details with anyone. You can read more at sortmycover.co.za." Button "Visit SortMyCover" -> `https://sortmycover.co.za/`.
-- Backstop (not Meta's job): W02 re-checks every answer and the consent box; any out-of-band or no-consent lead never enters the automation and is deleted within 24 h (2.1.7). **ASSUMPTION A4**: whether a routed-out person creates a lead record and a `Lead` event. Test with two staging submissions (one in-band, one out-of-band) and record. If routed-out submissions DO count as leads, the optimisation signal is polluted: tell me; mitigation is the offline `Qualified` feedback and the Higher Intent review step, and it moves the form-vs-page question forward.
+- Backstop (not Meta's job): W02 re-checks every form answer and the consent box (W03 decides the budget band on WhatsApp); any out-of-band or no-consent lead never enters the automation and is deleted within 24 h (2.1.7). **ASSUMPTION A4**: whether a routed-out person creates a lead record and a `Lead` event. Test with two staging submissions (one in-band, one out-of-band) and record. If routed-out submissions DO count as leads, the optimisation signal is polluted: tell me; mitigation is the offline `Qualified` feedback and the Higher Intent review step, and it moves the form-vs-page question forward.
 
 **3.5 Privacy and consent (screen "Privacy policy")**
 - Privacy policy link text "SortMyCover privacy notice"; URL `https://sortmycover.co.za/privacy` (must be live and name Pixel/CAPI/cookies before submission).

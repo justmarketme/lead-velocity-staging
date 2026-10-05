@@ -667,22 +667,22 @@ const LINES = [
     ev('live', 'S7-15', 'privacy_terms_live', 'true: privacy + terms pages return 200 live'),
   ] },
 
-  // S7-16 Conversation & booking — WhatsApp Business number live on Cloud API; Business Verification complete; the 6 core
+  // S7-16 Conversation & booking — WhatsApp Business number live on Cloud API; Business Verification complete; the 7 core
   // templates approved (any category — category cost logged); the rest submitted and tracked; standby number registered on
   // the same WABA; quality-rating alert in W22; display name approved. Purely external: red until green.
   // GREEN when: WABA_ID, PHONE_NUMBER_ID, STANDBY_PHONE_NUMBER_ID set; GATE-WABA + GATE-META-PORTFOLIO green; the template
-  // approval file build/evidence/whatsapp-templates.jsonl exists with the 6 CORE templates of submit.sh APPROVED with
+  // approval file build/evidence/whatsapp-templates.jsonl exists with the 7 CORE templates of submit.sh APPROVED with
   // category_decided + cost_delta_note logged and every REST template carrying a status; W22 has the quality-rating alert;
   // S7-16.jsonl has business_verification_complete, display_name_approved and standby_same_waba true.
   { id: 'S7-16', amber: false, checks: () => [
     command('build', 'templates', 'template check passes'),
-    custom('build', '6 core templates listed', () => [CORE_TEMPLATES.length === 6 ? PASS : MISSING, `submit.sh CORE: ${CORE_TEMPLATES.join(', ') || 'none'}`]),
+    custom('build', '7 core templates listed', () => [CORE_TEMPLATES.length === 7 ? PASS : MISSING, `submit.sh CORE: ${CORE_TEMPLATES.join(', ') || 'none'}`]),
     grep('build', 'automation/W22.json', /quality_rating/, 'quality-rating alert in W22'),
     env('live', ['WABA_ID', 'PHONE_NUMBER_ID', 'STANDBY_PHONE_NUMBER_ID'], 'WABA + number + standby ids set'),
     gate('live', 'GATE-WABA'),
     gate('live', 'GATE-META-PORTFOLIO'),
     evFile('live', 'whatsapp-templates.jsonl', 'template approval file', 'runbook §5 log, one row per template decision'),
-    templatesApproved('live', CORE_TEMPLATES, '6 core templates approved, category cost logged', true),
+    templatesApproved('live', CORE_TEMPLATES, '7 core templates approved, category cost logged', true),
     templatesTracked('live', REST_TEMPLATES, 'the rest submitted and tracked'),
     ev('live', 'S7-16', 'business_verification_complete', 'true'),
     ev('live', 'S7-16', 'display_name_approved', 'true'),

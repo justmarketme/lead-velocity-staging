@@ -1,1 +1,1 @@
-{ "name": "smc-ads", "private": true, "type": "commonjs", "scripts": { "test": "node --test meta-ads.test.js" } }
+{ "name": "smc-ads", "private": true, "type": "commonjs", "scripts": { "test": "node --test" } }

@@ -36,6 +36,7 @@ const MODULES = {
   w20ms: './lib/w20-ms.mjs',
   w29: './lib/w29.mjs',
   wa: './lib/wa.mjs',
+  breachDetect: './lib/breach-detect.mjs', // W34 B2 breach-report detector, shared by howzit@ mail (W34) and broker WhatsApp (W07)
   // sub-workflows SUB-*.json (LOCAL-STAGING §7, I-48f)
   subWhatsappSend: './lib/sub-whatsapp-send.mjs',
   waProvider: './lib/wa-provider.mjs',
@@ -54,6 +55,8 @@ const MODULES = {
   leadToken: './security/lead-token.js',
   redact: './security/redact.js',
   metaAds: './ads/meta-ads.js',
+  adsConsole: './ads/console-api.js', // the four console ads webhooks (ads-confirm, ads-budget, ads-ad-status, ads-campaign-status)
+  adsLaunchPlan: './ads/launch-plan.js', // launch plan defaults, caps from media shares, go-live / cycle-end budget plans
   capi: './capi/capi.js',
   // data (JSON, repo root): SA public holidays for W04 slot generation (I-46c; was an fs read off $env.REPO_DIR)
   holidays: '../data/za-public-holidays.json',

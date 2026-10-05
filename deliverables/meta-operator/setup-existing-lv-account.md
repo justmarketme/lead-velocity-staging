@@ -56,15 +56,16 @@ Write what you found into section 13 of `setup-checklist.md` (screen differs tab
 - Consequences to accept (log in NH-MO-17): messages and templates run through Twilio (per-message Twilio fee on top of Meta's; Content Template Builder rather than `submit.sh`/Graph); `message_template_status_update` and quality events arrive via Twilio/Meta webhook config, so W22/W27 and W06/W07 need a Twilio adapter; WhatsApp Flow publish (W28) may not be available through Twilio, so the 10-slot list stays the booking path (pre-mortem #3 already covers this).
 
 ### 4. Templates (J submits) , G10. Wait: 1 to 48 h each; accept Meta's category decision (pre-mortem #1)
-Submit these **6 core templates first**, in this order, the same day the number exists:
+Submit these **7 core templates first**, in this order, the same day the number exists:
 1. `broker_intro_booked`
 2. `broker_intro_slots`
 3. `booking_confirmed`
 4. `reminder_24h`
 5. `reminder_2h`
 6. `missed_you`
+7. `qualify_budget` (added 2026-10-05: the budget question moved out of the instant form; first WhatsApp for every instant-form lead)
 
-Holds before any submit: the intro-card image header still shows "FSP 12345" (must be `00000 (SAMPLE)`) and the three `broker_intro_*` carry the AI sentence (NH-19a: keep or delete). Both sit with their owners, not Jonathan. Then the remaining 46 per `template-submission-runbook.md`.
+Holds before any submit: the intro-card image header still shows "FSP 12345" (must be `00000 (SAMPLE)`) and the three `broker_intro_*` carry the AI sentence (NH-19a: keep or delete). Both sit with their owners, not Jonathan. Then the remaining 49 per `template-submission-runbook.md`.
 - A: Graph via `submit.sh` (needs `WABA_ID`, `META_SYSTEM_USER_TOKEN`) or WhatsApp Manager.
 - B: Twilio Content Template Builder, "Request WhatsApp approval"; same JSON text, new `content_sid` per template (store the SIDs; name of var to be set by automation-engineer).
 

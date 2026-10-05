@@ -1,23 +1,25 @@
 // S7-08 / S7-09 local proof (I-55): synthetic W22 alerts (DND, dedupe, escalation) and Approve -> task, over the REAL
 // node code in automation/W22.json + W32.json and the REAL migration chain, in a throwaway Postgres on a unix socket
-// (listen_addresses='', no network, never the live project). Skipped when no Postgres binaries exist.
+// (listen_addresses='', no network, never the live project), or in a throwaway `--network none` Docker container on a
+// laptop (automation/tests/_localpg.mjs). Skipped when neither exists.
 // Evidence env is "local" (not staging): build/evidence/S7-08.jsonl and S7-09.jsonl are written by hand from this run.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, mkdtempSync, writeFileSync, rmSync, chmodSync, existsSync, copyFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, copyFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import vm from 'node:vm';
+import { localPgBackend, startLocalPg, applyRepoMigrations, makeQuery } from './_localpg.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(here, '..', '..');
 const W22 = JSON.parse(readFileSync(join(ROOT, 'automation', 'W22.json'), 'utf8'));
 const W32 = JSON.parse(readFileSync(join(ROOT, 'automation', 'W32.json'), 'utf8'));
 const nd = (WF, name) => { const n = WF.nodes.find((x) => x.name === name); assert.ok(n, `node ${name}`); return n; };
-const PGBIN = ['/usr/lib/postgresql/16/bin', '/usr/lib/postgresql/17/bin', '/usr/local/pgsql/bin'].find((d) => existsSync(join(d, 'initdb')));
+const PG = localPgBackend(); // native binaries, else a throwaway --network none Docker container (_localpg.mjs)
 
 function runCode(WF, name, { input = [], refs = {}, nowIso, binaryHelper } = {}) {
   const NOW = nowIso ? Date.parse(nowIso) : Date.now();
@@ -30,33 +32,13 @@ function runCode(WF, name, { input = [], refs = {}, nowIso, binaryHelper } = {})
     .then((out) => JSON.parse(JSON.stringify(out.map((i) => i.json))));
 }
 
-test('S7-08/S7-09 local: synthetic W22 alerts + console Approve creates a task (real node code, real migrations)', { skip: !PGBIN && 'no Postgres binaries on this machine', timeout: 600000 }, async (t) => {
-  const isRoot = process.getuid && process.getuid() === 0;
-  const as = (cmd, args, opts = {}) => execFileSync(isRoot ? 'runuser' : cmd, isRoot ? ['-u', 'postgres', '--', cmd, ...args] : args, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 1 << 26, ...opts });
-  const dir = mkdtempSync(join(tmpdir(), 's708pg-')); chmodSync(dir, 0o777);
-  const port = String(56000 + Math.floor(Math.random() * 900));
-  const data = join(dir, 'data');
-  as(join(PGBIN, 'initdb'), ['-D', data, '-A', 'trust', '-U', 'postgres', '--no-locale', '-E', 'UTF8']);
-  as(join(PGBIN, 'pg_ctl'), ['-D', data, '-o', `-k ${dir} -c listen_addresses='' -p ${port}`, '-w', '-l', join(dir, 'log'), 'start']);
-  t.after(() => { try { as(join(PGBIN, 'pg_ctl'), ['-D', data, '-m', 'immediate', 'stop']); } catch {} rmSync(dir, { recursive: true, force: true }); });
-  const base = ['-h', dir, '-p', port, '-U', 'postgres', '-d', 'postgres', '-q', '-v', 'ON_ERROR_STOP=1'];
-  const file = (f, extra = []) => { const c = join(dir, `f${crypto.randomBytes(3).toString('hex')}.sql`); copyFileSync(f, c); chmodSync(c, 0o644); return as('psql', [...base, ...extra, '-f', c]); };
-  const lit = (v) => v === null || v === undefined ? 'NULL' : typeof v === 'boolean' || typeof v === 'number' ? String(v) : `'${String(v).replace(/'/g, "''")}'`;
-  const psql = (sql, params = []) => {
-    const q = sql.replace(/\$(\d+)/g, (_, n) => lit(params[Number(n) - 1]));
-    const f = join(dir, `q${crypto.randomBytes(4).toString('hex')}.sql`); writeFileSync(f, q); chmodSync(f, 0o644);
-    return as('psql', [...base, '-At', '-F', '\x1f', '-f', f]).trim().split('\n').filter(Boolean).map((l) => l.split('\x1f'));
-  };
-
+test('S7-08/S7-09 local: synthetic W22 alerts + console + WhatsApp Approve each create a task (real node code, real migrations)', { skip: !PG && 'no local Postgres (no binaries, no Docker postgres:16-alpine image)', timeout: 600000 }, async (t) => {
+  const pg = startLocalPg(PG);
+  t.after(() => pg.stop());
+  const dir = pg.dir;
+  const psql = makeQuery(pg);
   // ---- build the schema from the repo chain (stub = minimal Supabase surface; pg_cron/net migration skipped)
-  file(join(here, 'fixtures', 'pg-stub.sql'));
-  const MIG = join(ROOT, 'supabase', 'migrations');
-  const all = readdirSync(MIG).filter((f) => f.endsWith('.sql')).sort();
-  const legacy = all.filter((f) => !/^2026100\d_smc_/.test(f) && !f.startsWith('20260114094619'));
-  let deferred = [];
-  for (const f of legacy) { try { file(join(MIG, f), ['-1']); } catch { deferred.push(f); } }
-  for (const f of deferred) file(join(MIG, f), ['-1']);
-  for (const f of all.filter((x) => /^2026100\d_smc_/.test(x))) file(join(MIG, f), ['-1']);
+  applyRepoMigrations(pg);
 
   // =========================================================== (1) W22: DND, dedupe, escalation
   const sig = (k, extra = {}) => ({ kind: 'signal', signal_key: k, scope: 'global', severity: 'red', what: `synthetic ${k}`, impact: 'synthetic', first_action: 'none', since: new Date().toISOString(), ...extra });
@@ -153,7 +135,7 @@ test('S7-08/S7-09 local: synthetic W22 alerts + console Approve creates a task (
   assert.equal(ap.ok, true, JSON.stringify(ap)); assert.equal(ap.task_id, 'OPT-11111111');
   // validate the appended file with the real validator on a temp copy
   const nodes = tasksDoc.nodes.concat([{ id: ap.task_id, title: decide.title, owner: decide.owner_agent, phase: 'optimisation', depends_on: [], acceptance_test: 'x', human_gate: false, status: 'pending', section: '4.15', proposal_id: pid }]);
-  const vdir = join(dir, 'v'); execFileSync('mkdir', ['-p', vdir]);
+  const vdir = join(dir, 'v'); mkdirSync(vdir, { recursive: true });
   copyFileSync(join(ROOT, 'build', 'validate-tasks.mjs'), join(vdir, 'validate-tasks.mjs'));
   writeFileSync(join(vdir, 'tasks.json'), JSON.stringify({ ...tasksDoc, nodes }));
   execFileSync('node', [join(vdir, 'validate-tasks.mjs')], { stdio: 'pipe' });
@@ -162,4 +144,31 @@ test('S7-08/S7-09 local: synthetic W22 alerts + console Approve creates a task (
   assert.equal(psql(nd(W32, 'Decide').parameters.query, [vd.decision, vd.proposal_id, vd.decided_by, vd.reason, vd.via]).length, 0, 'replay is a no-op once task_id is set');
   const [again] = await runCode(W32, 'Append task node', { refs: { Decide: [decide], 'Tasks.json (approve)': [{ nodes }] } });
   assert.deepEqual([again.ok, again.already], [true, true], 'task append idempotent');
+
+  // =========================================================== (3) S7-09: Approve tapped on the WhatsApp pulse/memo creates a task
+  // Ops number taps "Approve" (payload approve:<id>) -> W07 routeInbound -> w32DecisionItem -> W32 Validate decision (via whatsapp)
+  // -> Decide -> Append task node -> Link task. Synthetic ops number; nothing is sent.
+  const W07L = (await import('../lib/w07.mjs'));
+  const pid2 = '22222222-3333-4444-8555-666666666666';
+  psql(`INSERT INTO ops.proposals (id, faculty, title, metric, forecast, test, kill_rule, owner_agent, check_date)
+        VALUES ('${pid2}', 'media', 'Synthetic: pause angle B on CPL', 'cpl_by_angle', '{"delta":"-R40"}', 'holdout 7 d', 'kill if CPL not down at n=150', 'media-buyer', current_date + 7)`);
+  const OPS = '+27600000097';
+  const tap = { from: OPS, payload: `approve:${pid2}`, wamid: 'wamid.synthetic.s709' };
+  assert.equal(W07L.routeInbound(tap, { lead: null, broker_numbers: new Set(), ops_numbers: new Set([OPS]) }).route, 'W32_decision');
+  assert.notEqual(W07L.routeInbound(tap, { lead: null, broker_numbers: new Set(), ops_numbers: new Set() }).route, 'W32_decision', 'a non-ops number cannot approve');
+  const [vw] = await runCode(W32, 'Validate decision', { input: [W07L.w32DecisionItem(tap)] });
+  assert.deepEqual([vw.valid, vw.decision, vw.via, vw.proposal_id, vw.decided_by], [true, 'approve', 'whatsapp', pid2, OPS]);
+  const dw = psql(nd(W32, 'Decide').parameters.query, [vw.decision, vw.proposal_id, vw.decided_by, vw.reason, vw.via]);
+  assert.equal(dw.length, 1, 'Decide approves the proposed row');
+  assert.deepEqual(psql(`SELECT status, decided_via FROM ops.proposals WHERE id = '${pid2}'`)[0], ['approved', 'whatsapp']);
+  const [W] = psql(`SELECT id::text, title, metric, forecast, test, kill_rule, owner_agent, check_date::text, decided_by_label FROM ops.proposals WHERE id = '${pid2}'`);
+  const decide2 = { id: W[0], title: W[1], metric: W[2], forecast: JSON.parse(W[3]), test: W[4], kill_rule: W[5], owner_agent: W[6], check_date: W[7], decided_by: W[8] };
+  const [ap2] = await runCode(W32, 'Append task node', { refs: { Decide: [decide2], 'Tasks.json (approve)': [{ ...tasksDoc, nodes }] } });
+  assert.equal(ap2.ok, true, JSON.stringify(ap2)); assert.equal(ap2.task_id, 'OPT-22222222');
+  const nodes2 = nodes.concat([{ id: ap2.task_id, title: decide2.title, owner: decide2.owner_agent, phase: 'optimisation', depends_on: [], acceptance_test: 'x', human_gate: false, status: 'pending', section: '4.15', proposal_id: pid2 }]);
+  writeFileSync(join(vdir, 'tasks.json'), JSON.stringify({ ...tasksDoc, nodes: nodes2 }));
+  execFileSync('node', [join(vdir, 'validate-tasks.mjs')], { stdio: 'pipe' });
+  psql(nd(W32, 'Link task').parameters.query, [decide2.id, ap2.task_id]);
+  assert.equal(psql(`SELECT task_id FROM ops.proposals WHERE id = '${pid2}'`)[0][0], 'OPT-22222222');
+  assert.equal(psql(nd(W32, 'Decide').parameters.query, [vw.decision, vw.proposal_id, vw.decided_by, vw.reason, vw.via]).length, 0, 'a second Approve tap is a no-op');
 });

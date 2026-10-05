@@ -183,7 +183,7 @@ ins AS (
                             consent_text, consent_text_version, consent_mode, consent_at, consent_page_url, consent_source, consent_ads_at,
                             lead_event_id, fbclid, fbp, fbc, ad_id, adset_id, campaign_id, leadgen_id,
                             utm_source, utm_medium, utm_campaign, utm_content, utm_term, page_url, client_ip, client_user_agent,
-                            broker_id, cycle_id, tier_code, routed_at, routing_reason, stage, disqualified_reason, retention_delete_after, opted_out_at)
+                            broker_id, cycle_id, tier_code, routed_at, routing_reason, stage, disqualified_reason, retention_delete_after, opted_out_at, conv_state)
   SELECT (j->>'id')::uuid, (j->>'brand_id')::uuid, j->>'origin', j->>'source', COALESCE((j->>'is_synthetic')::boolean, false), (j->>'created_at')::timestamptz,
          j->>'first_name', j->>'phone', j->>'line_type', j->>'language',
          j->>'age_band', j->>'budget_band', (j->>'bond')::boolean, (j->>'dependants')::boolean, (j->>'work_cover')::boolean, j->>'method_pref', j->>'angle',
@@ -192,7 +192,7 @@ ins AS (
          j->>'lead_event_id', j->>'fbclid', j->>'fbp', j->>'fbc', j->>'ad_id', j->>'adset_id', j->>'campaign_id', j->>'leadgen_id',
          j->>'utm_source', j->>'utm_medium', j->>'utm_campaign', j->>'utm_content', j->>'utm_term', j->>'page_url', j->>'client_ip', j->>'client_user_agent',
          (j->>'broker_id')::uuid, (j->>'cycle_id')::uuid, j->>'tier_code', (j->>'routed_at')::timestamptz, j->>'routing_reason', j->>'stage', j->>'disqualified_reason',
-         (j->>'retention_delete_after')::timestamptz, (j->>'opted_out_at')::timestamptz
+         (j->>'retention_delete_after')::timestamptz, (j->>'opted_out_at')::timestamptz, j->'conv_state'
     FROM r
   ON CONFLICT DO NOTHING
   RETURNING id, brand_id, broker_id, cycle_id)
@@ -217,7 +217,14 @@ return [{ json: { ...d, inserted, first_touch: inserted ? d.decision.first_touch
 return $input.all().map((i) => { const c = i.json.capi; return { json: { event_name: c.event_name, event_id: c.event_id, action_source: c.action_source, lead_id: c.lead_id, brand_id: c.brand_id, event_time: c.event_time } }; });`));
   n.push(sub('CAPI Send (Lead)', pos(19, -1), 'CAPI Send', false, 'Called with { event_name: Lead, event_id, action_source, lead_id, brand_id, event_time }. Consent gate, hashing and back-off inside the callee (automation/capi).'));
   n.push(ifTrue('First touch? (routed, not suppressed)', pos(17, 1), '!!$json.first_touch'));
-  n.push(code('W06 input', pos(18, 1), "return $input.all().map((i) => ({ json: { op: 'routed', lead_id: i.json.first_touch.lead_id, origin: i.json.first_touch.origin, not_before: i.json.first_touch.not_before } }));"));
+  n.push(ifTrue('Budget question first? (lead ad, no band in the form)', pos(18, 2), "$json.first_touch.workflow === 'W03'"));
+  n.push(code('Budget question (w01.budgetQuestion)', pos(19, 2),
+`// Meta Lead Ads terms (2026-10-05): the instant form no longer asks the budget band; it is the first WhatsApp (< 60 s).
+// The tap returns through W07 -> W03 (conv_state q_budget) and W03's QUAL_BUDGET decides; in band -> W01 routes -> W06.
+const L = require('lv-automation').w01;
+return $input.all().map((i) => ({ json: L.budgetQuestion(i.json.decision.row) }));`));
+  n.push(sub('WhatsApp Send (qualify_budget)', pos(20, 2), 'WhatsApp Send', false, 'Shared sender (SUB-whatsapp-send): suppression, DRY_RUN_SENDS, allow-list and the correlation idempotency key run inside.'));
+  n.push(code('W06 input', pos(18, 1), "return $input.all().filter((i) => i.json.first_touch.workflow !== 'W03').map((i) => ({ json: { op: 'routed', lead_id: i.json.first_touch.lead_id, origin: i.json.first_touch.origin, not_before: i.json.first_touch.not_before } }));"));
   n.push(sub('W06 First touch (< 60 s)', pos(19, 1), 'W06 First touch', false, 'Called with { op: routed, lead_id, origin }. The lead row (broker_id, cycle_id, routed_at) is committed before this call. W06 holds page leads 45 s for the in-page booking.'));
 
   // ---- entry 2: POST /lead/skip
@@ -320,7 +327,10 @@ return $('Route (w01.routeExisting)').all().map((i) => i.json).filter((x) => x.r
   link(c, 'CAPI Lead? (consent gate passed, row inserted)', 'CAPI payload (ids only, no email)', 0);
   chain(c, 'CAPI payload (ids only, no email)', 'CAPI Send (Lead)');
   link(c, 'First touch? (routed, not suppressed)', 'W06 input', 0);
+  link(c, 'First touch? (routed, not suppressed)', 'Budget question first? (lead ad, no band in the form)', 0);
   chain(c, 'W06 input', 'W06 First touch (< 60 s)');
+  link(c, 'Budget question first? (lead ad, no band in the form)', 'Budget question (w01.budgetQuestion)', 0);
+  chain(c, 'Budget question (w01.budgetQuestion)', 'WhatsApp Send (qualify_budget)');
   chain(c, "POST /lead/skip (I'll pick on WhatsApp)", 'Verify X-Lead-Token', 'Respond 202 / 401', 'Token ok?');
   link(c, 'Token ok?', 'Lead still live + routed?', 0);
   chain(c, 'Lead still live + routed?', 'W06 skip input', 'W06 First touch (skip)');
@@ -333,6 +343,32 @@ return $('Route (w01.routeExisting)').all().map((i) => i.json).filter((x) => x.r
   link(c, 'Routed or held? (write it)', 'Write routing (only if not routed yet) + timeline', 0);
   chain(c, 'Write routing (only if not routed yet) + timeline', 'W06 input (CTWA)', 'W06 First touch (CTWA)');
   chain(c, 'Write routing (only if not routed yet) + timeline', 'CAPI Lead at hand-over (held -> routed)', 'CAPI Send (Lead at hand-over)');
+  // ---- entry 4: the ONE qualify_budget reminder (lead-ad leads, no tap within 3 h; quiet hours 20:00-08:00 SAST)
+  n.push(node('Every 15 min: budget reminder sweep', 'scheduleTrigger', 1.2, pos(0, 9), { rule: { interval: [{ field: 'minutes', minutesInterval: 15 }] } }));
+  n.push(pg('Leads waiting on the budget tap (> 3 h, not reminded)', pos(1, 9),
+`SELECT l.id, l.phone, l.first_name, l.origin, l.routing_reason, l.broker_id, l.opted_out_at, l.disqualified_reason, l.qualified_at, l.created_at, l.conv_state
+  FROM public.leads l
+ WHERE l.origin = 'lead_ad' AND l.routing_reason = 'held_budget_pending' AND l.broker_id IS NULL
+   AND l.opted_out_at IS NULL AND l.disqualified_reason IS NULL AND l.qualified_at IS NULL
+   AND l.conv_state->>'state' = 'q_budget' AND l.conv_state->>'budget_reminded_at' IS NULL
+   AND l.created_at <= now() - interval '3 hours'
+ LIMIT 200;`));
+  n.push(code('Budget reminder (w01.budgetReminder)', pos(2, 9),
+`// One reminder, same template, never in quiet hours (a lead due at night is picked up by the 08:00 sweep); then nothing.
+const L = require('lv-automation').w01;
+return $input.all().filter((i) => i.json && i.json.id).map((i) => L.budgetReminder(i.json, Date.now())).filter(Boolean).map((r) => ({ json: r }));`));
+  n.push(pg('Mark reminded (at-most-once) + delete 24 h after', pos(3, 9),
+`-- Marked BEFORE sending: a duplicate is worse than a miss. No tap -> deleted on the 24-h out-of-band rule, counted from the reminder.
+UPDATE public.leads
+   SET conv_state = coalesce(conv_state, '{}'::jsonb) || jsonb_build_object('budget_reminded_at', $2::text),
+       retention_delete_after = $3::timestamptz, updated_at = now()
+ WHERE id = $1::uuid AND conv_state->>'budget_reminded_at' IS NULL AND broker_id IS NULL AND qualified_at IS NULL
+RETURNING id;`, '={{ [ $json.lead_id, $json.reminded_at, $json.retention_delete_after ] }}'));
+  n.push(code('Reminder send input (only rows just marked)', pos(4, 9),
+`const marked = new Set($input.all().map((i) => i.json && i.json.id).filter(Boolean));
+return $('Budget reminder (w01.budgetReminder)').all().filter((i) => marked.has(i.json.lead_id)).map((i) => ({ json: i.json.send }));`));
+  n.push(sub('WhatsApp Send (qualify_budget reminder)', pos(5, 9), 'WhatsApp Send', false, 'Shared sender: suppression, DRY_RUN_SENDS, allow-list, correlation w01:ask_budget_reminder:<lead> (sent once).'));
+  chain(c, 'Every 15 min: budget reminder sweep', 'Leads waiting on the budget tap (> 3 h, not reminded)', 'Budget reminder (w01.budgetReminder)', 'Mark reminded (at-most-once) + delete 24 h after', 'Reminder send input (only rows just marked)', 'WhatsApp Send (qualify_budget reminder)');
   return wf('smc-w01', 'W01 Lead intake (web) (DRAFT pending GATE-TEST-W01)', n, c, ['SortMyCover', 'core-path', 'draft']);
 }
 

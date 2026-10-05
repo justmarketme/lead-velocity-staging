@@ -1,0 +1,32 @@
+{
+  "name": "qualify_budget",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, thanks for your life cover enquiry with SortMyCover. One quick question so we can match you with the right adviser: roughly what could you put towards cover each month? Tap one below. Reply STOP to opt out.",
+      "example": {
+        "body_text": [
+          [
+            "Lerato"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover by Lead Velocity"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        { "type": "QUICK_REPLY", "text": "Under R500" },
+        { "type": "QUICK_REPLY", "text": "R500 to R750" },
+        { "type": "QUICK_REPLY", "text": "R750 to R1,250" },
+        { "type": "QUICK_REPLY", "text": "R1,250 to R1,499" },
+        { "type": "QUICK_REPLY", "text": "R1,500 or more" }
+      ]
+    }
+  ]
+}

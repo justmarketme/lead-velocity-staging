@@ -8,6 +8,7 @@
  * - Insights are never fetched more often than hourly.
  * Nothing is sent unless a caller invokes a function with a real token. */
 const crypto = require('crypto');
+const LP = require('./launch-plan.js');
 
 // ASSUMPTION: v23.0 is a current Graph API version; override with META_API_VERSION.
 const DEFAULT_API_VERSION = 'v23.0';
@@ -36,6 +37,52 @@ const defaultSleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const zarToMinor = (zar) => Math.round(Number(zar) * 100); // ZAR is a 2-decimal currency; Meta budgets are in minor units
 const stable = (o) => JSON.stringify(o, (k, v) => (v && typeof v === 'object' && !Array.isArray(v)
   ? Object.keys(v).sort().reduce((a, x) => { a[x] = v[x]; return a; }, {}) : v));
+
+
+/* ------------------------------------------------------------------ SortMyCover identity (decided 2026-10-05)
+ * Every campaign, ad set, creative, lead form and webhook subscription uses the SortMyCover Page, IG account, ad account
+ * and pixel read from the `brands` row where code = 'SMC'. A broker's own Page is never used. Any other page_id is refused. */
+const SMC_BRAND_CODE = 'SMC';
+function smcAssets(brand) {
+  if (!brand || typeof brand !== 'object') throw new MetaError('the SortMyCover brands row is required (code SMC): Page and ad account IDs are read from it, never passed in', { code: 'BRAND_REQUIRED' });
+  if (brand.code !== SMC_BRAND_CODE) throw new MetaError(`brands row is "${brand.code}", not ${SMC_BRAND_CODE}: ads run on the SortMyCover Page only`, { code: 'BRAND_NOT_SMC' });
+  const a = { brandId: brand.id || null, businessId: brand.business_id || null, adAccountId: brand.ad_account_id ? normAcct(brand.ad_account_id) : null, pageId: brand.page_id ? String(brand.page_id) : null,
+    igUserId: brand.ig_user_id ? String(brand.ig_user_id) : null, pixelId: brand.pixel_id ? String(brand.pixel_id) : null, datasetId: brand.dataset_id ? String(brand.dataset_id) : null };
+  return { ...a, missing: ['adAccountId', 'pageId'].filter((k) => !a[k]).concat(a.pixelId || a.datasetId ? [] : ['pixelId|datasetId']) };
+}
+/* Fail closed unless the required IDs are present. `need` lists the keys this call uses. */
+function requireSmcAssets(brand, need = ['pageId', 'adAccountId']) {
+  const a = smcAssets(brand);
+  const gone = need.filter((k) => !a[k]);
+  if (gone.length) throw new MetaError(`SortMyCover brands row is missing ${gone.join(', ')} (Settings, Brands)`, { code: 'ASSET_MISSING', missing: gone });
+  return a;
+}
+const sameId = (a, b) => String(a).replace(/^act_/, '') === String(b).replace(/^act_/, '');
+/* Reject every sign that a payload targets some other Page / account / IG / pixel than the SMC brand row. */
+function assertSmcIdentity(spec, assets) {
+  const bad = (m) => { throw new MetaError(m, { code: 'NOT_SMC_PAGE' }); };
+  const sb = (spec && spec.brand) || {};
+  if (sb.code && sb.code !== SMC_BRAND_CODE) bad(`spec.brand.code "${sb.code}" is not ${SMC_BRAND_CODE}`);
+  if (!sb.page_id || !sameId(sb.page_id, assets.pageId)) bad(`spec.brand.page_id ${sb.page_id || '(none)'} is not the SortMyCover Page ${assets.pageId}: campaigns never use a broker's Page`);
+  if (!sb.ad_account_id || !sameId(sb.ad_account_id, assets.adAccountId)) bad('spec.brand.ad_account_id is not the SortMyCover ad account');
+  if (sb.ig_user_id && assets.igUserId && !sameId(sb.ig_user_id, assets.igUserId)) bad('spec.brand.ig_user_id is not the SortMyCover Instagram account');
+  if (sb.pixel_id && assets.pixelId && !sameId(sb.pixel_id, assets.pixelId)) bad('spec.brand.pixel_id is not the SortMyCover pixel');
+  const walk = (o, path) => {
+    if (!o || typeof o !== 'object') return;
+    for (const k of Object.keys(o)) {
+      const v = o[k];
+      if (/^(broker_page_id|broker_id|broker_page)$/i.test(k)) bad(`${path}.${k}: broker identities are not allowed on ads`);
+      if (/^(page_id|instagram_actor_id|instagram_user_id)$/.test(k) && v != null) {
+        const want = k === 'page_id' ? assets.pageId : assets.igUserId;
+        if (!want || !sameId(v, want)) bad(`${path}.${k}=${v} is not the SortMyCover ${k === 'page_id' ? 'Page' : 'Instagram account'}`);
+      }
+      if (v && typeof v === 'object') walk(v, `${path}.${k}`);
+    }
+  };
+  walk(spec.campaigns, 'campaigns');
+}
+
+
 
 /* ------------------------------------------------------------------ usage headers + back-off */
 function getHeader(headers, name) {
@@ -117,6 +164,10 @@ function createClient(opts = {}) {
   const base = opts.baseUrl || `https://graph.facebook.com/${version}`;
   const maxInlineWaitMs = opts.maxInlineWaitMs == null ? 30000 : opts.maxInlineWaitMs;
   const maxRetries = opts.maxRetries == null ? 3 : opts.maxRetries;
+  // The SortMyCover `brands` row (code SMC). Required for anything that names a Page or ad account; reads are checked against it when present.
+  const brandRow = opts.brand || null;
+  const smc = (need) => requireSmcAssets(brandRow, need);
+  const onlySmcAccount = (adAccountId) => { if (brandRow) { const a = smc(['adAccountId']); if (!sameId(adAccountId, a.adAccountId)) throw new MetaError('ad account is not the SortMyCover ad account', { code: 'NOT_SMC_ACCOUNT' }); } };
   const state = { blockedUntil: 0, lastUsage: null, usedNonces: new Set(), lastInsights: new Map() };
 
   const redact = (s) => (token ? String(s).split(token).join('[token]') : String(s));
@@ -238,6 +289,7 @@ function createClient(opts = {}) {
     if (!adAccountId) throw new MetaError('adAccountId required', { code: 'BAD_INPUT' });
     if (!datePreset && !timeRange) throw new MetaError('datePreset or timeRange required', { code: 'BAD_INPUT' });
     const acct = String(adAccountId).startsWith('act_') ? adAccountId : `act_${adAccountId}`;
+    onlySmcAccount(acct);
     const key = stable({ acct, level, datePreset, timeRange, breakdowns });
     const last = Math.max(lastFetchedAt ? new Date(lastFetchedAt).getTime() : 0, state.lastInsights.get(key) || 0);
     if (last && now() - last < MIN_INSIGHTS_INTERVAL_MS) {
@@ -267,6 +319,7 @@ function createClient(opts = {}) {
   async function getAdObjects({ adAccountId, brandId, lastFetchedAt, limit = 500, maxPages = 10 }) {
     if (!adAccountId) throw new MetaError('adAccountId required', { code: 'BAD_INPUT' });
     const acct = normAcct(adAccountId);
+    onlySmcAccount(acct);
     const key = stable({ acct, objects: true });
     const last = Math.max(lastFetchedAt ? new Date(lastFetchedAt).getTime() : 0, state.lastInsights.get(key) || 0);
     if (last && now() - last < MIN_INSIGHTS_INTERVAL_MS) throw new MetaError('ad objects are fetched at most hourly', { code: 'TOO_SOON', retryAfterMs: MIN_INSIGHTS_INTERVAL_MS - (now() - last) });
@@ -286,7 +339,7 @@ function createClient(opts = {}) {
   }
 
   /* ---------- guarded writes ---------- */
-  function checkBudget({ dailyBudgetZar, currentDailyBudgetZar, caps = {}, monthSpendToDateZar = 0, daysRemaining, lastChangeAt, goLive = false }) {
+  function checkBudget({ dailyBudgetZar, currentDailyBudgetZar, caps = {}, monthSpendToDateZar = 0, daysRemaining, lastChangeAt, goLive = false, goLiveShareZar }) {
     const v = Number(dailyBudgetZar);
     if (!Number.isFinite(v) || v <= 0) throw new MetaError('dailyBudgetZar must be > 0 (to stop spend, pause the campaign)', { code: 'BUDGET_INVALID' });
     if (v < MIN_DAILY_BUDGET_ZAR()) throw new MetaError(`dailyBudgetZar below Meta minimum R${MIN_DAILY_BUDGET_ZAR()}`, { code: 'BUDGET_BELOW_MIN' });
@@ -298,6 +351,12 @@ function createClient(opts = {}) {
     if (projected > caps.monthlyCapZar) throw new MetaError(`projected month spend R${projected.toFixed(0)} exceeds the monthly cap R${caps.monthlyCapZar}`, { code: 'MONTHLY_CAP', projected });
     // campaign-spec 12: <= 20% steps, once per 48 h. Not applied to the go-live raise from R0 (6.1 step 5) or a decrease.
     const maxStep = caps.maxStepPct == null ? 20 : caps.maxStepPct;
+    // The go-live exemption is bound to ONE broker's share: the raise may not exceed share / 1.15 / 30 (plus rounding),
+    // so a go_live flag cannot lift the step limit for anything else.
+    if (goLive && goLiveShareZar != null && currentDailyBudgetZar != null) {
+      const room = LP.dailyFromShare(goLiveShareZar) + 0.05;
+      if (v - currentDailyBudgetZar > room) throw new MetaError(`go-live raise R${(v - currentDailyBudgetZar).toFixed(2)}/day exceeds the broker's share R${room.toFixed(2)}/day`, { code: 'GO_LIVE_EXCEEDS_SHARE' });
+    }
     if (!goLive && currentDailyBudgetZar > 0 && v > currentDailyBudgetZar) {
       if ((v - currentDailyBudgetZar) / currentDailyBudgetZar * 100 > maxStep + 1e-9) throw new MetaError(`increase above ${maxStep}% step`, { code: 'STEP_LIMIT' });
       if (lastChangeAt && now() - new Date(lastChangeAt).getTime() < 48 * 3600 * 1000) throw new MetaError('budget changed less than 48 h ago', { code: 'STEP_COOLDOWN' });
@@ -305,12 +364,14 @@ function createClient(opts = {}) {
     return { projected };
   }
 
-  async function setCampaignBudget({ campaignId, dailyBudgetZar, confirmToken, confirmedBy, caps, currentDailyBudgetZar, monthSpendToDateZar, daysRemaining, lastChangeAt, goLive = false, setSpendCap = false }) {
+  async function setCampaignBudget({ campaignId, dailyBudgetZar, confirmToken, confirmedBy, caps, currentDailyBudgetZar, monthSpendToDateZar, daysRemaining, lastChangeAt, goLive = false, goLiveShareZar, setSpendCap = false }) {
     if (!campaignId) throw new MetaError('campaignId required', { code: 'BAD_INPUT' });
     const params = { dailyBudgetZar: Number(dailyBudgetZar), setSpendCap: !!setSpendCap, monthlyCapZar: caps && caps.monthlyCapZar };
+    if (goLive) { params.goLive = true; params.goLiveShareZar = Number(goLiveShareZar); }
     // token first: no token, no further work.
     verifyShape(confirmToken);
-    checkBudget({ dailyBudgetZar, currentDailyBudgetZar, caps, monthSpendToDateZar, daysRemaining, lastChangeAt, goLive });
+    if (goLive && !(Number(goLiveShareZar) > 0)) throw new MetaError("go_live needs goLiveShareZar (the going-live broker's media share)", { code: 'GO_LIVE_SHARE_MISSING' });
+    checkBudget({ dailyBudgetZar, currentDailyBudgetZar, caps, monthSpendToDateZar, daysRemaining, lastChangeAt, goLive, goLiveShareZar: goLive ? goLiveShareZar : undefined });
     return guardedWrite({ action: 'set_campaign_budget', target: campaignId, params, confirmToken, confirmedBy, before: { dailyBudgetZar: currentDailyBudgetZar },
       run: async () => {
         const body = { daily_budget: zarToMinor(dailyBudgetZar) };
@@ -327,13 +388,24 @@ function createClient(opts = {}) {
     return guardedWrite({ action, target: adId, params: { status }, confirmToken, confirmedBy,
       run: async () => (await request('POST', String(adId), { body: { status } })).data });
   }
+  /* Campaign-level pause/resume: the way to "lower to R0" (a budget cannot be 0) at cycle end, and the day-14 stop-and-escalate. */
+  async function setCampaignStatus(campaignId, status, { confirmToken, confirmedBy }) {
+    verifyShape(confirmToken);
+    if (!campaignId) throw new MetaError('campaignId required', { code: 'BAD_INPUT' });
+    if (status !== 'PAUSED' && status !== 'ACTIVE') throw new MetaError('status must be PAUSED or ACTIVE', { code: 'BAD_INPUT' });
+    const action = status === 'PAUSED' ? 'pause_campaign' : 'resume_campaign';
+    return guardedWrite({ action, target: campaignId, params: { status }, confirmToken, confirmedBy,
+      run: async () => (await request('POST', String(campaignId), { body: { status } })).data });
+  }
+  const pauseCampaign = ({ campaignId, confirmToken, confirmedBy }) => setCampaignStatus(campaignId, 'PAUSED', { confirmToken, confirmedBy });
+  const resumeCampaign = ({ campaignId, confirmToken, confirmedBy }) => setCampaignStatus(campaignId, 'ACTIVE', { confirmToken, confirmedBy });
   const pauseAd = ({ adId, confirmToken, confirmedBy }) => setAdStatus(adId, 'PAUSED', { confirmToken, confirmedBy });
   const resumeAd = ({ adId, confirmToken, confirmedBy }) => setAdStatus(adId, 'ACTIVE', { confirmToken, confirmedBy });
 
   /* ---------- campaign tree from a spec ---------- */
   async function createCampaignTree(spec, { confirmToken, confirmedBy } = {}) {
     verifyShape(confirmToken);
-    const plan = planCampaignTree(spec);
+    const plan = planCampaignTree(spec, { assets: smc(['pageId', 'adAccountId']) });
     return guardedWrite({ action: 'create_campaign_tree', target: plan.accountId, params: { specHash: sha256(stable(spec)) }, confirmToken, confirmedBy,
       run: async () => {
         const acct = plan.accountId;
@@ -362,6 +434,7 @@ function createClient(opts = {}) {
   async function createLeadgenForm(spec, { confirmToken, confirmedBy } = {}) {
     verifyShape(confirmToken);
     const { pageId, body } = planLeadgenForm(spec);
+    if (!sameId(pageId, smc(['pageId']).pageId)) throw new MetaError(`lead form page ${pageId} is not the SortMyCover Page`, { code: 'NOT_SMC_PAGE' });
     return guardedWrite({ action: 'create_leadgen_form', target: pageId, params: { name: body.name }, confirmToken, confirmedBy,
       run: async () => (await request('POST', `${pageId}/leadgen_forms`, { body })).data });
   }
@@ -371,6 +444,7 @@ function createClient(opts = {}) {
   async function subscribeLeadAdsWebhook(pageId, appId, { confirmToken, confirmedBy, callbackUrl, verifyToken, appToken } = {}) {
     verifyShape(confirmToken);
     if (!pageId || !appId) throw new MetaError('pageId and appId required', { code: 'BAD_INPUT' });
+    if (!sameId(pageId, smc(['pageId']).pageId)) throw new MetaError(`page ${pageId} is not the SortMyCover Page`, { code: 'NOT_SMC_PAGE' });
     return guardedWrite({ action: 'subscribe_leadgen_webhook', target: pageId, params: { appId, callbackUrl: callbackUrl || null }, confirmToken, confirmedBy,
       run: async () => {
         const out = {};
@@ -415,6 +489,8 @@ function createClient(opts = {}) {
   /* ---------- audiences ---------- */
   async function createEngagementAudiences({ adAccountId, pageId, igUserId, formIds = [], videoIds = [], confirmToken, confirmedBy }) {
     verifyShape(confirmToken);
+    const a = smc(['pageId', 'adAccountId']);
+    if (!sameId(adAccountId, a.adAccountId) || (pageId && !sameId(pageId, a.pageId)) || (igUserId && a.igUserId && !sameId(igUserId, a.igUserId))) throw new MetaError('audiences are built on the SortMyCover Page / Instagram / ad account only', { code: 'NOT_SMC_PAGE' });
     const plan = planEngagementAudiences({ pageId, igUserId, formIds, videoIds });
     const acct = normAcct(adAccountId);
     return guardedWrite({ action: 'create_engagement_audiences', target: acct, params: { names: plan.map((p) => p.name) }, confirmToken, confirmedBy,
@@ -428,6 +504,7 @@ function createClient(opts = {}) {
   async function createCustomerListAudience({ adAccountId, name, description = '', schema = ['PHONE', 'FN', 'LN', 'COUNTRY', 'EXTID'], hashedRows = [], confirmToken, confirmedBy }) {
     verifyShape(confirmToken);
     assertHashedRows(schema, hashedRows);
+    onlySmcAccount(adAccountId);
     const acct = normAcct(adAccountId);
     return guardedWrite({ action: 'create_customer_list_audience', target: acct, params: { name, rows: hashedRows.length }, confirmToken, confirmedBy,
       run: async () => {
@@ -452,6 +529,7 @@ function createClient(opts = {}) {
     verifyShape(confirmToken);
     if (!(ratio >= 0.01 && ratio <= 0.2)) throw new MetaError('ratio must be 0.01-0.20', { code: 'BAD_INPUT' });
     if (!(seedSize >= minSeed)) throw new MetaError(`seed audience needs >= ${minSeed} people (got ${seedSize}); not created until the seed gate is met`, { code: 'SEED_TOO_SMALL' });
+    onlySmcAccount(adAccountId);
     const acct = normAcct(adAccountId);
     const nm = name || `SMC_LAL-${Math.round(ratio * 100)}_seed${seedId}_${Math.round(ratio * 100)}pct`;
     return guardedWrite({ action: 'create_lookalike', target: acct, params: { seedId, ratio, country }, confirmToken, confirmedBy,
@@ -466,7 +544,7 @@ function createClient(opts = {}) {
     return out;
   }
 
-  return { request, batch, requestConfirm, verifyConfirm, getInsights, getAdObjects, setCampaignBudget, pauseAd, resumeAd, createCampaignTree, createLeadgenForm,
+  return { request, batch, requestConfirm, verifyConfirm, getInsights, getAdObjects, setCampaignBudget, setCampaignStatus, pauseCampaign, resumeCampaign, pauseAd, resumeAd, createCampaignTree, createLeadgenForm,
     subscribeLeadAdsWebhook, fetchLead, getAssetHealth, createEngagementAudiences, createCustomerListAudience, addAudienceUsers, createLookalike,
     uploadOfflineEvents, checkBudget, state, version };
 }
@@ -507,9 +585,10 @@ function buildCreativePayload(spec, ad, name) {
 
 const AD_STATUS = 'PAUSED';
 /* spec -> ordered Graph payloads. Everything is forced PAUSED at the minimum daily budget (R0 spend before first payment, 0.1). */
-function planCampaignTree(spec) {
+function planCampaignTree(spec, { assets } = {}) {
   if (!spec || !spec.brand || !spec.brand.ad_account_id || !spec.brand.page_id) throw new MetaError('spec.brand.ad_account_id and page_id required', { code: 'BAD_SPEC' });
   if (!Array.isArray(spec.campaigns) || !spec.campaigns.length) throw new MetaError('spec.campaigns required', { code: 'BAD_SPEC' });
+  if (assets) assertSmcIdentity(spec, assets);
   const date = fmtDate(spec.date || new Date());
   const minMinor = zarToMinor(MIN_DAILY_BUDGET_ZAR());
   const plan = { accountId: normAcct(spec.brand.ad_account_id), campaigns: [], adsets: [], ads: [] };
@@ -587,16 +666,21 @@ function normalizeLead(raw) {
  * Accepts the option key (35_44) or its label (35-44). Bands: age 35-44 / 45-50; budget R750-R1,250 and R1,250+ both qualify (0.1). */
 const slug = (v) => String(v == null ? '' : v).trim().toLowerCase();
 const AGE_OK = new Set(['35_44', '35-44', '45_50', '45-50']);
-const BUDGET_OK = new Set(['750_1250', 'r750-r1,250', '1250plus', 'r1,250 or more']);
+// Same bands as W01/W03 QUAL_BUDGET (0.1: every band from R750 up). 1250_1499 / 1500_plus were missing after the split (5598a27).
+const BUDGET_OK = new Set(['750_1250', 'r750-r1,250', '1250plus', 'r1,250 or more', '1250_1499', 'r1,250-r1,499', '1500_plus', 'r1,500+']);
 function qualifyLead(lead) {
   const a = lead.answers || {}, reasons = [];
   if (!AGE_OK.has(slug(a.age_band))) reasons.push('age_band');
-  if (!BUDGET_OK.has(slug(a.budget_band))) reasons.push('budget_band');
+  // Meta Lead Ads terms (2026-10-05): the instant form no longer asks the monthly budget band (an income/financial
+  // question needs Meta's permission). No band = budget_pending: W01 asks it as the first WhatsApp step and W03 decides
+  // with the same bands. A band that does arrive (an older form) is still checked here, so out-of-band never enters.
+  const budgetPending = a.budget_band == null || a.budget_band === '';
+  if (!budgetPending && !BUDGET_OK.has(slug(a.budget_band))) reasons.push('budget_band');
   if (!['yes'].includes(slug(a.call_ok))) reasons.push('call_ok');
   const c = lead.consent_raw;
   const consent = c === true || (typeof c === 'string' && !['', '0', 'false', 'no', 'unchecked'].includes(slug(c)));
   if (!consent) reasons.push('no_consent');
-  return { qualified: reasons.length === 0, consent, reasons, bond_children: a.bond_children || null };
+  return { qualified: reasons.length === 0, consent, reasons, bond_children: a.bond_children || null, budget_pending: budgetPending };
 }
 /* Hash a campaign-tree spec for requestConfirm params (same stable hash the client verifies). */
 const specHash = (spec) => sha256(stable(spec));
@@ -713,5 +797,5 @@ function insightsToAdMetrics(rows, { brandId } = {}) {
 }
 
 module.exports = { createClient, parseUsage, decideBackoff, buildAdName, parseAdName, campaignName, adsetName, planCampaignTree, planLeadgenForm, planEngagementAudiences,
-  normalizeLead, qualifyLead, specHash, verifyWebhookSignature, parseLeadgenWebhook, normalizeAssetHealth, diffHealth, insightsToAdMetrics, adObjectsToRows, assertHashedRows, toForm, zarToMinor,
+  normalizeLead, qualifyLead, specHash, smcAssets, requireSmcAssets, assertSmcIdentity, SMC_BRAND_CODE, launchPlan: LP, verifyWebhookSignature, parseLeadgenWebhook, normalizeAssetHealth, diffHealth, insightsToAdMetrics, adObjectsToRows, assertHashedRows, toForm, zarToMinor,
   apiVersion, MetaError, BACKOFF_PCT, MAX_BATCH, MIN_INSIGHTS_INTERVAL_MS };

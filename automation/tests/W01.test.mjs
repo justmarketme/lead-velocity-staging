@@ -264,9 +264,9 @@ test('W01 structure: Code nodes load lib/w01.mjs via lv-automation (no REPO_DIR 
     const ref = n.parameters.workflowId;
     assert.equal(ref.mode, 'id', n.name);
     const want = /^W(\d\d)\b/.exec(ref.cachedResultName);
-    assert.equal(ref.value, want ? `smc-w${want[1]}` : 'smc-capi-send', n.name);
+    assert.equal(ref.value, want ? `smc-w${want[1]}` : ref.cachedResultName === 'WhatsApp Send' ? 'smc-whatsapp-send' : 'smc-capi-send', n.name);
   }
-  assert.deepEqual([...new Set(subs.map((n) => n.parameters.workflowId.value))].sort(), ['smc-capi-send', 'smc-w06']);
+  assert.deepEqual([...new Set(subs.map((n) => n.parameters.workflowId.value))].sort(), ['smc-capi-send', 'smc-w06', 'smc-whatsapp-send']); // smc-whatsapp-send: the qualify_budget first touch (budget band moved out of the instant form, 2026-10-05)
 });
 
 test('W01 structure: every column the SQL names exists in the migrations', () => {

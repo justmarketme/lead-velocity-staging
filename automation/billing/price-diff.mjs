@@ -33,13 +33,22 @@ const EXCLUDE = [
   ['automation/billing/pricing.seed.json', 'THE pricing seed: the one allowed place'],
   ['automation/billing/price-diff.mjs', 'this checker (its legacy-value list)'],
   ['automation/billing/fixtures/', 'synthetic bank alerts/statements: amounts are test data, not price claims'],
-  ['landing/reports/', 'Lighthouse report snapshots of the rendered pages (machine output; the page sources are checked)'],
   ['evals/', 'golden sets and judge rubrics quote amounts as test inputs'],
   ['brand/node_modules/', 'third-party code'],
   // Legacy B2B Lead Velocity tiers: Jonathan's money decision, not changed or removed here.
   ['src/components/dashboard/ContractGenerator.tsx', 'legacy B2B tiers: NH-14 pending'],
   ['supabase/functions/_shared/pricing.generated.ts', 'generated from pricing.seed.json by gen-edge-pricing.mjs (edge functions cannot import the seed)'],
 ];
+// NH-18 d (default, S7-25): generated reports and signed documents are records of what was rendered or agreed on a
+// date, not price surfaces; a later price change must not rewrite them. Matched by shape, so new ones need no list edit.
+const EXCLUDE_RULES = [
+  [/(^|\/)reports\//i, 'generated report output (a `reports/` folder): machine snapshots; the page sources are checked (NH-18 d)'],
+  [/\.report\.(json|html?|md|txt|csv)$/i, 'generated report file (`*.report.*`) (NH-18 d)'],
+  [/(^|\/)signed\//i, 'signed document (a `signed/` folder): agreed on a date, never rewritten (NH-18 d)'],
+  [/[._-]signed\.[a-z0-9]+$/i, 'signed document (`*-signed.*` / `*.signed.*`) (NH-18 d)'],
+];
+// A file whose first 5 lines carry this marker is a signed document wherever it lives (NH-18 d).
+const SIGNED_MARKER = 'price-diff:signed-document';
 // Surfaces that live under an excluded folder but must be clean.
 const REINCLUDE = ['deliverables/contracts-drafter/broker-services-agreement.md'];
 
@@ -58,6 +67,7 @@ const BARE_RE = /(?<![\w.$-])(\d{1,3}(?:[_,]?\d{3})+|\d{4,7})(?![\w.])/g; // bar
 function excludedReason(rel) {
   if (REINCLUDE.includes(rel)) return null;
   for (const [p, why] of EXCLUDE) if (rel === p || rel.startsWith(p) || rel.includes('/' + p)) return why;
+  for (const [re, why] of EXCLUDE_RULES) if (re.test(rel)) return why;
   return null;
 }
 
@@ -86,6 +96,7 @@ function scanFile(rel) {
   if (statSync(full).size > MAX_BYTES) return [];
   const text = readFileSync(full, 'utf8');
   if (text.includes('\u0000')) return [];
+  if (text.split(/\r?\n/, 5).some((l) => l.includes(SIGNED_MARKER))) { signedSkipped.push(rel); return []; }
   const out = [];
   text.split(/\r?\n/).forEach((line, i) => {
     if (line.includes('price-diff:allow')) return;
@@ -111,6 +122,7 @@ function scanFile(rel) {
 
 const FAILING = new Set(['tier-price', 'tier-price-derived', 'legacy-price']);
 const findings = [];
+const signedSkipped = [];
 let files = 0;
 for (const rel of walk(ROOT)) { files++; findings.push(...scanFile(rel)); }
 const failing = findings.filter((f) => FAILING.has(f.kind));
@@ -125,6 +137,8 @@ const report = {
   legacy_locations: legacy,
   review_count: review.length, review_files: byFile(review),
   failing, excluded: EXCLUDE.map(([p, why]) => ({ path: p, why })), reincluded: REINCLUDE,
+  excluded_rules: EXCLUDE_RULES.map(([re, why]) => ({ pattern: String(re), why })),
+  signed_marker: SIGNED_MARKER, signed_skipped: signedSkipped,
 };
 
 if (process.argv.includes('--json')) {
@@ -144,6 +158,8 @@ if (process.argv.includes('--json')) {
   for (const [f, n] of Object.entries(report.review_files)) L.push(`  ${f}  (${n})`);
   L.push('', 'Excluded:');
   for (const [p, why] of EXCLUDE) L.push(`  ${p}  - ${why}`);
+  for (const [re, why] of EXCLUDE_RULES) L.push(`  ${re}  - ${why}`);
+  L.push(`  files marked "${SIGNED_MARKER}" in their first 5 lines (${signedSkipped.length})${signedSkipped.length ? ': ' + signedSkipped.join(', ') : ''}`);
   L.push(`Re-included surfaces: ${REINCLUDE.join(', ')}`);
   process.stdout.write(L.join('\n') + '\n');
 }
