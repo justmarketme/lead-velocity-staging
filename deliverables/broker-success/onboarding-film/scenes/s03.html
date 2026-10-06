@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>03 How a lead reaches you</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .top { position: absolute; left: 140px; right: 140px; top: 168px; display: flex; align-items: flex-end; justify-content: space-between; }
+  .top h1 { margin-top: 14px; }
+  .counter { display: flex; align-items: center; gap: 22px; padding: 16px 30px 16px 22px; border-radius: 20px; background: #fff; border: 1.5px solid var(--line); box-shadow: var(--shadow); }
+  .counter .dot { width: 18px; height: 18px; border-radius: 50%; background: #cbd5e1; }
+  .counter .k { font-size: 16px; }
+  .counter .v { font-size: 44px; font-weight: 700; color: var(--navy); line-height: 1.05; font-variant-numeric: tabular-nums; display: flex; align-items: baseline; gap: 12px; }
+  .counter .v small { font-size: 26px; color: var(--faint); font-weight: 600; }
+  .odo { display: inline-block; height: 46px; overflow: hidden; vertical-align: bottom; }
+  .odo div { display: flex; flex-direction: column; }
+  .odo span { height: 46px; line-height: 46px; }
+  .flow { position: absolute; left: 140px; top: 330px; width: 1640px; height: 560px; }
+  .flow svg { position: absolute; inset: 0; overflow: visible; }
+  .step { position: absolute; width: 284px; height: 212px; padding: 22px 22px 18px; }
+  .step .ic { width: 58px; height: 58px; border-radius: 16px; display: grid; place-items: center; background: var(--soft); position: relative; overflow: hidden; }
+  .step .ic::before { content: ""; position: absolute; inset: 0; background: var(--grad); opacity: var(--on, 0); }
+  .step .ic svg { position: relative; width: 30px; height: 30px; fill: none; stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }
+  .step .n { position: absolute; right: 22px; top: 24px; font-size: 16px; font-weight: 700; letter-spacing: .1em; color: var(--faint); }
+  .step .a { margin-top: 16px; font-size: 25px; font-weight: 700; color: var(--navy); line-height: 1.15; }
+  .step .b { margin-top: 5px; font-size: 18px; color: var(--muted); line-height: 1.3; }
+  .step .ring { position: absolute; inset: -1.5px; border-radius: 22px; border: 2.5px solid var(--pink); opacity: 0; }
+  .step.q .a { font-size: 27px; }
+  .tag { display: inline-block; margin-top: 8px; padding: 4px 12px; border-radius: 999px; background: var(--pink-wash); border: 1px solid var(--pink-soft); color: var(--pink); font-size: 17px; font-weight: 700; }
+</style></head>
+<body data-scene="s03"><div class="stage">
+  <div class="top">
+    <div><div class="eyebrow">Step two</div><h1 class="h"><i></i>How a lead reaches you</h1></div>
+    <div class="counter"><div class="dot"></div><div><div class="lbl k">Qualified Leads this cycle</div>
+      <div class="v"><span class="odo"><div><span>0</span><span>1</span></div></span><small>of 20</small></div></div></div>
+  </div>
+  <div class="flow">
+    <svg width="1640" height="560"><defs><linearGradient id="lg" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1640" y2="0"><stop offset="0" stop-color="#db2777"/><stop offset="1" stop-color="#9333ea"/></linearGradient></defs>
+      <path id="base" fill="none" stroke="#cbd5e1" stroke-width="3" stroke-dasharray="2 10" stroke-linecap="round"/>
+      <path id="prog" fill="none" stroke="url(#lg)" stroke-width="4" stroke-linecap="round"/>
+      <circle id="head" r="9" fill="#db2777"/><circle id="halo" r="20" fill="#db2777" opacity=".18"/></svg>
+  </div>
+</div>
+<template id="steps">
+  <step i="ad" a="An ad" b="Under our consumer brand" tag="SortMyCover"></step>
+  <step i="q" a="Quick questions" b="A few, on their phone"></step>
+  <step i="ok" a="Consent" b="They agree to be contacted"></step>
+  <step i="wa" a="WhatsApp follow&#8209;up" b="Within minutes"></step>
+  <step i="cal" a="Booked in your calendar" b=""></step>
+  <step i="chk" a="Confirmed" b="They say they'll attend"></step>
+  <step i="star" a="Qualified Lead" b="" tag="1 of 20"></step>
+  <step i="doc" a="You get a WhatsApp + brief" b=""></step>
+  <step i="bell" a="Reminders" b="Up to 10 minutes before"></step>
+  <step i="meet" a="Your meeting" b="The conversation is yours"></step>
+</template>
+<script src="timings.js"></script><script src="film.js"></script>
+<script>
+  const ICONS = {
+    ad: '<rect x="3" y="4" width="18" height="14" rx="3"/><path d="M7 14l3-4 3 3 2-2 3 3"/><path d="M9 21h6"/>',
+    q: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .8-1 1.5v.4"/><path d="M12 17h.01"/>',
+    ok: '<path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/>',
+    wa: '<path d="M4 20l1.3-3.9A8 8 0 1 1 8 19z"/><path d="M9 10.5c.5 2 2 3.6 4.5 4.5"/>',
+    cal: '<rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M9 15l2 2 4-4"/>',
+    chk: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16.5 9"/>',
+    star: '<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9 6.8 19.6l1-5.8-4.3-4.1 5.9-.9z"/>',
+    doc: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/>',
+    bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
+    meet: '<circle cx="8" cy="9" r="3"/><circle cx="16.5" cy="9" r="3"/><path d="M2.5 19c.8-3 3-4.5 5.5-4.5S12.7 16 13.5 19M11 19c.7-2.7 2.8-4.5 5.5-4.5s4.7 1.8 5.5 4.5"/>',
+  };
+  const flow = $('.flow'), W = 284, H = 212, GAP = (1640 - 5 * W) / 4, ROWY = [0, 318];
+  const defs = [...$('#steps').content.querySelectorAll('step')];
+  const steps = defs.map((d, k) => {
+    const r = k < 5 ? 0 : 1, c = k % 5, x = c * (W + GAP), y = ROWY[r];
+    const el = document.createElement('div'); el.className = 'card step' + (d.getAttribute('i') === 'star' ? ' q' : '');
+    el.style.left = x + 'px'; el.style.top = y + 'px';
+    const tag = d.getAttribute('tag'), b = d.getAttribute('b');
+    el.innerHTML = `<div class="ring"></div><div class="ic"><svg viewBox="0 0 24 24">${ICONS[d.getAttribute('i')]}</svg></div><div class="n">${String(k + 1).padStart(2, '0')}</div>
+      <div class="a">${d.getAttribute('a')}</div>${b ? `<div class="b">${b}</div>` : ''}${tag ? `<div class="tag">${tag}</div>` : ''}`;
+    flow.appendChild(el);
+    return { el, cx: x + W / 2, cy: y + H / 2, x, y };
+  });
+  // snake path through card centres: row 1 left to right, down, back to the left, row 2 left to right
+  const midY = ROWY[1] - (ROWY[1] - H) / 2;
+  const pts = [...steps.slice(0, 5).map(s => [s.cx, s.cy]), [steps[4].cx, midY], [steps[5].cx, midY], ...steps.slice(5).map(s => [s.cx, s.cy])];
+  const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const total = cum[cum.length - 1];
+  const stepLen = steps.map((_, k) => cum[k < 5 ? k : k + 2]);
+  const d = 'M' + pts.map(p => p.join(' ')).join(' L');
+  $('#base').setAttribute('d', d); $('#prog').setAttribute('d', d);
+  $('#prog').style.strokeDasharray = total;
+  const at = len => { let i = 1; while (i < cum.length - 1 && cum[i] < len) i++; const f = (len - cum[i - 1]) / (cum[i] - cum[i - 1] || 1); return [lerp(pts[i - 1][0], pts[i][0], f), lerp(pts[i - 1][1], pts[i][1], f)]; };
+
+  const act = [cue('ads'), cue('answers'), cue('agrees'), cue('whatsapp'), cue('books'), cue('confirm'), cue('qualified'),
+               cue('whatsapp', 1, 27), cue('reminders'), cue('meeting')];
+  const subs = steps.map(s => s.el.querySelectorAll('.b, .tag'));
+  const tQual = act[6];
+  window.update = t => {
+    rv('.top .eyebrow', t, .2, { y: 16 });
+    rv('.top h1', t, .3, { y: 30, blur: 6, dur: 1 });
+    rv('.counter', t, .6, { y: 24, dur: 1 });
+    // cards: all laid out early and quiet, each lights up when it is spoken
+    steps.forEach((s, k) => {
+      const pin = P(t, .5 + k * .06, .9);
+      const on = P(t, act[k] - .15, .6);
+      const cur = on * (1 - (k < 9 ? P(t, act[k + 1] - .15, .6) : 0));
+      // the card stays opaque (so the guide line never shows through); only its contents dim
+      s.el.style.opacity = pin.toFixed(3);
+      s.el.querySelectorAll('.ic, .n, .a').forEach(c => c.style.opacity = lerp(.45, 1, on).toFixed(3));
+      s.el.style.transform = `translate3d(0,${((1 - pin) * 24 - cur * 8).toFixed(2)}px,0) scale(${(1 + cur * .03).toFixed(4)})`;
+      s.el.style.boxShadow = cur > .01 ? `0 2px 4px rgba(15,23,42,.05), 0 ${Math.round(30 * cur)}px 60px -24px rgba(219,39,119,${(.35 * cur).toFixed(3)})` : '';
+      s.el.querySelector('.ring').style.opacity = cur.toFixed(3);
+      s.el.querySelector('.ic').style.setProperty('--on', on.toFixed(3));
+      s.el.querySelector('.ic svg').style.stroke = on > .5 ? '#fff' : '#64748b';
+      subs[k].forEach((e, j) => { const p = P(t, act[k] + .15 + j * .2, .6); e.style.opacity = p; e.style.transform = `translateY(${((1 - p) * 8).toFixed(2)}px)`; });
+    });
+    // progress line travels to each card as it is spoken
+    let len = 0;
+    for (let k = 0; k < 10; k++) { const p = P(t, act[k] - .55, .55, E.inOut); if (p > 0) len = lerp(k ? stepLen[k - 1] : 0, stepLen[k], p); }
+    $('#prog').style.strokeDashoffset = (total - len).toFixed(2);
+    const [hx, hy] = at(len), show = P(t, act[0] - .4, .4) * (1 - P(t, act[9] + .8, .6));
+    ['#head', '#halo'].forEach(s => { $(s).setAttribute('cx', hx.toFixed(1)); $(s).setAttribute('cy', hy.toFixed(1)); $(s).style.opacity = s === '#head' ? show : show * (.5 + .5 * Math.sin(t * 6)) * .9; });
+    // counter: 0 -> 1 of 20 when they become a Qualified Lead
+    const pq = P(t, tQual, .7, E.back);
+    $('.odo div').style.transform = `translateY(${(-46 * pq).toFixed(2)}px)`;
+    const glow = P(t, tQual, .4) * (1 - P(t, tQual + 1.6, 1));
+    $('.counter').style.boxShadow = `0 1px 2px rgba(15,23,42,.05), 0 18px 40px -18px rgba(15,23,42,.18), 0 0 0 ${(4 * glow).toFixed(2)}px rgba(219,39,119,.25)`;
+    $('.counter .dot').style.background = pq > .3 ? 'linear-gradient(135deg,#db2777,#9333ea)' : '#cbd5e1';
+  };
+</script></body></html>

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>01 Welcome</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .hero { position: absolute; left: 0; right: 0; top: 150px; display: flex; flex-direction: column; align-items: center; }
+  .logo { height: 260px; width: auto; filter: drop-shadow(0 24px 40px rgba(147,51,234,.18)); }
+  .eb { margin-top: 34px; }
+  .title { margin-top: 14px; font-size: 118px; line-height: 1; font-weight: 700; letter-spacing: -.035em; color: var(--navy); display: flex; gap: 30px; }
+  .title span { display: inline-block; }
+  .rule { margin-top: 34px; width: 200px; height: 7px; border-radius: 4px; background: var(--grad); transform-origin: center; }
+  .chips { margin-top: 54px; display: flex; gap: 28px; }
+  .chip { display: flex; align-items: center; gap: 18px; height: 92px; padding: 0 38px 0 16px; border-radius: 999px; background: #fff; border: 1.5px solid var(--line); box-shadow: var(--shadow); }
+  .chip .ic { width: 62px; height: 62px; border-radius: 50%; background: var(--grad); display: grid; place-items: center; box-shadow: 0 8px 18px -8px rgba(219,39,119,.6); }
+  .chip .ic svg { width: 30px; height: 30px; stroke: #fff; fill: none; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+  .chip .n { font-size: 16px; font-weight: 700; color: var(--faint); letter-spacing: .1em; }
+  .chip .tx { font-size: 32px; font-weight: 700; color: var(--navy); line-height: 1; margin-top: 4px; }
+</style></head>
+<body data-scene="s01" data-header="0"><div class="stage">
+  <div class="hero">
+    <img class="logo" src="assets/lead-velocity-logo-contract.png" alt="Lead Velocity">
+    <div class="eyebrow eb">Broker onboarding</div>
+    <div class="title"><span>What</span><span>happens</span><span>next</span></div>
+    <div class="rule"></div>
+    <div class="chips">
+      <div class="chip"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></div><div><div class="n">01</div><div class="tx">Your leads</div></div></div>
+      <div class="chip"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 16.5V7.5h3.2a2.6 2.6 0 0 1 0 5.2H9.5M12.4 12.7l2.6 3.8"/></svg></div><div><div class="n">02</div><div class="tx">Your money</div></div></div>
+      <div class="chip"><div class="ic"><svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></div><div><div class="n">03</div><div class="tx">Getting better</div></div></div>
+    </div>
+  </div>
+</div>
+<script src="timings.js"></script><script src="film.js"></script>
+<script>
+  const chips = $$('.chip');
+  const tChips = [cue('leads') - .25, cue('money') - .25, cue('better') - .25];
+  window.update = t => {
+    rv('.logo', t, .25, { y: 30, scale: .9, blur: 10, dur: 1.2 });
+    $('.logo').style.transform += ` translateY(${(Math.sin(t * 1.1) * 4).toFixed(2)}px)`;
+    rv('.eb', t, .7, { y: 16, dur: .9 });
+    rv('.title span', t, .8, { y: 46, blur: 8, stagger: .12, dur: 1.1 });
+    const pr = P(t, 1.35, 1.1, E.inOut); $('.rule').style.transform = `scaleX(${pr.toFixed(4)})`;
+    chips.forEach((c, i) => rv(c, t, tChips[i], { y: 34, scale: .94, dur: .9 }));
+  };
+</script></body></html>

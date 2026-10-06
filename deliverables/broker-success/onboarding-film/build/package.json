@@ -1,0 +1,13 @@
+{
+  "name": "lv-onboarding-film-build",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "tts": "python tts.py",
+    "render": "node render.mjs",
+    "stills": "node render.mjs --stills"
+  },
+  "dependencies": {
+    "puppeteer-core": "^25.12.0"
+  }
+}
