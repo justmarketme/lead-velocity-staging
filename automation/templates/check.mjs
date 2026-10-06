@@ -21,7 +21,7 @@ const BANNED = [
   // "best" only as a claim ("best describes", "best time" to reach are allowed); "free" only as an offer ("free slot/time" is calendar talk).
   /\bguarantee(d|s)?\b/i, /\bbest\b(?! (describes|time))/i, /\bcheapest\b/i, /#1\b/, /\bpremiums?\b/i, /\bcover amount\b/i, /\bsum insured\b/i,
   /\bappointments?\b/i, /\bour adviser\b/i, /\bfree\b(?! (slots?|times?))/i, /\bhurry\b/i, /\blimited time\b/i, /\bAsk a question\b/i,
-  /\b(Old Mutual|Sanlam|Discovery|Liberty|Momentum|Hollard|Clientele|OUTsurance|BrightRock|FMI|PPS|Assupol)\b/i,
+  /\b(Old Mutual|Sanlam|Discovery|Liberty|Momentum|Hollard|Clientele|OUTsurance|BrightRock|FMI|PPS|Assupol|1Life|AVBOB|Metropolitan|Dis-Chem Life|King Price|MiWay|MiWayLife|Guardrisk|Budget Insurance|Dial Direct|First for Women|Auto & General|Virseker|Santam|Naked Insurance|Capital Legacy|Hippo)\b/i,
 ];
 // Marketing jargon is banned in anything a broker or lead reads (W14 R03, portal rule 3); ops_* templates go to Jonathan/KG only.
 const JARGON = [/\bCPL\b/, /\bCPC\b/, /\bCTR\b/, /\bCAPI\b/, /\bEMQ\b/, /\bROAS\b/, /\battribution\b/i, /\bfunnel\b/i, /\bSLA\b/];
