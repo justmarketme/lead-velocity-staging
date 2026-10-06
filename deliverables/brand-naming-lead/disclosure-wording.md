@@ -32,8 +32,8 @@ Character counts are hand-counted, including spaces and punctuation. The person 
 | `DISC-WA-DESC-v2` | WhatsApp Business profile: Description | SortMyCover gives no financial advice, product comparisons or premium quotes. Licensed financial advisers do. Our WhatsApp assistant uses AI. Type "person" at any time to reach a human. Reply STOP to opt out. Privacy: sortmycover.co.za/privacy.html | 248 |
 | `DISC-CARD-v2` | Broker intro card, strip under the broker's details | Introduced by SortMyCover. SortMyCover gives no financial advice, product comparisons or premium quotes. | 104 |
 | `DISC-EMAIL-v2` | Consumer email signature (below) | `DISC-FULL-v2` plus a privacy link | n/a |
-| `BIO-FB-v3`, `BIO-IG-v3` | Facebook intro, Instagram bio | **Unchanged** (§4a of v1): bios describe the service and carry no disclosure | 95, 131 |
-| `DISC-S97-v1`, `DISC-S148-v1` | Old short forms | **Withdrawn.** They named Lead Velocity. Use `DISC-S91-v2` on end-cards. Bios use `BIO-*-v3` | n/a |
+| `BIO-FB-v4`, `BIO-IG-v5` | Facebook intro, Instagram bio | Bios describe the service and carry no disclosure (copy workflow 2026-10-05) | 99, 145 |
+| `DISC-S97-v1`, `DISC-S148-v1` | Old short forms | **Withdrawn.** They named Lead Velocity. Use `DISC-S91-v2` on end-cards. Bios use `BIO-FB-v4` / `BIO-IG-v5` | n/a |
 | `CONSENT-NAMED-v2` | Named consent, beside the form | I agree that SortMyCover may share my details with {practice_name} (FSP {fsp_number}), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. + `CONSENT-ADS-v1` sentence + "Privacy notice" link | n/a |
 | `CONSENT-GENERIC-v2` | Generic consent (only if the practitioner approves it) | I agree that SortMyCover may share my details with an authorised financial services provider (FSP), who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. + `CONSENT-ADS-v1` sentence + link | n/a |
 
@@ -61,8 +61,8 @@ Broker-facing mail keeps the Lead Velocity signature from howzit@leadvelocity.co
 | About page | `DISC-FULL-v2` | Says SortMyCover is a South African service and points to the privacy notice and terms for the responsible company. No address, Reg No or Information Officer |
 | Form / consent area | `CONSENT-*-v2` | Privacy link always beside it |
 | `privacy.html`, `terms.html` | Legal text, **names Lead Velocity** | The only two places. The footer on these two pages is the same `DISC-FULL-v2` |
-| Facebook Page | `DISC-FULL-v2` in About → details; intro = `BIO-FB-v3` | |
-| Instagram | `BIO-IG-v3` | |
+| Facebook Page | `DISC-FULL-v2` in About → details; intro = `BIO-FB-v4` | |
+| Instagram | `BIO-IG-v5` | |
 | WhatsApp Business profile | `DISC-WA-DESC-v2` + `DISC-WA-ABOUT-v1` | Privacy link in the Description |
 | WhatsApp templates and assistant | No company name | Needs automation-engineer and conversation-designer to align (V2-3) |
 | Ad end-card | `DISC-S91-v2` | Line + "Tap to check your cover". No broker, no FSP number (1.2) |
@@ -173,8 +173,8 @@ I read `deliverables/contracts-drafter/consent-and-privacy.md` and the live hold
 ## 4a. Bios are not disclosures (Jonathan, 2026-10-05)
 
 Facebook Page intro and Instagram bio describe what SortMyCover does for consumers. They no longer carry S97/S148:
-- `BIO-FB-v3` (95): We connect South Africans with licensed advisers to sort their insurance. We don't give advice.
-- `BIO-IG-v3` (131): We connect South Africans with licensed advisers to sort their insurance, on a free 30-minute call. We don't give advice ourselves.
+- `BIO-FB-v4` (99): Sort your cover: free 30-min call with a licensed adviser at a time you pick. We book. They advise.
+- `BIO-IG-v5` (145): Sort your cover. 30 minutes. A real adviser. / Free call, licensed adviser, a time you pick. / We book the call. They advise. You decide. / Message us.
 
 DISC-FULL-v1 stays in Facebook Page About → details, the site footer and the WhatsApp description. S97 stays on the ad end-card. compliance-qa to confirm the bios (they claim no advice, no products, no prices).
 

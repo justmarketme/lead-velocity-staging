@@ -77,7 +77,7 @@ Common rejection causes to pre-empt (Meta Business Verification docs): legal nam
 |---|---|---|---|
 | 1 | Page name | `SortMyCover` | Not "SortMyCover Insurance", not "Life Cover" |
 | 2 | Category | `Website` (primary). If a second category is offered, `Education`. | **Never** "Insurance company", "Insurance broker", "Insurance agent", "Financial service", "Financial planner" or anything implying licensed status (4.7). If the screen forces a finance-type category, stop and RECORD |
-| 3 | Bio / Intro (short field) | `We connect South Africans with licensed advisers to sort their insurance. We don't give advice.` | `BIO-FB-v3`, 95 characters (Jonathan, 2026-10-05: the bio says what SortMyCover does for consumers, not legal disclosure). The disclosure lives in About (row 8). |
+| 3 | Bio / Intro (short field) | `Sort your cover: free 30-min call with a licensed adviser at a time you pick. We book. They advise.` | `BIO-FB-v4`, 99 characters (copy workflow 2026-10-05: research + judge panel + refuters) (Jonathan, 2026-10-05: the bio says what SortMyCover does for consumers, not legal disclosure). The disclosure lives in About (row 8). |
 | 4 | ★ Jonathan clicks Create Page | | Check the name and category on the confirmation before clicking |
 | 5 | Username | `sortmycover` (shows as @sortmycover) | If taken, stop and RECORD; do not use a variant without brand-naming-lead |
 | 6 | Website | `https://sortmycover.co.za` **only after GATE-DOMAINS is live and the holding page loads on that domain**. Until then leave empty. | Never the staging host (0.1). NH-MO-02 |
@@ -95,7 +95,7 @@ Common rejection causes to pre-empt (Meta Business Verification docs): legal nam
 
 | # | Action | Notes |
 |---|---|---|
-| 1 | Create a second Page in the same portfolio: name `SortMyCover South Africa`, category `Website`, same Bio (`BIO-FB-v3`) and About (FULL), same profile/cover files, username left empty unless `sortmycoversa` is free | ★ Jonathan clicks Create. Name is a default (NH-MO-04) |
+| 1 | Create a second Page in the same portfolio: name `SortMyCover South Africa`, category `Website`, same Bio (`BIO-FB-v4`) and About (FULL), same profile/cover files, username left empty unless `sortmycoversa` is free | ★ Jonathan clicks Create. Name is a default (NH-MO-04) |
 | 2 | Publish it but run nothing on it. Two or three of the same organic educational posts as the main Page over the first month so it is not an empty shell. | Organic only; no posting scripts |
 | 3 | RECORD the standby Page ID. `brands` has no `standby_page_id` column: store it in `handles` as `{"fb_standby_page_id": "..."}` until platform-architect adds the column (NH-MO-05). `G2-04-standby-page.png` | |
 
@@ -106,7 +106,7 @@ Common rejection causes to pre-empt (Meta Business Verification docs): legal nam
 | 1 | Business Settings, Accounts, Instagram accounts, Add (or from the Page: Settings, Linked accounts, Instagram, Connect) | Create a **new** Instagram account from the Page; type **Business** (not Creator). ★ Jonathan clicks Create/Connect |
 | 2 | Username | `sortmycover`. If taken, stop and RECORD |
 | 3 | Name | `SortMyCover` |
-| 4 | Bio | `We connect South Africans with licensed advisers to sort their insurance, on a free 30-minute call. We don't give advice ourselves.` (`BIO-IG-v3`, 131 characters; Jonathan 2026-10-05: consumer-benefit bio, disclosure on the linked Page About and site) |
+| 4 | Bio | `Sort your cover. 30 minutes. A real adviser. / Free call, licensed adviser, a time you pick. / We book the call. They advise. You decide. / Message us.` (`BIO-IG-v5`, 145 characters, 4 lines; Jonathan 2026-10-05: consumer-benefit bio, disclosure on the linked Page About and site) |
 | 5 | Link | `https://sortmycover.co.za` only after GATE-DOMAINS; empty until then |
 | 6 | Category | `Website` or `Education`; never a finance/insurance category. Display category on profile: off if the toggle exists |
 | 7 | Contact options | Email `hello@sortmycover.co.za` after the alias works; no phone; no address |

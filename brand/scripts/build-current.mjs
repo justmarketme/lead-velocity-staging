@@ -13,7 +13,7 @@ const OUT = 'exports/feed/current';
 const card = (hook, sub, p1 = ['', ''], p2 = ['', '']) => ({ layout: 'r4x5', hook, sub, prop1_label: p1[0], prop1: p1[1], prop2_label: p2[0], prop2: p2[1], prop1_what: '', prop2_what: '' });
 
 const stills = [
-  { out: 'C01-death-claims-paid-1080x1350.png', data: card('94.1% of death claims\n**were paid.**', 'ASISA figures for 2025. Most of the rest came down to details left out at the start, fraud, waiting periods or exclusions.', ['Death claims paid', '94.1%'], ['Source', 'ASISA, 2025']) },
+  { out: 'C01-death-claims-paid-1080x1350.png', data: card('94.1% of death claims\n**were paid.**', 'Declines included non-disclosure, fraud, waiting periods, exclusions and unpaid premiums.', ['Death claims paid', '94.1%'], ['Source', 'ASISA, 2025 figures']) },
   { out: 'C02-prime-rate-1080x1350.png', data: card('Prime is now\n**10.75%.**', 'The SARB raised the repo rate on 23 September 2026. What that means for bonds, in plain words.', ['Repo rate', '7.25%'], ['Prime rate', '10.75%']) },
   { out: 'C03-check-an-adviser-1080x1350.png', data: card('How to check\n**an adviser.**', 'Every licensed adviser has an FSP number. The FSCA register shows if it is real.', ['Search', 'fsca.co.za'], ['Toll-free', '0800 110 443']) },
 ];
