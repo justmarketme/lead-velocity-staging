@@ -4,6 +4,8 @@ Date 2026-10-04. Nothing here has been clicked, bought, submitted or published. 
 
 Decision flag (needs_human, NH-MO-17): `build/inventory.md` INV-I02 says "Twilio WhatsApp is not the SortMyCover channel (Cloud API direct)", and W06/W07/W22/W27 and the template `submit.sh` assume the Graph API. Branch B is therefore a change to the build, not just a click-path. Jonathan's decision is recorded before any WhatsApp number is registered (a number can only sit in one place).
 
+**NH-MO-17 DECIDED (Jonathan, build thread, 2026-10-06): Branch B, Twilio.** SortMyCover WhatsApp runs through Twilio. Branch A below is not used. Follow-on build work: a Twilio adapter for W06/W07/W22/W27, templates through Twilio Content Template Builder instead of `submit.sh`, and the 10-slot list as the booking path (W28 Flow only if Twilio supports it).
+
 ---
 
 ## 0. Check first (about 15 minutes, nothing is created)
