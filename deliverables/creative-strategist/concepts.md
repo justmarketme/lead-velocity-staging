@@ -329,3 +329,54 @@ All are ≤ 7 (the hard rule). All sit below the Grade 5–7 band, because ad co
 4. Assets that show the booking/intro mechanic (C08, C09, C14) use placeholder bars and a tick avatar labelled "Example screen". No face, name or FSP number of any broker, real or invented.
 5. The disclaimer line "SortMyCover does not sell cover or give advice" appears in C15 only (C-9).
 6. No price anchor of any kind (everyday-spend comparison declined, NH-PCD-05).
+
+---
+
+## DRAFT concepts C18–C20: the R1,500+ client (added 2026-10-07, pending compliance-qa, not for upload)
+
+**Brief (Jonathan, 5 Oct 2026):** qualifying stays R750+, but campaigns aim at the client who can budget about **R1,500+/month** for cover (Mark Weston's profile: over 45, business owners, directors / C-suite, nationwide, virtual). Meta (since 2 Sep 2025) blocks audiences that suggest financial status, so these concepts select **through the scene**: only someone who owns a share of a business, signs as a director, or has an estate worth planning recognises it. No income words, no "affluent", no "high earner" anywhere in copy, ad names or audience names. Third person, no product, no premium, no cover amount, no insurer, broker-neutral (2.1, FAIS). Ages appear only as a life stage. Each carries the standard end card ("Tap to check your cover" + short disclosure).
+
+### C18 — Key person / co-owner · DRAFT
+| Field | Copy |
+|---|---|
+| Hook H1 (8) | The business has a plan. The owner doesn't. |
+| Hook H2 (9) | Two partners. One business. What if one is gone? |
+| Hook H3 (7) | Directors sign for everything. Except their own cover. |
+| Primary text (66) | A business plans for stock, staff, tax and growth. Most plans skip one line: the owner. When a partner or director is suddenly gone, the business and the family both feel it. Cover can be set up for that. A licensed adviser can look at what is in place in 30 minutes, on video, WhatsApp or phone. Free to check, and you decide after. Tap to check your cover. |
+| Headline | When the owner is the plan |
+| Description | A free 30-minute check with a licensed adviser. Video, WhatsApp or phone. |
+| CTA | Check my cover (LEARN_MORE) |
+| Visual brief | **Style K (org chart).** A simple org chart on charcoal; every box filled except the top one, an empty amber outline labelled "Owner". **Motion 0.3 s:** boxes fill bottom-up, stop at the empty top box. Distinct from C11 (list, sole trader): this is partners / directors / staff, a business with structure. |
+| Video (20 s, 9:16) | 0.0 Org chart + hook · 2.5 top box stays empty. CAP "Most plans skip one line: the owner." **(payoff by 3 s)** · 6.0 CAP "Partners. Directors. Staff. Family." · 9.5 CAP "Cover can be set up for that." · 13.0 CAP "30 minutes. Video, WhatsApp or phone. Free." · 17.0 end card. |
+| Landing angle | `landing/angles/_draft/key-person.json` |
+| Compliance self-check | Third person. Does **not** name buy-and-sell, key-person or any business-assurance product, only the situation. "When a partner or director is suddenly gone" is calm, no death imagery. **For compliance-qa:** (1) H2 "What if one is gone?" is a soft "what if"; C11 avoided "what if", so cut H2 if it reads as fear; (2) confirm "Cover can be set up for that" is factual information, not a recommendation. |
+
+### C19 — Estate and will · DRAFT
+| Field | Copy |
+|---|---|
+| Hook H1 (9) | A will says who gets what. Not if there's enough. |
+| Hook H2 (8) | The will is signed. Has anyone checked the cover? |
+| Hook H3 (6) | Estate planned. Cover last looked at? |
+| Primary text (63) | A will decides who gets the house, the shares and the savings. It does not decide whether there is enough cash to settle the bond, the costs and the tax first. That gap is where cover often sits. A licensed adviser can look at what is in place in 30 minutes, on video, WhatsApp or phone. Free to check, and you decide after. Tap to check your cover. |
+| Headline | The will is done. Is the cover? |
+| CTA | Check my cover (LEARN_MORE) |
+| Visual brief | **Style K (document pair).** A signed will outline on the left, a second document "Cover" on the right with the field "Last looked at:" blank. **Motion 0.3 s:** signature draws in; the second document fades up beside it. |
+| Video (20 s, 9:16) | 0.0 Will + signature, hook · 3.0 CAP "It does not decide if there is enough cash first." **(payoff by 3 s)** · 7.0 CAP "Bond. Costs. Tax." · 10.5 CAP "That gap is where cover often sits." · 13.5 CAP "30 minutes. Free. You decide after." · 17.0 end card. |
+| Landing angle | `landing/angles/_draft/estate-will.json` |
+| Compliance self-check | No product, no amount, no tax rate. "Tax" and "costs" are generic. **For compliance-qa:** (1) "That gap is where cover often sits" is a soft frequency claim (C04 precedent); (2) no legal or estate advice is offered, only a cover check; (3) "estate needs cash first" needs a source on file in `verified-facts.md`. |
+
+### C20 — 45 and still building · DRAFT
+| Field | Copy |
+|---|---|
+| Hook H1 (8) | 45. Bond, business, school fees. Cover from 30? |
+| Hook H2 (7) | Life at 45 is bigger than at 30. |
+| Hook H3 (8) | Promoted twice since the cover was set up. |
+| Primary text (60) | At 45 life is usually bigger than when the cover was set up. A larger home. A business or a senior role. Children in school, maybe university ahead. Cover can stay the size it was at 30. A licensed adviser can look at what is in place in 30 minutes, on video, WhatsApp or phone. Free to check, and you decide after. Tap to check your cover. |
+| Headline | Bigger life. Same cover? |
+| CTA | Check my cover (LEARN_MORE) |
+| Visual brief | **Style K (two frames).** Frame "30" small on the left, frame "45" larger on the right filling with life words: "Home." "Business." "School fees." The "Cover" label under both frames stays the same size. Distinct from C05 (40, single growing frame). |
+| Video (20 s, 9:16) | 0.0 Two frames + hook · 2.5 words drop into the 45 frame **(payoff by 3 s)** · 6.0 CAP "Cover can stay the size it was at 30." · 10.0 CAP "A licensed adviser can look at what is in place." · 13.5 CAP "30 minutes. Free. You decide after." · 17.0 end card. |
+| Landing angle | `landing/angles/_draft/at-45.json` |
+| Compliance self-check | Third person, age as life stage only. "Promoted twice" (H3) implies career, not income; no rand. **For compliance-qa:** H1 lists bond / business / school fees; confirm it reads as a scene, not an assertion about the viewer (C-5 precedent). |
+
+**Measurement for C18–C20:** each is judged on **premium share** (share of qualified leads declaring `1500_plus`) against the cycle average, and on cost per qualified lead, never raw CPL (campaign-spec 11.1c and 13 item 9).

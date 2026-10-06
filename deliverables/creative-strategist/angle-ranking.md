@@ -64,3 +64,22 @@
 ## Open items
 - C16 and C17 are DRAFT and **not approved**. Compliance-qa reads them first (see `concepts.md`, "DRAFT concepts C16 and C17").
 - C16 needs a source on file for "bond paperwork often includes a cover form" before it can run. If none is found, it cannot enter the live set, and C14 keeps the slot.
+
+## Addendum 2026-10-07 — aim at the R1,500+ client (Jonathan, 5 Oct 2026)
+
+Qualifying stays **R750+**. The **aim** moves up: the ideal client budgets about **R1,500+/month** (Mark Weston's profile: 45+, business owners, directors / C-suite, nationwide, virtual). A third score now governs the pool: **PREMIUM FIT** (1–5), how likely the person the scene pulls declares `1500_plus`. It is my judgment until replaced by the measured premium share once ≥ 30 qualified leads per arm exist. Targeting cannot do this (Meta blocks financial-status audiences since 2 Sep 2025); the scene, the 45–50 weighting and the quiz band do.
+
+| Concept | Afford. | Intent | Premium fit | Note |
+|---|---|---|---|---|
+| **C18 key person / co-owner (DRAFT)** | 5 | 3 | 5 | Directors and partners; the scene only lands for a business with structure |
+| **C19 estate and will (DRAFT)** | 5 | 4 | 5 | Estate planners hold assets; ties to will-signing moments |
+| **C20 45 and still building (DRAFT)** | 5 | 3 | 4 | Speaks to the 45–50 band directly |
+| C16 bond paperwork | 5 | 5 | 4 | Stays top on intent |
+| C03 new bond | 5 | 5 | 4 | |
+| C05 turned 40 | 5 | 3 | 4 | |
+| C11 business owners | 4 | 2 | 4 | Moves up the pool behind C18 |
+| C17 policy review | 4 | 4 | 4 | |
+| C01 employer gap | 4 | 3 | 3 | |
+| C04 new baby | 3 | 4 | 2 | Younger, cash-squeezed; keep for volume, not premium share |
+
+**Proposed live-set change (proposal; the NH-64 money split is Jonathan's):** once compliance-qa clears them, C18 and C19 replace slot 2 (`C01_H1_vid-teal`, the colour arm that cannot be read in cycle 1) and slot 4 (C04 new baby), the two weakest on premium fit. C20 enters the refresh pool first, ahead of C17. Budget split by angle group: `deliverables/media-buyer/campaign-spec.md` 4.8.
