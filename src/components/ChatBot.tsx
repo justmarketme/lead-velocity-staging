@@ -38,6 +38,10 @@ export function ChatBot() {
     const location = useLocation();
     const { messages, isLoading, sendMessage, addMessage, scrollRef } = useChatbot();
 
+    // Broker portal is TEXT-CHAT ONLY — no voice / conversation AI.
+    // Read once at render; the portal always lives under /broker.
+    const isBrokerPortal = window.location.pathname.startsWith("/broker");
+
     const isExcluded = EXCLUDED_ROUTES.some((route) =>
         location.pathname === route || location.pathname.startsWith(`${route}/`)
     );
@@ -107,6 +111,8 @@ export function ChatBot() {
     }, [stopVoiceSession]);
 
     const handleVoiceCall = async () => {
+        // Voice is disabled entirely on the broker portal — text chat only.
+        if (isBrokerPortal) return;
         if (isVoiceActive) {
             stopVoiceSession();
             addMessage({ id: Date.now().toString(), role: "bot", content: "Neural link terminated. Ze session has ended, voyager. Come back soon, ja!" });
@@ -382,7 +388,8 @@ export function ChatBot() {
                             {/* Input Area */}
                             <div className="p-4 bg-slate-950/50 border-t border-white/5">
                                 <div className="flex flex-col gap-3">
-                                    {/* Voice Toggle Button */}
+                                    {/* Voice Toggle Button — hidden on the broker portal (text chat only) */}
+                                    {!isBrokerPortal && (
                                     <div className="flex items-center gap-2 pb-1">
                                         <Button
                                             type="button"
@@ -428,6 +435,7 @@ export function ChatBot() {
                                             <Mic className="w-4 h-4" />
                                         </Button>
                                     </div>
+                                    )}
 
                                     <form
                                         onSubmit={handleSubmit}

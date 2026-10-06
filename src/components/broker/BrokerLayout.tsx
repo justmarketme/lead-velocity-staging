@@ -1,12 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Database, BarChart3, Menu, X, LogOut, FolderOpen, UserPlus, Calendar, UserCircle } from "lucide-react";
+import { LayoutDashboard, Database, BarChart3, Menu, X, LogOut, FolderOpen, UserPlus, Calendar, UserCircle, ShoppingBag, PlayCircle } from "lucide-react";
 import logo from "@/assets/lead-velocity-logo.webp";
 import { useToast } from "@/hooks/use-toast";
 import NotificationBell from "@/components/notifications/NotificationBell";
-import { EinsteinLiveVoice } from "@/components/voice/EinsteinLiveVoice";
 import SEO from "@/components/SEO";
 
 interface BrokerLayoutProps {
@@ -18,13 +17,17 @@ const BrokerLayout = ({ children }: BrokerLayoutProps) => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // Note: brokers log in with the temporary password and use it until payment is made.
+  // Changing to a personal password is only offered after their leads unlock (see Purchased Leads).
+
+  // Streamlined nav for a leads-buyer: their purchased leads are home, plus
+  // documents (contract/invoice), calendar and settings. The full-broker items
+  // (My Leads upload, Referrals, Reports) are hidden as they don't apply here.
   const menuItems = [
-    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/broker/dashboard" },
-    { id: "leads", label: "My Leads", icon: Database, path: "/broker/leads" },
-    { id: "referrals", label: "Referrals", icon: UserPlus, path: "/broker/referrals" },
-    { id: "calendar", label: "Calendar", icon: Calendar, path: "/broker/calendar" },
+    { id: "explainer", label: "Start Here", icon: PlayCircle, path: "/broker/explainer" },
+    { id: "orders", label: "Purchased Leads", icon: ShoppingBag, path: "/broker/orders" },
     { id: "documents", label: "Documents", icon: FolderOpen, path: "/broker/documents" },
-    { id: "reports", label: "Reports", icon: BarChart3, path: "/broker/reports" },
+    { id: "calendar", label: "Calendar", icon: Calendar, path: "/broker/calendar" },
     { id: "profile", label: "Settings", icon: UserCircle, path: "/broker/profile" },
   ];
 
@@ -59,7 +62,15 @@ const BrokerLayout = ({ children }: BrokerLayoutProps) => {
               <span className="text-xl font-bold gradient-text hidden sm:inline">Broker Portal</span>
             </div>
             <div className="flex items-center gap-4">
-              <EinsteinLiveVoice />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/broker/explainer")}
+                className="hidden md:inline-flex text-muted-foreground hover:text-foreground"
+              >
+                <PlayCircle className="mr-2 h-4 w-4" />
+                How it works
+              </Button>
               <div className="flex items-center gap-2">
                 <NotificationBell userRole="broker" />
                 <Button variant="ghost" size="sm" onClick={handleLogout}>
@@ -88,9 +99,12 @@ const BrokerLayout = ({ children }: BrokerLayoutProps) => {
                   navigate(item.path);
                   setSidebarOpen(false);
                 }}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${isActive
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+                  item.id === "explainer"
+                    ? "bg-gradient-to-r from-primary to-purple-500 text-white font-semibold shadow-lg shadow-primary/30 hover:opacity-90"
+                    : isActive
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
                   }`}
               >
                 <Icon size={20} />

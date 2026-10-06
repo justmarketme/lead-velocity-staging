@@ -167,12 +167,14 @@ serve(async (req) => {
       }
     }
 
-    // Return TwiML response for the call
+    // Return TwiML response connecting to ElevenLabs Conversational AI
+    const ELEVENLABS_AGENT_ID = Deno.env.get('ELEVENLABS_AGENT_ID');
     const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Ayanda" language="en-ZA">Thank you for calling Lead Velocity. Please hold while we connect you to a representative.</Say>
-  <Play>https://api.twilio.com/cowbell.mp3</Play>
-  <Record maxLength="300" transcribe="true" playBeep="true" />
+  <Pause length="1"/>
+  <Connect>
+    <Stream url="wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${ELEVENLABS_AGENT_ID}" />
+  </Connect>
 </Response>`;
 
     return new Response(twimlResponse, {

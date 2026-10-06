@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Home from "./pages/Home";
 import About from "./pages/About";
 import Services from "./pages/Services";
@@ -15,6 +15,7 @@ import Dashboard from "./pages/Dashboard";
 import BrokerPortal from "./pages/BrokerPortal";
 import BrokerDashboard from "./pages/broker/BrokerDashboard";
 import BrokerLeads from "./pages/broker/BrokerLeads";
+import BrokerOrders from "./pages/broker/BrokerOrders";
 import BrokerUpload from "./pages/broker/BrokerUpload";
 import BrokerReports from "./pages/broker/BrokerReports";
 import BrokerDocuments from "./pages/broker/BrokerDocuments";
@@ -30,6 +31,7 @@ import Pricing from "./pages/Pricing";
 import Promotions from "./pages/Promotions";
 import PremiumBrokerPortalPage from "./pages/PremiumBrokerPortalPage";
 import BrokerProfile from "./pages/broker/BrokerProfile";
+import Explainer from "./pages/broker/Explainer";
 
 import { HelmetProvider } from "react-helmet-async";
 
@@ -61,13 +63,15 @@ const App = () => {
             <Route path="/admin" element={<AdminLogin />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/broker/dashboard" element={<BrokerDashboard />} />
-            <Route path="/broker/leads" element={<BrokerLeads />} />
+            <Route path="/broker/leads" element={<Navigate to="/broker/orders" replace />} />
+            <Route path="/broker/orders" element={<BrokerOrders />} />
             <Route path="/broker/upload" element={<BrokerUpload />} />
             <Route path="/broker/documents" element={<BrokerDocuments />} />
             <Route path="/broker/referrals" element={<BrokerReferrals />} />
             <Route path="/broker/calendar" element={<BrokerCalendar />} />
             <Route path="/broker/reports" element={<BrokerReports />} />
             <Route path="/broker/profile" element={<BrokerProfile />} />
+            <Route path="/broker/explainer" element={<Explainer />} />
             <Route path="/invite/:token" element={<InviteSignup />} />
             <Route path="/broker-setup/:token" element={<BrokerSetup />} />
             <Route path="/broker/forgot-password" element={<BrokerForgotPassword />} />

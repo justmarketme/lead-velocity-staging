@@ -71,24 +71,18 @@ const InviteSignup = () => {
     }
 
     try {
-      // Check if token is valid (not used and not expired)
-      const { data, error } = await supabase
-        .from("admin_invites")
-        .select("email, expires_at, used_at")
-        .eq("token", token)
-        .single();
+      // Validate the token server-side (SECURITY DEFINER RPC) — the admin_invites
+      // table is not directly readable, so this checks validity + returns the email.
+      const { data, error } = await (supabase as any).rpc("get_admin_invite_by_token", { p_token: token });
+      const row = Array.isArray(data) ? data[0] : data;
 
-      if (error || !data) {
-        setIsValid(false);
-      } else if (data.used_at) {
-        setIsValid(false);
-      } else if (new Date(data.expires_at) < new Date()) {
+      if (error || !row || !row.valid) {
         setIsValid(false);
       } else {
         setIsValid(true);
-        if (data.email) {
-          setInviteEmail(data.email);
-          setEmail(data.email);
+        if (row.email) {
+          setInviteEmail(row.email);
+          setEmail(row.email);
         }
       }
     } catch (error) {
