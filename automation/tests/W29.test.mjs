@@ -7,67 +7,70 @@ import { checkSql, workflowSql } from './_sqlcheck.mjs';
 import * as F from '../lib/w29.mjs';
 
 const WF = JSON.parse(readFileSync(new URL('../W29.json', import.meta.url), 'utf8'));
-const LIST = JSON.parse(readFileSync(new URL('../templates/session/broker_disposition_list.json', import.meta.url), 'utf8'));
+// clause 8.4 (ux-sprint-1): the disposition list moved to templates/retired/ (was templates/session/)
+const LIST = JSON.parse(readFileSync(new URL('../templates/retired/broker_disposition_list.json', import.meta.url), 'utf8'));
 const L01 = lead('L01');
 const E = L01.expected.W12;
 const DISP_AT = ms(E.broker_fit_followup_at) - 7 * D; // the tap that set fit_followup
 const attended = (over = {}) => ({ id: 'out_L01', booking_id: 'bk_L01', lead_id: L01.lead_id, outcome: 'attended', disposition_code: null, quality_score: null, auto_marked: false, ...over });
+const RETIRED = { error: 'retired: agreement clause 8.4' };
 
-test('codes: exactly the six 4.12a codes, same as the fixture, the session list rows and the template buttons', () => {
+test('codes: the six 4.12a codes are kept only to read historic rows; the disposition templates are retired and never submitted', () => {
   assert.deepEqual(F.CODES, FIX._meta.disposition_codes);
   const rows = LIST.interactive.action.sections.flatMap((s) => s.rows);
   assert.deepEqual(rows.map((r) => r.id), F.CODES);
-  assert.ok(rows.every((r) => r.title.length <= 24));
-  assert.equal(template('broker_disposition').components.find((c) => c.type === 'BUTTONS').buttons.length, 6);
+  // clause 8.4 (ux-sprint-1): the templates live in retired/ and are out of submit.sh (was: broker_disposition has 6 buttons)
+  const sh = readFileSync(new URL('../templates/submit.sh', import.meta.url), 'utf8');
+  for (const n of ['broker_disposition', 'broker_quality', 'broker_fit_followup']) {
+    assert.throws(() => template(n), /ENOENT/, `${n} is not a live template`);
+    assert.ok(JSON.parse(readFileSync(new URL(`../templates/retired/${n}.json`, import.meta.url), 'utf8')).name === n);
+    assert.doesNotMatch(sh.match(/REST=\(([\s\S]*?)\n\)/)[1], new RegExp(`\\b${n}\\b`), `${n} not submitted`);
+  }
 });
 
-test('parse broker replies: list row, quick-reply payload, quality tap/typed, voice note, follow-up taps, noise', () => {
+test('parse broker replies: list row, quick-reply payload, quality tap/typed, voice note (retired), follow-up taps, noise', () => {
   for (const c of F.CODES) assert.deepEqual(F.parseBrokerReply({ list_id: c }), { kind: 'disposition', value: c });
   assert.deepEqual(F.parseBrokerReply({ payload: 'nofit_budget:bk_L01' }), { kind: 'disposition', value: 'nofit_budget', booking_id: 'bk_L01' });
   assert.deepEqual(F.parseBrokerReply({ payload: 'quality:4:bk_L01' }), { kind: 'quality', value: 4, booking_id: 'bk_L01' });
   assert.equal(F.parseBrokerReply({ payload: '5' }).value, 5);
   assert.equal(F.parseBrokerReply({ text: '3' }).value, 3);
   assert.equal(F.parseBrokerReply({ text: '7' }).kind, 'unknown');
-  assert.deepEqual(F.parseBrokerReply({ media: 'audio', media_id: 'm1' }), { kind: 'voice', value: 'm1' });
+  // clause 8.4 (ux-sprint-1): audio parses as 'retired' (no Kind output), so the media is never fetched or transcribed
+  assert.deepEqual(F.parseBrokerReply({ media: 'audio', media_id: 'm1' }), { kind: 'retired', value: 'voice' });
   assert.equal(F.parseBrokerReply({ payload: `fit_followup:${L01.lead_id}:done` }).value, 'done');
   assert.equal(F.parseBrokerReply({ payload: `fit_followup:${L01.lead_id}:open` }).value, 'open');
   assert.equal(F.parseBrokerReply({ text: 'thanks' }).kind, 'unknown');
 });
 
-test('L01: fit_followup -> outcomes.disposition_code, ask quality next, follow-up nudge at the fixture time, no replacement', () => {
-  const d = F.applyDisposition(attended(), E.disposition_code, DISP_AT);
-  assert.equal(d.update.disposition_code, 'fit_followup'); assert.equal(d.update.marked_via, 'whatsapp');
-  assert.equal(d.next, 'ask_quality'); assert.equal(d.w13, null); assert.equal(d.lead_stage, 'dispositioned');
-  assert.equal(iso(d.followup_due_ms), E.broker_fit_followup_at);
-  const q = F.applyQuality(attended({ disposition_code: 'fit_followup' }), E.quality_score);
-  assert.deepEqual(q, { update: { quality_score: 4 }, next: 'thanks' });
+test('L01: the fit_followup disposition and the quality 4 tap are refused (clause 8.4); nothing is written, no replacement', () => {
+  // clause 8.4 (ux-sprint-1): applyDisposition refuses with no update (was: disposition_code fit_followup, ask_quality, +7 d nudge)
+  assert.deepEqual(F.applyDisposition(attended(), E.disposition_code, DISP_AT), RETIRED);
+  // clause 8.4 (ux-sprint-1): applyQuality refuses with no update (was: quality_score 4, next thanks)
+  assert.deepEqual(F.applyQuality(attended({ disposition_code: 'fit_followup' }), E.quality_score), RETIRED);
   assert.equal(L01.expected.W13.replacement, false);
 });
 
-test('replacements (W13): unreachable -> uncontactable, nofit_criteria -> disqualified, nothing else; correction withdraws', () => {
-  assert.deepEqual(F.applyDisposition(attended(), 'unreachable', DISP_AT).w13, { op: 'claim', reason: 'uncontactable', reason_code: 'unreachable' });
-  assert.deepEqual(F.applyDisposition(attended(), 'nofit_criteria', DISP_AT).w13, { op: 'claim', reason: 'disqualified', reason_code: 'nofit_criteria' });
-  for (const c of ['fit_proceeding', 'fit_followup', 'nofit_budget', 'nofit_covered']) assert.equal(F.applyDisposition(attended(), c, DISP_AT).w13, null, c);
-  assert.deepEqual(F.applyDisposition(attended({ disposition_code: 'unreachable' }), 'fit_proceeding', DISP_AT).w13, { op: 'withdraw', reason_code: 'unreachable' });
+test('replacements (W13): no disposition opens or withdraws a replacement any more (clause 8.4)', () => {
+  // clause 8.4 (ux-sprint-1): every code, incl. unreachable / nofit_criteria and a correction, is refused, so W13 is never called
+  for (const c of F.CODES) {
+    const d = F.applyDisposition(attended(), c, DISP_AT);
+    assert.deepEqual(d, RETIRED, c); assert.equal(F.w13Call(attended(), d), null, c);
+  }
+  assert.deepEqual(F.applyDisposition(attended({ disposition_code: 'unreachable' }), 'fit_proceeding', DISP_AT), RETIRED);
 });
 
-test('guards: no disposition or quality on a no-show / broker no-show; quality must be 1-5; unknown code rejected', () => {
-  assert.match(F.applyDisposition(attended({ outcome: 'no_show' }), 'fit_proceeding', DISP_AT).error, /no_show/);
-  assert.match(F.applyDisposition(attended({ outcome: 'broker_no_show' }), 'unreachable', DISP_AT).error, /broker_no_show/);
-  assert.ok(F.applyDisposition(attended(), 'good_fit_proceeding', DISP_AT).error);
-  assert.ok(F.applyQuality(attended(), 0).error); assert.ok(F.applyQuality(attended(), 6).error);
-  assert.ok(F.applyQuality(attended({ outcome: 'no_show' }), 3).error);
-  assert.equal(F.applyDisposition(attended({ quality_score: 4 }), 'fit_proceeding', DISP_AT).next, 'thanks');
+test('guards: disposition and quality are refused on every outcome (clause 8.4)', () => {
+  // clause 8.4 (ux-sprint-1): one refusal for all inputs (was: per-outcome / 1-5 / unknown-code guards)
+  for (const o of [attended(), attended({ outcome: 'no_show' }), attended({ outcome: 'broker_no_show' }), attended({ outcome: 'unreachable' })]) {
+    assert.deepEqual(F.applyDisposition(o, 'fit_proceeding', DISP_AT), RETIRED);
+    for (const q of [0, 3, 6]) assert.deepEqual(F.applyQuality(o, q), RETIRED);
+  }
 });
 
-test('voice note: <= 60 s, transcript redacted (ID / health), 2-line summary, what_mattered insight; never to the lead', () => {
-  const v = F.voiceNote({ duration_s: 42, transcript: 'Nice guy. His ID is 8001015009087. Mostly worried about the bond.', summary: 'Engaged and ready. Main worry was the bond. Wants a second call.' });
-  assert.ok(!v.update.transcript.includes('8001015009087'));
-  assert.equal(v.update.summary, 'Engaged and ready. Main worry was the bond.');
-  assert.deepEqual(v.insight, { source: 'voice_note', kind: 'what_mattered', text: v.update.summary });
-  const h = F.voiceNote({ duration_s: 20, transcript: 'She has diabetes', summary: 'She has diabetes so cover is a worry.' });
-  assert.equal(h.update.transcript, '[health detail removed]'); assert.equal(h.insight, null);
-  assert.ok(F.voiceNote({ duration_s: 90, transcript: 'x', summary: 'y' }).error);
+test('voice note: refused (clause 8.4); no transcript, no summary, no insight', () => {
+  // clause 8.4 (ux-sprint-1): voiceNote refuses with no update (was: redacted transcript, 2-line summary, what_mattered insight)
+  const v = F.voiceNote({ duration_s: 42, transcript: 'Nice guy. His ID is 8001015009087. Mostly worried about the bond.', summary: 'Engaged and ready.' });
+  assert.deepEqual(v, RETIRED); assert.equal(v.update, undefined); assert.equal(v.insight, undefined);
 });
 
 test('kill/scale per ad (3.4): n < 5 -> no index, no signal; index < 2.5 or not-a-fit > 40% -> pause; >= 4 -> scale candidate', () => {
@@ -100,12 +103,25 @@ test('thanks line is always true and never promises spend; renders in broker_fee
   assert.equal(renderBody('broker_feedback_thanks', [many]), 'Logged, thank you. That ad is now rated 4.2 from 6 of your calls. Your feedback shapes the next leads we send you.');
 });
 
-test('fit_followup nudge: due at +7 d, once', () => {
+test('W29.json: a retired voice note matches no Kind output, so the media fetch / transcription never runs (clause 8.4)', () => {
+  const kind = WF.nodes.find((n) => n.name === 'Kind');
+  const keys = kind.parameters.rules.values.map((v) => v.outputKey);
+  // clause 8.4 (ux-sprint-1): no 'retired' route; the fallback output ('extra', index = keys.length) is not connected
+  assert.ok(!keys.includes('retired'));
+  assert.equal(kind.parameters.options.fallbackOutput, 'extra');
+  assert.ok(!(WF.connections.Kind.main[keys.length] || []).length);
+  assert.equal(keys.indexOf('voice'), 2); assert.deepEqual(WF.connections.Kind.main[2].map((c) => c.node), ['Fetch WhatsApp media URL']);
+});
+
+test('fit_followup nudge: never due (clause 8.4); the W29.json template node skips', async () => {
   const o = { disposition_code: 'fit_followup', marked_at: iso(DISP_AT) };
-  assert.equal(F.followupDue(o, ms(E.broker_fit_followup_at) - 1, false), false);
-  assert.equal(F.followupDue(o, ms(E.broker_fit_followup_at), false), true);
-  assert.equal(F.followupDue(o, ms(E.broker_fit_followup_at), true), false);
-  assert.equal(F.followupDue({ ...o, disposition_code: 'fit_proceeding' }, ms(E.broker_fit_followup_at), false), false);
+  // clause 8.4 (ux-sprint-1): followupDue is always false (was: true at +7 d, once)
+  for (const t of [ms(E.broker_fit_followup_at) - 1, ms(E.broker_fit_followup_at), ms(E.broker_fit_followup_at) + 7 * D]) assert.equal(F.followupDue(o, t, false), false);
+  // clause 8.4 (ux-sprint-1): a historic fit_followup row that the daily query still finds gets no broker_fit_followup send
+  const { runCode } = await import('./_n8ncode.mjs');
+  const row = { id: 'out_L01', lead_id: L01.lead_id, marked_at: iso(DISP_AT), disposition_code: 'fit_followup', first_name: 'Lerato', last_name: 'M', contact_person: 'Mark Smith', whatsapp_number: '+27600000090' };
+  const out = (await runCode(WF, 'broker_fit_followup template', { json: { id: 'claim1' }, refs: { 'fit_followup due': row } })).json;
+  assert.deepEqual(out, { skip: true });
 });
 
 test('W29.json: physical columns only; disposition cast to the enum; W13 owns replacements; ad_metrics + insights fed', () => {
@@ -126,9 +142,10 @@ test('I-45k: W29 -> W13 sends { op, outcome_id, reason, reason_code, idempotency
   const o = attended({ id: 'out_L01' });
   const d = F.applyDisposition(o, 'unreachable', DISP_AT);
   const out = (await runCode(WF, name, { items: [{ lead_id: L01.lead_id }], refs: { 'Apply disposition': { o, d } } })).map((x) => x.json);
-  assert.deepEqual(out, [{ op: 'claim', outcome_id: 'out_L01', reason: 'uncontactable', reason_code: 'unreachable', idempotency_key: 'w29:claim:out_L01:unreachable' }]);
-  const w = F.applyDisposition(attended({ id: 'out_L01', disposition_code: 'unreachable' }), 'fit_proceeding', DISP_AT);
-  assert.deepEqual(F.w13Call({ id: 'out_L01' }, w), { op: 'withdraw', outcome_id: 'out_L01', reason: null, reason_code: 'unreachable', idempotency_key: 'w29:withdraw:out_L01:unreachable' });
+  // clause 8.4 (ux-sprint-1): a refused disposition makes no W13 call (was: claim uncontactable for 'unreachable')
+  assert.deepEqual(out, []);
+  // the contract shape itself is unchanged for any caller that still passes a w13 decision
+  assert.deepEqual(F.w13Call({ id: 'out_L01' }, { w13: { op: 'withdraw', reason_code: 'unreachable' } }), { op: 'withdraw', outcome_id: 'out_L01', reason: null, reason_code: 'unreachable', idempotency_key: 'w29:withdraw:out_L01:unreachable' });
   assert.deepEqual(WF.connections['Tell W13?'].main[0].map((c) => c.node), [name]);
   assert.deepEqual(WF.connections[name].main[0].map((c) => c.node), ['-> W13 claim / withdraw replacement']);
 });

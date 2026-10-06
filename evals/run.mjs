@@ -255,9 +255,8 @@ const copyWarnings = [];
     ['reach_check', body('reach_check', ['Lerato', 'Mark'])],
     ['lead_pulse', body('lead_pulse', ['Lerato', 'Mark'])],
     ['broker_feedback_thanks:n6', body('broker_feedback_thanks', [thanksLine({ quality_index: 4.2, quality_n: 6 })])],
-    ['broker_feedback_thanks:n3', body('broker_feedback_thanks', [thanksLine({ quality_index: null, quality_n: 3 })])],
-    ['broker_fit_followup', body('broker_fit_followup', ['Mark', 'Thu 8 Oct', 'Lerato M'])],
-    ['w29_voice_too_long', 'Thanks. Please keep voice notes under a minute.']
+    ['broker_feedback_thanks:n3', body('broker_feedback_thanks', [thanksLine({ quality_index: null, quality_n: 3 })])]
+    // broker_fit_followup + the W29 voice-note reply: RETIRED 2026-10-06 (agreement clause 8.4), templates/retired/
   ];
   for (const [id, text] of copy) {
     const g = outputGate(text, {});

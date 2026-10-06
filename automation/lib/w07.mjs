@@ -112,7 +112,8 @@ function routeCore(msg, ctx) {
   if (ctx.broker_numbers && ctx.broker_numbers.has(msg.from)) {
     // I-37d: one inbound subscription; broker intro media is a W07 -> W23 sub-call.
     if (msg.media === 'video' || (msg.media === 'audio' && PRE_LIVE_BROKER.has(ctx.broker_status))) return { route: 'W23', reason: 'broker intro media (W23)' };
-    if (['attended', 'no_show', 'rescheduled'].includes(tapKey)) return { route: 'W12', reason: 'broker outcome tap' };
+    // clause 8.4 (ux-sprint-1): "Couldn't reach them" (unreachable) is the fourth broker_outcome_check button.
+    if (['attended', 'no_show', 'unreachable', 'rescheduled'].includes(tapKey)) return { route: 'W12', reason: 'broker outcome tap' };
     return { route: 'W29', reason: 'broker feedback (disposition list, quality, voice note, follow-up tap)' };
   }
   // STOP anywhere, in any state, before anything else (W15). prefilter's STOP_RX is the broad net; this is the exact word.

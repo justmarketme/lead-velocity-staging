@@ -2,9 +2,11 @@
 // Imported by automation/W12.json (Code nodes, require('lv-automation').w12) and automation/tests/W12.test.mjs. Pure, no I/O.
 //
 // Every meeting is closed from BOTH sides:
-//  - Broker: broker_outcome_check at slot end + 15 min (Attended / No-show / Rescheduled), ONE nudge 3 h later.
-//    Attended -> the one-tap disposition list (session, the tap opened his window; 4.12a codes) -> W29 asks 1-5
-//    quality and takes the optional voice note. Unmarked at 24 h -> attended + auto_marked + unconfirmed (flagged).
+//  - Broker: broker_outcome_check at slot end + 15 min (Met them / No-show / Couldn't reach them / Moved to another
+//    time = attended / no_show / unreachable / rescheduled), ONE nudge 3 h later. Unmarked at 24 h -> attended +
+//    auto_marked + unconfirmed (flagged).
+//    clause 8.4 (ux-sprint-1, agreement "feedback firewall"): broker feedback = attended / could be contacted ONLY.
+//    No disposition list, no 1-5 quality, no voice note after "Met them"; those helpers below now send nothing.
 //  - Lead: reach_check at slot end + 30 min ("Did {adviser} reach you today?"). A broker "No-show" becomes a lead
 //    no-show only when the lead stays silent for the 2-h reach window. A lead "No, not yet" waits for the broker: still
 //    unmarked at broker_nudge_at -> BROKER no-show (Schedule D: apology, rebooking at our cost, KG alert, never a
@@ -12,8 +14,7 @@
 // Writes: outcomes (one row per booking), appointments.status, leads.stage, lead_activities timeline. CAPI Attended
 // (consent-gated in the callee). W29 `outcome_recorded` (quality index, pulse/facts). W13 `no_show` (missed_you,
 // 48-h clock). W10 (rebook after a broker no-show or a broker "Rescheduled").
-// Voice notes: only the WhatsApp media reference is stored here (outcomes.voice_note_url = 'whatsapp-media:{id}');
-// transcription is a later step, switched on only when the provider is named in the privacy notice (P17, Q22).
+// Voice notes: RETIRED (clause 8.4). voiceNoteRef() returns null, so nothing is stored.
 import { fill, LINES } from '../../conversation/lines.mjs';
 import { MIN, H, D, ms, iso, timeLabel, firstName, firstAndInitial, templateMessage, textMessage, listMessage, nowFrom, touchesLastContact } from './wa.mjs';
 export { MIN, H, D, iso, nowFrom, touchesLastContact };
@@ -32,13 +33,15 @@ export const CAPI_HOLD_MAX = CAPI_META_WINDOW - 12 * H;
 
 /**
  * capiAttendedGate(m, now) -> { action: 'send'|'hold'|'drop', reason }  (I-51b a, b, c). Pure; the ONE place that decides.
- * m = { slotEnd, reach: 'yes'|'no'|null, disposition, kgDecision: 'attended'|'not_attended'|null, consentAds }
- *  drop  unreachable_disposition (c) | kg_not_attended (a) | no_ads_consent | meta_window_expired (held too long)
+ * m = { slotEnd, reach: 'yes'|'no'|null, disposition, brokerMark, kgDecision: 'attended'|'not_attended'|null, consentAds }
+ *  drop  unreachable_mark (clause 8.4 "Couldn't reach them") | unreachable_disposition (c; historic disposition rows)
+ *        | kg_not_attended (a) | no_ads_consent | meta_window_expired (held too long)
  *  send  kg_attended (a, same event_id: Meta dedupes) | lead_confirmed | lead_window_closed (b: end + 30 min + 2 h)
  *  hold  conflict_pending_kg (broker Attended vs lead "No") | awaiting_lead (b)
  */
 export function capiAttendedGate(m, now) {
   const end = ms(m.slotEnd);
+  if (m.brokerMark === 'unreachable') return { action: 'drop', reason: 'unreachable_mark' }; // clause 8.4: never Attended
   if (m.disposition === 'unreachable') return { action: 'drop', reason: 'unreachable_disposition' };
   if (m.kgDecision === 'not_attended') return { action: 'drop', reason: 'kg_not_attended' };
   if (m.consentAds === false) return { action: 'drop', reason: 'no_ads_consent' };
@@ -49,7 +52,8 @@ export function capiAttendedGate(m, now) {
   if (now >= end + REACH_CHECK_AFTER_END + REACH_WINDOW) return { action: 'send', reason: 'lead_window_closed' };
   return { action: 'hold', reason: 'awaiting_lead' };
 }
-// 4.12a order = broker_disposition.json button order = session list row order.
+// RETIRED (clause 8.4, ux-sprint-1): the 4.12a disposition codes are kept only to read historic outcomes rows
+// (templates/retired/). Nothing in W12 asks for them any more.
 export const CODES = ['fit_proceeding', 'fit_followup', 'nofit_budget', 'nofit_covered', 'nofit_criteria', 'unreachable'];
 export const REPLACEMENT_CODES = new Set(['unreachable', 'nofit_criteria']); // 4.12a: "nothing else does"
 // Template button text (<= 25 chars, see templates README) -> code. Same order as broker_disposition.json.
@@ -80,7 +84,7 @@ export function postCallPlan(slotEnd) {
 
 /**
  * Resolve the outcome from both sides at time `now`.
- * @param m { slotEnd, brokerMark: 'attended'|'no_show'|'rescheduled'|null, reach: 'yes'|'no'|null, disposition (4.12a code, when known), consentAds, optedOut, leadId }
+ * @param m { slotEnd, brokerMark: 'attended'|'no_show'|'unreachable'|'rescheduled'|null, reach: 'yes'|'no'|null, disposition (4.12a code, when known), consentAds, optedOut, leadId }
  */
 export function resolveOutcome(m, now) {
   const p = postCallPlan(m.slotEnd);
@@ -90,12 +94,12 @@ export function resolveOutcome(m, now) {
     if (!m.optedOut) r.lead_message = 'attended_thanks';
     // I-51b: CAPI Attended goes through capiAttendedGate (hold until the lead answered or her window closed; never on
     // unreachable; never against a lead "No" until KG decides). Held/dropped events are logged by followUps().
-    const g = capiAttendedGate({ slotEnd: m.slotEnd, reach: m.reach ?? null, disposition: m.disposition ?? null, kgDecision: m.kgDecision ?? null, consentAds: m.consentAds }, now);
+    const g = capiAttendedGate({ slotEnd: m.slotEnd, reach: m.reach ?? null, disposition: m.disposition ?? null, brokerMark: m.brokerMark ?? null, kgDecision: m.kgDecision ?? null, consentAds: m.consentAds }, now);
     r.capi_gate = g;
     if (g.action === 'send') r.capi.push({ event_name: 'Attended', event_id: `evt_${m.leadId}_attended` });
     else if (g.action === 'hold') r.capi_held = ['Attended'];
     else r.capi_dropped = g.reason;
-    r.next = r.next || 'W12_disposition';
+    // clause 8.4 (ux-sprint-1): no disposition ask after attended (was next 'W12_disposition').
     return r;
   };
   // R6-03 / I-49b (lines-r6.md section 3): the lead's "No, not yet" resolves nothing on its own. The broker has until
@@ -112,6 +116,8 @@ export function resolveOutcome(m, now) {
       return r;
     }
     if (m.brokerMark === 'no_show') return Object.assign(r, { outcome: 'disputed', dispute_status: 'open', next: 'console_queue' });
+    // clause 8.4: broker "Couldn't reach them" + lead "No, not yet" agree nobody spoke: no lead message, no CAPI, no W13/W10
+    if (m.brokerMark === 'unreachable') return Object.assign(r, { outcome: 'unreachable' });
     if (now < ms(p.broker_nudge_at)) return r; // pending: the existing sweep wakes at broker_nudge_at, no new timer
     Object.assign(r, { outcome: 'broker_no_show', lead_message: m.optedOut ? null : 'broker_no_show_apology', next: 'rebook_at_our_cost' });
     r.alerts.push('KG');
@@ -119,6 +125,14 @@ export function resolveOutcome(m, now) {
   }
   if (m.brokerMark === 'rescheduled') return Object.assign(r, { outcome: 'rescheduled', next: 'W10' });
   if (m.brokerMark === 'attended') return attended();
+  // clause 8.4 "Couldn't reach them": recorded as unreachable only (no lead message, no CAPI, no W13, no W10).
+  // Lead says "Yes, we spoke" -> console dispute, same as a broker No-show against a lead "Yes"; like a No-show it
+  // waits for the lead's 2-h reach window before it is recorded.
+  if (m.brokerMark === 'unreachable') {
+    if (m.reach === 'yes') return Object.assign(r, { outcome: 'disputed', dispute_status: 'open', next: 'console_queue' });
+    if (now >= ms(p.reach_check_at) + REACH_WINDOW) return Object.assign(r, { outcome: 'unreachable' });
+    return r; // waiting for the lead's side
+  }
   if (m.brokerMark === 'no_show') {
     if (m.reach === 'yes') return Object.assign(r, { outcome: 'disputed', dispute_status: 'open', next: 'console_queue' });
     const confirmAt = ms(p.reach_check_at) + REACH_WINDOW;
@@ -130,18 +144,9 @@ export function resolveOutcome(m, now) {
   return r;
 }
 
-/** Broker's disposition + quality (only after attended). Same rules as lib/w29.mjs applyDisposition / applyQuality. */
-export function recordDisposition(outcome, { code, quality, at }) {
-  if (outcome.outcome !== 'attended') throw new Error('disposition only after attended');
-  if (!CODES.includes(code)) throw new Error(`unknown code ${code}`);
-  if (quality !== undefined && quality !== null && !(Number.isInteger(quality) && quality >= 1 && quality <= 5)) throw new Error('quality must be 1-5');
-  return {
-    disposition_code: code,
-    quality_score: quality ?? null,
-    counts_as_delivered: true,
-    replacement_eligible: REPLACEMENT_CODES.has(code),
-    broker_fit_followup_at: code === 'fit_followup' ? iso(ms(at) + FIT_FOLLOWUP_AFTER) : null
-  };
+/** RETIRED (clause 8.4): broker disposition + quality are no longer collected. Always throws so a stale caller fails loudly. */
+export function recordDisposition() {
+  throw new Error('retired: agreement clause 8.4');
 }
 
 /** 4.12a friction rule: two unconfirmed in a cycle -> Jonathan calls the broker. */
@@ -150,7 +155,7 @@ export const unconfirmedAlert = (outcomesInCycle) => (outcomesInCycle.filter((o)
 // ---------------------------------------------------------------------------------------------------------------
 // Entries and taps
 // ---------------------------------------------------------------------------------------------------------------
-const BROKER_MARK = { attended: 'attended', no_show: 'no_show', rescheduled: 'rescheduled' };
+const BROKER_MARK = { attended: 'attended', no_show: 'no_show', unreachable: 'unreachable', rescheduled: 'rescheduled' }; // clause 8.4: + unreachable
 
 /** parseTap(msg) -> { side: 'broker', mark, booking_id } | { side: 'lead', answer, booking_id } | null */
 export function parseTap(msg = {}) {
@@ -209,7 +214,7 @@ export function sweepActions(row, now) {
  * the console decides, nothing is guessed). marked_at of a lead no-show = the moment it was confirmed.
  */
 export function outcomeRow(r, { now, via = 'whatsapp' } = {}) {
-  if (!['attended', 'no_show', 'broker_no_show', 'rescheduled'].includes(r.outcome)) return null;
+  if (!['attended', 'no_show', 'unreachable', 'broker_no_show', 'rescheduled'].includes(r.outcome)) return null;
   return {
     outcome: r.outcome,
     lead_reach_check: r.lead_reach_check || 'none',
@@ -218,8 +223,10 @@ export function outcomeRow(r, { now, via = 'whatsapp' } = {}) {
     marked_via: r.auto_marked ? 'auto' : via,
     marked_at: r.no_show_confirmed_at || iso(now),
     dispute_status: r.dispute_status === 'open' ? 'open' : 'none',
-    appointment_status: { attended: 'attended', no_show: 'no_show', broker_no_show: 'no_show', rescheduled: 'rescheduled' }[r.outcome],
-    lead_stage: { attended: 'attended', no_show: 'no_show', broker_no_show: null, rescheduled: null }[r.outcome]
+    // unreachable -> appointments.status 'no_show': the "Insert outcome" SQL always sets status = $13 and the
+    // appointments status CHECK (smc_02_core) has no 'unreachable'; the call did not take place, so never 'attended'.
+    appointment_status: { attended: 'attended', no_show: 'no_show', unreachable: 'no_show', broker_no_show: 'no_show', rescheduled: 'rescheduled' }[r.outcome],
+    lead_stage: { attended: 'attended', no_show: 'no_show', unreachable: null, broker_no_show: null, rescheduled: null }[r.outcome]
   };
 }
 
@@ -228,12 +235,12 @@ export function outcomeRow(r, { now, via = 'whatsapp' } = {}) {
 // ---------------------------------------------------------------------------------------------------------------
 const brokerTo = (broker) => broker.adviser_whatsapp || broker.whatsapp_number;
 
-/** broker_outcome_check: 1 adviser first name · 2 time · 3 lead first name + initial; QR Attended · No-show · Rescheduled. */
+/** broker_outcome_check: 1 adviser first name · 2 time · 3 lead first name + initial; QR Met them · No-show · Couldn't reach them · Moved to another time (clause 8.4). */
 export function outcomeCheckMessage(booking, lead, broker) {
   const bk = booking.id;
   return { to: 'broker', template: 'broker_outcome_check', wa: templateMessage(brokerTo(broker), 'broker_outcome_check', {
     body: [firstName(broker.adviser_name || broker.contact_person), timeLabel(booking.appointment_date), firstAndInitial(lead)],
-    buttons: [{ quick_reply: `attended:${bk}` }, { quick_reply: `no_show:${bk}` }, { quick_reply: `rescheduled:${bk}` }]
+    buttons: [{ quick_reply: `attended:${bk}` }, { quick_reply: `no_show:${bk}` }, { quick_reply: `unreachable:${bk}` }, { quick_reply: `rescheduled:${bk}` }]
   }) };
 }
 
@@ -251,7 +258,7 @@ export function attendedThanksMessage(lead, broker) {
   return { to: 'lead', template: 'attended_thanks', wa: templateMessage(lead.phone, 'attended_thanks', { body: [String(lead.first_name || '').trim() || 'there', broker.adviser_name || broker.contact_person] }) };
 }
 
-/** The in-window disposition list (automation/templates/session/broker_disposition_list.json, row ids = 4.12a codes). */
+/** RETIRED (clause 8.4): the in-window disposition list (templates/retired/broker_disposition_list.json). Not sent by W12. */
 export function dispositionListMessage(lead, broker) {
   return { to: 'broker', template: null, wa: listMessage(brokerTo(broker), {
     body: `Thanks. Which best describes ${firstAndInitial(lead)} after the call? Pick the closest one.`,
@@ -261,15 +268,14 @@ export function dispositionListMessage(lead, broker) {
   }) };
 }
 
-/** Out-of-window fallback: broker_disposition template (1 lead first name + initial; 6 QR, payload {code}:{booking_id}). */
+/** RETIRED (clause 8.4): broker_disposition template (templates/retired/). Not sent by W12. */
 export function dispositionTemplateMessage(booking, lead, broker) {
   return { to: 'broker', template: 'broker_disposition', wa: templateMessage(brokerTo(broker), 'broker_disposition', { body: [firstAndInitial(lead)], buttons: CODES.map((c) => ({ quick_reply: `${c}:${booking.id}` })) }) };
 }
 
-/** Disposition ask after an Attended tap: list inside the broker's 24-h window, template outside it. */
-export function dispositionAsk(booking, lead, broker, { broker_last_inbound_ms, now }) {
-  const open = Number.isFinite(broker_last_inbound_ms) && now - broker_last_inbound_ms < 24 * H;
-  return open ? dispositionListMessage(lead, broker) : dispositionTemplateMessage(booking, lead, broker);
+/** RETIRED (clause 8.4): no disposition is asked after an Attended tap. Always null (nothing to send). */
+export function dispositionAsk() {
+  return null;
 }
 
 /** Schedule D apology (session text; the lead's "No, not yet" opened the window). */
@@ -278,11 +284,9 @@ export function brokerNoShowApology(lead, broker) {
   return { to: 'lead', template: null, wa: textMessage(lead.phone, fill(BROKER_NO_SHOW_APOLOGY[lang], { first_name: String(lead.first_name || '').trim() || 'there', adviser_first: firstName(broker.adviser_name || broker.contact_person) })) };
 }
 
-/** Voice note: keep only the reference (no audio, no transcript here). */
-export function voiceNoteRef(msg = {}) {
-  const id = msg.media_id || null;
-  if (!id || (msg.media && msg.media !== 'audio')) return null;
-  return { voice_note_url: `whatsapp-media:${id}`, media_id: id };
+/** RETIRED (clause 8.4): no "anything we should know" voice note is stored. Always null, so W12 writes nothing. */
+export function voiceNoteRef() {
+  return null;
 }
 
 /** Sub-call payloads. */
@@ -359,11 +363,9 @@ export function lateMarkConflict(row = {}) {
     note: `esc_kind=late_broker_mark; ${firstAndInitial(lead)}: ${firstName(broker.adviser_name || broker.contact_person)} marked ${row.mark} after the Schedule D apology went out (lead said the adviser did not call). KG decides; nothing more goes to the lead, no CAPI event, no replacement.` }];
 }
 
-/** Disposition ask item after an Attended tap (the tap opened the broker's window -> list) or a portal `feedback` op. */
-export function dispositionItem(row = {}, now, brokerLastInboundMs) {
-  const { booking, lead, broker } = partsOf(row);
-  const m = dispositionAsk(booking, lead, broker, { broker_last_inbound_ms: brokerLastInboundMs, now });
-  return sendItem(row, m, `w12:disposition_ask:${row.booking_id}:${m.template ? 'tpl' : 'list'}`, { claim: true });
+/** RETIRED (clause 8.4): the disposition ask after an Attended tap / portal `feedback` op sends nothing. Always null. */
+export function dispositionItem() {
+  return null;
 }
 
 /**
@@ -377,7 +379,7 @@ export function releaseHeld(row = {}, now) {
   // NH-62: KG "not_attended" wins whatever the outcome row says now (it is flipped to no_show by the same op)
   if (row.kg_decision === 'not_attended') return [{ fu: 'capi_release', ...heldKeys(row), decision: 'drop', reason: 'kg_not_attended' }];
   if (row.outcome_outcome && row.outcome_outcome !== 'attended') return [{ fu: 'capi_release', ...heldKeys(row), decision: 'drop', reason: 'outcome_not_attended' }];
-  const g = capiAttendedGate({ slotEnd: row.slot_end, reach: row.reach || null, disposition: row.disposition_code || null, kgDecision: row.kg_decision || null, consentAds: row.consent_ads === false ? false : undefined }, now);
+  const g = capiAttendedGate({ slotEnd: row.slot_end, reach: row.reach || null, disposition: row.disposition_code || null, brokerMark: row.broker_mark || null, kgDecision: row.kg_decision || null, consentAds: row.consent_ads === false ? false : undefined }, now);
   if (g.action === 'hold') {
     if (g.reason !== 'conflict_pending_kg') return [];
     const { lead, broker } = partsOf(row);

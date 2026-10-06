@@ -8,7 +8,12 @@
 //  rows in insights (3.4: index < 2.5 or not-a-fit > 40% -> pause signal; index >= 4 -> scale candidate; the
 //  media rules apply them, W29 never touches spend), qualification tuning (nofit_budget > 15%; nofit_covered
 //  concentrated in one angle), "what mattered" corpus for pre-call briefs, fit_followup nudge at +7 d.
-import { redactForStorage, prefilter } from '../../conversation/guardrail.mjs';
+//
+// RETIRED 2026-10-06 (Lead Generation Services Agreement clause 8.4, "feedback firewall"; ux-sprint-1): broker
+// feedback = whether the consumer attended and could be contacted ONLY. applyDisposition / applyQuality / voiceNote
+// refuse ({ error: RETIRED }, no update), followupDue is always false, and a broker voice note is parsed as kind
+// 'retired' so W29.json's Kind switch drops it before any media fetch or transcription. adQuality / tuning /
+// thanksLine still read historic rows only. The templates are in automation/templates/retired/.
 
 export const CODES = ['fit_proceeding', 'fit_followup', 'nofit_budget', 'nofit_covered', 'nofit_criteria', 'unreachable'];
 export const REPLACEMENT = { unreachable: 'uncontactable', nofit_criteria: 'disqualified' }; // code -> replacements.reason
@@ -20,8 +25,9 @@ export const BUDGET_DRIFT = 0.15;
 export const FOLLOWUP_AFTER = 7 * 24 * 3600_000;
 export const VOICE_MAX_S = 60;
 export const VOICE_WINDOW = 60 * 60_000; // ASSUMPTION: a voice note within 60 min of the quality tap belongs to that outcome
+export const RETIRED = 'retired: agreement clause 8.4';
 
-/** parseBrokerReply(msg) -> { kind: 'disposition'|'quality'|'voice'|'followup'|'unknown', value } */
+/** parseBrokerReply(msg) -> { kind: 'disposition'|'quality'|'retired'|'followup'|'unknown', value } (audio -> 'retired', clause 8.4) */
 export function parseBrokerReply(msg) {
   if (msg.list_id && CODES.includes(msg.list_id)) return { kind: 'disposition', value: msg.list_id };
   const p = String(msg.payload || '');
@@ -33,42 +39,28 @@ export function parseBrokerReply(msg) {
   if (CODES.includes(k)) return { kind: 'disposition', value: k, booking_id: a || null }; // template quick-reply payload
   if (k === 'quality' && /^[1-5]$/.test(a)) return { kind: 'quality', value: Number(a), booking_id: b || null };
   if (/^[1-5]$/.test(k) || /^[1-5]$/.test(String(msg.text || '').trim())) return { kind: 'quality', value: Number(/^[1-5]$/.test(k) ? k : msg.text.trim()), booking_id: a || null };
-  if (msg.media === 'audio') return { kind: 'voice', value: msg.media_id };
+  // clause 8.4: a broker voice note is no longer feedback. 'retired' matches no W29.json Kind output, so the media is
+  // never fetched or transcribed and nothing is stored.
+  if (msg.media === 'audio') return { kind: 'retired', value: 'voice' };
   return { kind: 'unknown' };
 }
 
 /**
- * applyDisposition(outcome, code) -> { update, next, w13, followup_due_ms, error? }
- * Only an attended outcome takes a disposition; corrections are allowed (the latest tap wins) and tell W13.
+ * applyDisposition(outcome, code) -> { error: RETIRED }   RETIRED 2026-10-06 (clause 8.4): no disposition is written.
+ * W29.json "Disposition valid?" drops the item, so nothing is saved and W13 is not called.
  */
-export function applyDisposition(outcome, code, now_ms) {
-  if (!CODES.includes(code)) return { error: 'unknown disposition code' };
-  if (outcome.outcome !== 'attended') return { error: `outcome is ${outcome.outcome}: no disposition` };
-  const prev = outcome.disposition_code || null;
-  const w13 = REPLACEMENT[code] ? { op: 'claim', reason: REPLACEMENT[code], reason_code: code }
-    : prev && REPLACEMENT[prev] ? { op: 'withdraw', reason_code: prev } : null;
-  return {
-    update: { disposition_code: code, marked_via: 'whatsapp', unconfirmed: false, marked_at: new Date(now_ms).toISOString() },
-    lead_stage: 'dispositioned',
-    next: outcome.quality_score ? 'thanks' : 'ask_quality',
-    w13,
-    followup_due_ms: code === 'fit_followup' ? now_ms + FOLLOWUP_AFTER : null
-  };
+export function applyDisposition() {
+  return { error: RETIRED };
 }
 
-export function applyQuality(outcome, q) {
-  if (!(Number.isInteger(q) && q >= 1 && q <= 5)) return { error: 'quality must be 1-5' };
-  if (outcome.outcome !== 'attended') return { error: `outcome is ${outcome.outcome}` };
-  return { update: { quality_score: q }, next: 'thanks' };
+/** RETIRED 2026-10-06 (clause 8.4): no 1-5 quality score is written. */
+export function applyQuality() {
+  return { error: RETIRED };
 }
 
-/** Voice note: duration cap, transcript redacted (2.1.7), summary from the model is checked again. */
-export function voiceNote({ duration_s, transcript, summary }) {
-  if (duration_s > VOICE_MAX_S + 5) return { error: 'over 60 s', reply: 'Thanks. Please keep voice notes under a minute.' };
-  const t = redactForStorage(String(transcript || '').trim());
-  let s = redactForStorage(String(summary || '').replace(/\s+/g, ' ').trim()).split(/(?<=[.!?])\s+/u).slice(0, 2).join(' ');
-  if (prefilter(s).health) s = '[health detail removed]';
-  return { update: { transcript: t || null, summary: s || null }, insight: s && s !== '[health detail removed]' ? { source: 'voice_note', kind: 'what_mattered', text: s } : null };
+/** RETIRED 2026-10-06 (clause 8.4): no voice note transcript / summary is stored. */
+export function voiceNote() {
+  return { error: RETIRED };
 }
 
 /**
@@ -109,8 +101,8 @@ export function thanksLine(q) {
   return `So far ${q.quality_n} of your calls from this ad have a rating.`;
 }
 
-/** fit_followup reminder due? (+7 d after the disposition; once) */
-export const followupDue = (outcome, now_ms, sent) => outcome.disposition_code === 'fit_followup' && now_ms >= Date.parse(outcome.marked_at) + FOLLOWUP_AFTER && !sent;
+/** fit_followup reminder due? RETIRED 2026-10-06 (clause 8.4): always false; broker_fit_followup is never sent. */
+export const followupDue = () => false;
 
 /**
  * I-45k: the W29 -> W13 sub-call body per the W13 contract. o = the outcome row ("Apply disposition" item .o),

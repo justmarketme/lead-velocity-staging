@@ -55,10 +55,12 @@ SAMPLES="${TEMPLATE_SAMPLE_DIR:-$HERE/samples}"
 
 # Submit order: the 7 core templates first (qualify_budget joined CORE 2026-10-05: first touch for every instant-form lead) (0.3 #1, 4.6 template strategy), then the rest.
 CORE=(broker_intro_booked broker_intro_slots booking_confirmed reminder_24h reminder_2h missed_you qualify_budget)
+# RETIRED 2026-10-06 (agreement clause 8.4, feedback firewall): broker_disposition, broker_quality, broker_fit_followup
+# live in retired/ and are never submitted (retired/README.md).
 REST=(
   reminder_10m what_to_expect reschedule_offer attended_thanks prep_nudge intro_media intro_media_voice
   unbooked_nudge_2h unbooked_nudge_24h unbooked_nudge_24h_text unbooked_nudge_72h reach_check lead_pulse invite_email_bounced
-  broker_new_booking broker_outcome_check broker_disposition broker_quality broker_feedback_thanks broker_fit_followup
+  broker_new_booking broker_outcome_check broker_feedback_thanks
   broker_daily_digest precall_brief broker_weekly broker_weekly_noask broker_midcycle broker_cycle_end broker_renewal_reminder
   broker_booking_changed broker_autorenew_off broker_dsr_erase broker_cycle_ended broker_come_back broker_lead_opted_out
   broker_onb_welcome broker_onb_next broker_onb_calendar_ok broker_onb_ready broker_onb_nudge_24h broker_onb_nudge_72h

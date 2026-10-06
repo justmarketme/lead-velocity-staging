@@ -321,9 +321,9 @@ VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W09', 'lead', $5, jsonb_build_o
 function buildW12() {
   sticky('W12 Outcome, disposition & feedback (two-sided), 4.6 W12 row + 4.12a + Schedule C/D + 0.1 broker feedback rule. DRAFT pending GATE-TEST-W12.\n' +
     'Logic: automation/lib/w12.mjs (pure), loaded by every Code node through the lv-automation loader (index.cjs).\n' +
-    'Broker side: broker_outcome_check at slot end + 15 min (Attended / No-show / Rescheduled), ONE nudge 3 h later. Attended -> one-tap disposition list at once (session; the tap opened his window; 4.12a codes; template broker_disposition only out of window) -> W29 takes the reply, asks quality 1-5 and the optional voice note. Unmarked at 24 h -> attended + auto_marked + unconfirmed (flagged in the console; two in a cycle -> Jonathan calls the broker). W11 keeps its 24-h backstop (ON CONFLICT (booking_id) DO NOTHING on both sides).\n' +
+    'Broker side: broker_outcome_check at slot end + 15 min (Met them / No-show / Couldn\'t reach them / Moved to another time = attended / no_show / unreachable / rescheduled), ONE nudge 3 h later. Clause 8.4 (feedback firewall, 2026-10-06): broker feedback = attended / could be contacted ONLY; no disposition, quality or voice note is asked or stored ("Disposition ask" emits nothing, "Voice note reference" stores nothing). Couldn\'t reach them -> outcome unreachable after the lead\'s reach window (no lead message, no CAPI, no W13, no W10; lead "Yes" -> console dispute). Unmarked at 24 h -> attended + auto_marked + unconfirmed (flagged in the console; two in a cycle -> Jonathan calls the broker). W11 keeps its 24-h backstop (ON CONFLICT (booking_id) DO NOTHING on both sides).\n' +
     'Lead side: reach_check at slot end + 30 min. Broker "No-show" counts only after the lead stays silent for the 2-h reach window; lead "No, not yet" waits for the broker (R6-03): still unmarked at broker_nudge_at = BROKER no-show (Schedule D: lines.mjs BROKER_NO_SHOW_APOLOGY, W10 rebook at our cost, KG alerted, never a replacement); a broker Attended / Rescheduled / No-show against it = conflict for KG in the console, nothing to the lead; Unreachable/wrong number = normal W13 path. Sides disagree -> console queue, nothing guessed.\n' +
-    'Writes: outcomes (one row per booking, first writer wins), appointments.status, leads.stage, lead_activities timeline (w12:mark / w12:reach rows, last tap wins per CONTRACTS). Calls: W29 outcome_recorded (every outcome; pulse/facts, quality index), CAPI Send Attended (I-51b: held until the lead answered or her 2.5-h window closed; held on a lead "No" until KG decides via op kg_decision; never on Unreachable; w12:capi_hold / w12:capi_release rows), W13 no_show (missed_you + 48-h clock), W10 rebook. Voice note (op voice_note): only the WhatsApp media reference is stored (outcomes.voice_note_url = whatsapp-media:{id}).\n' +
+    'Writes: outcomes (one row per booking, first writer wins), appointments.status, leads.stage, lead_activities timeline (w12:mark / w12:reach rows, last tap wins per CONTRACTS). Calls: W29 outcome_recorded (every outcome; pulse/facts, quality index), CAPI Send Attended (I-51b: held until the lead answered or her 2.5-h window closed; held on a lead "No" until KG decides via op kg_decision; never on Unreachable; w12:capi_hold / w12:capi_release rows), W13 no_show (missed_you + 48-h clock), W10 rebook. Voice note (op voice_note): RETIRED (clause 8.4), nothing stored.\n' +
     'Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation. Env: DRY_RUN_SENDS, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TEST_HOOKS_ENABLED.');
 
   const tSub = trigger('Called by W07 / W11 / portal', [0, 0]);
@@ -606,14 +606,12 @@ SELECT o.id AS outcome_id, o.booking_id, o.lead_id, o.marked_at AS confirmed_at 
     "={{ [$('Classify + validate (w12.classifyOp)').item.json.booking_id] }}");
   link(attTap, dispLoad, 0); link(sw, dispLoad, 5);
   const disp = code('Disposition ask (w12.dispositionItem)', [7, 2], IMPORT('w12') +
-`const c = $('Classify + validate (w12.classifyOp)').first().json;
+`// RETIRED 2026-10-06 (agreement clause 8.4, feedback firewall): no disposition / quality is asked after an Attended
+// tap or a portal 'feedback' op. w12.dispositionItem() returns null, so this node emits nothing.
 const out = [];
 for (const it of $input.all()) {
-  const r = it.json;
-  if (!r.booking_id || r.already_dispositioned) continue;
-  // an Attended tap opened the broker's 24-h window (the list); a portal/console 'feedback' op uses his last inbound
-  const last = c.op === 'broker_tap' ? Date.parse(c.now_iso) : (r.broker_last_inbound_at ? Date.parse(r.broker_last_inbound_at) : NaN);
-  out.push({ json: L.dispositionItem(r, Date.parse(c.now_iso), last) });
+  const x = L.dispositionItem(it.json);
+  if (x) out.push({ json: x });
 }
 return out;`, 'runOnceForAllItems');
   link(dispLoad, disp);
