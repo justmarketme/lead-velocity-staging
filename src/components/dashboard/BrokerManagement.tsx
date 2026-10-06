@@ -384,7 +384,6 @@ const BrokerDrawer = ({
           },
         },
         headers: {
-          "x-gemini-key": (import.meta as any).env?.VITE_GEMINI_API_KEY || "",
           "x-openrouter-key": (import.meta as any).env?.VITE_OPENROUTER_API_KEY || "",
         },
       });

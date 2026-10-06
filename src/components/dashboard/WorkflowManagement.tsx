@@ -1850,7 +1850,6 @@ const PipelineCoach = ({ leadsByStage, totalLeads }: { leadsByStage: Record<stri
       const { data, error } = await supabase.functions.invoke("crm-coach", {
         body: { mode: "lead_pipeline", context: { mode: "lead_pipeline", total_leads: totalLeads, stage_counts: stageCounts } },
         headers: {
-          "x-gemini-key": (import.meta as any).env?.VITE_GEMINI_API_KEY || "",
           "x-openrouter-key": (import.meta as any).env?.VITE_OPENROUTER_API_KEY || "",
         },
       });
