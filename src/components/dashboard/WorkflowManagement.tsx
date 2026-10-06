@@ -1100,6 +1100,9 @@ const WorkflowManagement = () => {
           </Card>
         )}
 
+        {/* Einstein — proactive read on the lead pipeline */}
+        <PipelineCoach leadsByStage={leadsByStage} totalLeads={filteredLeads.length} />
+
         {/* Pipeline Grid View */}
         {viewMode === "grid" && (
           <DragDropContext onDragEnd={handleDragEnd}>
@@ -1826,6 +1829,74 @@ const WorkflowManagement = () => {
         />
       </div>
     </TooltipProvider>
+  );
+};
+
+// ── Einstein: proactive read on the lead-sourcing pipeline ──────────────────
+// Auto-runs when the board loads. Hormozi/Brunson framing, admin-only function.
+const PipelineCoach = ({ leadsByStage, totalLeads }: { leadsByStage: Record<string, any[]>; totalLeads: number }) => {
+  const [coach, setCoach] = useState<{ headline?: string; suggestions?: { action: string; why: string }[]; script?: string } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const stageCounts = useMemo(
+    () => Object.entries(leadsByStage || {}).map(([stage, arr]) => ({ stage, count: (arr || []).length })),
+    [leadsByStage],
+  );
+
+  const run = async () => {
+    setLoading(true); setErr(null); setCoach(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("crm-coach", {
+        body: { mode: "lead_pipeline", context: { mode: "lead_pipeline", total_leads: totalLeads, stage_counts: stageCounts } },
+        headers: {
+          "x-gemini-key": (import.meta as any).env?.VITE_GEMINI_API_KEY || "",
+          "x-openrouter-key": (import.meta as any).env?.VITE_OPENROUTER_API_KEY || "",
+        },
+      });
+      if (error) throw new Error(error.message);
+      if ((data as any)?.success === false) throw new Error((data as any).error || "Coach unavailable");
+      setCoach(data as any);
+    } catch (e: any) {
+      setErr(e.message || "Couldn't reach Einstein");
+    } finally { setLoading(false); }
+  };
+
+  useEffect(() => { if (totalLeads > 0) run(); /* eslint-disable-next-line */ }, [totalLeads]);
+
+  return (
+    <Card className="border-primary/30 bg-primary/5">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" /> Einstein — your pipeline read
+          </h3>
+          <Button size="sm" variant="ghost" className="h-7 text-xs" disabled={loading} onClick={run}>
+            {loading ? "Thinking…" : "Refresh"}
+          </Button>
+        </div>
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Reading your pipeline…</p>
+        ) : err ? (
+          <p className="text-sm text-muted-foreground">Einstein unavailable — {err}</p>
+        ) : coach ? (
+          <div className="space-y-3">
+            {coach.headline && <p className="text-sm font-medium">{coach.headline}</p>}
+            {(coach.suggestions || []).map((s, i) => (
+              <div key={i} className="flex gap-2">
+                <span className="text-primary font-bold text-xs mt-0.5">{i + 1}.</span>
+                <div>
+                  <p className="text-sm font-medium">{s.action}</p>
+                  <p className="text-xs text-muted-foreground">{s.why}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">No read yet.</p>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 

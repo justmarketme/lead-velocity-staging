@@ -311,8 +311,12 @@ const BrokerOnboarding = () => {
 
             console.log("Analysis saved successfully");
 
-            // 4. Trigger AI Analysis (placeholder)
-            console.log("Triggering AI analysis for:", newResponseId);
+            // 4. Fire-and-forget: confirmation email to the broker + internal
+            // alert to howzit@. Never block the success UX on email delivery.
+            supabase.functions
+                .invoke("send-onboarding-notification", { body: { responseId: newResponseId } })
+                .then(({ error }) => { if (error) console.error("onboarding email error:", error); })
+                .catch((e) => console.error("onboarding email invoke failed:", e));
 
 
             setSubmitted(true);

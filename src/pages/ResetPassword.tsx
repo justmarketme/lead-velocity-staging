@@ -134,6 +134,14 @@ const ResetPassword = () => {
           variant: "destructive",
         });
       } else {
+        // Clear the forced-reset flag so the broker isn't bounced back here on next login.
+        const { error: flagError } = await supabase.auth.updateUser({
+          data: { must_reset_password: false },
+        });
+        if (flagError) {
+          console.error("Failed to clear must_reset_password flag:", flagError);
+        }
+
         toast({
           title: "Password Updated",
           description: "Your password has been reset successfully. Please log in with your new password.",

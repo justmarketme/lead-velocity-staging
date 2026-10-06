@@ -66,6 +66,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { AyandaCallModal } from "./AyandaCallModal";
+import { synthesizeLeads, Lead } from "@/lib/ai-service";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -200,17 +201,20 @@ const MarketingHub = () => {
                 clearInterval(logInterval);
             }
         }, 1000);
-
         try {
+            console.log("Acquiring leads for:", { industry, targetGeos, searchIntent });
+
             const { data, error } = await supabase.functions.invoke('marketing-ai', {
                 body: { 
-                    action: 'prospect-leads', 
-                    payload: { 
-                        industry: industry,
+                    action: 'prospect-leads',
+                    payload: {
+                        industry,
                         geos: targetGeos,
                         intent: searchIntent,
-                        provider: scraperProvider,
-                        leads: detectedLeads
+                        keys: {
+                            tavily: import.meta.env.VITE_TAVILY_API_KEY,
+                            openrouter: import.meta.env.VITE_OPENROUTER_API_KEY
+                        }
                     }
                 },
                 headers: {
@@ -226,17 +230,28 @@ const MarketingHub = () => {
 
             setDetectedLeads(Array.isArray(leads) ? leads : []);
             setResearchContext(context);
-            setIsTransferred(false); // New set of leads, not yet transferred
+            setIsTransferred(false); 
 
             toast({
-                title: "Prospecting Sequence Complete",
-                description: `${(Array.isArray(leads) ? leads : []).length} leads synthesized. Check the Neural Context tab.`,
+                title: "Neural Link Synchronized",
+                description: `${(Array.isArray(leads) ? leads : []).length} leads synthesized via Einstein Data Engine.`,
             });
         } catch (error: any) {
-            console.error("Scraper logic error:", error);
+            console.error("Neural Link Error Details:", {
+              message: error.message,
+              details: error.details,
+              hint: error.hint,
+              code: error.code
+            });
+            
+            let displayMessage = error.message || "The data engine encountered static.";
+            if (displayMessage.includes("Unexpected end of JSON input")) {
+                displayMessage = "Neural Link timed out or returned an empty matrix. Retrying in stealth mode might help.";
+            }
+
             toast({ 
               title: "Neural Link Error", 
-              description: error.message || "The data engine encountered static.", 
+              description: displayMessage, 
               variant: "destructive" 
             });
         } finally {

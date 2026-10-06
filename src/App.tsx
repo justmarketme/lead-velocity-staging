@@ -15,6 +15,7 @@ import Dashboard from "./pages/Dashboard";
 import BrokerPortal from "./pages/BrokerPortal";
 import BrokerDashboard from "./pages/broker/BrokerDashboard";
 import BrokerLeads from "./pages/broker/BrokerLeads";
+import BrokerOrders from "./pages/broker/BrokerOrders";
 import BrokerUpload from "./pages/broker/BrokerUpload";
 import BrokerReports from "./pages/broker/BrokerReports";
 import BrokerDocuments from "./pages/broker/BrokerDocuments";
@@ -29,6 +30,7 @@ import BrokerOnboarding from "./pages/BrokerOnboarding";
 import Pricing from "./pages/Pricing";
 import PremiumBrokerPortalPage from "./pages/PremiumBrokerPortalPage";
 import BrokerProfile from "./pages/broker/BrokerProfile";
+import Explainer from "./pages/broker/Explainer";
 
 import { HelmetProvider } from "react-helmet-async";
 import { lazy, Suspense, type ReactNode } from "react";
@@ -92,13 +94,15 @@ const App = () => {
             <Route path="/admin" element={<AdminLogin />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/broker/dashboard" element={<BrokerDashboard />} />
-            <Route path="/broker/leads" element={shared(<PortalLeads />, <BrokerLeads />)} />
+            <Route path="/broker/leads" element={shared(<PortalLeads />, <Navigate to="/broker/orders" replace />)} />
+            <Route path="/broker/orders" element={<BrokerOrders />} />
             <Route path="/broker/upload" element={<BrokerUpload />} />
             <Route path="/broker/documents" element={<BrokerDocuments />} />
             <Route path="/broker/referrals" element={<BrokerReferrals />} />
             <Route path="/broker/calendar" element={shared(<PortalCalendar />, <BrokerCalendar />)} />
             <Route path="/broker/reports" element={shared(<PortalReports />, <BrokerReports />)} />
             <Route path="/broker/profile" element={shared(<PortalProfile />, <BrokerProfile />)} />
+            <Route path="/broker/explainer" element={<Explainer />} />
             <Route path="/invite/:token" element={<InviteSignup />} />
             <Route path="/broker-setup/:token" element={<BrokerSetup />} />
             <Route path="/broker/forgot-password" element={<BrokerForgotPassword />} />
