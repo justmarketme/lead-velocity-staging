@@ -59,7 +59,11 @@ for (const key of ['weekly_close_rate', 'weekly_no_close_rate']) {
 }
 
 test('(2c) portal Reports tab reads the same payload and computes no figures of its own', () => {
-  for (const f of ['s2.delivered.v', 's2.delivered.committed', 's2.booked.v', 's2.attended.v', 's2.show_rate.v', 's2.replacements.used', 's2.replacements.cap', 'p.s1_one_line']) assert.ok(TSX.includes(`{${f}}`) || TSX.includes(`${f}`), f);
+  // ux-sprint-1 (crm-ux-synthesis S4): "delivered of committed" and the replacement counter moved into the shared
+  // CycleCard (one query for Today, My leads and Reports; clause 5.2 delivered, clause 7.2 weekly requests), so the
+  // page no longer prints s2.delivered / s2.replacements itself. The weekly figures still come from the payload.
+  assert.match(TSX, /<CycleCard \/>/, 'section 2 is the shared CycleCard');
+  for (const f of ['s2.booked.v', 's2.attended.v', 's2.show_rate.v', 'p.s1_one_line']) assert.ok(TSX.includes(`{${f}}`) || TSX.includes(`${f}`), f);
   assert.match(TSX, /smcDb\.from\("reports"\)\.select\("\*"\)/, 'one reports row feeds the page');
   assert.doesNotMatch(TSX, /\.reduce\(|\.filter\([^)]*attended|\/ *s2\.attended/, 'no recomputed rates');
   assert.ok(TSX.includes('p.s1_one_line'));
@@ -70,7 +74,15 @@ test('(3a) one-ask: every code the SQL selector can emit has a portal destinatio
   const emitted = [...SQL.matchAll(/when '([a-z_]+)' then jsonb_build_object\('code'/g)].map((m) => m[1]);
   assert.ok(emitted.length >= 7, `found ${emitted}`); assert.ok(codes.length > 0);
   const map = TSX.slice(TSX.indexOf('ASK_ROUTE'), TSX.indexOf('const light'));
-  for (const c of emitted) assert.match(map, new RegExp(`\\b${c}:`), `ASK_ROUTE covers ${c}`);
+  // ux-sprint-1 (agreement clause 8.4): asks that collect outcome data (close rate, follow-ups) are retired in the
+  // portal: never routed, never shown. Every other code still needs a destination.
+  const retired = ['add_close_rate', 'followup_due'];
+  for (const c of retired) {
+    assert.ok(map.includes(`"${c}"`) && /RETIRED_ASKS = new Set/.test(map), `${c} is listed in RETIRED_ASKS`);
+    assert.doesNotMatch(map, new RegExp(`\\b${c}:`), `${c} has no route`);
+  }
+  assert.match(TSX, /!RETIRED_ASKS\.has\(p\.s7_ask\.code\)/, 'a retired ask is never shown');
+  for (const c of emitted.filter((x) => !retired.includes(x))) assert.match(map, new RegExp(`\\b${c}:`), `ASK_ROUTE covers ${c}`);
 });
 
 test('(3b) one-ask: WhatsApp "Do it now" and email button carry the same deep link; portal resolves it; the tap marks it done', () => {

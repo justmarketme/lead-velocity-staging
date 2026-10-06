@@ -8,7 +8,8 @@
 import { useEffect, useState } from "react";
 import PortalShell, { StepClip, usePortal } from "./PortalShell";
 import { CHECKOUT_URL, CLIPS_BASE, PAYSTACK_ENABLED, errText, fmtDay, fmtDayTime, fmtZar, portalEvent, postWebhook, sha256Hex, smcDb } from "@/lib/smc";
-import { TERMS } from "@/lib/pricing";
+import { TERMS, TOPUP_TEXT } from "@/lib/pricing";
+import { TopUpSheet } from "./CycleCard";
 import { AGREEMENT_STRUCTURE } from "@/lib/contract/agreement";
 import type { SmcAdminDocument, SmcAgreementAcceptances, SmcCycle, SmcInvoice, SmcPricing, SmcSignDocumentArgs } from "@/integrations/supabase/smc-types";
 
@@ -36,6 +37,7 @@ function Body() {
   const [docs, setDocs] = useState<SmcAdminDocument[]>([]);
   const [cycles, setCycles] = useState<SmcCycle[]>([]);
   const [tiers, setTiers] = useState<SmcPricing[]>([]);
+  const [topup, setTopup] = useState(false);
   const [invoices, setInvoices] = useState<SmcInvoice[]>([]);
   const [read, setRead] = useState(false);
   // Clause 17.3 (Client Materials) is a term of the agreement, so it is accepted with the main tick and stored
@@ -125,7 +127,8 @@ function Body() {
           <li>One flat price per cycle, never linked to policies, premiums or sales. No commission, ever.</li>
           <li>Month to month. Cancel with {TERMS.cancel_notice_days} days' written notice before your next cycle. If you don't pay for the next cycle, the agreement simply ends.</li>
           <li>We won't give the same consumer's enquiry to another broker. We keep the campaign data, pages, ad accounts and consent records.</li>
-          <li>No-show replacements are goodwill, not a right: up to {TERMS.goodwill_replacements_per_week} requests a week, with proof.</li>
+          <li>No-show replacements are goodwill, not a right: no-shows only, up to {TERMS.goodwill_replacements_per_week} requests a week, with proof sent within 30 minutes of the start time.</li>
+          <li>You tell us only whether each lead attended and could be reached. Nothing about advice, sales, policies or premiums.</li>
           <li>Shortfall: we deliver the balance within {TERMS.shortfall_rollover_days} days after the cycle. Anything still owed carries into your next paid cycle, or is refunded if you stop.</li>
         </ul>
         {!agreement && <p className="alert">Your agreement is being prepared. We'll message you on WhatsApp when it's ready to sign.</p>}
@@ -199,6 +202,10 @@ function Body() {
             </div>
           </>
         )}
+        <h3 style={{ marginTop: 12 }}>Need more leads this cycle?</h3>
+        <p className="muted" style={{ margin: "0 0 8px" }}>{TOPUP_TEXT}</p>
+        <button className="btn ghost" type="button" onClick={() => setTopup(true)}>Request a top-up</button>
+        <TopUpSheet open={topup} onClose={() => setTopup(false)} />
         {err && signed && <p className="err">{err}</p>}
       </section>
     </>

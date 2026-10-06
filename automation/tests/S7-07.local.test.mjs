@@ -58,7 +58,10 @@ test('S7-07 local: W14 from the synthetic cycle; WhatsApp 6-liner, Reports tab a
   // ---- (2) the Reports tab reads public.reports.payload_json for that row (no figures of its own)
   const viewP = JSON.parse(q(`SELECT payload_json FROM public.reports WHERE id = '${reportId}'`)[0][0]);
   assert.deepEqual(viewP, P, 'Reports tab payload === generated payload');
-  for (const f of ['s2.delivered.v', 's2.delivered.committed', 's2.booked.v', 's2.attended.v', 's2.show_rate.v', 's2.replacements.used', 's2.replacements.cap']) assert.ok(TSX.includes(f), `Reports.tsx renders ${f}`);
+  // ux-sprint-1 (crm-ux-synthesis S4): delivered-of-committed and the replacement counter are rendered by the shared
+  // CycleCard (v_cycle_progress, clause 5.2 / 7.2), not from the payload; the weekly figures still come from it.
+  assert.match(TSX, /<CycleCard \/>/, 'Reports.tsx renders the shared CycleCard');
+  for (const f of ['s2.booked.v', 's2.attended.v', 's2.show_rate.v']) assert.ok(TSX.includes(f), `Reports.tsx renders ${f}`);
   const s2 = viewP.s2_progress;
 
   // ---- (3) the WhatsApp 6-liner from the same stored row

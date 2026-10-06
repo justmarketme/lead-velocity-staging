@@ -26,10 +26,12 @@ export type SmcOnboardingProgress = Partial<Record<SmcStepKey, SmcStepState>>;
 export type SmcMethod = "teams" | "zoom" | "meet" | "whatsapp_call" | "phone";
 export type SmcMeetingHours = Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", [string, string][]>>;
 
-/** 4.12a disposition codes (enum public.smc_disposition_code). */
-export type SmcDispositionCode =
-  | "fit_proceeding" | "fit_followup" | "nofit_budget" | "nofit_covered" | "nofit_criteria" | "unreachable";
-export type SmcOutcomeKind = "attended" | "no_show" | "rescheduled" | "broker_no_show";
+/**
+ * Agreement clause 8.4 (feedback firewall): the broker tells us only whether the consumer attended and could be
+ * contacted. "unreachable" needs migration 20261006_smc_18 (outcomes CHECK). The retired outcome-label, rating and
+ * ROI columns stay in the database for history but are deliberately not typed here, so nothing in src/ can write them.
+ */
+export type SmcOutcomeKind = "attended" | "no_show" | "unreachable" | "rescheduled" | "broker_no_show";
 
 export interface SmcFspCheck {
   status?: "verified" | "blocked" | "pending_manual" | "checking" | string;
@@ -56,7 +58,7 @@ export interface SmcBroker {
   intro_media_pref: string | null; consent_mode: "named" | "generic";
   onboarding_step: SmcStepKey | null; onboarding_progress: SmcOnboardingProgress;
   explainer_watched_at: Ts | null; approved_live_at: Ts | null; status_changed_at: Ts | null;
-  card_autorenew: boolean; close_rate: number | null; avg_commission_zar: number | null;
+  card_autorenew: boolean;
   current_cycle_id: Uuid | null; active: boolean;
   // smc_06 pass 2
   first_login_at: Ts | null; last_seen_at: Ts | null; onboarding_completed_at: Ts | null;
@@ -78,7 +80,7 @@ export type SmcBrokerSelfUpdate = Partial<Pick<SmcBroker,
   | "languages" | "years_advising" | "practice_legal_name" | "signatory_name" | "signatory_role" | "fb_page_name"
   | "fb_page_id" | "meeting_hours" | "methods_supported" | "max_meetings_per_day" | "max_meetings_per_week"
   | "slot_minutes" | "buffer_minutes" | "min_notice_hours" | "horizon_days" | "bookings_paused"
-  | "close_rate" | "avg_commission_zar" | "intro_media_pref">>;
+  | "intro_media_pref">>;
 
 export interface SmcPricing {
   tier_code: string; brand_id: Uuid | null; name: string; price_zar: number; committed_leads: number;
@@ -92,7 +94,7 @@ export interface SmcCycle {
   starts_at: Ts | null; ends_at: Ts | null; extended_until: Ts | null;
   status: "scheduled" | "active" | "extended" | "closed" | "not_renewed";
   renewal_offer_sent_at: Ts | null; renewal_decision: string | null; shortfall_leads: number | null;
-  shortfall_credit_zar: number | null; policies_written_reported: number | null; invoice_id?: Uuid | null;
+  shortfall_credit_zar: number | null; invoice_id?: Uuid | null;
 }
 
 /** leads (INV-T04 extended). Broker sees own rows via RLS; full names only inside the portal (portal rule 6). */
@@ -113,24 +115,26 @@ export interface SmcBooking {
   starts_at: Ts; ends_at: Ts | null; method: SmcMethod; status: "booked" | "confirmed" | "rescheduled" | "cancelled" | "attended" | "no_show";
   calendar_provider: string | null; graph_event_id: string | null; join_url: string | null; ics_url: string | null;
   call_number: string | null; source: string | null; booked_at: Ts | null; confirmed_at: Ts | null;
-  cancelled_at: Ts | null; reschedule_count: number; intro_arm: string | null; late_booking: boolean;
+  cancelled_at: Ts | null; reschedule_count: number; previous_booking_id?: Uuid | null; intro_arm: string | null; late_booking: boolean;
 }
 
 export interface SmcOutcome {
   id: Uuid; booking_id: Uuid; lead_id: Uuid; broker_id: Uuid; cycle_id: Uuid | null; brand_id: Uuid;
-  outcome: SmcOutcomeKind; disposition_code: SmcDispositionCode | null; quality_score: number | null;
-  voice_note_url: string | null; summary: string | null; lead_reach_check: "yes" | "no" | "none" | null;
+  outcome: SmcOutcomeKind; lead_reach_check: "yes" | "no" | "none" | null;
   marked_by: Uuid | null; marked_via: "whatsapp" | "portal" | "console" | "auto" | null; marked_at: Ts;
   auto_marked: boolean; unconfirmed: boolean; dispute_status: "none" | "open" | "upheld" | "rejected";
   replacement_eligible: boolean;
 }
 export type SmcOutcomeInsert = Pick<SmcOutcome, "booking_id" | "lead_id" | "broker_id" | "brand_id" | "outcome"> &
-  Partial<Pick<SmcOutcome, "cycle_id" | "disposition_code" | "quality_score" | "marked_by" | "marked_via" | "unconfirmed" | "auto_marked">>;
+  Partial<Pick<SmcOutcome, "cycle_id" | "marked_by" | "marked_via" | "unconfirmed" | "auto_marked">>;
 
 export interface SmcReplacement {
   id: Uuid; lead_id: Uuid; outcome_id: Uuid | null; cycle_id: Uuid; broker_id: Uuid;
   reason: "no_show" | "uncontactable" | "disqualified"; status: "due" | "disputed" | "approved" | "rejected" | "fulfilled";
   claimed_at: Ts; dispute_window_ends_at: Ts; cap_position: number | null; over_cap: boolean;
+  decided_at?: Ts | null; replacement_lead_id?: Uuid | null;
+  /** migration 20261006_smc_18 (Schedule 3); undefined until applied. */
+  booking_id?: Uuid | null; missed_start_at?: Ts | null; proof_path?: string | null; proof_sent_at?: Ts | null;
 }
 
 export interface SmcInvoice {
@@ -202,19 +206,16 @@ export interface SmcReportPayload {
     replacements: { used: number; cap: number; last_used?: number; light?: string }; days_left: number };
   s3_meetings?: {
     last_week: { lead_ref?: string; first_name: string; initial: string; full_name?: string; when: Ts; method: string;
-      outcome: string | null; unconfirmed?: boolean; disposition?: SmcDispositionCode | null; quality?: number | null; booking_id?: Uuid }[];
+      outcome: string | null; unconfirmed?: boolean; booking_id?: Uuid }[];
     next_week: { first_name: string; initial: string; when: Ts; method: string }[];
     todos: { unmarked: { booking_id: Uuid; first_name: string; initial: string }[];
-      followups_due: { first_name: string; initial: string; due: DateStr }[];
       not_reached: { first_name: string; initial: string }[] };
   };
-  s4_quality?: { avg_rating: SmcFig; ratings_given: SmcFig; mix: Partial<Record<SmcDispositionCode, number>>;
-    themes: { text: string; count: number; of: number }[];
+  /** Only the lead-side parts are read (themes, lead_pulse). Rating / outcome-mix keys are retired (clause 8.4). */
+  s4_quality?: { themes?: { text: string; count: number; of: number }[];
     /** I-43c: per cycle, steps of 5 answers, no week-on-week; shown=false under 5 answers. */
     lead_pulse?: { shown: boolean; n: number | null; up: number | null; text: string } };
   s5_notice?: string[];
-  s6_roi?: { shown: boolean; close_rate: number | null; policies_reported: number | null; tracking_to: number | null;
-    basis?: Record<string, number | null>; meetings_to_policies?: SmcFig };
   s7_ask?: { code: string; text: string; button: string; deep_link: string } | null;
   s8_cycle?: { line: string };
 }
@@ -223,7 +224,9 @@ export interface SmcReportPayload {
 export interface SmcCycleProgress {
   cycle_id: Uuid; broker_id: Uuid; brand_id: Uuid; tier_code: string; cycle_no: number; status: SmcCycle["status"];
   starts_at: Ts | null; ends_at: Ts | null; extended_until: Ts | null; committed: number; verified: number;
-  booked: number; attended: number; good_fit: number; replacements_used: number; replacement_cap: number; days_left: number;
+  booked: number; attended: number; replacements_used: number; replacement_cap: number; days_left: number;
+  /** migration 20261006_smc_18: clause 5.2 delivered + weekly replacement requests. Undefined until applied. */
+  delivered?: number; replacement_requests_this_week?: number; replacement_weekly_max?: number;
 }
 
 // ---------------------------------------------------------------- ops schema (admin only; NH-22 exposes `ops`)
@@ -302,8 +305,6 @@ export interface SmcSignDocumentArgs {
   p_document_id: Uuid; p_signed_by_name: string; p_doc_sha256: string; p_signer_ip: null; p_user_agent: string;
   p_acceptances?: SmcAgreementAcceptances | null;
 }
-/** public.smc_report_policies_written(p_count, p_cycle_id?) → cycle id written. Broker's own cycle only; 0–1000. */
-export interface SmcReportPoliciesWrittenArgs { p_count: number; p_cycle_id?: Uuid | null }
 
 /** Row of public.smc_faculty_tiles(p_days = 28, p_include_synthetic = false) — admin only, over facts.pulse_daily. */
 export interface FacultyTile {

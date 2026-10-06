@@ -10,12 +10,13 @@ import { CLIPS_BASE, SUPPORT_EMAIL, SUPPORT_WA, errText, portalEvent } from "@/l
 const CLIPS: [string, string, string][] = [
   ["Your details and FSP check", "0:35", "profile"], ["Connect your calendar", "0:40", "calendar"], ["Hours, methods, how many", "0:35", "availability"],
   ["Your intro card", "0:30", "intro-card"], ["Record your intro", "0:40", "intro-media"], ["Signing and paying", "0:35", "agreement"],
-  ["Marking outcomes", "0:35", "outcomes"], ["Your weekly report", "0:30", "reports"],
+  ["Marking meetings", "0:35", "outcomes"], ["Your weekly report", "0:30", "reports"],
 ];
 const FAQ: [string, string, string?][] = [
   ["When do leads start?", "When your steps are done and Jonathan taps Go live. We tell you on WhatsApp the moment it happens."],
-  ["What do I do when a lead does not show?", "Mark No-show (or leave it; we ask you after the meeting). A no-show we confirm becomes a replacement, up to your cycle limit."],
-  ["What counts as a replacement?", "A no-show, a number we cannot reach, or a lead outside the age or budget we agreed. Not \"did not buy\". Disputes are looked at within 48 hours.", "replacements"],
+  ["What do I tell you after a meeting?", "Only one thing, with one tap: Met them, No-show, Couldn't reach them, or Moved to another time. We never ask what was discussed, whether they bought, or anything about policies or premiums (agreement clause 8.4)."],
+  ["What do I do when a lead does not show?", "Wait 10 minutes in the meeting. Then tap No-show and send a photo or screenshot that shows the time (no people, no address) within 30 minutes of the start time. Late or no proof: the lead still counts as delivered."],
+  ["Will I get a replacement for a no-show?", "Maybe. Replacements are goodwill, not a right: no-shows only, up to 3 requests a week (Monday to Sunday), with proof. We check with the lead and tell you on WhatsApp what we decided. \"Couldn't reach them\" and \"did not buy\" are never replacement reasons.", "replacements"],
   ["Can I change my hours or pause?", "Yes, any time, on the Calendar page. Meetings already booked stay booked."],
   ["Who owns the leads?", "You use delivered leads exclusively. We keep the campaign, pages, ad account and anonymous results."],
   ["Does the price change if I write more policies?", "No. One flat price per 30-day cycle. It never depends on policies."],

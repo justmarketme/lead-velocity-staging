@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import type { SmcBroker, SmcDispositionCode, SmcMethod, SmcStepKey, SmcOnboardingProgress, OpsFaculty } from "@/integrations/supabase/smc-types";
+import type { SmcBroker, SmcMethod, SmcStepKey, SmcOnboardingProgress, OpsFaculty } from "@/integrations/supabase/smc-types";
 
 const env = import.meta.env;
 
@@ -109,16 +109,8 @@ export async function sha256Hex(data: ArrayBuffer | string): Promise<string> {
   return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-// ---------------------------------------------------------------- vocab (4.12a, NH-19 labels — same words as WhatsApp + Schedule C)
-export const DISPOSITIONS: { code: SmcDispositionCode; label: string; replacementEligible: boolean }[] = [
-  { code: "fit_proceeding", label: "Good fit – proceeding", replacementEligible: false },
-  { code: "fit_followup", label: "Good fit – follow-up", replacementEligible: false },
-  { code: "nofit_budget", label: "Not a fit – budget", replacementEligible: false },
-  { code: "nofit_covered", label: "Not a fit – well covered", replacementEligible: false },
-  { code: "nofit_criteria", label: "Not a fit – criteria", replacementEligible: true },
-  { code: "unreachable", label: "Unreachable/wrong number", replacementEligible: true },
-];
-export const dispositionLabel = (c: string | null | undefined) => DISPOSITIONS.find((d) => d.code === c)?.label || "";
+// ---------------------------------------------------------------- vocab
+// Broker feedback is attendance and contactability only (agreement clause 8.4): the four answers live in src/lib/smcRules.ts (MARKS).
 
 export const METHOD_LABEL: Record<SmcMethod, string> = {
   teams: "Teams", zoom: "Zoom", meet: "Google Meet", whatsapp_call: "WhatsApp call", phone: "Phone",

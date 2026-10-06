@@ -54,11 +54,21 @@ const PortalAgreement = lazy(() => import("./pages/portal/Agreement"));
 const PortalLeads = lazy(() => import("./pages/portal/Leads"));
 const PortalReports = lazy(() => import("./pages/portal/Reports"));
 const PortalHelp = lazy(() => import("./pages/portal/Help"));
+const PortalToday = lazy(() => import("./pages/portal/Today"));
+const PortalLeadRecord = lazy(() => import("./pages/portal/LeadRecord"));
+const PortalMore = lazy(() => import("./pages/portal/More"));
+const SmcHome = lazy(() => import("./pages/portal/More").then((m) => ({ default: m.SmcHome })));
 const SmcBrokerSwitch = lazy(() => import("./pages/portal/SmcBrokerSwitch"));
 /** /s/* short links from WhatsApp template buttons: keep ?day=… etc. and land on the portal route (auth + broker switch apply there). */
 function SmcShortLink({ to }: { to: string }) {
   const { search } = useLocation();
   return <Navigate to={`${to}${search}`} replace />;
+}
+/** broker_new_booking "Open in portal" button: app.leadvelocity.co.za/l/<lead_id> opens the lead record. */
+function SmcLeadLink() {
+  const { id } = useParams();
+  const { search } = useLocation();
+  return <Navigate to={`/broker/leads/${encodeURIComponent(id || "")}${search}`} replace />;
 }
 /** Report buttons (WhatsApp/email): r/<week key> opens the report, ask/<week key> goes to the ask's screen. */
 function SmcReportLink({ ask }: { ask?: boolean }) {
@@ -91,7 +101,7 @@ const App = () => {
             <Route path="/login" element={<Login />} />
             <Route path="/admin" element={<AdminLogin />} />
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/broker/dashboard" element={<BrokerDashboard />} />
+            <Route path="/broker/dashboard" element={shared(<SmcHome />, <BrokerDashboard />)} />
             <Route path="/broker/leads" element={shared(<PortalLeads />, <BrokerLeads />)} />
             <Route path="/broker/upload" element={<BrokerUpload />} />
             <Route path="/broker/documents" element={<BrokerDocuments />} />
@@ -119,6 +129,13 @@ const App = () => {
                 <Route path="/broker/agreement" element={smc(<PortalAgreement />)} />
                 <Route path="/broker/billing" element={smc(<PortalAgreement />)} />
                 <Route path="/broker/help" element={smc(<PortalHelp />)} />
+                <Route path="/broker/today" element={smc(<PortalToday />)} />
+                <Route path="/broker/more" element={smc(<PortalMore />)} />
+                <Route path="/broker/leads/:id" element={smc(<PortalLeadRecord />)} />
+                {/* WhatsApp buttons: broker_new_booking (l/<lead_id>), broker_onb_live (/leads), daily digest */}
+                <Route path="/l/:id" element={<SmcLeadLink />} />
+                <Route path="/leads" element={smc(<SmcHome />)} />
+                <Route path="/s/today" element={<SmcShortLink to="/broker/today" />} />
                 {/* WhatsApp template buttons (I-37c): short links on app.leadvelocity.co.za/s/* forward to the portal pages, query kept */}
                 <Route path="/s/calendar" element={<SmcShortLink to="/broker/calendar" />} />
                 <Route path="/s/billing" element={<SmcShortLink to="/broker/billing" />} />

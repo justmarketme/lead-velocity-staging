@@ -24,7 +24,7 @@ landing-build:
 
 test: landing-build
 	@echo "== workflows + billing + optimisation"
-	$(NODE) --test automation/tests/*.test.mjs automation/billing/*.test.js optimisation/workflows.test.js
+	$(NODE) --test automation/tests/*.test.mjs automation/billing/*.test.js optimisation/workflows.test.js src/lib/smcRules.test.mjs
 	@echo "== media (W23)"
 	cd automation/media && $(NODE) --test media.test.js w23-auth.test.js
 	@echo "== generators"
