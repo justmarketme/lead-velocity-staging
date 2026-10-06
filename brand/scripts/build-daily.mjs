@@ -19,59 +19,64 @@ const card = (hook, sub, p1 = ['', ''], p2 = ['', '']) => ({ layout: 'r4x5', hoo
 // Reel frames on reels-endcard.html: [seconds, line]. Lines <= ~17 chars (96 px); **bold** never spans a \n. End card added automatically.
 const END = [4.0, 'Sort your cover.\n30 minutes.\n**A real adviser.**'];
 
+// End cards (Jonathan, 6 Oct 2026 batch rules): the last card of each carousel carries the exact CTA sentence as its sub;
+// a single still that has no room for it swaps the footer line for a URL line (FOOT_URL). Reels end on END + the CTA pill.
+const FOOT_URL = 'Free call with a licensed adviser: sortmycover.co.za';
+const LAST_SUB = 'Pick a time for a free 30-minute call with a licensed adviser: sortmycover.co.za';
+
 const stills = {
   D06: [ // K01 tax season carousel, 5 cards
-    ['D06-K01-1-tax-deadline', card('Tax deadline:\n**23 October.**', 'SARS deadline for non-provisional taxpayers. The same pile of papers helps a cover check too.', ['Filing closes', '23 Oct 2026'], ['Set by', 'SARS'])],
-    ['D06-K01-2-payslip', card('1. The IRP5\n**and payslip.**', 'The payslip may show a line called group life, death benefit or risk benefit: cover through work.', ['For SARS', 'IRP5'], ['For cover', 'Group life'])],
-    ['D06-K01-3-bond', card('2. The bond\n**statement.**', 'It shows what is still owed on the home. An adviser asks about the bond and other debts.', ['Shows', 'Balance owed'], ['Also list', 'Other debts'])],
-    ['D06-K01-4-schedules', card('3. Policy\n**schedules.**', 'The pages that list cover already in place, and who the beneficiaries are.', ['Shows', 'Cover in place'], ['Also shows', 'Beneficiaries'])],
-    ['D06-K01-5-one-pile', card('One pile.\n**Two jobs done.**', 'Pick a time for a free 30-minute call with a licensed adviser at sortmycover.co.za', ['The call', 'Free, 30 min'], ['Decide', 'Later, or not'])],
+    ['D06-K01-1-tax-deadline', card('Tax deadline:\n**23 October.**', 'SARS deadline for non‑provisional taxpayers. The IRP5 in that pile helps a cover check too.', ['Filing closes', '23 Oct 2026'], ['Set by', 'SARS'])],
+    ['D06-K01-2-payslip', card('1. The IRP5\n**certificate.**', 'Code 3801 is used for several fringe benefits. They can include premiums an employer pays an insurer for staff cover.', ['Code 3801', 'Fringe benefits'], ['Can include', 'Staff cover'])],
+    ['D06-K01-3-bond', card('2. The bond\n**statement.**', 'The home-loan document. Before any advice, an adviser must ask about the client’s financial situation.', ['Document', 'Home loan'], ['Adviser asks about', 'Finances'])],
+    ['D06-K01-4-schedules', card('3. Policy\n**schedules.**', 'The pages that list cover already in place.', ['Shows', 'Cover in place'], ['Document', 'Policy schedule'])],
+    ['D06-K01-5-one-pile', card('One sitting.\n**Two jobs.**', LAST_SUB, ['The call', 'Free, 30 min'], ['Decide', 'Later, or not'])],
   ],
   D08: [ // K02 nomination-form myth carousel, 5 cards
-    ['D08-K02-1-myth', card('Myth: the form\n**decides.**', 'For a retirement fund, the beneficiary nomination form is a guide, not the final word.')],
-    ['D08-K02-2-trustees', card('Who decides?\n**The trustees.**', 'Section 37C of the Pension Funds Act tells trustees to share a death benefit fairly among dependants.', ['The law', 'Section 37C'], ['Decided by', 'Trustees'])],
-    ['D08-K02-3-look-at', card('What they\n**look at.**', 'Who depended on the member, and how much. Many families support more than one household.', ['Factor', 'Dependants'], ['Factor', 'Nomination'])],
-    ['D08-K02-4-12-months', card('The\n**12-month rule.**', 'If no dependant is found in 12 months and nobody was nominated, it goes to the estate.', ['Trace window', '12 months'], ['Then', 'The estate'])],
-    ['D08-K02-5-outside', card('Policies outside\n**a fund differ.**', 'Life policies held outside a retirement fund follow different rules. A licensed adviser can explain.')],
+    ['D08-K02-1-myth', card('Myth: the form\n**decides.**', 'For a fund under the Pension Funds Act, the beneficiary nomination form is a guide, not the final word.')],
+    ['D08-K02-2-trustees', card('Who decides?\n**The trustees.**', 'Section 37C tells trustees to share a death benefit fairly among dependants and any nominees.', ['The law', 'Section 37C'], ['Decided by', 'Trustees'])],
+    ['D08-K02-3-look-at', card('What they\n**look at.**', 'Who depended on the member at the date of death, and how much. Claims can come from more than one household.', ['Dependency', 'At death'], ['Also weighed', 'Nomination'])],
+    ['D08-K02-4-12-months', card('The\n**12-month rule.**', 'No dependant traced and no nominee: the estate. If no estate is reported: the Guardian’s Fund or an unclaimed benefit fund.', ['Trace window', '12 months'], ['Paid to', 'Estate or fund'])],
+    ['D08-K02-5-outside', card('Policies outside\n**a fund differ.**', LAST_SUB)],
   ],
-  D10: [ // S01 complaints single still
-    ['D10-S01-complaint-routes', card('Two free\n**complaint routes.**', 'One for insurers and banks. One for financial advisers. Both free for consumers.', ['Insurers, banks', 'The NFO'], ['Advisers', 'FAIS Ombud'])],
+  D10: [ // S01 complaints single still (footer line carries the URL: no room in the sub)
+    ['D10-S01-complaint-routes', { ...card('Two free\n**complaint routes.**', 'National Financial Ombud (NFO): insurers, banks and credit providers. FAIS Ombud: financial advisers. Both free.', ['Insurers, banks', 'The NFO'], ['Financial advisers', 'FAIS Ombud']), line: FOOT_URL }],
   ],
   D13: [ // K03 stokvel / burial society / life cover carousel, 5 cards
-    ['D13-K03-1-three-jobs', card('Three different\n**jobs.**', 'Stokvels, burial societies and life cover often get mixed up. Each one does something different.')],
-    ['D13-K03-2-stokvel', card('**Stokvel**', 'A group that saves together and pays out in turns or at year-end.', ['Members', '11 million+'], ['Source', 'NASASA, 2025'])],
-    ['D13-K03-3-burial-society', card('**Burial society**', 'A group that pools money to help members with funeral costs. It is a type of stokvel.')],
-    ['D13-K03-4-life-cover', card('**Life cover**', 'A policy that pays a lump sum to the people named on it when the insured person dies.')],
-    ['D13-K03-5-mix', card('Many families\n**use a mix.**', 'A licensed adviser can look at how they fit, on a free 30-minute call booked for a time that suits.')],
+    ['D13-K03-1-three-jobs', card('Three different\n**jobs.**', 'Stokvels, burial societies and life cover each do something different.')],
+    ['D13-K03-2-stokvel', card('**Stokvel**', 'A group that pools money for a shared goal. In some, members take turns to receive the pot.', ['Common types', 'Six'], ['Listed by', 'NASASA'])],
+    ['D13-K03-3-burial-society', card('**Burial society**', 'A type of stokvel that helps members with funeral costs and support during bereavement.')],
+    ['D13-K03-4-life-cover', card('**Life cover**', 'A policy that pays out when the insured person dies. With a valid nomination, it goes straight to the beneficiary.')],
+    ['D13-K03-5-mix', card('Questions about\n**how they differ?**', LAST_SUB)],
   ],
 };
 
 const reels = {
   D07: ['R02-leaving-a-job', [
-    [2.5, 'Leaving\n**a job?**'],
-    [3.0, 'Cover through\nwork usually\n**ends with it.**'],
-    [3.0, 'Some schemes\nlet cover\n**carry on.**'],
-    [3.0, 'It is called a\n**continuation**\n**option.**'],
-    [3.0, 'Often with only\n**limited health**\n**questions.**'],
+    [2.5, 'Leaving a job:\n**one question**\n**for HR first.**'],
+    [3.0, 'Group life cover\nthrough work\ntypically\n**ends with it.**'],
+    [3.0, 'Some group life\nschemes offer\na way to **convert**\n**it to personal**\n**cover.**'],
+    [3.0, 'It is called a\n**continuation or**\n**conversion**\n**option.**'],
+    [3.0, 'With only limited\n**medical questions**\n**or tests.**'],
     [3.0, 'There can be\n**a time limit.**'],
-    [3.0, 'So, for HR:\n**Is there a**\n**continuation**\n**option?**'],
+    [3.0, 'So, for HR:\n**Is there a**\n**continuation**\n**option on the**\n**group life cover?**'],
   ]],
   D09: ['R03-31-day-window', [
-    [2.5, 'New life\n**policy?**'],
-    [3.0, 'There is a\n**31-day window.**'],
+    [3.0, 'A new life policy\n**comes with a**\n**31-day window,**\nwith some\nexceptions.'],
     [3.0, 'It is called\n**cooling-off.**'],
     [3.0, 'If cancelled\nin that window,\n**premiums are**\n**refunded.**'],
     [3.0, 'Less the cost\nof **cover already**\n**enjoyed.**'],
-    [3.0, 'Only if\n**no claim**\n**has been made.**'],
+    [3.0, 'For investment\npolicies, also\n**any market loss.**'],
+    [3.0, 'Only if no claim,\n**no payout and no**\n**insured event.**'],
     [3.0, 'Time to read\n**the contract**\n**calmly.**'],
   ]],
   D14: ['R04-check-an-adviser', [
     [2.5, 'Is that adviser\n**licensed?**'],
-    [3.0, 'Step 1:\nask for the\n**FSP number.**'],
-    [3.0, 'Step 2:\nsearch it on\n**fsca.co.za**'],
+    [3.0, 'Step 1:\nask for the name\n**and FSP number.**'],
+    [3.0, 'Step 2:\nsearch it on\n**fsca.co.za.**'],
     [3.0, 'Or call the FSCA:\n**0800 110 443**'],
-    [3.0, 'Step 3:\ncheck the **name**\n**matches.**'],
-    [3.0, 'On every\nSortMyCover call,\n**it comes first.**'],
+    [3.0, 'Step 3: check the\n**name and the**\n**status shown.**'],
+    [3.0, 'Authorised firms\nmust **show that**\n**status in their**\n**paperwork.**'],
   ]],
 };
 
