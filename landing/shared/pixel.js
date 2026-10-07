@@ -10,7 +10,7 @@
   'use strict';
   var EVENTS = ['PageView', 'ViewContent', 'Lead', 'Schedule', 'Contact'];
   var PII = /^(fn|ln|em|ph|name|first_?name|last_?name|phone|mobile|email|msisdn)$/i;
-  var KEY = 'smc_attr', UTM = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'ref'];
+  var KEY = 'smc_attr', UTM = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'ref', 'cid', 'asid', 'adid']; // cid/asid/adid = Meta {{campaign.id}}/{{adset.id}}/{{ad.id}} url_tags (crm-audit R2)
   var pixelId = null, last = null, loaded = false;
 
   function store(k, v) { try { w.localStorage.setItem(k, v); } catch (e) { try { w.sessionStorage.setItem(k, v); } catch (e2) {} } }
