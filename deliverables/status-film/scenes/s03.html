@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>03 Pricing and the website</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .site { position: absolute; right: 140px; top: 196px; display: flex; align-items: center; gap: 16px; padding: 12px 14px 12px 26px; border-radius: 999px; background: #fff; border: 1.5px solid var(--line); box-shadow: var(--shadow); font-size: 25px; font-weight: 700; color: var(--navy); }
+  .cards { position: absolute; left: 140px; right: 140px; top: 340px; display: flex; gap: 24px; }
+  .pc { flex: 1; height: 290px; padding: 30px 28px; position: relative; overflow: hidden; }
+  .pc .nm { font-size: 20px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--pink); }
+  .pc .pr { margin-top: 18px; font-size: 60px; font-weight: 700; color: var(--navy); letter-spacing: -.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .pc .ld { margin-top: 14px; font-size: 23px; color: var(--muted); font-weight: 600; }
+  .pc .bar { position: absolute; left: 28px; right: 28px; bottom: 30px; height: 8px; border-radius: 4px; background: var(--soft); overflow: hidden; }
+  .pc .bar i { position: absolute; inset: 0; background: var(--grad); transform-origin: left; }
+  .pc.top-up { background: var(--navy); border-color: var(--navy); }
+  .pc.top-up .nm { color: var(--pink-soft); } .pc.top-up .pr { color: #fff; } .pc.top-up .ld { color: var(--faint); }
+  .feed { position: absolute; left: 140px; right: 140px; top: 690px; height: 230px; }
+  .src { position: absolute; left: 0; top: 70px; display: flex; align-items: center; gap: 16px; padding: 18px 26px 18px 18px; font-size: 26px; font-weight: 700; color: var(--navy); }
+  .src .ic-g { width: 54px; height: 54px; border-radius: 14px; }
+  .src .ic-g svg { width: 28px; height: 28px; }
+  .feed svg.lines { position: absolute; left: 0; top: 0; width: 1640px; height: 230px; overflow: visible; }
+  .feed svg.lines path { fill: none; stroke: #c026d3; stroke-width: 3; stroke-linecap: round; }
+  .tg { position: absolute; width: 204px; display: flex; align-items: center; gap: 12px; height: 54px; padding: 0 20px; font-size: 23px; font-weight: 700; color: var(--navy); border-radius: 14px; }
+  .tg i { width: 12px; height: 12px; border-radius: 50%; background: var(--grad); }
+</style></head>
+<body data-scene="s03"><div class="stage">
+  <div class="top"><div class="eyebrow">Done</div><h1 class="h"><i></i>Pricing and the website</h1></div>
+  <div class="site">leadvelocity.co.za <span class="pill green"><i></i>Live</span></div>
+  <div class="cards">
+    <div class="card pc"><div class="nm">Pilot</div><div class="pr">R8,500</div><div class="ld">10 leads</div><div class="bar"><i></i></div></div>
+    <div class="card pc"><div class="nm">Bronze</div><div class="pr">R16,500</div><div class="ld">20 leads</div><div class="bar"><i></i></div></div>
+    <div class="card pc"><div class="nm">Silver</div><div class="pr">R24,500</div><div class="ld">30 leads</div><div class="bar"><i></i></div></div>
+    <div class="card pc"><div class="nm">Gold</div><div class="pr">R35,500</div><div class="ld">45 leads</div><div class="bar"><i></i></div></div>
+    <div class="card pc top-up"><div class="nm">Top-up</div><div class="pr">R850</div><div class="ld">per extra lead</div></div>
+  </div>
+  <div class="feed">
+    <svg class="lines" viewBox="0 0 1640 230"><defs><linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="#db2777"/><stop offset="1" stop-color="#9333ea"/></linearGradient></defs></svg>
+    <div class="card src"><div class="ic-g"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></svg></div>One pricing file</div>
+  </div>
+</div>
+<script src="timings.js"></script><script src="film.js"></script>
+<script>
+  const T = ['Website', 'Chatbot', 'Proposals', 'Invoices', 'Contract'], feed = $('.feed'), svg = $('svg.lines');
+  // targets sit on one line from the source; the line grows to each as it is named
+  const pos = [0, 1, 2, 3, 4].map(i => [500 + i * 230, 88]);
+  const tgs = T.map((n, i) => { feed.insertAdjacentHTML('beforeend', `<div class="card tg" style="left:${pos[i][0]}px;top:${pos[i][1]}px"><i></i>${n}</div>`); return feed.lastElementChild; });
+  const paths = pos.map(([x, y]) => { const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    const y1 = y + 27; p.setAttribute('d', `M304 115 L ${x} 115`); p.setAttribute('pathLength', '1'); p.style.strokeDasharray = 1; svg.appendChild(p); return p; });
+  const tT = [cue('website'), cue('chatbot'), cue('proposals'), cue('invoices'), cue('contract')];
+  const tC = [cue('pilot'), cue('bronze'), cue('silver'), cue('gold'), cue('top')];
+  const fill = [10 / 45, 20 / 45, 30 / 45, 1];
+  window.update = t => {
+    rv('.top .eyebrow', t, .2, { y: 16 });
+    rv('.top h1', t, .3, { y: 30, blur: 6, dur: 1 });
+    rv('.site', t, cue('live') - .2, { x: 30, y: 0, dur: .8 });
+    rv('.site .pill', t, cue('leadvelocity') - .1, { scale: .7, y: 0, dur: .6, ease: E.back });
+    $$('.pc').forEach((c, i) => {
+      rv(c, t, tC[i] - .35, { y: 40, scale: .95, dur: .9 });
+      const b = c.querySelector('.bar i'); if (b) b.style.transform = `scaleX(${(fill[i] * P(t, tC[i], 1.2, E.inOut)).toFixed(4)})`;
+    });
+    rv('.src', t, cue('one') - .3, { x: -24, y: 0, dur: .8 });
+    paths.forEach((p, i) => p.style.strokeDashoffset = (1 - P(t, tT[i] - .45, .6, E.inOut)).toFixed(4));
+    tgs.forEach((g, i) => rv(g, t, tT[i] - .1, { x: 16, y: 0, scale: .94, dur: .6 }));
+  };
+</script></body></html>
