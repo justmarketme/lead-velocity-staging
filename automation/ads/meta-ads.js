@@ -667,7 +667,7 @@ function normalizeLead(raw) {
 const slug = (v) => String(v == null ? '' : v).trim().toLowerCase();
 const AGE_OK = new Set(['35_44', '35-44', '45_50', '45-50']);
 // Same bands as W01/W03 QUAL_BUDGET (0.1: every band from R750 up). 1250_1499 / 1500_plus were missing after the split (5598a27).
-const BUDGET_OK = new Set(['750_1250', 'r750-r1,250', '1250plus', 'r1,250 or more', '1250_1499', 'r1,250-r1,499', '1500_plus', 'r1,500+']);
+const BUDGET_OK = new Set(['750_1499', 'r750-r1,499', '750_1250', 'r750-r1,250', '1250plus', 'r1,250 or more', '1250_1499', 'r1,250-r1,499', '1500_plus', 'r1,500+']);
 function qualifyLead(lead) {
   const a = lead.answers || {}, reasons = [];
   if (!AGE_OK.has(slug(a.age_band))) reasons.push('age_band');

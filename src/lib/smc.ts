@@ -125,7 +125,7 @@ export const METHOD_LABEL: Record<SmcMethod, string> = {
 };
 export const methodLabel = (m: string | null | undefined) => (m && METHOD_LABEL[m as SmcMethod]) || m || "";
 export const AGE_LABEL: Record<string, string> = { lt35: "under 35", "35_44": "35-44", "45_50": "45-50", "51plus": "51+" };
-export const BUDGET_LABEL: Record<string, string> = { lt750: "under R750", "750_1250": "R750-R1,250", "1250plus": "R1,250+ (before split)", "1250_1499": "R1,250-R1,499", "1500_plus": "R1,500+" };
+export const BUDGET_LABEL: Record<string, string> = { lt750: "under R750", "750_1499": "R750-R1,499", "750_1250": "R750-R1,250", "1250plus": "R1,250+ (before split)", "1250_1499": "R1,250-R1,499", "1500_plus": "R1,500+" };
 export const isPremium1500 = (b: string | null | undefined) => b === "1500_plus";
 
 // ---------------------------------------------------------------- onboarding steps (portal/spec/README.md, single source)

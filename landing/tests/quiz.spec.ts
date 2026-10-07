@@ -81,14 +81,14 @@ async function quiz(page: any, a: Record<string, string>) {
 }
 const fbq = (page: any) => page.evaluate(() => (window as any).__fbq.map((c: any[]) => ({ cmd: c[0], name: c[1], params: c[2], opt: c[3] })).filter((c: any) => c.cmd === 'track'));
 
-test('every age x budget band: only 35-44/45-50 with R750+ qualify, others exit with no capture', async () => {
-  const ages = ['lt35', '35_44', '45_50', '51plus'], budgets = ['lt750', '750_1250', '1250plus'];
+test('every age x budget band: only 35-44/45-50 with R750+ qualify (3 bands, CP 1.4), others exit with no capture', async () => {
+  const ages = ['lt35', '35_44', '45_50', '51plus'], budgets = ['lt750', '750_1499', '1500_plus'];
   const { ctx, page, calls } = await newPage();
   await page.goto(PAGE());
   for (const age of ages) for (const budget of budgets) {
     await page.reload();
     await quiz(page, { age, budget });
-    const ok = (age === '35_44' || age === '45_50') && (budget === '750_1250' || budget === '1250plus');
+    const ok = (age === '35_44' || age === '45_50') && (budget === '750_1499' || budget === '1500_plus');
     await page.locator(`.q.on[data-step="${ok ? 6 : 9}"]`).waitFor({ timeout: 3000 });
     if (!ok) assert.match(await page.locator('.q.on').innerText(), /not the right fit right now/);
     else assert.match(await page.locator('#h6q').innerText(), /licensed adviser/i);
@@ -100,7 +100,7 @@ test('every age x budget band: only 35-44/45-50 with R750+ qualify, others exit 
 test('qualified path: validation, consent, /lead payload, Teams booking with email, collision, Pixel calls', async () => {
   const { ctx, page, calls } = await newPage();
   await page.goto(PAGE('new-bond'));
-  await quiz(page, { age: '45_50', bond: 'soon', deps: 'extended', work: 'unsure', budget: '1250plus' });
+  await quiz(page, { age: '45_50', bond: 'soon', deps: 'extended', work: 'unsure', budget: '1500_plus' });
   await page.locator('.q.on[data-step="6"]').waitFor();
 
   // consent is unticked by default and the label carries the named line + ads sentence
@@ -139,7 +139,7 @@ test('qualified path: validation, consent, /lead payload, Teams booking with ema
   assert.equal(lead.body.consent_version, 'CONSENT-NAMED-v1+CONSENT-ADS-v1');
   assert.equal(lead.body.angle, 'new-bond');
   assert.equal(lead.body.company_website, '');
-  assert.deepEqual([lead.body.age_band, lead.body.bond, lead.body.dependants, lead.body.work_cover, lead.body.budget_band], ['45_50', 'soon', 'extended', 'unsure', '1250plus']);
+  assert.deepEqual([lead.body.age_band, lead.body.bond, lead.body.dependants, lead.body.work_cover, lead.body.budget_band], ['45_50', 'soon', 'extended', 'unsure', '1500_plus']);
   assert.match(lead.body.consent_text, /^I agree that SortMyCover may share my details with/);
   assert.equal(lead.body.context.event_name, 'Lead');
   assert.ok(lead.body.context.event_id);
@@ -212,7 +212,7 @@ test('qualified path: validation, consent, /lead payload, Teams booking with ema
 async function toBook(slug: string, seq: number[]) {
   const t = await newPage(); t.state.bookFirst409 = false; t.state.bookSeq = seq;
   await t.page.goto(PAGE(slug));
-  await quiz(t.page, { age: '35_44', budget: '750_1250' });
+  await quiz(t.page, { age: '35_44', budget: '750_1499' });
   await t.page.fill('#name', 'Lerato'); await t.page.fill('#phone', '+27 71 234 5678'); await t.page.check('#consent'); await t.page.click('#send');
   await t.page.locator('.slot').first().waitFor();
   await t.page.click('.method[data-m="phone"]'); await t.page.locator('.slot').first().click();
@@ -240,7 +240,7 @@ test('I-56d: 400 twice, 429 and 503 show the friendly retry, no thank-you', asyn
 test('phone method: no email asked, email absent from /book', async () => {
   const { ctx, page, calls } = await newPage();
   await page.goto(PAGE('virtual'));
-  await quiz(page, { age: '35_44', budget: '750_1250' });
+  await quiz(page, { age: '35_44', budget: '750_1499' });
   await page.fill('#name', 'Lerato'); await page.fill('#phone', '+27 71 234 5678'); await page.check('#consent'); await page.click('#send');
   await page.locator('.slot').first().waitFor();
   await page.click('.method[data-m="phone"]');
@@ -258,7 +258,7 @@ test('phone method: no email asked, email absent from /book', async () => {
 test('skip link keeps the lead: not-booked thank-you, Lead fired, no Schedule, no /book', async () => {
   const { ctx, page, calls } = await newPage();
   await page.goto(PAGE('turned-40'));
-  await quiz(page, { age: '45_50', budget: '1250plus', work: 'no' });
+  await quiz(page, { age: '45_50', budget: '1500_plus', work: 'no' });
   await page.fill('#name', 'Sipho'); await page.fill('#phone', '0831234567'); await page.check('#consent'); await page.click('#send');
   await page.locator('#skipBook').click();
   await page.locator('.q.on[data-step="8"]').waitFor();
@@ -277,7 +277,7 @@ test('slots failure falls back to the not-booked thank-you (lead is kept)', asyn
   const { ctx, page, state } = await newPage();
   state.slots = [];
   await page.goto(PAGE());
-  await quiz(page, { age: '35_44', budget: '1250plus' });
+  await quiz(page, { age: '35_44', budget: '1500_plus' });
   await page.fill('#name', 'Ayesha'); await page.fill('#phone', '0721112233'); await page.check('#consent'); await page.click('#send');
   await page.locator('.q.on[data-step="8"]').waitFor({ timeout: 6000 });
   assert.match(await page.locator('#doneH').innerText(), /^Thanks, Ayesha/);
@@ -287,7 +287,7 @@ test('slots failure falls back to the not-booked thank-you (lead is kept)', asyn
 test('honeypot filled: nothing is sent', async () => {
   const { ctx, page, calls } = await newPage();
   await page.goto(PAGE());
-  await quiz(page, { age: '35_44', budget: '1250plus' });
+  await quiz(page, { age: '35_44', budget: '1500_plus' });
   await page.fill('#name', 'Bot'); await page.fill('#phone', '0721112233'); await page.check('#consent');
   await page.evaluate(() => { (document.querySelector('input[name=company_website]') as HTMLInputElement).value = 'spam'; });
   await page.click('#send');
@@ -323,7 +323,7 @@ test('no-JS: capture step is a real POST form with every field named', async () 
   await page.locator('input[name=bond][value=yes]').check();
   await page.locator('input[name=dependants][value=kids]').check();
   await page.locator('input[name=work_cover][value=yes]').check();
-  await page.locator('input[name=budget_band][value="750_1250"]').check();
+  await page.locator('input[name=budget_band][value="750_1499"]').check();
   await page.fill('#name', 'Naledi'); await page.fill('#phone', '082 123 4567'); await page.check('#consent');
   await page.click('#send');
   await page.waitForTimeout(500);

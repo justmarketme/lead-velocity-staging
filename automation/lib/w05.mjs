@@ -41,7 +41,7 @@ export const METHOD_LABEL = { teams: 'Microsoft Teams', zoom: 'Zoom', meet: 'Goo
 export const CONFIRM_LABEL = { teams: 'Microsoft Teams', zoom: 'Zoom', meet: 'Google Meet', whatsapp_call: 'WhatsApp call', phone: 'phone call' };
 export const BAND_LABEL = {
   age_band: { under_35: 'Under 35', '35_44': '35-44', '45_50': '45-50', '51_plus': '51+' },
-  budget_band: { under_500: 'Under R500', '500_750': 'R500-R750', '750_1250': 'R750-R1,250', '1250_plus': 'R1,250+ (before split)', '1250plus': 'R1,250+ (before split)', '1250_1499': 'R1,250-R1,499', '1500_plus': 'R1,500+' },
+  budget_band: { under_500: 'Under R500', '500_750': 'R500-R750', '750_1499': 'R750-R1,499', '750_1250': 'R750-R1,250', '1250_plus': 'R1,250+ (before split)', '1250plus': 'R1,250+ (before split)', '1250_1499': 'R1,250-R1,499', '1500_plus': 'R1,500+' },
 };
 export const INVITE_FROM = 'howzit@leadvelocity.co.za';
 export const PORTAL = 'https://app.leadvelocity.co.za';

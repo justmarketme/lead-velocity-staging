@@ -22,9 +22,11 @@ test('(c) legacy 1250plus still qualifies and is labelled before-split', () => {
   assert.ok(QUAL_BUDGET.has('1250plus')); assert.equal(BUDGET_TO_DB['1250_plus'], '1250plus');
   assert.match(BUDGET_WORDS['1250plus'], /before split/);
 });
-test('CTWA list offers both new answers; W03 qualifies them', () => {
-  const rows = JSON.stringify(W3.question('q_budget', { practice_name: 'X', fsp_number: '1', adviser_name: 'A' }));
-  assert.match(rows, /budget_1250_1499/); assert.match(rows, /budget_1500_plus/);
+test('CTWA list offers the three CP 1.4 bands (Under R750 / R750-R1,499 / R1,500+); W03 qualifies all but Under R750', () => {
+  const rows = JSON.parse(JSON.stringify(W3.question('q_budget', { practice_name: 'X', fsp_number: '1', adviser_name: 'A' }))).rows.map((r) => r.id);
+  assert.deepEqual(rows, ['budget_lt750', 'budget_750_1499', 'budget_1500_plus']);
+  assert.ok(W3.QUAL_BUDGET.has('750_1499') && W3.QUAL_BUDGET.has('1500_plus') && !W3.QUAL_BUDGET.has('lt750'));
+  assert.equal(W3.BUDGET_TO_DB['750_1499'], '750_1499');
 });
 test('migration is file-only, keeps old value and adds the tag column', () => {
   const sql = readFileSync(new URL('../../supabase/migrations/20261005_smc_15_budget_1500.sql', import.meta.url), 'utf8');

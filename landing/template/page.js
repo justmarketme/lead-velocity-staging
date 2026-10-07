@@ -135,7 +135,8 @@
 
   function qualifies() {
     var ageOk = answers.age_band === '35_44' || answers.age_band === '45_50';
-    var budgetOk = answers.budget_band === '750_1250' || answers.budget_band === '1250plus' || answers.budget_band === '1250_1499' || answers.budget_band === '1500_plus';
+    // CP 1.4: three bands; only Under R750 fails.
+    var budgetOk = answers.budget_band === '750_1499' || answers.budget_band === '1500_plus';
     return ageOk && budgetOk;
   }
   function advance() {

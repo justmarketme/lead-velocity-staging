@@ -21,11 +21,18 @@
     {
       "type": "BUTTONS",
       "buttons": [
-        { "type": "QUICK_REPLY", "text": "Under R500" },
-        { "type": "QUICK_REPLY", "text": "R500 to R750" },
-        { "type": "QUICK_REPLY", "text": "R750 to R1,250" },
-        { "type": "QUICK_REPLY", "text": "R1,250 to R1,499" },
-        { "type": "QUICK_REPLY", "text": "R1,500 or more" }
+        {
+          "type": "QUICK_REPLY",
+          "text": "Under R750"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "R750 to R1,499"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "R1,500 or more"
+        }
       ]
     }
   ]
