@@ -493,7 +493,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                         </button>
                                     ))}
                                 </div>
-                                <p className="text-[10px] text-slate-500">Flat fee per 30-day cycle, excl. VAT. Never linked to policies, premiums or sales. Pilot is a once-off introductory cycle for first-time clients. Pick the plan yourself; it is never chosen from desired leads.</p>
+                                <p className="text-[10px] text-slate-500">Flat fee per 30-day cycle, excl. VAT. Never linked to policies, premiums or sales. Minimum plan is Bronze. Pick the plan yourself; it is never chosen from desired leads.</p>
                             </div>
 
                             <Separator className="bg-white/5" />

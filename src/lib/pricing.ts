@@ -43,8 +43,10 @@ export const PILOT: PricingTier & { once_off: true; continue_on: string } = {
   continue_on: seed.pilot.continue_on,
 };
 export const isPilot = (t: PricingTier): boolean => t.tier_code === PILOT.tier_code;
-/** Every plan a broker can be on or be quoted: Pilot first, then the monthly ladder. */
-export const ALL_PLANS: PricingTier[] = [PILOT, ...TIERS];
+/** Jonathan 2026-10-07: minimum spend is Bronze; the Pilot is not offered unless the seed sets pilot.offered. */
+export const PILOT_OFFERED: boolean = (seed.pilot as { offered?: boolean }).offered !== false;
+/** Every plan a broker can be on or be quoted: Pilot first (only while offered), then the monthly ladder. */
+export const ALL_PLANS: PricingTier[] = PILOT_OFFERED ? [PILOT, ...TIERS] : [...TIERS];
 export const planByName = (name: string): PricingTier | undefined =>
   ALL_PLANS.find((t) => t.name.toLowerCase() === String(name || "").trim().toLowerCase().replace(/\s*(tier|plan|phase)$/, ""));
 
@@ -88,7 +90,7 @@ export const NO_GUARANTEE_TEXT =
 /** One plain-text summary for chatbots and generated copy. */
 export const pricingSummaryText = (): string =>
   [
-    PILOT_TEXT,
+    ...(PILOT_OFFERED ? [PILOT_TEXT] : []),
     ...TIERS.map(
       (t) =>
         `${t.name}: ${zar(t.price_zar)} per ${TERMS.cycle_days}-day cycle for ${t.committed_leads} Qualified Leads ` +

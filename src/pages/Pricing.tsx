@@ -8,7 +8,7 @@ import { useScrollAnimation } from "@/hooks/use-scroll-animation";
 import SEO from "@/components/SEO";
 import {
     TIERS, TERMS, TOPUP, QUALIFIED, zar, perLead, topupMinimumZar,
-    PILOT, VAT_NOTE, QUALIFIED_LEAD_TEXT, NO_GUARANTEE_TEXT, BUDGET_TARGET_TEXT, SHORTFALL_TEXT, LATE_PAYMENT_TEXT, type PricingTier,
+    PILOT, PILOT_OFFERED, VAT_NOTE, QUALIFIED_LEAD_TEXT, NO_GUARANTEE_TEXT, BUDGET_TARGET_TEXT, SHORTFALL_TEXT, LATE_PAYMENT_TEXT, type PricingTier,
 } from "@/lib/pricing";
 
 // Every number on this page comes from automation/billing/pricing.seed.json via src/lib/pricing.ts (3.6).
@@ -151,7 +151,8 @@ const Pricing = () => {
 
             {/* Tier cards — generated from the pricing source */}
             <div className="container mx-auto px-6 pb-12">
-                {/* Pilot: once-off introductory cycle, shown as a slim row above the monthly ladder */}
+                {/* Pilot: once-off introductory cycle, shown only while the seed offers it (withdrawn 2026-10-07) */}
+                {PILOT_OFFERED && (
                 <div data-tier={PILOT.tier_code} className="max-w-7xl mx-auto mb-10 p-5 md:p-6 rounded-2xl border border-white/10 bg-slate-900/40 backdrop-blur-sm flex flex-col md:flex-row md:items-center gap-4 md:gap-8">
                     <div className="md:w-48 shrink-0">
                         <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Try us first</p>
@@ -173,6 +174,7 @@ const Pricing = () => {
                         Start with a {PILOT.name}
                     </Link>
                 </div>
+                )}
 
                 <div className="grid md:grid-cols-3 gap-8 max-w-7xl mx-auto">
                     {TIERS.map((tier, i) => (
@@ -219,7 +221,7 @@ const Pricing = () => {
                 <div className="mt-24 text-center">
                     <h3 className="text-lg font-bold text-slate-500 uppercase tracking-widest mb-12">How a Cycle Works</h3>
                     <div className="flex flex-wrap justify-center gap-4 text-sm font-medium text-slate-400">
-                        <span className="px-4 py-2 rounded-full border border-white/10 bg-white/5">Pilot or pick a plan</span>
+                        <span className="px-4 py-2 rounded-full border border-white/10 bg-white/5">{PILOT_OFFERED ? "Pilot or pick a plan" : "Pick a plan"}</span>
                         <span className="text-slate-600 self-center">→</span>
                         <span className="px-4 py-2 rounded-full border border-secondary/30 bg-secondary/10 text-secondary">Pay for one cycle</span>
                         <span className="text-slate-600 self-center">→</span>
