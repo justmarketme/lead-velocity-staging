@@ -80,7 +80,7 @@ C. The Client wishes to buy marketing and lead-delivery services from Lead Veloc
 
 1.1.23 "**Party**" means Lead Velocity or the Client, and "**Parties**" means both of them;
 
-1.1.24 "**Plan**" means the plan the Client has chosen (Pilot, Bronze, Silver or Gold), as set out in Schedule 1, and "**Pilot Plan**" means the once-off introductory Plan described in clause 9.7;
+1.1.24 "**Plan**" means the plan the Client has chosen (Bronze, Silver or Gold), as set out in Schedule 1; **[CHANGED v0.2 — D9]**
 
 1.1.25 "**POPIA**" means the Protection of Personal Information Act 4 of 2013, and "**personal information**", "**special personal information**", "**processing**", "**responsible party**", "**operator**", "**data subject**" and "**direct marketing**" have the meanings given in POPIA;
 
@@ -348,9 +348,9 @@ The tier is the Consumer's own answer. Lead Velocity makes no promise about any 
 
 9.5 **Plan upgrade.** Instead of a Top-Up, the Client may upgrade to the Silver or Gold Plan at the pricing then shown on the Pricing Page, by giving at least 7 days' written notice before the next Billing Cycle starts. The upgrade takes effect from the start of that Billing Cycle, and Schedule 1 is then read with the new Plan's Fee and Committed Leads.
 
-9.6 **Plan downgrade.** The Client may move to a lower Plan (other than the Pilot Plan) on the same notice and with effect from the start of the next Billing Cycle.
+9.6 **Plan downgrade.** **[CHANGED v0.2 — D9]** The Client may move to a lower Plan on the same notice and with effect from the start of the next Billing Cycle.
 
-9.7 **Pilot Plan.** The Pilot Plan is available once only, to a Client that has not bought Services from Lead Velocity before, and covers one introductory Billing Cycle. Its Fee and Committed Leads are set out in Schedule 1. Before the Pilot Billing Cycle ends, the Client may continue on the Bronze Plan or a higher Plan by paying that Plan's Fee in advance under clause 10. If it does not, no further Billing Cycle starts and this Agreement ends at the end of the Pilot Billing Cycle, subject to clauses 6 and 11.3. All other terms of this Agreement apply to the Pilot Plan in the same way as to every other Plan, including the flat Fee paid in advance (clauses 8 and 10), the absence of any commission or success fee (clause 8.3), the Rollover Period ending on day 44 (clause 6) **[CHANGED v0.2 — D4]** and discretionary replacements of up to 3 per Calendar Week (clause 7).
+9.7 **Pilot Plan.** **[CHANGED v0.2 — D9]** Lead Velocity no longer offers a Pilot Plan. The minimum Plan is Bronze.
 
 ## 10. Payment
 
@@ -640,11 +640,10 @@ S1.2 **Top-Ups (clause 9).**
 | Notice | At least 7 days' written notice |
 | Payment | In advance; delivery starts once payment clears and the notice period ends |
 
-S1.3 **Other Plans (clauses 9.5 and 9.7).** The Pilot Plan is a once-off introductory Plan for first-time clients only (clause 9.7). Silver and Gold are available at the pricing shown on the Pricing Page at the time of upgrade.
+S1.3 **Other Plans (clause 9.5).** **[CHANGED v0.2 — D9]** Silver and Gold are available at the pricing shown on the Pricing Page at the time of upgrade.
 
 | Plan | Fee per Billing Cycle | Committed Leads |
 |---|---|---|
-| Pilot (first-time clients only; one introductory Billing Cycle) | R8,500 excl. VAT, once-off | 10 Qualified Leads (R850 each) |
 | Silver | [PER PRICING PAGE] [CURRENT: R24,500 excl. VAT] | [PER PRICING PAGE] [CURRENT: 30 Qualified Leads, about R817 each] |
 | Gold | [PER PRICING PAGE] [CURRENT: R35,500 excl. VAT] | [PER PRICING PAGE] [CURRENT: 45 Qualified Leads, about R789 each] |
 
@@ -758,11 +757,12 @@ S4.10 **Cross-border.** Lead Velocity's service providers that may process Lead 
 | D1 | Lead tiers by stated monthly premium budget: A R1,500+, B R750 to R1,499, under R750 filtered; every lead labelled | 1.1.3A, 5.1, 5.6 (replaces "targeting aim"), S1.1, S2.1, S2.2, S2.3, S2.4, S4.2 |
 | D2 | Replacements stay discretionary goodwill, up to 3 a week, no-shows only | 7 kept; 7.2 last two sentences added |
 | D3 | Dispute evidence within 2 working days on request | 1.1.12A, 7.8 (new), 11.7(c), 21.1 |
-| D4 | 30 days + up to 14 days, never more; after day 44 rollover on top or refund on request at the per-lead price within 7 working days; no open-ended force-majeure extension | 1.1.29, 6 (rewritten), 9.7, 11.3, 11.7(c), 20.2, 23.2(d), S1.1 |
+| D4 | 30 days + up to 14 days, never more; after day 44 rollover on top or refund on request at the per-lead price within 7 working days; no open-ended force-majeure extension | 1.1.29, 6 (rewritten), 11.3, 11.7(c), 20.2, 23.2(d), S1.1 |
 | D5 | Contact verification; invalid details disqualify | 4.1(c), 5.1(a), 5.8 (new), S2.1, S2.3 |
 | D6 | Qualification questions; licence-category flag; optional smoker status with consent | 4.1(c), 5.9 (new), 12.4, 13.2A (new), S2.2, S4.2, S4.6(d) |
 | D7 | Microsoft Teams appointment in the broker's calendar; broker welcome card; "Connect my Outlook calendar" onboarding | 1.1.19, 4.1(d)-(e), 14.3(a), S1.5, S2.4, S4.5 |
 | D8 | B-tier leads offered with Accept / Decline; accepted count; declined don't count, aren't charged, are offered elsewhere or held, never re-offered | 1.1.3A, 5.1(d), 5.2, 5.7 (new), 8.4, 12.2, S1.1, S2.1, S2.3, S4.2, S4.3 |
+| D9 | Pilot Plan withdrawn; the minimum Plan is Bronze | 1.1.24, 9.6, 9.7, S1.3 |
 | C1 | Consequential: consent text v3 says "insurance and financial planning" | Background B, 1.1.17, 12.3, 13.5 |
 
-Not changed: fees, Plans, Top-Ups, payment, termination, liability, IP, signature method. The v0.1 per-cycle replacement cap and "replacements are a promise" draft (the earlier v2 file) are withdrawn.
+Not changed: the Bronze, Silver and Gold fees, Top-Ups, payment, termination, liability, IP, signature method. The v0.1 per-cycle replacement cap and "replacements are a promise" draft (the earlier v2 file) are withdrawn.

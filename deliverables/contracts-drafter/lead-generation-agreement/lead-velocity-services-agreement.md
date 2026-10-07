@@ -77,7 +77,7 @@ C. The Client wishes to buy marketing and lead-delivery services from Lead Veloc
 
 1.1.23 "**Party**" means Lead Velocity or the Client, and "**Parties**" means both of them;
 
-1.1.24 "**Plan**" means the plan the Client has chosen (Pilot, Bronze, Silver or Gold), as set out in Schedule 1, and "**Pilot Plan**" means the once-off introductory Plan described in clause 9.7;
+1.1.24 "**Plan**" means the plan the Client has chosen (Bronze, Silver or Gold), as set out in Schedule 1;
 
 1.1.25 "**POPIA**" means the Protection of Personal Information Act 4 of 2013, and "**personal information**", "**special personal information**", "**processing**", "**responsible party**", "**operator**", "**data subject**" and "**direct marketing**" have the meanings given in POPIA;
 
@@ -343,9 +343,9 @@ The tier is the Consumer's own answer. Lead Velocity makes no promise about any 
 
 9.5 **Plan upgrade.** Instead of a Top-Up, the Client may upgrade to the Silver or Gold Plan at the pricing then shown on the Pricing Page, by giving at least 7 days' written notice before the next Billing Cycle starts. The upgrade takes effect from the start of that Billing Cycle, and Schedule 1 is then read with the new Plan's Fee and Committed Leads.
 
-9.6 **Plan downgrade.** The Client may move to a lower Plan (other than the Pilot Plan) on the same notice and with effect from the start of the next Billing Cycle.
+9.6 **Plan downgrade.** The Client may move to a lower Plan on the same notice and with effect from the start of the next Billing Cycle.
 
-9.7 **Pilot Plan.** The Pilot Plan is available once only, to a Client that has not bought Services from Lead Velocity before, and covers one introductory Billing Cycle. Its Fee and Committed Leads are set out in Schedule 1. Before the Pilot Billing Cycle ends, the Client may continue on the Bronze Plan or a higher Plan by paying that Plan's Fee in advance under clause 10. If it does not, no further Billing Cycle starts and this Agreement ends at the end of the Pilot Billing Cycle, subject to clauses 6 and 11.3. All other terms of this Agreement apply to the Pilot Plan in the same way as to every other Plan, including the flat Fee paid in advance (clauses 8 and 10), the absence of any commission or success fee (clause 8.3), the Rollover Period ending on day 44 (clause 6) and discretionary replacements of up to 3 per Calendar Week (clause 7).
+9.7 **Pilot Plan.** Lead Velocity no longer offers a Pilot Plan. The minimum Plan is Bronze.
 
 ## 10. Payment
 
@@ -635,11 +635,10 @@ S1.2 **Top-Ups (clause 9).**
 | Notice | At least 7 days' written notice |
 | Payment | In advance; delivery starts once payment clears and the notice period ends |
 
-S1.3 **Other Plans (clauses 9.5 and 9.7).** The Pilot Plan is a once-off introductory Plan for first-time clients only (clause 9.7). Silver and Gold are available at the pricing shown on the Pricing Page at the time of upgrade.
+S1.3 **Other Plans (clause 9.5).** Silver and Gold are available at the pricing shown on the Pricing Page at the time of upgrade.
 
 | Plan | Fee per Billing Cycle | Committed Leads |
 |---|---|---|
-| Pilot (first-time clients only; one introductory Billing Cycle) | R8,500 excl. VAT, once-off | 10 Qualified Leads (R850 each) |
 | Silver | [PER PRICING PAGE] [CURRENT: R24,500 excl. VAT] | [PER PRICING PAGE] [CURRENT: 30 Qualified Leads, about R817 each] |
 | Gold | [PER PRICING PAGE] [CURRENT: R35,500 excl. VAT] | [PER PRICING PAGE] [CURRENT: 45 Qualified Leads, about R789 each] |
 

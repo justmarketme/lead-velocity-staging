@@ -9,7 +9,7 @@
 // from the form. The preview (AgreementPreview), the .docx (contractToDocx) and the PDF (preview DOM)
 // all render the same resolved block list, so they cannot drift apart.
 import agreementMd from "../../../deliverables/contracts-drafter/lead-generation-agreement/lead-velocity-services-agreement.md?raw";
-import { ALL_PLANS, QUALIFIED, TERMS, TIERS, TOPUP, isPilot, perLead, planByName, topupMinimumZar, zar, type PricingTier } from "@/lib/pricing";
+import { ALL_PLANS, PILOT_OFFERED, QUALIFIED, TERMS, TIERS, TOPUP, isPilot, perLead, planByName, topupMinimumZar, zar, type PricingTier } from "@/lib/pricing";
 
 // ---------------------------------------------------------------- types
 
@@ -294,8 +294,6 @@ function consistencyWarnings(md: string): string[] {
     ["Top-Up minimum (9.1)", /\((\d+) Qualified Leads, being R[\d,]+ at/, String(TOPUP.min_leads)],
     ["Top-Up minimum value (9.1)", /\(\d+ Qualified Leads, being (R[\d,]+) at/, zar(topupMinimumZar())],
     ["Top-Up notice (9.2)", /9\.2 \*\*Notice\.\*\* The Client must give at least (\d+) days'/, String(TOPUP.notice_days)],
-    ["Pilot rollover (9.7)", /the Rollover Period ending on day (\d+)/, String(TERMS.cycle_days + TERMS.shortfall_rollover_days)],
-    ["Pilot replacements (9.7)", /replacements of up to (\d+) per Calendar Week/, String(TERMS.goodwill_replacements_per_week)],
     ["Qualifying age (5.1(c))", /namely age (\d+ to \d+)/, `${QUALIFIED.age_min} to ${QUALIFIED.age_max}`],
     [
       "Qualifying budget (5.1(c))",
@@ -304,6 +302,13 @@ function consistencyWarnings(md: string): string[] {
       maxBudget ? `${zar(QUALIFIED.budget_min_zar)} to ${zar(maxBudget)}` : `${zar(QUALIFIED.budget_min_zar)} or more`,
     ],
   ];
+  // clause 9.7 carries the Pilot terms only while the Pilot is offered (withdrawn 7 Oct 2026)
+  if (PILOT_OFFERED) {
+    checks.push(["Pilot rollover (9.7)", /the Rollover Period ending on day (\d+)/, String(TERMS.cycle_days + TERMS.shortfall_rollover_days)]);
+    checks.push(["Pilot replacements (9.7)", /replacements of up to (\d+) per Calendar Week/, String(TERMS.goodwill_replacements_per_week)]);
+  } else {
+    checks.push(["Pilot withdrawn (9.7)", /9\.7 \*\*Pilot Plan\.\*\*[^\n]*?(no longer offers)/, "no longer offers"]);
+  }
   if (targetBudget) {
     checks.push(["A-tier threshold (1.1.3A)", /"\*\*A-Tier Lead\*\*" means a Qualified Lead whose self-declared monthly premium budget is (R[\d,]+) or more/, zar(targetBudget)]);
     checks.push(["B-tier band (1.1.3A)", /"\*\*B-Tier Lead\*\*" means a Qualified Lead whose self-declared monthly premium budget is (R[\d,]+ to R[\d,]+)/, `${zar(QUALIFIED.budget_min_zar)} to ${zar(targetBudget - 1)}`]);

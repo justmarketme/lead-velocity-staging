@@ -33,7 +33,7 @@ const rows = log.split('\n').filter((l) => /^\| (D\d|C\d) \|/.test(l)).map((l) =
   return `| ${cells[1]} | ${cells[2]} |`;
 });
 if (rows.length < 8) throw new Error('change log rows not parsed: ' + rows.length);
-const summary = ['', '## Summary of changes in version 0.2', '', 'Changes from version 0.1 (5 October 2026) are marked in the text as Changed in v0.2 or New in v0.2. Everything else is word for word as before.', '', '| What changed | Clauses |', '|---|---|', ...rows, '', 'Not changed: fees, plans, top-ups, payment, termination, liability, intellectual property and the signature method.', ''].join('\n');
+const summary = ['', '## Summary of changes in version 0.2', '', 'Changes from version 0.1 (5 October 2026) are marked in the text as Changed in v0.2 or New in v0.2. Everything else is word for word as before.', '', '| What changed | Clauses |', '|---|---|', ...rows, '', 'Not changed: the Bronze, Silver and Gold fees, top-ups, payment, termination, liability, intellectual property and the signature method.', ''].join('\n');
 
 // Marker forms: **[CHANGED v0.2 — D4: ...]**, [NEW v0.2 — D3], etc.
 const MARK_RE = /\s*\*{0,2}\[(CHANGED|NEW) v0\.2(?: —[^\]]*)?\]\*{0,2}/g;
@@ -44,7 +44,7 @@ if (!markedBody.includes('\n## Parties')) throw new Error('Parties heading not f
 const marked = markedBody.replace('\n## Parties', summary + '\n## Parties');
 
 for (const [name, text] of [['canonical', canonical], ['marked', marked]]) {
-  const leftover = text.match(/\[(?:CHANGED|NEW)[^\]]*—[^\]]*\]|\bD[1-8]\b(?= |,|;|\])/g);
+  const leftover = text.match(/\[(?:CHANGED|NEW)[^\]]*—[^\]]*\]|\bD[1-9]\b(?= |,|;|\])/g);
   if (name === 'canonical' && /\[(CHANGED|NEW) v0\.2/.test(text)) throw new Error('canonical still has markers');
   if (leftover && name === 'marked' && leftover.some((x) => x.startsWith('['))) throw new Error('marked has coded markers: ' + leftover.slice(0, 3));
 }
