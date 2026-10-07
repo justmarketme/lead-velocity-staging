@@ -202,6 +202,18 @@ function step(thread, msg, ctx) {
       if (row.ctwa_clid) actions.push({ kind: 'capi', event_name: 'Lead', event_id: `evt_${row.id}_ctwa_lead`, action_source: 'business_messaging' });
       t.stage = 'q_age';
       t.lead_id = row.id;
+      // Capture Flow v2 (2026-10-07): when the brand has switched to the Flow and the workflow supplied a minted
+      // 'capture' flow_token, the consent tap opens the Flow instead of the tap-by-tap questions. Anything missing -> tap path.
+      const cf = ctx.brand.capture_ui === 'flow_v2' && ctx.capture_flow && ctx.capture_flow.flow_id && ctx.capture_flow.flow_token ? ctx.capture_flow : null;
+      if (cf) {
+        t.stage = 'capture_flow';
+        row.conv_state = { state: 'capture_flow' };
+        row.wa_id = ctx.mobile.replace(/^\+/, ''); row.wa_verified = true; // the inbound message itself proves the WhatsApp number
+        send({ type: 'flow', body: `Thanks${ctx.profile_name ? ` ${String(ctx.profile_name).split(/\s+/)[0]}` : ''}. A few quick taps and you can pick a time with an adviser.`, flow: { flow_id: cf.flow_id, flow_token: cf.flow_token, flow_cta: 'Start', flow_action: 'navigate', screen: 'REASONS' } });
+        stall('capture_flow');
+        return { thread: t, actions };
+      }
+      if (ctx.brand.capture_ui === 'flow_v2') actions.push({ kind: 'log', reason: 'capture_flow_unavailable_tap_path' });
       row.conv_state = { state: 'q_age' }; // I-48k: W03 owns leads.conv_state.state while qualifying
       send(question('q_age'));
       stall('q_age');
@@ -319,6 +331,9 @@ function toCloudApi(to, m) {
   if (m.type === 'text') return { ...base, type: 'text', text: { body: m.body } };
   if (m.type === 'button') {
     return { ...base, type: 'interactive', interactive: { type: 'button', body: { text: m.body }, action: { buttons: m.buttons.map((b) => ({ type: 'reply', reply: { id: b.id, title: b.title.slice(0, 20) } })) } } };
+  }
+  if (m.type === 'flow') {
+    return { ...base, type: 'interactive', interactive: { type: 'flow', body: { text: m.body }, action: { name: 'flow', parameters: { flow_message_version: '3', flow_id: m.flow.flow_id, flow_token: m.flow.flow_token, flow_cta: m.flow.flow_cta, flow_action: m.flow.flow_action, flow_action_payload: { screen: m.flow.screen } } } } };
   }
   return { ...base, type: 'interactive', interactive: { type: 'list', body: { text: m.body }, action: { button: m.button.slice(0, 20), sections: [{ title: 'Options', rows: m.rows.map((r) => ({ id: r.id, title: r.title.slice(0, 24) })) }] } } };
 }

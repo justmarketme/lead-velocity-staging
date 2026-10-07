@@ -64,7 +64,7 @@ REST=(
   broker_onb_welcome broker_onb_next broker_onb_calendar_ok broker_onb_ready broker_onb_nudge_24h broker_onb_nudge_72h
   broker_onb_issue broker_onb_live
   ops_pulse ops_pulse_quiet ops_action ops_action_confirmed ops_alert ops_weekly ops_gate
-  broker_intro_slots_v2 reschedule_offer_v2
+  broker_intro_slots_v2 reschedule_offer_v2 broker_lead_offer
 )
 
 # HELD: drafted, NOT submitted. Never in the default or --core list; --only refuses them. Release = Jonathan moves the name

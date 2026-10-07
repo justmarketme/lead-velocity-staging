@@ -77,8 +77,8 @@ async function handle(req, deps) {
   const effects = [];
   if (!req || req.action === 'ping') return { response: { data: { status: 'active' } }, effects };
   const tok = deps.verifyToken(req.flow_token);
-  if (!tok.ok) {
-    effects.push({ kind: 'security_event', reason: `flow_token_${tok.reason}` });
+  if (!tok.ok || tok.kind === 'capture') { // a capture-Flow token is never a booking token (ctwa/capture-v2.js owns it)
+    effects.push({ kind: 'security_event', reason: tok.ok ? 'flow_token_wrong_kind' : `flow_token_${tok.reason}` });
     return { response: { data: { error_message: 'This booking link has expired. We’ll send you times here on WhatsApp.' } }, effects };
   }
   const ctx = await deps.loadContext(tok.lead_id, tok);

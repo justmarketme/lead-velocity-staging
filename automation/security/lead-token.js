@@ -131,7 +131,7 @@ function resolveSlotsCaller({ headers = {}, query = {} } = {}, { leadSecret, lea
 // ---------- flow_token (W28): same HMAC scheme, so no flow_tokens table is needed ----------
 // ft1.<lead_id>.<kind>.<booking_id|->.<exp>.<sig>, sig = HMAC-SHA256(secret, `ft1|lead_id|kind|booking_id|exp`)
 // Minted by W06/W10 when they send the Flow template; the W28 endpoint trusts only this mapping (never payload ids).
-const FLOW_KINDS = new Set(['book', 'reschedule']);
+const FLOW_KINDS = new Set(['book', 'reschedule', 'capture']); // capture = capture Flow v2 (ctwa/capture-v2.js); W28 rejects it
 function mintFlowToken(leadId, kind, bookingId, { secret, nowMs = Date.now(), ttlSeconds = TTL_SECONDS } = {}) {
   assertSecret(secret);
   if (!LEAD_ID_RE.test(String(leadId || '')) || !FLOW_KINDS.has(kind)) throw new Error('bad flow token input');
