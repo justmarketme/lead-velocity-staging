@@ -153,3 +153,8 @@ footer .links{display:flex;flex-wrap:wrap;gap:0 16px}
 @media (prefers-reduced-motion:no-preference){.q.on{animation:in .25s ease}@keyframes in{from{transform:translateY(6px)}to{opacity:1;transform:none}}}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 @media (max-width:360px){.sticky small{display:none}.sticky .wrap{justify-content:center}}
+/* were inline style attributes (removed for the quiz-page CSP: style-src 'self', no 'unsafe-inline') */
+.svgdefs{position:absolute}
+.hint.mlab{margin:14px 0 8px}
+.fs14{font-size:14px}
+.done-h1{font-size:22px;margin:10px 0 6px}

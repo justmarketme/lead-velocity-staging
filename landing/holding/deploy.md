@@ -20,7 +20,8 @@ One Vercel project, `sortmycover` (team jonos-projects-8697404e), serves the who
 | 404 page | `404.html` at the output root (Vercel uses it automatically) |
 | `staging/` never served | not copied into `site/` |
 | HSTS, nosniff, X-Frame-Options, Referrer-Policy, Permissions-Policy | `headers` on `/(.*)` |
-| Strict CSP | holding pages only (`/`, `/*.html`, `/learn/*`). Quiz pages get no CSP yet because the Meta Pixel and the n8n form endpoint need their own. compliance-qa and devops-security add a quiz CSP with `connect-src` for N8N_PUBLIC_URL and the Meta domains |
+| Strict CSP | holding pages (`/`, `/*.html`, `/learn/*`): self only. |
+| Quiz-page CSP | `/{slug}/` and `/{slug}/thanks/` (source `/:slug(...)/:path*`, excludes learn/assets/shared/fonts): `script-src 'self'` + one sha256 for the inline `js`-class snippet + `connect.facebook.net` (Meta Pixel) + `challenges.cloudflare.com` (Turnstile, also `frame-src`); `style-src 'self'` (CSS ships as `/assets/page.css?v=`, no inline styles); `img-src 'self' data: www.facebook.com`; `connect-src 'self' https://n8n.leadvelocity.co.za www.facebook.com connect.facebook.net`; `form-action 'self' https://n8n.leadvelocity.co.za`; `object-src 'none'`. If N8N_PUBLIC_URL (`site.json api_base`) or the inline snippet changes, update vercel.json: `node build-site.mjs` fails (CSP guard) on any unhashed inline script or inline style. |
 | Staging noindex | `X-Robots-Tag: noindex` on `*.vercel.app` hosts. Preview deployments are also behind Vercel login (SSO protection), which replaces the old basic-auth staging host |
 | Expires / cache rules | `Cache-Control` headers per file type |
 

@@ -60,7 +60,9 @@ if (fs.existsSync(tokensPath)) {
   tokens = read(tokensPath).replace(/url\("fonts\//g, 'url("/fonts/');
   haveFonts = fs.existsSync(path.join(fontDir, 'dm-sans-latin-500-normal.woff2'));
 } else warnings.push('brand/tokens.css missing: using built-in fallback tokens');
+// CSP (landing/vercel.json, quiz pages): no inline style, so the CSS is a versioned file, not a <style> block.
 const css = tokens + '\n' + read(R('template/page.css'));
+const cssV = crypto.createHash('sha1').update(css).digest('hex').slice(0, 8);
 const fontPreload = haveFonts ? '<link rel="preload" href="/fonts/dm-sans-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>' : '';
 
 /* ---------- helpers ---------- */
@@ -94,6 +96,7 @@ fs.rmSync(outRoot, { recursive: true, force: true });
 fs.mkdirSync(path.join(outRoot, 'assets'), { recursive: true });
 fs.mkdirSync(path.join(outRoot, 'shared'), { recursive: true });
 fs.writeFileSync(path.join(outRoot, 'assets/page.js'), pageJs);
+fs.writeFileSync(path.join(outRoot, 'assets/page.css'), css);
 fs.copyFileSync(path.join(root, 'landing/shared/pixel.js'), path.join(outRoot, 'shared/pixel.js'));
 if (haveFonts) {
   fs.mkdirSync(path.join(outRoot, 'fonts'), { recursive: true });
@@ -125,7 +128,7 @@ for (const f of angleFiles) {
     lang, title: a.title, description: a.og_description, robots: site.robots,
     canonical: `${base}/${a.slug}/`, site_url: site.site_url, pixel_id: site.pixel_id, domain_verification: site.domain_verification,
     og_locale: lang.replace('-', '_'), og_title: a.og_title, og_description: a.og_description,
-    font_preload: fontPreload, css, asset_v: assetV, jsonld,
+    font_preload: fontPreload, css_v: cssV, asset_v: assetV, jsonld,
     api_base: site.api_base, slug: a.slug, consent_mode: mode, booking: String(site.booking !== false), turnstile_sitekey: site.turnstile_sitekey,
     thanks_url: `${base}/${a.slug}/thanks/`,
     h1_html: inline(a.h1), sub: a.sub, chips_html: chips.map((x) => `    <li class="chip">${inline(x)}</li>`).join('\n'),
@@ -155,9 +158,9 @@ for (const f of angleFiles) {
 }
 
 function thanksPage(v, a) {
-  return `<!doctype html><html lang="${esc(v.lang)}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Thank you | SortMyCover</title><meta name="robots" content="noindex,nofollow"><meta name="smc-pixel-id" content="${esc(v.pixel_id)}"><style>${v.css}</style><script src="/shared/pixel.js" defer></script></head><body>
+  return `<!doctype html><html lang="${esc(v.lang)}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Thank you | SortMyCover</title><meta name="robots" content="noindex,nofollow"><meta name="smc-pixel-id" content="${esc(v.pixel_id)}"><link rel="stylesheet" href="/assets/page.css?v=${esc(v.css_v)}"><script src="/shared/pixel.js" defer></script></head><body>
 <header class="top"><div class="wrap"><span class="logo">SortMyC<span class="tick" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>ver</span></div></header>
-<main><section class="quiz"><div class="wrap"><div class="card"><div class="done"><div class="big" aria-hidden="true">✓</div><h1 style="font-size:22px;margin:10px 0 6px">Thanks. Check your WhatsApp.</h1><p>${esc(strings.done_not_p)}</p></div></div></div></section></main>
+<main><section class="quiz"><div class="wrap"><div class="card"><div class="done"><div class="big" aria-hidden="true">✓</div><h1 class="done-h1">Thanks. Check your WhatsApp.</h1><p>${esc(strings.done_not_p)}</p></div></div></div></section></main>
 <footer><div class="wrap"><span>${esc(v.footer_line)}</span><nav aria-label="Footer" class="links"><a href="${esc(v.privacy_url)}">Privacy notice</a><a href="${esc(v.terms_url)}">Terms</a><a href="${esc(v.optout_url)}">Opt-out</a></nav></div></footer></body></html>`;
 }
 

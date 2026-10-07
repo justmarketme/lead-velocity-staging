@@ -40,3 +40,27 @@ const scan = (dir) => {
 scan(out);
 console.log(`site/ ready (${fs.readdirSync(out).length} top-level entries)`);
 if (left.length) console.warn(`WARNING: unfilled {{PLACEHOLDERS}} in: ${left.join(', ')}`);
+
+// Quiz-page CSP guard (landing/vercel.json): every inline executable <script> must be hash-allowed, and no inline
+// <style> blocks or style="" attributes may ship (style-src 'self'). Fails the build instead of shipping CSP violations.
+{
+  const { createHash } = await import('node:crypto');
+  const vj = JSON.parse(fs.readFileSync(path.join(here, 'vercel.json'), 'utf8'));
+  const quiz = vj.headers.find((h) => h.source.startsWith('/:slug('));
+  const csp = quiz ? quiz.headers.find((x) => x.key === 'Content-Security-Policy').value : '';
+  const bad = [];
+  for (const slug of fs.readdirSync(path.join(here, 'dist'))) {
+    for (const rel of ['index.html', 'thanks/index.html']) {
+      const f = path.join(here, 'dist', slug, rel);
+      if (!fs.existsSync(f)) continue;
+      const html = fs.readFileSync(f, 'utf8');
+      for (const m of html.matchAll(/<script(?![^>]*\bsrc=)(?![^>]*type="application\/(?:ld\+)?json")[^>]*>([\s\S]*?)<\/script>/g)) {
+        const h = `'sha256-${createHash('sha256').update(m[1]).digest('base64')}'`;
+        if (!csp.includes(h)) bad.push(`${slug}/${rel}: inline script ${h} not in CSP`);
+      }
+      if (/<style[\s>]|\sstyle="/.test(html)) bad.push(`${slug}/${rel}: inline style`);
+    }
+  }
+  if (bad.length) { console.error('CSP guard failed:\n  ' + bad.join('\n  ')); process.exit(1); }
+  console.log('CSP guard: quiz pages clean');
+}

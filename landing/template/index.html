@@ -20,14 +20,14 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="{{site_url}}/favicon.svg" type="image/svg+xml">
 {{{font_preload}}}
-<style>{{{css}}}</style>
+<link rel="stylesheet" href="/assets/page.css?v={{css_v}}">
 <script>document.documentElement.className+=' js'</script>
 <script src="/shared/pixel.js" defer></script>
 <script src="/assets/page.js?v={{asset_v}}" defer></script>
 {{{jsonld}}}
 </head>
 <body>
-<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><symbol id="tk" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></symbol></svg>
+<svg width="0" height="0" class="svgdefs" aria-hidden="true" focusable="false"><symbol id="tk" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></symbol></svg>
 <a class="skip" href="#quiz">Skip to the check</a>
 <header class="top"><div class="wrap">
   <span class="logo" role="img" aria-label="SortMyCover">SortMyC<span class="tick" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>ver</span>
@@ -151,7 +151,7 @@
       <p class="hint">Live availability, South African time. You can change it on WhatsApp later.</p>
       <p class="status" id="slotStatus" role="status"></p>
       <div id="slots"></div>
-      <p class="hint" style="margin:14px 0 8px" id="mLab">How should the adviser reach you?</p>
+      <p class="hint mlab" id="mLab">How should the adviser reach you?</p>
       <div class="methods" id="methods" role="group" aria-labelledby="mLab"></div>
       <div class="field" id="fEmail" hidden><label for="email">Email for the invite</label><input id="email" type="email" inputmode="email" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="120" aria-describedby="eEmail tEmail"><span class="tip" id="tEmail">Only used to send the meeting invite.</span><span class="err" id="eEmail">Please enter a valid email address.</span><button type="button" class="link" id="emailFix" hidden></button></div>
       <p class="form-err" id="bookErr" role="alert" hidden></p>
@@ -173,7 +173,7 @@
       <div class="done">
         <h3 id="h9q" tabindex="-1">Thanks for checking.</h3>
         <p>From these answers, a call is not the right fit right now. We have not saved your details.</p>
-        <p style="font-size:14px">If things change, come back any time.</p>
+        <p class="fs14">If things change, come back any time.</p>
       </div>
     </div>
   </div>
