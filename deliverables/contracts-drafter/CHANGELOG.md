@@ -2,6 +2,19 @@
 
 All documents are **DRAFT — for practitioner review**. Markdown only; PDF rendering is a later step.
 
+## Lead Generation Services Agreement LGSA-v0.2 — 2026-10-07 (Mark Weston amendments)
+
+### Added
+- `lead-generation-agreement/mark-amendments-2026-10-07.md`: findings on Mark's 9 requests (contract, repo economics, law, industry), with sources.
+- `lead-generation-agreement/lead-velocity-services-agreement-v2.md`: LGSA-v0.2, with changed clauses marked. Replacements become an obligation within the 0.1 per-cycle cap; Invalid Leads (5.7) are never Delivered; dispute evidence (5.8); force majeure capped at cycle + 14 days; Schedule 3 replaced.
+- `lead-generation-agreement/mark-whatsapp-reply.md`: draft reply (not sent).
+
+### Declined
+- Attendance in the Qualified Lead definition, R1,500 floor, income verification, 70% show-rate trigger.
+
+### Open
+- NH-67: Jonathan to approve v0.2; Pilot cap 2 and Top-Up cap (20%) are gap-fills; 11.1 notice vs 0.1; pricing.seed.json `terms` to be updated; .docx/PDF client copy not rebuilt yet.
+
 ## Consumer Terms TU-v1.0 — 2026-10-02 (S7-15)
 
 ### Added

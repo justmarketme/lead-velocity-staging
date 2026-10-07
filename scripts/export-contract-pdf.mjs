@@ -6,7 +6,8 @@
 // exactly as in the app; nothing extra to install.
 //
 // Usage:
-//   node scripts/export-contract-pdf.mjs --fields <fields.json> --out <file.pdf> [--html <file.html>]
+//   node scripts/export-contract-pdf.mjs --fields <fields.json> --out <file.pdf> [--html <file.html>] [--source <agreement.md>]
+// --source renders another text of the agreement (e.g. a client copy with changes marked); default = canonical template.
 // fields.json = { "plan": "Bronze", "client_phone": "...", "include_notes": false,
 //                 "placeholders": { "[CLIENT FULL NAME]": "...", "[LV REG NO]": "(blank)",
 //                                   "[OPTIONAL — CONFIRM]": "(omit)", "[PRACTICE NAME]": "?Name to confirm" } }
@@ -27,7 +28,7 @@ const arg = (name) => {
 const fieldsPath = arg("fields");
 const outPath = arg("out");
 if (!fieldsPath || !outPath) {
-  console.error("Usage: node scripts/export-contract-pdf.mjs --fields <fields.json> --out <file.pdf> [--html <file.html>]");
+  console.error("Usage: node scripts/export-contract-pdf.mjs --fields <fields.json> --out <file.pdf> [--html <file.html>] [--source <agreement.md>]");
   process.exit(2);
 }
 const CHROME = process.env.CHROME_PATH || "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe";
@@ -46,7 +47,8 @@ try {
   const R = await server.ssrLoadModule("/src/lib/contract/renderHtml.ts");
   const fields = { ...A.defaultFields(), ...JSON.parse(readFileSync(fieldsPath, "utf8")) };
   if (fields.include_notes) console.warn("WARNING: include_notes is on: internal notes will be in this PDF. Not for clients.");
-  doc = A.resolveAgreement(fields);
+  const sourcePath = arg("source");
+  doc = A.resolveAgreement(fields, sourcePath ? readFileSync(sourcePath, "utf8") : undefined);
   const logo = readFileSync(path.join(root, "src/assets/lead-velocity-logo-contract.png")).toString("base64");
   html = R.renderAgreementHtml(doc, fields, { logoSrc: `data:image/png;base64,${logo}` });
 } finally {

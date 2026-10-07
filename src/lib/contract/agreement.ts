@@ -211,10 +211,13 @@ const RAW = parseRaw(agreementMd);
 
 // ---------------------------------------------------------------- plan + pricing (Schedule 1)
 
+const TIER_TARGET = (QUALIFIED as { campaign_target_budget_zar?: number | null }).campaign_target_budget_zar ?? null;
+
 const planRows = (t: PricingTier): Record<string, string> => ({
   Plan: t.name,
   "Fee per Billing Cycle": `${zar(t.price_zar)} excl. VAT, ${isPilot(t) ? "once-off, " : ""}paid in advance`,
-  "Committed Leads per Billing Cycle": `${t.committed_leads} Qualified Leads`,
+  // with budget tiers in the pricing source, accepted B-tier leads count towards the commitment (clauses 5.6, 5.7)
+  "Committed Leads per Billing Cycle": `${t.committed_leads} Qualified Leads${TIER_TARGET ? " (A-tier, plus any B-tier the Client accepts)" : ""}`,
   "Effective Lead Price": `${zar(perLead(t))} per Qualified Lead (${zar(t.price_zar)} ÷ ${t.committed_leads})`,
 });
 
@@ -284,23 +287,28 @@ function consistencyWarnings(md: string): string[] {
   const targetBudget = q.campaign_target_budget_zar ?? null;
   const checks: [string, RegExp, string][] = [
     ["Billing Cycle length (1.1.4)", /"\*\*Billing Cycle\*\*" means the period of (\d+) days/, String(TERMS.cycle_days)],
-    ["Rollover Period (1.1.29)", /"\*\*Rollover Period\*\*" means the period of (\d+) days/, String(TERMS.shortfall_rollover_days)],
+    ["Rollover Period (1.1.29)", /"\*\*Rollover Period\*\*" means the period of up to (\d+) days/, String(TERMS.shortfall_rollover_days)],
+    ["Rollover end day (1.1.29)", /\(ending on day (\d+) counted from the start/, String(TERMS.cycle_days + TERMS.shortfall_rollover_days)],
     ["Cancellation notice (11.1)", /11\.1 \*\*Cancellation on notice\.\*\* .*?at least (\d+) days'/, String(TERMS.cancel_notice_days)],
     ["Replacements per Calendar Week (7.2)", /no more than (\d+) replacement requests per Calendar Week/, String(TERMS.goodwill_replacements_per_week)],
     ["Top-Up minimum (9.1)", /\((\d+) Qualified Leads, being R[\d,]+ at/, String(TOPUP.min_leads)],
     ["Top-Up minimum value (9.1)", /\(\d+ Qualified Leads, being (R[\d,]+) at/, zar(topupMinimumZar())],
     ["Top-Up notice (9.2)", /9\.2 \*\*Notice\.\*\* The Client must give at least (\d+) days'/, String(TOPUP.notice_days)],
-    ["Pilot rollover (9.7)", /the (\d+)-day Rollover Period/, String(TERMS.shortfall_rollover_days)],
+    ["Pilot rollover (9.7)", /the Rollover Period ending on day (\d+)/, String(TERMS.cycle_days + TERMS.shortfall_rollover_days)],
     ["Pilot replacements (9.7)", /replacements of up to (\d+) per Calendar Week/, String(TERMS.goodwill_replacements_per_week)],
     ["Qualifying age (5.1(c))", /namely age (\d+ to \d+)/, `${QUALIFIED.age_min} to ${QUALIFIED.age_max}`],
     [
       "Qualifying budget (5.1(c))",
-      /monthly budget for life cover of (R[\d,]+(?: or more| to R[\d,]+))/,
+      /monthly premium budget of (R[\d,]+(?: or more| to R[\d,]+))/,
       // no maximum in the pricing source means "R750 or more"
       maxBudget ? `${zar(QUALIFIED.budget_min_zar)} to ${zar(maxBudget)}` : `${zar(QUALIFIED.budget_min_zar)} or more`,
     ],
   ];
-  if (targetBudget) checks.push(["Campaign targeting aim (Schedule 1)", /budget for life cover of about (R[\d,]+) or more/, zar(targetBudget)]);
+  if (targetBudget) {
+    checks.push(["A-tier threshold (1.1.3A)", /"\*\*A-Tier Lead\*\*" means a Qualified Lead whose self-declared monthly premium budget is (R[\d,]+) or more/, zar(targetBudget)]);
+    checks.push(["B-tier band (1.1.3A)", /"\*\*B-Tier Lead\*\*" means a Qualified Lead whose self-declared monthly premium budget is (R[\d,]+ to R[\d,]+)/, `${zar(QUALIFIED.budget_min_zar)} to ${zar(targetBudget - 1)}`]);
+    checks.push(["Campaign target (5.6(a))", /\*\*A-tier: (R[\d,]+) or more a month\.\*\*/, zar(targetBudget)]);
+  }
   const out: string[] = [];
   for (const [label, re, expected] of checks) {
     const found = md.match(re)?.[1];
@@ -319,15 +327,16 @@ const fmtDate = (iso: string): string => {
   return isNaN(d.getTime()) ? iso : d.toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" });
 };
 
-export function resolveAgreement(fields: AgreementFields): ResolvedAgreement {
+/** `sourceMd` renders a different text of the agreement (e.g. a client copy with changes marked) through the same pipeline; defaults to the canonical template. */
+export function resolveAgreement(fields: AgreementFields, sourceMd?: string): ResolvedAgreement {
   const tier = planByName(fields.plan) || planByName("Bronze") || TIERS[0];
-  const warnings = [...TEMPLATE_WARNINGS];
+  const warnings = sourceMd ? consistencyWarnings(sourceMd) : [...TEMPLATE_WARNINGS];
   const values: Record<string, string> = {};
   for (const [k, v] of Object.entries(fields.placeholders || {})) values[k] = DATE_TOKENS.has(k) && v ? fmtDate(v) : v;
   const rawName = (values["[CLIENT FULL NAME]"] || "").trim();
   const clientName = rawName.startsWith("(") ? "" : rawName.replace(/^\?\s*/, "");
 
-  const raw = applyPlan(RAW, tier, clientName, warnings);
+  const raw = applyPlan(sourceMd ? parseRaw(sourceMd) : RAW, tier, clientName, warnings);
   const blocks: Block[] = [];
   for (const b of raw) {
     if (b.type === "note") { if (fields.include_notes) blocks.push({ type: "note", level: b.level, inl: parseInline(b.text, null) }); continue; }

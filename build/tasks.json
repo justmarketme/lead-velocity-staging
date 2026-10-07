@@ -2640,6 +2640,17 @@
       "human_gate": true,
       "status": "needs_human",
       "section": "0.1 Agent identity / 4.2 / 4.7"
+    },
+    {
+      "id": "NH-67",
+      "title": "Mark Weston amendments (7 Oct): LGSA-v0.2 drafted (deliverables/contracts-drafter/lead-generation-agreement/lead-velocity-services-agreement-v2.md). Approve before sending: (a) replacements become an obligation within the 0.1 per-cycle cap (4/6/9; Pilot 2), weekly cap of 3 removed; (b) invalid/wrong-person/fake contact = never Delivered, uncapped; (c) force majeure can no longer stretch delivery past cycle + 14-day rollover; (d) attendance-in-definition, R1,500 floor and 70% show-rate trigger declined. Still open and NOT changed: 11.1 7-day cancellation notice vs 0.1 'no notice period'; pricing.seed.json terms.goodwill_replacements_per_week=3 and cancel_notice_days=7 conflict with rows.replacement_cap_cycle and with v0.2 (billing-automation to update seed after approval).",
+      "owner": "jonathan",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md; seed + agreement agree",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "0.1 Replacement cap / 3.3 / 4.13"
     }
   ]
 }
