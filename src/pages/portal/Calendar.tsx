@@ -1,9 +1,10 @@
 /**
  * 05 Calendar and availability (portal/spec/05-calendar-and-availability.md; prototype calendar.html). Extends BrokerCalendar.tsx (INV-P06).
- * Part A: one-tap Microsoft sign-in. I-41a: the button fetches W20 GET {base}/ms/connect with the broker JWT (a plain link cannot
- *         carry it, so W20 answered 401) and navigates to the returned authorize_url; /ms/callback stores the token in the vault,
- *         never in the row. "Disconnect" POSTs {base}/ms/disconnect with the same bearer header. Admin-consent link prefers
- *         brokers.calendar_status_detail.admin_consent_url (W20 writes it) and falls back to VITE_MS_ADMIN_CONSENT_URL.
+ * Part A: one-tap Microsoft sign-in via the ms-oauth edge function (authorization code + PKCE, one Lead Velocity Entra app).
+ *         The button asks ms-oauth {action:'start'} (broker JWT) for the authorize_url and navigates to it; the function's callback
+ *         stores the refresh token in Supabase Vault (never in the browser or a row) and redirects back here with ?calendar=connected.
+ *         "Disconnect" calls {action:'disconnect'}. Admin-consent link prefers brokers.calendar_status_detail.admin_consent_url
+ *         (the callback writes it), then the one returned by start, then VITE_MS_ADMIN_CONSENT_URL.
  *         then the "next free slot" proof from W04 GET {base}/slots?limit=1 (broker JWT; see needs_human), cached brokers.next_free_slot_at.
  * Part B: hours, methods, capacity → own brokers columns; events availability.saved + step.completed(availability).
  */
@@ -11,7 +12,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import PortalShell, { StepClip, usePortal } from "./PortalShell";
 import { supabase } from "@/integrations/supabase/client";
-import { CLIPS_BASE, MS_ADMIN_CONSENT_URL, N8N_BASE, SUPPORT_EMAIL, errText, fmtDayTime, methodLabel, portalEvent, postWebhook, smcDb } from "@/lib/smc";
+import { CLIPS_BASE, MS_ADMIN_CONSENT_URL, SUPPORT_EMAIL, errText, fmtDayTime, methodLabel, portalEvent, postWebhook, smcDb } from "@/lib/smc";
+import { adminConsentNote, callbackNotice, calendarStepView, msUrl } from "@/lib/smcMsConnect";
 import type { SmcMeetingHours, SmcMethod } from "@/integrations/supabase/smc-types";
 
 const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
@@ -21,28 +23,21 @@ const METHODS: SmcMethod[] = ["teams", "phone", "whatsapp_call", "zoom", "meet"]
 const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
 
 interface SlotResp { slots?: { start: string }[]; more_this_week?: number; count_week?: number }
-interface MsResp { ok?: boolean; authorize_url?: string; calendar_status?: string; error?: string }
+interface MsResp { ok?: boolean; authorize_url?: string; admin_consent_url?: string; calendar_status?: string; error?: string }
 
-/** Only Microsoft sign-in hosts are followed (authorize_url from W20, admin_consent_url from the row). */
-const msUrl = (u: unknown): string => (typeof u === "string" && /^https:\/\/login\.microsoftonline\.com\//.test(u) ? u : "");
-
-/** W20 /ms/connect and /ms/disconnect with the broker's Supabase JWT (automation/lib/w20-ms.mjs brokerCaller / planConnect). */
-async function msCall(path: "ms/connect" | "ms/disconnect", method: "GET" | "POST"): Promise<{ ok: boolean; status: number; data: MsResp | null }> {
-  if (!N8N_BASE) return { ok: false, status: 0, data: { error: "Not connected yet (VITE_N8N_WEBHOOK_BASE is not set)." } };
+/** ms-oauth edge function (supabase/functions/ms-oauth): start returns the Microsoft sign-in URL (PKCE), disconnect forgets the token. */
+async function msCall(action: "start" | "disconnect"): Promise<{ ok: boolean; status: number; data: MsResp | null }> {
   const { data: s } = await supabase.auth.getSession();
-  const session = s.session;
-  if (!session?.access_token) return { ok: false, status: 401, data: { error: "Please sign in again." } };
+  if (!s.session?.access_token) return { ok: false, status: 401, data: { error: "Please sign in again." } };
   try {
-    const res = await fetch(`${N8N_BASE}/${path}`, {
-      method,
-      headers: { Authorization: `Bearer ${session.access_token}`, Accept: "application/json", ...(method === "POST" ? { "Content-Type": "application/json" } : {}) },
-      body: method === "POST" ? "{}" : undefined,
-      credentials: "omit",
-    });
-    const text = await res.text();
-    let data: MsResp | null = null;
-    try { data = text ? (JSON.parse(text) as MsResp) : null; } catch { data = null; }
-    return { ok: res.ok, status: res.status, data };
+    const { data, error } = await supabase.functions.invoke<MsResp>("ms-oauth", { body: { action } });
+    if (error) {
+      const status = (error as { context?: Response }).context?.status ?? 0;
+      let body: MsResp | null = null;
+      try { body = (await (error as { context?: Response }).context?.json()) as MsResp; } catch { body = null; }
+      return { ok: false, status, data: body ?? { error: errText(error) } };
+    }
+    return { ok: !!data?.ok, status: 200, data: data ?? null };
   } catch (e) {
     return { ok: false, status: 0, data: { error: errText(e) } };
   }
@@ -86,14 +81,17 @@ function Body() {
   const blockedAdmin = broker.calendar_status === "blocked_admin_consent" || new URLSearchParams(window.location.search).get("error") === "admin_consent";
   const inApp = /FBAN|FBAV|Instagram|WhatsApp/i.test(navigator.userAgent);
   const detailConsent = msUrl(broker.calendar_status_detail?.admin_consent_url);
-  const consentUrl = detailConsent
+  const [startedConsent, setStartedConsent] = useState("");
+  const view = calendarStepView(broker);
+  const cbNotice = callbackNotice(window.location.search);
+  const consentUrl = detailConsent || startedConsent
     || (MS_ADMIN_CONSENT_URL ? `${MS_ADMIN_CONSENT_URL}${broker.ms_tenant_id ? `${MS_ADMIN_CONSENT_URL.includes("?") ? "&" : "?"}tenant=${encodeURIComponent(broker.ms_tenant_id)}` : ""}` : "");
   const [msBusy, setMsBusy] = useState<"" | "connect" | "disconnect">("");
   const [msErr, setMsErr] = useState<string | null>(null);
 
   async function connectOutlook() {
     setMsErr(null); setMsBusy("connect");
-    const r = await msCall("ms/connect", "GET");
+    const r = await msCall("start");
     const go = msUrl(r.data?.authorize_url);
     if (r.ok && go) { window.location.assign(go); return; }
     setMsBusy("");
@@ -102,10 +100,16 @@ function Body() {
       : `We couldn't start Microsoft sign-in (${r.data?.error || `HTTP ${r.status}`}). Try again.`);
   }
 
+  // The admin-approval panel needs a link even before the broker has ever tapped Connect.
+  useEffect(() => {
+    if (!blockedAdmin || detailConsent || startedConsent) return;
+    void msCall("start").then((r) => setStartedConsent(msUrl(r.data?.admin_consent_url)));
+  }, [blockedAdmin, detailConsent, startedConsent]);
+
   async function disconnectOutlook() {
     if (!window.confirm("Disconnect your Outlook calendar? Leads can't book new times with you until you reconnect.")) return;
     setMsErr(null); setMsBusy("disconnect");
-    const r = await msCall("ms/disconnect", "POST");
+    const r = await msCall("disconnect");
     setMsBusy("");
     if (!r.ok) { setMsErr(`We couldn't disconnect (${r.data?.error || `HTTP ${r.status}`}). Try again.`); return; }
     void reload();
@@ -148,14 +152,15 @@ function Body() {
   }
 
   async function useShared() { await portalEvent("calendar.fallback_chosen", "calendar"); void reload(); }
-  const mailIt = `mailto:?cc=${SUPPORT_EMAIL}&subject=${encodeURIComponent("Please approve the SortMyCover calendar app")}&body=${encodeURIComponent(
-    `Hi, I'd like to connect my Outlook calendar to SortMyCover (Lead Velocity (Pty) Ltd) so that clients can book meetings with me. The app only reads when I'm free and creates meetings in my calendar. It does not read email. Please approve it here: ${consentUrl}. Thanks, ${broker.contact_person || ""}.`)}`;
+  const mailIt = `mailto:?cc=${SUPPORT_EMAIL}&subject=${encodeURIComponent("Please approve the SortMyCover calendar app")}&body=${encodeURIComponent(adminConsentNote({ brokerName: broker.contact_person, consentUrl }))}`;
 
   return (
     <>
       <section className="card">
         <h2>Connect your Outlook calendar</h2>
-        {broker.calendar_status === "needs_reconnect" && <div className="alert" role="alert">Reconnect your calendar so leads can keep booking.</div>}
+        {cbNotice && <p className={cbNotice.tone === "error" ? "err" : "pill ok"} role={cbNotice.tone === "error" ? "alert" : "status"}>{cbNotice.text}</p>}
+        {view.state === "needs_reconnect" && <div className="alert" role="alert">Reconnect your calendar so leads can keep booking.</div>}
+        {(view.state === "done" || view.state === "verifying") && view.account && <p className="pill ok" role="status">Connected as <b>{view.account}</b></p>}
         {connected && next.state === "ok" && next.at && (
           <div className="next-slot" role="status"><span style={{ fontSize: 22 }}>✓</span><div><b>Calendar connected. Your next free slot: {fmtDayTime(next.at)}.</b>{next.more ? `and ${next.more} more this week. ` : ""}Found from your real calendar just now.</div></div>
         )}
@@ -173,15 +178,14 @@ function Body() {
           <>
             <p className="muted">One tap. We only look at when you are free, and we add your meetings. We never read your emails.</p>
             {inApp && <p className="alert">Open this page in Safari or Chrome to sign in.</p>}
-            {N8N_BASE ? (
-              <button className="btn ms" type="button" onClick={connectOutlook} disabled={msBusy !== ""} aria-busy={msBusy === "connect"}>
-                <span className="ms-logo" aria-hidden="true"><i /><i /><i /><i /></span>{msBusy === "connect" ? "Opening Microsoft…" : "Sign in with Microsoft"}
-              </button>
-            ) : <button className="btn ms" disabled>Sign in with Microsoft (not connected yet)</button>}
+            <button className="btn ms" type="button" onClick={connectOutlook} disabled={msBusy !== ""} aria-busy={msBusy === "connect"}>
+              <span className="ms-logo" aria-hidden="true"><i /><i /><i /><i /></span>{msBusy === "connect" ? "Opening Microsoft…" : "Sign in with Microsoft"}
+            </button>
             {msErr && <p className="err" role="alert">{msErr}</p>}
             <details open={blockedAdmin} style={{ marginTop: 12 }}>
               <summary>Microsoft says "Need admin approval"?</summary>
               <p className="muted">Your IT admin has switched off new apps. Two easy ways forward.</p>
+              <p className="small">{adminConsentNote({ brokerName: broker.contact_person, consentUrl: consentUrl || "(link loading)" })}</p>
               <p><b>1. Ask your admin to approve us (2 minutes for them).</b> Send them this link. They sign in, tap "Accept", and you try again.</p>
               <div className="row">
                 <button className="tap" type="button" disabled={!consentUrl} onClick={async () => { await navigator.clipboard.writeText(consentUrl); setCopied(true); }}>{copied ? "Copied" : "Copy the admin approval link"}</button>

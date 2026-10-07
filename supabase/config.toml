@@ -41,3 +41,8 @@ verify_jwt = false
 
 [functions.w34-media-erase]
 verify_jwt = false
+
+# SortMyCover: Microsoft calendar connect. The OAuth callback is called by Microsoft (no Supabase JWT);
+# start/disconnect verify the broker JWT inside the function.
+[functions.ms-oauth]
+verify_jwt = false
