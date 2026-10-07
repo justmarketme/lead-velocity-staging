@@ -136,7 +136,7 @@ Evidence notes: file:line is the first line proving the item. Migrations are dra
 | I-32c | Move VITE_GEMINI_API_KEY use in src/components/voice/EinsteinLiveVoice.tsx:10 behind an edge function; drop from .env.example | platform-architect |
 | I-34g | Replace placeholder automation/flows/flow-crypto.js with Meta published decryptRequest/encryptResponse, rerun build-w03-w28.mjs | automation-engineer |
 | I-36c | Add W14 consumer step that runs build-broker-report-email.mjs --pdf, attaches, sends via Graph from howzit@ (DRY_RUN); W14 only queues the row today | automation-engineer |
-| I-37b | Make W23/W19/W04 webhook CORS allowedOrigins env-driven (PUBLIC_ALLOWED_ORIGINS); W23.json hard-codes app.leadvelocity.co.za | devops-security |
+| I-37b | Make W23/W19/W04 webhook CORS allowedOrigins env-driven (PUBLIC_ALLOWED_ORIGINS); W23.json hard-codes leadvelocity.co.za | devops-security |
 | I-39h | Build Sonnet re-check node for low-confidence classifier passes (stubbed LLM test); today fails closed | automation-engineer + conversation-designer |
 | I-43d | Run W34 synthetic one-batch loop night on local n8n/throwaway Postgres; check Summarise reads all batches and signing-failure item shape | compliance-qa + devops-security |
 | I-43e | Move W20 callback token handling into a sub-workflow with error data off; add _n8ncode test | automation-engineer |

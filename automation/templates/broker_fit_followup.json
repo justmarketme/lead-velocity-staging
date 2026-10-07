@@ -34,9 +34,9 @@
         {
           "type": "URL",
           "text": "Open in portal",
-          "url": "https://app.leadvelocity.co.za/{{1}}",
+          "url": "https://leadvelocity.co.za/{{1}}",
           "example": [
-            "https://app.leadvelocity.co.za/l/ld_51c9"
+            "https://leadvelocity.co.za/l/ld_51c9"
           ]
         }
       ]

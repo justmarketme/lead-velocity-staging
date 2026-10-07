@@ -14,7 +14,7 @@ import { inlineModule } from '../security/inline-for-n8n.mjs';
 const here = dirname(fileURLToPath(import.meta.url));
 const file = join(here, '..', 'W23.json');
 const w = JSON.parse(readFileSync(file, 'utf8'));
-const ORIGIN = 'https://app.leadvelocity.co.za';
+const ORIGIN = "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za' }}"; // I-37b: env-driven, never a literal (automation/tests/W26.test.mjs)
 const N = (name) => w.nodes.find((n) => n.name === name);
 const drop = (names) => { w.nodes = w.nodes.filter((n) => !names.includes(n.name)); names.forEach((x) => delete w.connections[x]); };
 const link = (from, to, out = 0) => { const c = (w.connections[from] ||= { main: [] }); (c.main[out] ||= []); if (!c.main[out].some((t) => t.node === to)) c.main[out].push({ node: to, type: 'main', index: 0 }); };

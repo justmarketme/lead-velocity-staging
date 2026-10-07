@@ -27,7 +27,7 @@
         "authentication": "none",
         "responseMode": "responseNode",
         "options": {
-          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://app.leadvelocity.co.za' }}"
+          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za' }}"
         }
       },
       "id": "smc-ads-console-2",
@@ -61,7 +61,7 @@
         "authentication": "none",
         "responseMode": "responseNode",
         "options": {
-          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://app.leadvelocity.co.za' }}"
+          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za' }}"
         }
       },
       "id": "smc-ads-console-4",
@@ -95,7 +95,7 @@
         "authentication": "none",
         "responseMode": "responseNode",
         "options": {
-          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://app.leadvelocity.co.za' }}"
+          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za' }}"
         }
       },
       "id": "smc-ads-console-6",
@@ -129,7 +129,7 @@
         "authentication": "none",
         "responseMode": "responseNode",
         "options": {
-          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://app.leadvelocity.co.za' }}"
+          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za' }}"
         }
       },
       "id": "smc-ads-console-8",

@@ -51,7 +51,7 @@ const submitted = (name) => RENAME[name] || name;
 
 const SECRET = process.env.INTERNAL_HMAC_SECRET || 'test-internal-hmac-secret-0123456789';
 const ENV = {
-  INTERNAL_HMAC_SECRET: SECRET, PORTAL_URL: 'https://app.leadvelocity.co.za', BRAND_ID: 'smc', DRY_RUN_SENDS: 'false',
+  INTERNAL_HMAC_SECRET: SECRET, PORTAL_URL: 'https://leadvelocity.co.za', BRAND_ID: 'smc', DRY_RUN_SENDS: 'false',
   HOWZIT_MAILBOX: 'howzit@leadvelocity.co.za', N8N_PUBLIC_URL: 'https://n8n.test', FSCA_LIFE_CATEGORY_PATTERN: '',
 };
 
@@ -783,7 +783,7 @@ const USER_ID = '7f1e2d3c-4b5a-4968-8776-655443322110';
 const MS_ENV = {
   ...ENV, REPO_DIR: join(HERE, '..', '..'), SUPABASE_JWT_SECRET: JWT_SECRET, MS_OAUTH_STATE_SECRET: MS_SECRET,
   MS_GRAPH_CLIENT_ID: '11111111-2222-4333-8444-555555555555', MS_GRAPH_TENANT: 'organizations',
-  MS_GRAPH_REDIRECT_URI: 'https://n8n.test/webhook/ms/callback', PORTAL_URL: 'https://app.leadvelocity.co.za',
+  MS_GRAPH_REDIRECT_URI: 'https://n8n.test/webhook/ms/callback', PORTAL_URL: 'https://leadvelocity.co.za',
 };
 const MS_CFG = { clientId: MS_ENV.MS_GRAPH_CLIENT_ID, redirectUri: MS_ENV.MS_GRAPH_REDIRECT_URI, tenant: 'organizations', stateSecret: MS_SECRET, portalUrl: MS_ENV.PORTAL_URL, adminConsentRedirectUri: MS_ENV.PORTAL_URL };
 const msB64u = (o) => Buffer.from(typeof o === 'string' ? o : JSON.stringify(o)).toString('base64url');
@@ -861,12 +861,12 @@ test('I-40c lib: planCallback stores the refresh token only via the vault action
   assert.equal(p.tenant_id, 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee');
   assert.equal(p.scopes, 'Calendars.ReadWrite OnlineMeetings.ReadWrite User.Read openid');
   assert.ok(!JSON.stringify(p.detail).includes('RT-SECRET') && !p.redirect.includes('RT-SECRET') && !JSON.stringify(p.detail).includes('at-xyz'));
-  assert.equal(p.redirect, 'https://app.leadvelocity.co.za/broker/calendar?calendar=connected');
+  assert.equal(p.redirect, 'https://leadvelocity.co.za/broker/calendar?calendar=connected');
 
   const consent = MS.planCallback({ state, query: { error: 'access_denied', error_description: 'AADSTS90094: admin permission' }, cfg: MS_CFG });
   assert.equal(consent.action, 'status'); assert.equal(consent.status, 'consent_pending');
   assert.match(consent.detail.admin_consent_url, /^https:\/\/login\.microsoftonline\.com\/common\/adminconsent\?client_id=11111111-/);
-  assert.equal(consent.redirect, 'https://app.leadvelocity.co.za/broker/calendar?error=admin_consent', 'portal Calendar.tsx auto-opens the admin-consent help on ?error=admin_consent');
+  assert.equal(consent.redirect, 'https://leadvelocity.co.za/broker/calendar?error=admin_consent', 'portal Calendar.tsx auto-opens the admin-consent help on ?error=admin_consent');
 
   const reconnect = MS.planCallback({ state, query: { error: 'access_denied', error_description: 'AADSTS90094' }, currentStatus: 'ok', cfg: MS_CFG });
   assert.equal(reconnect.action, 'none', 'a failed re-connect never downgrades a working calendar');

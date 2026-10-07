@@ -32,9 +32,9 @@
         {
           "type": "URL",
           "text": "Open console",
-          "url": "https://app.leadvelocity.co.za/{{1}}",
+          "url": "https://leadvelocity.co.za/{{1}}",
           "example": [
-            "https://app.leadvelocity.co.za/alerts/al_7731"
+            "https://leadvelocity.co.za/alerts/al_7731"
           ]
         }
       ]

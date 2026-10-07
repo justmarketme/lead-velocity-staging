@@ -14,7 +14,7 @@ The structure is sound:
 The fixes that block a gate:
 1. **AI disclosure is missing at first contact.** Add one sentence to the intro templates and to the CTWA consent message. This needs a human decision, because 4.6 calls the intro text "exact".
 2. **Disposition labels.** Four of them break Meta's 25-character limit, and they differ between the buttons, 4.12a and Schedule C. Use one canonical set everywhere.
-3. **Portal hostname.** The template URL buttons use portal./console.leadvelocity.co.za, but 6.7 says app.leadvelocity.co.za.
+3. **Portal hostname.** The template URL buttons use portal./console.leadvelocity.co.za, but 6.7 says leadvelocity.co.za.
 4. **Advertising sentence.** It sits outside the consent tick and is missing from the CTWA consent. 4.4a puts it inside the consent line.
 5. **Automatic Advanced Matching** must be off before GATE-PIXEL.
 

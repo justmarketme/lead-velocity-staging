@@ -30,9 +30,9 @@
         {
           "type": "URL",
           "text": "Next step",
-          "url": "https://app.leadvelocity.co.za/s/{{1}}",
+          "url": "https://leadvelocity.co.za/s/{{1}}",
           "example": [
-            "https://app.leadvelocity.co.za/s/availability"
+            "https://leadvelocity.co.za/s/availability"
           ]
         }
       ]

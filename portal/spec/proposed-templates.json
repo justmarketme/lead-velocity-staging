@@ -32,17 +32,17 @@
             {
               "type": "URL",
               "text": "Open my portal",
-              "url": "https://app.leadvelocity.co.za/m/{{1}}",
+              "url": "https://leadvelocity.co.za/m/{{1}}",
               "example": [
-                "https://app.leadvelocity.co.za/m/mk_7f3a9c"
+                "https://leadvelocity.co.za/m/mk_7f3a9c"
               ]
             },
             {
               "type": "URL",
               "text": "3-minute video",
-              "url": "https://app.leadvelocity.co.za/v/{{1}}",
+              "url": "https://leadvelocity.co.za/v/{{1}}",
               "example": [
-                "https://app.leadvelocity.co.za/v/start"
+                "https://leadvelocity.co.za/v/start"
               ]
             }
           ]
@@ -83,9 +83,9 @@
             {
               "type": "URL",
               "text": "Next step",
-              "url": "https://app.leadvelocity.co.za/s/{{1}}",
+              "url": "https://leadvelocity.co.za/s/{{1}}",
               "example": [
-                "https://app.leadvelocity.co.za/s/calendar"
+                "https://leadvelocity.co.za/s/calendar"
               ]
             }
           ]
@@ -124,9 +124,9 @@
             {
               "type": "URL",
               "text": "Next step",
-              "url": "https://app.leadvelocity.co.za/s/{{1}}",
+              "url": "https://leadvelocity.co.za/s/{{1}}",
               "example": [
-                "https://app.leadvelocity.co.za/s/availability"
+                "https://leadvelocity.co.za/s/availability"
               ]
             }
           ]
@@ -164,7 +164,7 @@
             {
               "type": "URL",
               "text": "Open my portal",
-              "url": "https://app.leadvelocity.co.za/start"
+              "url": "https://leadvelocity.co.za/start"
             }
           ]
         }
@@ -204,9 +204,9 @@
             {
               "type": "URL",
               "text": "Carry on",
-              "url": "https://app.leadvelocity.co.za/s/{{1}}",
+              "url": "https://leadvelocity.co.za/s/{{1}}",
               "example": [
-                "https://app.leadvelocity.co.za/s/calendar"
+                "https://leadvelocity.co.za/s/calendar"
               ]
             }
           ]
@@ -246,9 +246,9 @@
             {
               "type": "URL",
               "text": "Finish setup",
-              "url": "https://app.leadvelocity.co.za/s/{{1}}",
+              "url": "https://leadvelocity.co.za/s/{{1}}",
               "example": [
-                "https://app.leadvelocity.co.za/s/agreement"
+                "https://leadvelocity.co.za/s/agreement"
               ]
             }
           ]
@@ -288,9 +288,9 @@
             {
               "type": "URL",
               "text": "Fix it",
-              "url": "https://app.leadvelocity.co.za/s/{{1}}",
+              "url": "https://leadvelocity.co.za/s/{{1}}",
               "example": [
-                "https://app.leadvelocity.co.za/s/profile"
+                "https://leadvelocity.co.za/s/profile"
               ]
             }
           ]
@@ -329,7 +329,7 @@
             {
               "type": "URL",
               "text": "Open my leads",
-              "url": "https://app.leadvelocity.co.za/leads"
+              "url": "https://leadvelocity.co.za/leads"
             }
           ]
         }

@@ -84,7 +84,7 @@ function buildAndCompose({ mailbox } = {}) {
   let cmd = cmdItem.cmd.replace(/\/tmp\/w14-email\//g, dir + '/');
   if (!hasChromium) cmd = cmd.replace(' --pdf ', ' ').replace('echo \'@@PDF\'; base64 -w0 "$D"/*.pdf', 'echo \'@@PDF\'; printf %%PDF-1.4-fake | base64 -w0');
   let stdout;
-  try { stdout = execFileSync('sh', ['-c', cmd], { encoding: 'utf8', env: { ...process.env, REPO_DIR: ROOT, PORTAL_URL: 'https://app.leadvelocity.co.za' } }); }
+  try { stdout = execFileSync('sh', ['-c', cmd], { encoding: 'utf8', env: { ...process.env, REPO_DIR: ROOT, PORTAL_URL: 'https://leadvelocity.co.za' } }); }
   finally { rmSync(dir, { recursive: true, force: true }); }
   const out = run('Compose Graph sendMail', { input: [{ stdout, exitCode: 0 }], refs: { 'Build email command': [cmdItem] }, env: mailbox ? { HOWZIT_MAILBOX: mailbox } : {} })[0];
   return { cmdItem, stdout, out };

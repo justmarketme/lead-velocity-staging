@@ -33,9 +33,9 @@
         {
           "type": "URL",
           "text": "Open the day",
-          "url": "https://app.leadvelocity.co.za/s/{{1}}",
+          "url": "https://leadvelocity.co.za/s/{{1}}",
           "example": [
-            "https://app.leadvelocity.co.za/s/calendar?day=2026-10-14"
+            "https://leadvelocity.co.za/s/calendar?day=2026-10-14"
           ]
         }
       ]

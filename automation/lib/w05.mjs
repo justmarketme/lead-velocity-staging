@@ -44,7 +44,7 @@ export const BAND_LABEL = {
   budget_band: { under_500: 'Under R500', '500_750': 'R500-R750', '750_1250': 'R750-R1,250', '1250_plus': 'R1,250+ (before split)', '1250plus': 'R1,250+ (before split)', '1250_1499': 'R1,250-R1,499', '1500_plus': 'R1,500+' },
 };
 export const INVITE_FROM = 'howzit@leadvelocity.co.za';
-export const PORTAL = 'https://app.leadvelocity.co.za';
+export const PORTAL = 'https://leadvelocity.co.za';
 export const SITE = 'https://sortmycover.co.za';
 export const LIVE = new Set(['booked', 'confirmed']);
 const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?([+-]\d{2}:\d{2}|Z)$/;

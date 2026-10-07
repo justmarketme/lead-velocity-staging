@@ -20,7 +20,7 @@ const W20 = JSON.parse(readFileSync(join(ROOT, 'automation', 'W20.json'), 'utf8'
 const nd = (name) => { const n = W20.nodes.find((x) => x.name === name); assert.ok(n, `W20 node ${name}`); return n; };
 const PG = localPgBackend();
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
-const ENV = { PORTAL_URL: 'https://app.leadvelocity.co.za', DRY_RUN_SENDS: 'true', WHATSAPP_TEST_RECIPIENTS: '' };
+const ENV = { PORTAL_URL: 'https://leadvelocity.co.za', DRY_RUN_SENDS: 'true', WHATSAPP_TEST_RECIPIENTS: '' };
 
 // Runs a Code node (all-items mode) with a fixed SAST hour for luxon's DateTime.now().setZone(...).hour.
 async function code(name, items, { sastHour = 10, env = ENV } = {}) {
@@ -125,7 +125,7 @@ test('S7-06 local staging: W20 24 h / 72 h nudges on the real schema (quiet hour
   assert.deepEqual(b.map((x) => x.channel), ['wa', 'email', 'w22'], '72 h = WhatsApp + email + console to-do (W22 amber)');
   assert.equal(b[0].template, 'broker_onb_nudge_72h'); assert.equal(b[0].params[1], 'Sign your agreement');
   assert.equal(b[0].params.length, templateCounts('broker_onb_nudge_72h').body, '72 h params match the submitted template');
-  assert.equal(b[1].cta.url, 'https://app.leadvelocity.co.za/s/agreement');
+  assert.equal(b[1].cta.url, 'https://leadvelocity.co.za/s/agreement');
   assert.deepEqual([b[2].signal_key, b[2].severity, b[2].scope], ['broker_onboarding_stalled', 'amber', `broker:${bid('B')}`]);
   assert.ok(nudges('A')['24h'] && !nudges('A')['72h']);
   assert.ok(nudges('B')['72h'] && nudges('B')['24h'], 'a 72 h mark also closes the 24 h slot');

@@ -123,7 +123,7 @@ const App = () => {
                 <Route path="/broker/agreement" element={smc(<PortalAgreement />)} />
                 <Route path="/broker/billing" element={smc(<PortalAgreement />)} />
                 <Route path="/broker/help" element={smc(<PortalHelp />)} />
-                {/* WhatsApp template buttons (I-37c): short links on app.leadvelocity.co.za/s/* forward to the portal pages, query kept */}
+                {/* WhatsApp template buttons (I-37c): short links on leadvelocity.co.za/s/* forward to the portal pages, query kept */}
                 <Route path="/s/calendar" element={<SmcShortLink to="/broker/calendar" />} />
                 <Route path="/s/billing" element={<SmcShortLink to="/broker/billing" />} />
                 <Route path="/r/:key" element={<SmcReportLink />} />

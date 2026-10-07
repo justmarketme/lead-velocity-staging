@@ -4,7 +4,7 @@ A dead VPS cannot report its own death. So uptime has **two layers**:
 
 | Layer | What | Detects | Alerts via |
 |---|---|---|---|
-| **External monitor** (free tier) | HTTPS check every 5 min on `https://api.leadvelocity.co.za/healthz`, keyword/status 200. Also `https://app.leadvelocity.co.za/`, `https://sortmycover.co.za/`, `https://go.leadvelocity.co.za/` and SSL expiry on all four | VPS down, Traefik down, DNS broken, cert expired | The monitor's **own** e-mail to howzit@ + its mobile push to Jonathan and KG (works while the VPS is dead), **plus** a webhook to W22 (delivered whenever n8n is reachable; it records recoveries for the SLO) |
+| **External monitor** (free tier) | HTTPS check every 5 min on `https://api.leadvelocity.co.za/healthz`, keyword/status 200. Also `https://leadvelocity.co.za/`, `https://sortmycover.co.za/`, `https://go.leadvelocity.co.za/` and SSL expiry on all four | VPS down, Traefik down, DNS broken, cert expired | The monitor's **own** e-mail to howzit@ + its mobile push to Jonathan and KG (works while the VPS is dead), **plus** a webhook to W22 (delivered whenever n8n is reachable; it records recoveries for the SLO) |
 | **W22 hourly probe** | `api`, `app`, `portal`, `consumer` from inside n8n | partial outages (a static host down, a tunnel or Traefik route broken while n8n runs) | W22 (dedupe, DND rules, escalation) |
 | **Dead-man heartbeat** (optional) | `pg_dump_nightly.sh` pings `OPS_PING_URL` after every good backup. Configure a heartbeat monitor that alerts if no ping arrives for 26 h | cron or backup silently stopped | the monitor |
 

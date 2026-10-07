@@ -30,9 +30,9 @@
         {
           "type": "URL",
           "text": "Open the lead",
-          "url": "https://app.leadvelocity.co.za/s/{{1}}",
+          "url": "https://leadvelocity.co.za/s/{{1}}",
           "example": [
-            "https://app.leadvelocity.co.za/s/leads/3f2a9c1e-0000-4000-8000-000000000045"
+            "https://leadvelocity.co.za/s/leads/3f2a9c1e-0000-4000-8000-000000000045"
           ]
         }
       ]

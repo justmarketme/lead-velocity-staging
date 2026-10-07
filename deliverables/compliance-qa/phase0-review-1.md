@@ -33,7 +33,7 @@ Grade check: a heuristic Flesch-Kincaid run puts the lead-facing template bodies
 - **F1-5 (M) `intro_media.json:17`, `intro_media_voice.json:18`**: "recorded this short video for people booking a call this week". The recording is generic (4.12) and may be months old, so the sentence is an unverifiable claim. **Fix:** "…recorded this short video so you know who you will be speaking to."
 - **F1-6 (L) `broker_cycle_end.json:13/37`**: "Your renewal offer is ready" with a "See renewal offer" button. This is the most likely utility template to be re-categorised as marketing. **Fix:** "Your payment link for the next cycle is ready, with your current tier selected and no contract." Change the button to "Pay next cycle".
 - **F1-7 (M) `unbooked_nudge_24h_text.json:23`**: the example bio "Mark has helped families in Gauteng for 12 years" is wrong, because Mark is in Cape Town (Section 1), and it is an unverified performance claim shown to Meta's reviewers. **Fix:** "Mark is a licensed adviser in Cape Town and speaks English and Afrikaans." Also add to the README that `bio_short` is broker-signed and goes through the guardrail scan (no claims, no best/cheapest, no years-of-experience unless verified on the FSCA register).
-- **F1-8 (H, platform) Portal and console hostnames.** Ten broker and ops templates hard-code `https://portal.leadvelocity.co.za/` or `https://console.leadvelocity.co.za/` as the URL-button base. 6.7 and the agreement (clause 2) use `app.leadvelocity.co.za` (portal/console static). The base URL is fixed when Meta approves the template, so getting it wrong means resubmitting later. **Fix:** change the base to `https://app.leadvelocity.co.za/{{1}}`, or have devops-security confirm both subdomains before submission.
+- **F1-8 (H, platform) Portal and console hostnames.** Ten broker and ops templates hard-code `https://portal.leadvelocity.co.za/` or `https://console.leadvelocity.co.za/` as the URL-button base. 6.7 and the agreement (clause 2) use `leadvelocity.co.za` (portal/console static). The base URL is fixed when Meta approves the template, so getting it wrong means resubmitting later. **Fix:** change the base to `https://leadvelocity.co.za/{{1}}`, or have devops-security confirm both subdomains before submission.
 - **Note:** `reach_check` (W12 T+30) and `lead_pulse` (W35, after Attended) can arrive within minutes of each other. That is fine for compliance. W35 should only fire after the `reach_check` reply, as 6B.2 says.
 
 **Verdict (1): PASS WITH FIXES.** Before submission: F1-1, F1-3, F1-8. Before go-live: F1-2, F1-5, F1-7 and the 1.7 test. Tidy-up: F1-4, F1-6.
@@ -104,7 +104,7 @@ Grade check: a heuristic Flesch-Kincaid run puts the lead-facing template bodies
 | 4.9 | STOP/opt-out and complaints channel | PASS | Privacy l.145–152 (STOP, NCC registry, howzit@ + COMPLAINT, 48 h, FAIS Ombud, Information Regulator). Agreement 9.5. |
 | 4.10 | Authorisation letter | PASS | Annex 1 (l.286–299): broker approves each ad, access limited, withdrawable. Agreement 12.2 makes the ads the broker's advertising under the GCoC. |
 | 4.11 | Reading level | PASS | Orchestrator FK 6.7 over 3,643 words. This resolves NH-CD-24 for the agreement only. Re-run on consent-and-privacy and the term sheet. |
-| 4.12 | Portal host | PASS | `app.leadvelocity.co.za` matches 6.7. The templates are the ones that are wrong (F1-8). |
+| 4.12 | Portal host | PASS | `leadvelocity.co.za` matches 6.7. The templates are the ones that are wrong (F1-8). |
 
 **Fixes**
 

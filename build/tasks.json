@@ -1895,7 +1895,7 @@
     },
     {
       "id": "NH-12",
-      "title": "Hosting: CRM (incl. the public LV site pages) deploys to Vercel; prompt 6.7 says Hostinger + app.leadvelocity.co.za static. Keep Vercel for the CRM app? Confirm the live LV site is this repo.",
+      "title": "Hosting: CRM (incl. the public LV site pages) deploys to Vercel; prompt 6.7 says Hostinger + leadvelocity.co.za static. Keep Vercel for the CRM app? Confirm the live LV site is this repo.",
       "owner": "jonathan",
       "phase": "0",
       "depends_on": [],

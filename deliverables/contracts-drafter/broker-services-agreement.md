@@ -31,7 +31,7 @@ Lead Velocity runs the consumer brand **SortMyCover** (sortmycover.co.za). Consu
 - **Delivered lead**: a qualified lead that is verified and whose details we have given to you.
 - **Replacement**: an extra qualified lead we deliver because an earlier one met a rule in Schedule C.
 - **Message log**: our time-stamped record of every WhatsApp message, delivery receipt, tap and reply for a lead.
-- **Portal**: your login at app.leadvelocity.co.za, where you see your leads, briefs, outcomes and reports.
+- **Portal**: your login at leadvelocity.co.za, where you see your leads, briefs, outcomes and reports.
 - **Price**: the flat price for one cycle, in Schedule A.
 
 ## 3. What we do for you

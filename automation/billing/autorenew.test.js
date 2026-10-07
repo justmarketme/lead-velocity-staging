@@ -57,7 +57,7 @@ test('I-30e: W19 has POST /billing-autorenew with a responder on every branch', 
   assert.equal(hook.parameters.path, 'billing-autorenew');
   assert.equal(hook.parameters.httpMethod, 'POST');
   assert.equal(hook.parameters.responseMode, 'responseNode');
-  assert.equal(hook.parameters.options.allowedOrigins, "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://app.leadvelocity.co.za' }}", 'I-37b: env-driven');
+  assert.equal(hook.parameters.options.allowedOrigins, "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za' }}", 'I-37b: env-driven');
   assert.deepEqual(next(w, hook.name), ['Autorenew: verify broker JWT + body']);
   assert.deepEqual(next(w, 'Autorenew: verify broker JWT + body'), ['Autorenew: caller ok?']);
   assert.deepEqual(next(w, 'Autorenew: caller ok?', 0), ['Autorenew off as n8n_app + timeline row']);
@@ -138,7 +138,7 @@ test('renewal reminder: card on states the amount (invoice, else pricing) and th
   const on = autorenew.renewalReminderText({ action: 'remind_t3', open_ref: 'SMC-TEST1', card_autorenew: true, open_amount_excl_vat: 7500, open_vat_zar: null, price_zar: 9999 });
   assert.match(on, /ends in 3 days/);
   assert.match(on, /we will charge R7,500 excl\. VAT to your card at cycle end/);
-  assert.match(on, /switch it off any time in the portal: https:\/\/app\.leadvelocity\.co\.za\/s\/billing/);
+  assert.match(on, /switch it off any time in the portal: https:\/\/leadvelocity\.co\.za\/s\/billing/);
   const fromPricing = autorenew.renewalReminderText({ action: 'remind_t1', open_ref: null, card_autorenew: true, price_zar: 12000 });
   assert.match(fromPricing, /R12,000 excl\. VAT/);
   const off = autorenew.renewalReminderText({ action: 'remind_t1', open_ref: 'SMC-TEST2', card_autorenew: false, open_amount_excl_vat: 7500 });
@@ -158,7 +158,7 @@ test('renewal reminder template matches renewalReminderTemplate() and the W19 re
   const varBtns = urlBtns.filter((b) => /\{\{1\}\}/.test(b.url));
   assert.match(body.text, /No lock-in/); assert.doesNotMatch(body.text, /no contract/i);
   assert.match(body.text, /switch it off any time in the portal/);
-  assert.ok(urlBtns.some((b) => b.url === 'https://app.leadvelocity.co.za/s/billing'));
+  assert.ok(urlBtns.some((b) => b.url === 'https://leadvelocity.co.za/s/billing'));
   const rows = [{ action: 'remind_t3', open_ref: 'SMC-TEST1', card_autorenew: true, open_amount_excl_vat: 7500, effective_end: '2026-11-13T10:00:00Z', contact_person: 'Test Broker' },
     { action: 'remind_t1', open_ref: 'SMC-TEST2', card_autorenew: false, price_zar: 12000 }];
   for (const r of rows) {
@@ -186,5 +186,5 @@ test('renewal reminder template matches renewalReminderTemplate() and the W19 re
   assert.deepEqual(next(wf('W19'), GATE, 0), ['Email: renewal reminder from howzit@']);
   assert.deepEqual(next(wf('W19'), GATE, 1), ['Dry-run stub (Email: renewal reminder from howzit@)']);
   assert.deepEqual(next(wf('W19'), 'Reminder: map to sender input'), ['WhatsApp + email: renewal reminder']);
-  assert.match(fs.readFileSync(path.join(ROOT, 'automation/templates/samples/broker_renewal_reminder.txt'), 'utf8'), /Manage auto-renew -> https:\/\/app\.leadvelocity\.co\.za\/s\/billing/);
+  assert.match(fs.readFileSync(path.join(ROOT, 'automation/templates/samples/broker_renewal_reminder.txt'), 'utf8'), /Manage auto-renew -> https:\/\/leadvelocity\.co\.za\/s\/billing/);
 });

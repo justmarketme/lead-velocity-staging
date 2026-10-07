@@ -247,7 +247,7 @@ select public.smc_vault_store_paystack_auth($1::uuid, nullif($2, ''), nullif($3,
   const onboard = w.add('n8n-nodes-base.postgres', 'Broker -> onboarding', sql(`${AUDIT()}-- Update only: the brokers row + auth user were created at invoice issue (NH-27 c, status invited/prospect).
 update ${T.BR} set status = 'onboarding', status_changed_at = case when status = 'onboarding' then status_changed_at else now() end where id = $1::uuid and status in ('invited','prospect','onboarding') returning id, email;`, '={{ [$("Mark invoice paid + create cycle").first().json.broker_id] }}'), { v: 2.5, row: 0, col: 17, credentials: PG });
   const magic = w.add('n8n-nodes-base.httpRequest', 'Supabase magic link', { method: 'POST', url: '={{ $env.SUPABASE_URL + "/auth/v1/admin/generate_link" }}', authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth',
-    sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify({ type: "magiclink", email: $json.email, options: { redirect_to: "https://app.leadvelocity.co.za/broker/start" } }) }}', options: { timeout: 15000 } },
+    sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify({ type: "magiclink", email: $json.email, options: { redirect_to: "https://leadvelocity.co.za/broker/start" } }) }}', options: { timeout: 15000 } },
     { v: 4.2, row: 0, col: 18, credentials: { httpHeaderAuth: { name: 'Supabase service role (W16 magic link)' } } });
   const w20 = w.add('n8n-nodes-base.executeWorkflow', 'W20: welcome + magic link by WhatsApp and email', execWf('smc-w20', 'payload: broker_id, action_link (never logged). 6.1 step 1.'), { v: 1.2, row: 0, col: 19 });
   // I-48g: W20's passthrough (the magic-link response) never reaches W26; the go-live runner gets ids only (LOCAL-STAGING.md §7).
@@ -285,7 +285,7 @@ select public.smc_vault_store_paystack_sub(nullif($1, ''), nullif($2, ''), nulli
 from ${T.BR} b where b.paystack_customer_code = $1 and i.broker_id = b.id and i.status = 'issued';`, '={{ [$json.customer_code || "", $json.reason || ""] }}'), { v: 2.5, row: 1, col: 8, credentials: PG });
 
   // --- E. Checkout: start a Paystack payment for an invoice (called by billing/checkout/checkout.js)
-  const coHook = w.add('n8n-nodes-base.webhook', 'Checkout: POST /billing/checkout', { httpMethod: 'POST', path: 'billing/checkout', responseMode: 'responseNode', options: { allowedOrigins: 'https://app.leadvelocity.co.za' } }, { v: 2, row: 8, col: 0, webhookId: 'smc-billing-checkout' });
+  const coHook = w.add('n8n-nodes-base.webhook', 'Checkout: POST /billing/checkout', { httpMethod: 'POST', path: 'billing/checkout', responseMode: 'responseNode', options: { allowedOrigins: 'https://leadvelocity.co.za' } }, { v: 2, row: 8, col: 0, webhookId: 'smc-billing-checkout' });
   const coLoad = w.add('n8n-nodes-base.postgres', 'Checkout: load invoice + pricing', sql(`select json_build_object('invoice', (select row_to_json(i) from (select i.id, i.reference, i.status, i.tier_code, i.broker_id, i.cycle_id, i.due_at, round(i.total_zar*100)::bigint as total_cents,
   round(i.credit_applied_zar*100)::bigint as credit_cents, i.charge_attempts as attempts, b.email, b.billing_ref from ${T.INV} i join ${T.BR} b on b.id = i.broker_id where i.reference = $1) i),
   'pricing', (select json_agg(p) from ${T.PR} p), 'taken', coalesce((select json_agg(reference) from ${T.INV} x where x.broker_id = (select broker_id from ${T.INV} where reference = $1) and x.status <> 'void'), '[]')) as ctx;`,
@@ -306,7 +306,7 @@ if (body.tier_code && body.tier_code !== invoice.tier_code) {
   inv = { ...reissue, id: null };
 }
 const spec = method === 'manual_eft' ? null : BILLING.paystack.build.initialize({ invoice: inv, email: invoice.email, method, attempt: Number(invoice.attempts) + 1,
-  callbackUrl: 'https://app.leadvelocity.co.za/billing/checkout/thanks', autorenewOptIn: method === 'card' && body.autorenew_opt_in === true, env: $env });
+  callbackUrl: 'https://leadvelocity.co.za/billing/checkout/thanks', autorenewOptIn: method === 'card' && body.autorenew_opt_in === true, env: $env });
 return [{ json: { respond: 200, method, reference: inv.reference, old_reference: invoice.reference, reissue, spec } }];
 `, ['pricing', 'invoice', 'paystack', 'flags']), { v: 2, row: 8, col: 2 });
   const coReissue = w.add('n8n-nodes-base.postgres', 'Checkout: void + re-issue (only if tier changed)', sql(`${AUDIT("'checkout tier change: void + re-issue'")}-- invoice_no and brand_id are filled by smc_invoices_fill. total_zar is written and the trigger rejects it unless it equals
@@ -327,7 +327,7 @@ on conflict (reference) do nothing;`, '={{ [$json.old_reference, $json.reissue ?
   // --- F. NH-61 cycle-1 path: Jonathan's one-tap "Payment received" in the console (Bearer Supabase JWT, admin only).
   // One bank_credits row (source 'manual', amount = invoice total), then the SAME chain as every other rail: Match credit ->
   // Normalise payment.received -> Mark invoice paid + create cycle. No new table, column or function.
-  const tapHook = w.add('n8n-nodes-base.webhook', 'Console: POST /billing/payment-received', { httpMethod: 'POST', path: 'billing/payment-received', responseMode: 'responseNode', options: { allowedOrigins: 'https://app.leadvelocity.co.za' } }, { v: 2, row: 10, col: 0, webhookId: 'smc-billing-payment-received' });
+  const tapHook = w.add('n8n-nodes-base.webhook', 'Console: POST /billing/payment-received', { httpMethod: 'POST', path: 'billing/payment-received', responseMode: 'responseNode', options: { allowedOrigins: 'https://leadvelocity.co.za' } }, { v: 2, row: 10, col: 0, webhookId: 'smc-billing-payment-received' });
   const tapAuth = w.add('n8n-nodes-base.code', 'Tap: verify admin JWT + body', code(`
 const r = BILLING['manual-paid'].parsePaymentReceivedRequest({ headers: $json.headers || {}, body: $json.body || {} }, { jwtSecret: $env.SUPABASE_JWT_SECRET });
 return [{ json: r }];
@@ -545,7 +545,7 @@ const rowsOf = (name) => { try { return $(name).all().map((i) => i.json); } catc
 const ids = (r) => ({ broker_id: r.broker_id, cycle_id: r.cycle_id || null, lead_id: null });
 const waTemplate = (to, t, r, key) => ({ to, kind: 'template', template: { name: t.name, body: t.body.map(clean), buttons: (t.buttons || []).map(clean) },
   variables: t.body.map(clean), buttons: (t.buttons || []).map(clean), ...ids(r), correlation: key, idempotency_key: key });
-const checkout = (ref) => 'https://app.leadvelocity.co.za/billing/checkout/?ref=' + encodeURIComponent(ref || '');
+const checkout = (ref) => 'https://leadvelocity.co.za/billing/checkout/?ref=' + encodeURIComponent(ref || '');
 `;
 const W19_MAIL_TO = '={{ ($("Claimed rows only").all().find((i) => i.json.cycle_id === $json.cycle_id) || { json: {} }).json.email }}';
 const W19_MAIL_HTML = (field) => '={{ "<p>" + String(' + field + ' || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/\\*([^*]+)\\*/g, "<strong style=\\"font-size:18px\\">$1</strong>") + "</p>" }}';
@@ -574,7 +574,7 @@ const ctx = $input.first().json.ctx;
 const tier = BILLING.pricing.byTierCode(ctx.pricing, row.next_tier_code || row.tier_code); // same tier pre-selected unless the broker asked to change
 const inv = BILLING.invoice.buildInvoice({ broker: { id: row.broker_id, billing_ref: row.billing_ref }, pricingRow: tier, cycleStart: row.effective_end, dueAt: row.effective_end,
   existingReferences: ctx.taken, creditCents: Number(ctx.credit_cents) });
-const base = 'https://app.leadvelocity.co.za/billing/checkout/';
+const base = 'https://leadvelocity.co.za/billing/checkout/';
 const links = Object.fromEntries(BILLING.pricing.activeRows(ctx.pricing).map((r) => [r.tier_code, base + '?tier=' + r.tier_code + '&ref=' + inv.reference]));
 const p = ctx.progress || {};
 const endDay = new Date(row.ends_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', timeZone: 'Africa/Johannesburg' });
@@ -608,7 +608,7 @@ return rowsOf('Offer: renewal invoice + message').filter((o) => o && o.row && cl
   // reminders at T-3 / T-1
   const rem = w.add('n8n-nodes-base.code', 'Reminder text (reference in bold)', code(`
 return $input.all().map((i) => { const r = i.json; const days = r.action === 'remind_t3' ? 3 : 1;
-  return { json: { ...r, reminder: { days, reference: r.open_ref, link: 'https://app.leadvelocity.co.za/billing/checkout/?ref=' + (r.open_ref || ''),
+  return { json: { ...r, reminder: { days, reference: r.open_ref, link: 'https://leadvelocity.co.za/billing/checkout/?ref=' + (r.open_ref || ''),
     text: BILLING.autorenew.renewalReminderText(r) }, template: BILLING.autorenew.renewalReminderTemplate(r) } }; });
 `, ['autorenew']), { v: 2, row: 2, col: 5 });
   const remMap = w.add('n8n-nodes-base.code', 'Reminder: map to sender input', code(W19_WA + `
@@ -696,7 +696,7 @@ return $input.all().map((i) => i.json).filter((r) => r && r.action === 'come_bac
   const backMail = w.add('n8n-nodes-base.microsoftOutlook', "Email: 'come back any time' from howzit@", { resource: 'message', operation: 'send', toRecipients: W19_MAIL_TO, subject: 'SortMyCover: start again any time', bodyContent: W19_MAIL_HTML('$json.text'), additionalFields: { bodyContentType: 'html' } }, { v: 2, row: 7, col: 6, credentials: OUTLOOK });
 
   // --- I-30e: portal "Switch off" card auto-renew (Bearer Supabase JWT; off only; opt-in happens at checkout)
-  const arHook = w.add('n8n-nodes-base.webhook', 'Portal: POST /billing-autorenew', { httpMethod: 'POST', path: 'billing-autorenew', responseMode: 'responseNode', options: { allowedOrigins: "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://app.leadvelocity.co.za' }}" } }, { v: 2, row: 8, col: 0, webhookId: 'smc-billing-autorenew' });
+  const arHook = w.add('n8n-nodes-base.webhook', 'Portal: POST /billing-autorenew', { httpMethod: 'POST', path: 'billing-autorenew', responseMode: 'responseNode', options: { allowedOrigins: "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za' }}" } }, { v: 2, row: 8, col: 0, webhookId: 'smc-billing-autorenew' });
   const arAuth = w.add('n8n-nodes-base.code', 'Autorenew: verify broker JWT + body', code(`
 const r = BILLING.autorenew.parseAutorenewRequest({ headers: $json.headers || {}, body: $json.body || {} }, { jwtSecret: $env.SUPABASE_JWT_SECRET });
 return [{ json: r }];
@@ -765,7 +765,7 @@ const opts = { includeUnapproved: staging };
 const live = BILLING.pricing.activeRows(rows, opts);
 if (!live.length) throw new Error('W25: no approved pricing rows (active_from) - nothing to publish to production');
 sd.pricingRows = rows;
-const cards = BILLING.render.renderTierCards(rows, { ...opts, checkoutUrl: 'https://app.leadvelocity.co.za/billing/checkout/' });
+const cards = BILLING.render.renderTierCards(rows, { ...opts, checkoutUrl: 'https://leadvelocity.co.za/billing/checkout/' });
 const tplHtml = Buffer.from($input.first().binary.data.data, 'base64').toString('utf8');
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/'/g, '&#39;');
 const checkout = tplHtml.replace("'{{PRICING_JSON}}'", "'" + esc(BILLING.render.checkoutPricingJson(rows, opts)) + "'")
@@ -779,7 +779,7 @@ const files = [
   { path: 'templates/pricing-templates.json', content: JSON.stringify(templates, null, 2) },
   { path: 'pricing/pricing.json', content: BILLING.render.checkoutPricingJson(rows, opts) },
 ];
-const paystack = live.flatMap((r) => [{ tier_code: r.tier_code, kind: 'page', spec: BILLING.paystack.build.paymentPage(r, { redirectUrl: 'https://app.leadvelocity.co.za/billing/checkout/thanks' }) },
+const paystack = live.flatMap((r) => [{ tier_code: r.tier_code, kind: 'page', spec: BILLING.paystack.build.paymentPage(r, { redirectUrl: 'https://leadvelocity.co.za/billing/checkout/thanks' }) },
   { tier_code: r.tier_code, kind: 'plan', spec: BILLING.paystack.build.plan(r) }]);
 return [{ json: { staging, files, paystack } }];
 `, ['pricing', 'render', 'paystack', 'flags']), { v: 2, row: 0, col: 3 });

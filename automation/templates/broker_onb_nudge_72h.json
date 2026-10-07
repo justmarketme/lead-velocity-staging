@@ -31,9 +31,9 @@
         {
           "type": "URL",
           "text": "Finish setup",
-          "url": "https://app.leadvelocity.co.za/s/{{1}}",
+          "url": "https://leadvelocity.co.za/s/{{1}}",
           "example": [
-            "https://app.leadvelocity.co.za/s/agreement"
+            "https://leadvelocity.co.za/s/agreement"
           ]
         }
       ]

@@ -44,7 +44,7 @@ Review-2 items that were **not dispatched in wave 1** and are still open (these 
 
 | # | Item | File:line | Result |
 |---|---|---|---|
-| 17 | Hosts | Consumer links use only `https://sortmycover.co.za/c/…` and `/j/…`. Broker and ops links use only `https://app.leadvelocity.co.za/…`. No staging host and no `leadvelocity` host appears in any consumer template. | **PASS** |
+| 17 | Hosts | Consumer links use only `https://sortmycover.co.za/c/…` and `/j/…`. Broker and ops links use only `https://leadvelocity.co.za/…`. No staging host and no `leadvelocity` host appears in any consumer template. | **PASS** |
 | 18 | "no contract" in broker copy | `broker_cycle_end.json:13` "…with your current tier selected and no contract." | **FAIL (M)**. Use "…and no lock-in." This is a template, so fix it before GATE-TEMPLATES. Once submitted, a change means re-review. |
 | 19 | "no contract" in broker copy | `broker_onb_nudge_72h.json:19` "It's month to month, with no contract." | **FAIL (M)**. Use "It's month to month, with no lock-in or notice period." Same timing as #18. |
 | 20 | AI disclosure for button-only web leads (NH-19 a) | `broker_intro_booked.json`, `broker_intro_slots.json`, `broker_intro_slots_v2.json` BODY: no AI sentence | **OPEN (H, gate)**. Add "This chat is run by Lead Velocity's AI booking assistant." before GATE-TEMPLATES if Jonathan says yes to NH-19 a. |

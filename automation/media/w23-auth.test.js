@@ -23,12 +23,13 @@ function run(name, headers, body, env = { SUPABASE_JWT_SECRET: SECRET }) {
 }
 const BOTH = [['Verify broker JWT (upload)', 'Portal upload confirmed (browser, Bearer JWT)'], ['Verify broker JWT (approve)', 'Approve webhook (browser, Bearer JWT)']];
 
+const ORIGINS = "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za' }}"; // I-37b
 test('both browser endpoints: no header auth credential, no cookie, respond via node, CORS pinned to the portal origin', () => {
   for (const [, hook] of BOTH) {
     const p = node(hook).parameters;
     assert.equal(p.authentication, 'none');
     assert.equal(p.responseMode, 'responseNode');
-    assert.equal(p.options.allowedOrigins, 'https://app.leadvelocity.co.za');
+    assert.equal(p.options.allowedOrigins, ORIGINS); // I-37b: env-driven (same rule as automation/tests/W26.test.mjs)
     assert.equal(node(hook).credentials, undefined);
   }
   assert.equal(node(BOTH[0][1]).parameters.path, 'intro/upload-confirm');
@@ -125,7 +126,7 @@ test('I-37a: every new endpoint is a JWT-gated webhook; no cookie, no credential
     assert.equal(hook.parameters.httpMethod, method);
     assert.equal(hook.parameters.authentication, 'none');
     assert.equal(hook.parameters.responseMode, 'responseNode');
-    assert.equal(hook.parameters.options.allowedOrigins, 'https://app.leadvelocity.co.za');
+    assert.equal(hook.parameters.options.allowedOrigins, ORIGINS);
     assert.deepEqual(W.connections[hook.name].main[0].map((t) => t.node), [`Verify broker JWT (${tag})`]);
     assert.deepEqual(W.connections[`Verify broker JWT (${tag})`].main[0].map((t) => t.node), [`JWT valid? (${tag})`]);
     assert.equal(nodeBy(`Respond 401 (${tag})`).parameters.options.responseCode, 401);

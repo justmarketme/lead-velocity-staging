@@ -103,7 +103,7 @@ const bs = ($('Build state').first() || { json: {} }).json || {};
 const tf = $('Tasks.json').first().json; const nodes = (tf && (tf.data && tf.data.nodes || tf.nodes)) || [];
 const green = new Set(nodes.filter((n) => n.status === 'green').map((n) => n.id));
 const blocked = nodes.filter((n) => ['red', 'needs_human'].includes(n.status)).map((n) => ({ id: n.id, title: n.title, status: n.status }));
-const gates = nodes.filter((n) => n.human_gate && n.status !== 'green' && (n.depends_on || []).every((d) => green.has(d))).map((n) => ({ id: n.id, title: n.title, deep_link: 'https://app.leadvelocity.co.za/today#gate-' + n.id }));
+const gates = nodes.filter((n) => n.human_gate && n.status !== 'green' && (n.depends_on || []).every((d) => green.has(d))).map((n) => ({ id: n.id, title: n.title, deep_link: 'https://leadvelocity.co.za/today#gate-' + n.id }));
 const build = { active: cfg.build_active, blocked: blocked.length, blocked_list: blocked.slice(0, 5), failing_tests: Number(bs.tests_failing || 0), failed_twice: Number(bs.tests_failed_twice || 0), gates_waiting: gates, gates_oldest_hours: Number(bs.gates_oldest_hours || 0), commits_24h: bs.commits_24h == null ? null : Number(bs.commits_24h), tasks_done: green.size, tasks_total: nodes.length };
 // ---- compliance (zero tolerance) ----
 const C = (id) => latestVal[id];

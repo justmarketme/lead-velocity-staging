@@ -30,9 +30,9 @@
         {
           "type": "URL",
           "text": "Start again",
-          "url": "https://app.leadvelocity.co.za/billing/checkout/?ref={{1}}",
+          "url": "https://leadvelocity.co.za/billing/checkout/?ref={{1}}",
           "example": [
-            "https://app.leadvelocity.co.za/billing/checkout/?ref=LV-1042-B-202611"
+            "https://leadvelocity.co.za/billing/checkout/?ref=LV-1042-B-202611"
           ]
         }
       ]

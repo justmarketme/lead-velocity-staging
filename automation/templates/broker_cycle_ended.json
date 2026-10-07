@@ -32,15 +32,15 @@
         {
           "type": "URL",
           "text": "Pay now",
-          "url": "https://app.leadvelocity.co.za/billing/checkout/?ref={{1}}",
+          "url": "https://leadvelocity.co.za/billing/checkout/?ref={{1}}",
           "example": [
-            "https://app.leadvelocity.co.za/billing/checkout/?ref=LV-1042-B-202611"
+            "https://leadvelocity.co.za/billing/checkout/?ref=LV-1042-B-202611"
           ]
         },
         {
           "type": "URL",
           "text": "Manage billing",
-          "url": "https://app.leadvelocity.co.za/s/billing"
+          "url": "https://leadvelocity.co.za/s/billing"
         }
       ]
     }

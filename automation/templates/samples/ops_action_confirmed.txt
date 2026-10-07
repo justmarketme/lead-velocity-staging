@@ -3,4 +3,4 @@ ops_action_confirmed (UTILITY, en)
 [header] Approved
 Approved: *Shorter quiz step 2*. Task T-0412 is open for landing-page-builder. We check the result on Mon 19 Oct. Approved by Jonathan and logged in the build journal.
 [footer] Lead Velocity ops
-[button] Open Today -> https://app.leadvelocity.co.za/today
+[button] Open Today -> https://leadvelocity.co.za/today

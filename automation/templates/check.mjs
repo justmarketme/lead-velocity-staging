@@ -76,7 +76,7 @@ for (const f of files) {
       const uv = vars(b.url);
       if (uv.length > 1 || (uv.length && !/\{\{1\}\}$/.test(b.url))) err(n, `URL button "${b.text}": variable must be a single {{1}} at the end`);
       if (uv.length && !b.example?.length) err(n, `URL button "${b.text}" variable without example`);
-      if (!/^https:\/\/(app\.leadvelocity\.co\.za|sortmycover\.co\.za)\//.test(b.url)) err(n, `URL button "${b.text}" host not allowed (${b.url})`);
+      if (!/^https:\/\/(leadvelocity\.co\.za|sortmycover\.co\.za)\//.test(b.url)) err(n, `URL button "${b.text}" host not allowed (${b.url})`);
     }
   }
   const all = JSON.stringify(t.components);

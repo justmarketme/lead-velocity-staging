@@ -29,17 +29,17 @@
         {
           "type": "URL",
           "text": "Open my portal",
-          "url": "https://app.leadvelocity.co.za/m/{{1}}",
+          "url": "https://leadvelocity.co.za/m/{{1}}",
           "example": [
-            "https://app.leadvelocity.co.za/m/mk_7f3a9c"
+            "https://leadvelocity.co.za/m/mk_7f3a9c"
           ]
         },
         {
           "type": "URL",
           "text": "3-minute video",
-          "url": "https://app.leadvelocity.co.za/v/{{1}}",
+          "url": "https://leadvelocity.co.za/v/{{1}}",
           "example": [
-            "https://app.leadvelocity.co.za/v/start"
+            "https://leadvelocity.co.za/v/start"
           ]
         }
       ]

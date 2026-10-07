@@ -94,7 +94,7 @@ services:
       - traefik.http.routers.n8n-cors.entrypoints=websecure
       - traefik.http.routers.n8n-cors.tls.certresolver=le
       - traefik.http.routers.n8n-cors.middlewares=api-cors,api-ratelimit,sec-headers
-      - traefik.http.middlewares.api-cors.headers.accessControlAllowOriginList=${PUBLIC_ALLOWED_ORIGINS:-https://sortmycover.co.za,https://www.sortmycover.co.za,https://app.leadvelocity.co.za}
+      - traefik.http.middlewares.api-cors.headers.accessControlAllowOriginList=${PUBLIC_ALLOWED_ORIGINS:-https://sortmycover.co.za,https://www.sortmycover.co.za,https://leadvelocity.co.za}
       - traefik.http.middlewares.api-cors.headers.accessControlAllowMethods=GET,POST,OPTIONS
       - traefik.http.middlewares.api-cors.headers.accessControlAllowHeaders=Content-Type,X-Lead-Token,Authorization
       - traefik.http.middlewares.api-cors.headers.accessControlAllowCredentials=false

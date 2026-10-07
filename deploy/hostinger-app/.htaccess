@@ -1,4 +1,4 @@
-# app.leadvelocity.co.za: React console + broker portal (static build), Hostinger web hosting (LiteSpeed/Apache).
+# leadvelocity.co.za: React console + broker portal (static build), Hostinger web hosting (LiteSpeed/Apache).
 # Default hosting path for app. (deliverables/devops-security/static-hosting.md section 2). Deploy: `npm run build`,
 # copy this file to dist/.htaccess, replace {{SUPABASE_ORIGIN}} and {{API_ORIGIN}} (see static-hosting.md section 2a),
 # upload dist/ to public_html (GATE-PUBLISH). No secrets in this file.
@@ -10,7 +10,7 @@ RewriteEngine On
 # 1. HTTP -> HTTPS, path and query preserved
 RewriteCond %{HTTPS} !=on
 RewriteCond %{HTTP:X-Forwarded-Proto} !https
-RewriteRule ^(.*)$ https://app.leadvelocity.co.za/$1 [R=301,L]
+RewriteRule ^(.*)$ https://leadvelocity.co.za/$1 [R=301,L]
 # 2. Static sub-apps and media are never sent to the SPA (a missing file there is a real 404)
 RewriteRule ^(media|checkout|portal/intro-media)(/|$) - [L]
 # 3. Real files and folders are served as they are (assets/, favicon, robots.txt)

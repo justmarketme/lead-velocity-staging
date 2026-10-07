@@ -33,9 +33,9 @@
         {
           "type": "URL",
           "text": "Open report",
-          "url": "https://app.leadvelocity.co.za/{{1}}",
+          "url": "https://leadvelocity.co.za/{{1}}",
           "example": [
-            "https://app.leadvelocity.co.za/r/rp_2026w41"
+            "https://leadvelocity.co.za/r/rp_2026w41"
           ]
         }
       ]

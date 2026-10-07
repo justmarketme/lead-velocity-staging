@@ -7,7 +7,7 @@
 const { verifySupabaseJwt } = require('../security/lead-token');
 const { formatZar } = require('./money');
 
-const TEMPLATE = 'broker_autorenew_off'; // automation/templates/broker_autorenew_off.json (I-35j): 1 first name; URL button 1 = 'billing' (-> app.leadvelocity.co.za/s/billing)
+const TEMPLATE = 'broker_autorenew_off'; // automation/templates/broker_autorenew_off.json (I-35j): 1 first name; URL button 1 = 'billing' (-> leadvelocity.co.za/s/billing)
 const MAX_BODY_KEYS = 4;
 
 function headerValue(headers, name) {
@@ -85,7 +85,7 @@ function renewalReminderTemplate(r) {
 
 function renewalReminderText(r) {
   const { days, card } = reminderParts(r);
-  return 'Your cycle ends in ' + days + ' day' + (days > 1 ? 's' : '') + '. Pay for the next one to keep leads coming with no gap. Reference: *' + (r.open_ref || 'on your invoice') + '*. Card auto-renew: ' + card + (r.card_autorenew ? ' You can switch it off any time in the portal: https://app.leadvelocity.co.za/s/billing.' : '');
+  return 'Your cycle ends in ' + days + ' day' + (days > 1 ? 's' : '') + '. Pay for the next one to keep leads coming with no gap. Reference: *' + (r.open_ref || 'on your invoice') + '*. Card auto-renew: ' + card + (r.card_autorenew ? ' You can switch it off any time in the portal: https://leadvelocity.co.za/s/billing.' : '');
 }
 
 module.exports = { TEMPLATE, parseAutorenewRequest, confirmMessage, responseBody, renewalReminderText, renewalReminderTemplate, REMINDER_TEMPLATE };
