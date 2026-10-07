@@ -88,8 +88,8 @@ const PricingTierCard = ({ tier, animation }: { tier: PricingTier; animation: Re
             <div className="mt-6 pt-4 border-t border-white/5 text-xs text-slate-500">
                 <p>
                     {tier.committed_leads} Qualified Leads per cycle — committed, not estimated. Short at cycle end? We keep
-                    delivering for up to {TERMS.shortfall_rollover_days} days at no extra cost, then carry the balance forward
-                    or refund {zar(perLead(tier))} per undelivered lead if you don't renew.{" "}
+                    delivering for up to {TERMS.shortfall_rollover_days} more days (only for delays outside our control), then roll the
+                    balance into your next cycle on top of its number, or refund {zar(perLead(tier))} per undelivered lead on request.{" "}
                     <a href="#what-qualified-means" className="underline hover:text-slate-300">What qualified means</a>
                 </p>
             </div>
@@ -105,12 +105,12 @@ const PricingTierCard = ({ tier, animation }: { tier: PricingTier; animation: Re
 };
 
 const FAQ: { id?: string; q: string; a: string }[] = [
-    { id: "what-qualified-means", q: "What is a Qualified Lead?", a: `${QUALIFIED_LEAD_TEXT} Age and budget are what the consumer tells us — we don't check income or underwrite. A lead counts toward your number once they have booked and confirmed. What happens in the appointment is up to you. ${BUDGET_TARGET_TEXT}` },
+    { id: "what-qualified-means", q: "What is a Qualified Lead?", a: `${QUALIFIED_LEAD_TEXT} Age and budget are what the consumer tells us — we don't check income or underwrite. An A-tier lead counts toward your number once they have booked and confirmed; a B-tier lead counts only if you accept it. Every lead is labelled A or B. What happens in the appointment is up to you. ${BUDGET_TARGET_TEXT}` },
     { q: "Do I need my own ad account?", a: "No. We run the ads and pay for them. Ad spend is part of your monthly price." },
     { q: "What if I want more leads in a cycle?", a: `Once your cycle's leads are delivered, you can top up at ${zar(TOPUP.price_per_lead_zar)} per Qualified Lead, minimum ${TOPUP.min_leads} (${zar(topupMinimumZar())}). Give us ${TOPUP.notice_days} days' notice so we can scale the ads. Top-ups are paid in advance. Or move up to the next plan.` },
     { q: "What if you fall short?", a: SHORTFALL_TEXT(TIERS[0]) + " On other plans the refund is that plan's effective price per lead." },
     { q: "What if a payment is late?", a: LATE_PAYMENT_TEXT },
-    { q: "What if a lead doesn't show up?", a: `We may replace a lead who doesn't attend, as goodwill, up to ${TERMS.goodwill_replacements_per_week} a week, if you send proof straight after waiting 10 minutes. We never replace a lead because they didn't buy.` },
+    { q: "What if a lead doesn't show up?", a: `Out of goodwill, we replace up to ${TERMS.goodwill_replacements_per_week} no-shows a week (no-shows only), if you send proof straight after waiting 10 minutes. We never replace a lead because they didn't buy. Invalid contact details never count in the first place.` },
     { q: "What does the AI do, and what does it never do?", a: "It replies on WhatsApp, books the appointment into your calendar and sends reminders. It never gives advice, compares products or talks about premiums or cover. Those questions go to you." },
     { q: "Is there a contract?", a: `You sign a short, plain-language agreement. It runs month to month with no minimum term. Either side can stop with ${TERMS.cancel_notice_days} days' written notice before the next cycle.` },
     { q: "Is this compliant with FAIS and POPIA?", a: "We are a marketing and lead-generation agency, not a financial services provider. We never advise. Consumers opt in, and you receive their details with their consent. Our fee is a flat monthly price — never tied to sales, applications or policies." },

@@ -14,8 +14,8 @@ const CLIPS: [string, string, string][] = [
 ];
 const FAQ: [string, string, string?][] = [
   ["When do leads start?", "When your steps are done and Jonathan taps Go live. We tell you on WhatsApp the moment it happens."],
-  ["What do I do when a lead does not show?", "Mark No-show (or leave it; we ask you after the meeting). A no-show we confirm becomes a replacement, up to your cycle limit."],
-  ["What counts as a replacement?", "A no-show, a number we cannot reach, or a lead outside the age or budget we agreed. Not \"did not buy\". Disputes are looked at within 48 hours.", "replacements"],
+  ["What do I do when a lead does not show?", "Mark No-show (or leave it; we ask you after the meeting). Out of goodwill, we replace up to 3 confirmed no-shows a week."],
+  ["What counts as a replacement?", "Out of goodwill, up to 3 no-show replacements a week, no-shows only. Not \"did not buy\". Leads with invalid contact details never count toward your number, so they need no replacement. Ask and we send the consent record, booking confirmation and the lead's own answers within 2 working days.", "replacements"],
   ["Can I change my hours or pause?", "Yes, any time, on the Calendar page. Meetings already booked stay booked."],
   ["Who owns the leads?", "You use delivered leads exclusively. We keep the campaign, pages, ad account and anonymous results."],
   ["Does the price change if I write more policies?", "No. One flat price per 30-day cycle. It never depends on policies."],

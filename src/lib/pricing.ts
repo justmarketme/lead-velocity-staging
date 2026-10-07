@@ -58,18 +58,19 @@ export const VAT_NOTE = TERMS.vat_registered ? "Prices exclude VAT; VAT is added
 
 export const QUALIFIED_LEAD_TEXT =
   `A Qualified Lead is a South African consumer who consented to be contacted and introduced to you, ` +
-  `self-declared an age of ${QUALIFIED.age_min}–${QUALIFIED.age_max} and a monthly budget for life cover of ` +
+  `self-declared an age of ${QUALIFIED.age_min}–${QUALIFIED.age_max} and a monthly premium budget of ` +
   `${zar(QUALIFIED.budget_min_zar)} or more, booked an appointment with you and confirmed they will attend.`;
 
-/** Campaign aim only: a target, never a qualifying requirement or a promise. */
+/** Lead tiers (Jonathan 2026-10-07): A counts automatically; B is offered with Accept / Decline. */
 export const BUDGET_TARGET_TEXT =
-  `Our campaigns aim at people who indicate a budget for cover of about ${zar(QUALIFIED.campaign_target_budget_zar)}+ a month. ` +
-  `That is a target, not a requirement or a promise.`;
+  `A-tier: ${zar(QUALIFIED.campaign_target_budget_zar)}+ a month, our minimum target, delivered and counted automatically. ` +
+  `B-tier: ${zar(QUALIFIED.budget_min_zar)}–${zar(QUALIFIED.campaign_target_budget_zar - 1)} a month, offered to you to accept or decline; ` +
+  `accepted ones count toward your number, declined ones don't count and aren't charged. Under ${zar(QUALIFIED.budget_min_zar)} is never sent.`;
 
 export const SHORTFALL_TEXT = (t: PricingTier): string =>
-  `If fewer than ${t.committed_leads} Qualified Leads are delivered in a cycle, we keep delivering the balance for up to ` +
-  `${TERMS.shortfall_rollover_days} days at no extra cost. Anything still outstanding carries into your next paid cycle, ` +
-  `or, if you don't renew, we refund ${zar(perLead(t))} per undelivered lead.`;
+  `If fewer than ${t.committed_leads} Qualified Leads are delivered in a cycle, we keep delivering for up to ` +
+  `${TERMS.shortfall_rollover_days} more days, only for delays outside our control, never longer. After that, anything still owed ` +
+  `rolls into your next cycle on top of its number, or you can ask for a refund of ${zar(perLead(t))} per undelivered lead, paid within 7 working days.`;
 
 export const LATE_PAYMENT_TEXT = "If payment hasn't cleared, lead delivery is suspended until it has. No interest is charged.";
 
@@ -98,7 +99,8 @@ export const pricingSummaryText = (): string =>
     VAT_NOTE,
     QUALIFIED_LEAD_TEXT,
     BUDGET_TARGET_TEXT,
-    `Shortfall: ${TERMS.shortfall_rollover_days}-day rollover at no extra cost; any balance carries into the next paid cycle, or is refunded at the plan's effective price per undelivered lead if the client doesn't renew.`,
+    `Shortfall: up to ${TERMS.shortfall_rollover_days} extra days only for delays outside our control (day 44 at most); after that the balance rolls into the next cycle on top of its number, or the client may ask for a refund at the plan's effective price per undelivered lead, paid within 7 working days.`,
+    `Replacements: out of goodwill, up to ${TERMS.goodwill_replacements_per_week} no-show replacements a week (no-shows only). Invalid contact details never count in the first place.`,
     LATE_PAYMENT_TEXT,
     NO_GUARANTEE_TEXT,
   ].join("\n");

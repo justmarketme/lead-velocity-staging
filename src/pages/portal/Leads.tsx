@@ -198,7 +198,7 @@ function Body() {
         <p className="muted">Takes about 20 seconds each. Same buttons you get on WhatsApp.</p>
         {flash && <div className="next-slot" role="status"><span style={{ fontSize: 24 }}>✓</span><div><b>{flash}</b>{groups.toMark.length ? `${groups.toMark.length} more to mark.` : ""}</div></div>}
         {groups.toMark.map((b) => <div key={b.id} {...mark(b.lead_id)}><MarkOne b={b} l={leads[b.lead_id]} existing={outcomes[b.id]} onDone={(m) => { setFlash(m); void load(); }} /></div>)}
-        <p className="hint">A no-show, "Not a fit – criteria" or "Unreachable/wrong number" can become a replacement after a 48-hour check. Not marked within 24 hours? We record it as attended and flag it, so please mark in time.</p>
+        <p className="hint">Out of goodwill, up to 3 no-shows a week can be replaced (no-shows only) after a 48-hour check. Not marked within 24 hours? We record it as attended and flag it, so please mark in time.</p>
       </section>
 
       {groups.notReached.length > 0 && (
@@ -228,7 +228,7 @@ function Body() {
 
       <section className="card">
         <h3>Replacements</h3>
-        <p className="muted" style={{ margin: "4px 0 6px" }}>{prog ? `${prog.replacements_used} of ${prog.replacement_cap} used this cycle. ` : ""}A no-show, a number we cannot reach, or a lead who is outside the age or budget we agreed. Never "didn't buy". <Link to="/broker/help#replacements">Read more</Link></p>
+        <p className="muted" style={{ margin: "4px 0 6px" }}>{prog ? `${prog.replacements_used} used this cycle. ` : ""}Out of goodwill, up to 3 no-show replacements a week, no-shows only. Never "didn't buy". <Link to="/broker/help#replacements">Read more</Link></p>
         <table className="tbl"><tbody>
           {reps.map((r) => <tr key={r.id}><td>{leads[r.lead_id]?.first_name || "Lead"} · {r.reason.replace("_", " ")}</td><td>{fmtDay(r.claimed_at)}</td><td><span className={`st${r.status === "fulfilled" || r.status === "approved" ? " ok" : ""}`}>{r.status}</span></td></tr>)}
         </tbody></table>
