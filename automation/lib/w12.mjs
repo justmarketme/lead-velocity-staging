@@ -13,7 +13,7 @@
 //    replacement); any broker mark against it -> console conflict (KG), nothing to the lead (R6-03, lines-r6.md s.3).
 // Writes: outcomes (one row per booking), appointments.status, leads.stage, lead_activities timeline. CAPI Attended
 // (consent-gated in the callee). W29 `outcome_recorded` (quality index, pulse/facts). W13 `no_show` (missed_you,
-// 48-h clock). W10 (rebook after a broker no-show or a broker "Rescheduled").
+// rebook offer only, clause 7: never an automatic replacement). W10 (rebook after a broker no-show or a broker "Rescheduled").
 // Voice notes: RETIRED (clause 8.4). voiceNoteRef() returns null, so nothing is stored.
 import { fill, LINES } from '../../conversation/lines.mjs';
 import { MIN, H, D, ms, iso, timeLabel, firstName, firstAndInitial, templateMessage, textMessage, listMessage, nowFrom, touchesLastContact } from './wa.mjs';
@@ -105,11 +105,11 @@ export function resolveOutcome(m, now) {
   // R6-03 / I-49b (lines-r6.md section 3): the lead's "No, not yet" resolves nothing on its own. The broker has until
   // broker_nudge_at to mark; whatever he marks, the lead gets no apology. A mark that contradicts the lead's "No" is a
   // conflict for KG in the console (amber), nothing to the lead until KG decides. "Unreachable/wrong number" is the
-  // normal W13 replacement path (W29), so no conflict. Only if he is still unmarked at broker_nudge_at: broker no-show.
+  // feedback only (clause 8.4: no replacement), so no conflict. Only if he is still unmarked at broker_nudge_at: broker no-show.
   if (m.reach === 'no') {
     if (m.brokerMark === 'rescheduled') return Object.assign(r, { outcome: 'rescheduled', dispute_status: 'open', next: 'console_queue' }); // no W10 offer until KG decides
     if (m.brokerMark === 'attended') {
-      if (m.disposition === 'unreachable') { attended(); r.lead_message = null; return r; } // W29 -> W13 replacement; gate drops CAPI (c)
+      if (m.disposition === 'unreachable') { attended(); r.lead_message = null; return r; } // feedback only (clause 8.4, no replacement); gate drops CAPI (c)
       attended({ dispute_status: 'open', next: 'console_queue' }); r.lead_message = null; // no thank-you either
       // I-50f / I-51b (a): the gate HOLDS Attended (reach 'no') while KG decides; releaseHeld() sends it (same event_id)
       // on KG "attended" or drops it with a logged reason on "not_attended" (op kg_decision).
@@ -136,7 +136,7 @@ export function resolveOutcome(m, now) {
   if (m.brokerMark === 'no_show') {
     if (m.reach === 'yes') return Object.assign(r, { outcome: 'disputed', dispute_status: 'open', next: 'console_queue' });
     const confirmAt = ms(p.reach_check_at) + REACH_WINDOW;
-    // missed_you is the lead's message on this path; W13 sends it (templates README) and starts the 48-h clock.
+    // missed_you is the lead's message on this path; W13 sends it (templates README); clause 7: no replacement follows by itself.
     if (now >= confirmAt) return Object.assign(r, { outcome: 'no_show', no_show_confirmed_at: iso(confirmAt), lead_message: m.optedOut ? null : 'missed_you', next: 'W13' });
     return r; // waiting for the lead's side
   }
@@ -330,7 +330,7 @@ export function sweepItems(r = {}, now) {
 /**
  * followUps(r, row, outcome_id) -> items after the outcomes row was inserted (first writer only):
  *   send (attended_thanks | broker no-show apology), capi (Attended), w29 (outcome_recorded, every outcome),
- *   w13 (lead no-show: missed_you + 48-h clock), w10 (broker no-show rebook at our cost / broker "Rescheduled"),
+ *   w13 (lead no-show: one missed_you offer), w10 (broker no-show rebook at our cost / broker "Rescheduled"),
  *   alert (KG on a broker no-show).
  */
 export function followUps(r, row = {}, outcomeId, brandId = row.brand_id) {

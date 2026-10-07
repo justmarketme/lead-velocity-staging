@@ -395,7 +395,7 @@
           ]
         },
         "W12": { "outcome_check_at": "2026-10-15T14:45:00+02:00", "reach_check_at": "2026-10-15T15:00:00+02:00", "lead_reach_check": "none", "outcome": "no_show", "no_show_confirmed_at": "2026-10-15T17:00:00+02:00", "lead_message": "missed_you" },
-        "W13": { "replacement": true, "reason": "no_show", "replacement_due_at": "2026-10-17T17:00:00+02:00", "dispute_window_ends_at": "2026-10-19T17:00:00+02:00", "status_after_window": "approved", "replacements_used_after": 1, "alert": "Jonathan" },
+        "W13": { "replacement": false, "why": "clause7_request_only", "lead_message": "missed_you", "_note": "clause 7 + Schedule 3 (ux-sprint-1): a confirmed lead no-show gets one rebook offer only. A replacement is goodwill and needs a broker request with proof 10-30 min after the 14:00 start, max 3 per Calendar Week", "proof_at": "2026-10-15T14:15:00+02:00", "request_status": "due", "requests_used_after": 1, "late_proof_at": "2026-10-15T14:31:00+02:00", "late_why": "too_late", "early_proof_at": "2026-10-15T14:09:00+02:00", "early_why": "too_early" },
         "W15": { "opted_out": false }
       }
     },

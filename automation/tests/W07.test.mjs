@@ -277,6 +277,12 @@ test('I-37e W32 Approve/Later taps from ops numbers -> W32 decision sub-call; I-
   assert.equal(W.routeInbound(vid, { broker_numbers: brokers, broker_status: 'active' }).route, 'W23');
   assert.equal(W.routeInbound({ ...vid, media: 'audio' }, { broker_numbers: brokers, broker_status: 'onboarding' }).route, 'W23');
   assert.equal(W.routeInbound({ ...vid, media: 'audio' }, { broker_numbers: brokers, broker_status: 'active' }).route, 'W29', 'live broker voice note = feedback');
+  // clause 7 + Schedule 3 (ux-sprint-1): a broker photo or screenshot is no-show proof -> W13 (window + weekly max there)
+  for (const media of ['image', 'document']) assert.equal(W.routeInbound({ ...vid, media }, { broker_numbers: brokers, broker_status: 'active' }).route, 'W13', media);
+  const w07 = JSON.parse(readFileSync(new URL('../W07.json', import.meta.url), 'utf8'));
+  const rIdx = w07.nodes.find((n) => n.name === 'Route').parameters.rules.values.findIndex((v) => v.outputKey === 'W13');
+  assert.deepEqual(w07.connections.Route.main[rIdx].map((c) => c.node), ['-> W13']);
+  assert.equal(w07.nodes.find((n) => n.name === '-> W13').parameters.workflowId.value, 'smc-w13');
   const item = W.w23MediaItem(vid);
   assert.equal(item.messages[0].type, 'video'); assert.equal(item.messages[0].video.id, 'm1'); assert.equal(item.messages[0].from, '27600000050');
   const w23 = JSON.parse(readFileSync(new URL('../W23.json', import.meta.url), 'utf8'));
@@ -528,7 +534,10 @@ test('I-51c: Route outputs keep their targets (W28 removed, nothing else rewired
   const now = Object.fromEntries(main.map((outs, i) => [i < keys.length ? keys[i] : 'fallback', outs.map((t) => t.node)]));
   const { W28, ...expected } = before;
   assert.deepEqual(W28, ['-> W28']);
-  assert.deepEqual(now, expected);
+  // ux-sprint-1 (clause 7 / Schedule 3): one output added after the others (broker no-show proof -> W13); none rewired.
+  const { W13, ...rest } = now;
+  assert.deepEqual(W13, ['-> W13']);
+  assert.deepEqual(rest, expected);
   assert.ok(!WF.nodes.some((n) => n.name === '-> W28'));
   route.parameters.rules.values.forEach((v, i) => assert.equal(v.conditions.conditions[0].id, 's' + i));
 });

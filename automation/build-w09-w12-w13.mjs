@@ -323,7 +323,7 @@ function buildW12() {
     'Logic: automation/lib/w12.mjs (pure), loaded by every Code node through the lv-automation loader (index.cjs).\n' +
     'Broker side: broker_outcome_check at slot end + 15 min (Met them / No-show / Couldn\'t reach them / Moved to another time = attended / no_show / unreachable / rescheduled), ONE nudge 3 h later. Clause 8.4 (feedback firewall, 2026-10-06): broker feedback = attended / could be contacted ONLY; no disposition, quality or voice note is asked or stored ("Disposition ask" emits nothing, "Voice note reference" stores nothing). Couldn\'t reach them -> outcome unreachable after the lead\'s reach window (no lead message, no CAPI, no W13, no W10; lead "Yes" -> console dispute). Unmarked at 24 h -> attended + auto_marked + unconfirmed (flagged in the console; two in a cycle -> Jonathan calls the broker). W11 keeps its 24-h backstop (ON CONFLICT (booking_id) DO NOTHING on both sides).\n' +
     'Lead side: reach_check at slot end + 30 min. Broker "No-show" counts only after the lead stays silent for the 2-h reach window; lead "No, not yet" waits for the broker (R6-03): still unmarked at broker_nudge_at = BROKER no-show (Schedule D: lines.mjs BROKER_NO_SHOW_APOLOGY, W10 rebook at our cost, KG alerted, never a replacement); a broker Attended / Rescheduled / No-show against it = conflict for KG in the console, nothing to the lead; Unreachable/wrong number = normal W13 path. Sides disagree -> console queue, nothing guessed.\n' +
-    'Writes: outcomes (one row per booking, first writer wins), appointments.status, leads.stage, lead_activities timeline (w12:mark / w12:reach rows, last tap wins per CONTRACTS). Calls: W29 outcome_recorded (every outcome; pulse/facts, quality index), CAPI Send Attended (I-51b: held until the lead answered or her 2.5-h window closed; held on a lead "No" until KG decides via op kg_decision; never on Unreachable; w12:capi_hold / w12:capi_release rows), W13 no_show (missed_you + 48-h clock), W10 rebook. Voice note (op voice_note): RETIRED (clause 8.4), nothing stored.\n' +
+    'Writes: outcomes (one row per booking, first writer wins), appointments.status, leads.stage, lead_activities timeline (w12:mark / w12:reach rows, last tap wins per CONTRACTS). Calls: W29 outcome_recorded (every outcome; pulse/facts, quality index), CAPI Send Attended (I-51b: held until the lead answered or her 2.5-h window closed; held on a lead "No" until KG decides via op kg_decision; never on Unreachable; w12:capi_hold / w12:capi_release rows), W13 no_show (missed_you rebook offer only), W10 rebook. Voice note (op voice_note): RETIRED (clause 8.4), nothing stored.\n' +
     'Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation. Env: DRY_RUN_SENDS, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TEST_HOOKS_ENABLED.');
 
   const tSub = trigger('Called by W07 / W11 / portal', [0, 0]);
@@ -474,7 +474,7 @@ return out;`, 'runOnceForAllItems');
   link(fu, fuSw); link(autoFu, fuSw);
   const capi = sub('CAPI Send (Attended)', [12, 2], 'CAPI Send');
   const w29 = sub('W29 outcome_recorded (quality, pulse facts)', [12, 3], 'W29 Feedback loop');
-  const w13 = sub('W13 no_show (missed_you + 48-h clock)', [12, 4], 'W13 No-show & replacement');
+  const w13 = sub('W13 no_show (missed_you rebook offer only)', [12, 4], 'W13 No-show & replacement');
   const w10 = sub('W10 rebook (Schedule D / broker Rescheduled)', [12, 5], 'W10 Reschedule / cancel');
   const alert = pg('Escalate (KG broker no-show / console dispute)', [12, 6],
 `INSERT INTO public.escalations (brand_id, kind, severity, ref_table, ref_id, lead_id, broker_id, raised_at, note)
@@ -566,8 +566,8 @@ RETURNING id;`,
     "={{ [$('Classify + validate (w12.classifyOp)').first().json.booking_id, $('Classify + validate (w12.classifyOp)').first().json.decision] }}", { alwaysOutputData: true });
   link(sw, kgW, 7); link(kgW, kgEsc); link(kgEsc, heldQ);
 
-  // ---- NH-62 (Jonathan, 2026-10-03): KG "not_attended" turns the outcome into no_show, replacement-eligible through the
-  // SAME W13 no_show op a lead no-show uses (cap per cycle, over cap -> cap_reached there). The delivered/verified count is
+  // ---- NH-62 (Jonathan, 2026-10-03): KG "not_attended" turns the outcome into no_show and calls the
+  // SAME W13 no_show op a lead no-show uses (one missed_you offer; clause 7: never a replacement by itself). Delivered is
   // untouched (W12 never writes it). Guarded by the recorded decision, so a later contradicting call cannot flip a first one;
   // "attended" changes nothing. The held CAPI Attended is dropped by releaseHeld (kg_not_attended). No DDL.
   const kgNo = pg('Apply KG not_attended (outcome -> no_show, audit activity)', [6, 11],
@@ -587,7 +587,7 @@ SELECT o.id AS outcome_id, o.booking_id, o.lead_id, o.marked_at AS confirmed_at 
     "={{ [$('Classify + validate (w12.classifyOp)').first().json.booking_id, $('Classify + validate (w12.classifyOp)').first().json.decided_by || null] }}");
   const kgNoW13 = code('KG no-show -> W13 payload (w12.w13NoShow)', [7, 11], IMPORT('w12') +
 `return { json: L.w13NoShow($json.outcome_id, { id: $json.booking_id }, $json.lead_id, $json.confirmed_at) };`);
-  const kgW13 = sub('W13 no_show (KG not_attended: replacement path, cap in W13)', [8, 11], 'W13 No-show & replacement');
+  const kgW13 = sub('W13 no_show (KG not_attended: missed_you only, no replacement)', [8, 11], 'W13 No-show & replacement');
   link(kgEsc, kgNo); link(kgNo, kgNoW13); link(kgNoW13, kgW13);
 
   // ---- Attended tap -> disposition ask at once (list in window)
@@ -646,254 +646,184 @@ RETURNING o.id, o.lead_id;`,
 
 // =============================================================================================================== W13
 function buildW13() {
-  sticky('W13 No-show & replacement, 0.1 (per-cycle cap, "committed", shortfall) + 4.6 item 11 + 4.12a + Schedule C (C1A from W10) / D. DRAFT pending GATE-TEST-W13.\n' +
+  sticky('W13 No-show & replacement requests: agreement clause 7 + Schedule 3 (ux-sprint-1, 2026-10-07). DRAFT pending GATE-TEST-W13.\n' +
     'Logic: automation/lib/w13.mjs (pure), loaded by every Code node through the lv-automation loader (index.cjs).\n' +
-    'ONE counter, ONE writer: public.replacements. Rows not "rejected" count against cycles.replacement_cap (snapshotted from pricing.replacement_cap_cycle: Bronze 4 / Silver 6 / Gold 9, no weekly cap). W10 (C1A claims), W29 (unreachable / nofit_criteria, withdraw on correction) and W12 (lead no-show) all CALL this workflow; none of them writes replacements. Claims are serialised per cycle with pg_advisory_xact_lock and counted after the lock; the smc_replacements_cap trigger stamps cap_position / over_cap; one replacement per lead (replacements_one_per_lead + a withdrawn claim frees the lead).\n' +
-    'No-show: W12 confirms it (both sides) -> missed_you with 3 new times (ONE offer) -> 48 h without a rebook or a reply -> replacement_due (second no-show: at once) -> 48-h dispute window -> approved. Never for a broker no-show, never for "didn\'t buy". Over the cap -> claim recorded as rejected (cap_reached), Jonathan alerted; the committed number is unchanged.\n' +
-    'Shortfall / extension / pro-rata credit are W19\'s: W13 only emits lead_activities replacement_approved rows (key w13:approved:{id}).\n' +
+    'A replacement is goodwill, at Lead Velocity\'s discretion, never automatic. The ONLY way in is a broker no-show request with proof: the broker sends a photo (place + time) or a screenshot (empty call + time) on WhatsApp between booked start + 10 min and start + 30 min (W07 routes broker image/document here). Max 3 requests per Calendar Week per broker (Mon-Sun SAST, by the missed appointment\'s date; every request counts). Same checks as the portal RPC smc_request_noshow_replacement. pricing.replacement_cap_cycle / cycles.replacement_cap are history only and drive nothing.\n' +
+    'Lead no-show from W12 (op no_show): ONE missed_you rebook offer, nothing else (no 48-h clock, no automatic claim). "Couldn\'t reach them", dispositions, W10 C1A and system "uncontactable" claims: refused and logged (replacement_not_opened), clause 8.4.\n' +
+    'Lead Velocity decides each request in the console (op decide, approve true/false) and the broker is told on WhatsApp (S3.6). A replacement never changes Delivered (7.4); W13 never writes cycles or credits.\n' +
     'Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation. Env: DRY_RUN_SENDS, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TEST_HOOKS_ENABLED.');
 
-  const tSub = trigger('Called by W12 / W29 / W10 / console', [0, 0]);
-  const tCron = cron('Hourly (48-h clocks: rebook wait + dispute window)', [0, 1], '7 * * * *');
-  const tickIn = code('Tick input', [1, 1], "return { json: { op: 'tick' } };");
+  const tSub = trigger('Called by W07 / W12 / W10 / W29 / console', [0, 0]);
   const cls = code('Normalise + validate (w13.normaliseInput)', [2, 0], IMPORT('w13') +
 `const j = $json;
 const wall = Date.now();
 const now = L.nowFrom(j, $env, wall);
-if (j.op === 'tick') return { json: { op: 'tick', now_iso: L.iso(now), synthetic_only: now !== wall } };
 const n = L.normaliseInput(j, now);
 const v = L.validateInput(n);
-return { json: { ...n, second_no_show: j.second_no_show === true, op: v.ok ? n.op : 'reject', asked_op: n.op || null, missing: v.ok ? [] : v.missing, now_iso: L.iso(now), synthetic_only: now !== wall } };`);
-  link(tSub, cls); link(tCron, tickIn); link(tickIn, cls);
-  const sw = switchOn('Op', [3, 0], '$json.op', ['claim', 'withdraw', 'no_show', 'dispute', 'decide', 'tick', 'reject']);
+return { json: { ...n, why: n.op === 'refuse' ? L.replacementTrigger(n.ev || {}).why : null, op: v.ok ? n.op : 'reject', asked_op: n.op || null, missing: v.ok ? [] : v.missing, now_iso: L.iso(now), synthetic_only: now !== wall } };`);
+  link(tSub, cls);
+  const sw = switchOn('Op', [3, 0], '$json.op', ['request', 'no_show', 'decide', 'refuse', 'reject']);
   link(cls, sw);
 
-  // ---- claim (W10 C1A, W29 dispositions, system uncontactable, no-show clock) -> one shared claim chain
-  const ctx = pg('Claim context (lead, cycle, cap)', [5, -1],
-`SELECT l.id AS lead_id, l.brand_id, l.broker_id, l.first_name, l.last_name, l.verified_at,
-       cy.id AS cycle_id, cy.replacement_cap, cy.tier_code, o.id AS outcome_id
-  FROM public.leads l
-  LEFT JOIN public.outcomes o ON o.id = $2::uuid
-  JOIN public.brokers b ON b.id = l.broker_id
-  LEFT JOIN public.cycles cy ON cy.id = COALESCE($3::uuid, o.cycle_id, l.cycle_id, b.current_cycle_id)
- WHERE l.id = COALESCE($1::uuid, o.lead_id);`,
-    '={{ [$json.lead_id || null, $json.outcome_id || null, $json.cycle_id || null] }}');
-  const claimIn = code('Claim input', [4, -1], 'return { json: $json };');
-  link(sw, claimIn, 0); link(claimIn, ctx);
-  const dec = code('Decide claim (w13.claimDecision)', [6, -1], IMPORT('w13') +
-`const src = $('Claim input').item.json; // W10 / W29 / system claim, or the no-show path (carries trig)
-const row = $json;
-const d = L.claimDecision(src, row);
-return { json: { ...row, source: src.source || null, booking_id: src.booking_id || null, idempotency_key: src.idempotency_key || null, claim: d.claim, why: d.why || null, trig: d.trig || null } };`);
-  link(ctx, dec);
-  const doClaim = ifTrue('Opens a replacement?', [7, -1], '$json.claim === true');
-  link(dec, doClaim);
-  const notDue = pg('Timeline: not a replacement (why)', [8, 0],
-`INSERT INTO public.lead_activities (${ACTIVITY_COLS})
-VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W13', 'system', 'replacement_not_opened', jsonb_build_object('why', $5::text, 'source', $6::text), now(), NULL);`,
-    '={{ [$json.lead_id, $json.brand_id, $json.broker_id, $json.cycle_id, $json.why, $json.source] }}');
-  link(doClaim, notDue, 1);
-  const claim = pg('Claim replacement (per-cycle lock, cap, one per lead)', [8, -1],
-`-- One statement batch = one transaction: the advisory lock serialises claims for this cycle, so the count below
--- (taken after the lock) is exact. Rows not 'rejected' count (same rule as smc_replacements_cap and lib/w13 COUNTED).
-SELECT pg_advisory_xact_lock(hashtext('w13:cycle:' || $4::text));
-WITH used AS (SELECT count(*) AS n FROM public.replacements r WHERE r.cycle_id = $4::uuid AND r.status <> 'rejected'),
-cap AS (SELECT cy.replacement_cap AS cap FROM public.cycles cy WHERE cy.id = $4::uuid),
+  // ---- request: broker no-show proof on WhatsApp (Schedule 3) -> one request row, or a reply saying why not
+  const ctx = pg('Request context (booking in the proof window, requests this week)', [4, -1],
+`WITH bk AS (
+  SELECT a.id AS booking_id, a.client_id AS lead_id, a.brand_id, a.cycle_id, a.appointment_date AS missed_start_at, l.first_name AS lead_first_name
+    FROM public.appointments a
+    JOIN public.leads l ON l.id = a.client_id
+   WHERE a.broker_id = $1::uuid AND a.brand_id IS NOT NULL
+     AND a.status IN ('booked','confirmed','no_show')
+     AND a.appointment_date <= $2::timestamptz AND a.appointment_date >= $2::timestamptz - interval '2 hours'
+   ORDER BY a.appointment_date DESC
+   LIMIT 1)
+SELECT b.id AS broker_id, b.adviser_name, b.contact_person, $3::text AS broker_phone, $4::text AS wamid,
+       bk.booking_id, bk.lead_id, bk.brand_id, bk.cycle_id, bk.missed_start_at, bk.lead_first_name,
+       (SELECT count(*) FROM public.replacements r
+         WHERE r.broker_id = b.id
+           AND public.smc_week_start(coalesce(r.missed_start_at, r.claimed_at)) = public.smc_week_start(bk.missed_start_at))::int AS used_this_week,
+       EXISTS (SELECT 1 FROM public.replacements r WHERE r.booking_id = bk.booking_id) AS already_requested
+  FROM public.brokers b
+  LEFT JOIN bk ON true
+ WHERE b.id = $1::uuid;`,
+    '={{ [$json.broker_id, $json.proof_at, $json.broker_phone, $json.wamid] }}');
+  link(sw, ctx, 0);
+  const plan = code('Request plan (w13.requestPlan)', [5, -1], IMPORT('w13') +
+`const n = $('Normalise + validate (w13.normaliseInput)').first().json;
+const r = $json;
+const p = L.requestPlan(n, r);
+return { json: { ...r, proof_at: n.proof_at, proof_path: n.proof_path, record: p.record, why: p.why, reply: p.record ? null : L.replyItem(r, p.why, r).send } };`);
+  link(ctx, plan);
+  const doRec = ifTrue('Record the request?', [6, -1], '$json.record === true');
+  link(plan, doRec);
+  const rec = pg('Record request (per broker-week lock, max 3, one per booking)', [7, -2],
+`-- One query string = one transaction: the advisory lock serialises requests for this broker and Calendar Week, so the
+-- count below (taken after the lock) is exact. Every request counts, decided or not (smc_request_noshow_replacement).
+SELECT pg_advisory_xact_lock(hashtext('w13:week:' || $4::text || ':' || public.smc_week_start($6::timestamptz)::text));
+WITH used AS (
+  SELECT count(*) AS n FROM public.replacements r
+   WHERE r.broker_id = $4::uuid AND public.smc_week_start(coalesce(r.missed_start_at, r.claimed_at)) = public.smc_week_start($6::timestamptz)),
 ins AS (
-  INSERT INTO public.replacements (lead_id, outcome_id, cycle_id, broker_id, brand_id, reason, reason_code, claimed_at, dispute_window_ends_at, status, note)
-  SELECT $1::uuid, $2::uuid, $4::uuid, $5::uuid, $6::uuid, $7, $8, $9::timestamptz, $9::timestamptz + interval '48 hours',
-         CASE WHEN used.n >= cap.cap THEN 'rejected' ELSE 'due' END,
-         CASE WHEN used.n >= cap.cap THEN 'cap_reached' END
-    FROM used, cap
-   WHERE NOT EXISTS (SELECT 1 FROM public.replacements x
-                      WHERE x.lead_id = $1::uuid AND NOT (x.status = 'rejected' AND COALESCE(x.note, '') = 'withdrawn'))
+  INSERT INTO public.replacements (lead_id, cycle_id, broker_id, brand_id, reason, reason_code, booking_id, missed_start_at, proof_path, proof_sent_at, claimed_at, status)
+  SELECT $1::uuid, $3::uuid, $4::uuid, $5::uuid, 'no_show', 'schedule3_proof', $2::uuid, $6::timestamptz, $7, $8::timestamptz, $8::timestamptz, 'due'
+    FROM used
+   WHERE used.n < 3 AND NOT EXISTS (SELECT 1 FROM public.replacements x WHERE x.booking_id = $2::uuid)
   ON CONFLICT DO NOTHING
-  RETURNING id, lead_id, cycle_id, status, note, cap_position, over_cap, dispute_window_ends_at, reason_code)
-SELECT ins.*, cap.cap, (SELECT n FROM used) + 1 AS used_after FROM ins, cap;`,
-    '={{ [$json.lead_id, $json.outcome_id || null, null, $json.cycle_id, $json.broker_id, $json.brand_id, $json.trig.reason, $json.trig.reason_code, $json.trig.due_at] }}');
-  link(doClaim, claim, 0);
-  const note = code('Alert + timeline text (w13.alertNote, committed wording)', [9, -1], IMPORT('w13') +
-`// F11 (REHEARSAL-L01): the claim batch returns the pg_advisory_xact_lock row as well as the insert row, so this node runs
-// once over all items, keeps only real replacements rows (id + lead_id) and finds its claim by lead_id (no .item lookup).
-// Lead already holds a replacement -> only the lock row arrives -> nothing to alert.
-const decided = $('Decide claim (w13.claimDecision)').all().map((i) => i.json);
+  RETURNING id, lead_id, cycle_id, broker_id, brand_id, booking_id, missed_start_at, proof_path)
+SELECT ins.*, (SELECT n FROM used) + 1 AS used_after FROM ins;`,
+    '={{ [$json.lead_id, $json.booking_id, $json.cycle_id, $json.broker_id, $json.brand_id, $json.missed_start_at, $json.proof_path, $json.proof_at] }}');
+  link(doRec, rec, 0);
+  const note = code('Request recorded -> console note + broker reply (w13.alertNote)', [8, -2], IMPORT('w13') +
+`// The batch returns the pg_advisory_xact_lock row as well as the insert row: keep only real replacements rows.
+// Only the lock row (lost a race: 4th request or same booking twice) -> nothing recorded, nothing said twice.
+const c = $('Request plan (w13.requestPlan)').first().json;
 const out = [];
 $input.all().forEach((it, idx) => {
   const r = it.json || {};
   if (!r.id || !r.lead_id) return;
-  const c = decided.find((d) => d.lead_id === r.lead_id) || decided[0] || {};
-  const capReached = r.status === 'rejected' && r.note === 'cap_reached';
-  const text = L.alertNote(capReached ? 'cap_reached' : 'due', { lead: { first_name: c.first_name, last_name: c.last_name }, used: r.cap_position, cap: r.cap, reason_code: r.reason_code, window_ends_at: r.dispute_window_ends_at ? L.iso(r.dispute_window_ends_at) : null });
-  out.push({ json: { ...r, brand_id: c.brand_id, broker_id: c.broker_id, cap_reached: capReached, note_text: text, esc_kind: capReached ? 'other' : 'replacement_dispute', severity: capReached ? 'urgent' : 'normal', activity: capReached ? 'replacement_cap_reached' : 'replacement_due' }, pairedItem: { item: idx } });
+  const text = L.alertNote({ lead: { first_name: c.lead_first_name }, used: r.used_after, missed_start_at: r.missed_start_at, proof_path: r.proof_path });
+  out.push({ json: { ...r, note_text: text, reply: L.replyItem({ ...c, ...r }, 'requested', { ...c, used_after: r.used_after }).send }, pairedItem: { item: idx } });
 });
 return out;`, 'runOnceForAllItems');
-  link(claim, note);
-  const record = pg('Escalate + timeline + lead stage', [10, -1],
+  link(rec, note);
+  const record = pg('Escalate (console decides) + timeline', [9, -2],
 `WITH e AS (
   INSERT INTO public.escalations (brand_id, kind, severity, ref_table, ref_id, lead_id, broker_id, raised_at, note)
-  VALUES ($1::uuid, $2, $3, 'replacements', $4, $5::uuid, $6::uuid, now(), $7)
-  RETURNING id),
-t AS (
-  INSERT INTO public.lead_activities (${ACTIVITY_COLS})
-  VALUES ($5::uuid, $1::uuid, $6::uuid, $8::uuid, 'W13', 'system', $9, jsonb_build_object('replacement_id', $4::text, 'status', $10::text, 'cap_position', $11::int), now(), 'w13:claim:' || $4)
-  ON CONFLICT (idempotency_key) DO NOTHING RETURNING id)
-UPDATE public.leads SET stage = 'replacement_due', updated_at = now()
- WHERE id = $5::uuid AND $10 = 'due'
-RETURNING id;`,
-    '={{ [$json.brand_id, $json.esc_kind, $json.severity, $json.id, $json.lead_id, $json.broker_id, $json.note_text, $json.cycle_id, $json.activity, $json.status, $json.cap_position] }}');
-  link(note, record);
-  const isDue = ifTrue('Due? (stop any reminders left)', [11, -1], "$('Alert + timeline text (w13.alertNote, committed wording)').item.json.status === 'due'");
-  link(record, isDue);
-  const stopRem = code('W09 cancel_all payload', [12, -1], "return { json: { op: 'cancel_all', lead_id: $('Alert + timeline text (w13.alertNote, committed wording)').item.json.lead_id, reason: 'replacement_due', source: 'W13' } };");
-  link(isDue, stopRem, 0);
-  const w09 = sub('W09 cancel_all (lead)', [13, -1], 'W09 Reminder sequence');
-  link(stopRem, w09);
-
-  // ---- withdraw (W29 correction; only a 'due' row, only inside the window)
-  const wd = pg('Withdraw (W29 correction, inside the window only)', [4, 1],
-`WITH w AS (
-  UPDATE public.replacements r SET status = 'rejected', note = 'withdrawn', updated_at = now()
-   WHERE r.lead_id = COALESCE($1::uuid, (SELECT o.lead_id FROM public.outcomes o WHERE o.id = $2::uuid))
-     AND r.status = 'due' AND r.dispute_window_ends_at > $3::timestamptz
-  RETURNING r.id, r.lead_id, r.cycle_id, r.broker_id, r.brand_id)
-INSERT INTO public.lead_activities (${ACTIVITY_COLS})
-SELECT w.lead_id, w.brand_id, w.broker_id, w.cycle_id, 'W13', 'broker', 'replacement_withdrawn', jsonb_build_object('replacement_id', w.id::text), now(), 'w13:withdrawn:' || w.id::text
-  FROM w
-ON CONFLICT (idempotency_key) DO NOTHING;`,
-    '={{ [$json.lead_id || null, $json.outcome_id || null, $json.now_iso] }}');
-  link(sw, wd, 1);
-
-  // ---- no_show (from W12): start the 48-h clock, offer missed_you once, or claim at once on a second no-show
-  const ns = pg('No-show context + 48-h clock (w13:no_show:{booking})', [4, 2],
-`WITH ctx AS (
-  SELECT a.id AS booking_id, a.client_id AS lead_id, a.brand_id, a.broker_id, a.cycle_id,
-         l.first_name, l.phone, l.opted_out_at, b.adviser_name, b.contact_person,
-         EXISTS (SELECT 1 FROM public.outcomes x WHERE x.lead_id = a.client_id AND x.outcome = 'no_show' AND x.booking_id <> a.id) AS second_no_show
-    FROM public.appointments a
-    JOIN public.leads l ON l.id = a.client_id
-    JOIN public.brokers b ON b.id = a.broker_id
-   WHERE a.id = $1::uuid),
-clk AS (
-  INSERT INTO public.lead_activities (${ACTIVITY_COLS})
-  SELECT ctx.lead_id, ctx.brand_id, ctx.broker_id, ctx.cycle_id, 'W13', 'system', 'no_show_clock',
-         jsonb_build_object('booking_id', ctx.booking_id::text, 'outcome_id', $2::text, 'confirmed_at', $3::text, 'second', ctx.second_no_show), now(), 'w13:no_show:' || ctx.booking_id::text
-    FROM ctx
-  ON CONFLICT (idempotency_key) DO NOTHING
+  VALUES ($1::uuid, 'replacement_dispute', 'normal', 'replacements', $2, $3::uuid, $4::uuid, now(), $5)
   RETURNING id)
-SELECT ctx.*, (SELECT count(*) FROM clk) > 0 AS first_call FROM ctx;`,
-    '={{ [$json.booking_id, $json.outcome_id, $json.confirmed_at] }}');
-  link(sw, ns, 2);
-  const nsFirst = ifTrue('First call for this no-show?', [5, 2], '$json.first_call === true');
-  link(ns, nsFirst);
-  const nsSecond = ifTrue('Second no-show? (claim at once)', [6, 2], '$json.second_no_show === true');
-  link(nsFirst, nsSecond, 0);
-  const secondTrig = code('No-show clock decision', [7, 1], IMPORT('w13') +
-`// One node, two entries: a second no-show (claim at once) and the hourly 48-h clock rows.
-const c = $('Normalise + validate (w13.normaliseInput)').first().json;
-const r = $json;
-const trig = r.second_no_show === true && !r.confirmed_at_row
-  ? L.replacementTrigger({ kind: 'no_show', confirmed_at: c.confirmed_at || c.now_iso, second_no_show: true })
-  : L.noShowClock(r);
-return { json: { op: 'claim', lead_id: r.lead_id, outcome_id: r.outcome_id || c.outcome_id || null, cycle_id: r.cycle_id || null, booking_id: r.booking_id, source: 'W13 no_show', trig, decided_key: 'w13:no_show_decided:' + r.booking_id } };`);
-  link(nsSecond, secondTrig, 0);
-  const decided = pg('No-show decided (once per booking)', [8, 1],
-`INSERT INTO public.lead_activities (${ACTIVITY_COLS})
-SELECT a.client_id, a.brand_id, a.broker_id, a.cycle_id, 'W13', 'system', 'no_show_decided', jsonb_build_object('due', $2::boolean, 'why', $3::text), now(), $4
-  FROM public.appointments a WHERE a.id = $1::uuid
+INSERT INTO public.lead_activities (${ACTIVITY_COLS})
+VALUES ($3::uuid, $1::uuid, $4::uuid, $6::uuid, 'W13', 'broker', 'noshow_proof_sent', jsonb_build_object('booking_id', $7::text, 'replacement_id', $2::text, 'via', 'whatsapp'), now(), 'w13:noshow_proof:' || $7)
 ON CONFLICT (idempotency_key) DO NOTHING
 RETURNING id;`,
-    '={{ [$json.booking_id, !!$json.trig.due, $json.trig.why || null, $json.decided_key] }}');
-  link(secondTrig, decided);
-  const decidedDue = ifTrue('Decided now + due?', [9, 1], "!!$json.id && $('No-show clock decision').item.json.trig.due === true");
-  link(decided, decidedDue);
-  const toClaim = code('Claim input (no-show)', [10, 1], "return { json: $('No-show clock decision').item.json };");
-  link(decidedDue, toClaim, 0);
-  link(toClaim, claimIn);
-  // first no-show: one missed_you offer with 3 new times (W04 waits), then the clock runs
-  const slotsIn = code('W04 list input', [6, 3], "const r = $('No-show context + 48-h clock (w13:no_show:{booking})').item.json; return { json: { broker_id: r.broker_id, limit: 10 } };");
-  const slots = sub('W04 slots for missed_you (waits)', [7, 3], 'W04 Slots API', true);
-  link(nsSecond, slotsIn, 1); link(slotsIn, slots);
-  const optedOut = code('missed_you (w13.missedYouItem)', [8, 3], IMPORT('w13') +
-`const r = $('No-show context + 48-h clock (w13:no_show:{booking})').item.json;
-if (r.opted_out_at) return { json: { send: null, why: 'opted_out' } };
+    '={{ [$json.brand_id, $json.id, $json.lead_id, $json.broker_id, $json.note_text, $json.cycle_id, $json.booking_id] }}');
+  link(note, record);
+  const okReply = code('Send item (request recorded)', [10, -2], "return { json: { send: $('Request recorded -> console note + broker reply (w13.alertNote)').item.json.reply } };");
+  link(record, okReply);
+  const noRec = pg('Timeline: no request (why)', [7, -1],
+`INSERT INTO public.lead_activities (${ACTIVITY_COLS})
+SELECT $1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W13', 'broker', 'replacement_not_opened', jsonb_build_object('why', $5::text, 'source', 'W07', 'booking_id', $6::text), now(), NULL
+ WHERE $1::uuid IS NOT NULL
+RETURNING id;`,
+    '={{ [$json.lead_id || null, $json.brand_id || null, $json.broker_id, $json.cycle_id || null, $json.why, $json.booking_id || null] }}', { alwaysOutputData: true });
+  link(doRec, noRec, 1);
+  const noReply = code('Send item (why not)', [8, -1], "return { json: { send: $('Request plan (w13.requestPlan)').item.json.reply } };");
+  link(noRec, noReply);
+
+  // ---- no_show (from W12, lead no-show confirmed): ONE missed_you rebook offer. Never a replacement (clause 7).
+  const ns = pg('No-show context (missed_you once)', [4, 2],
+`SELECT a.id AS booking_id, a.client_id AS lead_id, a.brand_id, a.broker_id, a.cycle_id,
+       l.first_name, l.phone, l.opted_out_at, b.adviser_name, b.contact_person
+  FROM public.appointments a
+  JOIN public.leads l ON l.id = a.client_id
+  JOIN public.brokers b ON b.id = a.broker_id
+ WHERE a.id = $1::uuid;`,
+    '={{ [$json.booking_id] }}');
+  link(sw, ns, 1);
+  const slotsIn = code('W04 list input', [5, 2], "const r = $('No-show context (missed_you once)').item.json; return { json: { broker_id: r.broker_id, limit: 10 } };");
+  const slots = sub('W04 slots for missed_you (waits)', [6, 2], 'W04 Slots API', true);
+  link(ns, slotsIn); link(slotsIn, slots);
+  const my = code('missed_you (w13.missedYouItem)', [7, 2], IMPORT('w13') +
+`const r = $('No-show context (missed_you once)').item.json;
+if (r.opted_out_at) return { json: { send: null, why: 'opted_out', booking_id: r.booking_id, lead_id: r.lead_id, brand_id: r.brand_id, broker_id: r.broker_id } };
 const m = L.missedYouItem(r, ($json.slots || []));
 return { json: { ...m, booking_id: r.booking_id, lead_id: r.lead_id, brand_id: r.brand_id, broker_id: r.broker_id } };`);
-  link(slots, optedOut);
-  const claimMy = pg('Claim missed_you (sent once)', [9, 3],
+  link(slots, my);
+  const claimMy = pg('Claim missed_you (sent once)', [8, 2],
 `INSERT INTO public.lead_activities (${ACTIVITY_COLS})
-SELECT $1::uuid, $2::uuid, $3::uuid, NULL, 'W13', 'system', 'missed_you', jsonb_build_object('booking_id', $4::text, 'sent', $5::boolean, 'why', $6::text), now(), 'w13:missed_you:' || $4
+SELECT $1::uuid, $2::uuid, $3::uuid, NULL, 'W13', 'system', 'missed_you', jsonb_build_object('booking_id', $4::text, 'sent', $5::boolean, 'why', $6::text, 'replacement', 'none: clause 7 (broker request with proof only)'), now(), 'w13:missed_you:' || $4
 ON CONFLICT (idempotency_key) DO NOTHING
 RETURNING id;`,
     '={{ [$json.lead_id, $json.brand_id, $json.broker_id, $json.booking_id, !!$json.send, $json.why || null] }}');
-  link(optedOut, claimMy);
-  const myOk = ifTrue('Claimed + message built?', [10, 3], "!!$json.id && !!$('missed_you (w13.missedYouItem)').item.json.send");
+  link(my, claimMy);
+  const myOk = ifTrue('Claimed + message built?', [9, 2], "!!$json.id && !!$('missed_you (w13.missedYouItem)').item.json.send");
   link(claimMy, myOk);
-  const mySend = code('Send item (missed_you)', [11, 3], "return { json: { send: $('missed_you (w13.missedYouItem)').item.json.send } };");
+  const mySend = code('Send item (missed_you)', [10, 2], "return { json: { send: $('missed_you (w13.missedYouItem)').item.json.send } };");
   link(myOk, mySend, 0);
 
-  // ---- console: dispute / decide
-  const disp = pg('Dispute (Lead Velocity, inside the 48-h window)', [4, 5],
+  // ---- decide (console): Lead Velocity approves or declines an undecided request; the broker is told (S3.6)
+  const decide = pg('Decide request (approve | decline) + emit', [4, 4],
 `WITH d AS (
-  UPDATE public.replacements SET status = 'disputed', updated_at = now()
-   WHERE id = $1::uuid AND status = 'due' AND dispute_window_ends_at > $2::timestamptz
-  RETURNING id, lead_id, broker_id, brand_id)
-INSERT INTO public.escalations (brand_id, kind, severity, ref_table, ref_id, lead_id, broker_id, raised_at, note)
-SELECT d.brand_id, 'replacement_dispute', 'normal', 'replacements', d.id::text, d.lead_id, d.broker_id, now(), 'esc_kind=replacement_disputed; Lead Velocity disputes inside the 48-h window (Schedule C)'
-  FROM d
-RETURNING id;`,
-    '={{ [$json.replacement_id, $json.now_iso] }}');
-  link(sw, disp, 3);
-  const decide = pg('Decide dispute (upheld -> rejected, else approved) + emit', [4, 6],
-`WITH d AS (
-  UPDATE public.replacements
-     SET status = CASE WHEN $2::boolean THEN 'rejected' ELSE 'approved' END,
-         note = CASE WHEN $2::boolean THEN 'dispute_upheld' ELSE note END,
+  UPDATE public.replacements r
+     SET status = CASE WHEN $2::boolean THEN 'approved' ELSE 'rejected' END,
+         note = CASE WHEN $2::boolean THEN r.note ELSE 'declined' END,
          decided_at = now(), updated_at = now()
-   WHERE id = $1::uuid AND status = 'disputed'
-  RETURNING id, lead_id, cycle_id, broker_id, brand_id, status)
-INSERT INTO public.lead_activities (${ACTIVITY_COLS})
-SELECT d.lead_id, d.brand_id, d.broker_id, d.cycle_id, 'W13', 'admin', 'replacement_' || d.status, jsonb_build_object('replacement_id', d.id::text, 'for', 'W19 shortfall / W14 lines'), now(), 'w13:' || d.status || ':' || d.id::text
+   WHERE r.id = $1::uuid AND r.status = 'due'
+  RETURNING r.id, r.lead_id, r.cycle_id, r.broker_id, r.brand_id, r.booking_id, r.status),
+t AS (
+  INSERT INTO public.lead_activities (${ACTIVITY_COLS})
+  SELECT d.lead_id, d.brand_id, d.broker_id, d.cycle_id, 'W13', 'admin', CASE WHEN d.status = 'approved' THEN 'replacement_approved' ELSE 'replacement_declined' END,
+         jsonb_build_object('replacement_id', d.id::text, 'booking_id', d.booking_id::text), now(), 'w13:decided:' || d.id::text
+    FROM d
+  ON CONFLICT (idempotency_key) DO NOTHING
+  RETURNING id)
+SELECT d.id AS replacement_id, d.lead_id, d.broker_id, d.brand_id, d.booking_id, d.status, l.first_name AS lead_first_name, b.whatsapp_number AS broker_phone
   FROM d
-ON CONFLICT (idempotency_key) DO NOTHING;`,
-    '={{ [$json.replacement_id, $json.upheld] }}');
-  link(sw, decide, 4);
+  JOIN public.leads l ON l.id = d.lead_id
+  JOIN public.brokers b ON b.id = d.broker_id;`,
+    '={{ [$json.replacement_id, $json.approve] }}');
+  link(sw, decide, 2);
+  const decReply = code('Send item (decision, w13.replyItem)', [5, 4], IMPORT('w13') +
+`const r = $json;
+return { json: { send: L.replyItem(r, r.status === 'approved' ? 'approved' : 'declined', r).send } };`);
+  link(decide, decReply);
 
-  // ---- tick: settle closed windows (emit replacement_approved for W19) + 48-h no-show clocks
-  const settle = pg('Settle: window closed -> approved (emit for W19)', [4, 7],
-`WITH s AS (
-  UPDATE public.replacements r SET status = 'approved', decided_at = now(), updated_at = now()
-   WHERE r.status = 'due' AND r.dispute_window_ends_at <= $1::timestamptz
-     AND (NOT $2::boolean OR EXISTS (SELECT 1 FROM public.leads l WHERE l.id = r.lead_id AND l.is_synthetic))
-  RETURNING r.id, r.lead_id, r.cycle_id, r.broker_id, r.brand_id)
-INSERT INTO public.lead_activities (${ACTIVITY_COLS})
-SELECT s.lead_id, s.brand_id, s.broker_id, s.cycle_id, 'W13', 'system', 'replacement_approved', jsonb_build_object('replacement_id', s.id::text, 'for', 'W19 shortfall / W14 lines'), now(), 'w13:approved:' || s.id::text
-  FROM s
-ON CONFLICT (idempotency_key) DO NOTHING;`,
-    '={{ [$json.now_iso, $json.synthetic_only] }}');
-  const clocks = pg('No-show clocks past 48 h (undecided)', [4, 8],
-`SELECT k.lead_id, k.brand_id, k.broker_id, k.cycle_id, k.payload->>'booking_id' AS booking_id, k.payload->>'outcome_id' AS outcome_id,
-       k.payload->>'confirmed_at' AS confirmed_at, true AS confirmed_at_row,
-       (SELECT min(a.created_at) FROM public.appointments a WHERE a.client_id = k.lead_id AND a.previous_booking_id = (k.payload->>'booking_id')::uuid) AS rebooked_at,
-       (SELECT min(x.occurred_at) FROM public.lead_activities x WHERE x.lead_id = k.lead_id AND x.activity_type = 'rebooked_after_no_show' AND x.occurred_at >= (k.payload->>'confirmed_at')::timestamptz) AS rebooked_activity_at,
-       (SELECT min(c.created_at) FROM public.communications c WHERE c.lead_id = k.lead_id AND c.direction = 'inbound' AND c.created_at > (k.payload->>'confirmed_at')::timestamptz) AS replied_at
-  FROM public.lead_activities k
-  JOIN public.leads l ON l.id = k.lead_id
- WHERE k.activity_type = 'no_show_clock'
-   AND (k.payload->>'confirmed_at')::timestamptz + interval '48 hours' <= $1::timestamptz
-   AND NOT EXISTS (SELECT 1 FROM public.lead_activities d WHERE d.idempotency_key = 'w13:no_show_decided:' || (k.payload->>'booking_id'))
-   AND (NOT $2::boolean OR l.is_synthetic)
- LIMIT 200;`,
-    '={{ [$json.now_iso, $json.synthetic_only] }}');
-  link(sw, settle, 5); link(sw, clocks, 5);
-  link(clocks, secondTrig);
+  // ---- refuse: W10 C1A / W29 / system "uncontactable" claims. Logged only (clause 7 / 8.4), never a replacement.
+  const refuse = pg('Timeline: not a replacement (refused, why)', [4, 6],
+`INSERT INTO public.lead_activities (${ACTIVITY_COLS})
+SELECT l.id, l.brand_id, l.broker_id, l.cycle_id, 'W13', 'system', 'replacement_not_opened', jsonb_build_object('why', $2::text, 'source', $3::text), now(), NULL
+  FROM public.leads l
+ WHERE l.id = COALESCE($1::uuid, (SELECT o.lead_id FROM public.outcomes o WHERE o.id = $4::uuid));`,
+    '={{ [$json.lead_id || null, $json.why, $json.source || null, $json.outcome_id || null] }}');
+  link(sw, refuse, 3);
 
-  link(sw, rejectNode('W13', [4, 9], '$json'), 6);
+  link(sw, rejectNode('W13', [4, 8], '$json'), 4);
 
-  const live = sendChain('W13', 13, 3);
-  link(mySend, live);
+  const gate = ifTrue('Has a message?', [11, 0], '!!$json.send');
+  for (const s of [okReply, noReply, mySend, decReply]) link(s, gate);
+  const live = sendChain('W13', 12, 0);
+  link(gate, live, 0);
 
   return finish('smc-w13', 'W13 No-show & replacement (DRAFT pending GATE-TEST-W13)',
-    'automation-engineer. W13 no-show & replacement (0.1, 4.6 item 11, 4.12a, Schedule C/D); the ONE replacement counter (W10/W12/W29 call it); logic automation/lib/w13.mjs; tests automation/tests/W13.test.mjs (GATE-TEST-W13). Generated by automation/build-w09-w12-w13.mjs.',
+    'automation-engineer. W13 no-show replacement requests (agreement clause 7 + Schedule 3: goodwill, at Lead Velocity\'s discretion, broker proof 10-30 min after start, max 3 per Calendar Week); lead no-show = one missed_you offer only; logic automation/lib/w13.mjs; tests automation/tests/W13.test.mjs (GATE-TEST-W13). Generated by automation/build-w09-w12-w13.mjs.',
     ['replacements', 'whatsapp', 'draft']);
 }
 

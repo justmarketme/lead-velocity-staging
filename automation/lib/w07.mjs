@@ -114,6 +114,9 @@ function routeCore(msg, ctx) {
     if (msg.media === 'video' || (msg.media === 'audio' && PRE_LIVE_BROKER.has(ctx.broker_status))) return { route: 'W23', reason: 'broker intro media (W23)' };
     // clause 8.4 (ux-sprint-1): "Couldn't reach them" (unreachable) is the fourth broker_outcome_check button.
     if (['attended', 'no_show', 'unreachable', 'rescheduled'].includes(tapKey)) return { route: 'W12', reason: 'broker outcome tap' };
+    // clause 7 + Schedule 3 (ux-sprint-1): a photo or screenshot from a broker is no-show proof. W13 checks the 10-30 min
+    // window and the weekly maximum of 3, records the request (goodwill, Lead Velocity decides) and replies.
+    if (msg.media === 'image' || msg.media === 'document') return { route: 'W13', reason: 'broker no-show proof (Schedule 3)' };
     return { route: 'W29', reason: 'broker feedback (disposition list, quality, voice note, follow-up tap)' };
   }
   // STOP anywhere, in any state, before anything else (W15). prefilter's STOP_RX is the broad net; this is the exact word.

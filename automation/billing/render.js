@@ -13,7 +13,10 @@ const LINE_UNDER_CARDS = 'Per 30-day cycle. No lock-in. Pay for a cycle, get you
 const LINE_UNDER_CARDS_2 = 'Pay upfront by EFT or card; renew (or not) before your next cycle.';
 const SMALL_PRINT = "Prices exclude VAT. No notice period: if you don't renew, the cycle simply ends.";
 
-const statement4 = (cap) => `If a verified lead no-shows or can't be reached, we replace it — up to ${cap} per cycle on this plan. If we fall short of your committed number, your cycle extends by up to 14 days to deliver it, and anything still short is credited.`;
+// clause 7 (ux-sprint-1): replacements are goodwill, max 3 requests per Calendar Week on every plan; replacement_cap_cycle
+// stays in the pricing data (history) but is never printed or used.
+const REPLACEMENT_LINE = "If a lead doesn't show, we may replace it as a goodwill gesture, at Lead Velocity's discretion: send proof 10 to 30 minutes after the start, up to 3 requests a week.";
+const statement4 = () => `${REPLACEMENT_LINE} If we fall short of your committed number, your cycle extends by up to 14 days to deliver it, and anything still short is credited.`;
 const statement7 = (n) => `${n} verified, pre-qualified leads per cycle — committed, not estimated. Short? We extend and credit.`;
 
 /** Plain view-model per tier: what every surface may print. */
@@ -46,11 +49,11 @@ function renderTierCards(rows, { checkoutUrl = '/billing/checkout/', at, include
   <ul>
     <li>${esc(v.committed_leads)} pre-qualified leads per cycle</li>
     <li>AI WhatsApp follow-up, booking &amp; reminders included</li>
-    <li>Up to ${esc(v.replacement_cap_cycle)} replacements per cycle</li>
+    <li>Goodwill no-show replacements (up to 3 requests a week)</li>
     <li>Media spend included</li>
     <li>Pre-call brief for every lead and a Monday report</li>
   </ul>
-  <p class="tier-notes">${esc(statement4(v.replacement_cap_cycle))} Qualified means the 6 checks in our <a href="#what-qualified-means">definition</a>.</p>
+  <p class="tier-notes">${esc(statement4())} Qualified means the 6 checks in our <a href="#what-qualified-means">definition</a>.</p>
   <a class="tier-cta" href="${esc(checkoutUrl)}?tier=${encodeURIComponent(v.tier_code)}">Start on ${esc(v.name)}</a>
 </article>`;
   });
@@ -93,7 +96,7 @@ function proposalTierBlock(row) {
     `Plan: ${v.name} (${v.tier_code})`,
     `Price: ${v.price} per 30-day cycle, ${v.vat_line}. Paid in advance. Per 30-day cycle, no lock-in.`,
     `Committed: ${statement7(v.committed_leads)}`,
-    `Replacements: up to ${v.replacement_cap_cycle} per cycle.`,
+    `Replacements: ${REPLACEMENT_LINE}`,
     'Included: ad spend, landing pages, WhatsApp assistant, booking, reminders, pre-call briefs, weekly reports. No setup fee. No per-policy fee.',
   ].join('\n');
 }

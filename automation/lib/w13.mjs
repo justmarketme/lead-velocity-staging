@@ -1,51 +1,76 @@
-// automation/lib/w13.mjs  -  W13 no-show & replacement. 0.1 (per-cycle cap, "committed", shortfall), 4.6 item 11,
-// 4.12a, Schedule C (C1A from W10) / D. Imported by automation/W13.json and automation/tests/W13.test.mjs. Pure, no I/O.
+// automation/lib/w13.mjs  -  W13 no-show & replacement requests. Lead Generation Services Agreement clause 7 + Schedule 3
+// (deliverables/contracts-drafter/lead-generation-agreement/lead-velocity-services-agreement.md). Imported by
+// automation/W13.json and automation/tests/W13.test.mjs. Pure, no I/O.
 //
-// ONE counter, ONE owner. `public.replacements` is the replacement counter for a cycle: rows whose status is not
-// 'rejected' count against cycles.replacement_cap (snapshotted from pricing.replacement_cap_cycle when the cycle is
-// created: Bronze 4 / Silver 6 / Gold 9; no weekly cap). Only W13 writes it. W10 (Schedule C1A: cancel_no_rebook /
-// no_call), W29 (dispositions unreachable / nofit_criteria) and W12 (lead no-show) all CALL W13; none of them counts.
-// The cap is enforced in the database: a per-cycle advisory lock in the claim statement serialises claims, and the
-// smc_replacements_cap trigger (migration 02) counts with a fresh snapshot and sets cap_position / over_cap.
-// One replacement per lead, whichever workflow asks first: lead_activities key w13:claim:{lead_id} + the partial
-// unique index replacements_one_per_lead. A withdrawn claim (W29 correction) frees the lead and its place.
+// Clause 7 (ux-sprint-1, 2026-10-07): a replacement is GOODWILL, AT LEAD VELOCITY'S DISCRETION, never an entitlement.
+//  * Nothing opens a replacement automatically. A lead no-show (confirmed by W12) only gets ONE rebook offer
+//    (missed_you); no 48-h clock, no "second no-show" claim, no dispute window that approves by itself.
+//  * The ONLY way in is a broker no-show REQUEST with proof (Schedule 3): a photo of the place with the time, or a
+//    screenshot of the empty call, sent between booked start + 10 min and start + 30 min. Late, early or no proof ->
+//    nothing is requested and the lead stands as Delivered (S3.4).
+//  * At most 3 requests per Calendar Week per broker (Mon 00:00 - Sun 23:59 SAST, by the date of the missed
+//    appointment, clause 7.2). Every request row counts, decided or not (same rule as smc_request_noshow_replacement
+//    and the smc_replacements_cap trigger, migration smc_18). pricing.replacement_cap_cycle / cycles.replacement_cap
+//    stay in the data for history only; nothing here reads them.
+//  * "Couldn't reach them" (outcome unreachable) is feedback only (clause 8.4). Dispositions, W10 C1A claims and the
+//    system "uncontactable" path are refused and logged (replacement_not_opened), never claimed.
+//  * Lead Velocity decides each request (console op decide: approve | decline) and tells the broker in writing (S3.6).
+//  * A replacement never changes Delivered: the no-show lead still counts and the Replacement Lead never does (7.4).
 //
-// No-show path: W12 confirms a lead no-show (both sides) -> W13 sends missed_you with 3 new times (ONE offer, 4.12:
-// "zero guilt, one offer") -> no rebook and no reply within 48 h, or a second no-show -> replacement_due ->
-// 48-h dispute window for Lead Velocity -> approved. Never for a broker no-show (Schedule D), never for "didn't buy".
-// Shortfall / extension / pro-rata credit are W19's (billing): W13 only emits replacement_approved events;
-// cycleState() below is the shared reference of the 0.1 rule and uses billing's shortfallCreditCents for the money.
+// ONE writer: public.replacements is written by W13 (WhatsApp proof) and by the portal RPC
+// smc_request_noshow_replacement (same checks). Requests are serialised per broker-week with an advisory lock.
 import { createRequire } from 'node:module';
 import { pick3, slotLabel } from './w10.mjs';
-import { H, D, ms, iso, firstAndInitial, templateMessage, nowFrom, touchesLastContact } from './wa.mjs';
+import { H, D, MIN, ms, iso, firstAndInitial, firstName, templateMessage, textMessage, timeLabel, nowFrom, touchesLastContact } from './wa.mjs';
 export { H, D, iso, nowFrom, touchesLastContact };
 const require = createRequire(import.meta.url);
 const { shortfallCreditCents } = require('../billing/invoice.js');
 
-export const REBOOK_WAIT = 48 * H; // missed_you -> no reply in 48 h -> replacement_due (4.6 item 11)
-export const DISPUTE_WINDOW = 48 * H; // Schedule C
-export const MAX_EXTENSION = 14 * D; // 0.1 shortfall
-export const COUNTED = new Set(['due', 'disputed', 'approved', 'fulfilled']); // 'rejected' frees the slot
-export const REASONS = new Set(['no_show', 'uncontactable', 'disqualified']); // replacements.reason CHECK
-export const C1A_CODES = { cancel_no_rebook: 'uncontactable', no_call: 'disqualified' };
+export const WEEKLY_MAX = 3; // clause 7.2
+export const PROOF_FROM = 10 * MIN; // Schedule 3.2: wait at least 10 minutes past the booked start
+export const PROOF_UNTIL = 30 * MIN; // Schedule 3.3: and send proof no later than 30 minutes after it
+export const MAX_EXTENSION = 14 * D; // clause 6 rollover period
+export const PROOF_MEDIA = new Set(['image', 'document']); // photo (face-to-face) or screenshot (virtual)
+export const GOODWILL = "a goodwill gesture, at Lead Velocity's discretion";
 
-/** Does this event open a replacement? Returns {due:false, why} or {due:true, reason, reason_code, due_at}. */
-export function replacementTrigger(ev) {
+const SAST = 2 * H;
+/** Monday 00:00 SAST of the Calendar Week containing t, as an ISO string (same as public.smc_week_start). */
+export function weekStart(t) {
+  const local = new Date(ms(t) + SAST);
+  const dow = (local.getUTCDay() + 6) % 7; // Monday = 0
+  const midnight = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()) - dow * D;
+  return iso(midnight - SAST);
+}
+
+/**
+ * requestDecision({ start_at, proof_at, has_proof, used_this_week, already_requested })
+ *   -> { ok: true } | { ok: false, reason: 'proof_missing'|'too_early'|'too_late'|'weekly_max'|'already_requested' }
+ * Same order of checks as smc_request_noshow_replacement.
+ */
+export function requestDecision({ start_at, proof_at, has_proof, used_this_week = 0, already_requested = false } = {}) {
+  if (!has_proof) return { ok: false, reason: 'proof_missing' };
+  const t = ms(proof_at) - ms(start_at);
+  if (t < PROOF_FROM) return { ok: false, reason: 'too_early' };
+  if (t > PROOF_UNTIL) return { ok: false, reason: 'too_late' };
+  if (already_requested) return { ok: false, reason: 'already_requested' };
+  if (used_this_week >= WEEKLY_MAX) return { ok: false, reason: 'weekly_max' };
+  return { ok: true };
+}
+
+/** Does this event open a replacement request? Only a broker no-show proof can; everything else is refused with why. */
+export function replacementTrigger(ev = {}) {
   switch (ev.kind) {
-    case 'no_show': // lead no-show, already confirmed by W12 (both sides)
-      if (ev.second_no_show) return { due: true, reason: 'no_show', reason_code: 'second_no_show', due_at: ev.confirmed_at };
-      if (ev.rebooked_at && ms(ev.rebooked_at) < ms(ev.confirmed_at) + REBOOK_WAIT) return { due: false, why: 'rebooked' };
-      if (ev.replied_at && ms(ev.replied_at) < ms(ev.confirmed_at) + REBOOK_WAIT) return { due: false, why: 'engaged_in_chat' };
-      return { due: true, reason: 'no_show', reason_code: 'no_show', due_at: iso(ms(ev.confirmed_at) + REBOOK_WAIT) };
+    case 'noshow_proof': {
+      const d = requestDecision(ev);
+      return d.ok ? { due: true, reason: 'no_show', reason_code: 'schedule3_proof', due_at: iso(ev.proof_at) } : { due: false, why: d.reason };
+    }
+    case 'no_show': // lead no-show confirmed by W12: one rebook offer only (missed_you), never an automatic replacement
+      return { due: false, why: 'clause7_request_only' };
     case 'disposition':
-      if (ev.code === 'unreachable') return { due: true, reason: 'uncontactable', reason_code: 'unreachable', due_at: ev.at };
-      if (ev.code === 'nofit_criteria') return { due: true, reason: 'disqualified', reason_code: 'nofit_criteria', due_at: ev.at };
-      return { due: false, why: 'counts_as_delivered' };
-    case 'uncontactable': // system-determined: verified, then silent through the full W08 sequence
-      return ev.verified ? { due: true, reason: 'uncontactable', reason_code: 'system_uncontactable', due_at: ev.at } : { due: false, why: 'never_verified_never_counted' };
-    case 'c1a': // W10 already decided C1A (verified lead, NH-42 mode); W13 checks the shape only
-      if (C1A_CODES[ev.reason_code] && C1A_CODES[ev.reason_code] === ev.reason) return { due: true, reason: ev.reason, reason_code: ev.reason_code, due_at: ev.at };
-      return { due: false, why: 'c1a_shape_invalid' };
+      return ev.code === 'unreachable' ? { due: false, why: 'feedback_only' } : { due: false, why: 'counts_as_delivered' };
+    case 'uncontactable':
+    case 'c1a':
+      return { due: false, why: 'clause7_request_only' };
     case 'broker_no_show':
       return { due: false, why: 'schedule_d_broker_no_show' };
     default:
@@ -53,92 +78,119 @@ export function replacementTrigger(ev) {
   }
 }
 
-/** A row that still blocks a new claim for its lead: anything except a withdrawn one (W29 correction). */
-export const blocksLead = (r) => !(r.status === 'rejected' && r.note === 'withdrawn');
-
-/** Open the replacement row (idempotent per lead), enforcing the per-cycle cap. In-memory model of W13.json's SQL. */
-export function claim(cyc, rows, leadId, trig) {
-  const existing = rows.find((r) => r.lead_id === leadId && blocksLead(r));
-  if (existing) return { row: existing, alerts: [] };
-  const used = rows.filter((r) => r.cycle_id === cyc.cycle_id && COUNTED.has(r.status)).length;
-  const base = { lead_id: leadId, cycle_id: cyc.cycle_id, broker_id: cyc.broker_id, reason: trig.reason, reason_code: trig.reason_code, claimed_at: trig.due_at };
-  if (used >= cyc.replacement_cap) {
-    const row = { ...base, status: 'rejected', note: 'cap_reached', decided_by: 'system', cap_position: used + 1, over_cap: true };
-    rows.push(row);
-    return { row, alerts: ['Jonathan: replacement cap reached'] };
-  }
-  const row = { ...base, status: 'due', cap_position: used + 1, over_cap: false, dispute_window_ends_at: iso(ms(trig.due_at) + DISPUTE_WINDOW) };
+/**
+ * In-memory model of W13.json's "Record request" SQL: one request per booking, max 3 per broker per Calendar Week
+ * (every row counts, decided or not). Returns { row } or { row: null, why }.
+ */
+export function request(rows, req) {
+  if (rows.some((r) => r.booking_id === req.booking_id)) return { row: null, why: 'already_requested' };
+  const wk = weekStart(req.missed_start_at);
+  const used = rows.filter((r) => r.broker_id === req.broker_id && weekStart(r.missed_start_at) === wk).length;
+  const d = requestDecision({ start_at: req.missed_start_at, proof_at: req.proof_sent_at, has_proof: !!req.proof_path, used_this_week: used });
+  if (!d.ok) return { row: null, why: d.reason };
+  const row = { ...req, reason: 'no_show', reason_code: 'schedule3_proof', status: 'due', cap_position: used + 1, over_cap: false };
   rows.push(row);
-  return { row, alerts: ['Jonathan: replacement_due'] };
+  return { row, used: used + 1 };
 }
 
-export function dispute(row, now) {
-  if (row.status !== 'due') throw new Error(`cannot dispute a ${row.status} row`);
-  if (now > ms(row.dispute_window_ends_at)) throw new Error('dispute window closed');
-  row.status = 'disputed';
-}
-export function settle(row, now) {
-  if (row.status === 'due' && now >= ms(row.dispute_window_ends_at)) row.status = 'approved';
+/** Lead Velocity's decision (S3.6): only an undecided request; approve -> 'approved', decline -> 'rejected' (note 'declined'). */
+export function decide(row, approve) {
+  if (!row || row.status !== 'due') throw new Error(`cannot decide a ${row?.status} request`);
+  row.status = approve ? 'approved' : 'rejected';
+  if (!approve) row.note = 'declined';
   return row.status;
 }
-export const decide = (row, lvUpheld) => { row.status = lvUpheld ? 'rejected' : 'approved'; if (lvUpheld) row.note = 'dispute_upheld'; return row.status; };
-/** W29 correction away from unreachable / nofit_criteria: only a 'due' row, only inside the window. */
-export function withdraw(row, now) {
-  if (!row || row.status !== 'due' || now >= ms(row.dispute_window_ends_at)) return false;
-  row.status = 'rejected'; row.note = 'withdrawn';
-  return true;
-}
 
 /**
- * Cycle close / extension / credit (0.1 Shortfall). effective = verified qualified - approved replacements outstanding.
- * Reference only: W19 (billing) applies it; W13 never writes cycles or credits. Money via billing/invoice.js.
+ * Cycle close / rollover / credit (clause 6). Reference only: W19 (billing) applies it; W13 never writes cycles.
+ * delivered = clause 5.2 (v_cycle_progress.delivered). Replacements never change it (clause 7.4).
  */
-export function cycleState(cyc, { verified, approvedReplacements }, now, price) {
-  const effective = verified - approvedReplacements;
+export function cycleState(cyc, { delivered }, now, price) {
   const ends = ms(cyc.ends_at);
   const extendedUntil = ends + MAX_EXTENSION;
-  if (now < ends) return { status: 'active', effective };
-  if (effective >= cyc.committed_leads) return { status: 'closed', effective, shortfall: 0, credit_zar: 0 };
-  if (now < extendedUntil) return { status: 'extended', effective, extended_until: iso(extendedUntil) };
-  const shortfall = cyc.committed_leads - effective;
-  const credit = Math.min(price, shortfallCreditCents({ price_zar: price, committed_leads: cyc.committed_leads }, effective) / 100);
-  return { status: 'closed', effective, shortfall, credit_zar: credit, credit_as: cyc.renewing ? 'credit_next_cycle' : 'refund' };
+  if (now < ends) return { status: 'active', delivered };
+  if (delivered >= cyc.committed_leads) return { status: 'closed', delivered, shortfall: 0, credit_zar: 0 };
+  if (now < extendedUntil) return { status: 'extended', delivered, extended_until: iso(extendedUntil) };
+  const shortfall = cyc.committed_leads - delivered;
+  const credit = Math.min(price, shortfallCreditCents({ price_zar: price, committed_leads: cyc.committed_leads }, delivered) / 100);
+  return { status: 'closed', delivered, shortfall, credit_zar: credit, credit_as: cyc.renewing ? 'credit_next_cycle' : 'refund' };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Entries (CONTRACTS.md "Sub-workflow interfaces", "W10 -> W13 Schedule C1A claims")
+// Entries (CONTRACTS.md "Sub-workflow interfaces")
 // ---------------------------------------------------------------------------------------------------------------
 /**
- * normaliseInput(j) -> { op, lead_id, booking_id, outcome_id, cycle_id, ev, idempotency_key, replacement_id, upheld }
- *  W10 C1A : { op:'claim', lead_id, booking_id, outcome_id:null, cycle_id, reason, code, reason_code, at, idempotency_key }
- *  W29     : { d: { w13: { op:'claim'|'withdraw', reason, reason_code } }, o: { id, lead_id, cycle_id, ... } }
- *  W12     : { op:'no_show', outcome_id, booking_id, lead_id, confirmed_at, idempotency_key }
- *  generic : { op:'claim'|'withdraw', outcome_id, reason, reason_code }   (outcome row supplies lead / cycle)
- *  system  : { op:'claim', kind:'uncontactable', lead_id, verified, at }
- *  console : { op:'dispute'|'decide', replacement_id, upheld? }
+ * normaliseInput(j) -> { op, ... }
+ *  W07     : { source:'W07', route:'W13', msg:{ from, media, media_id, at_ms, wamid }, from_broker_id }  -> op 'request'
+ *  W12     : { op:'no_show', outcome_id, booking_id, lead_id, confirmed_at, idempotency_key }       -> missed_you only
+ *  console : { op:'decide', replacement_id, approve:boolean }
+ *  legacy  : { op:'claim'|'withdraw', ... } from W10 C1A / W29 / system      -> op 'refuse' (logged, never claimed)
  */
 export function normaliseInput(j = {}, now = Date.now()) {
   const at = j.at || iso(now);
-  if (j.d?.w13 && j.o) {
-    const w = j.d.w13;
-    return { op: w.op, lead_id: j.o.lead_id, outcome_id: j.o.id, cycle_id: j.o.cycle_id, booking_id: j.o.booking_id || null, ev: { kind: 'disposition', code: w.reason_code, at }, idempotency_key: `w29:${w.op}:${j.o.id}:${w.reason_code}`, source: 'W29' };
+  if (j.source === 'W07' || j.op === 'request') {
+    const m = j.msg || {};
+    return {
+      op: 'request', broker_id: j.from_broker_id || j.broker_id || null, broker_phone: m.from || null,
+      proof_at: m.at_ms ? iso(m.at_ms) : (j.proof_at || at), media: m.media || j.media || null, media_id: m.media_id || j.media_id || null,
+      wamid: m.wamid || null, proof_path: m.media_id ? `whatsapp-media:${m.media_id}` : (j.proof_path || null), source: j.source || 'W07'
+    };
   }
-  const base = { op: j.op, lead_id: j.lead_id || null, booking_id: j.booking_id || null, outcome_id: j.outcome_id || null, cycle_id: j.cycle_id || null, idempotency_key: j.idempotency_key || null, replacement_id: j.replacement_id || null, upheld: j.upheld, source: j.source || null };
+  if (j.d?.w13 && j.o) return { op: 'refuse', lead_id: j.o.lead_id, cycle_id: j.o.cycle_id || null, ev: { kind: 'disposition', code: j.d.w13.reason_code }, source: 'W29', at };
+  const base = { op: j.op, lead_id: j.lead_id || null, booking_id: j.booking_id || null, outcome_id: j.outcome_id || null, cycle_id: j.cycle_id || null, idempotency_key: j.idempotency_key || null, replacement_id: j.replacement_id || null, approve: j.approve, source: j.source || null };
   if (j.op === 'no_show') return { ...base, confirmed_at: j.confirmed_at || at };
-  if (j.op === 'claim' && j.kind === 'uncontactable') return { ...base, ev: { kind: 'uncontactable', verified: Boolean(j.verified), at } };
-  if (j.op === 'claim' && C1A_CODES[j.reason_code]) return { ...base, ev: { kind: 'c1a', reason: j.reason, reason_code: j.reason_code, at }, source: 'W10' };
-  if (j.op === 'claim' || j.op === 'withdraw') return { ...base, ev: { kind: 'disposition', code: j.reason_code || j.code, at } };
+  if (j.op === 'claim' || j.op === 'withdraw') {
+    const ev = j.kind === 'uncontactable' ? { kind: 'uncontactable' } : C1A_CODES.has(j.reason_code) ? { kind: 'c1a' } : { kind: 'disposition', code: j.reason_code || j.code };
+    return { ...base, op: 'refuse', ev, source: j.source || (ev.kind === 'c1a' ? 'W10' : null), at };
+  }
   return base;
 }
+const C1A_CODES = new Set(['cancel_no_rebook', 'no_call']);
 
 export function validateInput(n = {}) {
   const missing = [];
-  if (!['claim', 'withdraw', 'no_show', 'dispute', 'decide'].includes(n.op)) missing.push('op');
-  if (['claim', 'withdraw'].includes(n.op) && !n.lead_id && !n.outcome_id) missing.push('lead_id or outcome_id');
+  if (!['request', 'no_show', 'decide', 'refuse', 'tick'].includes(n.op)) missing.push('op');
+  if (n.op === 'request' && !n.broker_id) missing.push('broker_id');
   if (n.op === 'no_show' && (!n.outcome_id || !n.booking_id)) missing.push('outcome_id, booking_id');
-  if (['dispute', 'decide'].includes(n.op) && !n.replacement_id) missing.push('replacement_id');
-  if (n.op === 'decide' && typeof n.upheld !== 'boolean') missing.push('upheld');
+  if (n.op === 'decide' && !n.replacement_id) missing.push('replacement_id');
+  if (n.op === 'decide' && typeof n.approve !== 'boolean') missing.push('approve');
   return missing.length ? { ok: false, missing } : { ok: true };
+}
+
+/**
+ * requestPlan(n, ctx) -> { record: boolean, why, reply } for a WhatsApp proof. ctx = W13.json "Request context" row:
+ * { booking_id, missed_start_at, used_this_week, already_requested, lead_first_name, adviser_name }. No booking in
+ * the window -> no record, and the broker is told how the rule works.
+ */
+export function requestPlan(n = {}, ctx = {}) {
+  if (!ctx.booking_id) return { record: false, why: 'no_booking', reply: brokerReply('no_booking', ctx) };
+  const trig = replacementTrigger({ kind: 'noshow_proof', start_at: ctx.missed_start_at, proof_at: n.proof_at, has_proof: PROOF_MEDIA.has(n.media) && !!n.media_id, used_this_week: Number(ctx.used_this_week) || 0, already_requested: ctx.already_requested === true });
+  return trig.due ? { record: true, why: null, trig } : { record: false, why: trig.why, reply: brokerReply(trig.why, ctx) };
+}
+
+/** Broker reply text (session message: the broker has just written to us). Wording per clause 7 / Schedule 3. */
+export function brokerReply(kind, ctx = {}) {
+  const who = firstName(ctx.lead_first_name) || 'the client';
+  const at = ctx.missed_start_at ? timeLabel(ctx.missed_start_at) : null;
+  const used = Number(ctx.used_after ?? ctx.used_this_week) || 0;
+  const rule = `A replacement is ${GOODWILL}, for no-shows only: up to ${WEEKLY_MAX} requests a week, with a photo or screenshot sent between 10 and 30 minutes after the start.`;
+  switch (kind) {
+    case 'requested': return `Thanks, we have your proof for ${who}${at ? ` (${at})` : ''}. Request ${used} of ${WEEKLY_MAX} this week. A replacement is ${GOODWILL}; we'll tell you here once we've decided. The lead still counts as delivered.`;
+    case 'too_early': return `Please wait until 10 minutes after the start${at ? ` (${at})` : ''}, then send the photo or screenshot. ${rule}`;
+    case 'too_late': return `Noted as a no-show. Proof has to reach us within 30 minutes of the start, so this one is too late for a replacement request and still counts as delivered. ${rule}`;
+    case 'weekly_max': return `Noted as a no-show. You've already sent ${WEEKLY_MAX} replacement requests this week, the most we can consider, so this one still counts as delivered.`;
+    case 'already_requested': return `We already have a replacement request for ${who}. We'll tell you here once we've decided.`;
+    case 'proof_missing': return `To request a replacement, please send a photo of the place showing the time, or a screenshot of the call showing the time and that only you were there. ${rule}`;
+    case 'approved': return `Good news: we'll send you a replacement lead for ${who}, ${GOODWILL}. It doesn't count toward your committed leads.`;
+    case 'declined': return `We've looked at your replacement request for ${who} and won't be sending a replacement this time. The lead counts as delivered.`;
+    default: return `We couldn't match this to a meeting that started 10 to 30 minutes ago. ${rule}`;
+  }
+}
+
+/** Reply as a uniform send item for the shared send chain (broker, session text). */
+export function replyItem(row = {}, kind, ctx = {}) {
+  if (!row.broker_phone) return { send: null, why: 'no_broker_phone' };
+  return { send: { to: 'broker', wa: textMessage(row.broker_phone, brokerReply(kind, ctx)), lead_id: row.lead_id || null, brand_id: row.brand_id || null, broker_id: row.broker_id || null, template: null, category: 'service', key: `w13:reply:${kind}:${row.booking_id || row.wamid || row.replacement_id}`, workflow: 'W13' } };
 }
 
 /** missed_you: 1 first_name · 2 adviser_name · 3-5 slot labels; QR Time 1-3 (slot_{ISO}:resched:{booking}) · Other times. */
@@ -151,40 +203,14 @@ export function missedYouMessage(booking, lead, broker, slots = []) {
   }) };
 }
 
-/** Console/ops alert text. The word is "committed" (0.1; the banned alternative never appears in W13). */
-export function alertNote(kind, { lead = {}, used, cap, reason_code, window_ends_at } = {}) {
-  if (kind === 'cap_reached') return `esc_kind=replacement_cap_reached; ${firstAndInitial(lead)} (${reason_code}): cap of ${cap} replacements this cycle already used. Claim recorded as rejected (cap_reached); the committed number is unchanged. Add-on or override is Jonathan's call.`;
-  return `esc_kind=replacement_due; ${firstAndInitial(lead)} (${reason_code}): replacement ${used} of ${cap} this cycle. Lead Velocity can dispute until ${window_ends_at}.`;
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// Row adapters for automation/W13.json. Tested in W13.test.mjs.
-// ---------------------------------------------------------------------------------------------------------------
-/** noShowClock(row) -> replacementTrigger() for one 48-h no-show clock (W13.json hourly tick). */
-export function noShowClock(r = {}) {
-  const rebooked = [r.rebooked_at, r.rebooked_activity_at].filter(Boolean).map(ms);
-  return replacementTrigger({
-    kind: 'no_show', confirmed_at: iso(r.confirmed_at),
-    rebooked_at: rebooked.length ? iso(Math.min(...rebooked)) : null,
-    replied_at: r.replied_at ? iso(r.replied_at) : null
-  });
-}
-
-/**
- * claimDecision(n, ctx) -> { claim: true, trig } | { claim: false, why }. n = normaliseInput() (or an item carrying
- * `trig` from the no-show path); ctx = W13.json "Claim context" row (cycle_id, replacement_cap, verified_at).
- * The cap itself is applied in SQL (advisory lock + count, same rule as claim() above).
- */
-export function claimDecision(n = {}, ctx = {}) {
-  if (!ctx.cycle_id) return { claim: false, why: 'no_cycle' };
-  const ev = n.ev?.kind === 'uncontactable' ? { ...n.ev, verified: Boolean(ctx.verified_at) || Boolean(n.ev.verified) } : n.ev;
-  const trig = n.trig || replacementTrigger(ev || {});
-  return trig.due ? { claim: true, trig } : { claim: false, why: trig.why };
-}
-
 /** missed_you as a uniform send item for the shared send chain (key w13:missed_you:{booking_id}). */
 export function missedYouItem(row = {}, slots = []) {
   const m = missedYouMessage({ id: row.booking_id }, { first_name: row.first_name, phone: row.phone }, { adviser_name: row.adviser_name, contact_person: row.contact_person }, slots);
   if (!m.wa) return { send: null, why: m.why };
   return { send: { to: 'lead', wa: m.wa, lead_id: row.lead_id, brand_id: row.brand_id, broker_id: row.broker_id, template: 'missed_you', category: 'utility', key: `w13:missed_you:${row.booking_id}`, workflow: 'W13' }, slots: m.slots };
+}
+
+/** Console/ops note for a new request. The word is "committed"; a request is goodwill, decided by Lead Velocity. */
+export function alertNote({ lead = {}, used, missed_start_at, proof_path } = {}) {
+  return `esc_kind=replacement_request; ${firstAndInitial(lead)}: broker no-show proof (Schedule 3) for the ${missed_start_at ? timeLabel(missed_start_at) : '?'} meeting, request ${used} of ${WEEKLY_MAX} this Calendar Week. Proof: ${proof_path}. Goodwill, Lead Velocity's discretion: approve or decline in the console; the committed number and Delivered are unchanged.`;
 }

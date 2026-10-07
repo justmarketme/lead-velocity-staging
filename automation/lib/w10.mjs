@@ -11,7 +11,7 @@
 //  - Cancel -> Graph event deleted, status cancelled, W09 jobs cancelled, broker told, ONE rebooking offer.
 //  - Replacement rules (0.1, 4.12a, Schedule C/D): a lead's own reschedule or cancel never opens a replacement;
 //    a broker-initiated reschedule/cancel is Schedule D (we rebook, no replacement); a rebooking after a no-show
-//    inside 48 h stops W13's replacement clock (W13 reads the lead_activities 'rebooked_after_no_show' row).
+//    is logged as 'rebooked_after_no_show' (clause 7: W13 has no replacement clock any more).
 //  - Booking UI: brands.booking_ui = 'flow' -> reschedule Flow (reschedule-flow.json, current booking pre-filled);
 //    otherwise the 10-slot list in-window, or the reschedule_offer template (3 slots) outside the 24-h window.
 import { LINES, fill } from '../../conversation/lines.mjs';
@@ -113,7 +113,7 @@ export function changeMethod(booking, lead, broker, method) {
 export function replacementEffect(evt) {
   if (evt === 'lead_reschedule' || evt === 'lead_cancel') return { w13: 'none', reason: 'lead choice is not a contract trigger (0.1, Schedule C)' };
   if (evt === 'broker_reschedule' || evt === 'broker_cancel') return { w13: 'none', reason: 'Schedule D: broker side, we rebook, no replacement' };
-  if (evt === 'rebooked_after_no_show') return { w13: 'stop_clock', activity: 'rebooked_after_no_show', reason: 'W13: replacement_due only if no rebook in 48 h' };
+  if (evt === 'rebooked_after_no_show') return { w13: 'none', activity: 'rebooked_after_no_show', reason: 'clause 7: a no-show never opens a replacement by itself (broker proof request only)' };
   return { w13: 'none' };
 }
 

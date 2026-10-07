@@ -77,7 +77,7 @@ test('after the meeting (W12 broker Rescheduled / rebook after no-show): NEW boo
   const d = R.applyReschedule(bk({ status: 'booked' }), s, { free: true, after_meeting: true, initiated_by: 'broker' });
   assert.equal(d.action, 'new_booking'); assert.equal(d.insert.previous_booking_id, 'bk_L03'); assert.equal(d.old_update.status, 'rescheduled');
   assert.equal(d.graph.op, 'create'); assert.equal(d.schedule_d, true); assert.equal(d.replacement, 'none');
-  assert.equal(R.replacementEffect('rebooked_after_no_show').w13, 'stop_clock');
+  assert.equal(R.replacementEffect('rebooked_after_no_show').w13, 'none');
 });
 
 test('cancel: button cancels at once, typed asks first; Graph delete, W09 cancel, ONE rebooking offer, no replacement', () => {

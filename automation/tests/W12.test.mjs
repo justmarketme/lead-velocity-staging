@@ -486,7 +486,7 @@ test('W12.json I-51b: kg_decision op, held-queue sweep, claim-once release, CAPI
   assert.ok(sent.length >= 1 && sent[0].json.event_id === 'evt_ld_attended' && sent[0].json.fu === 'capi');
 });
 
-// NH-62 (Jonathan, 2026-10-03): KG "not_attended" -> outcome no_show, replacement-eligible via W13's no_show op, cap per cycle.
+// NH-62 (Jonathan, 2026-10-03): KG "not_attended" -> outcome no_show -> W13's no_show op (clause 7, ux-sprint-1: missed_you only, no replacement).
 import * as W13 from '../lib/w13.mjs';
 import { pricing, cycle } from './_harness.mjs';
 
@@ -500,7 +500,7 @@ test('NH-62: KG not_attended flips the outcome to no_show, audits it, calls W13 
   const c = (n) => WF.connections[n].main[0].map((x) => x.node);
   assert.ok(c('Resolve the open dispute escalation').includes('Apply KG not_attended (outcome -> no_show, audit activity)'));
   assert.deepEqual(c('Apply KG not_attended (outcome -> no_show, audit activity)'), ['KG no-show -> W13 payload (w12.w13NoShow)']);
-  assert.deepEqual(c('KG no-show -> W13 payload (w12.w13NoShow)'), ['W13 no_show (KG not_attended: replacement path, cap in W13)']);
+  assert.deepEqual(c('KG no-show -> W13 payload (w12.w13NoShow)'), ['W13 no_show (KG not_attended: missed_you only, no replacement)']);
   // the payload is the one a lead no-show sends, and W13 accepts it as a no_show
   const p = (await runCode(WF, 'KG no-show -> W13 payload (w12.w13NoShow)', { json: { outcome_id: 'o1', booking_id: 'bk', lead_id: 'ld', confirmed_at: '2026-10-15T15:00:00+02:00' } })).json;
   assert.deepEqual(p, R.w13NoShow('o1', { id: 'bk' }, 'ld', '2026-10-15T15:00:00+02:00'));
@@ -512,15 +512,11 @@ test('NH-62: KG not_attended flips the outcome to no_show, audits it, calls W13 
   assert.deepEqual(R.releaseHeld({ ...held, outcome_outcome: 'attended', kg_decision: 'attended' }, ms(END) + H).map((x) => [x.decision, x.reason]), [['send', 'kg_attended']]);
 });
 
-for (const tier of ['SMC_BRONZE', 'SMC_SILVER', 'SMC_GOLD']) {
-  test(`NH-62 [${tier}]: KG-ruled no-shows claim replacements through W13 up to the cycle cap; the next is cap_reached`, () => {
-    const cap = pricing(tier).replacement_cap_cycle;
-    const cyc = { ...clone(cycle()), cycle_id: `cyc_${tier}`, tier_code: tier, replacement_cap: cap };
-    const rows = [];
-    const kgTrig = (i) => W13.replacementTrigger({ kind: 'no_show', confirmed_at: iso(ms('2026-10-15T15:00:00+02:00') + i * H), second_no_show: true });
-    for (let i = 0; i < cap; i++) assert.equal(W13.claim(cyc, rows, `kg_lead_${i}`, kgTrig(i)).row.status, 'due', `#${i + 1}`);
-    const over = W13.claim(cyc, rows, 'kg_lead_over', kgTrig(cap));
-    assert.deepEqual([over.row.status, over.row.note], ['rejected', 'cap_reached']);
-    assert.deepEqual(over.alerts, ['Jonathan: replacement cap reached']);
-  });
-}
+// clause 7 (ux-sprint-1, 2026-10-07): a KG-ruled no-show is NOT a replacement. Only a broker request with Schedule 3
+// proof can open one, max 3 per Calendar Week; pricing.replacement_cap_cycle stays in the data but drives nothing.
+test('clause 7: a KG-ruled (or any confirmed lead) no-show never opens a replacement by itself; the per-cycle cap drives nothing', () => {
+  const t = W13.replacementTrigger({ kind: 'no_show', confirmed_at: '2026-10-15T15:00:00+02:00', second_no_show: true });
+  assert.deepEqual([t.due, t.why], [false, 'clause7_request_only']);
+  assert.ok(pricing('SMC_BRONZE').replacement_cap_cycle > 0, 'still in the data');
+  assert.ok(!/replacement_cap/.test(JSON.stringify(WF)), 'W12 never reads a replacement cap');
+});

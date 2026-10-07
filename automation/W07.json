@@ -14,7 +14,7 @@
       "parameters": {
         "width": 760,
         "height": 360,
-        "content": "W07 Conversation agent. Owns POST /whatsapp (Cloud API webhook) for every inbound WhatsApp + status receipts.\nOrder (conversation/prompts/guardrail.md): verify X-Hub-Signature-256 -> 200 -> webhook_events idempotency (wamid) -> deterministic router (automation/lib/w07.mjs routeInbound: STOP->W15, CTWA/unknown->W03, taps->W04/W05/W08/W09/W10/W12/W28/W29/W35, broker numbers->W12/W29 (broker video, or audio while pre-live -> W23 sub-call, I-37d), ops numbers approve:/later: taps -> W32 decision sub-call (I-37e), handoff->paused; loop guard: a W03 hand-back (origin 'w03', via the sub-call trigger) is never routed to W03 again) -> store redacted inbound + verified_at (3.3) -> prefilter + redactForLLM -> intent-slot LLM (Haiku, prompts/intent-slot.md) -> decide() (logic.mjs) -> planActions (fixed lines, delegations, escalations incl. kind 'sensitive' stored as human_handoff/red per I-25, lead_activities 'lead_theme' rows per I-22) -> reply LLM only for actions that need words (prompts/reply.md) -> outputGate -> guardrail classifier on classifierInput() (I-27) -> toneCheck -> assemble -> send -> store outbound + conv_state.\nFails closed: classifier error/timeout = block -> fixed fallback (+ DEFER if the question was advice-shaped). Self-harm/bereavement: nothing automated is sent; Jonathan + KG alerted together, reminders paused.\nCode nodes import repo modules from $env.REPO_DIR (same pattern as W30/W31); needs NODE_FUNCTION_ALLOW_BUILTIN=crypto,url,fs. Env: META_APP_SECRET, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, ANTHROPIC_API_KEY, ANTHROPIC_MODEL_FAST, ANTHROPIC_MODEL_STRONG, TWILIO_*, OPS_WHATSAPP_JONATHAN, OPS_WHATSAPP_KG, DRY_RUN_SENDS. Synthetic tests: automation/tests/W07.test.mjs.\nw07-alignment (I-35e): W04/W10 delegations carry the turn's fixed lines (delegate.lead_lines / delegate.body, one message; W07 sends nothing itself); outputGate runs before the classifier (trip = no classifier call); a classifier pass < 0.8 = block; reply facts = approved FAQ answer + KNOWN + booking time; greet/booking_status -> BOOKING_STATUS or W04; disclosed set only when a disclosure went out; W35 pulse line -> W35."
+        "content": "W07 Conversation agent. Owns POST /whatsapp (Cloud API webhook) for every inbound WhatsApp + status receipts.\nOrder (conversation/prompts/guardrail.md): verify X-Hub-Signature-256 -> 200 -> webhook_events idempotency (wamid) -> deterministic router (automation/lib/w07.mjs routeInbound: STOP->W15, CTWA/unknown->W03, taps->W04/W05/W08/W09/W10/W12/W28/W29/W35, broker numbers->W12/W13/W29 (broker image or document = no-show proof -> W13, agreement Schedule 3; broker video, or audio while pre-live -> W23 sub-call, I-37d), ops numbers approve:/later: taps -> W32 decision sub-call (I-37e), handoff->paused; loop guard: a W03 hand-back (origin 'w03', via the sub-call trigger) is never routed to W03 again) -> store redacted inbound + verified_at (3.3) -> prefilter + redactForLLM -> intent-slot LLM (Haiku, prompts/intent-slot.md) -> decide() (logic.mjs) -> planActions (fixed lines, delegations, escalations incl. kind 'sensitive' stored as human_handoff/red per I-25, lead_activities 'lead_theme' rows per I-22) -> reply LLM only for actions that need words (prompts/reply.md) -> outputGate -> guardrail classifier on classifierInput() (I-27) -> toneCheck -> assemble -> send -> store outbound + conv_state.\nFails closed: classifier error/timeout = block -> fixed fallback (+ DEFER if the question was advice-shaped). Self-harm/bereavement: nothing automated is sent; Jonathan + KG alerted together, reminders paused.\nCode nodes import repo modules from $env.REPO_DIR (same pattern as W30/W31); needs NODE_FUNCTION_ALLOW_BUILTIN=crypto,url,fs. Env: META_APP_SECRET, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, ANTHROPIC_API_KEY, ANTHROPIC_MODEL_FAST, ANTHROPIC_MODEL_STRONG, TWILIO_*, OPS_WHATSAPP_JONATHAN, OPS_WHATSAPP_KG, DRY_RUN_SENDS. Synthetic tests: automation/tests/W07.test.mjs.\nw07-alignment (I-35e): W04/W10 delegations carry the turn's fixed lines (delegate.lead_lines / delegate.body, one message; W07 sends nothing itself); outputGate runs before the classifier (trip = no classifier call); a classifier pass < 0.8 = block; reply facts = approved FAQ answer + KNOWN + booking time; greet/booking_status -> BOOKING_STATUS or W04; disclosed set only when a disclosure went out; W35 pulse line -> W35."
       }
     },
     {
@@ -704,6 +704,28 @@
                     "id": "s16",
                     "leftValue": "={{ $json.route }}",
                     "rightValue": "ignore_loop",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "W13",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s17",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "W13",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
@@ -2511,6 +2533,29 @@
       },
       "executeOnce": true,
       "notes": "W22 input: { kind: 'popia_breach', to: [both], severity: 'red', incident_id }. Producer contract W22.md section 3. No send here: W22 owns delivery and DRY_RUN."
+    },
+    {
+      "id": "n64",
+      "name": "-> W13",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        660,
+        1900
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w13",
+          "cachedResultName": "W13 No-show & replacement"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Broker image/document = no-show proof (agreement Schedule 3). Called with { source: 'W07', route, msg, from_broker_id }. W13 owns the reply."
     }
   ],
   "connections": {
@@ -2765,6 +2810,13 @@
         [
           {
             "node": "Paused / opted out: log only",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> W13",
             "type": "main",
             "index": 0
           }
