@@ -14,7 +14,7 @@
     },
     {
       "type": "BODY",
-      "text": "Hi {{1}}, thanks for your life cover enquiry. Your details have been passed to *{{2}} (FSP {{3}})*, an authorised financial services provider. *{{4}}* will be your adviser for your {{5}} call on *{{6}} at {{7}}*. Our WhatsApp assistant uses AI. Reply STOP to opt out.",
+      "text": "Hi {{1}}, thanks for your insurance and financial planning enquiry. Your details have been passed to *{{2}} (FSP {{3}})*, an authorised financial services provider. *{{4}}* will be your adviser for your {{5}} call on *{{6}} at {{7}}*. Our WhatsApp assistant uses AI. Reply STOP to opt out.",
       "example": {
         "body_text": [
           [

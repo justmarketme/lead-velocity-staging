@@ -136,7 +136,7 @@ test('qualified path: validation, consent, /lead payload, Teams booking with ema
   assert.equal(lead.body.mobile, '+27821234567');
   assert.equal(lead.body.consent, true);
   assert.equal(lead.body.consent_mode, 'named');
-  assert.equal(lead.body.consent_version, 'CONSENT-NAMED-v1+CONSENT-ADS-v1');
+  assert.equal(lead.body.consent_version, 'CONSENT-NAMED-v3+CONSENT-ADS-v1');
   assert.equal(lead.body.angle, 'new-bond');
   assert.equal(lead.body.company_website, '');
   assert.deepEqual([lead.body.age_band, lead.body.bond, lead.body.dependants, lead.body.work_cover, lead.body.budget_band], ['45_50', 'soon', 'extended', 'unsure', '1250plus']);

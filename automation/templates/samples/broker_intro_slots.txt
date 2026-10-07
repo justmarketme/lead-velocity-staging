@@ -1,7 +1,7 @@
 broker_intro_slots (UTILITY, en)
 
 [header] IMAGE
-Hi Lerato, thanks for your life cover enquiry. Your details have been passed to *Mark Smith Financial Services (FSP 00000)*, an authorised financial services provider. *Mark Smith* can do a 30-minute call. Pick a time below.
+Hi Lerato, thanks for your insurance and financial planning enquiry. Your details have been passed to *Mark Smith Financial Services (FSP 00000)*, an authorised financial services provider. *Mark Smith* can do a 30-minute call. Pick a time below.
 1. Tue 7 Oct, 10:00
 2. Tue 7 Oct, 14:30
 3. Wed 8 Oct, 09:00

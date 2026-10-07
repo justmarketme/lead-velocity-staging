@@ -135,10 +135,10 @@ export function onTap(lead, payload) {
 // ---------- session words (inside the 24-h window): identical to the approved template body (w07-alignment #9, #11) ----------
 // English = the approved template body word for word (reworded templates: K-6 "no obligation" on +2 h, w07-alignment #10 on +72 h).
 const SESSION_EN = {
-  unbooked_nudge_2h: (v) => `Hi ${v[0]}, following up on your life cover enquiry. A call with ${v[1]} takes about 30 minutes, and there's no obligation to buy anything. Tap below to see open times.`,
+  unbooked_nudge_2h: (v) => `Hi ${v[0]}, following up on your insurance and financial planning enquiry. A call with ${v[1]} takes about 30 minutes, and there's no obligation to buy anything. Tap below to see open times.`,
   unbooked_nudge_24h: (v) => `Hi ${v[0]}, here is ${v[1]} in about 25 seconds, so you know who you would be speaking to about your enquiry. Tap below to see open times.`,
   unbooked_nudge_24h_text: (v) => `Hi ${v[0]}, a little about the adviser for your enquiry: ${v[1]} Tap below to see open times.`,
-  unbooked_nudge_72h: (v) => `Hi ${v[0]}, this is our last message about your life cover enquiry. On the call, ${v[1]} goes through where you are now, and any next step is your choice. Tap below to pick a time, or if not, no problem, we won't message again.`
+  unbooked_nudge_72h: (v) => `Hi ${v[0]}, this is our last message about your insurance and financial planning enquiry. On the call, ${v[1]} goes through where you are now, and any next step is your choice. Tap below to pick a time, or if not, no problem, we won't message again.`
 };
 // Afrikaans: taken from conversation/lines.mjs when conversation-designer adds the keys (NUDGE_2H, NUDGE_24H, NUDGE_24H_TEXT,
 // NUDGE_72H with {first_name} / {adviser_first} / {bio_short}); until then an Afrikaans lead gets the approved English words.

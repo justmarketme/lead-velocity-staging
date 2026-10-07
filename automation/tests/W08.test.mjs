@@ -31,7 +31,7 @@ test('L02 at +2 h: template outside the window, session inside it; real template
   const d = N.due(l02(), ctx(), t);
   assert.equal(d.action, 'send'); assert.equal(d.touch, 'unbooked_nudge_2h'); assert.equal(d.channel, 'template');
   assert.equal(d.idempotency_key, `w08:${L02.lead_id}:unbooked_nudge_2h`);
-  assert.match(renderBody(d.template, d.vars), /^Hi Sipho, following up on your life cover enquiry\. A call with Mark takes about 30 minutes.*Reply STOP to opt out\.$/);
+  assert.match(renderBody(d.template, d.vars), /^Hi Sipho, following up on your insurance and financial planning enquiry\. A call with Mark takes about 30 minutes.*Reply STOP to opt out\.$/);
   assert.deepEqual(d.buttons.map((b) => b[0]), ['see_open_times', 'not_now']);
   const s = N.due(l02(), ctx({ last_inbound_ms: t - 2 * H }), t);
   assert.equal(s.channel, 'session');
@@ -143,7 +143,7 @@ test('pre-routing CTWA lead (no broker_id) is never nudged by W08 (W03 owns stal
 
 test('w07-alignment #11: session words come from sessionWords(); English = template text; Afrikaans lead gets AF only when lines.mjs has it', () => {
   const en = N.sessionWords('unbooked_nudge_2h', ['Lerato', 'Mark'], 'en');
-  assert.match(en.body, /^Hi Lerato, following up on your life cover enquiry\. A call with Mark/); assert.match(en.body, /Reply STOP to opt out\.$/);
+  assert.match(en.body, /^Hi Lerato, following up on your insurance and financial planning enquiry\. A call with Mark/); assert.match(en.body, /Reply STOP to opt out\.$/);
   const af = N.sessionWords('unbooked_nudge_72h', ['Pieter', 'Mark'], 'af');
   assert.ok(['af', 'en'].includes(af.lang) && af.body.length > 20);
   const now = Date.parse('2026-10-05T10:00:00Z');

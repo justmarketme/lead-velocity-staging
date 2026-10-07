@@ -51,7 +51,7 @@ test('L04 consent yes: named consent first, lead row at the tap (verified), Meta
   assert.equal(row.ad_id, 'ad_test_ctwa_01');
   assert.equal(row.origin, 'ctwa');
   assert.equal(row.consent_mode, 'named');
-  assert.equal(row.consent_text_version, 'ctwa-named-v2');
+  assert.equal(row.consent_text_version, 'ctwa-named-v3');
   assert.match(row.consent_text, /Lead Velocity \(Pty\) Ltd/);
   assert.match(row.consent_text, /Reply STOP to opt out/);
   assert.match(row.consent_text, /sortmycover\.co\.za\/privacy/);
@@ -104,9 +104,9 @@ test('L06 out-of-band age: polite close, no hand-over, deleted within 24 h, no f
   assert.match(sends(actions).at(-1).message.body, /not the right fit/);
 });
 
-test('generic consent mode uses the 4.6 CTWA text verbatim (fixture ctwa-v1)', () => {
+test('generic consent mode uses the 4.6 CTWA text with the v3 scope (fixture ctwa-generic-v3)', () => {
   const { actions } = run(lead('L05'), { brand: { brand_id: 'smc', consent_mode: 'generic' } });
-  assert.equal(sends(actions)[0].message.body, FIX.consent_texts['ctwa-v1']);
+  assert.equal(sends(actions)[0].message.body, FIX.consent_texts['ctwa-generic-v3']);
 });
 
 test('named mode with no routable broker: no consent prompt, nothing stored, alert raised', () => {

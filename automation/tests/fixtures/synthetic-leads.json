@@ -34,9 +34,9 @@
   },
 
   "consent_texts": {
-    "CONSENT-NAMED-v2+CONSENT-ADS-v1": "I agree that SortMyCover may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
-    "ctwa-v1": "Before we start: if it's a fit, we'll share your details with an authorised financial services provider who'll contact you about life cover. OK to continue?",
-    "_note": "CONSENT-NAMED-v2+CONSENT-ADS-v1 = landing/config/consent.json named text rendered for the seeded broker (supabase/seed/smc_synthetic.sql) by automation/tests/fixtures/align-fixture.mjs; never hand-edit. ctwa-v1 = the 4.6 CTWA consent text verbatim (NH-40)."
+    "CONSENT-NAMED-v3+CONSENT-ADS-v1": "I agree that SortMyCover may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about insurance and financial planning. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
+    "ctwa-generic-v3": "Before we start: if it's a fit, we'll share your details with an authorised financial services provider who'll contact you about insurance and financial planning. OK to continue?",
+    "_note": "CONSENT-NAMED-v3+CONSENT-ADS-v1 = landing/config/consent.json named text rendered for the seeded broker (supabase/seed/smc_synthetic.sql) by automation/tests/fixtures/align-fixture.mjs; never hand-edit. ctwa-generic-v3 = the 4.6 CTWA generic consent text with the v3 scope (NH-40; 2026-10-07)."
   },
 
   "pricing": [
@@ -123,8 +123,8 @@
         "quiz": { "age_band": "35_44", "has_bond": true, "has_dependants": true, "has_work_cover": true, "budget_band": "750_1250" },
         "consent": {
           "checked": true,
-          "version": "CONSENT-NAMED-v2+CONSENT-ADS-v1",
-          "text": "I agree that SortMyCover may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
+          "version": "CONSENT-NAMED-v3+CONSENT-ADS-v1",
+          "text": "I agree that SortMyCover may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about insurance and financial planning. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
           "includes_ads_sentence": true,
           "at": "2026-10-12T08:14:05+02:00",
           "page_url": "https://sortmycover.co.za/bond-gap",
@@ -203,8 +203,8 @@
         "quiz": { "age_band": "45_50", "has_bond": true, "has_dependants": false, "has_work_cover": false, "budget_band": "1500_plus" },
         "consent": {
           "checked": true,
-          "version": "CONSENT-NAMED-v2+CONSENT-ADS-v1",
-          "text": "I agree that SortMyCover may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
+          "version": "CONSENT-NAMED-v3+CONSENT-ADS-v1",
+          "text": "I agree that SortMyCover may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about insurance and financial planning. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
           "includes_ads_sentence": true,
           "at": "2026-10-12T09:02:11+02:00",
           "page_url": "https://sortmycover.co.za/family-first",
@@ -289,7 +289,7 @@
           { "name": "preferred_method", "values": ["whatsapp_call"] }
         ],
         "custom_disclaimer_responses": [{ "checkbox_key": "consent", "is_checked": "1" }],
-        "consent_text_version": "CONSENT-NAMED-v2+CONSENT-ADS-v1"
+        "consent_text_version": "CONSENT-NAMED-v3+CONSENT-ADS-v1"
       },
       "booking_request": {
         "idempotency_key": "book_L03_1",
@@ -361,7 +361,7 @@
           { "at": "2026-10-12T19:06:12+02:00", "type": "button", "payload": "bond_yes_dependants_yes" },
           { "at": "2026-10-12T19:06:20+02:00", "type": "button", "payload": "method_phone" }
         ],
-        "consent_text_version": "ctwa-v1"
+        "consent_text_version": "ctwa-generic-v3"
       },
       "booking_request": {
         "idempotency_key": "book_L04_1",
@@ -380,7 +380,7 @@
         { "at": "2026-10-15T14:50:00+02:00", "actor": "broker", "event": "tap", "data": { "template": "broker_outcome_check", "button": "No-show" } }
       ],
       "expected": {
-        "W01": { "via": "W03", "lead_row_at": "2026-10-12T19:05:40+02:00", "verified_at": "2026-10-12T19:05:40+02:00", "routed_at": "2026-10-12T19:06:20+02:00", "broker_id": "brk_test_mark", "consent_text_version": "ctwa-v1", "ctwa_clid": "ctwa_test_L04", "capi_lead_event_id": "evt_lead_test_L04_ctwa_lead" },
+        "W01": { "via": "W03", "lead_row_at": "2026-10-12T19:05:40+02:00", "verified_at": "2026-10-12T19:05:40+02:00", "routed_at": "2026-10-12T19:06:20+02:00", "broker_id": "brk_test_mark", "consent_text_version": "ctwa-generic-v3", "ctwa_clid": "ctwa_test_L04", "capi_lead_event_id": "evt_lead_test_L04_ctwa_lead" },
         "W05": { "http_status": 201, "slot_start": "2026-10-15T14:00:00+02:00", "event_title": "Life cover call – Pieter – Phone", "capi_schedule_event_id": "evt_lead_test_L04_ctwa_schedule", "capi_schedule_action_source": "business_messaging" },
         "W06": { "template": "broker_intro_slots", "trigger": "routed", "send_at": "2026-10-12T19:06:20+02:00", "deadline": "2026-10-12T19:07:20+02:00" },
         "W09": {
@@ -413,7 +413,7 @@
           { "at": "2026-10-12T20:10:00+02:00", "type": "text", "text": "Hi, I'd like to check my life cover", "referral": { "source_type": "ad", "source_id": "ad_test_ctwa_01", "ctwa_clid": "ctwa_test_L05" } },
           { "at": "2026-10-12T20:10:30+02:00", "type": "button", "payload": "consent_no" }
         ],
-        "consent_text_version": "ctwa-v1"
+        "consent_text_version": "ctwa-generic-v3"
       },
       "expected": {
         "W01": { "via": "W03", "lead_row": false, "suppression": { "source": "no_consent_ctwa", "mobile_hash_of": "+27600000105" }, "broker_named": false, "capi_lead": false, "messages_after_no": 1 }
@@ -435,7 +435,7 @@
           { "at": "2026-10-13T07:30:30+02:00", "type": "button", "payload": "consent_yes" },
           { "at": "2026-10-13T07:30:45+02:00", "type": "list", "payload": "age_51_plus" }
         ],
-        "consent_text_version": "ctwa-v1"
+        "consent_text_version": "ctwa-generic-v3"
       },
       "expected": {
         "W01": { "via": "W03", "qualified": false, "disqualified_reason": "age_band", "broker_id": null, "first_touch": false, "delete_after": "2026-10-14T07:30:45+02:00", "polite_close": true }
@@ -458,8 +458,8 @@
         "quiz": { "age_band": "35_44", "has_bond": false, "has_dependants": true, "has_work_cover": true, "budget_band": "500_750" },
         "consent": {
           "checked": true,
-          "version": "CONSENT-NAMED-v2+CONSENT-ADS-v1",
-          "text": "I agree that SortMyCover may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
+          "version": "CONSENT-NAMED-v3+CONSENT-ADS-v1",
+          "text": "I agree that SortMyCover may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about insurance and financial planning. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
           "includes_ads_sentence": true,
           "at": "2026-10-13T12:00:00+02:00",
           "page_url": "https://sortmycover.co.za/bond-gap",
@@ -490,8 +490,8 @@
         "quiz": { "age_band": "35_44", "has_bond": true, "has_dependants": true, "has_work_cover": true, "budget_band": "750_1250" },
         "consent": {
           "checked": true,
-          "version": "CONSENT-NAMED-v2+CONSENT-ADS-v1",
-          "text": "I agree that SortMyCover may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
+          "version": "CONSENT-NAMED-v3+CONSENT-ADS-v1",
+          "text": "I agree that SortMyCover may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about insurance and financial planning. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
           "includes_ads_sentence": true,
           "at": "2026-10-13T13:00:00+02:00",
           "page_url": "https://sortmycover.co.za/bond-gap",
@@ -521,8 +521,8 @@
         "quiz": { "age_band": "35_44", "has_bond": true, "has_dependants": true, "has_work_cover": true, "budget_band": "750_1250" },
         "consent": {
           "checked": true,
-          "version": "CONSENT-NAMED-v2+CONSENT-ADS-v1",
-          "text": "I agree that SortMyCover may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
+          "version": "CONSENT-NAMED-v3+CONSENT-ADS-v1",
+          "text": "I agree that SortMyCover may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about insurance and financial planning. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
           "includes_ads_sentence": true,
           "at": "2026-10-30T19:20:00+02:00",
           "page_url": "https://sortmycover.co.za/work-cover",
@@ -552,8 +552,8 @@
         "quiz": { "age_band": "45_50", "has_bond": true, "has_dependants": true, "has_work_cover": true, "budget_band": "1250_plus" },
         "consent": {
           "checked": true,
-          "version": "CONSENT-NAMED-v2+CONSENT-ADS-v1",
-          "text": "I agree that SortMyCover may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
+          "version": "CONSENT-NAMED-v3+CONSENT-ADS-v1",
+          "text": "I agree that SortMyCover may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about insurance and financial planning. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
           "includes_ads_sentence": true,
           "at": "2026-10-19T10:00:00+02:00",
           "page_url": "https://sortmycover.co.za/bond-gap",

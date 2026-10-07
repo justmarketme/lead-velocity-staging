@@ -7,7 +7,7 @@
 ## What it shows
 1. The rendered card (preview from `brokers` fields; re-rendered within 10 s of any profile change; "Updating your card..." state).
 2. **"What the lead reads with it"**: the exact `broker_intro_booked` text with his values filled in (practice, FSP, adviser, "Teams", an example date), so he approves the disclosure wording as well as the picture:
-   *"Hi Lerato, thanks for your life cover enquiry. Your details have been passed to Mark Williams Financial Planning (FSP 00000), an authorised financial services provider. Mark Williams will be your adviser for your Teams call on Tuesday 6 Oct at 10:00. Reply STOP to opt out."* (Wording owned by automation-engineer / compliance-qa; never edited here.)
+   *"Hi Lerato, thanks for your insurance and financial planning enquiry. Your details have been passed to Mark Williams Financial Planning (FSP 00000), an authorised financial services provider. Mark Williams will be your adviser for your Teams call on Tuesday 6 Oct at 10:00. Reply STOP to opt out."* (Wording owned by automation-engineer / compliance-qa; never edited here.)
 3. One tick-box: "I have read my card and the disclosure wording. I approve both." The **Approve my intro card** button is disabled until ticked.
 4. "Something is wrong: fix it" opens the Profile page at the field that feeds the wrong line (the card has no free text of its own).
 

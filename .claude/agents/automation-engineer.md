@@ -42,10 +42,10 @@ background: true
 
 **Disclosure WhatsApp — the first message every lead receives (< 60 s), utility template with image header = broker intro card (4.10):**
 - Booked version `broker_intro_booked`:
-  > Hi {{first_name}}, thanks for your life cover enquiry. Your details have been passed to **{{practice_name}} (FSP {{fsp_number}})**, an authorised financial services provider. **{{adviser_name}}** will be your adviser for your {{method}} call on **{{date}} at {{time}}**. Reply STOP to opt out.
+  > Hi {{first_name}}, thanks for your insurance and financial planning enquiry. Your details have been passed to **{{practice_name}} (FSP {{fsp_number}})**, an authorised financial services provider. **{{adviser_name}}** will be your adviser for your {{method}} call on **{{date}} at {{time}}**. Reply STOP to opt out.
   > Buttons: `Add to calendar` · `Reschedule` · `Cancel`
 - Not-booked version `broker_intro_slots`:
-  > Hi {{first_name}}, thanks for your life cover enquiry. Your details have been passed to **{{practice_name}} (FSP {{fsp_number}})**, an authorised financial services provider. **{{adviser_name}}** can do a 30-minute call. Pick a time below. Reply STOP to opt out.
+  > Hi {{first_name}}, thanks for your insurance and financial planning enquiry. Your details have been passed to **{{practice_name}} (FSP {{fsp_number}})**, an authorised financial services provider. **{{adviser_name}}** can do a 30-minute call. Pick a time below. Reply STOP to opt out.
   > Buttons: 3 slot options + `Other times`
 - Keep both non-promotional so Meta approves them as **utility**; Meta decides the category on review — if it re-categorises as marketing, rewrite rather than accept the higher rate. Log message ID + delivery status against the lead as disclosure evidence.
 
@@ -53,7 +53,7 @@ background: true
 
 **Click-to-WhatsApp (CTWA) flow — everything happens inside one WhatsApp chat:**
 1. Ad button "Chat on WhatsApp" → chat opens with a prefilled message ("Hi, I'd like to check my life cover") → n8n receives it (CTWA referral data = ad/campaign ID, stored for CAPI).
-2. **Consent first** (interactive buttons): "Before we start: if it's a fit, we'll share your details with an authorised financial services provider who'll contact you about life cover. OK to continue?" `Yes, continue` · `No thanks`. Log the exact wording + timestamp.
+2. **Consent first** (interactive buttons): "Before we start: if it's a fit, we'll share your details with an authorised financial services provider who'll contact you about insurance and financial planning. OK to continue?" `Yes, continue` · `No thanks`. Log the exact wording + timestamp.
 3. **Tap-only qualifying** (interactive list/buttons, no typing): age band → budget band → bond / dependants → preferred contact method. Out-of-band answers → polite close, no hand-over.
 4. **Route to broker** (1.3) → send `broker_intro` card with disclosure (adviser, practice, FSP number).
 5. **Book in-chat with the WhatsApp-native calendar (W28, verified):** the intro template carries a **Flow button** ("Pick a time"). Tapping opens Meta's in-chat screens (no browser): **Screen 1** "How would you like to meet {adviser}?" (RadioButtonsGroup, only `methods_supported`) → **Screen 2** `CalendarPicker` (`mode: single`, `min-date` = now + notice, `max-date` = +14 d, `include-days` = broker's working days, `unavailable-dates` = full/blocked/holiday days from W04) → on date select, `data_exchange` calls our endpoint which returns that day's free slots from the broker's Outlook → **Screen 3** time slots (RadioButtonsGroup ≤ 20) → **Screen 4** email (shown **only** if the chosen method is Teams/Zoom/Meet — "Where should we send the Teams invite?") → **Screen 5** summary → Complete → W05 books. Fallback when a Flow can't be delivered or the endpoint is down: interactive list of the next 10 slots; last resort, the LLM asks for a preferred day and offers 3. Reschedule reuses the same Flow with the current booking pre-filled.

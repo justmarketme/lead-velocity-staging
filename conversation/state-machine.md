@@ -17,7 +17,7 @@
 | **Web, booked on page** | W01 → route (1.3) → W05 | `booked_await_commit` | `broker_intro_booked` template (L1). Commitment ask: in the session if the window is open; otherwise the lead's first reply opens it and Thandi's first reply carries `DISCLOSE` + `COMMIT_ASK` (see section 6). |
 | **Web, not booked** | W01 → route | `unbooked` | `broker_intro_slots` (or `_v2` with the Flow button when `brands.booking_ui = flow`) (L1) |
 | **Meta instant form** | W02 | as web | as web |
-| **Click-to-WhatsApp** | W03, prefilled "Hi, I'd like to check my life cover" + CTWA referral (ad id stored) | `consent_pending` | `DISCLOSE_PRE_ROUTE` + `CTWA-*-v1` consent (L1, session message; the lead opened a 72-h free entry window) |
+| **Click-to-WhatsApp** | W03, prefilled "Hi, I'd like to check my life cover" + CTWA referral (ad id stored) | `consent_pending` | `DISCLOSE_PRE_ROUTE` + `ctwa-*-v3` consent (L1, session message; the lead opened a 72-h free entry window) |
 
 ## 2. States
 

@@ -46,8 +46,8 @@ Every FSP number Meta's reviewer sees is the fictional **`00000`**, and wherever
 
 | Template | Old text (do NOT submit) | **New text: submit this** (NH-45 default "apply"; FAQ K-6 wording) |
 |---|---|---|
-| `unbooked_nudge_2h` | "...there is nothing to buy on the call..." | "Hi {{1}}, following up on your life cover enquiry. A call with {{2}} takes about 30 minutes, and **there's no obligation to buy anything**. Tap below to see open times. Reply STOP to opt out." Buttons: See open times · Not now |
-| `unbooked_nudge_72h` | the earlier last-message text without the useful fact | "Hi {{1}}, this is our last message about your life cover enquiry. **On the call, {{2}} goes through where you are now, and any next step is your choice.** Tap below to pick a time, or if not, no problem, we won't message again. Reply STOP to opt out." Buttons: See open times · No thanks |
+| `unbooked_nudge_2h` | "...there is nothing to buy on the call..." | "Hi {{1}}, following up on your insurance and financial planning enquiry. A call with {{2}} takes about 30 minutes, and **there's no obligation to buy anything**. Tap below to see open times. Reply STOP to opt out." Buttons: See open times · Not now |
+| `unbooked_nudge_72h` | the earlier last-message text without the useful fact | "Hi {{1}}, this is our last message about your insurance and financial planning enquiry. **On the call, {{2}} goes through where you are now, and any next step is your choice.** Tap below to pick a time, or if not, no problem, we won't message again. Reply STOP to opt out." Buttons: See open times · No thanks |
 
 Same variables and buttons as before, so W08 needs no code change. The submitted text is whatever is in the JSON on the day; the review samples above are rendered from it and `check.mjs` fails if they drift. If any copy of the old text was pasted into WhatsApp Manager as a draft, delete the draft. The W08 owner keeps the session copy in `automation/W08.json` (around line 211) in step with this.
 

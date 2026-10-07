@@ -5,7 +5,7 @@
   "components": [
     {
       "type": "BODY",
-      "text": "Hi {{1}}, this is our last message about your life cover enquiry. On the call, {{2}} goes through where you are now, and any next step is your choice. Tap below to pick a time, or if not, no problem, we won't message again. Reply STOP to opt out.",
+      "text": "Hi {{1}}, this is our last message about your insurance and financial planning enquiry. On the call, {{2}} goes through where you are now, and any next step is your choice. Tap below to pick a time, or if not, no problem, we won't message again. Reply STOP to opt out.",
       "example": {
         "body_text": [
           [

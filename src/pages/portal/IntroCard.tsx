@@ -74,7 +74,7 @@ function Body() {
 
         <h3 style={{ marginTop: 14 }}>What the lead reads with it</h3>
         <div className="brief">
-          Hi Lerato, thanks for your life cover enquiry. Your details have been passed to {practice || "{practice}"} (FSP {fsp || "{fsp}"}), an authorised financial services provider. {adviser || "{adviser}"} will be your adviser for your {methodLabel(broker.methods_supported?.[0]) || "Teams"} call on Tuesday 6 Oct at 10:00. Reply STOP to opt out.
+          Hi Lerato, thanks for your insurance and financial planning enquiry. Your details have been passed to {practice || "{practice}"} (FSP {fsp || "{fsp}"}), an authorised financial services provider. {adviser || "{adviser}"} will be your adviser for your {methodLabel(broker.methods_supported?.[0]) || "Teams"} call on Tuesday 6 Oct at 10:00. Reply STOP to opt out.
         </div>
         <p className="hint">Example only (fictional lead and time). The wording is set by our compliance check and is the same for every lead.</p>
 

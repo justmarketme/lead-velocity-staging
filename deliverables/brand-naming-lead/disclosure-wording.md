@@ -34,8 +34,8 @@ Character counts are hand-counted, including spaces and punctuation. The person 
 | `DISC-EMAIL-v2` | Consumer email signature (below) | `DISC-FULL-v2` plus a privacy link | n/a |
 | `BIO-FB-v4`, `BIO-IG-v5` | Facebook intro, Instagram bio | Bios describe the service and carry no disclosure (copy workflow 2026-10-05) | 99, 145 |
 | `DISC-S97-v1`, `DISC-S148-v1` | Old short forms | **Withdrawn.** They named Lead Velocity. Use `DISC-S91-v2` on end-cards. Bios use `BIO-FB-v4` / `BIO-IG-v5` | n/a |
-| `CONSENT-NAMED-v2` | Named consent, beside the form | I agree that SortMyCover may share my details with {practice_name} (FSP {fsp_number}), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. + `CONSENT-ADS-v1` sentence + "Privacy notice" link | n/a |
-| `CONSENT-GENERIC-v2` | Generic consent (only if the practitioner approves it) | I agree that SortMyCover may share my details with an authorised financial services provider (FSP), who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. + `CONSENT-ADS-v1` sentence + link | n/a |
+| `CONSENT-NAMED-v3` | Named consent, beside the form (v3 2026-10-07: scope "insurance and financial planning"; source `landing/config/consent.json`) | I agree that SortMyCover may share my details with {practice_name} (FSP {fsp_number}), an authorised financial services provider, who may contact me by WhatsApp or phone about insurance and financial planning. I can opt out at any time by replying STOP. + `CONSENT-ADS-v1` sentence + "Privacy notice" link | n/a |
+| `CONSENT-GENERIC-v3` | Generic consent (only if the practitioner approves it) | I agree that SortMyCover may share my details with an authorised financial services provider (FSP), who may contact me by WhatsApp or phone about insurance and financial planning. I can opt out at any time by replying STOP. + `CONSENT-ADS-v1` sentence + link | n/a |
 
 `DISC-CARD-v2` keeps the third person ("SortMyCover gives…", not "we") because the card carries the adviser's face. It still needs contracts-drafter sign-off (M6).
 

@@ -1,12 +1,12 @@
 {
-  "_comment": "Based on deliverables/contracts-drafter/consent-and-privacy.md CP-v0.1 (1.2, 1.3, 1.4). v2 (Jonathan, 2026-10-05): the consent line says SortMyCover, not Lead Velocity; the privacy notice linked beside the form names the company and its address (POPIA s18). contracts-drafter to align CP-v0.1 and re-sign. {practice_name}/{fsp_number} come from site.json (brokers row).",
+  "_comment": "Based on deliverables/contracts-drafter/consent-and-privacy.md CP-v0.1 (1.2, 1.3, 1.4). v2 (Jonathan, 2026-10-05): the consent line says SortMyCover, not Lead Velocity; the privacy notice linked beside the form names the company and its address (POPIA s18). v3 (Jonathan, 2026-10-07): scope widened from 'life cover' to 'insurance and financial planning' so the consent covers every reason a client can pick (life, funeral, retirement, investments, disability, paying too much). DRAFT for practitioner review. The Meta Instant Form disclaimer text must be updated to match before W02 sends v3. {practice_name}/{fsp_number} come from site.json (brokers row).",
   "named": {
-    "version": "CONSENT-NAMED-v2+CONSENT-ADS-v1",
-    "text": "I agree that SortMyCover may share my details with {practice_name} (FSP {fsp_number}), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP."
+    "version": "CONSENT-NAMED-v3+CONSENT-ADS-v1",
+    "text": "I agree that SortMyCover may share my details with {practice_name} (FSP {fsp_number}), an authorised financial services provider, who may contact me by WhatsApp or phone about insurance and financial planning. I can opt out at any time by replying STOP."
   },
   "generic": {
-    "version": "CONSENT-GENERIC-v2+CONSENT-ADS-v1",
-    "text": "I agree that SortMyCover may share my details with an authorised financial services provider (FSP), who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP."
+    "version": "CONSENT-GENERIC-v3+CONSENT-ADS-v1",
+    "text": "I agree that SortMyCover may share my details with an authorised financial services provider (FSP), who may contact me by WhatsApp or phone about insurance and financial planning. I can opt out at any time by replying STOP."
   },
   "ads": "We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.",
   "link_text": "Privacy notice",

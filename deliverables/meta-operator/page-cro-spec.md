@@ -209,7 +209,7 @@ Long instructions are in §3b (block **Bn** = row n). Copy strings are in §3c w
 **B13 · Messenger + IG data rules (row 13)** (default until D1 and NH-67 (4) change it)
 1. Answer from the FAQs and saved replies. Advice, price, product, health or claims questions get the fixed deferral (SR3); sensitive threads get a human-written reply. Any reply that moves someone forward ends with the CTA word for word.
 2. Never ask for or store: a name (Messenger already shows the profile name), age, phone or WhatsApp number, email, ID, bank or health details.
-3. Never pass anything from a Messenger or IG thread to an adviser, practice or FSP. Booking and consent (CONSENT-NAMED-v2 or CONSENT-GENERIC-v2, plus CONSENT-ADS-v1) happen only where consent is captured (see D1).
+3. Never pass anything from a Messenger or IG thread to an adviser, practice or FSP. Booking and consent (CONSENT-NAMED-v3 or CONSENT-GENERIC-v3, plus CONSENT-ADS-v1) happen only where consent is captured (see D1).
 4. If someone sends a number, ID or health detail anyway: don't copy it into any CRM, sheet, n8n flow, brief or log. Reply once with DATA-REPLY, and delete the thread once handled.
 5. If someone says they are under 35 or over 50, send SR6. Never ask anyone's age.
 6. Don't message again unless they reply; there is no consent to market (2.1.2).

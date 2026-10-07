@@ -46,7 +46,7 @@ Flesch-Kincaid grade, `tests/reading_level.py`, employer-gap: all visible copy 3
 
 ## Consent mode (one flag)
 `config/site.json` -> `consent_mode`: `named` (live default while one broker) renders `{practice_name} (FSP {fsp_number})` from the brokers row; `generic` renders the broker-neutral line. The ads sentence is inside the same tick in both modes.
-The label text, version id (`CONSENT-NAMED-v1+CONSENT-ADS-v1`) and mode are posted with every lead so the exact wording shown is stored. In `env: production` the build fails if named mode has no practice or FSP (fail closed). In staging it shows `[PRACTICE NAME] (FSP [FSP NUMBER])` and sets noindex.
+The label text, version id (`CONSENT-NAMED-v3+CONSENT-ADS-v1`) and mode are posted with every lead so the exact wording shown is stored. In `env: production` the build fails if named mode has no practice or FSP (fail closed). In staging it shows `[PRACTICE NAME] (FSP [FSP NUMBER])` and sets noindex.
 
 ## API contract expected from n8n (`api_base` = the n8n webhook base, no trailing slash)
 All JSON, CORS allowed for the page origin. The quiz itself sends nothing; out-of-band people never reach the API.

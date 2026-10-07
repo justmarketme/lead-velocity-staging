@@ -199,7 +199,7 @@ function ingestItem(fx, { withText = true } = {}) {
     bond_children: { bond: f.has_bond === 'yes', children: f.has_dependants === 'yes' }, preferred_method: f.preferred_method,
     consent: withText
       ? { given: p.custom_disclaimer_responses.some((r) => r.checkbox_key === 'consent' && r.is_checked === '1'), text_version: p.consent_text_version, text: FIX.consent_texts[p.consent_text_version], captured_at: p.created_time }
-      : { given: true, source: 'meta_instant_form', text_version: 'CONSENT-NAMED-v2+CONSENT-ADS-v1', captured_at: p.created_time },
+      : { given: true, source: 'meta_instant_form', text_version: 'CONSENT-NAMED-v3+CONSENT-ADS-v1', captured_at: p.created_time },
     is_synthetic: true } };
 }
 
@@ -480,7 +480,7 @@ test(`W02 parity [${MODE}] instant-form lead (L03) gets the same treatment as a 
   assert.equal(s.lead.mobile, fx.expected.W01.mobile);
   assert.equal(s.lead.leadgen_id, fx.expected.W01.leadgen_id);
   assert.equal(s.lead.broker_id, fx.expected.W01.broker_id);
-  assert.equal(s.lead.consent_text, FIX.consent_texts['CONSENT-NAMED-v2+CONSENT-ADS-v1']);
+  assert.equal(s.lead.consent_text, FIX.consent_texts['CONSENT-NAMED-v3+CONSENT-ADS-v1']);
   assert.deepEqual(s.capi.map((e) => e.event_id), [`evt_${r.body.lead_id}_lead`]);
 });
 
@@ -490,7 +490,7 @@ test(`W02 parity [${MODE}] the production ingest item (registry version, no text
   const r = await sys.leadAd(ingestItem(lead('L03'), { withText: false }));
   assert.equal(r.body.status, 'accepted');
   const l = (await sys.state(r.body.lead_id)).lead;
-  assert.equal(l.consent_text_version, 'CONSENT-NAMED-v2+CONSENT-ADS-v1');
+  assert.equal(l.consent_text_version, 'CONSENT-NAMED-v3+CONSENT-ADS-v1');
   assert.ok(l.consent_text.includes(`${broker().practice_name} (FSP ${broker().fsp_number})`), l.consent_text);
   assert.equal(l.broker_id, broker().broker_id);
   assert.equal(r.result.outcome, 'accepted');
@@ -505,7 +505,7 @@ test(`W03 parity [${MODE}] CTWA consent-yes (L04): row at consent, verified by t
   assert.equal(ms(l.verified_at), ms(e.verified_at));
   assert.equal(ms(l.routed_at), ms(e.routed_at));
   assert.equal(l.broker_id, e.broker_id);
-  // GATE-TEST-W01: fixture expected consent_text_version 'ctwa-v1' (generic); 0.1/CONTRACTS says named consent while one broker, so W03 asks with 'ctwa-named-v2' (NH-40 / needs-human-log 2026-10-03 (c))
+  // GATE-TEST-W01: fixture expected consent_text_version 'ctwa-generic-v3' (generic); 0.1/CONTRACTS says named consent while one broker, so W03 asks with 'ctwa-named-v3' (NH-40 / needs-human-log 2026-10-03 (c))
   assert.equal(l.consent_text_version, MODE === 'offline' ? W3.CONSENT_NAMED_VERSION : e.consent_text_version);
   assert.equal(l.ctwa_clid, e.ctwa_clid);
 });
@@ -523,7 +523,7 @@ test(`W03 parity [${MODE}] CTWA consent-no (L05): no lead row, only a hashed num
   assert.equal(supp.length, 1);
   assert.equal(supp[0].source, 'no_consent_ctwa');
   const msgs = await sys.messagesTo('+27600000105');
-  // GATE-TEST-W01: fixture expected the broker never named to a non-consenting person; 0.1/CONTRACTS (named consent, ctwa-named-v2) names the practice IN the consent prompt so the person can decide; nothing after "No" names it (NH-40 / needs-human-log 2026-10-03 (c))
+  // GATE-TEST-W01: fixture expected the broker never named to a non-consenting person; 0.1/CONTRACTS (named consent, ctwa-named-v3) names the practice IN the consent prompt so the person can decide; nothing after "No" names it (NH-40 / needs-human-log 2026-10-03 (c))
   if (MODE === 'offline') {
     assert.ok(msgs[0].kind === 'consent_buttons' && msgs[0].text.includes(broker().practice_name), 'named consent prompt names the practice');
     assert.ok(!JSON.stringify(msgs.slice(1)).includes(broker().practice_name), 'broker not named after "No thanks"');

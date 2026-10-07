@@ -137,8 +137,9 @@ SELECT
   CASE WHEN v.origin = 'lead_ad' THEN 'SYNTHETIC_LEADGEN_' || v.n END,
   CASE WHEN v.origin = 'ctwa' THEN 'SYNTHETIC_CTWA_' || v.n END,
   CASE WHEN v.origin = 'page' THEN 'https://sortmycover.leadvelocity.co.za/check' END,
-  'I agree that Lead Velocity may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. [SYNTHETIC]',
-  'named-v0-synthetic', 'named',
+  -- CONSENT-NAMED-v3 (landing/config/consent.json) rendered for the synthetic broker, same text as automation/tests/fixtures/synthetic-leads.json
+  'I agree that SortMyCover may share my details with Synthetic Test Advisory (TEST ONLY) (FSP TEST-00000), an authorised financial services provider, who may contact me by WhatsApp or phone about insurance and financial planning. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message. [SYNTHETIC]',
+  'CONSENT-NAMED-v3+CONSENT-ADS-v1', 'named',
   now() - (v.age_h || ' hours')::interval,
   CASE WHEN v.ads_consent THEN now() - (v.age_h || ' hours')::interval END,
   CASE WHEN v.origin = 'page' THEN 'https://sortmycover.leadvelocity.co.za/check' END,
