@@ -20,9 +20,11 @@ const FILES = {
   money: 'money.js', pricing: 'pricing.js', reference: 'reference.js', events: 'events.js', paystack: 'paystack.js',
   incontact: 'incontact.js', reconcile: 'reconcile.js', statement: 'statement.js', invoice: 'invoice.js', render: 'render.js',
   'verify-webhooks': '../security/verify-webhooks.js', autorenew: 'autorenew.js', 'lead-token': '../security/lead-token.js',
-  flags: 'flags.js', 'manual-paid': 'manual-paid.js',
+  flags: 'flags.js', 'manual-paid': 'manual-paid.js', topup: 'topup.js',
 };
 const src = (k) => readFileSync(join(here, FILES[k]), 'utf8');
+// Top-up config (agreement 9) is inlined into W16 from the one pricing seed (3.6).
+const SEED = JSON.parse(readFileSync(join(here, 'pricing.seed.json'), 'utf8'));
 const deps = (k) => [...src(k).matchAll(/require\('(?:\.\.\/security\/|\.\/)([a-z-]+)'\)/g)].map((m) => m[1]);
 function closure(keys) {
   const seen = new Set();
@@ -122,7 +124,12 @@ with inv as (
   update ${T.INV} set status = 'paid', paid_at = $2::timestamptz, method = $3, paystack_reference = nullif($4, ''), bank_credit_id = nullif($5, '')::uuid
   where reference = $1 and status = 'issued'
     and abs(total_zar * 100 - $6::bigint) <= 100            -- +/-R1, re-checked in SQL
-  returning id, reference, broker_id, tier_code
+  returning id, reference, broker_id, tier_code, kind, topup_leads, cycle_id as topup_cycle_id
+), top as (
+  -- Top-up (kind 'add_on', agreement 9): no new cycle; the paid leads are added to the cycle's committed count.
+  update ${T.CY} c set committed_leads = c.committed_leads + inv.topup_leads, topup_leads = c.topup_leads + inv.topup_leads
+  from inv where inv.kind = 'add_on' and c.id = inv.topup_cycle_id
+  returning c.id as cycle_id, c.starts_at
 ), prev as (
   select c.broker_id, max(coalesce(c.extended_until, c.ends_at)) as last_end
   from ${T.CY} c join inv on inv.broker_id = c.broker_id
@@ -133,6 +140,7 @@ with inv as (
   select inv.broker_id, inv.tier_code, p.price_zar, p.committed_leads, p.replacement_cap_cycle, p.media_share_zar, 'scheduled', inv.id,
          prev.last_end, prev.last_end + interval '30 days'   -- renewal: back to back. First cycle: null until routing goes on (NH-CD-14)
   from inv join ${T.PR} p on p.tier_code = inv.tier_code left join prev on prev.broker_id = inv.broker_id
+  where inv.kind <> 'add_on'
   on conflict (invoice_id) do nothing
   returning id as cycle_id, broker_id, starts_at
 ), bc as (
@@ -142,9 +150,10 @@ with inv as (
   from inv where c.id = nullif($5, '')::uuid
   returning c.id
 )
-select inv.id as invoice_id, inv.reference, inv.broker_id, inv.tier_code, cyc.cycle_id, cyc.starts_at, b.status as broker_status, b.routing_on,
+select inv.id as invoice_id, inv.reference, inv.broker_id, inv.tier_code, coalesce(cyc.cycle_id, top.cycle_id) as cycle_id, coalesce(cyc.starts_at, top.starts_at) as starts_at,
+       inv.kind, inv.topup_leads, b.status as broker_status, b.routing_on,
        p.media_share_zar, b.billing_ref, b.email, b.whatsapp_number, (select count(*) from bc)::int as credits_matched
-from inv left join cyc on cyc.broker_id = inv.broker_id join ${T.BR} b on b.id = inv.broker_id join ${T.PR} p on p.tier_code = inv.tier_code;`;
+from inv left join cyc on cyc.broker_id = inv.broker_id left join top on true join ${T.BR} b on b.id = inv.broker_id join ${T.PR} p on p.tier_code = inv.tier_code;`;
 
 /* ================================================================== W16 */
 const W16 = wf('W16', 'Payment received', (w) => {
@@ -243,7 +252,7 @@ where id = nullif($1, '')::uuid and match_status = 'unmatched';`, '={{ [$("Norma
 -- I-33a: the SECURITY DEFINER wrapper (migration 08) writes the secret and sets brokers.card_autorenew +
 -- paystack_authorization_ref (the secret NAME). It returns NULL and stores nothing when the code is empty.
 select public.smc_vault_store_paystack_auth($1::uuid, nullif($2, ''), nullif($3, '')) as authorization_ref;`, '={{ [$json.broker_id, $("Normalise payment.received").first().json.authorization_code || "", $("Normalise payment.received").first().json.customer_code || ""] }}'), { v: 2.5, row: 0, col: 15, credentials: PG });
-  const route = w.add('n8n-nodes-base.switch', 'First payment, resume or renewal?', switchOn('={{ ["invited","prospect","onboarding"].includes($("Mark invoice paid + create cycle").first().json.broker_status) ? "first" : (["not_renewed","ended","paused"].includes($("Mark invoice paid + create cycle").first().json.broker_status) ? "resume" : "renewal") }}', ['first', 'resume', 'renewal']), { v: 3, row: 1, col: 16 });
+  const route = w.add('n8n-nodes-base.switch', 'First payment, resume or renewal?', switchOn('={{ $("Mark invoice paid + create cycle").first().json.kind === "add_on" ? "topup" : ["invited","prospect","onboarding"].includes($("Mark invoice paid + create cycle").first().json.broker_status) ? "first" : (["not_renewed","ended","paused"].includes($("Mark invoice paid + create cycle").first().json.broker_status) ? "resume" : "renewal") }}', ['first', 'resume', 'renewal', 'topup']), { v: 3, row: 1, col: 16 });
   const onboard = w.add('n8n-nodes-base.postgres', 'Broker -> onboarding', sql(`${AUDIT()}-- Update only: the brokers row + auth user were created at invoice issue (NH-27 c, status invited/prospect).
 update ${T.BR} set status = 'onboarding', status_changed_at = case when status = 'onboarding' then status_changed_at else now() end where id = $1::uuid and status in ('invited','prospect','onboarding') returning id, email;`, '={{ [$("Mark invoice paid + create cycle").first().json.broker_id] }}'), { v: 2.5, row: 0, col: 17, credentials: PG });
   const magic = w.add('n8n-nodes-base.httpRequest', 'Supabase magic link', { method: 'POST', url: '={{ $env.SUPABASE_URL + "/auth/v1/admin/generate_link" }}', authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth',
@@ -322,7 +331,7 @@ on conflict (reference) do nothing;`, '={{ [$json.old_reference, $json.reissue ?
   const coInit = w.add('n8n-nodes-base.httpRequest', 'Paystack initialize transaction', { ...httpSpec(), method: 'POST', url: 'https://api.paystack.co/transaction/initialize', jsonBody: '={{ JSON.stringify($("Checkout: re-issue if tier changed, build Paystack request").first().json.spec.body) }}', sendBody: true }, { v: 4.2, row: 8, col: 5, credentials: PAYSTACK });
   const coRespPay = w.add('n8n-nodes-base.respondToWebhook', 'Respond: Paystack URL', { respondWith: 'json', responseBody: '={{ JSON.stringify({ authorization_url: $json.body && $json.body.data ? $json.body.data.authorization_url : null, reference: $("Checkout: re-issue if tier changed, build Paystack request").first().json.reference }) }}', options: { responseCode: '={{ $json.body && $json.body.status ? 200 : 502 }}' } }, { v: 1.1, row: 8, col: 6 });
   const coRespRef = w.add('n8n-nodes-base.respondToWebhook', 'Respond: manual EFT reference', { respondWith: 'json', responseBody: '={{ JSON.stringify({ reference: $("Checkout: re-issue if tier changed, build Paystack request").first().json.reference, message: $("Checkout: re-issue if tier changed, build Paystack request").first().json.message }) }}', options: { responseCode: '={{ $("Checkout: re-issue if tier changed, build Paystack request").first().json.respond }}' } }, { v: 1.1, row: 9, col: 5 });
-  const note = w.add('n8n-nodes-base.stickyNote', 'Note', { content: '## W16 Payment received\nTwo rails, one event: Paystack webhook (A) or a bank credit from W17/W18/console (B) -> **Mark invoice paid + create cycle** (C).\n- Signature verified on the raw body before parsing; webhook_events gives idempotency.\n- Paystack payments are re-verified via the API and compared with the invoice (+/-R1) before marking paid.\n- Unmatched, partial, overpaid, duplicate and already-paid credits never mark paid: console queue (W22).\n- Card token stored only on opt-in, only in Vault.\n- First cycle starts when routing goes on (NH-CD-14), so starts_at stays null here.\n- Never creates the brokers row: it and the auth user exist from invoice issue (NH-27 c); payment moves invited/prospect -> onboarding.\n- No manual audit_log insert: the smc_audit trigger logs every write; SET LOCAL smc.source/smc.reason (idempotency key, console assigner) give it the context.\n- Checkout (E): starts Paystack for an invoice; a tier change voids and re-issues the unpaid invoice.\nSee automation/billing/RUNBOOK.md.', height: 360, width: 520 }, { row: 6, col: 9 });
+  const note = w.add('n8n-nodes-base.stickyNote', 'Note', { content: '## W16 Payment received\nTwo rails, one event: Paystack webhook (A) or a bank credit from W17/W18/console (B) -> **Mark invoice paid + create cycle** (C).\n- Signature verified on the raw body before parsing; webhook_events gives idempotency.\n- Paystack payments are re-verified via the API and compared with the invoice (+/-R1) before marking paid.\n- Unmatched, partial, overpaid, duplicate and already-paid credits never mark paid: console queue (W22).\n- Card token stored only on opt-in, only in Vault.\n- First cycle starts when routing goes on (NH-CD-14), so starts_at stays null here.\n- Never creates the brokers row: it and the auth user exist from invoice issue (NH-27 c); payment moves invited/prospect -> onboarding.\n- No manual audit_log insert: the smc_audit trigger logs every write; SET LOCAL smc.source/smc.reason (idempotency key, console assigner) give it the context.\n- Checkout (E): starts Paystack for an invoice; a tier change voids and re-issues the unpaid invoice.\n- Top-up (G): broker buys >= min extra leads once the cycle is delivered; add_on invoice; on payment Mark paid adds them to the cycle (no new cycle).\nSee automation/billing/RUNBOOK.md.', height: 360, width: 520 }, { row: 6, col: 9 });
 
   // --- F. NH-61 cycle-1 path: Jonathan's one-tap "Payment received" in the console (Bearer Supabase JWT, admin only).
   // One bank_credits row (source 'manual', amount = invoice total), then the SAME chain as every other rail: Match credit ->
@@ -361,6 +370,54 @@ return [{ json: { bank_credit_id: $input.first().json.id, invoice_id: plan.assig
   w.link(sw, verTx, 0); w.link(sw, failed, 1); w.link(sw, autoOn, 2); w.link(sw, autoOff, 3);
   w.chain(verTx, loadInv, checkTx, okTx); w.link(okTx, norm, 0); w.link(okTx, notFlipped, 1);
   w.chain(sub, loadCtx, match, act);
+  // --- G. Top-up (agreement 9): the broker portal POSTs { qty, method? } with the broker's Supabase JWT. Shared entry for every
+  // surface (src/lib/topup.ts requestTopup; the ux-sprint-1 cycle-card Top up sheet can call the same function). Issues ONE add_on
+  // invoice (topup_leads = qty) for the current cycle, only once its committed leads are delivered; Paystack when PAYSTACK_ENABLED,
+  // else manual EFT with the unique LV-xxxx-T-YYYYMM reference. Payment then runs the normal chain (A/B/F); Mark paid adds qty to the cycle.
+  const tuHook = w.add('n8n-nodes-base.webhook', 'Top-up: POST /billing/topup', { httpMethod: 'POST', path: 'billing/topup', responseMode: 'responseNode', options: { allowedOrigins: 'https://app.leadvelocity.co.za' } }, { v: 2, row: 12, col: 0, webhookId: 'smc-billing-topup' });
+  const tuAuth = w.add('n8n-nodes-base.code', 'Top-up: verify broker JWT + body', code(`
+return [{ json: BILLING.topup.parseTopupRequest({ headers: $json.headers || {}, body: $json.body || {} }, { jwtSecret: $env.SUPABASE_JWT_SECRET }) }];
+`, ['topup']), { v: 2, row: 12, col: 1 });
+  const tuOk = w.add('n8n-nodes-base.if', 'Top-up: caller ok?', ifTrue('={{ $json.ok === true }}'), { v: 2, row: 12, col: 2 });
+  const tuBad = w.add('n8n-nodes-base.respondToWebhook', 'Top-up: respond error (reason only)', { respondWith: 'json', responseBody: '={{ JSON.stringify({ ok: false, message: $json.reason }) }}', options: { responseCode: '={{ $json.status }}' } }, { v: 1.1, row: 13, col: 3 });
+  const tuLoad = w.add('n8n-nodes-base.postgres', 'Top-up: load broker, current cycle, references', sql(`select json_build_object(
+  'broker', (select row_to_json(b) from (select id, billing_ref, email from ${T.BR} where user_id = $1::uuid limit 1) b),
+  'cycle', (select row_to_json(v) from (select v.cycle_id, v.status, v.committed, v.verified, v.tier_code from public.v_cycle_progress v
+            join ${T.BR} b on b.id = v.broker_id where b.user_id = $1::uuid and v.status in ('active','extended') order by v.cycle_no desc limit 1) v),
+  'pricing', (select json_agg(p) from ${T.PR} p),
+  'taken', coalesce((select json_agg(i.reference) from ${T.INV} i join ${T.BR} b on b.id = i.broker_id where b.user_id = $1::uuid), '[]'),
+  'open_topup', (select i.reference from ${T.INV} i join ${T.BR} b on b.id = i.broker_id where b.user_id = $1::uuid and i.kind = 'add_on' and i.status = 'issued' limit 1)) as ctx;`,
+    '={{ [$json.user_id] }}'), { v: 2.5, row: 12, col: 3, credentials: PG });
+  const tuPlan = w.add('n8n-nodes-base.code', 'Top-up: check rules, build invoice (+ Paystack request)', code(`
+// TOPUP is inlined from automation/billing/pricing.seed.json at generate time (single source; regenerate on change).
+const TOPUP = ${JSON.stringify(SEED.topup)};
+const req = $('Top-up: verify broker JWT + body').first().json;
+const { broker, cycle, pricing, taken, open_topup } = $input.first().json.ctx;
+if (!broker) return [{ json: { respond: 403, message: 'Brokers only.' } }];
+if (open_topup) return [{ json: { respond: 409, message: 'You already have an open top-up invoice (' + open_topup + '). Pay it or WhatsApp us to change it.', reference: open_topup } }];
+const c = BILLING.topup.checkTopup({ qty: req.qty, cycle, topup: TOPUP });
+if (!c.ok) return [{ json: { respond: c.status, message: c.message } }];
+const method = BILLING.flags.resolveCheckoutMethod(req.method, $env); // NH-61: Paystack off -> manual EFT
+const row = (pricing || []).find((p) => p.tier_code === cycle.tier_code) || {};
+const invoice = BILLING.topup.buildTopupInvoice({ broker, cycle, qty: req.qty, topup: TOPUP, method, existingReferences: taken || [], pricingRows: pricing || [], vatRate: row.vat_rate || null });
+const spec = method === 'manual_eft' ? null : BILLING.paystack.build.initialize({ invoice, email: broker.email, method, attempt: 1,
+  callbackUrl: 'https://app.leadvelocity.co.za/billing/checkout/thanks', autorenewOptIn: false, env: $env });
+return [{ json: { respond: 200, method, invoice, spec, reference: invoice.reference, total_zar: invoice.total_zar, qty: invoice.topup_leads, earliest_start: invoice.topup_starts_at,
+  message: 'Invoice ' + invoice.reference + ' issued. Pay by EFT using that reference; delivery starts once it clears and the notice period has passed.' } }];
+`, ['topup', 'flags', 'paystack']), { v: 2, row: 12, col: 4 });
+  const tuPlanOk = w.add('n8n-nodes-base.if', 'Top-up: allowed?', ifTrue('={{ $json.respond === 200 }}'), { v: 2, row: 12, col: 5 });
+  const tuNo = w.add('n8n-nodes-base.respondToWebhook', 'Top-up: respond refusal', { respondWith: 'json', responseBody: '={{ JSON.stringify({ ok: false, message: $json.message, reference: $json.reference || null }) }}', options: { responseCode: '={{ $json.respond }}' } }, { v: 1.1, row: 13, col: 6 });
+  const tuIns = w.add('n8n-nodes-base.postgres', 'Top-up: issue add_on invoice (idempotent)', sql(`${AUDIT("'W16 broker top-up request'")}-- invoice_no and brand_id are filled by smc_invoices_fill; total_zar must equal amount_excl_vat + vat_zar (trigger).
+insert into ${T.INV} (kind, broker_id, cycle_id, tier_code, topup_leads, topup_starts_at, amount_excl_vat, vat_zar, total_zar, reference, method, status, issued_at, due_at)
+select 'add_on', ($1::jsonb->>'broker_id')::uuid, ($1::jsonb->>'cycle_id')::uuid, $1::jsonb->>'tier_code', ($1::jsonb->>'topup_leads')::int, ($1::jsonb->>'topup_starts_at')::timestamptz,
+       ($1::jsonb->>'amount_excl_vat')::numeric, ($1::jsonb->>'vat_zar')::numeric, ($1::jsonb->>'total_zar')::numeric, $1::jsonb->>'reference', $1::jsonb->>'method', 'issued', now(), ($1::jsonb->>'due_at')::timestamptz
+on conflict (reference) do nothing returning id;`, '={{ [JSON.stringify($json.invoice)] }}'), { v: 2.5, row: 12, col: 6, credentials: PG, alwaysOutputData: true });
+  const tuNeed = w.add('n8n-nodes-base.if', 'Top-up: Paystack needed?', ifTrue('={{ !!$("Top-up: check rules, build invoice (+ Paystack request)").first().json.spec }}'), { v: 2, row: 12, col: 7 });
+  const tuInit = w.add('n8n-nodes-base.httpRequest', 'Top-up: Paystack initialize transaction', { ...httpSpec(), method: 'POST', url: 'https://api.paystack.co/transaction/initialize', jsonBody: '={{ JSON.stringify($("Top-up: check rules, build invoice (+ Paystack request)").first().json.spec.body) }}', sendBody: true }, { v: 4.2, row: 12, col: 8, credentials: PAYSTACK });
+  const tuRespPay = w.add('n8n-nodes-base.respondToWebhook', 'Top-up: respond Paystack URL', { respondWith: 'json', responseBody: '={{ JSON.stringify({ ok: !!($json.body && $json.body.status), authorization_url: $json.body && $json.body.data ? $json.body.data.authorization_url : null, reference: $("Top-up: check rules, build invoice (+ Paystack request)").first().json.reference, total_zar: $("Top-up: check rules, build invoice (+ Paystack request)").first().json.total_zar }) }}', options: { responseCode: '={{ $json.body && $json.body.status ? 200 : 502 }}' } }, { v: 1.1, row: 12, col: 9 });
+  const tuRespEft = w.add('n8n-nodes-base.respondToWebhook', 'Top-up: respond EFT invoice', { respondWith: 'json', responseBody: '={{ JSON.stringify((({ reference, total_zar, qty, earliest_start, message, method }) => ({ ok: true, reference, total_zar, qty, earliest_start, message, method }))($("Top-up: check rules, build invoice (+ Paystack request)").first().json)) }}', options: { responseCode: 200 } }, { v: 1.1, row: 13, col: 8 });
+  const tuNotify = w.add('n8n-nodes-base.executeWorkflow', 'W22: top-up invoice issued (Jonathan/KG + broker invoice)', execWf('smc-w22', 'kind=topup_invoice_issued; broker gets the invoice with the bold reference; Jonathan/KG see qty + amount.'), { v: 1.2, row: 14, col: 7 });
+
   w.chain(tapHook, tapAuth, tapOk); w.link(tapOk, tapLoad, 0); w.link(tapOk, tapBad, 1);
   w.chain(tapLoad, tapPlan, tapPlanOk); w.link(tapPlanOk, tapInsert, 0); w.link(tapPlanOk, tapNo, 1);
   w.link(tapInsert, tapRespond); w.link(tapInsert, tapItem); w.link(tapItem, loadCtx);
@@ -370,6 +427,9 @@ return [{ json: { bank_credit_id: $input.first().json.id, invoice_id: plan.assig
   w.link(saveAuth, route); w.link(saveAuth, notify);
   w.link(route, onboard, 0); w.chain(onboard, magic, w20, w26Map, w26);
   w.link(route, resume, 1); w.chain(resume, adsUpMap, adsUp);
+  w.chain(tuHook, tuAuth, tuOk); w.link(tuOk, tuLoad, 0); w.link(tuOk, tuBad, 1);
+  w.chain(tuLoad, tuPlan, tuPlanOk); w.link(tuPlanOk, tuIns, 0); w.link(tuPlanOk, tuNo, 1);
+  w.link(tuIns, tuNeed); w.link(tuIns, tuNotify); w.link(tuNeed, tuInit, 0); w.link(tuNeed, tuRespEft, 1); w.link(tuInit, tuRespPay);
   w.chain(coHook, coLoad, coPlan, coReissue, coNeed); w.link(coNeed, coInit, 0); w.link(coNeed, coRespRef, 1); w.link(coInit, coRespPay);
   void note;
 });

@@ -21,7 +21,8 @@ function addMonths(yyyymm, n) {
  */
 function buildInvoice({ broker, pricingRow, cycleStart, dueAt, method = 'instant_eft', existingReferences = [], creditCents = 0, invoiceNo = null, issuedAt = new Date(), cycleId = null }) {
   if (!broker || broker.billing_ref === undefined || broker.billing_ref === null) throw new TypeError('broker.billing_ref required');
-  const taken = new Set(existingReferences.map((r) => { const p = parseReference(r); return p ? p.period : null; }).filter(Boolean));
+  // Top-up references (LV-xxxx-T-YYYYMM, topup.js) share the month but are a different family: they never push a cycle invoice on.
+  const taken = new Set(existingReferences.map((r) => { const p = parseReference(r); return p && !/^T[A-Z]?$/.test(p.tier_token || '') ? p.period : null; }).filter(Boolean));
   let per = periodOf(cycleStart || issuedAt);
   let guard = 0;
   while (taken.has(per)) { per = addMonths(per, 1); if (++guard > 24) throw new Error('no free reference period'); }

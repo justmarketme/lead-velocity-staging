@@ -9,7 +9,7 @@ import ConsoleLayout from "./ConsoleLayout";
 import { Button } from "@/components/ui/button";
 import { N8N_BASE, errText, fmtDay, fmtZar, postWebhook, smcDb } from "@/lib/smc";
 
-interface OpenInvoice { id: string; reference: string; tier_code: string; total_zar: number; issued_at: string; due_at: string | null }
+interface OpenInvoice { id: string; reference: string; tier_code: string; total_zar: number; issued_at: string; due_at: string | null; kind?: string; topup_leads?: number | null }
 
 export default function Payments() {
   const [rows, setRows] = useState<OpenInvoice[]>([]);
@@ -18,7 +18,7 @@ export default function Payments() {
   const [err, setErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const { data, error } = await smcDb.from("invoices_smc").select("id,reference,tier_code,total_zar,issued_at,due_at").eq("status", "issued").order("issued_at", { ascending: true });
+    const { data, error } = await smcDb.from("invoices_smc").select("id,reference,tier_code,total_zar,issued_at,due_at,kind,topup_leads").eq("status", "issued").order("issued_at", { ascending: true });
     if (error) { setErr(errText(error)); return; }
     setErr(null);
     setRows((data ?? []) as OpenInvoice[]);
@@ -26,7 +26,7 @@ export default function Payments() {
   useEffect(() => { void load(); }, [load]);
 
   async function received(r: OpenInvoice) {
-    if (!window.confirm(`Mark ${r.reference} (${fmtZar(r.total_zar)}) as paid? This starts the broker's onboarding.`)) return;
+    if (!window.confirm(`Mark ${r.reference} (${fmtZar(r.total_zar)}) as paid? ${r.kind === "add_on" ? `This adds ${r.topup_leads} leads to the broker's cycle.` : "This starts the broker's onboarding."}`)) return;
     setBusy(r.reference); setMsg(null); setErr(null);
     const res = await postWebhook<{ ok?: boolean; message?: string }>("billing/payment-received", { invoice_reference: r.reference });
     setBusy(null);
@@ -50,7 +50,7 @@ export default function Payments() {
           {rows.map((r) => (
             <li key={r.id} className="flex flex-wrap items-center gap-3 p-3">
               <span className="font-mono font-bold">{r.reference}</span>
-              <span className="text-sm text-muted-foreground">{r.tier_code.replace("SMC_", "")} · {fmtZar(r.total_zar)} · issued {fmtDay(r.issued_at)}{r.due_at ? ` · due ${fmtDay(r.due_at)}` : ""}</span>
+              <span className="text-sm text-muted-foreground">{r.kind === "add_on" ? `Top-up ${r.topup_leads ?? ""} leads` : (r.tier_code || "").replace("SMC_", "")} · {fmtZar(r.total_zar)} · issued {fmtDay(r.issued_at)}{r.due_at ? ` · due ${fmtDay(r.due_at)}` : ""}</span>
               <Button className="ml-auto" disabled={busy === r.reference} onClick={() => void received(r)}>{busy === r.reference ? "Marking…" : "Payment received"}</Button>
             </li>
           ))}

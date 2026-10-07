@@ -13,6 +13,7 @@ const { parseReference, amountMatches } = require('./reference');
 const { TOLERANCE_CENTS } = require('./money');
 const { tierRefCode } = require('./pricing');
 const { paymentReceived } = require('./events');
+const { isTopupToken } = require('./topup');
 
 const SETTLEMENT_RE = /\bPAYSTACK\b|\bPSTK\b/i;
 const RESEND_WINDOW_MS = 60 * 1000; // a re-sent alert carries the same transaction minute; two real payments do not
@@ -69,15 +70,20 @@ function matchCredit(credit, { invoices = [], credits = [], pricingRows } = {}) 
 
   const samePeriod = mine.filter((i) => parseReference(i.reference).period === parsed.period && i.status !== 'void');
   const open = mine.filter((i) => i.status === 'issued');
-  if (!samePeriod.length) return queue('period_mismatch', { suggestions: open.filter((i) => amountMatches(invTotal(i), cents)).map((i) => i.id) });
+  // A cycle invoice and a top-up (LV-0007-B-202610 / LV-0007-T-202610) share a period: keep the payer's family apart.
+  const tokOf = (i) => parseReference(i.reference).tier_token;
+  const family = samePeriod.filter((i) => isTopupToken(tokOf(i)) === isTopupToken(parsed.tier_token));
+  const exact = family.filter((i) => tokOf(i) === parsed.tier_token);
+  const cands = exact.length ? exact : family;
+  if (!cands.length) return queue('period_mismatch', { suggestions: open.filter((i) => amountMatches(invTotal(i), cents)).map((i) => i.id) });
 
-  const inv = samePeriod.find((i) => i.status === 'issued') || samePeriod[0];
+  const inv = cands.find((i) => i.status === 'issued') || cands[0];
   if (inv.status !== 'issued') {
     // Already paid (or credited): a second payment, or a reused old reference for a new invoice.
     return queue('invoice_already_' + inv.status, { invoice_id: inv.id, suggestions: open.filter((i) => amountMatches(invTotal(i), cents)).map((i) => i.id) });
   }
 
-  if (parsed.tier_token && pricingRows) {
+  if (parsed.tier_token && pricingRows && !isTopupToken(parsed.tier_token)) {
     const row = pricingRows.find((r) => r.tier_code === inv.tier_code);
     if (row && tierRefCode(row) !== parsed.tier_token) return queue('tier_mismatch', { invoice_id: inv.id, suggestions: [inv.id] });
   }

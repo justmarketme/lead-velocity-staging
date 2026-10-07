@@ -7,6 +7,7 @@
  */
 import { useEffect, useState } from "react";
 import PortalShell, { StepClip, usePortal } from "./PortalShell";
+import TopUpPanel from "./TopUp";
 import { CHECKOUT_URL, CLIPS_BASE, PAYSTACK_ENABLED, errText, fmtDay, fmtDayTime, fmtZar, portalEvent, postWebhook, sha256Hex, smcDb } from "@/lib/smc";
 import { TERMS } from "@/lib/pricing";
 import { AGREEMENT_STRUCTURE } from "@/lib/contract/agreement";
@@ -201,6 +202,7 @@ function Body() {
         )}
         {err && signed && <p className="err">{err}</p>}
       </section>
+      <TopUpPanel brokerId={broker.id} />
     </>
   );
 }
