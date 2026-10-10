@@ -57,7 +57,8 @@ export function startLocalPg(backend = localPgBackend()) {
     '-e', 'POSTGRES_HOST_AUTH_METHOD=trust', '-e', 'POSTGRES_USER=postgres', '-e', 'POSTGRES_DB=postgres', IMAGE], opts);
   const stop = () => { try { execFileSync('docker', ['rm', '-f', name], { stdio: 'ignore' }); } catch {} rmSync(dir, { recursive: true, force: true }); };
   // The image runs a temporary socket-only server during init, then restarts; TCP on loopback is up only after that.
-  const until = Date.now() + 90000;
+  // 90 s was not enough when the whole suite ran at once (three containers starting beside the other tests); SMC_PG_READY_MS overrides.
+  const until = Date.now() + Number(process.env.SMC_PG_READY_MS || 240000);
   for (;;) {
     try { execFileSync('docker', ['exec', name, 'pg_isready', '-h', '127.0.0.1', '-U', 'postgres'], { stdio: 'ignore' }); break; }
     catch { if (Date.now() > until) { stop(); throw new Error('throwaway Postgres did not become ready'); } execFileSync(process.execPath, ['-e', 'setTimeout(()=>{},500)']); }
