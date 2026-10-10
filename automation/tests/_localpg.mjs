@@ -49,9 +49,10 @@ export function startLocalPg(backend = localPgBackend()) {
     as(join(PGBIN, 'pg_ctl'), ['-D', data, '-o', `-k ${dir} -c listen_addresses='' -p ${port}`, '-w', '-l', join(dir, 'log'), 'start']);
     const conn = ['-h', dir, '-p', port];
     const sql = (text, extra = []) => { const f = join(dir, `q${crypto.randomBytes(4).toString('hex')}.sql`); writeFileSync(f, text); chmodSync(f, 0o644); return as('psql', [...conn, ...base, ...extra, '-f', f]); };
+    // -c, not -f: psql -c sends the whole string as ONE simple Query (one implicit transaction, what n8n/pg-promise sends), so a
+    // pg_advisory_xact_lock in the first statement is held through the second. -f would send each statement on its own.
     const sqlAsync = (text, extra = []) => new Promise((resolve) => {
-      const f = join(dir, `q${crypto.randomBytes(4).toString('hex')}.sql`); writeFileSync(f, text); chmodSync(f, 0o644);
-      const args = [...conn, ...base, ...extra, '-f', f];
+      const args = [...conn, ...base, ...extra, '-c', text];
       execFile(isRoot ? 'runuser' : 'psql', isRoot ? ['-u', 'postgres', '--', 'psql', ...args] : args, { encoding: 'utf8', maxBuffer: 1 << 26 }, (err, stdout, stderr) => resolve({ err, stdout: String(stdout).trim(), stderr }));
     });
     return { backend, dir, sql, sqlAsync, file: (p, extra = []) => sql(readFileSync(p, 'utf8'), extra),
@@ -69,9 +70,10 @@ export function startLocalPg(backend = localPgBackend()) {
     catch { if (Date.now() > until) { stop(); throw new Error('throwaway Postgres did not become ready'); } execFileSync(process.execPath, ['-e', 'setTimeout(()=>{},500)']); }
   }
   const sql = (text, extra = []) => execFileSync('docker', ['exec', '-i', name, 'psql', '-h', '127.0.0.1', ...base, ...extra, '-f', '-'], { ...opts, input: text });
+  // -c, not -f: psql -c sends the whole string as ONE simple Query (one implicit transaction), so a transaction-level advisory lock in
+  // the first statement is held through the second (what n8n/pg-promise sends). -f - would send each statement on its own.
   const sqlAsync = (text, extra = []) => new Promise((resolve) => {
-    const child = execFile('docker', ['exec', '-i', name, 'psql', '-h', '127.0.0.1', ...base, ...extra, '-f', '-'], { encoding: 'utf8', maxBuffer: 1 << 26 }, (err, stdout, stderr) => resolve({ err, stdout: String(stdout).trim(), stderr }));
-    child.stdin.end(text);
+    execFile('docker', ['exec', name, 'psql', '-h', '127.0.0.1', ...base, ...extra, '-c', text], { encoding: 'utf8', maxBuffer: 1 << 26 }, (err, stdout, stderr) => resolve({ err, stdout: String(stdout).trim(), stderr }));
   });
   return { backend, dir, sql, sqlAsync, file: (p, extra = []) => sql(readFileSync(p, 'utf8'), extra), stop };
 }
