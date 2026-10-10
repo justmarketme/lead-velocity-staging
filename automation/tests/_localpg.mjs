@@ -13,11 +13,16 @@ import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const IMAGE = 'postgres:16-alpine';
+// Production is Postgres 17 (Supabase). Prefer a local postgres:17-alpine image, fall back to 16. Override with SMC_PG_IMAGE.
+const IMAGE_CANDIDATES = process.env.SMC_PG_IMAGE ? [process.env.SMC_PG_IMAGE] : ['postgres:17-alpine', 'postgres:16-alpine'];
+let IMAGE = IMAGE_CANDIDATES[0];
 const PGBIN = ['/usr/lib/postgresql/16/bin', '/usr/lib/postgresql/17/bin', '/usr/local/pgsql/bin'].find((d) => existsSync(join(d, 'initdb')));
 
 function dockerReady() {
-  try { execFileSync('docker', ['image', 'inspect', IMAGE], { stdio: 'ignore', timeout: 20000 }); return true; } catch { return false; }
+  for (const img of IMAGE_CANDIDATES) {
+    try { execFileSync('docker', ['image', 'inspect', img], { stdio: 'ignore', timeout: 20000 }); IMAGE = img; return true; } catch { /* try next */ }
+  }
+  return false;
 }
 
 /** Which backend this machine can run, or null (the caller skips). Decided synchronously at module load. */
@@ -67,16 +72,30 @@ export function startLocalPg(backend = localPgBackend()) {
   return { backend, dir, sql, file: (p, extra = []) => sql(readFileSync(p, 'utf8'), extra), stop };
 }
 
-/** Applies pg-stub.sql + the repo migration chain exactly as S7-08-09 always has (legacy first with one retry pass, then smc_*). */
+/**
+ * Applies pg-stub.sql + the repo migration chain exactly as S7-08-09 always has (legacy first with one retry pass, then smc_*).
+ * SMC_BASE=real: instead of replaying the repo's legacy migrations (which do NOT reproduce production: 26 live migrations are
+ * missing from the repo), start from the captured LIVE public schema (supabase/drift/real-public-schema-*.sql) + synthetic seed.
+ */
 export function applyRepoMigrations(pg) {
   pg.file(join(ROOT, 'automation', 'tests', 'fixtures', 'pg-stub.sql'));
+  if (String(process.env.SMC_BASE || '').toLowerCase() === 'real') {
+    const D = join(ROOT, 'supabase', 'drift');
+    pg.file(join(D, 'real-public-prelude.sql'));
+    pg.file(join(D, readdirSync(D).find((f) => /^real-public-schema-.*\.sql$/.test(f))));
+    pg.file(join(D, 'real-seed-synthetic.sql'));
+    pg.sql('ALTER DATABASE postgres SET search_path = "$user", public, extensions');
+    const MIGR = join(ROOT, 'supabase', 'migrations');
+    for (const f of readdirSync(MIGR).filter((x) => /^\d{14}_smc_.*\.sql$/.test(x)).sort()) pg.file(join(MIGR, f), ['-1']);
+    return;
+  }
   const MIG = join(ROOT, 'supabase', 'migrations');
   const all = readdirSync(MIG).filter((f) => f.endsWith('.sql')).sort();
-  const legacy = all.filter((f) => !/^2026100\d_smc_/.test(f) && !f.startsWith('20260114094619'));
+  const legacy = all.filter((f) => !/^\d{14}_smc_/.test(f) && !f.startsWith('20260114094619'));
   const deferred = [];
   for (const f of legacy) { try { pg.file(join(MIG, f), ['-1']); } catch { deferred.push(f); } }
   for (const f of deferred) pg.file(join(MIG, f), ['-1']);
-  for (const f of all.filter((x) => /^2026100\d_smc_/.test(x))) pg.file(join(MIG, f), ['-1']);
+  for (const f of all.filter((x) => /^\d{14}_smc_/.test(x))) pg.file(join(MIG, f), ['-1']);
 }
 
 /** psql with $n parameters inlined as literals (test-only; synthetic values) -> rows of string cells. */
