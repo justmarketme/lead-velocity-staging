@@ -7,6 +7,7 @@ import { lead, broker, ms, iso, H, MIN, renderBody } from './_harness.mjs';
 import { generateSlots } from './_slots.mjs';
 import { checkSql, workflowSql } from './_sqlcheck.mjs';
 import * as R from '../lib/w10.mjs';
+import * as W13 from '../lib/w13.mjs';
 
 const WF = JSON.parse(readFileSync(new URL('../W10.json', import.meta.url), 'utf8'));
 const B = broker();
@@ -142,6 +143,9 @@ test('C1A point 3: verified lead cancels, goes quiet after the one offer + seque
   assert.equal(d.claim, true); assert.equal(d.stop_messaging, false);
   assert.deepEqual({ op: d.w13.op, reason: d.w13.reason, code: d.w13.code, reason_code: d.w13.reason_code, outcome_id: d.w13.outcome_id }, { op: 'claim', reason: 'uncontactable', code: 'unreachable', reason_code: 'cancel_no_rebook', outcome_id: null });
   assert.equal(d.w13.idempotency_key, 'w10:c1a:bk_L03'); assert.equal(d.w13.lead_id, L03.lead_id); assert.equal(d.activity, 'c1a_cancel_no_rebook');
+  // clause 7 (Jonathan 10 Oct 2026): W10 still sends the claim (audit trail), but W13 refuses it (no proof image): why proof_required. A replacement
+  // for a cancelled or unreachable lead can only come from the broker's proof sent to W13 10-30 min after the start (3 a Calendar Week).
+  assert.deepEqual(W13.normaliseInput(d.w13).op === 'refuse' && W13.replacementTrigger(W13.normaliseInput(d.w13).ev), { due: false, why: 'proof_required' });
   assert.equal(c1a({ now_ms: ms(CANCELLED_AT) + 95 * H }).why, 'sequence_running', 'not before the sequence ends');
   assert.equal(c1a({ rebook_offered: false }).why, 'rebook_offer_not_sent_yet');
   assert.equal(c1a({ inbound_after_cancel: [{ content: 'Maybe next week' }] }).w13.reason_code, 'cancel_no_rebook', 'a reply that is not a plain "no call" is still no rebook');

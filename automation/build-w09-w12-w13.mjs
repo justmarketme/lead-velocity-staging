@@ -321,8 +321,8 @@ VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W09', 'lead', $5, jsonb_build_o
 function buildW12() {
   sticky('W12 Outcome, disposition & feedback (two-sided), 4.6 W12 row + 4.12a + Schedule C/D + 0.1 broker feedback rule. DRAFT pending GATE-TEST-W12.\n' +
     'Logic: automation/lib/w12.mjs (pure), loaded by every Code node through the lv-automation loader (index.cjs).\n' +
-    'Broker side: broker_outcome_check at slot end + 15 min (Met them / No-show / Couldn\'t reach them / Moved to another time = attended / no_show / unreachable / rescheduled), ONE nudge 3 h later. Clause 8.4 (feedback firewall, 2026-10-06): broker feedback = attended / could be contacted ONLY; no disposition, quality or voice note is asked or stored ("Disposition ask" emits nothing, "Voice note reference" stores nothing). Couldn\'t reach them -> outcome unreachable after the lead\'s reach window (no lead message, no CAPI, no W13, no W10; lead "Yes" -> console dispute). Unmarked at 24 h -> attended + auto_marked + unconfirmed (flagged in the console; two in a cycle -> Jonathan calls the broker). W11 keeps its 24-h backstop (ON CONFLICT (booking_id) DO NOTHING on both sides).\n' +
-    'Lead side: reach_check at slot end + 30 min. Broker "No-show" counts only after the lead stays silent for the 2-h reach window; lead "No, not yet" waits for the broker (R6-03): still unmarked at broker_nudge_at = BROKER no-show (Schedule D: lines.mjs BROKER_NO_SHOW_APOLOGY, W10 rebook at our cost, KG alerted, never a replacement); a broker Attended / Rescheduled / No-show against it = conflict for KG in the console, nothing to the lead; Unreachable/wrong number = normal W13 path. Sides disagree -> console queue, nothing guessed.\n' +
+    'Broker side: broker_outcome_check at slot end + 15 min (Met them / No-show / Couldn\'t reach them / Moved to another time = attended / no_show / unreachable / rescheduled), ONE nudge 3 h later. Clause 8.4 (feedback firewall, 2026-10-06): broker feedback = attended / could be contacted ONLY; no disposition, quality or voice note is asked or stored ("Disposition ask" emits nothing, "Voice note reference" stores nothing). Couldn\'t reach them -> outcome unreachable after the lead\'s reach window (outcome only: no lead message, no CAPI, no W13 call, no W10 call; lead "Yes" -> console dispute). That tap never requests a replacement (the check arrives after the 30-minute proof window): a goodwill replacement request for an unreachable lead arrives only as the proof image the broker sends W07 -> W13 10-30 min after the start (clause 7, 10 Oct 2026). Unmarked at 24 h -> attended + auto_marked + unconfirmed (flagged in the console; two in a cycle -> Jonathan calls the broker). W11 keeps its 24-h backstop (ON CONFLICT (booking_id) DO NOTHING on both sides).\n' +
+    'Lead side: reach_check at slot end + 30 min. Broker "No-show" counts only after the lead stays silent for the 2-h reach window; lead "No, not yet" waits for the broker (R6-03): still unmarked at broker_nudge_at = BROKER no-show (Schedule D: lines.mjs BROKER_NO_SHOW_APOLOGY, W10 rebook at our cost, KG alerted, never a replacement); a broker Attended / Rescheduled / No-show against it = conflict for KG in the console, nothing to the lead; a broker "Couldn\'t reach them" that the lead\'s "No, not yet" agrees with = outcome unreachable. Sides disagree -> console queue, nothing guessed.\n' +
     'Writes: outcomes (one row per booking, first writer wins), appointments.status, leads.stage, lead_activities timeline (w12:mark / w12:reach rows, last tap wins per CONTRACTS). Calls: W29 outcome_recorded (every outcome; pulse/facts, quality index), CAPI Send Attended (I-51b: held until the lead answered or her 2.5-h window closed; held on a lead "No" until KG decides via op kg_decision; never on Unreachable; w12:capi_hold / w12:capi_release rows), W13 no_show (missed_you rebook offer only), W10 rebook. Voice note (op voice_note): RETIRED (clause 8.4), nothing stored.\n' +
     'Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation. Env: DRY_RUN_SENDS, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TEST_HOOKS_ENABLED.');
 
@@ -646,10 +646,10 @@ RETURNING o.id, o.lead_id;`,
 
 // =============================================================================================================== W13
 function buildW13() {
-  sticky('W13 No-show & replacement requests: agreement clause 7 + Schedule 3 (ux-sprint-1, 2026-10-07). DRAFT pending GATE-TEST-W13.\n' +
+  sticky('W13 No-show & couldn\'t-reach replacement requests: agreement clause 7 + Schedule 3 (ux-sprint-1, 2026-10-07; "Couldn\'t reach them" added 10 Oct 2026). DRAFT pending GATE-TEST-W13.\n' +
     'Logic: automation/lib/w13.mjs (pure), loaded by every Code node through the lv-automation loader (index.cjs).\n' +
-    'A replacement is goodwill, at Lead Velocity\'s discretion, never automatic. The ONLY way in is a broker no-show request with proof: the broker sends a photo (place + time) or a screenshot (empty call + time) on WhatsApp between booked start + 10 min and start + 30 min (W07 routes broker image/document here). Max 3 requests per Calendar Week per broker (Mon-Sun SAST, by the missed appointment\'s date; every request counts). Same checks as the portal RPC smc_request_noshow_replacement. pricing.replacement_cap_cycle / cycles.replacement_cap are history only and drive nothing.\n' +
-    'Lead no-show from W12 (op no_show): ONE missed_you rebook offer, nothing else (no 48-h clock, no automatic claim). "Couldn\'t reach them", dispositions, W10 C1A and system "uncontactable" claims: refused and logged (replacement_not_opened), clause 8.4.\n' +
+    'A replacement is goodwill, at Lead Velocity\'s discretion, never automatic. The ONLY way in is a broker request with proof: the broker sends a photo or screenshot on WhatsApp between booked start + 10 min and start + 30 min (W07 routes broker image/document here). Two kinds, one rule: NO-SHOW (photo of the place + time, or a screenshot of the empty call) and COULDN\'T REACH THEM (a screenshot of the call log or WhatsApp chat with at least 2 attempts since the start and no reply, or showing the number is wrong or invalid). The kind comes from the caption (unreachable / no-show wording), else from the booked method (phone, whatsapp_call = unreachable; teams, zoom, meet = no_show). It sets replacements.reason (no_show | uncontactable), reason_code (schedule3_proof | schedule3_proof_unreachable), the timeline row (noshow_proof_sent | unreachable_proof_sent) and the reply wording, nothing else. Max 3 requests per Calendar Week per broker, the two kinds COMBINED in ONE counter (Mon-Sun SAST, by the missed appointment\'s date; every request counts, decided or not). Same checks as the portal RPC smc_request_replacement. pricing.replacement_cap_cycle / cycles.replacement_cap are history only and drive nothing.\n' +
+    'Lead no-show from W12 (op no_show): ONE missed_you rebook offer, nothing else (no 48-h clock, no automatic claim). The "Couldn\'t reach them" TAP (W12, outcome unreachable) is outcome-only and never calls W13: that check arrives after the 30-minute proof window, so a request for an unreachable lead can only arrive as the proof image. Dispositions, W10 C1A and system "uncontactable" claims carry no proof: refused and logged (replacement_not_opened, why proof_required).\n' +
     'Lead Velocity decides each request in the console (op decide, approve true/false) and the broker is told on WhatsApp (S3.6). A replacement never changes Delivered (7.4); W13 never writes cycles or credits.\n' +
     'Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation. Env: DRY_RUN_SENDS, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TEST_HOOKS_ENABLED.');
 
@@ -668,7 +668,7 @@ return { json: { ...n, why: n.op === 'refuse' ? L.replacementTrigger(n.ev || {})
   // ---- request: broker no-show proof on WhatsApp (Schedule 3) -> one request row, or a reply saying why not
   const ctx = pg('Request context (booking in the proof window, requests this week)', [4, -1],
 `WITH bk AS (
-  SELECT a.id AS booking_id, a.client_id AS lead_id, a.brand_id, a.cycle_id, a.appointment_date AS missed_start_at, l.first_name AS lead_first_name
+  SELECT a.id AS booking_id, a.client_id AS lead_id, a.brand_id, a.cycle_id, a.appointment_date AS missed_start_at, a.method, l.first_name AS lead_first_name
     FROM public.appointments a
     JOIN public.leads l ON l.id = a.client_id
    WHERE a.broker_id = $1::uuid AND a.brand_id IS NOT NULL
@@ -677,11 +677,13 @@ return { json: { ...n, why: n.op === 'refuse' ? L.replacementTrigger(n.ev || {})
    ORDER BY a.appointment_date DESC
    LIMIT 1)
 SELECT b.id AS broker_id, b.adviser_name, b.contact_person, $3::text AS broker_phone, $4::text AS wamid,
-       bk.booking_id, bk.lead_id, bk.brand_id, bk.cycle_id, bk.missed_start_at, bk.lead_first_name,
+       bk.booking_id, bk.lead_id, bk.brand_id, bk.cycle_id, bk.missed_start_at, bk.method, bk.lead_first_name,
+       -- ONE counter for both kinds (no_show + unreachable): every request row of the broker in that Calendar Week
        (SELECT count(*) FROM public.replacements r
          WHERE r.broker_id = b.id
            AND public.smc_week_start(coalesce(r.missed_start_at, r.claimed_at)) = public.smc_week_start(bk.missed_start_at))::int AS used_this_week,
-       EXISTS (SELECT 1 FROM public.replacements r WHERE r.booking_id = bk.booking_id) AS already_requested
+       -- one request per booking, and one open request per lead (replacements_one_per_lead): say so instead of dropping the proof silently
+       EXISTS (SELECT 1 FROM public.replacements r WHERE r.booking_id = bk.booking_id OR (r.lead_id = bk.lead_id AND r.status <> 'rejected')) AS already_requested
   FROM public.brokers b
   LEFT JOIN bk ON true
  WHERE b.id = $1::uuid;`,
@@ -691,37 +693,46 @@ SELECT b.id AS broker_id, b.adviser_name, b.contact_person, $3::text AS broker_p
 `const n = $('Normalise + validate (w13.normaliseInput)').first().json;
 const r = $json;
 const p = L.requestPlan(n, r);
-return { json: { ...r, proof_at: n.proof_at, proof_path: n.proof_path, record: p.record, why: p.why, reply: p.record ? null : L.replyItem(r, p.why, r).send } };`);
+// kind (no_show | unreachable) comes from the caption, else the booked method; \`write\` carries the kind's replacements.reason /
+// reason_code and timeline activity into the SQL as parameters. A refused request is answered in the kind's own words.
+return { json: { ...r, proof_at: n.proof_at, proof_path: n.proof_path, record: p.record, why: p.why, kind: p.kind, ...(p.write || {}), reply: p.record ? null : L.replyItem(r, p.why, { ...r, request_kind: p.kind }).send } };`);
   link(ctx, plan);
   const doRec = ifTrue('Record the request?', [6, -1], '$json.record === true');
   link(plan, doRec);
   const rec = pg('Record request (per broker-week lock, max 3, one per booking)', [7, -2],
 `-- One query string = one transaction: the advisory lock serialises requests for this broker and Calendar Week, so the
--- count below (taken after the lock) is exact. Every request counts, decided or not (smc_request_noshow_replacement).
+-- count below (taken after the lock) is exact. Every request counts, decided or not, and BOTH kinds count together:
+-- no_show and uncontactable (unreachable lead) rows are the same broker-week counter (smc_request_replacement).
+-- Parameters 9 and 10 are replacements.reason (no_show or uncontactable) and reason_code (schedule3_proof or
+-- schedule3_proof_unreachable) from w13.requestPlan: the kind is a parameter, never hard-coded here.
 SELECT pg_advisory_xact_lock(hashtext('w13:week:' || $4::text || ':' || public.smc_week_start($6::timestamptz)::text));
 WITH used AS (
   SELECT count(*) AS n FROM public.replacements r
    WHERE r.broker_id = $4::uuid AND public.smc_week_start(coalesce(r.missed_start_at, r.claimed_at)) = public.smc_week_start($6::timestamptz)),
 ins AS (
   INSERT INTO public.replacements (lead_id, cycle_id, broker_id, brand_id, reason, reason_code, booking_id, missed_start_at, proof_path, proof_sent_at, claimed_at, status)
-  SELECT $1::uuid, $3::uuid, $4::uuid, $5::uuid, 'no_show', 'schedule3_proof', $2::uuid, $6::timestamptz, $7, $8::timestamptz, $8::timestamptz, 'due'
+  SELECT $1::uuid, $3::uuid, $4::uuid, $5::uuid, $9::text, $10::text, $2::uuid, $6::timestamptz, $7, $8::timestamptz, $8::timestamptz, 'due'
     FROM used
    WHERE used.n < 3 AND NOT EXISTS (SELECT 1 FROM public.replacements x WHERE x.booking_id = $2::uuid)
   ON CONFLICT DO NOTHING
-  RETURNING id, lead_id, cycle_id, broker_id, brand_id, booking_id, missed_start_at, proof_path)
+  RETURNING id, lead_id, cycle_id, broker_id, brand_id, booking_id, missed_start_at, proof_path, reason, reason_code)
 SELECT ins.*, (SELECT n FROM used) + 1 AS used_after FROM ins;`,
-    '={{ [$json.lead_id, $json.booking_id, $json.cycle_id, $json.broker_id, $json.brand_id, $json.missed_start_at, $json.proof_path, $json.proof_at] }}');
+    '={{ [$json.lead_id, $json.booking_id, $json.cycle_id, $json.broker_id, $json.brand_id, $json.missed_start_at, $json.proof_path, $json.proof_at, $json.reason, $json.reason_code] }}');
   link(doRec, rec, 0);
   const note = code('Request recorded -> console note + broker reply (w13.alertNote)', [8, -2], IMPORT('w13') +
 `// The batch returns the pg_advisory_xact_lock row as well as the insert row: keep only real replacements rows.
 // Only the lock row (lost a race: 4th request or same booking twice) -> nothing recorded, nothing said twice.
+// The kind is read back from the row that was written (replacements.reason), so the console note, the timeline row and the
+// broker's reply always match what is in the table: no_show -> noshow_proof_sent, uncontactable -> unreachable_proof_sent.
 const c = $('Request plan (w13.requestPlan)').first().json;
 const out = [];
 $input.all().forEach((it, idx) => {
   const r = it.json || {};
   if (!r.id || !r.lead_id) return;
-  const text = L.alertNote({ lead: { first_name: c.lead_first_name }, used: r.used_after, missed_start_at: r.missed_start_at, proof_path: r.proof_path });
-  out.push({ json: { ...r, note_text: text, reply: L.replyItem({ ...c, ...r }, 'requested', { ...c, used_after: r.used_after }).send }, pairedItem: { item: idx } });
+  const kind = L.kindOfReason(r.reason);
+  const k = L.KINDS[kind];
+  const text = L.alertNote({ lead: { first_name: c.lead_first_name }, used: r.used_after, missed_start_at: r.missed_start_at, proof_path: r.proof_path, kind });
+  out.push({ json: { ...r, request_kind: kind, activity_type: k.activity_type, activity_key: k.idem_prefix + ':' + r.booking_id, note_text: text, reply: L.replyItem({ ...c, ...r }, 'requested', { ...c, used_after: r.used_after, request_kind: kind }).send }, pairedItem: { item: idx } });
 });
 return out;`, 'runOnceForAllItems');
   link(rec, note);
@@ -731,19 +742,19 @@ return out;`, 'runOnceForAllItems');
   VALUES ($1::uuid, 'replacement_dispute', 'normal', 'replacements', $2, $3::uuid, $4::uuid, now(), $5)
   RETURNING id)
 INSERT INTO public.lead_activities (${ACTIVITY_COLS})
-VALUES ($3::uuid, $1::uuid, $4::uuid, $6::uuid, 'W13', 'broker', 'noshow_proof_sent', jsonb_build_object('booking_id', $7::text, 'replacement_id', $2::text, 'via', 'whatsapp'), now(), 'w13:noshow_proof:' || $7)
+VALUES ($3::uuid, $1::uuid, $4::uuid, $6::uuid, 'W13', 'broker', $8::text, jsonb_build_object('booking_id', $7::text, 'replacement_id', $2::text, 'via', 'whatsapp'), now(), $9::text)
 ON CONFLICT (idempotency_key) DO NOTHING
 RETURNING id;`,
-    '={{ [$json.brand_id, $json.id, $json.lead_id, $json.broker_id, $json.note_text, $json.cycle_id, $json.booking_id] }}');
+    '={{ [$json.brand_id, $json.id, $json.lead_id, $json.broker_id, $json.note_text, $json.cycle_id, $json.booking_id, $json.activity_type, $json.activity_key] }}');
   link(note, record);
   const okReply = code('Send item (request recorded)', [10, -2], "return { json: { send: $('Request recorded -> console note + broker reply (w13.alertNote)').item.json.reply } };");
   link(record, okReply);
   const noRec = pg('Timeline: no request (why)', [7, -1],
 `INSERT INTO public.lead_activities (${ACTIVITY_COLS})
-SELECT $1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W13', 'broker', 'replacement_not_opened', jsonb_build_object('why', $5::text, 'source', 'W07', 'booking_id', $6::text), now(), NULL
+SELECT $1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W13', 'broker', 'replacement_not_opened', jsonb_build_object('why', $5::text, 'source', 'W07', 'booking_id', $6::text, 'request_kind', $7::text), now(), NULL
  WHERE $1::uuid IS NOT NULL
 RETURNING id;`,
-    '={{ [$json.lead_id || null, $json.brand_id || null, $json.broker_id, $json.cycle_id || null, $json.why, $json.booking_id || null] }}', { alwaysOutputData: true });
+    '={{ [$json.lead_id || null, $json.brand_id || null, $json.broker_id, $json.cycle_id || null, $json.why, $json.booking_id || null, $json.kind || null] }}', { alwaysOutputData: true });
   link(doRec, noRec, 1);
   const noReply = code('Send item (why not)', [8, -1], "return { json: { send: $('Request plan (w13.requestPlan)').item.json.reply } };");
   link(noRec, noReply);
@@ -806,7 +817,8 @@ SELECT d.id AS replacement_id, d.lead_id, d.broker_id, d.brand_id, d.booking_id,
 return { json: { send: L.replyItem(r, r.status === 'approved' ? 'approved' : 'declined', r).send } };`);
   link(decide, decReply);
 
-  // ---- refuse: W10 C1A / W29 / system "uncontactable" claims. Logged only (clause 7 / 8.4), never a replacement.
+  // ---- refuse: W10 C1A / W29 / system "uncontactable" claims. They carry no proof image, so nothing is opened: logged
+  // only (clause 7 / 8.4, why proof_required). A replacement for an unreachable lead comes only from the proof image (op request).
   const refuse = pg('Timeline: not a replacement (refused, why)', [4, 6],
 `INSERT INTO public.lead_activities (${ACTIVITY_COLS})
 SELECT l.id, l.brand_id, l.broker_id, l.cycle_id, 'W13', 'system', 'replacement_not_opened', jsonb_build_object('why', $2::text, 'source', $3::text), now(), NULL
@@ -823,7 +835,7 @@ SELECT l.id, l.brand_id, l.broker_id, l.cycle_id, 'W13', 'system', 'replacement_
   link(gate, live, 0);
 
   return finish('smc-w13', 'W13 No-show & replacement (DRAFT pending GATE-TEST-W13)',
-    'automation-engineer. W13 no-show replacement requests (agreement clause 7 + Schedule 3: goodwill, at Lead Velocity\'s discretion, broker proof 10-30 min after start, max 3 per Calendar Week); lead no-show = one missed_you offer only; logic automation/lib/w13.mjs; tests automation/tests/W13.test.mjs (GATE-TEST-W13). Generated by automation/build-w09-w12-w13.mjs.',
+    'automation-engineer. W13 no-show and couldn\'t-reach replacement requests (agreement clause 7 + Schedule 3: goodwill, at Lead Velocity\'s discretion, broker proof 10-30 min after start, max 3 per Calendar Week, both kinds combined); lead no-show = one missed_you offer only; logic automation/lib/w13.mjs; tests automation/tests/W13.test.mjs (GATE-TEST-W13). Generated by automation/build-w09-w12-w13.mjs.',
     ['replacements', 'whatsapp', 'draft']);
 }
 

@@ -7,6 +7,10 @@
 //    auto_marked + unconfirmed (flagged).
 //    clause 8.4 (ux-sprint-1, agreement "feedback firewall"): broker feedback = attended / could be contacted ONLY.
 //    No disposition list, no 1-5 quality, no voice note after "Met them"; those helpers below now send nothing.
+//    "Couldn't reach them" records the OUTCOME unreachable only: no lead message, no CAPI, no W13 call, no W10 call. Clause 7
+//    (Jonathan, 10 Oct 2026) lets such a lead ALSO earn a goodwill replacement REQUEST, but never through this tap (the
+//    check arrives after the slot ends, i.e. after the 30-minute proof window): only through the call-log or chat screenshot
+//    the broker sends W07 -> W13 10-30 minutes after the start (3 requests a Calendar Week, no-shows and unreachables combined).
 //  - Lead: reach_check at slot end + 30 min ("Did {adviser} reach you today?"). A broker "No-show" becomes a lead
 //    no-show only when the lead stays silent for the 2-h reach window. A lead "No, not yet" waits for the broker: still
 //    unmarked at broker_nudge_at -> BROKER no-show (Schedule D: apology, rebooking at our cost, KG alert, never a
@@ -104,12 +108,12 @@ export function resolveOutcome(m, now) {
   };
   // R6-03 / I-49b (lines-r6.md section 3): the lead's "No, not yet" resolves nothing on its own. The broker has until
   // broker_nudge_at to mark; whatever he marks, the lead gets no apology. A mark that contradicts the lead's "No" is a
-  // conflict for KG in the console (amber), nothing to the lead until KG decides. "Unreachable/wrong number" is the
-  // feedback only (clause 8.4: no replacement), so no conflict. Only if he is still unmarked at broker_nudge_at: broker no-show.
+  // conflict for KG in the console (amber), nothing to the lead until KG decides. The historic "Unreachable/wrong number"
+  // disposition is feedback only (clause 8.4), so no conflict. Only if he is still unmarked at broker_nudge_at: broker no-show.
   if (m.reach === 'no') {
     if (m.brokerMark === 'rescheduled') return Object.assign(r, { outcome: 'rescheduled', dispute_status: 'open', next: 'console_queue' }); // no W10 offer until KG decides
     if (m.brokerMark === 'attended') {
-      if (m.disposition === 'unreachable') { attended(); r.lead_message = null; return r; } // feedback only (clause 8.4, no replacement); gate drops CAPI (c)
+      if (m.disposition === 'unreachable') { attended(); r.lead_message = null; return r; } // feedback only (clause 8.4): no W13 call here; gate drops CAPI (c)
       attended({ dispute_status: 'open', next: 'console_queue' }); r.lead_message = null; // no thank-you either
       // I-50f / I-51b (a): the gate HOLDS Attended (reach 'no') while KG decides; releaseHeld() sends it (same event_id)
       // on KG "attended" or drops it with a logged reason on "not_attended" (op kg_decision).
@@ -125,7 +129,9 @@ export function resolveOutcome(m, now) {
   }
   if (m.brokerMark === 'rescheduled') return Object.assign(r, { outcome: 'rescheduled', next: 'W10' });
   if (m.brokerMark === 'attended') return attended();
-  // clause 8.4 "Couldn't reach them": recorded as unreachable only (no lead message, no CAPI, no W13, no W10).
+  // clause 8.4 "Couldn't reach them": recorded as unreachable only (outcome only: no lead message, no CAPI, no W13 call, no W10 call).
+  // clause 7 (Jonathan, 10 Oct 2026): a replacement REQUEST for this lead arrives only via the proof image the broker sends
+  // into W13 (W07 routes it) 10-30 min after the start; nothing here asks for, opens or withholds one.
   // Lead says "Yes, we spoke" -> console dispute, same as a broker No-show against a lead "Yes"; like a No-show it
   // waits for the lead's 2-h reach window before it is recorded.
   if (m.brokerMark === 'unreachable') {

@@ -42,7 +42,7 @@ Order note (NH-59, default applied 2026-10-03): the questions follow master prom
 | `meeting_due` | T-10 min link / "calling you now" | L1 | slot time | `outcome_pending` |
 | `outcome_pending` | Broker: `broker_outcome_check` at T+15 → `broker_disposition` → `broker_quality` → optional voice note (4.12a). Lead: `reach_check` at T+30. | L1 | both sides | `attended` / `no_show` / `broker_no_show` |
 | `attended` | `attended_thanks`; W35 `lead_pulse` after the reach-check (attended + 30 min, never before the reach-check is settled; reach-check `no` = no pulse; session `PULSE_ASK` inside the 24-h window, template `lead_pulse` outside). Tap → `PULSE_LINE_ASK_UP`/`_DOWN` once; the next free text within 24 h is the optional line (`conversation/pulse.mjs` `isPulseLine`; advice questions, person, STOP, complaints go the normal W07 way) → `PULSE_LINE_THANKS`. Then **nothing else from us** (FAIS). | L1 | | `closed_attended` |
-| `no_show` | `missed_you` (3 new times, zero guilt, one offer) | L1 | slot tapped / 48 h silence | `booking` / W13 `replacement_due` |
+| `no_show` | `missed_you` (3 new times, zero guilt, one offer) | L1 | slot tapped / silence | `booking` (a replacement is only ever a broker's goodwill request with proof, W13, clause 7) |
 | `broker_no_show` | Lead tapped "No, not yet" **and** the broker marked No-show/nothing by his +3 h nudge (R6-03; if the broker marks *Attended* or *Rescheduled*, no apology is sent and KG reviews the conflict): `BROKER_NO_SHOW_APOLOGY` + new times (W10); Schedule D path, KG alerted (W12/W13) | L1 | broker mark / broker-nudge time | `booking` |
 | `handoff` | One fixed handoff line; bot paused (see `handoff.md`) | human | console "Hand back" | previous state |
 | `closed_*` / `opted_out` | nothing further | | | |
@@ -105,7 +105,7 @@ Multi-intent: answers first, then the deferral, then the operational action (its
 | Booked (Teams/Zoom/Meet), invite email bounced | `EMAIL_BOUNCED` once (session) or template `invite_email_bounced` (outside 24 h); the next typed email → `capture_contact` → invite re-sent; no second ask, booking stands either way | I-45i (W17 → W05 `invite_bounced`) |
 | Contact confirm ignored | nothing further ("no nagging", 4.6) | 4.6 |
 | Broker outcome unmarked | +3 h nudge; 24 h → `attended` + `unconfirmed` flag | 4.12a |
-| No-show, no reply 48 h | `replacement_due` (per-cycle cap, 0.1) | W13 |
+| No-show or unreachable lead, broker sends proof 10 to 30 min after the start | goodwill replacement request with proof, 3 a week combined (Calendar Week, no-shows and unreachables share the count), Lead Velocity decides; never automatic, the lead still counts as Delivered (clause 7) | W13 |
 | Handoff not taken | 15 min → backup; 2 h → both, Red | `handoff.md` |
 | Verified | first reply or tap within 72 h of first contact sets `verified_at` (3.3) | 3.3 |
 

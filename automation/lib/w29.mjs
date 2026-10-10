@@ -3,7 +3,7 @@
 //  1. Broker picks a row on session/broker_disposition_list.json (row id = 4.12a code) -> outcomes.disposition_code.
 //  2. broker_quality (1-5) -> outcomes.quality_score.  3. Optional voice note (<= 60 s) -> transcript (redacted) +
 //     2-line summary on the outcome; never sent to the lead.  4. broker_feedback_thanks with a true "what changed" line.
-//  Feeds: W13 (unreachable / nofit_criteria open the 48-h dispute window; nothing else does), ad_metrics
+//  Feeds: W13 (historic: since clause 7 W13 refuses every disposition; a replacement request comes only from a broker proof image), ad_metrics
 //  quality_index / quality_n / nofit_rate per ad (n >= 5 before the index is shown or acted on), kill/scale signal
 //  rows in insights (3.4: index < 2.5 or not-a-fit > 40% -> pause signal; index >= 4 -> scale candidate; the
 //  media rules apply them, W29 never touches spend), qualification tuning (nofit_budget > 15%; nofit_covered

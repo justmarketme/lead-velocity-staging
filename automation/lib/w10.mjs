@@ -113,7 +113,7 @@ export function changeMethod(booking, lead, broker, method) {
 export function replacementEffect(evt) {
   if (evt === 'lead_reschedule' || evt === 'lead_cancel') return { w13: 'none', reason: 'lead choice is not a contract trigger (0.1, Schedule C)' };
   if (evt === 'broker_reschedule' || evt === 'broker_cancel') return { w13: 'none', reason: 'Schedule D: broker side, we rebook, no replacement' };
-  if (evt === 'rebooked_after_no_show') return { w13: 'none', activity: 'rebooked_after_no_show', reason: 'clause 7: a no-show never opens a replacement by itself (broker proof request only)' };
+  if (evt === 'rebooked_after_no_show') return { w13: 'none', activity: 'rebooked_after_no_show', reason: 'clause 7: a no-show or an unreachable lead never opens a replacement by itself (broker proof request only)' };
   return { w13: 'none' };
 }
 
@@ -164,8 +164,11 @@ export function classifyOp(input) {
 //                                    end -> (a) W13 claim reason 'uncontactable', code unreachable, reason_code
 //                                    cancel_no_rebook. Under (b) only: no claim.
 // Only a VERIFIED lead counts (0.1: replied/tapped within 72 h of the first message). A broker-side cancel is
-// Schedule D (we rebook, no replacement). Evidence = the message log (communications + lead_activities); the 48-h
-// dispute window in C3 is W13's. W10 never writes `replacements` - it calls W13 `claim` (CONTRACTS.md).
+// Schedule D (we rebook, no replacement). Evidence = the message log (communications + lead_activities). W10 never
+// writes `replacements` - it calls W13 `claim` (CONTRACTS.md). clause 7 (ux-sprint-1; "Couldn't reach them" rule
+// 10 Oct 2026): W13 now REFUSES both claims below (logs replacement_not_opened, why proof_required) - there is no 48-h
+// dispute window and nothing is claimed without a proof image. A cancelled or unreachable lead earns a goodwill
+// replacement REQUEST only through the proof the broker sends W13 10-30 min after the start (3 a Calendar Week).
 // ---------------------------------------------------------------------------------------------------------------
 export const C1A_DEFAULT_MODE = 'a+b'; // NH-42 default
 // End of "the full follow-up sequence" after a cancel: the rebooking offer at the cancel, then W08's +2 h / +24 h /

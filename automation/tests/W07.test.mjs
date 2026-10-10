@@ -277,8 +277,12 @@ test('I-37e W32 Approve/Later taps from ops numbers -> W32 decision sub-call; I-
   assert.equal(W.routeInbound(vid, { broker_numbers: brokers, broker_status: 'active' }).route, 'W23');
   assert.equal(W.routeInbound({ ...vid, media: 'audio' }, { broker_numbers: brokers, broker_status: 'onboarding' }).route, 'W23');
   assert.equal(W.routeInbound({ ...vid, media: 'audio' }, { broker_numbers: brokers, broker_status: 'active' }).route, 'W29', 'live broker voice note = feedback');
-  // clause 7 + Schedule 3 (ux-sprint-1): a broker photo or screenshot is no-show proof -> W13 (window + weekly max there)
+  // clause 7 + Schedule 3 (ux-sprint-1): a broker photo or screenshot is replacement-request proof -> W13 (window + weekly max there)
   for (const media of ['image', 'document']) assert.equal(W.routeInbound({ ...vid, media }, { broker_numbers: brokers, broker_status: 'active' }).route, 'W13', media);
+  // clause 7 (Jonathan 10 Oct 2026): an unreachable-lead proof (call log / chat screenshot) takes the same route, whatever the caption;
+  // W13 reads the caption (msg.text) and the booked method to tell a no-show from a lead the broker could not reach
+  for (const text of ["Couldn't reach him, no answer", 'wrong number', 'no show', '']) assert.equal(W.routeInbound({ ...vid, media: 'image', text }, { broker_numbers: brokers, broker_status: 'active' }).route, 'W13', `caption "${text}"`);
+  assert.equal(W.routeInbound({ from: '+27600000050', payload: 'unreachable:bk1' }, { broker_numbers: brokers, broker_status: 'active' }).route, 'W12', 'the tap is outcome-only (W12); it is not the replacement request');
   const w07 = JSON.parse(readFileSync(new URL('../W07.json', import.meta.url), 'utf8'));
   const rIdx = w07.nodes.find((n) => n.name === 'Route').parameters.rules.values.findIndex((v) => v.outputKey === 'W13');
   assert.deepEqual(w07.connections.Route.main[rIdx].map((c) => c.node), ['-> W13']);

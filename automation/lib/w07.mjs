@@ -112,11 +112,15 @@ function routeCore(msg, ctx) {
   if (ctx.broker_numbers && ctx.broker_numbers.has(msg.from)) {
     // I-37d: one inbound subscription; broker intro media is a W07 -> W23 sub-call.
     if (msg.media === 'video' || (msg.media === 'audio' && PRE_LIVE_BROKER.has(ctx.broker_status))) return { route: 'W23', reason: 'broker intro media (W23)' };
-    // clause 8.4 (ux-sprint-1): "Couldn't reach them" (unreachable) is the fourth broker_outcome_check button.
+    // clause 8.4 (ux-sprint-1): "Couldn't reach them" (unreachable) is the fourth broker_outcome_check button. W12 records the
+    // outcome only; the tap never requests a replacement (clause 7, Jonathan 10 Oct 2026: that request comes as the proof image below).
     if (['attended', 'no_show', 'unreachable', 'rescheduled'].includes(tapKey)) return { route: 'W12', reason: 'broker outcome tap' };
-    // clause 7 + Schedule 3 (ux-sprint-1): a photo or screenshot from a broker is no-show proof. W13 checks the 10-30 min
-    // window and the weekly maximum of 3, records the request (goodwill, Lead Velocity decides) and replies.
-    if (msg.media === 'image' || msg.media === 'document') return { route: 'W13', reason: 'broker no-show proof (Schedule 3)' };
+    // clause 7 + Schedule 3 (ux-sprint-1; "Couldn't reach them" added 10 Oct 2026): a photo or screenshot from a broker is the proof
+    // for a replacement REQUEST: a no-show (the place and time, or the empty call) or an unreachable lead (call log or chat
+    // screenshot, at least 2 attempts and no reply, or a wrong number). W13 reads the caption (msg.text) and the booked method to
+    // tell which, checks the 10-30 min window and the weekly maximum of 3 (both kinds combined), records the request (goodwill,
+    // Lead Velocity decides) and replies.
+    if (msg.media === 'image' || msg.media === 'document') return { route: 'W13', reason: 'broker replacement proof: no-show or unreachable lead (Schedule 3)' };
     return { route: 'W29', reason: 'broker feedback (disposition list, quality, voice note, follow-up tap)' };
   }
   // STOP anywhere, in any state, before anything else (W15). prefilter's STOP_RX is the broad net; this is the exact word.

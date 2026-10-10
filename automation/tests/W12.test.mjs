@@ -118,7 +118,7 @@ test('W12 L03 timing (R6-03): lead "No, not yet" waits for the broker until brok
   const ns = resolveOutcome({ ...base, brokerMark: 'no_show' }, ms(end) + H);
   assert.equal(ns.outcome, 'disputed'); assert.equal(ns.lead_message, null);
   const un = resolveOutcome({ ...base, brokerMark: 'attended', disposition: 'unreachable' }, ms(end) + H);
-  assert.equal(un.outcome, 'attended'); assert.equal(un.dispute_status, null, 'Unreachable/wrong number -> normal W13 path'); assert.equal(un.lead_message, null);
+  assert.equal(un.outcome, 'attended'); assert.equal(un.dispute_status, null, 'historic unreachable disposition: feedback only (clause 8.4), no conflict and no W13 call'); assert.equal(un.lead_message, null);
 });
 
 test('W12 BROKER_NO_SHOW_APOLOGY comes from conversation/lines.mjs (the lib/w12 draft is gone)', async () => {
@@ -212,7 +212,9 @@ test(`W12 [${MODE}] clause 8.4: disposition / quality are never recorded`, () =>
   assert.equal(R.dispositionItem({ booking_id: 'bk1' }, Date.now(), Date.now()), null);
 });
 
-test(`W12 [${MODE}] clause 8.4: "Couldn't reach them" -> outcome unreachable; no lead message, no CAPI, no W13, no W10`, async () => {
+// clause 7 (Jonathan 10 Oct 2026): the tap is OUTCOME-ONLY and never itself a replacement request (it arrives after the 30-minute proof window).
+// An unreachable lead CAN earn a goodwill request, but only from the proof image the broker sends W13 (asserted at the end of this test).
+test(`W12 [${MODE}] clause 8.4: "Couldn't reach them" -> outcome unreachable (outcome only); no lead message, no CAPI, no W13 call, no W10 call`, async () => {
   const end = '2026-10-15T10:30:00+02:00';
   const base = { slotEnd: end, leadId: 'x', consentAds: true, brokerMark: 'unreachable' };
   const closes = ms(R.postCallPlan(end).reach_check_at) + REACH_WINDOW;
@@ -240,6 +242,12 @@ test(`W12 [${MODE}] clause 8.4: "Couldn't reach them" -> outcome unreachable; no
   // clause 8.4 (ux-sprint-1): W07 routes the new tap to W12, not to W29
   const { routeInbound } = await import('../lib/w07.mjs');
   assert.equal(routeInbound({ from: '+27600000090', payload: 'unreachable:bk1' }, { broker_numbers: new Set(['+27600000090']), broker_status: 'live' }).route, 'W12');
+  // clause 7 (Jonathan 10 Oct 2026): the only W13 call W12 can make is the lead no-show's `no_show` op (one missed_you offer); never a request / claim
+  assert.ok(!/op: 'request'|op: 'claim'|unreachable_proof/.test(JSON.stringify(WF)), 'W12 never asks W13 for a replacement');
+  // ...while the same lead CAN earn a goodwill request from the broker's proof image sent into W13 (same window and counter as a no-show)
+  const start = ms(end) - 30 * MIN;
+  assert.deepEqual(W13.replacementTrigger({ kind: 'unreachable_proof', start_at: iso(start), proof_at: iso(start + 15 * MIN), has_proof: true }), { due: true, reason: 'uncontactable', reason_code: 'schedule3_proof_unreachable', due_at: iso(start + 15 * MIN) });
+  assert.equal(W13.replacementTrigger({ kind: 'unreachable_proof', start_at: iso(start), proof_at: ms(end) + 15 * MIN, has_proof: true }).why, 'too_late', 'the tap-time check is long past the proof window');
 });
 
 test(`W12 [${MODE}] two unconfirmed outcomes in one cycle -> Jonathan calls the broker`, () => {
