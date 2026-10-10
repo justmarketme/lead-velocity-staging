@@ -28,24 +28,38 @@ export function springEase(stiffness = 520, damping = 22, mass = 1): string {
 export const springDuration = (easing: string) => Math.min(1.2, ((easing.split(",").length - 1) * 16) / 1000);
 
 /* ---- (a) staggered scroll reveal ---- */
-/** Staggered reveal of child elements the first time `container` scrolls into view. Elements already in view at load are left alone. */
+/** REVEAL_FAILSAFE_MS: hidden items are always restored by this time, whatever the observer does. */
+export const REVEAL_FAILSAFE_MS = 2000;
+
+/** Staggered reveal of child elements. Content is visible in the server HTML and by default. Only items measured as BELOW the first
+ *  viewport at hydration are hidden (opacity 0 via JS), and each is guaranteed to come back: on inView, on any scroll that brings
+ *  it near the viewport, and unconditionally after REVEAL_FAILSAFE_MS. Nothing in the first viewport is ever hidden. */
 export function revealChildren(container: HTMLElement, selector: string): () => void {
   if (prefersReducedMotion()) return () => {};
-  const items = Array.from(container.querySelectorAll<HTMLElement>(selector));
+  const vh = window.innerHeight || 800;
+  const items = Array.from(container.querySelectorAll<HTMLElement>(selector)).filter((el) => el.getBoundingClientRect().top > vh);
   if (!items.length) return () => {};
-  const rect = container.getBoundingClientRect();
-  if (rect.top < window.innerHeight * 0.85) return () => {}; // already visible: no flash, no motion
   items.forEach((el) => { el.style.opacity = "0"; });
-  let restored = false;
-  const restore = () => { if (restored) return; restored = true; items.forEach((el) => { el.style.opacity = ""; el.style.transform = ""; }); };
-  const failsafe = window.setTimeout(restore, 4000); // never leave content hidden if the observer does not fire
-  const stop = inView(container, () => {
-    window.clearTimeout(failsafe);
-    const a = animate(items, { opacity: [0, 1], transform: ["translateY(14px)", "translateY(0px)"] }, { duration: 0.45, delay: stagger(0.12), ease: "easeOut" });
-    a.finished.then(restore, restore);
-    return undefined;
-  }, { amount: 0.25 });
-  return () => { window.clearTimeout(failsafe); stop(); restore(); };
+  let done = false;
+  let stopView: () => void = () => {};
+  let timer = 0;
+  const restore = () => { items.forEach((el) => { el.style.opacity = ""; el.style.transform = ""; }); };
+  const detach = () => { window.clearTimeout(timer); window.removeEventListener("scroll", onScroll); stopView(); };
+  const reveal = () => {
+    if (done) return;
+    done = true;
+    detach();
+    try {
+      const a = animate(items, { opacity: [0, 1], transform: ["translateY(14px)", "translateY(0px)"] }, { duration: 0.45, delay: stagger(0.1), ease: "easeOut" });
+      a.finished.then(restore, restore);
+      window.setTimeout(restore, 1500); // belt and braces if the animation promise never settles
+    } catch { restore(); }
+  };
+  const onScroll = () => { if (items.some((el) => el.getBoundingClientRect().top < (window.innerHeight || vh) * 1.1)) reveal(); };
+  try { stopView = inView(container, () => { reveal(); return undefined; }, { amount: 0.1 }); } catch { /* no IntersectionObserver */ }
+  window.addEventListener("scroll", onScroll, { passive: true });
+  timer = window.setTimeout(reveal, REVEAL_FAILSAFE_MS);
+  return () => { done = true; detach(); restore(); };
 }
 
 /* ---- (b) scroll-linked storytelling ---- */
