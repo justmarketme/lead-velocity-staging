@@ -1,0 +1,31 @@
+{
+  "_comment": "Site-wide config, compiled into the bundle at build time. n8n_base is the host that serves the five quiz endpoints (/lead /slots /book /lead/skip /beacon) under api_prefix. Empty pixel_id keeps the Meta Pixel inert. Empty turnstile_sitekey keeps the Turnstile slot inert.",
+  "env": "staging",
+  "site_url": "https://sortmycover.co.za",
+  "cookie_domain": "sortmycover.co.za",
+  "campaign_host_suffix": ".sortmycover.co.za",
+  "n8n_base": "https://n8n.leadvelocity.co.za",
+  "api_prefix": "/webhook/smc",
+  "pixel_id": "",
+  "domain_verification": "",
+  "turnstile_sitekey": "",
+  "booking": true,
+  "consent_mode": "generic",
+  "practice_name": "",
+  "fsp_number": "",
+  "whatsapp_number": "",
+  "locale": "en-ZA",
+  "company": {
+    "legal_name": "Lead Velocity (Pty) Ltd",
+    "trading_as": "SortMyCover",
+    "registration": "2025/637858/07",
+    "address_lines": ["210 Amarand Avenue", "Pegasus Building 1", "Menlyn Maine", "Pretoria 0184"],
+    "phone_display": "+27 10 976 5618",
+    "phone_tel": "+27109765618",
+    "email": "hello@sortmycover.co.za",
+    "messenger": "https://m.me/sortmycover",
+    "information_officer": "Jonathan West",
+    "deputy_information_officer": "Kgomotso Pule"
+  },
+  "robots_extra_disallow": []
+}

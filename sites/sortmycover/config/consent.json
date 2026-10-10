@@ -1,0 +1,19 @@
+{
+  "_comment": "Consent wording posted verbatim with every lead. Based on landing/config/consent.json (CONSENT-*-v3). v4-web (10 Oct 2026, DRAFT for practitioner review): the 18+ statement is part of the introduction consent (rule S23); the ad-measurement sentence is a SEPARATE optional unticked consent (rule S22, spec DEC-4). {practice_name}/{fsp_number} only used when site.json consent_mode is named.",
+  "age": "I am 18 or older.",
+  "named": {
+    "version": "CONSENT-NAMED-v4web",
+    "text": "I agree that SortMyCover may share my details with {practice_name} (FSP {fsp_number}), an authorised financial services provider, who may contact me by WhatsApp or phone about insurance and financial planning. I can opt out at any time by replying STOP."
+  },
+  "generic": {
+    "version": "CONSENT-GENERIC-v4web",
+    "text": "I agree that SortMyCover may share my details with an authorised financial services provider (FSP), who may contact me by WhatsApp or phone about insurance and financial planning. I can opt out at any time by replying STOP."
+  },
+  "ads": {
+    "version": "CONSENT-ADS-v2web",
+    "label": "I give",
+    "text": "I give SortMyCover permission to use my details in coded (hashed) form to measure and improve its ads on Facebook and Instagram. It will never use them to send me ads by message. This is optional, and the call does not depend on it."
+  },
+  "link_text": "Privacy notice",
+  "footer_line": "SortMyCover is not a financial services provider and gives no financial advice. It does not compare products or quote premiums."
+}
