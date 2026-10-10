@@ -1,0 +1,576 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm install",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "routes": [
+    {
+      "src": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "(www\\.)?sortmycover\\.com"
+        }
+      ],
+      "status": 301,
+      "headers": {
+        "Location": "https://sortmycover.co.za/$1"
+      }
+    },
+    {
+      "src": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "www\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 301,
+      "headers": {
+        "Location": "https://sortmycover.co.za/$1"
+      }
+    },
+    {
+      "src": "^/about\\.html$",
+      "status": 301,
+      "headers": {
+        "Location": "/about/"
+      }
+    },
+    {
+      "src": "^/book\\.html$",
+      "status": 301,
+      "headers": {
+        "Location": "/book/"
+      }
+    },
+    {
+      "src": "^/how-we-make-money\\.html$",
+      "status": 301,
+      "headers": {
+        "Location": "/how-we-make-money/"
+      }
+    },
+    {
+      "src": "^/complaints\\.html$",
+      "status": 301,
+      "headers": {
+        "Location": "/complaints/"
+      }
+    },
+    {
+      "src": "^/privacy\\.html$",
+      "status": 301,
+      "headers": {
+        "Location": "/privacy/"
+      }
+    },
+    {
+      "src": "^/terms\\.html$",
+      "status": 301,
+      "headers": {
+        "Location": "/terms/"
+      }
+    },
+    {
+      "src": "^/learn/what-is-a-life-cover-gap\\.html$",
+      "status": 301,
+      "headers": {
+        "Location": "/learn/what-is-a-life-cover-gap/"
+      }
+    },
+    {
+      "src": "^/learn/what-happens-on-a-30-minute-call\\.html$",
+      "status": 301,
+      "headers": {
+        "Location": "/learn/what-happens-on-a-30-minute-call/"
+      }
+    },
+    {
+      "src": "^/learn/how-to-read-your-payslips-cover-line\\.html$",
+      "status": 301,
+      "headers": {
+        "Location": "/learn/how-to-read-your-payslips-cover-line/"
+      }
+    },
+    {
+      "src": "^/learn/how-sortmycover-works\\.html$",
+      "status": 301,
+      "headers": {
+        "Location": "/learn/how-sortmycover-works/"
+      }
+    },
+    {
+      "src": "^/learn/life-events-that-change-what-you-need\\.html$",
+      "status": 301,
+      "headers": {
+        "Location": "/learn/life-events/"
+      }
+    },
+    {
+      "src": "^/index\\.html$",
+      "status": 301,
+      "headers": {
+        "Location": "/"
+      }
+    },
+    {
+      "src": "^/learn/index\\.html$",
+      "status": 301,
+      "headers": {
+        "Location": "/learn/"
+      }
+    },
+    {
+      "src": "^/(?:_c/)?new-bond/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://new-bond.sortmycover.co.za/"
+      }
+    },
+    {
+      "src": "^/(?:_c/)?bond-paperwork/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://bond-paperwork.sortmycover.co.za/"
+      }
+    },
+    {
+      "src": "^/(?:_c/)?employer-gap/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://employer-gap.sortmycover.co.za/"
+      }
+    },
+    {
+      "src": "^/(?:_c/)?extended-family/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://extended-family.sortmycover.co.za/"
+      }
+    },
+    {
+      "src": "^/(?:_c/)?myth-bust/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://myth-bust.sortmycover.co.za/"
+      }
+    },
+    {
+      "src": "^/(?:_c/)?new-baby/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://new-baby.sortmycover.co.za/"
+      }
+    },
+    {
+      "src": "^/(?:_c/)?self-employed/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://self-employed.sortmycover.co.za/"
+      }
+    },
+    {
+      "src": "^/(?:_c/)?turned-40/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://turned-40.sortmycover.co.za/"
+      }
+    },
+    {
+      "src": "^/(?:_c/)?virtual/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://virtual.sortmycover.co.za/"
+      }
+    },
+    {
+      "src": "^/(?:_c/)?what-the-call/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://what-the-call.sortmycover.co.za/"
+      }
+    },
+    {
+      "src": "^/(?:_c/)?c13-check-not-buy/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://c13-check-not-buy.sortmycover.co.za/"
+      }
+    },
+    {
+      "src": "/(.*)",
+      "headers": {
+        "Content-Security-Policy": "default-src 'self'; script-src 'self' https://connect.facebook.net https://challenges.cloudflare.com; style-src 'self'; img-src 'self' https://www.facebook.com; font-src 'self'; connect-src 'self' https://n8n.leadvelocity.co.za https://www.facebook.com https://connect.facebook.net; frame-src https://challenges.cloudflare.com; form-action 'self' https://n8n.leadvelocity.co.za; base-uri 'none'; object-src 'none'; frame-ancestors 'none'",
+        "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+        "Strict-Transport-Security": "max-age=31536000",
+        "X-Frame-Options": "DENY"
+      },
+      "continue": true
+    },
+    {
+      "src": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": ".+\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "headers": {
+        "X-Robots-Tag": "noindex, nofollow"
+      },
+      "continue": true
+    },
+    {
+      "src": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": ".*\\.vercel\\.app"
+        }
+      ],
+      "headers": {
+        "X-Robots-Tag": "noindex, nofollow, noarchive"
+      },
+      "continue": true
+    },
+    {
+      "src": "/assets/(.*)",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"
+      },
+      "continue": true
+    },
+    {
+      "src": "/fonts/(.*)",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"
+      },
+      "continue": true
+    },
+    {
+      "src": "/(.*)\\.(png|ico|svg|webmanifest)",
+      "headers": {
+        "Cache-Control": "public, max-age=86400"
+      },
+      "continue": true
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "host",
+          "value": "new-bond\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/new-bond/index.html"
+    },
+    {
+      "src": "^/thanks/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "new-bond\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/new-bond/thanks/index.html"
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "host",
+          "value": "bond-paperwork\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/bond-paperwork/index.html"
+    },
+    {
+      "src": "^/thanks/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "bond-paperwork\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/bond-paperwork/thanks/index.html"
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "host",
+          "value": "employer-gap\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/employer-gap/index.html"
+    },
+    {
+      "src": "^/thanks/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "employer-gap\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/employer-gap/thanks/index.html"
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "host",
+          "value": "extended-family\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/extended-family/index.html"
+    },
+    {
+      "src": "^/thanks/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "extended-family\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/extended-family/thanks/index.html"
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "host",
+          "value": "myth-bust\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/myth-bust/index.html"
+    },
+    {
+      "src": "^/thanks/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "myth-bust\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/myth-bust/thanks/index.html"
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "host",
+          "value": "new-baby\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/new-baby/index.html"
+    },
+    {
+      "src": "^/thanks/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "new-baby\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/new-baby/thanks/index.html"
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "host",
+          "value": "self-employed\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/self-employed/index.html"
+    },
+    {
+      "src": "^/thanks/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "self-employed\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/self-employed/thanks/index.html"
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "host",
+          "value": "turned-40\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/turned-40/index.html"
+    },
+    {
+      "src": "^/thanks/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "turned-40\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/turned-40/thanks/index.html"
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "host",
+          "value": "virtual\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/virtual/index.html"
+    },
+    {
+      "src": "^/thanks/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "virtual\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/virtual/thanks/index.html"
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "host",
+          "value": "what-the-call\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/what-the-call/index.html"
+    },
+    {
+      "src": "^/thanks/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "what-the-call\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/what-the-call/thanks/index.html"
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "host",
+          "value": "c13-check-not-buy\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/c13-check-not-buy/index.html"
+    },
+    {
+      "src": "^/thanks/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "c13-check-not-buy\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/c13-check-not-buy/thanks/index.html"
+    },
+    {
+      "src": "^/(?!assets/|fonts/|thanks(?:/|$)|robots\\.txt$|favicon|apple-touch-icon|icon-|mask-icon|manifest|browserconfig|mstile)(.+)$",
+      "has": [
+        {
+          "type": "host",
+          "value": ".+\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://sortmycover.co.za/$1"
+      }
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "^/([^./]+(?:/[^./]+)*)$",
+      "status": 308,
+      "headers": {
+        "Location": "/$1/"
+      }
+    },
+    {
+      "src": "/(.*)",
+      "status": 404,
+      "dest": "/404.html"
+    }
+  ]
+}
