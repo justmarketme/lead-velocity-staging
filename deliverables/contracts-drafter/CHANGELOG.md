@@ -2,6 +2,19 @@
 
 All documents are **DRAFT — for practitioner review**. Markdown only; PDF rendering is a later step.
 
+## Lead Generation Services Agreement LGSA-v0.3 — 2026-10-10 (Pilot restored)
+
+### Changed (Jonathan's 10 Oct decisions; edit `lead-velocity-services-agreement-v2.md`, then `node make-sources.mjs`)
+- Pilot Plan restored (reverses the 7 Oct withdrawal): R8,500 once-off, 10 Qualified Leads (R850 each), first-time clients only, one introductory cycle, then Bronze or higher. 1.1.24, 9.6, 9.7, S1.3; "minimum Plan is Bronze" removed.
+- Replacements: 3 requests per Calendar Week for every Plan (no separate Pilot cap); an Uncontactable Lead ("couldn't reach them") also earns one, inside the same 3. New definition 1.1.35; 1.1.28, 7.1 to 7.7, 9.7, 14.3(c), S4.3; Schedule 3 rewritten (S3.4 and S3.5 new, S3.1 to S3.3 unchanged). Clause 7 stays goodwill ("may"): "will" vs "may" is open.
+- Refunds of undelivered leads, Top-Up Leads included, at the Effective Lead Price of the Client's Plan (Pilot R850, Bronze R825, Silver R817, Gold R789): 1.1.14, 6.3, 6.6, 11.6, S1.1, S1.2.
+- Notice stays 7 days (11.1). Clauses 8.3 and 8.4 untouched.
+- Tooling: `make-v02-sources.mjs` renamed `make-sources.mjs` (now v0.3, fails if a decided term drops out); `lead-velocity-services-agreement-v0.2-marked.md` renamed `-v0.3-marked.md` (v0.2 was never issued); `build-docx.mjs` footer reads the version from the source and numbers clauses with a letter suffix (1.1.3A).
+- `open-items.md`: sections 6 (decided) and 7 (open questions) added.
+
+### Open
+- `mark-whatsapp-reply.md` and the Mark copy describe v0.1/v0.2 and need redrafting; `node build-docx.mjs mark` already fails on the generic Parties placeholders.
+
 ## Lead Generation Services Agreement LGSA-v0.2 — 2026-10-07 (Mark Weston amendments)
 
 ### Added
