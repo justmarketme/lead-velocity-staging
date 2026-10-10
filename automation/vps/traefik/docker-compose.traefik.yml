@@ -88,13 +88,13 @@ services:
       # Same host as n8n-api, longer rule + explicit priority so these paths take this router. Traefik answers the
       # OPTIONS preflight itself and sets Access-Control-Allow-Origin (overwriting any n8n webhook allowedOrigins value).
       # Origins: PUBLIC_ALLOWED_ORIGINS (comma list, .env) or the production default below (I-37i: no staging subdomain on
-      # production; www.sortmycover.co.za included). Staging values: see .env.example. Never "*", no credentials (cookies) allowed.
+      # production; www.sortmycover.co.za and www.leadvelocity.co.za included). Staging values: see .env.example. Never "*", no credentials (cookies) allowed.
       - traefik.http.routers.n8n-cors.rule=Host(`${API_HOST}`) && (Path(`/webhook/lead`) || Path(`/webhook/slots`) || Path(`/webhook/book`) || Path(`/webhook/billing-autorenew`))
       - traefik.http.routers.n8n-cors.priority=1000
       - traefik.http.routers.n8n-cors.entrypoints=websecure
       - traefik.http.routers.n8n-cors.tls.certresolver=le
       - traefik.http.routers.n8n-cors.middlewares=api-cors,api-ratelimit,sec-headers
-      - traefik.http.middlewares.api-cors.headers.accessControlAllowOriginList=${PUBLIC_ALLOWED_ORIGINS:-https://sortmycover.co.za,https://www.sortmycover.co.za,https://leadvelocity.co.za}
+      - traefik.http.middlewares.api-cors.headers.accessControlAllowOriginList=${PUBLIC_ALLOWED_ORIGINS:-https://sortmycover.co.za,https://www.sortmycover.co.za,https://leadvelocity.co.za,https://www.leadvelocity.co.za}
       - traefik.http.middlewares.api-cors.headers.accessControlAllowMethods=GET,POST,OPTIONS
       - traefik.http.middlewares.api-cors.headers.accessControlAllowHeaders=Content-Type,X-Lead-Token,Authorization
       - traefik.http.middlewares.api-cors.headers.accessControlAllowCredentials=false

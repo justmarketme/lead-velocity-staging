@@ -285,7 +285,7 @@ select public.smc_vault_store_paystack_sub(nullif($1, ''), nullif($2, ''), nulli
 from ${T.BR} b where b.paystack_customer_code = $1 and i.broker_id = b.id and i.status = 'issued';`, '={{ [$json.customer_code || "", $json.reason || ""] }}'), { v: 2.5, row: 1, col: 8, credentials: PG });
 
   // --- E. Checkout: start a Paystack payment for an invoice (called by billing/checkout/checkout.js)
-  const coHook = w.add('n8n-nodes-base.webhook', 'Checkout: POST /billing/checkout', { httpMethod: 'POST', path: 'billing/checkout', responseMode: 'responseNode', options: { allowedOrigins: 'https://leadvelocity.co.za' } }, { v: 2, row: 8, col: 0, webhookId: 'smc-billing-checkout' });
+  const coHook = w.add('n8n-nodes-base.webhook', 'Checkout: POST /billing/checkout', { httpMethod: 'POST', path: 'billing/checkout', responseMode: 'responseNode', options: { allowedOrigins: 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' } }, { v: 2, row: 8, col: 0, webhookId: 'smc-billing-checkout' });
   const coLoad = w.add('n8n-nodes-base.postgres', 'Checkout: load invoice + pricing', sql(`select json_build_object('invoice', (select row_to_json(i) from (select i.id, i.reference, i.status, i.tier_code, i.broker_id, i.cycle_id, i.due_at, round(i.total_zar*100)::bigint as total_cents,
   round(i.credit_applied_zar*100)::bigint as credit_cents, i.charge_attempts as attempts, b.email, b.billing_ref from ${T.INV} i join ${T.BR} b on b.id = i.broker_id where i.reference = $1) i),
   'pricing', (select json_agg(p) from ${T.PR} p), 'taken', coalesce((select json_agg(reference) from ${T.INV} x where x.broker_id = (select broker_id from ${T.INV} where reference = $1) and x.status <> 'void'), '[]')) as ctx;`,
@@ -327,7 +327,7 @@ on conflict (reference) do nothing;`, '={{ [$json.old_reference, $json.reissue ?
   // --- F. NH-61 cycle-1 path: Jonathan's one-tap "Payment received" in the console (Bearer Supabase JWT, admin only).
   // One bank_credits row (source 'manual', amount = invoice total), then the SAME chain as every other rail: Match credit ->
   // Normalise payment.received -> Mark invoice paid + create cycle. No new table, column or function.
-  const tapHook = w.add('n8n-nodes-base.webhook', 'Console: POST /billing/payment-received', { httpMethod: 'POST', path: 'billing/payment-received', responseMode: 'responseNode', options: { allowedOrigins: 'https://leadvelocity.co.za' } }, { v: 2, row: 10, col: 0, webhookId: 'smc-billing-payment-received' });
+  const tapHook = w.add('n8n-nodes-base.webhook', 'Console: POST /billing/payment-received', { httpMethod: 'POST', path: 'billing/payment-received', responseMode: 'responseNode', options: { allowedOrigins: 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' } }, { v: 2, row: 10, col: 0, webhookId: 'smc-billing-payment-received' });
   const tapAuth = w.add('n8n-nodes-base.code', 'Tap: verify admin JWT + body', code(`
 const r = BILLING['manual-paid'].parsePaymentReceivedRequest({ headers: $json.headers || {}, body: $json.body || {} }, { jwtSecret: $env.SUPABASE_JWT_SECRET });
 return [{ json: r }];
@@ -696,7 +696,7 @@ return $input.all().map((i) => i.json).filter((r) => r && r.action === 'come_bac
   const backMail = w.add('n8n-nodes-base.microsoftOutlook', "Email: 'come back any time' from howzit@", { resource: 'message', operation: 'send', toRecipients: W19_MAIL_TO, subject: 'SortMyCover: start again any time', bodyContent: W19_MAIL_HTML('$json.text'), additionalFields: { bodyContentType: 'html' } }, { v: 2, row: 7, col: 6, credentials: OUTLOOK });
 
   // --- I-30e: portal "Switch off" card auto-renew (Bearer Supabase JWT; off only; opt-in happens at checkout)
-  const arHook = w.add('n8n-nodes-base.webhook', 'Portal: POST /billing-autorenew', { httpMethod: 'POST', path: 'billing-autorenew', responseMode: 'responseNode', options: { allowedOrigins: "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za' }}" } }, { v: 2, row: 8, col: 0, webhookId: 'smc-billing-autorenew' });
+  const arHook = w.add('n8n-nodes-base.webhook', 'Portal: POST /billing-autorenew', { httpMethod: 'POST', path: 'billing-autorenew', responseMode: 'responseNode', options: { allowedOrigins: "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}" } }, { v: 2, row: 8, col: 0, webhookId: 'smc-billing-autorenew' });
   const arAuth = w.add('n8n-nodes-base.code', 'Autorenew: verify broker JWT + body', code(`
 const r = BILLING.autorenew.parseAutorenewRequest({ headers: $json.headers || {}, body: $json.body || {} }, { jwtSecret: $env.SUPABASE_JWT_SECRET });
 return [{ json: r }];

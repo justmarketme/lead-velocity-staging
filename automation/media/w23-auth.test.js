@@ -23,7 +23,7 @@ function run(name, headers, body, env = { SUPABASE_JWT_SECRET: SECRET }) {
 }
 const BOTH = [['Verify broker JWT (upload)', 'Portal upload confirmed (browser, Bearer JWT)'], ['Verify broker JWT (approve)', 'Approve webhook (browser, Bearer JWT)']];
 
-const ORIGINS = "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za' }}"; // I-37b
+const ORIGINS = "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"; // I-37b
 test('both browser endpoints: no header auth credential, no cookie, respond via node, CORS pinned to the portal origin', () => {
   for (const [, hook] of BOTH) {
     const p = node(hook).parameters;
