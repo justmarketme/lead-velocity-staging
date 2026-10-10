@@ -1,0 +1,38 @@
+[
+  {
+    "id": "own-privacy-notice",
+    "claim": "Retention and response periods stated in SortMyCover's own privacy notice (12 months after last contact; 24 hours for entries outside the criteria; 30 days to answer a rights request; 48 hours to reply to a complaint).",
+    "publisher": "SortMyCover",
+    "url": "https://sortmycover.co.za/privacy/",
+    "month": "2026-10",
+    "status": "usable",
+    "note": "Policy statements, not statistics. Source of truth is landing/holding/privacy.html (PN-v1.1, draft for practitioner review). Update this entry if the notice changes."
+  },
+  {
+    "id": "sanlam-benchmark-2025",
+    "claim": "Employer death-benefit and disability-benefit averages by fund type from the Sanlam Benchmark 2025.",
+    "publisher": "Sanlam",
+    "url": "https://downloads.ctfassets.net/irc191ur4uh4/4pwVi3oSbuZq9rVLWxqd57/64c0aa22de7f9a864bc2cb364df21812/The-Sanlam-Benchmark-2025-Insights-Report-Final.pdf",
+    "month": "2025-01",
+    "status": "hold",
+    "note": "HOLD. ARB 4.1.3 and 4.1.4 unchecked: Sanlam is an insurer and BDRC Africa's accreditation is unconfirmed. Do not use in article text."
+  },
+  {
+    "id": "asisa-true-south-2025",
+    "claim": "ASISA / True South 2025 study of the life cover gap.",
+    "publisher": "ASISA / True South",
+    "url": "https://www.asisa.org.za/media/flqnz0g0/true-south-asisa-gap-study-2025-final-v2.pdf",
+    "month": "2025-01",
+    "status": "hold",
+    "note": "HOLD. Never as a per-person figure. Do not use in article text until the primary document is filed and checked."
+  },
+  {
+    "id": "genesis-2007",
+    "claim": "Treasury-commissioned group risk research reporting death benefits of 2 to 3 times annual salary and a 3.2 times average.",
+    "publisher": "Genesis Analytics for National Treasury",
+    "url": "https://www.treasury.gov.za/publications/other/ssrr/session%20one%20papers/group%20risk%20benefits%20-%20genesis%20report%2020071018.pdf",
+    "month": "2007-10",
+    "status": "hold",
+    "note": "HOLD. STALE-RISK: 19 years old (ARB 4.1.2 needs up-to-date evidence). Do not use in article text."
+  }
+]
