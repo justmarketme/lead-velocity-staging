@@ -11,6 +11,7 @@ All documents are **DRAFT — for practitioner review**. Markdown only; PDF rend
 - D11 and D12 lawyer notes corrected; D10 row added to the change log. 8.3, 8.4 and 6.1 untouched (open-items.md section 7, questions 7 and 9).
 - `make-sources.mjs` fails if these drop out; `src/lib/contract/agreement.ts` warns when the 1.1.14 prices, the weekly cap or an S1.3 Plan row drift from `pricing.seed.json`. `build-docx.mjs`: the two Silver and Gold substitutions for the old placeholders are gone.
 - `open-items.md`: questions 9 and 10, and section 8 (what this pass fixed, and the system work it deliberately did not do).
+- Outside the agreement: no broker-facing surface prints the internal per-cycle replacement cap any more (portal, W25 tier cards, checkout, the W14 weekly report and the W19 cycle-end WhatsApp line); the engine still enforces it silently (open-items.md section 8, item 1).
 
 ## Lead Generation Services Agreement LGSA-v0.3 — 2026-10-10 (Pilot restored)
 

@@ -184,11 +184,11 @@ from facts.fact_outcome where (marked_at at time zone 'Africa/Johannesburg')::da
 ```
 
 ## M14 Replacements used
-- **Means:** How many replacement leads the adviser has used this cycle against his plan's allowance.
-- **Target and why:** At or under the cap: Bronze 4, Silver 6, Gold 9 per cycle (0.1). The cap is what the pricing assumes; only 'unreachable' and 'outside criteria' open a replacement, never 'did not buy' (2.1).
-- **If it moves:** Near the cap: check whether one angle or one source causes them. Over the cap is a contract decision, never automatic.
+- **Means:** How many replacement leads the adviser has used this cycle. The broker sees the count only; Lead Velocity compares it with an internal allowance.
+- **Target and why:** At or under the internal costing allowance: Bronze 4, Silver 6, Gold 9 per cycle (3.5, about 20% of committed leads; not a promise to the broker). The published rule is goodwill, up to 3 requests a calendar week on every plan, for no-shows and uncontactable leads, never 'did not buy' (0.1; agreement clause 7.2).
+- **If it moves:** Near the allowance: check whether one angle or one source causes them. Over it is a contract decision, never automatic.
 - **Tooltip (jargon):** Replacement claims; credit rate.
-- **Shown on:** Broker report (traffic light); LV weekly
+- **Shown on:** Broker report (count only, no cap or light); LV weekly (used of allowance)
 - **SQL:**
 
 ```sql
