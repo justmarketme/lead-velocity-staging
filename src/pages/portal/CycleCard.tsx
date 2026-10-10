@@ -8,11 +8,13 @@ import { useState } from "react";
 import { usePortal } from "./PortalShell";
 import { Sheet } from "./MeetingParts";
 import { addDays, errText, fmtDay, portalEvent } from "@/lib/smc";
-import { TERMS, TOPUP, VAT_NOTE, zar } from "@/lib/pricing";
+import { TERMS, TOPUP, TOPUP_REFUND_NOTE, VAT_NOTE, tierByCode, zar } from "@/lib/pricing";
 import { clampTopup, cyclePace, topupEarliestStart } from "@/lib/smcRules";
 import { useCycle } from "@/lib/smcPortal";
 
-export function TopUpSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+/** tierCode = the cycle's tier_code (e.g. the Bronze plan's code). Undefined or unknown: the refund line is left out rather than guessed. */
+export function TopUpSheet({ open, onClose, tierCode }: { open: boolean; onClose: () => void; tierCode?: string | null }) {
+  const tier = tierCode ? tierByCode(tierCode) : undefined;
   const [qty, setQty] = useState(TOPUP.min_leads);
   const [sent, setSent] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -34,6 +36,7 @@ export function TopUpSheet({ open, onClose }: { open: boolean; onClose: () => vo
       </div>
       <p className="total"><b>{zar(qty * TOPUP.price_per_lead_zar)}</b> <span className="small">{VAT_NOTE}</span></p>
       <p className="small">Starts {fmtDay(start)} at the earliest: we need {TOPUP.notice_days} days' notice to scale your campaigns, or later if payment clears after that. Same rules as your plan: rollover and goodwill replacements apply.</p>
+      {tier && <p className="small">{TOPUP_REFUND_NOTE(tier)}</p>}
       {sent ? <p className="next-slot" role="status"><span>✓</span><span>{sent}</span></p>
         : <button className="btn" type="button" disabled={busy} onClick={send}>{busy ? "Sending…" : `Request ${qty} more leads`}</button>}
     </Sheet>
@@ -69,12 +72,12 @@ export default function CycleCard({ showRequests = true }: { showRequests?: bool
       </div>
       <p className={`status s-${pace.status}`}>{line}</p>
       <p className="small">Day {pace.day} of {pace.daysTotal}{ends ? ` · ${prog.status === "extended" ? "extended to" : "renews"} ${fmtDay(ends)}` : ""} · {prog.booked} booked · {prog.attended} met</p>
-      {showRequests && <p className="small">No-show replacement requests this week: <b>{data.requestsThisWeek} of {data.weeklyMax}</b> (goodwill, resets Monday)</p>}
+      {showRequests && <p className="small">Replacement requests this week: <b>{data.requestsThisWeek} of {data.weeklyMax}</b> (no-shows and leads you couldn't reach, together; goodwill; resets Monday)</p>}
       {pace.status === "complete" && (
         <>
           <p className="small" style={{ marginBottom: 8 }}>Want more this cycle? Top up with {TOPUP.min_leads} or more.</p>
           <button className="btn" type="button" onClick={() => setTopup(true)}>Top up</button>
-          <TopUpSheet open={topup} onClose={() => setTopup(false)} />
+          <TopUpSheet open={topup} onClose={() => setTopup(false)} tierCode={prog.tier_code} />
         </>
       )}
     </section>

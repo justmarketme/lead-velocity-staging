@@ -4,13 +4,14 @@
  * Every read is the broker's own rows by RLS (brokers.user_id = auth.uid(), smc_05).
  *
  * Feedback firewall (agreement clause 8.4): the only thing written about a meeting is outcomes.outcome
- * (attended / no_show / unreachable / rescheduled). Nothing else about the meeting is ever sent.
+ * (attended / no_show / unreachable / rescheduled). Nothing else about the meeting is ever sent. A no-show and a lead
+ * you couldn't reach can both come with a goodwill replacement REQUEST (proof, 10-30 min, one weekly counter of 3).
  */
 import { useEffect } from "react";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { errText, MEDIA_BUCKET, portalEvent, smcDb } from "@/lib/smc";
 import { TERMS } from "@/lib/pricing";
-import { MARKS, markLabel, requestsThisWeek, weekStartSast, type MarkKind } from "@/lib/smcRules";
+import { MARKS, markLabel, replacementKindOf, requestsThisWeek, weekStartSast, type MarkKind, type ReplacementKind } from "@/lib/smcRules";
 import type { SmcBooking, SmcCycleProgress, SmcLead, SmcOutcome, SmcReplacement } from "@/integrations/supabase/smc-types";
 
 const STALE = 60_000;
@@ -110,7 +111,7 @@ export function groupMeetings(m: Meetings | undefined, now = Date.now()) {
   const live = (b: SmcBooking) => ["booked", "confirmed"].includes(b.status);
   const toMark = bookings
     .filter((b) => Date.parse(b.starts_at) <= now && ["booked", "confirmed", "attended", "no_show"].includes(b.status) && (!outcomes[b.id] || outcomes[b.id].unconfirmed || outcomes[b.id]._pending))
-    .filter((b) => endOf(b) < now || Date.parse(b.starts_at) + 10 * 60e3 <= now) // from start + 10 min a no-show can be marked
+    .filter((b) => endOf(b) < now || Date.parse(b.starts_at) + 10 * 60e3 <= now) // from start + 10 min a no-show / couldn't-reach can be marked
     .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at));
   const upcoming = bookings.filter((b) => live(b) && endOf(b) >= now && !toMark.includes(b)).sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at));
   const notReached = Object.values(outcomes).filter((o) => o.lead_reach_check === "no" && o.outcome !== "unreachable");
@@ -190,30 +191,39 @@ export function markMeeting(qc: QueryClient, brokerId: string, userId: string, b
   };
 }
 
-// ---------------------------------------------------------------- no-show proof (R4, Schedule 3)
+// ---------------------------------------------------------------- replacement request with proof (R4, Schedule 3)
 export type ProofResult = { ok: true; via: "rpc" | "event" } | { ok: false; reason: "too_early" | "too_late" | "weekly_max" | "already_requested" | "error"; msg: string };
 
+/** PostgREST "function not found" (PGRST202) or Postgres undefined_function (42883): the migration is not applied yet. */
+const fnMissing = (e: unknown) => { const c = (e as { code?: string } | null)?.code || ""; return c === "PGRST202" || c === "42883"; };
+
 /**
- * Upload the photo/screenshot to the private broker-media bucket (<broker_id>/noshow-proof/…, smc_09 policy) and ask
- * for a goodwill replacement through smc_request_noshow_replacement (migration smc_18), which also marks the
- * meeting No-show and enforces the 10–30 min window and the weekly maximum server-side. Before that migration is
- * applied the request is recorded as a portal event (lead_activities) with the proof path, and the outcome is written.
+ * Upload the photo/screenshot to the private broker-media bucket (<broker_id>/noshow-proof/…, smc_09 policy; the prefix
+ * is the same for both kinds, the kind is in the file name) and ask for a goodwill replacement. A no-show and a lead
+ * the broker couldn't reach are handled alike: the same 10–30 min window and ONE weekly maximum of 3 requests.
+ *
+ * Call order: RPC smc_request_replacement(p_booking_id, p_proof_path, p_kind) (migration smc_20), which also records the
+ * answer (No-show / Couldn't reach them) and enforces the window and the weekly maximum server-side. If it is not
+ * deployed yet: a no-show falls back to smc_request_noshow_replacement (migration smc_18); and if that is missing too
+ * (or the kind is "unreachable"), the answer is written and the request is recorded as a portal event
+ * (lead_activities) with the proof path, for Lead Velocity to decide.
  */
-export async function sendNoShowProof(qc: QueryClient, brokerId: string, userId: string, b: SmcBooking, file: File): Promise<ProofResult> {
+export async function sendReplacementProof(qc: QueryClient, brokerId: string, userId: string, b: SmcBooking, file: File, kind: ReplacementKind): Promise<ProofResult> {
   const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
-  const path = `${brokerId}/noshow-proof/${b.id}-${Date.now()}.${ext}`;
+  const path = `${brokerId}/noshow-proof/${b.id}-${kind === "unreachable" ? "unreachable" : "noshow"}-${Date.now()}.${ext}`;
   const up = await smcDb.storage.from(MEDIA_BUCKET).upload(path, file, { contentType: file.type || "image/jpeg", upsert: false });
   if (up.error) return { ok: false, reason: "error", msg: `The photo didn't upload: ${errText(up.error)}. Try again.` };
-  const { data, error } = await smcDb.rpc("smc_request_noshow_replacement", { p_booking_id: b.id, p_proof_path: path });
+  let res = await smcDb.rpc("smc_request_replacement", { p_booking_id: b.id, p_proof_path: path, p_kind: kind });
+  if (res.error && fnMissing(res.error) && kind === "no_show") res = await smcDb.rpc("smc_request_noshow_replacement", { p_booking_id: b.id, p_proof_path: path });
+  const { data, error } = res;
   let via: "rpc" | "event" = "rpc";
   if (error) {
-    const code = (error as { code?: string }).code || "";
-    if (code !== "PGRST202" && code !== "42883") return { ok: false, reason: "error", msg: `Not sent: ${errText(error)}` };
-    // RPC not deployed yet: write the No-show and record the request with its proof for Lead Velocity to decide.
+    if (!fnMissing(error)) return { ok: false, reason: "error", msg: `Not sent: ${errText(error)}` };
+    // No request function deployed yet: write the answer and record the request with its proof for Lead Velocity to decide.
     const existing = qc.getQueryData<Meetings>(qk.meetings(brokerId))?.outcomes[b.id];
-    const err = await writeMark(b, "no_show", { brokerId, userId, existing: existing && !existing.id.startsWith("pending-") ? existing : undefined });
+    const err = await writeMark(b, kind, { brokerId, userId, existing: existing && !existing.id.startsWith("pending-") ? existing : undefined });
     if (err) return { ok: false, reason: "error", msg: err };
-    await portalEvent("outcome.marked", null, { booking_id: b.id, outcome: "no_show", replacement_request: true, proof_path: path, proof_sent_at: new Date().toISOString() });
+    await portalEvent("outcome.marked", null, { booking_id: b.id, outcome: kind, kind, replacement_request: true, proof_path: path, proof_sent_at: new Date().toISOString() });
     via = "event";
   } else {
     const r = data as { ok?: boolean; reason?: string; used?: number; max?: number } | null;
@@ -231,13 +241,15 @@ export async function sendNoShowProof(qc: QueryClient, brokerId: string, userId:
   void qc.invalidateQueries({ queryKey: ["smc", "lead", brokerId, b.lead_id] });
   return { ok: true, via };
 }
+/** The no-show request, as it was before couldn't-reach could ask too. Prefer sendReplacementProof. */
+export const sendNoShowProof = (qc: QueryClient, brokerId: string, userId: string, b: SmcBooking, file: File) => sendReplacementProof(qc, brokerId, userId, b, file, "no_show");
 
 // ---------------------------------------------------------------- lead record (R11)
 export interface TimelineEvent { at: string; text: string; strong?: boolean; tone?: "ok" | "warn" }
 export interface LeadRecord { lead: (SmcLead & { consent_at?: string | null }) | null; bookings: SmcBooking[]; outcomes: SmcOutcome[]; reps: SmcReplacement[]; acts: { activity_type: string; occurred_at: string; payload: Record<string, unknown> | null }[] }
 
 /** Timeline events the broker may see. Anything else in lead_activities (themes, retired feedback) is never read. */
-const ACTS = ["booking_confirmed", "reminder_done", "precall_brief_sent", "missed_you", "reschedule_requested", "opted_out", "noshow_proof_sent", "replacement_approved", "rebooked_after_no_show"];
+const ACTS = ["booking_confirmed", "reminder_done", "precall_brief_sent", "missed_you", "reschedule_requested", "opted_out", "noshow_proof_sent", "unreachable_proof_sent", "replacement_approved", "rebooked_after_no_show"];
 
 async function fetchLead(brokerId: string, id: string): Promise<LeadRecord> {
   const [{ data: l }, { data: bk }, { data: os }, { data: rp }, { data: ac }] = await Promise.all([
@@ -285,7 +297,9 @@ export function buildTimeline(r: LeadRecord, fmt: (ts: string) => string, method
     ev.push({ at: o.marked_at, text: o.outcome === "broker_no_show" ? markLabel(o.outcome) : who, tone: o.outcome === "attended" ? "ok" : undefined });
   }
   for (const x of r.reps.filter((x) => x.lead_id === l.id)) {
-    ev.push({ at: x.proof_sent_at || x.claimed_at, text: x.proof_path ? "No-show proof sent: replacement requested" : "Replacement requested" });
+    // The wording follows what the request was for: replacements.reason ('no_show' | 'uncontactable').
+    const what = replacementKindOf(x) === "unreachable" ? "couldn't reach them" : "no-show";
+    ev.push({ at: x.proof_sent_at || x.claimed_at, text: x.proof_path ? `Proof sent (${what}): replacement requested` : "Replacement requested" });
     if (x.status === "approved" || x.status === "fulfilled") ev.push({ at: x.decided_at || x.claimed_at, text: "Replacement request approved (goodwill)", tone: "ok" });
     if (x.status === "rejected") ev.push({ at: x.decided_at || x.claimed_at, text: "Replacement request declined: the lead counts as delivered", tone: "warn" });
   }

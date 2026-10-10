@@ -127,7 +127,7 @@ function Body() {
           <li>One flat price per cycle, never linked to policies, premiums or sales. No commission, ever.</li>
           <li>Month to month. Cancel with {TERMS.cancel_notice_days} days' written notice before your next cycle. If you don't pay for the next cycle, the agreement simply ends.</li>
           <li>We won't give the same consumer's enquiry to another broker. We keep the campaign data, pages, ad accounts and consent records.</li>
-          <li>No-show replacements are goodwill, not a right: no-shows only, up to {TERMS.goodwill_replacements_per_week} requests a week, with proof sent within 30 minutes of the start time.</li>
+          <li>Replacements are goodwill, not a right. After a no-show or a lead you couldn't reach you can ask, up to {TERMS.goodwill_replacements_per_week} requests a week in total, with proof sent within 30 minutes of the start time. A replacement is free, and the missed lead still counts as delivered.</li>
           <li>You tell us only whether each lead attended and could be reached. Nothing about advice, sales, policies or premiums.</li>
           <li>Shortfall: we deliver the balance within {TERMS.shortfall_rollover_days} days after the cycle. Anything still owed carries into your next paid cycle, or is refunded if you stop.</li>
         </ul>
@@ -205,7 +205,7 @@ function Body() {
         <h3 style={{ marginTop: 12 }}>Need more leads this cycle?</h3>
         <p className="muted" style={{ margin: "0 0 8px" }}>{TOPUP_TEXT}</p>
         <button className="btn ghost" type="button" onClick={() => setTopup(true)}>Request a top-up</button>
-        <TopUpSheet open={topup} onClose={() => setTopup(false)} />
+        <TopUpSheet open={topup} onClose={() => setTopup(false)} tierCode={cur?.tier_code || broker.tier_code} />
         {err && signed && <p className="err">{err}</p>}
       </section>
     </>

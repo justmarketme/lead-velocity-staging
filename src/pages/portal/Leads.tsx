@@ -12,7 +12,7 @@ import PortalShell, { StepClip, usePortal } from "./PortalShell";
 import CycleCard from "./CycleCard";
 import { MarkButtons, useNow } from "./MeetingParts";
 import { AGE_LABEL, BUDGET_LABEL, CLIPS_BASE, fmtDay, fmtTime, methodLabel } from "@/lib/smc";
-import { markLabel } from "@/lib/smcRules";
+import { markLabel, replacementKindOf } from "@/lib/smcRules";
 import { fullName, groupMeetings, shortName, useCycle, useMeetings } from "@/lib/smcPortal";
 import type { SmcBooking } from "@/integrations/supabase/smc-types";
 
@@ -44,7 +44,7 @@ function Body() {
   const list: SmcBooking[] = filter === "needs" ? g.toMark
     : filter === "upcoming" ? g.upcoming
     : (data?.bookings || []).filter((b) => Date.parse(b.starts_at) >= cycleStart).sort((a, b) => Date.parse(b.starts_at) - Date.parse(a.starts_at));
-  const reps = (data?.reps || []).filter((r) => r.reason === "no_show" || r.proof_path);
+  const reps = (data?.reps || []).filter((r) => replacementKindOf(r) || r.proof_path);
 
   const status = (b: SmcBooking) => {
     const o = outcomes[b.id];
@@ -85,10 +85,10 @@ function Body() {
       )}
 
       <section className="card" id="replacements">
-        <h3>No-show replacements</h3>
-        <p className="muted" style={{ margin: "4px 0 6px" }}>Replacements are goodwill, not a right. No-shows only, up to {cyc?.weeklyMax ?? 3} requests a week. Wait 10 minutes, then send a photo or screenshot within 30 minutes of the start time. Late or no proof: the lead counts as delivered. <Link to="/broker/help#replacements">Read more</Link></p>
-        <p className="small">Requests this week: <b>{cyc?.requestsThisWeek ?? 0} of {cyc?.weeklyMax ?? 3}</b> (resets Monday)</p>
-        {reps.map((r) => <div key={r.id} className="need-row"><span>{shortName(leads[r.lead_id])} · {fmtDay(r.missed_start_at || r.claimed_at)}</span><span className={`st${r.status === "approved" || r.status === "fulfilled" ? " ok" : ""}`}>{REP_STATUS[r.status] || r.status}</span></div>)}
+        <h3>Replacements</h3>
+        <p className="muted" style={{ margin: "4px 0 6px" }}>Replacements are goodwill, not a right. You can ask after a no-show or a lead you couldn't reach, up to {cyc?.weeklyMax ?? 3} requests a week in total. Wait 10 minutes, then send a screenshot or photo within 30 minutes of the start time. Late or no proof: the lead counts as delivered. <Link to="/broker/help#replacements">Read more</Link></p>
+        <p className="small">Requests this week: <b>{cyc?.requestsThisWeek ?? 0} of {cyc?.weeklyMax ?? 3}</b> (no-shows and leads you couldn't reach, together; resets Monday)</p>
+        {reps.map((r) => <div key={r.id} className="need-row"><span>{shortName(leads[r.lead_id])} · {replacementKindOf(r) === "unreachable" ? "couldn't reach them" : "no-show"} · {fmtDay(r.missed_start_at || r.claimed_at)}</span><span className={`st${r.status === "approved" || r.status === "fulfilled" ? " ok" : ""}`}>{REP_STATUS[r.status] || r.status}</span></div>)}
       </section>
       <StepClip title="marking meetings" length="0:35" file={`${CLIPS_BASE}/outcomes.mp4`} />
     </>

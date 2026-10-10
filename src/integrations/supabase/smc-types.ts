@@ -84,12 +84,14 @@ export type SmcBrokerSelfUpdate = Partial<Pick<SmcBroker,
 
 export interface SmcPricing {
   tier_code: string; brand_id: Uuid | null; name: string; price_zar: number; committed_leads: number;
+  /** LEGACY (0.1 per-cycle cap): kept for history, drives nothing. Replacements are max 3 requests per Calendar Week (clause 7.2). */
   replacement_cap_cycle: number; media_share_zar: number; vat_rate: number | null; sort_order: number;
   active_from: DateStr; active_to: DateStr | null; ref_code?: string | null;
 }
 
 export interface SmcCycle {
   id: Uuid; broker_id: Uuid; brand_id: Uuid; tier_code: string; cycle_no: number; previous_cycle_id: Uuid | null;
+  /** replacement_cap: LEGACY per-cycle cap, drives nothing (see SmcPricing.replacement_cap_cycle). */
   price_zar: number; committed_leads: number; replacement_cap: number; media_share_zar: number;
   starts_at: Ts | null; ends_at: Ts | null; extended_until: Ts | null;
   status: "scheduled" | "active" | "extended" | "closed" | "not_renewed";
@@ -133,6 +135,12 @@ export interface SmcReplacement {
   reason: "no_show" | "uncontactable" | "disqualified"; status: "due" | "disputed" | "approved" | "rejected" | "fulfilled";
   claimed_at: Ts; dispute_window_ends_at: Ts; cap_position: number | null; over_cap: boolean;
   decided_at?: Ts | null; replacement_lead_id?: Uuid | null;
+  /**
+   * Portal / WhatsApp requests (Schedule 3): reason 'no_show' + 'schedule3_proof' for a no-show, reason 'uncontactable'
+   * + 'schedule3_proof_unreachable' for a lead the broker couldn't reach. cap_position / over_cap count the shared
+   * Calendar Week (max 3, both kinds together), not the cycle.
+   */
+  reason_code?: string | null;
   /** migration 20261006_smc_18 (Schedule 3); undefined until applied. */
   booking_id?: Uuid | null; missed_start_at?: Ts | null; proof_path?: string | null; proof_sent_at?: Ts | null;
 }
@@ -224,6 +232,7 @@ export interface SmcReportPayload {
 export interface SmcCycleProgress {
   cycle_id: Uuid; broker_id: Uuid; brand_id: Uuid; tier_code: string; cycle_no: number; status: SmcCycle["status"];
   starts_at: Ts | null; ends_at: Ts | null; extended_until: Ts | null; committed: number; verified: number;
+  /** replacements_used / replacement_cap are the LEGACY per-cycle count and cap: history only, the portal does not show them. */
   booked: number; attended: number; replacements_used: number; replacement_cap: number; days_left: number;
   /** migration 20261006_smc_18: clause 5.2 delivered + weekly replacement requests. Undefined until applied. */
   delivered?: number; replacement_requests_this_week?: number; replacement_weekly_max?: number;

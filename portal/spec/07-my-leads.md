@@ -3,13 +3,13 @@
 **Route:** `/broker/leads` (default landing once `active`). **Prototype:** `portal/prototype/leads.html`. **Inspired by:** Intercom/Appcues (the next action is obvious and short), Lemonade (one tap, says what it did). Extends `BrokerLeads.tsx` (crm-gap B2); legacy lead views stay for legacy brokers.
 
 ## Sections (top to bottom, same order always)
-1. **Your cycle** (`v_cycle_progress`): "{delivered} of {committed} delivered . day {d} of {n}", progress bar, "booked . attended (show rate, target 65%) . replacements {used} of {cap}". Traffic light only on show rate and replacements.
+1. **Your cycle** (`v_cycle_progress`): "{delivered} of {committed} delivered . day {d} of {n}", progress bar, "booked . attended (show rate, target 65%) . replacement requests this week {n} of 3". Traffic light only on show rate. There is no per-cycle replacement cap: replacements are goodwill, max 3 requests per Calendar Week, no-shows and leads the adviser could not reach together (agreement clause 7; 10 Oct 2026).
 2. **Today: {n} meetings.** One row per booking: time, lead full name (inside the portal only), method, language, age band, budget band, **Brief** button. Join link (Teams/Meet/Zoom) or "Number to call" only where the method is a call method (as in the `precall_brief` template).
 3. **Pre-call brief** (expands in place; same content as the WhatsApp `precall_brief` T-15): what the lead asked before the call, preferences (method, best time, language), contact number for call methods, bond/dependants answers if given, and "Has a health question for you." when flagged. **Never the health detail or any ID number** (2.1.7). A "Not my kind of lead" link is not offered (replacements run through dispositions only).
 4. **Meetings to mark** (the disposition flow below), unconfirmed ones first.
 5. **Leads who said they weren't reached** (W12 lead side "No, not yet"): a flagged row "{First name L.} says they haven't heard from you. Please call today." with a "Called" button. Feeds the report's to-dos.
 6. **Coming up** (next 7 days) and **Past** (this cycle, with outcome, disposition, rating).
-7. **Replacements** (read-only): used of cap; each replacement with its state (`due / disputed / approved / fulfilled`). "What counts as a replacement" link to Help.
+7. **Replacements** (read-only): requests this week (n of 3, no-shows and couldn't-reach together); each replacement request with its state (`due / disputed / approved / fulfilled`). "What counts as a replacement" link to Help.
 
 ## The mark-an-outcome flow (4.12a; same words in the portal, WhatsApp, CRM and Schedule C; NH-19 label set)
 Max 3 taps plus an optional note; under 20 s.
