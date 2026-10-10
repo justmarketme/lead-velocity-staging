@@ -865,7 +865,7 @@
     "path": "billing-autorenew",
     "responseMode": "responseNode",
     "options": {
-     "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za' }}"
+     "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"
     }
    },
    "webhookId": "smc-billing-autorenew"

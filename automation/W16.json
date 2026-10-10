@@ -1096,7 +1096,7 @@
     "path": "billing/checkout",
     "responseMode": "responseNode",
     "options": {
-     "allowedOrigins": "https://leadvelocity.co.za"
+     "allowedOrigins": "https://leadvelocity.co.za,https://www.leadvelocity.co.za"
     }
    },
    "webhookId": "smc-billing-checkout"
@@ -1287,7 +1287,7 @@
     "path": "billing/payment-received",
     "responseMode": "responseNode",
     "options": {
-     "allowedOrigins": "https://leadvelocity.co.za"
+     "allowedOrigins": "https://leadvelocity.co.za,https://www.leadvelocity.co.za"
     }
    },
    "webhookId": "smc-billing-payment-received"
