@@ -506,7 +506,7 @@ test('I-45j .ics format: UTC DTSTART/DTEND, UID from the booking id, METHOD:PUBL
   const r = W5.icsResponse(icsRow(), { adviser: 'Mark Smith' });
   assert.equal(r.headers['Content-Type'], 'text/calendar; charset=utf-8');
   assert.match(r.body, /^BEGIN:VCALENDAR\r\nVERSION:2\.0\r\n/);
-  for (const line of ['METHOD:PUBLISH', `UID:${ICS_ID}@sortmycover.co.za`, 'DTSTART:20261008T073000Z', 'DTEND:20261008T080000Z', 'DTSTAMP:20261005T100000Z', 'STATUS:CONFIRMED', 'SUMMARY:Life cover call with Mark', 'DESCRIPTION:Join: https://teams.example.test/j/1']) assert.ok(r.body.split('\r\n').includes(line.replace(/[,;]/g, (m) => '\\' + m)) || r.body.includes(line.replace(/[,;]/g, (m) => '\\' + m)), line);
+  for (const line of ['METHOD:PUBLISH', `UID:${ICS_ID}@sortmycover.co.za`, 'DTSTART:20261008T073000Z', 'DTEND:20261008T080000Z', 'DTSTAMP:20261005T100000Z', 'STATUS:CONFIRMED', 'SUMMARY:Your call with Mark', 'DESCRIPTION:Join: https://teams.example.test/j/1']) assert.ok(r.body.split('\r\n').includes(line.replace(/[,;]/g, (m) => '\\' + m)) || r.body.includes(line.replace(/[,;]/g, (m) => '\\' + m)), line);
   assert.ok(!/lerato|\+?27\d{9}|@(?!sortmycover)/i.test(r.body.replace(/https?:\/\/\S+/g, '')), 'no lead name, number or email');
   const phone = W5.icsResponse(icsRow({ method: 'phone', join_url: 'https://stale.example.test' }), { adviser: 'Mark Smith' });
   assert.match(phone.body, /DESCRIPTION:Mark will call you/);
@@ -515,7 +515,7 @@ test('I-45j .ics format: UTC DTSTART/DTEND, UID from the booking id, METHOD:PUBL
   assert.equal(gone.status, 200);
   assert.match(gone.body, /STATUS:CANCELLED/);
   assert.match(gone.body, /SEQUENCE:1/);
-  assert.match(gone.body, /SUMMARY:Cancelled: Life cover call with Mark/);
+  assert.match(gone.body, /SUMMARY:Cancelled: Your call with Mark/);
   assert.match(W5.icsResponse(icsRow({ status: 'rescheduled' }), { adviser: 'Mark' }).body, /STATUS:CANCELLED/);
   // same UID as the invite's .ics so the calendar updates one event
   assert.match(W5.icsFile({ uid: `${ICS_ID}@sortmycover.co.za`, start: '2026-10-08T07:30:00Z', end: '2026-10-08T08:00:00Z', summary: 's' }), new RegExp(`UID:${ICS_ID}@sortmycover.co.za`));

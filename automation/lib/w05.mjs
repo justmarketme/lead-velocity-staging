@@ -33,7 +33,7 @@ export const METHODS = ['teams', 'zoom', 'meet', 'whatsapp_call', 'phone'];
 export const INVITE_METHODS = new Set(['teams', 'zoom', 'meet']);
 export const CALL_METHODS = new Set(['whatsapp_call', 'phone']);
 export const FLOW_METHOD = { google_meet: 'meet' }; // W28 Flow ids -> appointments.method
-/** Outlook event title label (4.6 "Broker view": Life cover call – {first name} – {method}) */
+/** Outlook event title label (4.6 "Broker view": SortMyCover call – {first name} – {method}) */
 export const TITLE_LABEL = { teams: 'Teams', zoom: 'Zoom', meet: 'Google Meet', whatsapp_call: 'WhatsApp call', phone: 'Phone' };
 /** fixtures _meta.method_labels / lib/w06.mjs METHOD_LABEL (broker_new_booking {{5}}) */
 export const METHOD_LABEL = { teams: 'Microsoft Teams', zoom: 'Zoom', meet: 'Google Meet', whatsapp_call: 'WhatsApp call', phone: 'phone' };
@@ -374,7 +374,7 @@ export function icsResponse(a, { adviser = '', caller = null } = {}) {
   const first = firstName(adviser) || 'your adviser';
   const link = INVITE_METHODS.has(a.method) ? a.join_url || null : null;
   const description = link ? `Join: ${link}` : CALL_METHODS.has(a.method) ? `${first} will ${a.method === 'whatsapp_call' ? 'WhatsApp-call' : 'call'} you` : `${word} call`;
-  const body = icsFile({ uid: `${a.id}@sortmycover.co.za`, start: a.appointment_date, end: a.ends_at, stamp: a.booked_at || a.appointment_date, summary: `${cancelled ? 'Cancelled: ' : ''}Life cover call with ${first}`, description, url: link || '', status: cancelled ? 'CANCELLED' : 'CONFIRMED', sequence: cancelled ? 1 : 0 });
+  const body = icsFile({ uid: `${a.id}@sortmycover.co.za`, start: a.appointment_date, end: a.ends_at, stamp: a.booked_at || a.appointment_date, summary: `${cancelled ? 'Cancelled: ' : ''}Your call with ${first}`, description, url: link || '', status: cancelled ? 'CANCELLED' : 'CONFIRMED', sequence: cancelled ? 1 : 0 });
   return { status: 200, headers: { 'Content-Type': 'text/calendar; charset=utf-8', 'Content-Disposition': 'attachment; filename="sortmycover-call.ics"', 'Cache-Control': 'no-store' }, body };
 }
 
@@ -448,7 +448,7 @@ export function graphEvent(ctx, p, opts = {}) {
   ].filter(Boolean);
   const ev = {
     transactionId: txId(p.idempotency_key),
-    subject: `Life cover call – ${first} – ${TITLE_LABEL[p.method]}`,
+    subject: `SortMyCover call – ${first} – ${TITLE_LABEL[p.method]}`,
     start: { dateTime: iso(ms(p.start)).slice(0, 19), timeZone: TZ },
     end: { dateTime: iso(ms(p.end)).slice(0, 19), timeZone: TZ },
     categories: ['SortMyCover'],
@@ -569,15 +569,16 @@ export function inviteMail(ctx, p, booking, ev = {}) {
   const lead = leadView(ctx.lead);
   const b = brokerConfig(ctx.broker);
   const adviser = b.adviser_name || b.contact_person || 'your adviser';
+  const adviserFirst = firstName(b.adviser_name || b.contact_person) || 'your adviser';
   const when = `${dateLabel(p.start)} at ${timeLabel(p.start)} (South African time)`;
   const link = ev.join_url || null;
   const word = METHOD_LABEL[p.method];
-  const text = [`Hi ${firstName(lead.first_name)},`, '', `Your 30-minute ${word} call with ${adviser} (${b.practice_name || b.firm_name || 'your adviser'}, FSP ${b.fsp_number || '-'}) is on ${when}.`, link ? `Join here: ${link}` : `${adviser} will send the ${word} link before the call.`, '', 'The calendar file is attached. To change the time, reply on WhatsApp.', '', 'SortMyCover by Lead Velocity'].join('\n');
-  const ics = icsFile({ uid: `${booking.id}@sortmycover.co.za`, start: p.start, end: p.end, summary: `Life cover call with ${firstName(adviser)}`, description: link ? `Join: ${link}` : `${word} call`, url: link || '' });
+  const text = [`Hi ${firstName(lead.first_name)},`, '', `Your 30-minute ${word} call with ${adviser} (${b.practice_name || b.firm_name || 'your adviser'}, FSP ${b.fsp_number || '-'}) is on ${when}.`, link ? `Join here: ${link}` : `${adviser} will send the ${word} link before the call.`, '', 'The calendar file is attached. To change the time, reply on WhatsApp.', '', 'SortMyCover', 'hello@sortmycover.co.za · sortmycover.co.za', '', 'SortMyCover gives no financial advice, product comparisons or premium quotes. Licensed financial advisers do.', 'Privacy: sortmycover.co.za/privacy.html'].join('\n');
+  const ics = icsFile({ uid: `${booking.id}@sortmycover.co.za`, start: p.start, end: p.end, summary: `Your call with ${adviserFirst}`, description: link ? `Join: ${link}` : `${word} call`, url: link || '' });
   return {
     to: p.email,
     message: {
-      subject: `Your call with ${firstName(adviser)} on ${when}`,
+      subject: `Your call with ${adviserFirst} on ${when}`,
       body: { contentType: 'Text', content: text },
       toRecipients: [{ emailAddress: { address: p.email } }],
       attachments: [{ '@odata.type': '#microsoft.graph.fileAttachment', name: 'sortmycover-call.ics', contentType: 'text/calendar', contentBytes: Buffer.from(ics, 'utf8').toString('base64') }],
