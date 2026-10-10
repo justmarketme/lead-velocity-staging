@@ -2,27 +2,29 @@
 
 # LEAD GENERATION SERVICES AGREEMENT
 
-Version: LGSA-v0.2 (7 October 2026) · Replaces LGSA-v0.1 (5 October 2026) · Template for any authorised FSP client · Client-specific details appear only in the Parties block and Schedule 1.
+Version: LGSA-v0.3 (10 October 2026) · Replaces LGSA-v0.2 (7 October 2026) and LGSA-v0.1 (5 October 2026) · Template for any authorised FSP client · Client-specific details appear only in the Parties block and Schedule 1.
 
 
-## Summary of changes in version 0.2
 
-Changes from version 0.1 (5 October 2026) are marked in the text as Changed in v0.2 or New in v0.2. Everything else is word for word as before.
+## Summary of changes in version 0.3
+
+Changes from version 0.1 (5 October 2026) are marked in the text as Changed in v0.3 or New in v0.3. Everything else is word for word as before.
 
 | What changed | Clauses |
 |---|---|
 | Lead tiers by stated monthly premium budget: A R1,500+, B R750 to R1,499, under R750 filtered; every lead labelled | 1.1.3A, 5.1, 5.6 (replaces "targeting aim"), S1.1, S2.1, S2.2, S2.3, S2.4, S4.2 |
-| Replacements stay discretionary goodwill, up to 3 a week, no-shows only | 7 kept; 7.2 last two sentences added |
+| Replacements stay discretionary goodwill, up to 3 a week; a lead with invalid contact details is never counted, so needs no replacement | 7 kept; 7.2 sentence on invalid details added |
 | Dispute evidence within 2 working days on request | 1.1.12A, 7.8 (new), 11.7(c), 21.1 |
-| 30 days + up to 14 days, never more; after day 44 rollover on top or refund on request at the per-lead price within 7 working days; no open-ended force-majeure extension | 1.1.29, 6 (rewritten), 11.3, 11.7(c), 20.2, 23.2(d), S1.1 |
+| 30 days + up to 14 days, never more; after day 44 rollover on top or refund on request at the per-lead price within 7 working days; no open-ended force-majeure extension | 1.1.29, 6 (rewritten), 9.7, 11.3, 11.7(c), 20.2, 23.2(d), S1.1 |
 | Contact verification; invalid details disqualify | 4.1(c), 5.1(a), 5.8 (new), S2.1, S2.3 |
 | Qualification questions; licence-category flag; optional smoker status with consent | 4.1(c), 5.9 (new), 12.4, 13.2A (new), S2.2, S4.2, S4.6(d) |
 | Microsoft Teams appointment in the broker's calendar; broker welcome card; "Connect my Outlook calendar" onboarding | 1.1.19, 4.1(d)-(e), 14.3(a), S1.5, S2.4, S4.5 |
 | B-tier leads offered with Accept / Decline; accepted count; declined don't count, aren't charged, are offered elsewhere or held, never re-offered | 1.1.3A, 5.1(d), 5.2, 5.7 (new), 8.4, 12.2, S1.1, S2.1, S2.3, S4.2, S4.3 |
-| Pilot Plan withdrawn; the minimum Plan is Bronze | 1.1.24, 9.6, 9.7, S1.3 |
+| Replacements: the same cap of 3 a week for every Plan, the Pilot included; an uncontactable lead ("couldn't reach them") can also earn one, inside the same 3; proof rules for both | 1.1.28, 1.1.35 (new), 7.1 to 7.4, 7.6, 7.7, 9.7, 14.3(c), Schedule 3 (rewritten), S4.3 |
+| Refunds of undelivered leads, Top-Up Leads included, at the Effective Lead Price of the Client's Plan (Pilot R850, Bronze R825, Silver R817, Gold R789) | 1.1.14, 6.3, 6.6, 11.6, S1.1, S1.2 |
 | Consequential: consent text v3 says "insurance and financial planning" | Background B, 1.1.17, 12.3, 13.5 |
 
-Not changed: the Bronze, Silver and Gold fees, top-ups, payment, termination, liability, intellectual property and the signature method.
+Not changed: the Bronze, Silver and Gold fees, top-ups, payment, termination (cancellation notice stays 7 days), liability, intellectual property and the signature method.
 
 ## Parties
 
@@ -38,7 +40,7 @@ and
 
 A. Lead Velocity is a marketing and lead-generation agency acting for its own account. It markets its own lead-generation service and the SortMyCover brand, not any financial product. It runs broker-neutral advertising under the SortMyCover brand, captures consumer interest and consent, pre-qualifies consumers on objective criteria and books introductory appointments.
 
-B. [CHANGED v0.2] The Client renders financial services under a licence issued under the FAIS Act and advises consumers on insurance and financial planning within the categories of its licence.
+B. [CHANGED v0.3] The Client renders financial services under a licence issued under the FAIS Act and advises consumers on insurance and financial planning within the categories of its licence.
 
 C. The Client wishes to buy marketing and lead-delivery services from Lead Velocity for a flat fee per Billing Cycle that does not depend on any financial product being sold. Lead Velocity does not render financial services and the Parties intend this Agreement to operate, in substance and in form, as a marketing services contract.
 
@@ -52,7 +54,7 @@ C. The Client wishes to buy marketing and lead-delivery services from Lead Veloc
 
 1.1.3 "**Applicable Law**" means all laws that apply to a Party or to the Services, including the FAIS Act, the General Code of Conduct, POPIA, the ECT Act, the Consumer Protection Act 68 of 2008 and the Financial Intelligence Centre Act 38 of 2001, and all regulations, codes and conduct standards made under them;
 
-1.1.3A [NEW v0.2] "**A-Tier Lead**" means a Qualified Lead whose self-declared monthly premium budget is R1,500 or more, and "**B-Tier Lead**" means a Qualified Lead whose self-declared monthly premium budget is R750 to R1,499 and whom the Client has accepted under clause 5.7;
+1.1.3A [NEW v0.3] "**A-Tier Lead**" means a Qualified Lead whose self-declared monthly premium budget is R1,500 or more, and "**B-Tier Lead**" means a Qualified Lead whose self-declared monthly premium budget is R750 to R1,499 and whom the Client has accepted under clause 5.7;
 
 1.1.4 "**Billing Cycle**" means the period of 30 days starting on the Cycle Start Date, and each following period of 30 days for which the Client has paid the Fee;
 
@@ -72,21 +74,21 @@ C. The Client wishes to buy marketing and lead-delivery services from Lead Veloc
 
 1.1.12 "**Delivered**" means, for a Qualified Lead, that the delivery point in clause 5.2 has been reached, and "**Deliver**" and "**Delivery**" have matching meanings;
 
-1.1.12A [NEW v0.2] "**Dispute Evidence**" means, for a Delivered Qualified Lead, the Consumer's consent record (consent text version, time stamp and source), the booking confirmation, and the Consumer's own answers to the qualification questions in Schedule 2;
+1.1.12A [NEW v0.3] "**Dispute Evidence**" means, for a Delivered Qualified Lead, the Consumer's consent record (consent text version, time stamp and source), the booking confirmation, and the Consumer's own answers to the qualification questions in Schedule 2;
 
 1.1.13 "**ECT Act**" means the Electronic Communications and Transactions Act 25 of 2002;
 
-1.1.14 "**Effective Lead Price**" means the Fee divided by the Committed Leads for the Client's Plan, as shown in Schedule 1;
+1.1.14 [CHANGED v0.3] "**Effective Lead Price**" means the Fee divided by the Committed Leads for the Client's Plan, rounded to the nearest rand, as shown in Schedule 1 (at the Fees shown there on the Signature Date: R850 for the Pilot Plan, R825 for Bronze, R817 for Silver and R789 for Gold);
 
 1.1.15 "**FAIS Act**" means the Financial Advisory and Intermediary Services Act 37 of 2002;
 
 1.1.16 "**Fee**" means the fee per Billing Cycle for the Client's Plan, as set out in Schedule 1;
 
-1.1.17 [CHANGED v0.2] "**FSP Licence**" means the Client's licence as an authorised financial services provider under section 8 of the FAIS Act, including the categories and subcategories it holds;
+1.1.17 [CHANGED v0.3] "**FSP Licence**" means the Client's licence as an authorised financial services provider under section 8 of the FAIS Act, including the categories and subcategories it holds;
 
 1.1.18 "**General Code of Conduct**" means the General Code of Conduct for Authorised Financial Services Providers and Representatives made under the FAIS Act;
 
-1.1.19 [CHANGED v0.2] "**Intro Card**" means the broker welcome card (message, image or card) that Lead Velocity sends to a Consumer on WhatsApp to introduce the Client, as described in Schedule 4;
+1.1.19 [CHANGED v0.3] "**Intro Card**" means the broker welcome card (message, image or card) that Lead Velocity sends to a Consumer on WhatsApp to introduce the Client, as described in Schedule 4;
 
 1.1.20 "**Lead Data**" means the personal information about a Consumer that Lead Velocity collects through a Campaign;
 
@@ -96,7 +98,7 @@ C. The Client wishes to buy marketing and lead-delivery services from Lead Veloc
 
 1.1.23 "**Party**" means Lead Velocity or the Client, and "**Parties**" means both of them;
 
-1.1.24 "**Plan**" means the plan the Client has chosen (Bronze, Silver or Gold), as set out in Schedule 1; [CHANGED v0.2]
+1.1.24 "**Plan**" means the plan the Client has chosen (Pilot, Bronze, Silver or Gold), as set out in Schedule 1, and "**Pilot Plan**" means the once-off introductory Plan described in clause 9.7;
 
 1.1.25 "**POPIA**" means the Protection of Personal Information Act 4 of 2013, and "**personal information**", "**special personal information**", "**processing**", "**responsible party**", "**operator**", "**data subject**" and "**direct marketing**" have the meanings given in POPIA;
 
@@ -104,9 +106,9 @@ C. The Client wishes to buy marketing and lead-delivery services from Lead Veloc
 
 1.1.27 "**Qualified Lead**" means a Consumer who meets every criterion in clause 5.1 and Schedule 2;
 
-1.1.28 "**Replacement Lead**" means a Qualified Lead that Lead Velocity chooses to supply under clause 7 in place of a No-Show Lead;
+1.1.28 "**Replacement Lead**" means a Qualified Lead that Lead Velocity chooses to supply under clause 7 in place of a No-Show Lead or an Uncontactable Lead; [CHANGED v0.3]
 
-1.1.29 [CHANGED v0.2] "**Rollover Period**" means the period of up to 14 days immediately after the end of a Billing Cycle (ending on day 44 counted from the start of that Billing Cycle), and never longer;
+1.1.29 [CHANGED v0.3] "**Rollover Period**" means the period of up to 14 days immediately after the end of a Billing Cycle (ending on day 44 counted from the start of that Billing Cycle), and never longer;
 
 1.1.30 "**Services**" means the services described in clause 4;
 
@@ -118,9 +120,11 @@ C. The Client wishes to buy marketing and lead-delivery services from Lead Veloc
 
 1.1.34 "**Top-Up Price**" means the price per Top-Up Lead set out in Schedule 1;
 
-1.1.35 "**VAT**" means value-added tax under the Value-Added Tax Act 89 of 1991; and
+1.1.35 [NEW v0.3] "**Uncontactable Lead**" means a Qualified Lead whom the Client could not reach after Delivery and before the Consumer attended any appointment with the Client, either because the Consumer did not answer the Client's call at the booked start time of an appointment held by phone or WhatsApp call, or because the Consumer did not answer or reply to at least 3 attempts by the Client to reach the Consumer over at least 72 hours, as established under Schedule 3. A lead whose contact details are shown to be wrong, disconnected or someone else's is not an Uncontactable Lead; clause 5.8(d) applies to it;
 
-1.1.36 "**writing**" includes email and any other data message as defined in the ECT Act, and "**written**" has a matching meaning.
+1.1.36 "**VAT**" means value-added tax under the Value-Added Tax Act 89 of 1991; and
+
+1.1.37 "**writing**" includes email and any other data message as defined in the ECT Act, and "**written**" has a matching meaning.
 
 1.2 Headings are for convenience only and do not affect interpretation. The singular includes the plural and the other way round. "Including" means "including without limitation". A reference to a law includes that law as amended or replaced.
 
@@ -210,11 +214,11 @@ C. The Client wishes to buy marketing and lead-delivery services from Lead Veloc
 
 (b) capture each Consumer's enquiry and consent using the consent wording Lead Velocity publishes, as updated by Lead Velocity from time to time in line with Applicable Law;
 
-(c) [CHANGED v0.2] verify each Consumer's contact details and pre-qualify Consumers against Schedule 2;
+(c) [CHANGED v0.3] verify each Consumer's contact details and pre-qualify Consumers against Schedule 2;
 
-(d) [CHANGED v0.2] introduce the Client to the Consumer on WhatsApp by sending the Client's welcome card (the Intro Card), which states the Client's name, practice name and FSP number and states that SortMyCover and Lead Velocity are not financial services providers and give no advice;
+(d) [CHANGED v0.3] introduce the Client to the Consumer on WhatsApp by sending the Client's welcome card (the Intro Card), which states the Client's name, practice name and FSP number and states that SortMyCover and Lead Velocity are not financial services providers and give no advice;
 
-(e) [CHANGED v0.2] book an introductory Microsoft Teams appointment in the Client's available calendar slots, so that it appears in the Client's own calendar, and obtain the Consumer's confirmation that they will attend;
+(e) [CHANGED v0.3] book an introductory Microsoft Teams appointment in the Client's available calendar slots, so that it appears in the Client's own calendar, and obtain the Consumer's confirmation that they will attend;
 
 (f) send the Consumer logistics-only reminders (clause 3.8) up to 10 minutes before the appointment; and
 
@@ -232,7 +236,7 @@ C. The Client wishes to buy marketing and lead-delivery services from Lead Veloc
 
 ## 5. Qualified Leads and Delivery
 
-5.1 **Qualified Lead.** [CHANGED v0.2] A Qualified Lead is a South African Consumer who:
+5.1 **Qualified Lead.** [CHANGED v0.3] A Qualified Lead is a South African Consumer who:
 
 (a) responded to a Lead Velocity or SortMyCover Campaign and gave valid contact details that passed the checks in clause 5.8;
 
@@ -244,7 +248,7 @@ C. The Client wishes to buy marketing and lead-delivery services from Lead Veloc
 
 (e) confirmed a booked appointment with the Client and confirmed that they will attend it.
 
-5.2 **Delivery point.** [CHANGED v0.2] A Qualified Lead is Delivered, and counts toward the Committed Leads (or the relevant Top-Up), at the moment the criterion in clause 5.1(e) is met, as recorded in Lead Velocity's WhatsApp message log. An A-Tier Lead counts automatically. A B-Tier Lead counts only because the Client accepted it.
+5.2 **Delivery point.** [CHANGED v0.3] A Qualified Lead is Delivered, and counts toward the Committed Leads (or the relevant Top-Up), at the moment the criterion in clause 5.1(e) is met, as recorded in Lead Velocity's WhatsApp message log. An A-Tier Lead counts automatically. A B-Tier Lead counts only because the Client accepted it.
 
 5.3 **Self-declared criteria.** The criteria in clause 5.1(c) are self-declared by the Consumer. Lead Velocity does not verify a Consumer's age, income or affordability, and does not underwrite. The Client must make its own enquiries under the General Code of Conduct.
 
@@ -254,7 +258,7 @@ C. The Client wishes to buy marketing and lead-delivery services from Lead Veloc
 
 5.5 **No guarantee of attendance or outcome.** Lead Velocity does not guarantee that a Qualified Lead will attend, is suitable for any Financial Product, or will buy anything. Clause 15 applies.
 
-5.6 **Lead tiers.** [CHANGED v0.2] Every lead is sorted by the monthly premium budget the Consumer states, and labelled A or B when it is sent to the Client:
+5.6 **Lead tiers.** [CHANGED v0.3] Every lead is sorted by the monthly premium budget the Consumer states, and labelled A or B when it is sent to the Client:
 
 (a) **A-tier: R1,500 or more a month.** This is the minimum target of every Campaign. An A-tier lead is sent to the Client, booked and counted automatically.
 
@@ -264,7 +268,7 @@ C. The Client wishes to buy marketing and lead-delivery services from Lead Veloc
 
 The tier is the Consumer's own answer. Lead Velocity makes no promise about any Consumer's actual budget or about the cost of any cover.
 
-5.7 **Accept or decline a B-tier lead.** [NEW v0.2]
+5.7 **Accept or decline a B-tier lead.** [NEW v0.3]
 
 (a) When a B-tier lead comes through, Lead Velocity sends the Client its label, age band, budget band and reason(s) for the call, with a choice to **Accept** or **Decline**.
 
@@ -276,7 +280,7 @@ The tier is the Consumer's own answer. Lead Velocity makes no promise about any 
 
 > [LAWYER REVIEW (D8): The accept/decline choice is made before any appointment, on the Consumer's self-declared budget only. It is not linked to any appointment outcome, application or policy, so the Fee stays flat per Billing Cycle (clauses 8.2 to 8.4). Confirm this does not weaken the Raspberry Academy position. Also confirm that offering a declined lead to another FSP is covered by the Consumer's consent: in named consent mode the consent names this Client, so a declined lead may only be offered elsewhere after fresh consent naming the new provider (or under generic mode once approved).]
 
-5.8 **Contact verification.** [NEW v0.2]
+5.8 **Contact verification.** [NEW v0.3]
 
 (a) **WhatsApp number:** verified at opt-in, because the Consumer chats to Lead Velocity from that number.
 
@@ -286,15 +290,15 @@ The tier is the Consumer's own answer. Lead Velocity makes no promise about any 
 
 (d) **Invalid details:** a lead whose contact details fail these checks, or are later shown to be wrong, disconnected or someone else's, is automatically disqualified. It is not a Qualified Lead, is not Delivered and does not count toward the Committed Leads.
 
-5.9 **Qualification questions.** [NEW v0.2] Lead Velocity asks every Consumer the same questions for every client, as set out in Schedule 2 (S2.2). If a Consumer's reason for the call falls outside the categories of the Client's FSP Licence, Lead Velocity flags it to the Client. The Client then handles it within its licence or refers the Consumer to a suitably licensed provider. Lead Velocity does not decide which provider is suitable.
+5.9 **Qualification questions.** [NEW v0.3] Lead Velocity asks every Consumer the same questions for every client, as set out in Schedule 2 (S2.2). If a Consumer's reason for the call falls outside the categories of the Client's FSP Licence, Lead Velocity flags it to the Client. The Client then handles it within its licence or refers the Consumer to a suitably licensed provider. Lead Velocity does not decide which provider is suitable.
 
-## 6. Shortfall and rollover [CHANGED v0.2]
+## 6. Shortfall and rollover [CHANGED v0.3]
 
 6.1 **Delivery window.** Lead Velocity delivers the Committed Leads within the 30-day Billing Cycle. If delivery is delayed (including by events outside Lead Velocity's control, such as Meta, Facebook, Instagram or WhatsApp outages, restrictions or policy changes), Lead Velocity will Deliver the Shortfall during the Rollover Period at no extra cost. The Rollover Period is never longer than 14 days, so delivery for a Billing Cycle ends on day 44 at the latest.
 
 6.2 **After day 44: rollover on top.** Any Shortfall still not Delivered after day 44 rolls over to the next Billing Cycle, on top of that Billing Cycle's Committed Leads, and Lead Velocity keeps delivering. Rolled-over leads count first toward the earlier Billing Cycle.
 
-6.3 **After day 44: refund on request.** At any time after day 44, the Client may instead ask in writing for a refund of the leads not yet Delivered. Lead Velocity will then refund the Effective Lead Price for each of those leads (for Bronze, R16,500 ÷ 20 = R825 per lead) within 7 Business Days of the request. Leads refunded no longer roll over.
+6.3 **After day 44: refund on request.** At any time after day 44, the Client may instead ask in writing for a refund of the leads not yet Delivered. Lead Velocity will then refund, for each of those leads, the Effective Lead Price of the Client's Plan for the Billing Cycle in which the lead was due (for example, for Bronze, R16,500 ÷ 20 = R825 per lead; at the Fees in Schedule 1 the others are Pilot R850, Silver R817 and Gold R789) within 7 Business Days of the request. Leads refunded no longer roll over. [CHANGED v0.3]
 
 6.4 **Not renewing.** If the Client does not pay for the next Billing Cycle, or this Agreement ends, Lead Velocity will either keep delivering the rolled-over leads or, if the Client asks, refund them under clause 6.3.
 
@@ -302,33 +306,35 @@ The tier is the Consumer's own answer. Lead Velocity makes no promise about any 
 
 > [LAWYER REVIEW: Approved by Jonathan on 7 Oct 2026: a hard day-44 limit; then rollover on top of the next cycle, or refund on request at the Effective Lead Price within 7 working days. Review only the CPA wording: whether the "sole remedy" rule in 6.5 is fair under CPA s48 and consistent with s54 where the CPA applies (research-memo.md R9).]
 
-6.6 **Top-Ups.** Clauses 6.1 to 6.5 apply to Top-Up Leads, with the Top-Up Price used instead of the Effective Lead Price.
+6.6 **Top-Ups.** Clauses 6.1 to 6.5 apply to Top-Up Leads, except that an undelivered Top-Up Lead is refunded at the Effective Lead Price of the Client's Plan when the Top-Up was ordered, not at the Top-Up Price. [CHANGED v0.3]
 
-## 7. No-show replacements (goodwill, not entitlement)
+> [LAWYER REVIEW (D12): Jonathan decided on 10 Oct 2026 that every refund of an undelivered lead, Top-Up Leads included, is at the Effective Lead Price of the Client's Plan (Pilot R850, Bronze R825, Silver R817, Gold R789). A Top-Up Lead is sold at the Top-Up Price (R850), so on Bronze, Silver and Gold the refund is R25, R33 or R61 below the price paid. Confirm this is defensible under CPA s48 and s54 where the CPA applies, and that "the Plan when the leads were due" is the intended reading of "the Plan at the time".]
 
-> **[UNCHANGED in substance — D2 confirms]** Replacements stay discretionary goodwill: up to 3 per Calendar Week, no-shows only. Clause 7.8 is new.
+## 7. No-show and uncontactable-lead replacements (goodwill, not entitlement)
 
-7.1 **Discretionary goodwill.** Lead Velocity may, as a discretionary goodwill gesture and not as an obligation, supply a Replacement Lead for a No-Show Lead. The Client has no right to a Replacement Lead.
+> [LAWYER REVIEW (D11): Replacements stay discretionary goodwill, as in v0.1 and v0.2. The cap is 3 requests per Calendar Week for every Plan, the Pilot Plan included. An Uncontactable Lead ("couldn't reach them") can now earn a replacement, inside the same 3 as no-shows. Clause 7.8 (dispute evidence) is from v0.2. A replacement turns only on attendance and contactability, which clause 8.4 allows, and never on a sale, application or policy.]
 
-7.2 **Weekly maximum.** Lead Velocity will consider no more than 3 replacement requests per Calendar Week, counted by the date of the missed appointment. Any unused number in a Calendar Week lapses at the end of that week. [CHANGED v0.2] Only No-Show Leads can be replaced. A lead with invalid contact details is never counted in the first place (clause 5.8(d)), so it needs no replacement.
+7.1 **Discretionary goodwill.** Lead Velocity may, as a discretionary goodwill gesture and not as an obligation, supply a Replacement Lead for a No-Show Lead or an Uncontactable Lead. The Client has no right to a Replacement Lead. [CHANGED v0.3]
 
-7.3 **Proof required.** A request is considered only if the Client follows the proof protocol in Schedule 3, including waiting at least 10 minutes past the appointment start time and then sending proof immediately. Proof sent late, incomplete or not at all means the lead stands as Delivered.
+7.2 **Weekly maximum.** Lead Velocity will consider no more than 3 replacement requests per Calendar Week, whichever Plan the Client is on (the Pilot Plan has no separate cap). No-Show Leads and Uncontactable Leads count together inside the same 3, by the date of the booked appointment. Any unused number in a Calendar Week lapses at the end of that week. Only No-Show Leads and Uncontactable Leads can be replaced. A lead with invalid contact details is never counted in the first place (clause 5.8(d)), so it needs no replacement. [CHANGED v0.3]
 
-7.4 **Replacement Leads are not billable.** A Replacement Lead is supplied free of charge. It does not count toward the Committed Leads of any Billing Cycle or toward any Top-Up, and the No-Show Lead it replaces continues to count as Delivered. A Replacement Lead cannot be accumulated, carried over, transferred or exchanged for credit, a refund or any other benefit.
+7.3 **Proof required.** A request is considered only if the Client follows the proof protocol in Schedule 3: for a No-Show Lead, including waiting at least 10 minutes past the appointment start time and then sending proof immediately; for an Uncontactable Lead, making the attempts and sending the call or message log that Schedule 3 requires. Proof sent late, incomplete or not at all means the lead stands as Delivered. [CHANGED v0.3]
+
+7.4 **Replacement Leads are not billable.** A Replacement Lead is supplied free of charge. It does not count toward the Committed Leads of any Billing Cycle or toward any Top-Up, and the No-Show Lead or Uncontactable Lead it replaces continues to count as Delivered. A Replacement Lead cannot be accumulated, carried over, transferred or exchanged for credit, a refund or any other benefit. [CHANGED v0.3]
 
 7.5 **Delivery of a Replacement Lead.** Lead Velocity will aim to supply an approved Replacement Lead within 14 days of approval.
 
 7.6 **Review and suspension.** Lead Velocity may review, refuse or suspend replacements for the Client, by written notice, if:
 
-(a) the Client's no-show rate is materially higher than that of Lead Velocity's other clients for similar Campaigns;
+(a) the Client's no-show and uncontactable rate is materially higher than that of Lead Velocity's other clients for similar Campaigns; [CHANGED v0.3]
 
-(b) the Consumer tells Lead Velocity that the Client did not attend, cancelled, moved the appointment or discouraged attendance; or
+(b) the Consumer tells Lead Velocity that the Client did not attend, cancelled, moved the appointment, discouraged attendance or did not try to reach the Consumer; or [CHANGED v0.3]
 
 (c) Lead Velocity reasonably suspects misuse of this clause 7.
 
-7.7 **No incentive to engineer no-shows.** The Client gains no financial benefit from a no-show. A replacement is never owed, never reduces the Fee and never creates a credit. The Client must not cancel, move or discourage any appointment in order to request a replacement. Lead Velocity may contact the Consumer to confirm what happened and to offer a new appointment with the Client. If the Consumer then attends, no replacement is due.
+7.7 **No incentive to engineer no-shows or unreachable leads.** [CHANGED v0.3] The Client gains no financial benefit from a no-show or from failing to reach a Consumer. A replacement is never owed, never reduces the Fee and never creates a credit. The Client must not cancel, move or discourage any appointment, or avoid or delay contact with a Consumer, in order to request a replacement. Lead Velocity may contact the Consumer to confirm what happened and to offer a new appointment with the Client. If the Consumer then attends or can be reached, no replacement is due.
 
-7.8 **Dispute evidence.** [NEW v0.2] If the Client questions any Delivered lead, it may ask Lead Velocity in writing for the Dispute Evidence for that lead. Lead Velocity will send it within 2 Business Days of the request: the consent record, the booking confirmation and the Consumer's own answers. Lead Velocity removes any health or identity details the Consumer did not consent to share with the Client.
+7.8 **Dispute evidence.** [NEW v0.3] If the Client questions any Delivered lead, it may ask Lead Velocity in writing for the Dispute Evidence for that lead. Lead Velocity will send it within 2 Business Days of the request: the consent record, the booking confirmation and the Consumer's own answers. Lead Velocity removes any health or identity details the Consumer did not consent to share with the Client.
 
 ## 8. Fees
 
@@ -340,7 +346,7 @@ The tier is the Consumer's own answer. Lead Velocity makes no promise about any 
 
 > [LAWYER REVIEW: Key Raspberry Academy safeguard (research-memo.md §1, R4): remuneration there was a percentage of premium on policies concluded; the court contrasted "a flat fee for each Lead referred" favourably para 27. Keep every fee flat per cycle or per lead. Also confirm that a flat marketing fee paid by an FSP is a permitted financial interest under GCoC s3A(1)(a)(v)/(vii) (memo §4.2) and is not remuneration regulated by the insurance commission rules (RDR 2014 para 2.2.9).]
 
-8.4 **Feedback firewall.** [CHANGED v0.2] The only feedback the Client gives Lead Velocity is whether it accepts or declines a B-tier lead (clause 5.7) and whether each Consumer attended and could be contacted (clause 14.3(c)). Lead Velocity will not request, and the Client must not send, any information about advice given, applications, sales, policies, premiums or commission. No outcome of any appointment affects any Fee, Top-Up Price, credit, refund or replacement.
+8.4 **Feedback firewall.** [CHANGED v0.3] The only feedback the Client gives Lead Velocity is whether it accepts or declines a B-tier lead (clause 5.7) and whether each Consumer attended and could be contacted (clause 14.3(c)). Lead Velocity will not request, and the Client must not send, any information about advice given, applications, sales, policies, premiums or commission. No outcome of any appointment affects any Fee, Top-Up Price, credit, refund or replacement.
 
 8.5 **VAT.** All amounts in this Agreement exclude VAT. Lead Velocity is not registered for VAT at the Signature Date. If Lead Velocity registers for VAT, it will add VAT at the applicable rate to amounts invoiced after the registration takes effect and will give the Client at least [30] days' written notice.
 
@@ -362,9 +368,9 @@ The tier is the Consumer's own answer. Lead Velocity makes no promise about any 
 
 9.5 **Plan upgrade.** Instead of a Top-Up, the Client may upgrade to the Silver or Gold Plan at the pricing then shown on the Pricing Page, by giving at least 7 days' written notice before the next Billing Cycle starts. The upgrade takes effect from the start of that Billing Cycle, and Schedule 1 is then read with the new Plan's Fee and Committed Leads.
 
-9.6 **Plan downgrade.** [CHANGED v0.2] The Client may move to a lower Plan on the same notice and with effect from the start of the next Billing Cycle.
+9.6 **Plan downgrade.** The Client may move to a lower Plan (other than the Pilot Plan) on the same notice and with effect from the start of the next Billing Cycle.
 
-9.7 **Pilot Plan.** [CHANGED v0.2] Lead Velocity no longer offers a Pilot Plan. The minimum Plan is Bronze.
+9.7 **Pilot Plan.** The Pilot Plan is available once only, to a Client that has not bought Services from Lead Velocity before, and covers one introductory Billing Cycle. Its Fee and Committed Leads are set out in Schedule 1. Before the Pilot Billing Cycle ends, the Client may continue on the Bronze Plan or a higher Plan by paying that Plan's Fee in advance under clause 10. If it does not, no further Billing Cycle starts and this Agreement ends at the end of the Pilot Billing Cycle, subject to clauses 6 and 11.3. All other terms of this Agreement apply to the Pilot Plan in the same way as to every other Plan, including the flat Fee paid in advance, which includes all advertising media spend (clauses 8 and 10), the absence of any commission or success fee (clause 8.3), the Rollover Period ending on day 44 (clause 6) [CHANGED v0.3] and the same replacement rules, being replacements of up to 3 per Calendar Week with no separate cap for the Pilot Plan (clause 7). [CHANGED v0.3]
 
 ## 10. Payment
 
@@ -386,7 +392,7 @@ The tier is the Consumer's own answer. Lead Velocity makes no promise about any 
 
 11.2 **Non-renewal.** Because this Agreement renews only on payment, if the Client does not pay the Fee for the next Billing Cycle, no further Billing Cycle starts and this Agreement ends at the end of the current Billing Cycle. Failure to give notice under clause 11.1 does not make the next Fee payable.
 
-11.3 **No refund of a started cycle.** [CHANGED v0.2] Fees already paid for a Billing Cycle that has started are not refundable, except as set out in clauses 6.3, 6.4, 11.6 and 23.2(b). Lead Velocity's outstanding delivery obligations for that Billing Cycle, including the Rollover Period and clause 6, survive cancellation.
+11.3 **No refund of a started cycle.** [CHANGED v0.3] Fees already paid for a Billing Cycle that has started are not refundable, except as set out in clauses 6.3, 6.4, 11.6 and 23.2(b). Lead Velocity's outstanding delivery obligations for that Billing Cycle, including the Rollover Period and clause 6, survive cancellation.
 
 11.4 **Immediate termination.** Either Party may terminate this Agreement immediately by written notice if the other Party:
 
@@ -400,7 +406,7 @@ The tier is the Consumer's own answer. Lead Velocity makes no promise about any 
 
 > [LAWYER REVIEW: Introducing Consumers to a person who is no longer authorised could expose Lead Velocity. Confirm whether Lead Velocity should also check the FSCA register before each Billing Cycle.]
 
-11.6 **Refund on early termination.** If this Agreement ends under clause 11.4 or 11.5 during a Billing Cycle, Lead Velocity will refund the Effective Lead Price (or Top-Up Price) for each paid Qualified Lead not yet Delivered, less any amount the Client owes Lead Velocity, within 10 Business Days.
+11.6 **Refund on early termination.** If this Agreement ends under clause 11.4 or 11.5 during a Billing Cycle, Lead Velocity will refund the Effective Lead Price of the Client's Plan (for a Top-Up Lead, the Client's Plan when the Top-Up was ordered) for each paid Qualified Lead not yet Delivered, less any amount the Client owes Lead Velocity, within 10 Business Days. [CHANGED v0.3]
 
 11.7 **Effect of termination.** On termination:
 
@@ -408,19 +414,19 @@ The tier is the Consumer's own answer. Lead Velocity makes no promise about any 
 
 (b) the Client may continue to use Qualified Leads already Delivered under clause 12.3; and
 
-(c) clauses 1, 6, 7.8, 11.6, 11.7, 12.3, 12.4, 13, 15, 16, 17, 18, 21, 22 and 25 survive. [CHANGED v0.2]
+(c) clauses 1, 6, 7.8, 11.6, 11.7, 12.3, 12.4, 13, 15, 16, 17, 18, 21, 22 and 25 survive. [CHANGED v0.3]
 
 ## 12. Exclusivity and use of Leads
 
 12.1 **Non-exclusive.** This Agreement is non-exclusive. Lead Velocity may run similar Campaigns and supply similar leads to other financial services providers, in any area.
 
-12.2 **No double allocation.** Once a Qualified Lead has been allocated and Delivered to the Client, Lead Velocity will not allocate that same Consumer to another financial services provider for the same enquiry. A new enquiry made by the same Consumer later, with fresh consent, is a new enquiry. [NEW v0.2] This clause does not apply to a B-tier lead the Client declined (clause 5.7(c)).
+12.2 **No double allocation.** Once a Qualified Lead has been allocated and Delivered to the Client, Lead Velocity will not allocate that same Consumer to another financial services provider for the same enquiry. A new enquiry made by the same Consumer later, with fresh consent, is a new enquiry. [NEW v0.3] This clause does not apply to a B-tier lead the Client declined (clause 5.7(c)).
 
 > [LAWYER REVIEW / CONFIRM: MASTER-PROMPT 0.1 says delivered leads are the broker's "to use exclusively". This clause follows the brief (no double allocation for the same enquiry; Lead Velocity keeps its own records under clause 13). Confirm the gap between "same enquiry" and "exclusively", and the period after which a repeat enquiry is "new" (suggest 90 days).]
 
-12.3 **Licence to use.** [CHANGED v0.2] Lead Velocity grants the Client a non-exclusive, non-transferable licence to use each Delivered Qualified Lead only to contact that Consumer about their enquiry about insurance and financial planning and to provide Financial Services the Consumer asks for, in line with Applicable Law.
+12.3 **Licence to use.** [CHANGED v0.3] Lead Velocity grants the Client a non-exclusive, non-transferable licence to use each Delivered Qualified Lead only to contact that Consumer about their enquiry about insurance and financial planning and to provide Financial Services the Consumer asks for, in line with Applicable Law.
 
-12.4 **No resale.** The Client may not sell, share, rent, pool, transfer or disclose any Qualified Lead or Lead Data to any third party, except to its own Representatives and service providers who need it for the purpose in clause 12.3 and who are bound by equivalent obligations, and except for a referral under clause 5.9 that the Consumer agrees to. [CHANGED v0.2]
+12.4 **No resale.** The Client may not sell, share, rent, pool, transfer or disclose any Qualified Lead or Lead Data to any third party, except to its own Representatives and service providers who need it for the purpose in clause 12.3 and who are bound by equivalent obligations, and except for a referral under clause 5.9 that the Consumer agrees to. [CHANGED v0.3]
 
 ## 13. Data protection (POPIA)
 
@@ -438,7 +444,7 @@ The tier is the Consumer's own answer. Lead Velocity makes no promise about any 
 
 > [LAWYER REVIEW: Purpose (c) shares hashed data with offshore advertising platforms (POPIA s15, s18, s72) and the Regulator's Direct Marketing Guidance Note lists cookies as an electronic direct-marketing method (research-memo.md §6.2, R5). Purpose (c) is therefore limited to Consumers who ticked a separate, optional, unbundled consent (Form 4 style). Confirm the wording and whether retargeting of non-consenting visitors needs a documented legitimate-interest assessment. Meta's processor/controller role for Custom Audiences is UNVERIFIED.]
 
-13.2A **Smoker status.** [NEW v0.2] Smoker status is special personal information (POPIA section 26). Lead Velocity asks for it only as an optional question, only with the Consumer's express consent under section 27(1)(a), worded as "used only to brief your adviser, named in the question,". Lead Velocity uses it only to brief the Client before the appointment, never for advertising, and never shares it with any advertising platform. The Client may use it only for the Consumer's enquiry.
+13.2A **Smoker status.** [NEW v0.3] Smoker status is special personal information (POPIA section 26). Lead Velocity asks for it only as an optional question, only with the Consumer's express consent under section 27(1)(a), worded as "used only to brief your adviser, named in the question,". Lead Velocity uses it only to brief the Client before the appointment, never for advertising, and never shares it with any advertising platform. The Client may use it only for the Consumer's enquiry.
 
 > [LAWYER REVIEW (D6): Confirm that smoker status is "health" information under s26 and that the in-chat consent line meets s27(1)(a) and the definition of "consent" in s1 (voluntary, specific, informed). Confirm retention: suggest deleting it from Lead Velocity's records 30 days after the appointment.]
 
@@ -446,7 +452,7 @@ The tier is the Consumer's own answer. Lead Velocity makes no promise about any 
 
 13.4 **Data subject requests and opt-outs.** Each Party handles data subject requests, objections and opt-outs for its own processing. Each Party will notify the other in writing within 2 Business Days of any opt-out, objection or deletion request it receives that affects the other's processing.
 
-13.5 **Direct marketing and the opt-out registry.** [CHANGED v0.2] Each Party is responsible for its own compliance with section 69 of POPIA and section 11 of the Consumer Protection Act. Lead Velocity will check each Consumer against the National Consumer Commission opt-out registry before its first contact with that Consumer. The Client is responsible for registry checks for its own later direct marketing. If a Delivered Qualified Lead is found to have been blocked on the registry at the time of Delivery, it is treated as not Delivered and does not count toward the Committed Leads. The Consumer's consent at the point of enquiry covers contact by the Client about the Consumer's enquiry about insurance and financial planning only. Any other direct marketing by the Client needs its own lawful basis.
+13.5 **Direct marketing and the opt-out registry.** [CHANGED v0.3] Each Party is responsible for its own compliance with section 69 of POPIA and section 11 of the Consumer Protection Act. Lead Velocity will check each Consumer against the National Consumer Commission opt-out registry before its first contact with that Consumer. The Client is responsible for registry checks for its own later direct marketing. If a Delivered Qualified Lead is found to have been blocked on the registry at the time of Delivery, it is treated as not Delivered and does not count toward the Committed Leads. The Consumer's consent at the point of enquiry covers contact by the Client about the Consumer's enquiry about insurance and financial planning only. Any other direct marketing by the Client needs its own lawful basis.
 
 > [LAWYER REVIEW: The NCC's stated position is that a registry block overrides earlier consent (research-memo.md §7, R12). Confirm current registration and cleansing deadlines and the allocation in this clause. Consent text v3 (7 Oct 2026) widens "life cover" to "insurance and financial planning": confirm this is still "specific" enough under POPIA s1 and s69.]
 
@@ -476,11 +482,11 @@ The tier is the Consumer's own answer. Lead Velocity makes no promise about any 
 
 14.3 The Client will:
 
-(a) [CHANGED v0.2] provide and keep accurate and up to date its calendar availability (by connecting its Microsoft Outlook calendar), profile, photograph, biography and FSP details for the Intro Card;
+(a) [CHANGED v0.3] provide and keep accurate and up to date its calendar availability (by connecting its Microsoft Outlook calendar), profile, photograph, biography and FSP details for the Intro Card;
 
 (b) attend every booked appointment at the booked time and by the booked method;
 
-(c) tell Lead Velocity, within [24 hours] after each appointment and using the method Lead Velocity provides, whether the Consumer attended and could be contacted, and give no other outcome information (clause 8.4); and
+(c) tell Lead Velocity, within [24 hours] after each appointment (or, for an Uncontactable Lead who did not answer or reply to the Client's attempts after Delivery, within [24 hours] after the Client's last attempt) and using the method Lead Velocity provides, whether the Consumer attended and could be contacted, and give no other outcome information (clause 8.4); and [CHANGED v0.3]
 
 (d) give its own FAIS disclosures to each Consumer, which the Intro Card does not replace.
 
@@ -542,13 +548,13 @@ The tier is the Consumer's own answer. Lead Velocity makes no promise about any 
 
 20.1 Neither Party is liable for a delay or failure to perform (other than a payment obligation) caused by an event beyond its reasonable control, including: an outage, suspension, policy change or account restriction on an advertising or messaging platform (including Meta, Facebook, Instagram, WhatsApp and Google); internet or power failure, including load-shedding; a change in law or regulatory instruction; natural disaster; or civil unrest.
 
-20.2 [CHANGED v0.2] The affected Party will notify the other promptly and take reasonable steps to limit the effect. A force majeure event never extends delivery beyond day 44 of a Billing Cycle. Delays to delivery are dealt with only under clause 6 (rollover on top of the next cycle, or refund on request).
+20.2 [CHANGED v0.3] The affected Party will notify the other promptly and take reasonable steps to limit the effect. A force majeure event never extends delivery beyond day 44 of a Billing Cycle. Delays to delivery are dealt with only under clause 6 (rollover on top of the next cycle, or refund on request).
 
 20.3 If a force majeure event prevents delivery for more than 30 consecutive days, either Party may terminate this Agreement by written notice, and clause 11.6 applies to any undelivered paid Qualified Leads.
 
 ## 21. Dispute resolution
 
-21.1 **Negotiation.** A Party may refer any dispute arising under or in connection with this Agreement to the other in writing. Senior representatives of both Parties will meet (in person or virtually) within 5 Business Days to try to resolve it. [NEW v0.2] For a dispute about a lead, Lead Velocity will first send the Dispute Evidence under clause 7.8.
+21.1 **Negotiation.** A Party may refer any dispute arising under or in connection with this Agreement to the other in writing. Senior representatives of both Parties will meet (in person or virtually) within 5 Business Days to try to resolve it. [NEW v0.3] For a dispute about a lead, Lead Velocity will first send the Dispute Evidence under clause 7.8.
 
 21.2 **Mediation.** If the dispute is not resolved within 10 Business Days of the referral, either Party may refer it to mediation by a mediator agreed by the Parties or, failing agreement within 5 Business Days, appointed by the Arbitration Foundation of Southern Africa (AFSA), unless the Parties agree otherwise. Each Party bears its own costs and half of the mediator's fees.
 
@@ -576,7 +582,7 @@ The tier is the Consumer's own answer. Lead Velocity makes no promise about any 
 
 (c) if section 14 of that Act applies, the Client may cancel on the notice that section allows; and
 
-(d) the Client confirms that clauses 6.5, 7, 11.3, 15 and 16 were drawn to its attention in plain language before signing. [CHANGED v0.2]
+(d) the Client confirms that clauses 6.5, 7, 11.3, 15 and 16 were drawn to its attention in plain language before signing. [CHANGED v0.3]
 
 > [LAWYER REVIEW: CPA status (research-memo.md §7, R9). A natural person trading under a practice name is not a juristic person, so the R2m exemption does not apply and the CPA (s14, s17, s48 to s51, s54) may apply in full. Recommend contracting with the Client's juristic entity where one exists. Confirm the s17 "reasonable charge" framing in 23.2(b), whether s54 collides with the sole-remedy rule in 6.5, and whether clauses 15 and 16 should be initialled under s49.]
 
@@ -639,8 +645,8 @@ S1.1 **Client's Plan.** The Client's Plan is set out below. All amounts exclude 
 | Effective Lead Price | R825 per Qualified Lead (R16,500 ÷ 20) |
 | Advertising media spend | Included in the Fee; funded and controlled by Lead Velocity |
 | Billing Cycle | 30 days, plus a Rollover Period of up to 14 days (day 44 at most) |
-| Lead tiers (clauses 5.6 and 5.7) [CHANGED v0.2] | A-tier: R1,500+ a month (minimum target; counted automatically). B-tier: R750 to R1,499 a month (offered to accept or decline; counted only if accepted). Under R750: never sent or counted |
-| Shortfall after day 44 (clause 6) [CHANGED v0.2] | Rolls into the next cycle on top of its 20, or refunded at R825 per lead on request, within 7 Business Days |
+| Lead tiers (clauses 5.6 and 5.7) [CHANGED v0.3] | A-tier: R1,500+ a month (minimum target; counted automatically). B-tier: R750 to R1,499 a month (offered to accept or decline; counted only if accepted). Under R750: never sent or counted |
+| Shortfall after day 44 (clause 6) [CHANGED v0.3] | Rolls into the next cycle on top of its Committed Leads, or refunded on request at this Plan's Effective Lead Price (above), within 7 Business Days [CHANGED v0.3] |
 | Setup or onboarding fee | None |
 | First payment due | Before the first Billing Cycle starts, on the date stated on Lead Velocity's first invoice |
 | Client status (clause 23.1) | [CLIENT STATUS — natural person / juristic person with asset value or turnover at or above R2,000,000 / juristic person below R2,000,000] |
@@ -653,11 +659,13 @@ S1.2 **Top-Ups (clause 9).**
 | Minimum Top-Up | 10 Qualified Leads (R8,500 excl. VAT) |
 | Notice | At least 7 days' written notice |
 | Payment | In advance; delivery starts once payment clears and the notice period ends |
+| Undelivered Top-Up Leads [NEW v0.3] | Refunded at the Effective Lead Price of the Client's Plan when the Top-Up was ordered, not at the Top-Up Price (clause 6.6) |
 
-S1.3 **Other Plans (clause 9.5).** [CHANGED v0.2] Silver and Gold are available at the pricing shown on the Pricing Page at the time of upgrade.
+S1.3 **Other Plans (clauses 9.5 and 9.7).** The Pilot Plan is a once-off introductory Plan for first-time clients only (clause 9.7). Silver and Gold are available at the pricing shown on the Pricing Page at the time of upgrade.
 
 | Plan | Fee per Billing Cycle | Committed Leads |
 |---|---|---|
+| Pilot (first-time clients only; one introductory Billing Cycle) | R8,500 excl. VAT, once-off | 10 Qualified Leads (R850 each) |
 | Silver | [PER PRICING PAGE] [CURRENT: R24,500 excl. VAT] | [PER PRICING PAGE] [CURRENT: 30 Qualified Leads, about R817 each] |
 | Gold | [PER PRICING PAGE] [CURRENT: R35,500 excl. VAT] | [PER PRICING PAGE] [CURRENT: 45 Qualified Leads, about R789 each] |
 
@@ -668,13 +676,13 @@ S1.4 **Payment details (clause 10.3).**
 | Paystack (card or Instant EFT) | Payment link sent with each invoice |
 | EFT | To Lead Velocity's First National Bank (FNB) account as stated on Lead Velocity's invoice, using the payment reference on the invoice |
 
-S1.5 **Onboarding items (clause 2.2).** [CHANGED v0.2] Before the Cycle Start Date, the Client must give Lead Velocity: (a) its FSP number and practice name as they appear on the FSCA register, and its licence categories; (b) its Microsoft Outlook calendar, connected through the "Connect my Outlook calendar" step in the Lead Velocity client portal, so that Microsoft Teams appointments are booked into its own calendar; (c) a professional photograph and a short biography for its welcome card (the Intro Card); (d) the appointment methods it offers (for example Microsoft Teams, phone or in person); and (e) the business WhatsApp number to which Qualified Leads are delivered (Schedule 4).
+S1.5 **Onboarding items (clause 2.2).** [CHANGED v0.3] Before the Cycle Start Date, the Client must give Lead Velocity: (a) its FSP number and practice name as they appear on the FSCA register, and its licence categories; (b) its Microsoft Outlook calendar, connected through the "Connect my Outlook calendar" step in the Lead Velocity client portal, so that Microsoft Teams appointments are booked into its own calendar; (c) a professional photograph and a short biography for its welcome card (the Intro Card); (d) the appointment methods it offers (for example Microsoft Teams, phone or in person); and (e) the business WhatsApp number to which Qualified Leads are delivered (Schedule 4).
 
 S1.6 **No success-based charges.** No amount in this Schedule, or in any later Plan, Top-Up or invoice, may be calculated by reference to any appointment outcome, application, sale, premium, policy or commission (clause 8.3).
 
 ## Schedule 2 — Qualified Lead criteria and Delivery
 
-S2.1 **Criteria.** [CHANGED v0.2] A Consumer is a Qualified Lead only if every item below is met.
+S2.1 **Criteria.** [CHANGED v0.3] A Consumer is a Qualified Lead only if every item below is met.
 
 | # | Criterion | How it is evidenced |
 |---|---|---|
@@ -685,7 +693,7 @@ S2.1 **Criteria.** [CHANGED v0.2] A Consumer is a Qualified Lead only if every i
 | 5 | For a B-tier lead only: accepted by the Client (clause 5.7) | Client's Accept tap, time-stamped |
 | 6 | Confirmed a booked appointment with the Client and confirmed they will attend | WhatsApp message log (Consumer's reply or button tap) |
 
-S2.2 **Questions asked.** [CHANGED v0.2] The same questions are asked for every client. Criteria 3 and 4 are self-declared. Lead Velocity asks them as simple bands, does not ask for exact income, ID numbers or existing cover details, and does not verify or underwrite.
+S2.2 **Questions asked.** [CHANGED v0.3] The same questions are asked for every client. Criteria 3 and 4 are self-declared. Lead Velocity asks them as simple bands, does not ask for exact income, ID numbers or existing cover details, and does not verify or underwrite.
 
 | Question | Required? | Notes |
 |---|---|---|
@@ -700,15 +708,15 @@ S2.2 **Questions asked.** [CHANGED v0.2] The same questions are asked for every 
 | Smoker status | Optional, with express consent | Consent line: "used only to brief your adviser, named in the question," (clause 13.2A) |
 | Income band | Optional | Band only, never exact income |
 
-S2.3 **Exclusions.** The following do not count as a Qualified Lead: (a) a Consumer under 18; (b) a Consumer whose details Lead Velocity already Delivered to the Client in the previous 90 days for the same enquiry; (c) a Consumer who withdrew consent or replied STOP before the delivery point in S2.4; [NEW v0.2] (d) a Consumer whose contact details failed the checks in clause 5.8; (e) a Consumer whose stated budget is under R750; and (f) a B-tier lead the Client declined.
+S2.3 **Exclusions.** The following do not count as a Qualified Lead: (a) a Consumer under 18; (b) a Consumer whose details Lead Velocity already Delivered to the Client in the previous 90 days for the same enquiry; (c) a Consumer who withdrew consent or replied STOP before the delivery point in S2.4; [NEW v0.3] (d) a Consumer whose contact details failed the checks in clause 5.8; (e) a Consumer whose stated budget is under R750; and (f) a B-tier lead the Client declined.
 
-S2.4 **Delivery point.** [CHANGED v0.2] A Qualified Lead is Delivered at the moment criterion 6 is met (clause 5.2). Lead Velocity then sends the Client, through the channel in Schedule 4, the Consumer's tier label (A or B), name and surname, contact numbers, email, appointment details (a Microsoft Teams appointment in the Client's calendar) and answers to the questions in S2.2.
+S2.4 **Delivery point.** [CHANGED v0.3] A Qualified Lead is Delivered at the moment criterion 6 is met (clause 5.2). Lead Velocity then sends the Client, through the channel in Schedule 4, the Consumer's tier label (A or B), name and surname, contact numbers, email, appointment details (a Microsoft Teams appointment in the Client's calendar) and answers to the questions in S2.2.
 
 S2.5 **Reminders.** Lead Velocity sends logistics-only reminders to the Consumer up to 10 minutes before the appointment (clauses 3.8 and 5.4).
 
 S2.6 **After Delivery.** What happens during and after the appointment is solely the Client's responsibility (clause 4.4). Lead Velocity does not guarantee attendance, suitability, sales or policy outcomes (clause 15).
 
-## Schedule 3 — No-show proof protocol
+## Schedule 3 — Replacement proof protocol (no-shows and uncontactable leads)
 
 S3.1 **When a Consumer is a no-show.** A Qualified Lead is a No-Show Lead only if the Consumer has not joined or arrived at the appointment by 10 minutes after the booked start time, and the Client has followed this Schedule.
 
@@ -720,27 +728,37 @@ S3.3 **Send proof immediately.** Immediately after the 10-minute wait, and in an
 
 (b) for a Microsoft Teams or other virtual appointment: a screenshot of the call showing the time and that only the Client was present.
 
-S3.4 **Late or missing proof.** If proof is sent late, is incomplete or is not sent, the lead stands as Delivered and no replacement will be considered.
+S3.4 **When a Consumer is uncontactable.** [NEW v0.3] A Qualified Lead is an Uncontactable Lead only if one of the following applies and the Client has followed this Schedule:
 
-S3.5 **Lead Velocity's check.** Lead Velocity may contact the Consumer to confirm what happened and to offer a new appointment with the Client. If the Consumer says the Client did not attend, cancelled or moved the appointment, no replacement is due.
+(a) for an appointment held by phone or WhatsApp call: the Client called the Consumer at the booked start time and again at least 10 minutes later, on every phone number in the Lead Data, and the Consumer answered neither call; or
 
-S3.6 **Decision.** Lead Velocity decides each request in its discretion under clause 7, within the weekly maximum of 3 per Calendar Week, and notifies the Client of its decision in writing.
+(b) in any other case after Delivery, and before the Consumer has attended any appointment with the Client: the Client made at least 3 attempts to reach the Consumer, by phone call or WhatsApp message to the numbers in the Lead Data, over at least 72 hours, and the Consumer did not answer or reply to any of them.
 
-S3.7 **Not a replacement trigger.** A Consumer who attends but does not buy, is unsuitable, or is not interested after the appointment is not a no-show.
+An appointment held by phone or WhatsApp call is dealt with only under this S3.4 and S3.5, never as a no-show under S3.1 to S3.3. A lead whose contact details are shown to be wrong, disconnected or someone else's is dealt with under clause 5.8(d), not under this Schedule.
 
-S3.8 **Retention of proof.** Lead Velocity keeps no-show proof only for as long as needed to decide the request and any dispute about it, and in any event deletes it within [90] days.
+S3.5 **Proof of an uncontactable lead.** [NEW v0.3] The Client must send Lead Velocity, through the channel in Schedule 4, a screenshot of its call log or message thread showing the Consumer's number, the date and time of each attempt, that no call was answered and that no reply was received, no later than [30] minutes after the booked start time (for S3.4(a)) or no later than [24 hours] after the Client's last attempt (for S3.4(b)). The screenshot must show only the Consumer's entries, with no other person's name or number visible.
+
+S3.6 **Late or missing proof.** If proof is sent late, is incomplete or is not sent, the lead stands as Delivered and no replacement will be considered.
+
+S3.7 **Lead Velocity's check.** Lead Velocity may contact the Consumer to confirm what happened and to offer a new appointment with the Client. If the Consumer says the Client did not attend, cancelled or moved the appointment, or did not call or message them, no replacement is due. [CHANGED v0.3]
+
+S3.8 **Decision.** Lead Velocity decides each request in its discretion under clause 7, within the weekly maximum of 3 per Calendar Week for No-Show Leads and Uncontactable Leads together, and notifies the Client of its decision in writing. A lead earns at most one Replacement Lead. [CHANGED v0.3]
+
+S3.9 **Not a replacement trigger.** A Consumer who attends but does not buy, is unsuitable, or is not interested after the appointment is not a no-show. A Consumer who answers or replies to any of the Client's attempts, or who has attended an appointment with the Client and later stops answering, is not an Uncontactable Lead. [CHANGED v0.3]
+
+S3.10 **Retention of proof.** Lead Velocity keeps no-show and uncontactable-lead proof only for as long as needed to decide the request and any dispute about it, and in any event deletes it within [90] days. [CHANGED v0.3]
 
 ## Schedule 4 — Data sharing terms
 
 S4.1 **Roles.** Lead Velocity and the Client are each independent responsible parties (clause 13.1).
 
-S4.2 **Data shared with the Client.** [CHANGED v0.2] For each Qualified Lead (and, for the Accept / Decline choice, each B-tier lead offered): tier label (A or B), name and surname, mobile and contact numbers, email address (and alternative email if given), reason(s) for the call (with any flag under clause 5.9), age band, budget band, and, if the Consumer chose to give them, current spend band, income band and smoker status (smoker status only with the Consumer's express consent under clause 13.2A), appointment date, time and Microsoft Teams link, and any appointment question the Consumer asked (with any other health or identity details removed).
+S4.2 **Data shared with the Client.** [CHANGED v0.3] For each Qualified Lead (and, for the Accept / Decline choice, each B-tier lead offered): tier label (A or B), name and surname, mobile and contact numbers, email address (and alternative email if given), reason(s) for the call (with any flag under clause 5.9), age band, budget band, and, if the Consumer chose to give them, current spend band, income band and smoker status (smoker status only with the Consumer's express consent under clause 13.2A), appointment date, time and Microsoft Teams link, and any appointment question the Consumer asked (with any other health or identity details removed).
 
-S4.3 **Data shared with Lead Velocity by the Client.** Calendar availability, Client Materials, Accept / Decline choices for B-tier leads, and attendance feedback and no-show proof under Schedule 3. [CHANGED v0.2]
+S4.3 **Data shared with Lead Velocity by the Client.** Calendar availability, Client Materials, Accept / Decline choices for B-tier leads, and attendance and contactability feedback and no-show and uncontactable-lead proof under Schedule 3. [CHANGED v0.3]
 
 S4.4 **Channel.** Lead Data is shared with the Client only by WhatsApp to the Client's business WhatsApp number and by email to the Client's notice email address, or through the Lead Velocity client portal once Lead Velocity makes it available. Lead Data is never sent as an unencrypted spreadsheet attachment.
 
-S4.5 **Intro Card and first message.** [CHANGED v0.2] The first WhatsApp message to each Consumer is the Client's welcome card. It states the Client's name, practice name and FSP number, and that SortMyCover and Lead Velocity are not financial services providers and give no advice. Lead Velocity keeps the approved text with the Origin Records.
+S4.5 **Intro Card and first message.** [CHANGED v0.3] The first WhatsApp message to each Consumer is the Client's welcome card. It states the Client's name, practice name and FSP number, and that SortMyCover and Lead Velocity are not financial services providers and give no advice. Lead Velocity keeps the approved text with the Origin Records.
 
 S4.6 **Lead Velocity's retention.** Lead Velocity keeps:
 
@@ -750,7 +768,7 @@ S4.6 **Lead Velocity's retention.** Lead Velocity keeps:
 
 (c) hashed or anonymised data used for marketing optimisation: for as long as it is used for that purpose, subject to the Consumer's right to object; and
 
-(d) [NEW v0.2] smoker status: [30] days after the appointment, then deleted.
+(d) [NEW v0.3] smoker status: [30] days after the appointment, then deleted.
 
 > [LAWYER REVIEW (D6): confirm the 30-day retention period for smoker status.]
 

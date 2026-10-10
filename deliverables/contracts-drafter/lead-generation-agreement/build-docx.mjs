@@ -25,6 +25,8 @@ const {
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SOURCE = join(HERE, 'lead-velocity-services-agreement.md');
+// version label for the page footer, read from the "Version:" line of the source so it never goes stale
+const VERSION = (readFileSync(SOURCE, 'utf8').match(/^Version:\s*([A-Za-z0-9.-]+)/m) || [])[1] || 'LGSA';
 
 // Variants.
 // - template: INTERNAL. Keeps every [PLACEHOLDER] and every [LAWYER REVIEW] margin note.
@@ -208,12 +210,12 @@ function build(md, stripNotes = false) {
       if (stripNotes) continue;
       stats.notes++;
       children.push(marginNote(m[1], lastLeft || 720));
-    } else if ((m = line.match(/^(\d+(?:\.\d+)+) (.*)/))) {
+    } else if ((m = line.match(/^(\d+(?:\.\d+)+[A-Z]?) (.*)/))) {
       const level = m[1].split('.').length - 1;
       stats.clauses++;
       lastLeft = INDENT[level] || 2160;
       children.push(numbered(m[1], m[2], level));
-    } else if ((m = line.match(/^(S\d+\.\d+) (.*)/))) {
+    } else if ((m = line.match(/^(S\d+\.\d+[A-Z]?) (.*)/))) {
       stats.clauses++;
       lastLeft = INDENT[1];
       children.push(numbered(m[1], m[2], 1));
@@ -260,7 +262,7 @@ function makeDoc(children, v) {
       footers: {
         default: new Footer({ children: [new Paragraph({
           alignment: AlignmentType.CENTER,
-          children: [new TextRun({ size: 16, color: GREY, children: ['Lead Velocity — Lead Generation Services Agreement LGSA-v0.1   ·   Page ', PageNumber.CURRENT, ' of ', PageNumber.TOTAL_PAGES] })],
+          children: [new TextRun({ size: 16, color: GREY, children: [`Lead Velocity — Lead Generation Services Agreement ${VERSION}   ·   Page `, PageNumber.CURRENT, ' of ', PageNumber.TOTAL_PAGES] })],
         })] }),
       },
       children,
