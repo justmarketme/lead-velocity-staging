@@ -66,12 +66,12 @@ background: true
 A single `pricing` table (Postgres) holds: `tier_code`, `name`, `price_zar`, `committed_leads`, `replacement_cap_cycle`, `media_share_zar` (the media budget the tier unlocks in Meta), `paystack_plan_code`, `active_from`. **Nothing else hard-codes a price.** Consumers of that table, all updated as part of this build:
 1. **Website pricing page** (Hostinger static, regenerated from the table — W25).
 2. **Checkout page + Paystack Plans** (one plan per tier, created/updated by API; manual-EFT amount and reference `LV-{broker_id}-{tier}-{YYYYMM}`).
-3. **Proposal generator** (existing automation — point it at the table; template shows tier, leads, replacements, price, what's included).
+3. **Proposal generator** (existing automation — point it at the table; template shows tier, leads, the goodwill replacement line (up to 3 requests a week), price, what's included).
 4. **Broker Services Agreement generator** (contracts-drafter template merges tier values into Schedule A).
 5. **Invoice generator** (amount, tier, period; VAT line if/when registered).
 6. **Bank reconciliation** (expected amount per broker = tier price; reference parser understands the tier code).
 7. **Ad budget automation** (go-live raises Meta budget by `media_share_zar`; pause lowers it).
-8. **Routing capacity** (`committed_leads` → monthly target per broker; replacements counter uses `replacement_cap_cycle`).
+8. **Routing capacity** (`committed_leads` → monthly target per broker). Replacements are goodwill, max 3 requests per Calendar Week on every plan (agreement clause 7, 10 Oct 2026); `replacement_cap_cycle` is kept as history only and drives nothing.
 9. **Console dashboard & margin maths** (3.2/3.5 computed live per tier).
-10. **Broker portal** (shows the broker their tier, leads delivered vs committed, replacements used).
+10. **Broker portal** (shows the broker their tier, leads delivered vs committed, replacement requests this week out of 3).
 Upgrades/downgrades: change `tier_code` on the broker → Paystack plan switched at next cycle, pro-rata invoice, media share and routing updated automatically, agreement addendum generated.

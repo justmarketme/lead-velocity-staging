@@ -33,6 +33,9 @@ test('S7-07 local: W14 from the synthetic cycle; WhatsApp 6-liner, Reports tab a
   const order = readFileSync(join(ROOT, 'automation', 'vps', 'apply-analytics.sh'), 'utf8').match(/^FILES=\(([^)]*)\)/m)[1].trim().split(/\s+/);
   assert.deepEqual(order, ['params.sql', 'watchlist.sql', 'kill-scale.sql', 'W14-broker.sql', 'W14-lv.sql']);
   pg.sql(order.map((f) => readFileSync(join(ROOT, 'analytics', f), 'utf8')).join('\n;\n'), ['-1']);
+  // ux-sprint-1: facts.w14_broker_report is NOT in that order (production gets it folded into a migration: smc_10/12/13 hold the pre-10-Oct body).
+  // Apply its source file on top, as analytics/tests/run-all.sh does, so this run proves the current wording and the null replacements light.
+  pg.sql(readFileSync(join(ROOT, 'analytics', 'W14-broker-payload.sql'), 'utf8'), ['-1']);
   pg.sql("SET smc.allow_synthetic = 'on';\n" + readFileSync(join(ROOT, 'supabase', 'seed', 'smc_synthetic.sql'), 'utf8'));
 
   // ---- (1) generate: the real "Build payloads" query, rows as JSON
@@ -81,7 +84,15 @@ test('S7-07 local: W14 from the synthetic cycle; WhatsApp 6-liner, Reports tab a
     assert.ok(email.includes(String(v)), `email shows ${k}=${v}`);
     assert.ok(print.includes(String(v)), `PDF shows ${k}=${v}`);
   }
-  for (const v of [s2.attended.v, s2.replacements.used, s2.replacements.cap]) { assert.ok(email.includes(String(v))); assert.ok(print.includes(String(v))); }
+  for (const v of [s2.attended.v, s2.replacements.used]) { assert.ok(email.includes(String(v))); assert.ok(print.includes(String(v))); }
+  // ux-sprint-1 (agreement clause 7, 10 Oct): replacements are goodwill, max 3 requests per Calendar Week. A plain count, no "of cap", no used/cap light.
+  assert.equal(s2.replacements.light, null, 'no replacements traffic light in the stored payload');
+  assert.equal(typeof s2.replacements.cap, 'number', 'cap stays in the payload as data');
+  for (const [label, txt] of [['email', email], ['PDF', print]]) {
+    assert.match(txt, new RegExp(`Replacement requests this cycle\\s*${s2.replacements.used}\\b`), `${label} shows the replacement requests count`);
+    assert.doesNotMatch(txt, /Replacements used/i, label);
+    assert.doesNotMatch(txt, new RegExp(`\\b${s2.replacements.used} of ${s2.replacements.cap}\\b`), `${label} does not print used-of-cap`);
+  }
 
   // ---- (5) one-ask: same deep link in WhatsApp and email; the tap (portal RPC) marks it once, owner only
   if (P.s7_ask) {

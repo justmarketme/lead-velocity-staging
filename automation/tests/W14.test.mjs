@@ -76,7 +76,11 @@ for (const key of ['weekly_close_rate', 'weekly_no_close_rate', 'midcycle', 'cyc
     assert.ok(Number.isInteger(p.s2_progress.booked.last), 'booked.last is a count (I-20), not the 0.60 rate of the old example');
     assert.ok(p.s2_progress.booked.last >= 0);
     assert.ok(['green', 'amber', 'red', 'grey'].includes(p.s2_progress.show_rate.light));
-    assert.ok(['green', 'amber', 'red'].includes(p.s2_progress.replacements.light));
+    // ux-sprint-1 (agreement clause 7): replacements are goodwill, max 3 requests per Calendar Week; no per-cycle allowance, so no used-of-cap light.
+    // The keys stay (history, old readers); the light is always null and nothing prints cap.
+    assert.deepEqual(Object.keys(p.s2_progress.replacements).sort(), ['cap', 'last_used', 'light', 'used']);
+    assert.equal(p.s2_progress.replacements.light, null);
+    if (key === 'cycle_end') assert.match(p.wa.v7, /^Replacement requests this cycle: \d+\./, 'cycle-end line {{7}}: a plain count, no "of cap"');
     assert.deepEqual(Object.keys(p.s3_meetings).sort(), ['last_week', 'next_week', 'todos']);
     assert.deepEqual(Object.keys(p.s3_meetings.todos).sort(), ['followups_due', 'not_reached', 'unmarked']);
     for (const k of ['avg_rating', 'ratings_given', 'mix', 'themes', 'lead_pulse']) assert.ok(k in p.s4_quality);

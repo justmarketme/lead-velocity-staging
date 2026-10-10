@@ -47,7 +47,7 @@ erDiagram
   leads ||--o{ outcomes : "lead_id"
   outcomes ||--o{ replacements : "outcome_id"
   leads ||--o{ replacements : "lead_id / replacement_lead_id"
-  cycles ||--o{ replacements : "per-cycle cap"
+  cycles ||--o{ replacements : "requests (3 a Calendar Week)"
   cycles ||--o{ invoices_smc : "cycle_id"
   brokers ||--o{ invoices_smc : "broker_id"
   bank_credits |o--o| invoices_smc : "matched_invoice_id / bank_credit_id"

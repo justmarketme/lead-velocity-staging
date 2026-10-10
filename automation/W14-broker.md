@@ -18,7 +18,7 @@ Weekly: generated Sun 23:00, sent Mon 07:00 SAST (before the 07:30 digest). Day-
     "delivered": {"v": 7, "target": 10, "last": 4, "committed": 20}, "verified": {"v": 7, "target": null, "last": 4},
     "booked": {"v": 5, "target": 0.60, "last": 0.60, "rate": 0.71}, "attended": {"v": 4, "target": null, "last": 3},
     "show_rate": {"v": 0.80, "target": 0.65, "last": 0.75, "light": "green"},
-    "replacements": {"used": 0, "cap": 4, "last_used": 0, "light": "green"}, "days_left": 16},
+    "replacements": {"used": 0, "cap": 4, "last_used": 0, "light": null}, "days_left": 16},
   "s3_meetings": {
     "last_week": [{"lead_ref": "lead_uuid", "first_name": "Lerato", "initial": "M", "full_name": "Lerato Mokoena", "when": "2026-10-08T11:00+02:00", "method": "teams", "outcome": "attended", "unconfirmed": false, "disposition": "fit_followup", "quality": 4}],
     "next_week": [{"first_name": "Pieter", "initial": "B", "when": "2026-10-13T10:00+02:00", "method": "teams"}],
@@ -34,6 +34,8 @@ Weekly: generated Sun 23:00, sent Mon 07:00 SAST (before the 07:30 digest). Day-
   "wa": {"v1": "...", "v2": "...", "v3": "...", "v4": "...", "v5": "...", "v6": "..."}
 }
 ```
+Replacements (agreement clause 7, Jonathan 10 Oct 2026): goodwill, at Lead Velocity's discretion, at most 3 requests per Calendar Week on every plan, no-shows and leads the adviser could not reach combined, each with proof. There is no per-cycle allowance. So `s2_progress.replacements` keeps its keys (`used`, `cap`, `last_used`, `light`) only so old readers do not break: `used` is the number of replacements this cycle and is printed as "Replacement requests this cycle: n" with the note "goodwill, up to 3 requests a Calendar Week"; `cap` is the legacy per-cycle data column and is never printed; `light` is always `null` (no traffic light on replacements, no empty pill).
+
 Rules: `s6_roi` is always `{"shown": false}`. No close rate, policies-reported or tracking figure is stored in the payload, the WhatsApp summary, the email or the PDF (compliance review 4, NH-43). The portal ROI view reads `cycles.policies_written_reported` and `brokers.close_rate` directly, on screen only.
 
 ## WhatsApp mapping (templates already in `automation/templates`)
@@ -47,7 +49,7 @@ Rules: `s6_roi` is always `{"shown": false}`. No close rate, policies-reported o
 | 5 | to-do count in words | "2 outcomes to mark" or "Nothing to mark" |
 | 6 | `s7_ask.text` shortened to 60 chars | "Mark the 2 open outcomes" |
 No newlines or runs of spaces in parameters; no lead names (aggregates only, POPIA); six lines. No ask this week: var 6 = "Nothing this week. You are all caught up." and "Do it now" opens the report (a no-ask template variant would be cleaner; needs_human). The mock's "Top theme" line is not in the approved template; it stays in portal and email.
-`broker_midcycle`: 1 cycle month, 2 delivered, 3 committed, 4 booked, 5 attended, 6 average rating, 7 status line ("On track to deliver all 20." or "A little behind: we are adding leads and your cycle can extend up to 14 days."), 8 cycle end date. `broker_cycle_end`: 1 month, 2 end date, 3 delivered, 4 committed, 5 good-fit meetings (`fit_proceeding + fit_followup`), 6 average rating, 7 "Replacements used: n of cap." plus extension or credit sentence if any. Both carry the renewal link (`renew/<cycle>`, W19).
+`broker_midcycle`: 1 cycle month, 2 delivered, 3 committed, 4 booked, 5 attended, 6 average rating, 7 status line ("On track to deliver all 20." or "A little behind: we are adding leads and your cycle can extend up to 14 days."), 8 cycle end date. `broker_cycle_end`: 1 month, 2 end date, 3 delivered, 4 committed, 5 good-fit meetings (`fit_proceeding + fit_followup`), 6 average rating, 7 "Replacement requests this cycle: n." plus extension or credit sentence if any. Both carry the renewal link (`renew/<cycle>`, W19).
 
 ## Email and PDF
 - From howzit@leadvelocity.co.za (Graph `sendMail`), bcc howzit@ (copy retained). Subject: "Your SortMyCover week · {delivered}/{committed} delivered · {n} thing(s) to do" (no ask: "· all caught up"). Mid-cycle: "Day 15 of your cycle · ..." ; end: "Your October cycle summary".
@@ -78,7 +80,7 @@ None eligible: `s7_ask = null`. Button deep links `ask/<report_id>` land on the 
 | R04 | Exactly one ask, or none with the one-line saying so |
 | R05 | WhatsApp: at most six lines, no lead full name, no health detail |
 | R06 | Every number has target and last week (or an explicit n/a) |
-| R07 | Traffic light on show rate and replacements only |
+| R07 | Traffic light on show rate only (replacements are a plain count, never "of cap", never a light) |
 | R08 | Grade 7 reading level (Flesch-Kincaid <= 7), first person, under 150 words before the first table |
 | R09 | `s6_roi` absent unless a close rate exists; policies reported appear nowhere else |
 | R10 | Layout and section order unchanged from the template |

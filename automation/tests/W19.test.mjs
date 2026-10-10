@@ -37,10 +37,21 @@ function assertTemplatePayload(j, name) {
 test("I-48g W19: offer -> broker_cycle_end payload built from the offer item, not the insert output", async () => {
   assert.deepEqual(next19("Offer: issue renewal invoice (idempotent)").sort(), ["Email: renewal offer from howzit@", "Offer: map to sender input"]);
   assert.deepEqual(next19("Offer: map to sender input"), ["WhatsApp: broker_cycle_end (renewal offer)"]);
-  const offer = { row: ROW, invoice: { reference: "LV-1042-B-202612" }, template: { name: "broker_cycle_end", body: ["November", "13 Nov", "20", "20", "9", "4.0", "Replacements used: 2 of 4."], buttons: ["renew/LV-1042-B-202612", "r/c-1"] } };
+  const offer = { row: ROW, invoice: { reference: "LV-1042-B-202612" }, template: { name: "broker_cycle_end", body: ["November", "13 Nov", "20", "20", "9", "4.0", "Replacement requests this cycle: 2."], buttons: ["renew/LV-1042-B-202612", "r/c-1"] } };
   const out = await run("Offer: map to sender input", { items: [{ success: true }], refs: { "Offer: renewal invoice + message": offer } });
   assert.equal(out.length, 1); assertTemplatePayload(out[0].json, "broker_cycle_end");
   assert.equal(out[0].json.correlation, "W19:offer_t7:c-1:LV-1042-B-202612");
+});
+
+test("ux-sprint-1 (agreement clause 7): the real offer Code node writes {{7}} as a plain count of replacement requests, never 'of cap'", async () => {
+  const pricing = JSON.parse(readFileSync(new URL("../billing/pricing.seed.json", import.meta.url), "utf8")).rows;
+  const ctx = { progress: { cycle_id: "c-1", verified: 20, committed: 20, good_fit: 9, replacements_used: 2, replacement_cap: 6 }, quality_avg: "4.0", pricing, taken: [], credit_cents: 0 };
+  const out = await run("Offer: renewal invoice + message", { items: [{ ctx }], refs: { "Claimed rows only": [{ ...ROW, action: "offer_t7" }], "Offer: results + pricing + issued refs": [{ ctx }] } });
+  const body = out[0].json.template.body;
+  assert.equal(body.length, 7); assert.equal(body[6], "Replacement requests this cycle: 2.");
+  assert.doesNotMatch(JSON.stringify(out[0].json.template), /Replacements used| of 6\b/);
+  const none = await run("Offer: renewal invoice + message", { items: [{ ctx: { ...ctx, progress: { ...ctx.progress, replacements_used: 0 } } }], refs: { "Claimed rows only": [{ ...ROW, action: "offer_t7" }], "Offer: results + pricing + issued refs": [{ ctx }] } });
+  assert.equal(none[0].json.template.body[6], "Replacement requests this cycle: 0.");
 });
 
 test("I-48g W19: T-3 reminder -> broker_renewal_reminder payload (6 body vars, Pay now suffix); email leg stays in W19", async () => {

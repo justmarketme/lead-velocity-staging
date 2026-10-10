@@ -129,7 +129,9 @@ function sections(p, t, o) {
     + row('Booked', `${esc(num(b.v))}${b.rate != null ? ` (${esc(pct(b.rate))} of verified)` : ''}`, [b.target != null ? `target ${pct(b.target)} booked` : 'target n/a', b.last != null ? `last week ${num(b.last)}` : 'last week n/a'].join(' · '))
     + row('Showed up', esc(num((sp.attended || {}).v)), tl(sp.attended))
     + row('Show rate', esc(pct(sr.v)) + pill(sr.light), tl(sr, pct))
-    + row('Replacements used', `${esc(rp.used)} of ${esc(rp.cap)}` + pill(rp.light), `last week ${rp.last_used == null ? 'n/a' : rp.last_used}`)
+    // Replacements are goodwill, max 3 requests per Calendar Week (agreement clause 7): a plain count, no allowance to be "of" and no traffic light.
+    // rp.cap and rp.light stay in the payload as history; neither is printed (an old payload that still carries a light must not paint a pill).
+    + row('Replacement requests this cycle', esc(rp.used), `last week ${rp.last_used == null ? 'n/a' : rp.last_used} · goodwill, up to 3 requests a Calendar Week`)
     + row('Days left in this cycle', esc(sp.days_left), null)
     + `</table>`;
 

@@ -82,7 +82,7 @@ background: true
 
 **What's in it (same order every week; numbers always as *value · target · last week*):**
 1. **One line:** "Week 2 of your October cycle: 7 of 20 leads delivered, 5 booked, 4 showed up, 3 you rated a good fit. On track."
-2. **Progress:** delivered / committed (bar) · verified · booked · attended · show rate · replacements used / cap · days left in cycle · cycle extension status if any.
+2. **Progress:** delivered / committed (bar) · verified · booked · attended · show rate · replacement requests this cycle (a plain count, goodwill, up to 3 requests a Calendar Week; no "of cap") · days left in cycle · cycle extension status if any.
 3. **Your meetings:** last week's list (first name + initial only outside the portal; full name inside) with outcome and his disposition; **next week's booked calls** with method and time; **his to-dos**: outcomes not yet marked (one tap each), good-fit follow-ups due this week (from his own `fit_followup` taps), any leads who said the adviser didn't reach them.
 4. **Quality, in his words:** his average quality score, disposition mix, and the top 3 themes leads asked about before the call (from the pre-call-brief corpus) — this is the part that sharpens his next five calls.
 5. **What you'll notice (only when true, one line each):** a new ad angle live ("more leads mentioning a bond this week"), a change to the quiz, a new contact method, public holiday blocks — never spend, CPL, creative names or anything about other brokers.
@@ -97,7 +97,7 @@ background: true
 | **Broker portal → Reports** | Same moment; always available | Interactive: all 8 sections, drill-down to each lead, outcome buttons inline, history by week and cycle, "download PDF", his close-rate input | Where he acts: marks outcomes, sees names, exports for his own compliance file |
 | **Email** (from howzit@, copy retained) | Monday 07:00 | Full report (HTML) + PDF attached, subject "Your SortMyCover week · 7/20 delivered · 1 thing to do" | His audit trail and the one copy he can forward to a partner or compliance officer |
 
-**UX rules:** Grade 7 plain English; every number with its target and last week; traffic-light only for show rate and replacements (the two things he can act on); first-person ("your meetings"), never "our funnel"; no jargon (no CPL, EMQ, CAPI, "attribution"); under 2 minutes on a phone; consistent template; the WhatsApp message is never more than six lines and never contains a lead's full name. If a week has nothing to act on, say so in the one-liner and skip section 7.
+**UX rules:** Grade 7 plain English; every number with its target and last week; traffic-light only for show rate (the one thing he can act on; replacements are a plain count, never a light); first-person ("your meetings"), never "our funnel"; no jargon (no CPL, EMQ, CAPI, "attribution"); under 2 minutes on a phone; consistent template; the WhatsApp message is never more than six lines and never contains a lead's full name. If a week has nothing to act on, say so in the one-liner and skip section 7.
 
 **What it gives *us*:** the same query feeds the console: per-broker renewal-risk score (show rate, disposition rate, to-dos ignored, report opened?), lead-quality by angle from his dispositions, capacity signals (calendar fill vs his ask), and whether he opened the report (WhatsApp read receipt / portal view / email open) — unopened two weeks running → Jonathan calls him. Policies-written data is stored for *his* ROI view only, never in any fee or ranking (FAIS).
 

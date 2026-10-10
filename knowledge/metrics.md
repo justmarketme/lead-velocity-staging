@@ -183,16 +183,16 @@ select round(count(*) filter (where not coalesce(auto_marked, false))::numeric /
 from facts.fact_outcome where (marked_at at time zone 'Africa/Johannesburg')::date > facts.as_of() - 28;
 ```
 
-## M14 Replacements used
-- **Means:** How many replacement leads the adviser has used this cycle against his plan's allowance.
-- **Target and why:** At or under the cap: Bronze 4, Silver 6, Gold 9 per cycle (0.1). The cap is what the pricing assumes; only 'unreachable' and 'outside criteria' open a replacement, never 'did not buy' (2.1).
-- **If it moves:** Near the cap: check whether one angle or one source causes them. Over the cap is a contract decision, never automatic.
+## M14 Replacement requests
+- **Means:** How many replacement requests the adviser has made this Calendar Week (Monday to Sunday) out of the weekly maximum of 3, with the number of replacements this cycle beside it for context.
+- **Target and why:** At or under 3 requests a Calendar Week on every plan (agreement clause 7, Jonathan 10 Oct 2026). Replacements are goodwill at Lead Velocity's discretion, never a right: a request can follow a no-show or a lead the adviser could not reach, both sharing one counter, each with proof sent 10 to 30 minutes after the start. Not buying never counts (2.1). There is no per-cycle allowance: the old Bronze 4 / Silver 6 / Gold 9 (0.1) survive only as data columns (`replacement_cap`, `replacement_cap_cycle`) and drive nothing.
+- **If it moves:** Several requests in one week: check whether one angle, source or time slot produces the no-shows or unreachable leads. A fourth request in a week is never accepted; anything beyond that is Jonathan's call, never automatic.
 - **Tooltip (jargon):** Replacement claims; credit rate.
-- **Shown on:** Broker report (traffic light); LV weekly
+- **Shown on:** Broker report (a plain count, no traffic light); LV weekly
 - **SQL:**
 
 ```sql
-select replacements_used, replacement_cap from public.v_cycle_progress where broker_id = '00000000-0000-4000-8000-0000000b0002';
+select replacement_requests_this_week, replacement_weekly_max, replacements_used from public.v_cycle_progress where broker_id = '00000000-0000-4000-8000-0000000b0002' order by starts_at desc limit 1;
 ```
 
 ## M15 Lead quality score per ad angle
@@ -531,7 +531,7 @@ select r.close_rate, r.policies_written_reported from facts.fact_broker_roi r  -
 - M11 Qualified leads who book
 - M12 Time to first message
 - M13 Outcomes the adviser marked himself
-- M14 Replacements used
+- M14 Replacement requests
 - M15 Lead quality score per ad angle
 - M16 Not-a-fit rate
 - M17 Leads who started from a comment

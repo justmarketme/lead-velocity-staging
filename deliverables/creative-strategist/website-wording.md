@@ -7,7 +7,7 @@
 
 **Method:** words change, structure doesn't. Every section, heading level, card count and order stays as it is. Three exceptions are flagged as `needs_human` at the end: the FAQ block (none exists today), a CTA button inside each tier card, and removing the Gold "Commission" block.
 
-**Rules held:** Grade ≤ 7 plain SA English, no exclamation marks, no premium or cover figure, no insurer names, the delivery word is always "committed" (0.1), "no lock-in" instead of any claim that there is no agreement (CPA s41: brokers sign one), replacements **per cycle** (0.1), prices excl. VAT (0.1), tier values only from `pricing` fields.
+**Rules held:** Grade ≤ 7 plain SA English, no exclamation marks, no premium or cover figure, no insurer names, the delivery word is always "committed" (0.1), "no lock-in" instead of any claim that there is no agreement (CPA s41: brokers sign one), replacements as goodwill, at Lead Velocity's discretion, up to 3 requests a week on every plan (agreement clause 7, 10 Oct 2026; the old per-cycle numbers are data only and are never printed), prices excl. VAT (0.1), tier values only from `pricing` fields.
 
 ---
 
@@ -18,16 +18,16 @@
 | 1 | What you're buying | Hero subheading | Page header subheading |
 | 2 | What qualified means (+ link to the full definition) | Features card 1 | Tier-card footnote link + FAQ "What is a pre-qualified lead?" (anchor `#what-qualified-means`) |
 | 3 | Nurtured and managed with AI | Features card 3 | "What every plan includes" column 1 |
-| 4 | Replacements | Features card 4 (generic cap wording) | Tier-card notes (with `{{replacement_cap_cycle}}`) |
+| 4 | Replacements | Features card 4 (generic goodwill wording) | Tier-card notes (the same line on every tier, no per-tier number) |
 | 5 | What we don't do | Features intro line | "What every plan includes" column 2 |
 | 6 | Pricing is all-in | Mission Control paragraph | "What every plan includes" column 3 |
 | 7 | Honesty line (replaces "33–40 estimated leads") | Features card 2 (generic) | Tier-card leads row (with `{{committed_leads}}`) |
 
-**Statement texts as placed.** Statements 2, 3, 5 and 6 are verbatim from 3.5a. Statement 1 is verbatim except its old "no-agreement" phrase → "no lock-in" (compliance-qa W-1, CPA s41; mandated text, so it is pending Jonathan's sign-off on NH-new-A). Statement 4 is adjusted to 0.1 and NH-CD-09. Statement 7 is verbatim with fields.
+**Statement texts as placed.** Statements 2, 3, 5 and 6 are verbatim from 3.5a. Statement 1 is verbatim except its old "no-agreement" phrase → "no lock-in" (compliance-qa W-1, CPA s41; mandated text, so it is pending Jonathan's sign-off on NH-new-A). Statement 4 is adjusted to agreement clause 7 (goodwill, up to 3 requests a week, 10 Oct 2026) and NH-CD-09. Statement 7 is verbatim with fields.
 1. "Month to month, no lock-in. You pay upfront for one month and get a set number of **pre-qualified leads** — people who told us their age band, that they can budget for cover, and that they want a call with a licensed adviser. Not clicks. Not raw form fills."
 2. "**What qualified means:** age band · budget band · valid SA mobile reachable on WhatsApp · agreed to a virtual or phone call · consented to be contacted · not a duplicate in 90 days. [Full definition →](#what-qualified-means)"
 3. "Every lead is followed up within 60 seconds on WhatsApp by our AI assistant, booked straight into your calendar, reminded before the call, and rescheduled if they miss it — automatically. You get a pre-call brief on who they are and what they asked."
-4. "If a verified lead no-shows or can't be reached, we replace it — up to {{replacement_cap_cycle}} per cycle on this plan. If we fall short of your committed number, your cycle extends by up to 14 days to deliver it, and anything still short is credited."
+4. "If a lead doesn't show, or you couldn't reach them, we may replace it as a goodwill gesture, at Lead Velocity's discretion: send proof 10 to 30 minutes after the start, up to 3 requests a week. If we fall short of your committed number, your cycle extends by up to 14 days to deliver it, and anything still short is credited."
    *Change from 3.5a: "extends until we deliver" becomes "extends by up to 14 days". 0.1 and the term sheet cap the extension at 14 days (NH-CD-09). contracts-drafter to confirm.*
 5. "We don't give financial advice, compare products or quote premiums. You're the licensed adviser; we fill your diary."
 6. "Ad spend, landing pages, WhatsApp automation and reporting are included. No setup fee. No per-policy commission — ever."
@@ -123,9 +123,9 @@
 | `price` + suffix | R8,500 / R10,500 / R16,500+ · "/mo" | `R{{price_zar}}` · "/ 30-day cycle, excl. VAT" *(no "+" suffix: the price is fixed and all-in)* |
 | Row 1 label / value | Est. Leads · ± 17 / ± 23-26 / 33-40+ | **Pre-qualified leads** · `{{committed_leads}}` verified, pre-qualified leads per cycle — committed, not estimated. Short? We extend and credit. *(Statement 7)* |
 | Row 2 label / value | Effective CPL · ± R500 / ± R400-R450 / ± R350-R400 | **Price per committed lead** · `R{{price_zar ÷ committed_leads}}` *(derived at render time, not stored)* |
-| "Included" list | SME decision-maker leads, targeting, check-ins, delivery priority, etc. (B2B) | • `{{committed_leads}}` pre-qualified leads per cycle<br>• AI WhatsApp follow-up, booking & reminders included<br>• Up to `{{replacement_cap_cycle}}` replacements per cycle<br>• Media spend included<br>• Pre-call brief for every booked call and a Monday report |
+| "Included" list | SME decision-maker leads, targeting, check-ins, delivery priority, etc. (B2B) | • `{{committed_leads}}` pre-qualified leads per cycle<br>• AI WhatsApp follow-up, booking & reminders included<br>• Goodwill replacements (up to 3 requests a week)<br>• Media spend included<br>• Pre-call brief for every booked call and a Monday report |
 | `commission` block | Gold only: "Option to renegotiate for volume/exclusivity" | **Removed on every tier.** Leave the prop unset. *(2.1.1: price never tied to policies.)* |
-| `notes` | Bronze: "Minimum recommended post-pilot. Best for brokers refining their process." · Silver: "Our most popular tier…" · Gold: "For high-performing teams ready to dominate a niche." | **Statement 4** with `{{replacement_cap_cycle}}`. Then: "Qualified means the 6 checks in our [definition](#what-qualified-means)." *(Statement 2 link)* |
+| `notes` | Bronze: "Minimum recommended post-pilot. Best for brokers refining their process." · Silver: "Our most popular tier…" · Gold: "For high-performing teams ready to dominate a niche." | **Statement 4** (the same on every tier; no per-tier number). Then: "Qualified means the 6 checks in our [definition](#what-qualified-means)." *(Statement 2 link)* |
 | "Recommended" badge | Silver | Unchanged (design). Jonathan may move it; it is not a wording decision. |
 | CTA (new, inside the card) | — (none today) | **Start on `{{name}}`** → checkout with the tier pre-selected. *(flagged: adds an element)* |
 

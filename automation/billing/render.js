@@ -13,9 +13,9 @@ const LINE_UNDER_CARDS = 'Per 30-day cycle. No lock-in. Pay for a cycle, get you
 const LINE_UNDER_CARDS_2 = 'Pay upfront by EFT or card; renew (or not) before your next cycle.';
 const SMALL_PRINT = "Prices exclude VAT. No notice period: if you don't renew, the cycle simply ends.";
 
-// clause 7 (ux-sprint-1): replacements are goodwill, max 3 requests per Calendar Week on every plan; replacement_cap_cycle
-// stays in the pricing data (history) but is never printed or used.
-const REPLACEMENT_LINE = "If a lead doesn't show, we may replace it as a goodwill gesture, at Lead Velocity's discretion: send proof 10 to 30 minutes after the start, up to 3 requests a week.";
+// clause 7 (ux-sprint-1): replacements are goodwill, max 3 requests per Calendar Week on every plan, no-shows and leads the broker
+// couldn't reach sharing one counter; replacement_cap_cycle stays in the pricing data (history) but is never printed or used.
+const REPLACEMENT_LINE = "If a lead doesn't show, or you couldn't reach them, we may replace it as a goodwill gesture, at Lead Velocity's discretion: send proof 10 to 30 minutes after the start, up to 3 requests a week.";
 const statement4 = () => `${REPLACEMENT_LINE} If we fall short of your committed number, your cycle extends by up to 14 days to deliver it, and anything still short is credited.`;
 const statement7 = (n) => `${n} verified, pre-qualified leads per cycle — committed, not estimated. Short? We extend and credit.`;
 
@@ -49,7 +49,7 @@ function renderTierCards(rows, { checkoutUrl = '/billing/checkout/', at, include
   <ul>
     <li>${esc(v.committed_leads)} pre-qualified leads per cycle</li>
     <li>AI WhatsApp follow-up, booking &amp; reminders included</li>
-    <li>Goodwill no-show replacements (up to 3 requests a week)</li>
+    <li>Goodwill replacements (up to 3 requests a week)</li>
     <li>Media spend included</li>
     <li>Pre-call brief for every lead and a Monday report</li>
   </ul>

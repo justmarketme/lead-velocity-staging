@@ -234,22 +234,22 @@
   },
   {
    "id": "Q11",
-   "question": "How many replacements has Mark used this cycle?",
-   "metric_ref": "replacements used / cap",
+   "question": "How many replacement requests has Mark made this cycle?",
+   "metric_ref": "replacement requests this cycle (goodwill; max 3 a Calendar Week)",
    "tables": [
-    "facts.v_cycle_progress"
+    "public.v_cycle_progress"
    ],
-   "sql": "select replacements_used, replacement_cap as cap, replacement_cap - replacements_used as left_to_use from public.v_cycle_progress where broker_id = 'B-MARK'",
+   "sql": "select replacements_used as requests_this_cycle, replacement_weekly_max as weekly_max from public.v_cycle_progress where broker_id = 'B-MARK'",
    "n_rule": "count: no n needed",
    "answer_shape": {
-    "headline": "Used of cap",
-    "comparison": "Only unreachable and outside-criteria leads qualify",
+    "headline": "Replacement requests so far this cycle, beside the weekly maximum of 3",
+    "comparison": "Goodwill only, never a right: no-shows and leads he could not reach share the same 3 requests a week, each with proof; a declined request still counts; there is no per-cycle allowance",
     "how_computed": "expandable: the SQL plus the metric dictionary definition",
-    "caveat": "",
+    "caveat": "A request is not a promise: Lead Velocity decides each one. requests_this_cycle counts the requests not declined so far this cycle. The limit is 3 a Calendar Week (Monday to Sunday), not a cycle total, so there is no number left to show.",
     "next_question": "Which angle did they come from?"
    },
    "expected_on_synthetic": [
-    "1|4|3"
+    "1|3"
    ],
    "expected_kind_on_synthetic": "number"
   },

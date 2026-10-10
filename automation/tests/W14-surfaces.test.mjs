@@ -53,7 +53,10 @@ for (const key of ['weekly_close_rate', 'weekly_no_close_rate']) {
       const t = visibleText(html);
       assert.ok(t.includes(q.s1_one_line.replace(/\s+/g, ' ')) || t.includes(String(s2.delivered.v)), `${label} carries the one-liner or delivered`);
       for (const n of [`${s2.delivered.v}`, `${s2.delivered.committed}`, `${s2.booked.v}`, `${s2.attended.v}`, pct(s2.show_rate.v)]) assert.ok(t.includes(n), `${label} shows ${n}`);
-      assert.ok(t.includes(String(s2.replacements.used)) && t.includes(String(s2.replacements.cap)), `${label} shows replacements`);
+      // ux-sprint-1 (agreement clause 7): the used count is shown; the old per-cycle cap is not (goodwill, max 3 requests per Calendar Week).
+      assert.match(t, new RegExp(`Replacement requests this cycle\\s*${s2.replacements.used}\\b`), `${label} shows the replacement requests count`);
+      assert.doesNotMatch(t, /Replacements used/i, `${label} no longer prints "Replacements used"`);
+      assert.doesNotMatch(t, new RegExp(`\\b${s2.replacements.used} of ${s2.replacements.cap}\\b`), `${label} does not print used-of-cap`);
     }
   });
 }

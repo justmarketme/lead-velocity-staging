@@ -193,3 +193,28 @@ test('R6-05: a POPIA erase of an answered row never shifts a held figure; it upd
   assert.equal(brokerLine(after.slice(0, 4), 9, 7).n, 9);   // even with fewer than 5 rows left the stored figure stands
   assert.equal(brokerLine(after.slice(0, 4)), null);        // but with nothing stored, under 5 is still hidden
 });
+
+test('ux-sprint-1 (agreement clause 7): replacements print as a plain count with the goodwill note: no "of cap", no traffic light, even from an old payload that still carries one', () => {
+  for (const k of KEYS) {
+    const old = structuredClone(FX[k]); old.s2_progress.replacements = { used: 2, cap: 6, last_used: 1, light: 'red' };   // the pre-10-Oct shape
+    for (const p of [FX[k], old]) {
+      const rp = p.s2_progress.replacements;
+      for (const html of [renderEmail(p, opts), renderPrint(p, opts)]) {
+        const t = visibleText(html);
+        assert.match(t, /Replacement requests this cycle/);
+        assert.match(t, /goodwill, up to 3 requests a Calendar Week/);
+        assert.doesNotMatch(t, /Replacements used/i);
+        assert.doesNotMatch(t, new RegExp(`\\b${rp.used} of ${rp.cap}\\b`), 'no used-of-cap line');
+        const row = html.slice(html.indexOf('Replacement requests this cycle'), html.indexOf('Days left in this cycle'));
+        assert.ok(row.length > 0 && !row.includes('display:inline-block;padding:1px 8px'), 'no pill on the replacements row');
+      }
+    }
+  }
+});
+
+test('ux-sprint-1 (agreement clause 7): the payload SQL prints no used-of-cap line and builds no replacements traffic light (keys kept, light null)', () => {
+  const sql = readFileSync(join(here, '..', 'analytics', 'W14-broker-payload.sql'), 'utf8').replace(/--[^\n]*/g, '');
+  assert.doesNotMatch(sql, /light_rep|Replacements used/);
+  assert.match(sql, /'v7', format\('Replacement requests this cycle: %s\.', n\.replacements_used\) \|\| end_note/);
+  assert.match(sql, /'replacements', jsonb_build_object\('used', n\.replacements_used, 'cap', c\.replacement_cap, 'last_used', w\.replacements_used, 'light', null::text\)/);
+});

@@ -14,7 +14,7 @@ Before you go live we need steps 2 to 6. Then we run a final check and Jonathan 
 
 After each meeting: three taps. What happened. How was the lead (Good fit - proceeding, Good fit - follow-up, Not a fit - budget, Not a fit - well covered, Not a fit - criteria, Unreachable/wrong number). A score from 1 to 5.
 
-A replacement is a no-show, a number we cannot reach, or a lead outside the age or budget we agreed. Not buying never counts.
+Replacements are goodwill, at Lead Velocity's discretion, never a right. You can ask for one after a no-show or a lead you could not reach, with proof sent 10 to 30 minutes after the start. Up to 3 requests a week (Monday to Sunday), both kinds together, on every plan. Not buying never counts.
 
 Your report arrives every Monday at 07:00 on WhatsApp, in your portal and by email.
 

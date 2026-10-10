@@ -387,6 +387,19 @@ test('render: tier cards and Schedule A come from the rows passed in', () => {
   assert.equal(json[0].price_cents, BRONZE.price_zar * 100);
 });
 
+test('render: replacements print as goodwill, max 3 requests a week, no-shows and unreachable leads together; the per-cycle cap number is never printed', () => {
+  const approved = rows.map((r) => ({ ...r, active_from: '2026-01-01' }));
+  const html = render.renderTierCards(approved, { at: new Date('2026-10-02') });
+  const block = render.proposalTierBlock(BRONZE);
+  for (const text of [html, block]) {
+    assert.match(text, /goodwill/i);
+    assert.match(text, /up to 3 requests a week/);
+    assert.match(text, /or you couldn(?:'|&#39;)t reach them/);
+    assert.doesNotMatch(text, /per cycle on this plan|replacements per cycle|up to \d+ replacements/i, 'no per-cycle replacement allowance');
+  }
+  for (const r of rows) assert.doesNotMatch(html + block, new RegExp(`up to ${r.replacement_cap_cycle} replacements|${r.replacement_cap_cycle} replacements`), `${r.tier_code}: the data cap is not printed`);
+});
+
 test('price-diff: fails on a typed tier price, passes on a clean tree', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pd-'));
   const script = path.join(__dirname, 'price-diff.mjs');

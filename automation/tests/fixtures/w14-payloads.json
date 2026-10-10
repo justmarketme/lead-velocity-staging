@@ -125,7 +125,7 @@
       "replacements": {
         "cap": 4,
         "used": 1,
-        "light": "green",
+        "light": null,
         "last_used": 1
       }
     },
@@ -334,7 +334,7 @@
       "replacements": {
         "cap": 4,
         "used": 1,
-        "light": "green",
+        "light": null,
         "last_used": 1
       }
     },
@@ -545,7 +545,7 @@
       "replacements": {
         "cap": 4,
         "used": 1,
-        "light": "green",
+        "light": null,
         "last_used": 1
       }
     },
@@ -640,7 +640,7 @@
       "v4": "20",
       "v5": "3",
       "v6": "3.4",
-      "v7": "Replacements used: 1 of 4."
+      "v7": "Replacement requests this cycle: 1."
     },
     "week": "2026-W40",
     "cycle": {
@@ -755,7 +755,7 @@
       "replacements": {
         "cap": 4,
         "used": 1,
-        "light": "green",
+        "light": null,
         "last_used": 1
       }
     },

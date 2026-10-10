@@ -356,8 +356,8 @@ Action: do not switch pages on my own. The fallback (same creative from the **br
 
 Targets: cost per qualified lead <= R250 at 14 days, trending to <= R200; raw CPL model R200 (break-even R397 at 60% qualify / R468 at 70%, 3.2).
 
-**11.1b Good-fit targets and replacement caps (added 2 Oct 2026; supersedes nothing above, adds a lagging layer).**
-Source of truth for targets: `ops.watchlist_targets` (smc_08 pass 3, edited by Jonathan in the console). Never type these numbers into a rule; read them. Seeded values at time of writing: **#1 cost per good-fit meeting target R1,300, stretch R900** (NH-25 default); **#4 broker good-fit share >= 60%** (the mirror of the 40% "not a fit" pause line); #3 booked-to-attended >= 65% (floor 50%). Replacement caps are **per cycle**: Bronze 4, Silver 6, Gold 9 (20% of committed); read from `pricing`, no weekly cap.
+**11.1b Good-fit targets and replacement requests (added 2 Oct 2026; supersedes nothing above, adds a lagging layer).**
+Source of truth for targets: `ops.watchlist_targets` (smc_08 pass 3, edited by Jonathan in the console). Never type these numbers into a rule; read them. Seeded values at time of writing: **#1 cost per good-fit meeting target R1,300, stretch R900** (NH-25 default); **#4 broker good-fit share >= 60%** (the mirror of the 40% "not a fit" pause line); #3 booked-to-attended >= 65% (floor 50%). Replacements are goodwill, at most 3 requests per Calendar Week on every plan, no-shows and leads the broker could not reach combined (agreement clause 7, 10 Oct 2026). There is no per-cycle cap: the old Bronze 4 / Silver 6 / Gold 9 survive only as data columns and drive nothing.
 
 How the layers relate: cost per qualified lead (<= R250) is the **leading** number I steer by from day 1; cost per good-fit meeting (<= R1,300; R1,300 / R250 implies roughly one good-fit meeting per 5 qualified leads) is the **lagging** truth. It is not readable until about 5 broker-rated meetings exist (R6,500 or more of media at target), so it never triggers anything before then.
 
@@ -369,8 +369,8 @@ How the layers relate: cost per qualified lead (<= R250) is the **leading** numb
 | Cost per good-fit meeting <= target **and** cost per qualified <= R250 **and** broker good-fit share >= watchlist #4 | Eligible for the +20% single-step scale (once per 48 h) | optimisation-advisor | Jonathan |
 | Cost per good-fit meeting <= stretch (R900) | Same +20% step, plus propose that angle's hook family as the seed for the next batch and, later, for LAL-Q. No faster steps: the +20% / 48 h limit stands | media-buyer | Jonathan |
 | Broker good-fit share < watchlist #4 for 14 days (n >= 5 dispositions) | Pause the bottom ad by quality index regardless of CPL (as 11.1 row 7) | analytics-reporter | Jonathan |
-| Replacements used > 50% of the tier cap before day 14 of the cycle (Bronze 2 of 4, Silver 3 of 6, Gold 5 of 9; ASSUMPTION: 50% line, tune at cycle-1 close) | Early warning: find which ad / angle / placement produced the replaced leads (`leads.ad_id`); propose pausing it and tightening the form routing. Replacements are a cost to us, so a creative that generates them is expensive at any CPL | analytics-reporter | Jonathan |
-| Replacement cap reached | No more free replacements this cycle. Stop adding spend to the top replacement-source ad; tell broker-success so the broker hears it from us; the shortfall clause (extension up to 14 days, then pro-rata credit) still applies | optimisation-advisor | Jonathan |
+| A broker makes 2 or more replacement requests in one Calendar Week (2 of the 3 allowed; ASSUMPTION: 2 is the early-warning line, tune at cycle-1 close) | Early warning: find which ad / angle / placement produced the replaced leads (`leads.ad_id`); propose pausing it and tightening the form routing. Replacements are a cost to us, so a creative that generates them is expensive at any CPL | analytics-reporter | Jonathan |
+| A broker has made 3 replacement requests in a Calendar Week | No more replacement requests from him until Monday (a fourth is not accepted). Stop adding spend to the top replacement-source ad; tell broker-success so the broker hears it from us; the shortfall clause (extension up to 14 days, then pro-rata credit) still applies | optimisation-advisor | Jonathan |
 | Replacement was caused by a disputed reason (unreachable, wrong number, out-of-band that slipped the form) | Fix upstream (form validation, W02 backstop) and log; do not blame the creative | media-buyer | n/a |
 
 Replacements, shortfall credits and good-fit ratings change the real cost per qualified lead; the console computes cost per qualified lead **net of replacements issued** so a cheap lead that is later replaced does not look cheap.
@@ -416,7 +416,7 @@ All figures ex-VAT as Meta shows them in the ad account unless stated; Meta bill
 
 Per campaign, ad set, ad, and **by origin** (`leads.origin`: `lead_ad` = instant form, `page` = quiz page, `ctwa` = Click-to-WhatsApp, `comment` = comment-originated link) and per `utm`/placement:
 1. **Cost per qualified lead** (headline; spend ÷ verified qualified) and **cost per attended meeting**. Raw CPL shown smaller, labelled secondary.
-2. Raw leads, qualify %, verified %, booked %, show %, replacements used/cap, broker quality index (1-5) per ad (W29).
+2. Raw leads, qualify %, verified %, booked %, show %, replacement requests this week, broker quality index (1-5) per ad (W29).
 3. Hook rate, hold rate, WhatsApp reply rate, booking rate (leading indicators), by creative, colour and format (matrix pooled view with an n = leads counter and "needs 30 per arm" progress).
 4. Routed-out (out-of-band) share from the instant form and from W02 backstop.
 5. Spend vs daily budget and vs monthly cap; learning status (Learning / Learning limited) RECORD from Meta.

@@ -227,7 +227,7 @@ WHERE b.code = 'SMC'
 ON CONFLICT DO NOTHING;
 
 -- -----------------------------------------------------------------------------
--- Replacements (W13; per-cycle cap 4 on Bronze)
+-- Replacements (W13; goodwill, max 3 requests per Calendar Week; the per-cycle replacement_cap on cycles is data only and drives nothing)
 -- -----------------------------------------------------------------------------
 INSERT INTO public.replacements (id, lead_id, outcome_id, cycle_id, broker_id, brand_id, reason, reason_code,
                                  claimed_at, dispute_window_ends_at, status, replacement_lead_id, decided_at)
