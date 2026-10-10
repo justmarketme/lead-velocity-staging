@@ -57,10 +57,11 @@ n8n settings needed: `NODE_FUNCTION_ALLOW_BUILTIN=crypto`; env `PAYSTACK_SECRET_
 - **Switching off:** the portal toggle sets `brokers.card_autorenew=false` (and in Plan mode calls `POST /subscription/disable`). The next cycle is not charged.
 
 ## 6. Refunds
-Refunds are for the R1 test, a shortfall refund when the broker does not renew (agreement 5.2: within 10 business days), and duplicate or overpayments.
+Refunds are for the R1 test, a shortfall refund when the broker does not renew (agreement 6.2(b): within 10 business days), and duplicate or overpayments.
 - **Paystack payments:** `POST /refund { transaction, amount? }`. A full refund is the default; use a partial `amount` in cents for a shortfall. Jonathan approves every live refund. Record it on the invoice row (console, or SQL with `SET LOCAL smc.reason = 'refund <paystack ref>: <why>'` in the same transaction); the `smc_audit` trigger writes `audit_log`. Nothing inserts into `audit_log` directly (no role has the grant).
 - **EFT payments:** Jonathan pays it back from FNB Online Banking with reference `LV-REFUND-{broker_ref}-{YYYYMM}`. W18 sees the debit, and the console marks the invoice `credited`.
-- **Shortfall amount:** `invoice.shortfallCreditCents()` = price ÷ committed × missing leads. If the broker renews, it comes off the next invoice instead (W19 applies `cycles.shortfall_credit_zar`).
+- **Shortfall amount:** `invoice.shortfallCreditCents(cycle, delivered)` = missing leads × the plan's **Effective Lead Price**, capped at what the broker paid toward the cycle's leads (plan price + top-up leads at that same rate). The Effective Lead Price is `pricing.effectiveLeadPriceZar()`: price_zar ÷ the plan's own committed_leads (monthly tiers, whole rand as published on the pricing page and Schedule 1) or the stated per-lead price (Pilot), read from `pricing.seed.json` and never typed. If the broker renews, it comes off the next invoice instead (W19 applies `cycles.shortfall_credit_zar`).
+- **Undelivered top-up leads (Jonathan, 2026-10-10):** refunded or credited at the same Effective Lead Price of the broker's tier, **not** the top-up price. `cycles.committed_leads` includes paid top-ups, so pass `cycles.topup_leads` and the function takes the rate from `committed_leads - topup_leads`; dividing the plan price by the total would spread the top-up leads into the plan price. The broker is told the rate on the top-up panel and in the top-up invoice reply (`topup.topupRefundNote`). Needs migration 18 (`cycles.topup_leads` and the wider credit cap) applied first.
 
 ## 7. Settlement vs inContact: no double count
 - A Paystack payment is counted **once**, when W16 receives `charge.success` (source `paystack`).

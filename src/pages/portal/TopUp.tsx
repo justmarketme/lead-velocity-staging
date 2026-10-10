@@ -5,10 +5,10 @@
  */
 import { useEffect, useState } from "react";
 import { PAYSTACK_ENABLED, fmtDay, smcDb } from "@/lib/smc";
-import { TOPUP, VAT_NOTE, zar } from "@/lib/pricing";
+import { ALL_PLANS, TOPUP, TOPUP_REFUND_TEXT, VAT_NOTE, zar } from "@/lib/pricing";
 import { clampTopupQty, requestTopup, topupEarliestStart, topupOpen, topupTotalZar, type TopupResult } from "@/lib/topup";
 
-interface Progress { cycle_id: string; status: string; committed: number; verified: number }
+interface Progress { cycle_id: string; status: string; committed: number; verified: number; tier_code?: string | null }
 
 export default function TopUpPanel({ brokerId }: { brokerId: string }) {
   const [prog, setProg] = useState<Progress | null>(null);
@@ -17,12 +17,13 @@ export default function TopUpPanel({ brokerId }: { brokerId: string }) {
   const [res, setRes] = useState<TopupResult | null>(null);
 
   useEffect(() => {
-    void smcDb.from("v_cycle_progress").select("cycle_id,status,committed,verified").eq("broker_id", brokerId).in("status", ["active", "extended"])
+    void smcDb.from("v_cycle_progress").select("cycle_id,status,committed,verified,tier_code").eq("broker_id", brokerId).in("status", ["active", "extended"])
       .order("cycle_no", { ascending: false }).limit(1).then(({ data }) => setProg(((data as Progress[]) || [])[0] || null));
   }, [brokerId]);
 
   if (!prog) return null;
   const open = topupOpen(prog);
+  const plan = ALL_PLANS.find((t) => t.tier_code === prog.tier_code);
 
   async function buy(method: "manual_eft" | "instant_eft") {
     setBusy(true); setRes(null);
@@ -37,6 +38,7 @@ export default function TopUpPanel({ brokerId }: { brokerId: string }) {
       <p className="muted" style={{ marginTop: 0 }}>
         Extra Qualified Leads at {zar(TOPUP.price_per_lead_zar)} each, minimum {TOPUP.min_leads}, with {TOPUP.notice_days} days' notice. Paid in advance.
       </p>
+      <p className="small">{TOPUP_REFUND_TEXT(plan)}</p>
       {!open ? (
         <p className="small">Top-ups open once this cycle's {prog.committed} leads are delivered ({prog.verified} so far).</p>
       ) : res?.ok ? (

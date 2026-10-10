@@ -74,10 +74,35 @@ function cycleAmounts(row) {
   return { excl_vat_cents: exclCents, vat_cents: vatCents, total_cents: exclCents + (vatCents || 0), vat_rate: rate };
 }
 
+/**
+ * Effective Lead Price in whole rand (agreement 1.1.14, Schedule 1): what one Qualified Lead of a plan is worth. It is the
+ * rate every undelivered lead of that plan is credited or refunded at, the plan's own leads AND top-up leads (Jonathan
+ * 2026-10-10; never the top-up price).
+ *   - Monthly tier: price_zar / committed_leads, rounded to the whole rand exactly as the pricing page and Schedule 1 show it.
+ *   - Pilot (the seed's `pilot` object): its stated price_per_lead_zar.
+ * `row` may be a `pricing` row, the seed's `pilot` object, or a `cycles` snapshot { price_zar, committed_leads, topup_leads }:
+ * committed_leads on a cycle includes paid top-ups, so the plan's own commitment is committed_leads - topup_leads. Dividing the
+ * plan price by the total would spread the top-up leads into the plan price and understate the rate.
+ */
+function effectiveLeadPriceZar(row) {
+  if (row && Number(row.price_per_lead_zar) > 0) return Number(row.price_per_lead_zar);
+  const planLeads = Number(row && row.committed_leads) - Math.max(0, Number(row && row.topup_leads) || 0);
+  if (!(Number(row && row.price_zar) > 0) || !(planLeads > 0)) throw new RangeError('effectiveLeadPriceZar: price_zar and the plan\'s committed_leads (net of top-ups) must be > 0');
+  return Math.round(Number(row.price_zar) / planLeads);
+}
+
+/** Effective Lead Price for every plan in a parsed pricing.seed.json: { SMC_PILOT, SMC_BRONZE, ... } (whole rand). */
+function effectiveLeadPrices(seed) {
+  const out = {};
+  if (seed && seed.pilot) out[seed.pilot.tier_code] = effectiveLeadPriceZar(seed.pilot);
+  for (const r of (seed && seed.rows) || []) out[r.tier_code] = effectiveLeadPriceZar(r);
+  return out;
+}
+
 /** Derived values other surfaces quote (price per committed lead, 3.5). Never typed elsewhere. */
 function derived(row) {
   return {
-    price_per_committed_lead_zar: Math.round(Number(row.price_zar) / Number(row.committed_leads)),
+    price_per_committed_lead_zar: effectiveLeadPriceZar(row),
   };
 }
 
@@ -94,6 +119,6 @@ function seedSql(rows) {
     `  media_share_zar = excluded.media_share_zar, vat_rate = excluded.vat_rate;\n`;
 }
 
-module.exports = { loadSeed, validateRows, tierRefCode, byTierCode, byRefCode, activeRows, cycleAmounts, derived, seedSql };
+module.exports = { loadSeed, validateRows, tierRefCode, byTierCode, byRefCode, activeRows, cycleAmounts, derived, effectiveLeadPriceZar, effectiveLeadPrices, seedSql };
 
 if (require.main === module && process.argv.includes('--sql')) process.stdout.write(seedSql(loadSeed()));

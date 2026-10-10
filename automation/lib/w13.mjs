@@ -101,7 +101,9 @@ export function cycleState(cyc, { verified, approvedReplacements }, now, price) 
   if (effective >= cyc.committed_leads) return { status: 'closed', effective, shortfall: 0, credit_zar: 0 };
   if (now < extendedUntil) return { status: 'extended', effective, extended_until: iso(extendedUntil) };
   const shortfall = cyc.committed_leads - effective;
-  const credit = Math.min(price, shortfallCreditCents({ price_zar: price, committed_leads: cyc.committed_leads }, effective) / 100);
+  // committed_leads includes paid top-ups (W16); every undelivered lead, top-up or not, is credited at the plan's Effective Lead Price
+  // and the cap is what the broker paid for the cycle's leads (plan price + top-up leads at that rate), not the plan price alone.
+  const credit = shortfallCreditCents({ price_zar: price, committed_leads: cyc.committed_leads, topup_leads: cyc.topup_leads || 0 }, effective) / 100;
   return { status: 'closed', effective, shortfall, credit_zar: credit, credit_as: cyc.renewing ? 'credit_next_cycle' : 'refund' };
 }
 

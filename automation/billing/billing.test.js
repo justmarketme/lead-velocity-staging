@@ -282,8 +282,13 @@ test('invoice: amount, tier and period from pricing; next free period when two c
   assert.equal(a.vat_zar, null);
   const b = inv.buildInvoice({ broker: { billing_ref: 7 }, pricingRow: BRONZE, cycleStart: '2026-10-31T08:00:00Z', existingReferences: [a.reference] });
   assert.equal(b.reference, 'LV-0007-B-202611');
+  // NOTE (Jonathan 2026-10-10): the credit is now missing leads x the plan's Effective Lead Price in whole rand (price / committed
+  // as published), no longer an unrounded pro rata of the price. Bronze divides exactly, so its figure is unchanged; Silver does
+  // not (the published rate is the rounded one). Top-up cases are in topup.test.js.
   const credit = inv.shortfallCreditCents(BRONZE, BRONZE.committed_leads - 2);
-  assert.equal(credit, Math.round((BRONZE.price_zar * 100 * 2) / BRONZE.committed_leads));
+  assert.equal(credit, 2 * Math.round(BRONZE.price_zar / BRONZE.committed_leads) * 100);
+  assert.equal(credit, Math.round((BRONZE.price_zar * 100 * 2) / BRONZE.committed_leads), 'Bronze: same as the old pro rata');
+  assert.equal(inv.shortfallCreditCents(SILVER, SILVER.committed_leads - 1), Math.round(SILVER.price_zar / SILVER.committed_leads) * 100, 'Silver: the published whole-rand rate');
   const c = inv.buildInvoice({ broker: { billing_ref: 7 }, pricingRow: BRONZE, cycleStart: '2026-12-01T08:00:00Z', creditCents: credit });
   assert.equal(c.total_cents, BRONZE.price_zar * 100 - credit);
 });

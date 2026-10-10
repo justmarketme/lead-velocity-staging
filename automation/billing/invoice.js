@@ -1,7 +1,7 @@
 'use strict';
 /* Invoice records (3.6 consumer 5). Amount, tier and period come from the `pricing` row; the PDF
  * still comes from the existing InvoiceGenerator once it is rewired to read these fields. */
-const { cycleAmounts } = require('./pricing');
+const { cycleAmounts, effectiveLeadPriceZar } = require('./pricing');
 const { formatReference, period: periodOf, parseReference } = require('./reference');
 
 function addMonths(yyyymm, n) {
@@ -53,10 +53,25 @@ function buildInvoice({ broker, pricingRow, cycleStart, dueAt, method = 'instant
   };
 }
 
-/** Shortfall credit (0.1 / agreement 5.2): price / committed per missing lead, after the 14-day extension. */
-function shortfallCreditCents({ price_zar, committed_leads }, delivered) {
-  const missing = Math.max(0, Number(committed_leads) - Number(delivered));
-  return Math.round((Number(price_zar) * 100 * missing) / Number(committed_leads));
+/**
+ * Shortfall credit / refund (0.1; agreement 6.2, 6.5, 11.6), after the 14-day extension: every undelivered Qualified Lead is
+ * credited at the plan's Effective Lead Price (pricing.effectiveLeadPriceZar), whether it was one of the plan's own leads or a
+ * top-up lead. A top-up lead is never credited at the top-up price (Jonathan 2026-10-10).
+ *
+ * @param cycle     a `cycles` snapshot { price_zar, committed_leads, topup_leads? }. committed_leads INCLUDES paid top-ups
+ *                  (W16 adds them), so the rate comes from the plan's own commitment (committed_leads - topup_leads); dividing
+ *                  the plan price by the total would spread the top-up leads into the plan price and under-credit every lead.
+ * @param delivered effective delivered leads (verified qualified less approved replacements outstanding)
+ * @returns cents, capped at what the broker paid toward the leads of this cycle: the plan price plus the top-up leads at the
+ *          Effective Lead Price (the cap that used to be the plan price alone could not cover undelivered top-up leads).
+ */
+function shortfallCreditCents(cycle, delivered) {
+  const topup = Math.max(0, Math.trunc(Number(cycle.topup_leads) || 0));
+  const committed = Number(cycle.committed_leads);
+  const missing = Math.min(committed, Math.max(0, committed - Number(delivered)));
+  const rateCents = effectiveLeadPriceZar(cycle) * 100;
+  const paidCents = Math.round(Number(cycle.price_zar) * 100) + topup * rateCents;
+  return Math.min(missing * rateCents, paidCents);
 }
 
 module.exports = { buildInvoice, shortfallCreditCents, addMonths };

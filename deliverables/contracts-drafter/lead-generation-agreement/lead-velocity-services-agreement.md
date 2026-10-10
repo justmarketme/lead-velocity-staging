@@ -246,7 +246,9 @@ C. The Client wishes to buy marketing and lead-delivery services from Lead Veloc
 
 6.4 **Order of Delivery.** Qualified Leads Delivered during a Rollover Period count first toward the earlier Billing Cycle's Shortfall and then toward the current Billing Cycle.
 
-6.5 **Top-Ups.** Clauses 6.1 to 6.4 apply to Top-Up Leads, with the Top-Up Price used instead of the Effective Lead Price.
+6.5 **Top-Ups.** Clauses 6.1 to 6.4 apply to Top-Up Leads. A refund under clause 6.2(b) for a Top-Up Lead not Delivered is the Effective Lead Price of the Client's Plan, not the Top-Up Price.
+
+> [LAWYER REVIEW: Jonathan decided on 10 Oct 2026 that undelivered Top-Up Leads are refunded or credited at the Effective Lead Price of the Client's Plan (Schedule 1), which is lower than the Top-Up Price the Client paid. This replaces the earlier wording that used the Top-Up Price. The Top-Up panel in the portal and the Pricing Page state the same rate before the Client orders. Confirm the disclosure is enough under CPA s48 and s54 where the CPA applies.]
 
 ## 7. No-show replacements (goodwill, not entitlement)
 
@@ -340,7 +342,7 @@ C. The Client wishes to buy marketing and lead-delivery services from Lead Veloc
 
 > [LAWYER REVIEW: Introducing Consumers to a person who is no longer authorised could expose Lead Velocity. Confirm whether Lead Velocity should also check the FSCA register before each Billing Cycle.]
 
-11.6 **Refund on early termination.** If this Agreement ends under clause 11.4 or 11.5 during a Billing Cycle, Lead Velocity will refund the Effective Lead Price (or Top-Up Price) for each paid Qualified Lead not yet Delivered, less any amount the Client owes Lead Velocity, within 10 Business Days.
+11.6 **Refund on early termination.** If this Agreement ends under clause 11.4 or 11.5 during a Billing Cycle, Lead Velocity will refund the Effective Lead Price for each paid Qualified Lead (including each Top-Up Lead) not yet Delivered, less any amount the Client owes Lead Velocity, within 10 Business Days.
 
 11.7 **Effect of termination.** On termination:
 

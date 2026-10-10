@@ -8,7 +8,7 @@ import { useScrollAnimation } from "@/hooks/use-scroll-animation";
 import SEO from "@/components/SEO";
 import {
     TIERS, TERMS, TOPUP, QUALIFIED, zar, perLead, topupMinimumZar,
-    PILOT, VAT_NOTE, QUALIFIED_LEAD_TEXT, NO_GUARANTEE_TEXT, BUDGET_TARGET_TEXT, SHORTFALL_TEXT, LATE_PAYMENT_TEXT, type PricingTier,
+    PILOT, VAT_NOTE, QUALIFIED_LEAD_TEXT, NO_GUARANTEE_TEXT, BUDGET_TARGET_TEXT, SHORTFALL_TEXT, TOPUP_REFUND_TEXT, LATE_PAYMENT_TEXT, type PricingTier,
 } from "@/lib/pricing";
 
 // Every number on this page comes from automation/billing/pricing.seed.json via src/lib/pricing.ts (3.6).
@@ -107,8 +107,8 @@ const PricingTierCard = ({ tier, animation }: { tier: PricingTier; animation: Re
 const FAQ: { id?: string; q: string; a: string }[] = [
     { id: "what-qualified-means", q: "What is a Qualified Lead?", a: `${QUALIFIED_LEAD_TEXT} Age and budget are what the consumer tells us — we don't check income or underwrite. A lead counts toward your number once they have booked and confirmed. What happens in the appointment is up to you. ${BUDGET_TARGET_TEXT}` },
     { q: "Do I need my own ad account?", a: "No. We run the ads and pay for them. Ad spend is part of your monthly price." },
-    { q: "What if I want more leads in a cycle?", a: `Once your cycle's leads are delivered, you can top up at ${zar(TOPUP.price_per_lead_zar)} per Qualified Lead, minimum ${TOPUP.min_leads} (${zar(topupMinimumZar())}). Give us ${TOPUP.notice_days} days' notice so we can scale the ads. Top-ups are paid in advance. Or move up to the next plan.` },
-    { q: "What if you fall short?", a: SHORTFALL_TEXT(TIERS[0]) + " On other plans the refund is that plan's effective price per lead." },
+    { q: "What if I want more leads in a cycle?", a: `Once your cycle's leads are delivered, you can top up at ${zar(TOPUP.price_per_lead_zar)} per Qualified Lead, minimum ${TOPUP.min_leads} (${zar(topupMinimumZar())}). Give us ${TOPUP.notice_days} days' notice so we can scale the ads. Top-ups are paid in advance. ${TOPUP_REFUND_TEXT()} Or move up to the next plan.` },
+    { q: "What if you fall short?", a: SHORTFALL_TEXT(TIERS[0]) + " On other plans the refund is that plan's effective price per lead. " + TOPUP_REFUND_TEXT(TIERS[0]) },
     { q: "What if a payment is late?", a: LATE_PAYMENT_TEXT },
     { q: "What if a lead doesn't show up?", a: `We may replace a lead who doesn't attend, as goodwill, up to ${TERMS.goodwill_replacements_per_week} a week, if you send proof straight after waiting 10 minutes. We never replace a lead because they didn't buy.` },
     { q: "What does the AI do, and what does it never do?", a: "It replies on WhatsApp, books the appointment into your calendar and sends reminders. It never gives advice, compares products or talks about premiums or cover. Those questions go to you." },

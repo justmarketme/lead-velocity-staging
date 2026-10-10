@@ -102,7 +102,7 @@ The draft follows the BRIEF on every item below (the brief says it wins over 0.1
 | G11 | Proof deadline of [30] minutes after start; proof photos must show no people or address; proofs deleted within [90] days | Brief says "immediately"; memo R13 | S3.3, S3.8 |
 | G12 | Approved Replacement Leads supplied within 14 days of approval; unused weekly allowance lapses | Brief silent on timing | 7.2, 7.5 |
 | G13 | Early-termination refund at the Effective Lead Price for paid, undelivered leads (insolvency, breach, FSP licence loss, force majeure, change in law) | Brief silent | 11.6 |
-| G14 | Top-Up delivery starts at the later of the 7-day notice expiring and payment clearing; Top-Up shortfall uses the same rollover with the R850 price | Brief silent | 9.3, 6.5 |
+| G14 | Top-Up delivery starts at the later of the 7-day notice expiring and payment clearing; Top-Up shortfall uses the same rollover. **Changed 10 Oct 2026 (Jonathan):** an undelivered Top-Up Lead is refunded or credited at the Effective Lead Price of the Client's Plan (Pilot R850, Bronze R825, Silver R817, Gold R789), not the R850 Top-Up Price | Brief silent; decided by Jonathan | 9.3, 6.5, 11.6 |
 | G15 | Plan downgrade allowed on the same notice | Brief mentions upgrade only | 9.6 |
 | G16 | Price changes only for a future cycle on 7 days' notice | Brief silent | 8.7 |
 | G17 | Client misses an appointment → lead stays Delivered | Brief silent | 14.5 |

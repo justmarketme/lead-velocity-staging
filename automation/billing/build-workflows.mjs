@@ -395,7 +395,7 @@ const req = $('Top-up: verify broker JWT + body').first().json;
 const { broker, cycle, pricing, taken, open_topup } = $input.first().json.ctx;
 if (!broker) return [{ json: { respond: 403, message: 'Brokers only.' } }];
 if (open_topup) return [{ json: { respond: 409, message: 'You already have an open top-up invoice (' + open_topup + '). Pay it or WhatsApp us to change it.', reference: open_topup } }];
-const c = BILLING.topup.checkTopup({ qty: req.qty, cycle, topup: TOPUP });
+const c = BILLING.topup.checkTopup({ qty: req.qty, cycle, topup: TOPUP, pricingRows: pricing || [] });
 if (!c.ok) return [{ json: { respond: c.status, message: c.message } }];
 const method = BILLING.flags.resolveCheckoutMethod(req.method, $env); // NH-61: Paystack off -> manual EFT
 const row = (pricing || []).find((p) => p.tier_code === cycle.tier_code) || {};
@@ -403,7 +403,7 @@ const invoice = BILLING.topup.buildTopupInvoice({ broker, cycle, qty: req.qty, t
 const spec = method === 'manual_eft' ? null : BILLING.paystack.build.initialize({ invoice, email: broker.email, method, attempt: 1,
   callbackUrl: 'https://app.leadvelocity.co.za/billing/checkout/thanks', autorenewOptIn: false, env: $env });
 return [{ json: { respond: 200, method, invoice, spec, reference: invoice.reference, total_zar: invoice.total_zar, qty: invoice.topup_leads, earliest_start: invoice.topup_starts_at,
-  message: 'Invoice ' + invoice.reference + ' issued. Pay by EFT using that reference; delivery starts once it clears and the notice period has passed.' } }];
+  message: 'Invoice ' + invoice.reference + ' issued. Pay by EFT using that reference; delivery starts once it clears and the notice period has passed. ' + BILLING.topup.topupRefundNote(c.refund_per_lead_zar) } }];
 `, ['topup', 'flags', 'paystack']), { v: 2, row: 12, col: 4 });
   const tuPlanOk = w.add('n8n-nodes-base.if', 'Top-up: allowed?', ifTrue('={{ $json.respond === 200 }}'), { v: 2, row: 12, col: 5 });
   const tuNo = w.add('n8n-nodes-base.respondToWebhook', 'Top-up: respond refusal', { respondWith: 'json', responseBody: '={{ JSON.stringify({ ok: false, message: $json.message, reference: $json.reference || null }) }}', options: { responseCode: '={{ $json.respond }}' } }, { v: 1.1, row: 13, col: 6 });

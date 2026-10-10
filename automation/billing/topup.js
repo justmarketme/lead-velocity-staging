@@ -4,12 +4,16 @@
  *   - only once the cycle's committed leads are delivered (v_cycle_progress.verified >= committed);
  *   - paid in advance: an invoice (kind 'add_on', topup_leads = qty) is issued; delivery starts on the later of
  *     payment and now + notice_days;
- *   - when W16 marks that invoice paid, the cycle's committed_leads grows by qty (no new cycle row).
+ *   - when W16 marks that invoice paid, the cycle's committed_leads grows by qty (no new cycle row);
+ *   - a top-up lead that is NOT delivered is credited or refunded at the Effective Lead Price of the broker's tier (Pilot,
+ *     Bronze, Silver or Gold; pricing.effectiveLeadPriceZar), never at the top-up price (Jonathan 2026-10-10). The money is
+ *     invoice.shortfallCreditCents, which takes the rate from the plan's own commitment (committed_leads - topup_leads) so the
+ *     top-up leads are not spread into the plan price.
  * Reference: LV-{broker_ref}-T-{YYYYMM}; a second top-up in the same month is -TB-, then -TC- ... (still <= 20 chars and
  * parseable by reference.js). Tier ref_codes must therefore never start with T (checked here).
  * Pure: no fs, no network, so it inlines into n8n Code nodes. */
 const { formatReference, period: periodOf, parseReference } = require('./reference');
-const { tierRefCode } = require('./pricing');
+const { tierRefCode, effectiveLeadPriceZar } = require('./pricing');
 const { verifySupabaseJwt } = require('../security/lead-token');
 
 const DAY_MS = 86400000;
@@ -37,10 +41,28 @@ function topupReference({ brokerRef, at = new Date(), existingReferences = [], p
 }
 
 /**
- * Decide whether a top-up may be bought now. cycle = a v_cycle_progress row { cycle_id, status, committed, verified }.
- * -> { ok:true, qty, amount_cents, earliest_start } | { ok:false, status, reason, message }
+ * What an undelivered top-up lead is credited or refunded at, in whole rand: the Effective Lead Price of the broker's tier.
+ * Looks the tier up in the pricing rows (single source: pricing.seed.json -> the `pricing` table). null when the tier is not
+ * in the rows (a Pilot cycle is not a `pricing` row; pass the seed's `pilot` object as `pilot`).
  */
-function checkTopup({ qty, cycle, topup, now = new Date() }) {
+function topupRefundPerLeadZar({ tier_code, pricingRows = [], pilot = null }) {
+  if (pilot && tier_code && pilot.tier_code === tier_code) return effectiveLeadPriceZar(pilot);
+  const row = (pricingRows || []).find((r) => r.tier_code === tier_code);
+  return row ? effectiveLeadPriceZar(row) : null;
+}
+
+/** The plain sentence shown with a top-up (portal panel, invoice response): the refund rate is the plan's, not the top-up price. */
+function topupRefundNote(refundPerLeadZar) {
+  const rate = Number(refundPerLeadZar) > 0 ? ` (R${Math.round(refundPerLeadZar).toLocaleString('en-US')} per lead)` : '';
+  return `Any top-up lead we do not deliver is credited or refunded at your plan's Effective Lead Price${rate}, not at the top-up price.`;
+}
+
+/**
+ * Decide whether a top-up may be bought now. cycle = a v_cycle_progress row { cycle_id, status, committed, verified, tier_code }.
+ * pricingRows (optional) = the `pricing` rows, used only to tell the broker what an undelivered top-up lead is refunded at.
+ * -> { ok:true, qty, amount_cents, earliest_start, refund_per_lead_zar } | { ok:false, status, reason, message }
+ */
+function checkTopup({ qty, cycle, topup, now = new Date(), pricingRows = [], pilot = null }) {
   checkConfig(topup);
   const n = Number(qty);
   if (!Number.isInteger(n) || n < topup.min_leads || n > 500) return { ok: false, status: 400, reason: 'bad_qty', message: `Choose ${topup.min_leads} or more leads.` };
@@ -54,13 +76,14 @@ function checkTopup({ qty, cycle, topup, now = new Date() }) {
     qty: n,
     amount_cents: Math.round(Number(topup.price_per_lead_zar) * 100) * n,
     earliest_start: new Date(new Date(now).getTime() + Number(topup.notice_days) * DAY_MS).toISOString(),
+    refund_per_lead_zar: topupRefundPerLeadZar({ tier_code: cycle.tier_code, pricingRows, pilot }), // the tier's Effective Lead Price, not topup.price_per_lead_zar
   };
 }
 
 /** The add_on invoice row (same shape invoice.buildInvoice returns, plus kind/topup_leads/topup_starts_at). */
 function buildTopupInvoice({ broker, cycle, qty, topup, method = 'manual_eft', existingReferences = [], pricingRows = [], vatRate = null, issuedAt = new Date() }) {
   if (!broker || broker.billing_ref === undefined || broker.billing_ref === null) throw new TypeError('broker.billing_ref required');
-  const c = checkTopup({ qty, cycle, topup, now: issuedAt });
+  const c = checkTopup({ qty, cycle, topup, now: issuedAt, pricingRows });
   if (!c.ok) throw new RangeError(c.reason);
   const reference = topupReference({ brokerRef: broker.billing_ref, at: issuedAt, existingReferences, pricingRows });
   const excl = c.amount_cents;
@@ -102,4 +125,4 @@ function parseTopupRequest({ headers = {}, body = {} } = {}, { jwtSecret, nowMs 
   return { ok: true, user_id: v.user_id, qty, method };
 }
 
-module.exports = { parseTopupRequest, checkTopup, buildTopupInvoice, topupReference, isTopupToken, isTopupReference };
+module.exports = { parseTopupRequest, checkTopup, buildTopupInvoice, topupReference, topupRefundPerLeadZar, topupRefundNote, isTopupToken, isTopupReference };

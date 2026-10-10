@@ -163,6 +163,14 @@ export const TOPUP_TEXT =
   `Top-ups: once this cycle's leads are delivered, add more Qualified Leads at ${zar(TOPUP.price_per_lead_zar)} each, ` +
   `minimum ${TOPUP.min_leads} (${zar(topupMinimumZar())}), with ${TOPUP.notice_days} days' notice. Paid in advance.`;
 
+/**
+ * Undelivered top-up leads (Jonathan 2026-10-10): credited or refunded at the plan's Effective Lead Price (perLead), the same
+ * rate as the plan's own leads and lower than the top-up price paid. Mirrors automation/billing/invoice.js shortfallCreditCents.
+ */
+export const TOPUP_REFUND_TEXT = (t?: PricingTier): string =>
+  `If we don't deliver all of your top-up leads, each undelivered one is credited or refunded at your plan's Effective Lead Price` +
+  `${t ? ` (${zar(perLead(t))} on ${t.name})` : ""}, not at the top-up price.`;
+
 export const TERMS_TEXT =
   `Month to month. Paid in advance for each ${TERMS.cycle_days}-day cycle. Cancel with ${TERMS.cancel_notice_days} days' ` +
   `written notice before your next cycle.`;
@@ -180,6 +188,7 @@ export const pricingSummaryText = (): string =>
         `(effective ${zar(perLead(t))} per lead), all-inclusive of ad spend.`
     ),
     TOPUP_TEXT,
+    TOPUP_REFUND_TEXT(),
     TERMS_TEXT,
     VAT_NOTE,
     QUALIFIED_LEAD_TEXT,

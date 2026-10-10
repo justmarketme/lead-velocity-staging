@@ -5,7 +5,7 @@
 // (lead no-show confirmed by both sides, unreachable, outside criteria, verified-then-uncontactable), never for a
 // broker no-show and never because nobody bought (FAIS, Raspberry Academy). The cap is per cycle and comes from
 // the pricing row (Bronze 4 / Silver 6 / Gold 9). Lead Velocity has 48 h to dispute. A short cycle extends up
-// to 14 days; anything still short is credited pro rata, capped at the cycle price.
+// to 14 days; anything still short is credited at the plan's Effective Lead Price (top-up leads too), capped at what was paid.
 //
 // Run:  node --test automation/tests/W13.test.mjs     (offline)  ·  set N8N_PUBLIC_URL for online.
 // Loads the real logic (automation/lib/w13.mjs) and the real workflow (automation/W13.json) for the structure checks.
@@ -127,7 +127,7 @@ test(`W13 [${MODE}] 48-h dispute window: Lead Velocity can dispute at 47 h, not 
   assert.equal(rows.length, 1);
 });
 
-test(`W13 [${MODE}] shortfall: cycle extends up to 14 days; closes early once delivered; remaining shortfall credited pro rata, capped at price`, () => {
+test(`W13 [${MODE}] shortfall: cycle extends up to 14 days; closes early once delivered; remaining shortfall credited at the plan's Effective Lead Price, capped at what was paid`, () => {
   const cyc = { ...clone(cycle()), renewing: true };
   const end = ms(cyc.ends_at);
   assert.equal(cycleState(cyc, { verified: 15, approvedReplacements: 0 }, end - D, SYNTHETIC_PRICE).status, 'active');
@@ -140,7 +140,17 @@ test(`W13 [${MODE}] shortfall: cycle extends up to 14 days; closes early once de
   const leaving = cycleState({ ...cyc, renewing: false }, { verified: 18, approvedReplacements: 0 }, end + 14 * D, SYNTHETIC_PRICE);
   assert.equal(leaving.credit_as, 'refund');
   const nothing = cycleState(cyc, { verified: 0, approvedReplacements: 3 }, end + 14 * D, SYNTHETIC_PRICE);
-  assert.equal(nothing.credit_zar, SYNTHETIC_PRICE, 'liability capped at the cycle price');
+  assert.equal(nothing.credit_zar, SYNTHETIC_PRICE, 'liability capped at the cycle price (no top-ups)');
+  // NOTE (Jonathan 2026-10-10): cycles.committed_leads includes paid top-ups (W16), and an undelivered top-up lead is credited at the
+  // plan's Effective Lead Price (price / the plan's own commitment), not by spreading it into the plan price. The cap becomes what
+  // the broker paid for the cycle's leads: the plan price plus the top-up leads at that rate.
+  const rate = SYNTHETIC_PRICE / 20; // 20 = the plan's own commitment in this fixture
+  const withTopup = { ...cyc, committed_leads: 30, topup_leads: 10 };
+  const partTopup = cycleState(withTopup, { verified: 26, approvedReplacements: 0 }, end + 14 * D, SYNTHETIC_PRICE); // plan delivered, 6 of 10 top-up leads
+  assert.deepEqual([partTopup.status, partTopup.shortfall, partTopup.credit_zar], ['closed', 4, 4 * rate]);
+  assert.ok(partTopup.credit_zar > (SYNTHETIC_PRICE * 4) / 30, 'not the old price / total-committed spread');
+  const noneTopup = cycleState(withTopup, { verified: 0, approvedReplacements: 0 }, end + 14 * D, SYNTHETIC_PRICE);
+  assert.equal(noneTopup.credit_zar, SYNTHETIC_PRICE + 10 * rate, 'capped at the plan price plus the top-up leads at the plan rate');
   assert.equal(cycleState(cyc, { verified: 20, approvedReplacements: 0 }, end, SYNTHETIC_PRICE).status, 'closed', 'on target: no extension');
 });
 
