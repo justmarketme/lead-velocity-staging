@@ -214,6 +214,20 @@ Editorial controls, enforced by the build (task B-05): `fact_checked_by` and `fa
 
 ## C. Campaign landing pages
 
+> **Angle list superseded, 11 Oct 2026.** The angle set in C.2 item 5 and the C.3 table below is replaced by the final set in [`angles-final.md`](angles-final.md) (ranked, with hooks, evidence, compliance flags and the test plan). Owner scope: long-term insurance excluding funeral cover, plus wills and estate. Template rules C.1 and message-match rules C.2 items 1 to 4 and 6 are unchanged; the C.3 label rules are unchanged.
+>
+> | Rank | Slug / host label | Status |
+> |---|---|---|
+> | 1 | `adviser-conversation` | hosted (replaces virtual, what-the-call, c13-check-not-buy) |
+> | 2 | `new-bond` | hosted (absorbs bond-paperwork) |
+> | 3 | `salary-stops` | hosted |
+> | 4 | `cover-gap` | hosted, AMBER (ASISA figure: S14 vs S12 and a filed copy before the first ad; replaces employer-gap) |
+> | 5 | `owners-directors` | hosted (replaces self-employed) |
+> | 6 | `new-baby` | hosted (refresh pool) |
+> | 7 to 10 | `children-guardian`, `will-myth`, `will-and-cover`, `where-is-the-will` | HELD: built, no host, no DNS (attorney questions Q-W1 to Q-W4) |
+>
+> Retired: `bond-paperwork`, `employer-gap`, `myth-bust`, `self-employed`, `turned-40`, `virtual`, `what-the-call`, `c13-check-not-buy` (none was ever live, so no redirects). Dropped earlier: `extended-family`. Rule C.1 item 2 now allows one `proof` element only if it is a dated, named, sourced fact with an evidence file (as for `cover-gap`).
+
 ### C.1 Template (one page, one goal)
 
 A campaign page is the existing quiz page (`landing/template/`) with the changes in section K. Contents, top to bottom:
