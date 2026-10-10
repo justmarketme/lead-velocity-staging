@@ -43,7 +43,7 @@ export const PILOT: PricingTier & { once_off: true; continue_on: string } = {
   continue_on: seed.pilot.continue_on,
 };
 export const isPilot = (t: PricingTier): boolean => t.tier_code === PILOT.tier_code;
-/** Jonathan 2026-10-07: minimum spend is Bronze; the Pilot is not offered unless the seed sets pilot.offered. */
+/** The Pilot is offered unless the seed sets pilot.offered to false (withdrawn 2026-10-07, reinstated 2026-10-10 by Jonathan). */
 export const PILOT_OFFERED: boolean = (seed.pilot as { offered?: boolean }).offered !== false;
 /** Every plan a broker can be on or be quoted: Pilot first (only while offered), then the monthly ladder. */
 export const ALL_PLANS: PricingTier[] = PILOT_OFFERED ? [PILOT, ...TIERS] : [...TIERS];
@@ -53,7 +53,8 @@ export const planByName = (name: string): PricingTier | undefined =>
 export const PILOT_TEXT =
   `Pilot: ${zar(seed.pilot.price_per_lead_zar * seed.pilot.committed_leads)} once-off for ${seed.pilot.committed_leads} Qualified Leads ` +
   `(${zar(seed.pilot.price_per_lead_zar)} per lead) in one introductory ${seed.terms.cycle_days}-day cycle, for first-time clients only, ` +
-  `then continue on ${seed.pilot.continue_on}. Flat fee paid in advance, all-inclusive of ad spend; same rollover and replacement rules.`;
+  `then continue on ${seed.pilot.continue_on} by paying in advance, otherwise the agreement ends. Flat fee paid in advance, all-inclusive of ad spend; ` +
+  `same ${seed.terms.shortfall_rollover_days}-day rollover and replacement rules as every plan.`;
 
 
 export const VAT_NOTE = TERMS.vat_registered ? "Prices exclude VAT; VAT is added on the invoice." : "All prices exclude VAT.";

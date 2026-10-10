@@ -1,4 +1,4 @@
-import { pricingSummaryText, QUALIFIED_LEAD_TEXT } from "./pricing.generated.ts";
+import { PILOT_OFFERED, pricingSummaryText, QUALIFIED_LEAD_TEXT } from "./pricing.generated.ts";
 
 export const WEBSITE_KNOWLEDGE = `
 ## LEAD VELOCITY — FULL KNOWLEDGE BASE:
@@ -27,7 +27,7 @@ Never promise attendance, sales, policies or results, and never link the fee to 
 
 ### INVESTMENT & PHILOSOPHY
 - Lead costs are driven by market demand, targeting specificity, and product complexity — not pricing games.
-- Brokers who say "let me try 5 leads" miss the point: volume matters. Statistical significance requires volume. Consistency drives conversion.
+- Brokers who say "let me try 5 leads" miss the point: volume matters. ${PILOT_OFFERED ? "A first-time client who wants to test us first gets the Pilot (see pricing above), never a handful of leads. " : ""}Statistical significance requires volume. Consistency drives conversion.
 - The question isn't "what does a lead cost?" — it's "what does inconsistency cost you?"
 
 ### BROKER READINESS ASSESSMENT (Onboarding)
