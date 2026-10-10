@@ -64,7 +64,7 @@ for (const key of ['weekly_close_rate', 'weekly_no_close_rate']) {
 test('(2c) portal Reports tab reads the same payload and computes no figures of its own', () => {
   for (const f of ['s2.delivered.v', 's2.delivered.committed', 's2.booked.v', 's2.attended.v', 's2.show_rate.v', 's2.replacements.used', 'p.s1_one_line']) assert.ok(TSX.includes(`{${f}}`) || TSX.includes(`${f}`), f);
   assert.doesNotMatch(TSX, /replacements\.cap|replacements\.light/, 'the Reports tab does not read a replacement cap (goodwill, not an allowance)');
-  assert.match(TSX, /smcDb\.from\("reports"\)\.select\("\*"\)/, 'one reports row feeds the page');
+  assert.match(TSX, /smcDb\.from\("smc_reports"\)\.select\("\*"\)/, 'one reports row feeds the page (view renamed smc_reports: live public.reports is the agency-CRM table)');
   assert.doesNotMatch(TSX, /\.reduce\(|\.filter\([^)]*attended|\/ *s2\.attended/, 'no recomputed rates');
   assert.ok(TSX.includes('p.s1_one_line'));
 });

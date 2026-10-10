@@ -33,6 +33,10 @@ CREATE TABLE IF NOT EXISTS smc_private.pseudonym_key (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 INSERT INTO smc_private.pseudonym_key (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+-- SAFETY REWRITE (2026-10-10 review): the pseudonymisation salt must not depend on schema exposure alone. RLS on with no policy + no grants:
+-- only the SECURITY DEFINER functions (owner) and service_role (BYPASSRLS) can read it.
+ALTER TABLE smc_private.pseudonym_key ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON smc_private.pseudonym_key FROM PUBLIC, anon, authenticated;
 
 CREATE OR REPLACE FUNCTION facts.lead_key(p_id uuid)
 RETURNS text

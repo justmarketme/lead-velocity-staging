@@ -56,7 +56,8 @@ BEGIN
 
   SELECT * INTO a FROM public.appointments WHERE id = p_booking_id AND broker_id = v_broker AND brand_id IS NOT NULL;
   IF NOT FOUND THEN RAISE EXCEPTION 'booking not found' USING ERRCODE = 'P0002'; END IF;
-  IF p_proof_path IS NULL OR p_proof_path NOT LIKE v_broker::text || '/noshow-proof/%' THEN
+  IF p_proof_path IS NULL OR p_proof_path NOT LIKE v_broker::text || '/noshow-proof/%'
+     OR p_proof_path ~ '(\.\./|//|\\)' THEN   -- SAFETY REWRITE 2026-10-10: no path traversal ("<me>/noshow-proof/../<other>/x" matched the LIKE)
     RAISE EXCEPTION 'proof missing' USING ERRCODE = '22023';
   END IF;
   IF now() < a.appointment_date + interval '10 minutes' THEN
@@ -67,7 +68,9 @@ BEGIN
   END IF;
 
   -- Serialise this broker's requests for the Calendar Week (same lock key as the W13 WhatsApp path), so the count is exact.
-  PERFORM pg_advisory_xact_lock(hashtext('w13:week:' || v_broker::text || ':' || public.smc_week_start(a.appointment_date)::text));
+  -- SAFETY REWRITE 2026-10-10: timestamptz::text depends on the session TimeZone, so portal (UTC) and n8n sessions could compute different keys
+  -- and not exclude each other. The key is now the SAST week start rendered in UTC: identical in every session. W13 must use the same expression.
+  PERFORM pg_advisory_xact_lock(hashtextextended('w13:week:' || v_broker::text || ':' || to_char(public.smc_week_start(a.appointment_date) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI'), 0));
 
   -- One request per missed appointment, whatever its kind or outcome.
   IF EXISTS (SELECT 1 FROM public.replacements r WHERE r.booking_id = a.id) THEN

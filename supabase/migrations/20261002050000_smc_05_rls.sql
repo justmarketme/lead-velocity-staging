@@ -155,9 +155,12 @@ END $$;
 GRANT SELECT, INSERT, UPDATE ON public.leads, public.appointments, public.communications,
                                 public.lead_activities, public.brokers, public.report_history,
                                 public.message_templates, public.admin_documents TO n8n_app;
-GRANT SELECT ON public.sla_thresholds, public.profiles, public.user_roles TO n8n_app;
-GRANT SELECT ON public.conversations, public.bookings, public.reports, public.v_cycle_progress TO n8n_app, authenticated;
-REVOKE ALL ON public.conversations, public.bookings, public.reports, public.v_cycle_progress FROM anon;
+GRANT SELECT ON public.sla_thresholds, public.user_roles TO n8n_app;
+-- SAFETY REWRITE (2026-10-10 review): profiles is NOT granted whole. The live table holds plain-text security_answer_1/2, Telegram/Discord ids and
+-- pairing codes; n8n only needs the admin's notification number and DND window. Column-level grant (columns added by smc_03).
+GRANT SELECT (user_id, full_name, whatsapp_number, notify_dnd) ON public.profiles TO n8n_app;
+GRANT SELECT ON public.smc_conversations, public.bookings, public.smc_reports, public.v_cycle_progress TO n8n_app, authenticated;
+REVOKE ALL ON public.smc_conversations, public.bookings, public.smc_reports, public.v_cycle_progress FROM anon;
 
 DO $$
 DECLARE
@@ -176,7 +179,7 @@ BEGIN
       USING (public.has_role(user_id, 'admin'::public.app_role));
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'user_roles' AND policyname = 'smc n8n_app read roles') THEN
-    CREATE POLICY "smc n8n_app read roles" ON public.user_roles FOR SELECT TO n8n_app USING (true);
+    CREATE POLICY "smc n8n_app read roles" ON public.user_roles FOR SELECT TO n8n_app USING (role = 'admin'::public.app_role);   -- SAFETY REWRITE 2026-10-10: admins only (was USING (true) = every broker's user_id)
   END IF;
 
   -- Brokers keep SELECT on own leads/appointments (existing policies) but may not insert
@@ -196,6 +199,24 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'appointments' AND policyname = 'smc restrict broker writes on brand rows (insert)') THEN
     CREATE POLICY "smc restrict broker writes on brand rows (insert)" ON public.appointments AS RESTRICTIVE
       FOR INSERT TO authenticated WITH CHECK (brand_id IS NULL OR public.smc_is_admin());
+  END IF;
+
+  -- SAFETY REWRITE (2026-10-10 review) H-1: the LIVE policy "Allow authenticated users to insert broker profile" (auth.uid() = user_id) let any
+  -- signed-in user INSERT a brokers row carrying SortMyCover enrolment fields. Legacy inserts (brand_id NULL, no tier/routing/go-live) are unaffected.
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'brokers' AND policyname = 'smc restrict broker self-insert') THEN
+    CREATE POLICY "smc restrict broker self-insert" ON public.brokers AS RESTRICTIVE FOR INSERT TO authenticated
+      WITH CHECK (public.smc_is_admin() OR (brand_id IS NULL AND tier_code IS NULL AND routing_on IS NOT TRUE
+                  AND current_cycle_id IS NULL AND approved_live_at IS NULL AND approved_live_by IS NULL));
+  END IF;
+  -- H-2: the LIVE policy "Agents can create their own activities" (agent_id = auth.uid()) let any broker insert lead_activities rows for ANY lead with
+  -- brand_id / broker_id / workflow='portal' (the W20 onboarding webhook trusts those). Only SECURITY DEFINER RPCs, n8n_app and admins write SMC timeline rows.
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'lead_activities' AND policyname = 'smc restrict broker writes on brand rows (insert)') THEN
+    CREATE POLICY "smc restrict broker writes on brand rows (insert)" ON public.lead_activities AS RESTRICTIVE
+      FOR INSERT TO authenticated WITH CHECK ((brand_id IS NULL AND broker_id IS NULL AND workflow IS NULL AND idempotency_key IS NULL) OR public.smc_is_admin());
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'lead_activities' AND policyname = 'smc restrict broker writes on brand rows (update)') THEN
+    CREATE POLICY "smc restrict broker writes on brand rows (update)" ON public.lead_activities AS RESTRICTIVE
+      FOR UPDATE TO authenticated USING (brand_id IS NULL OR public.smc_is_admin()) WITH CHECK (brand_id IS NULL OR public.smc_is_admin());
   END IF;
 
   -- Broker reads: own SMC timeline events, own reports, own agreements/invoices PDFs
@@ -298,7 +319,9 @@ REVOKE ALL ON FUNCTION public.smc_mark_report_opened(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.smc_mark_report_opened(uuid) TO authenticated;
 REVOKE ALL ON FUNCTION public.smc_sign_document(uuid, text, text, text, text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.smc_sign_document(uuid, text, text, text, text) TO authenticated;
-REVOKE ALL ON FUNCTION public.smc_is_admin(), public.smc_current_broker_id() FROM anon;
+-- SAFETY REWRITE (2026-10-10 review): revoke from PUBLIC too. Revoking from anon alone leaves the default PUBLIC EXECUTE, so anon could still call these.
+REVOKE ALL ON FUNCTION public.smc_is_admin(), public.smc_current_broker_id() FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.smc_hash_contact(text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.smc_is_admin(), public.smc_current_broker_id(), public.smc_hash_contact(text) TO authenticated, n8n_app;
 
 -- -----------------------------------------------------------------------------

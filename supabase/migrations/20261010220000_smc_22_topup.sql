@@ -40,7 +40,10 @@ BEGIN
   END LOOP;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.cycles'::regclass AND conname = 'cycles_shortfall_credit_cap') THEN
     ALTER TABLE public.cycles ADD CONSTRAINT cycles_shortfall_credit_cap
-      CHECK (shortfall_credit_zar IS NULL OR shortfall_credit_zar <= price_zar + topup_leads * round(price_zar / NULLIF(committed_leads - topup_leads, 0)));
+      -- SAFETY REWRITE 2026-10-10: the original divided by NULLIF(committed - topup, 0); with committed = topup the cap became NULL
+      -- (a CHECK treats NULL as pass, so the cap vanished) and per-lead rounding could reject a valid credit. price + k*price/(n-k) = price*n/(n-k).
+      CHECK (shortfall_credit_zar IS NULL OR shortfall_credit_zar <=
+             CASE WHEN committed_leads - topup_leads > 0 THEN ceil(price_zar * committed_leads / (committed_leads - topup_leads)) ELSE price_zar END);
   END IF;
 END $$;
 COMMENT ON CONSTRAINT cycles_shortfall_credit_cap ON public.cycles IS 'SMC 22: credit never exceeds what was paid toward the cycle''s leads: price_zar + topup_leads x the plan''s Effective Lead Price.';

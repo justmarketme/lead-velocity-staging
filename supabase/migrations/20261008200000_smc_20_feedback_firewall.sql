@@ -85,7 +85,8 @@ BEGIN
   IF v_broker IS NULL THEN RAISE EXCEPTION 'not a SortMyCover broker' USING ERRCODE = '42501'; END IF;
   SELECT * INTO a FROM public.appointments WHERE id = p_booking_id AND broker_id = v_broker AND brand_id IS NOT NULL;
   IF NOT FOUND THEN RAISE EXCEPTION 'booking not found' USING ERRCODE = 'P0002'; END IF;
-  IF p_proof_path IS NULL OR p_proof_path NOT LIKE v_broker::text || '/noshow-proof/%' THEN
+  IF p_proof_path IS NULL OR p_proof_path NOT LIKE v_broker::text || '/noshow-proof/%'
+     OR p_proof_path ~ '(\.\./|//|\\)' THEN   -- SAFETY REWRITE 2026-10-10: no path traversal ("<me>/noshow-proof/../<other>/x" matched the LIKE)
     RAISE EXCEPTION 'proof missing' USING ERRCODE = '22023';
   END IF;
   IF now() < a.appointment_date + interval '10 minutes' THEN
@@ -150,6 +151,8 @@ SELECT
   c.committed_leads   AS committed,
   (SELECT count(*) FROM public.leads l
     WHERE l.cycle_id = c.id AND l.verified_at IS NOT NULL AND l.qualified_at IS NOT NULL
+      -- SAFETY REWRITE 2026-10-10 (smc_19 'needs_human'): tier-B leads never accepted / excluded must not count toward the committed number
+      AND l.counts_toward_cycle IS DISTINCT FROM false AND (l.offer_status IS NULL OR l.offer_status = 'accepted')
       AND NOT EXISTS (SELECT 1 FROM public.replacements rp
                        WHERE rp.replacement_lead_id = l.id AND rp.status <> 'rejected'))      AS verified,
   (SELECT count(DISTINCT a.client_id) FROM public.appointments a
@@ -170,6 +173,7 @@ SELECT
   (SELECT count(*) FROM public.leads l
     WHERE l.cycle_id = c.id AND l.brand_id IS NOT NULL
       AND l.consent_at IS NOT NULL AND l.qualified_at IS NOT NULL
+      AND l.counts_toward_cycle IS DISTINCT FROM false AND (l.offer_status IS NULL OR l.offer_status = 'accepted')   -- SAFETY REWRITE 2026-10-10 (see above)
       AND (EXISTS (SELECT 1 FROM public.appointments a WHERE a.client_id = l.id AND a.brand_id IS NOT NULL AND a.confirmed_at IS NOT NULL)
            OR EXISTS (SELECT 1 FROM public.lead_activities la WHERE la.lead_id = l.id AND la.activity_type = 'booking_confirmed'))
       AND NOT EXISTS (SELECT 1 FROM public.replacements rp

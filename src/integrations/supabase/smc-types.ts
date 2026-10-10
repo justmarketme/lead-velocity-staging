@@ -181,7 +181,7 @@ export interface SmcAdObject {
   last_budget_change_at: Ts | null; fetched_at: Ts;
 }
 
-/** View public.reports over report_history (smc_06 §9). payload_json = broker_report/1 (automation/W14-broker.md). */
+/** View public.smc_reports (was public.reports) over report_history (smc_06 §9). payload_json = broker_report/1 (automation/W14-broker.md). */
 export interface SmcReport {
   id: Uuid; brand_id: Uuid; broker_id: Uuid; cycle_id: Uuid | null; week: DateStr | null;
   report_kind: "broker_weekly" | "midcycle" | "cycle_end" | "lv_weekly" | null;

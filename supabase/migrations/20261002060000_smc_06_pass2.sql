@@ -50,6 +50,8 @@ ALTER TABLE public.brokers
 ALTER TABLE public.brokers ADD COLUMN IF NOT EXISTS broker_id        uuid GENERATED ALWAYS AS (id) STORED;
 ALTER TABLE public.brokers ADD COLUMN IF NOT EXISTS adviser_name     text GENERATED ALWAYS AS (contact_person) STORED;
 ALTER TABLE public.brokers ADD COLUMN IF NOT EXISTS practice_name    text GENERATED ALWAYS AS (firm_name) STORED;
+-- SAFETY REWRITE 2026-10-10: live brokers has no whatsapp_number (drift, see smc_00); make this file independent of file order.
+ALTER TABLE public.brokers ADD COLUMN IF NOT EXISTS whatsapp_number text;
 ALTER TABLE public.brokers ADD COLUMN IF NOT EXISTS adviser_whatsapp text GENERATED ALWAYS AS (whatsapp_number) STORED;
 
 DO $$
@@ -73,7 +75,8 @@ BEGIN
                   AND pg_get_constraintdef(oid) LIKE '%not_renewed%') THEN
     ALTER TABLE public.brokers DROP CONSTRAINT IF EXISTS brokers_status_check;
     ALTER TABLE public.brokers ADD CONSTRAINT brokers_status_check CHECK (
-      status IS NULL OR status IN ('Active','Inactive',
+      -- SAFETY REWRITE (2026-10-10 drift review): 'Prospect' (capitalised, LIVE legacy value) kept; see smc_02.
+      status IS NULL OR status IN ('Active','Inactive','Prospect',
                                    'invited','prospect','onboarding','onboarded','ready_for_go_live',
                                    'active','paused','not_renewed','ended'));
   END IF;
@@ -120,7 +123,10 @@ DECLARE
     'line','notes','conv_state','reference_raw','signer_ip','signed_user_agent','requester',
     'requester_contact','google_calendar_token','calendar_email','author_hash','note',
     -- pass 2: generated aliases of PII columns + new person/contact fields
-    'adviser_name','adviser_whatsapp','signatory_name','reply_text','external_id','mobile_hash','page_text'];
+    'adviser_name','adviser_whatsapp','signatory_name','reply_text','external_id','mobile_hash','page_text',
+    -- SAFETY REWRITE 2026-10-10 (review): identifiers and capture-v2 columns that must never reach the append-only audit_log in clear
+    'dedupe_hash','fbclid','fbp','fbc','ctwa_clid','consent_text','join_url','ics_url',
+    'alt_email','wa_id','smoker','smoker_question_text','income_band','spend_band','email_verify_code_hash','capture_state','reasons','declined_broker_ids'];
   o jsonb := CASE WHEN TG_OP IN ('UPDATE','DELETE') THEN to_jsonb(OLD) ELSE NULL END;
   n jsonb := CASE WHEN TG_OP IN ('INSERT','UPDATE') THEN to_jsonb(NEW) ELSE NULL END;
   r jsonb := coalesce(n, o);
@@ -446,7 +452,8 @@ BEGIN
       CHECK (edition IS NULL OR edition IN ('weekly','midcycle','cycle_end'));
   END IF;
 END $$;
-CREATE OR REPLACE VIEW public.reports WITH (security_invoker = true) AS
+-- (renamed public.reports -> public.smc_reports, see smc_03 note)
+CREATE OR REPLACE VIEW public.smc_reports WITH (security_invoker = true) AS
 SELECT r.id, r.brand_id, r.broker_id, r.cycle_id, r.week, r.report_kind,
        r.report_data AS payload_json, r.pdf_url, r.sent_wa_at, r.sent_email_at,
        r.opened_portal_at, r.opened_wa_at, r.ask, r.ask_done_at, r.judge_passed,
@@ -1846,7 +1853,7 @@ BEGIN
           jsonb_build_object('event_id', p_event_id, 'type', p_type, 'broker_id', v_broker, 'step', p_step,
                              'occurred_at', now(), 'payload', coalesce(p_payload, '{}'::jsonb)),
           now(), 'portal:' || p_event_id::text)
-  ON CONFLICT (idempotency_key) DO NOTHING;
+  ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING;  -- SAFETY REWRITE 2026-10-10: partial unique index needs its predicate or the RPC always errors
   RETURN p_event_id;
 END $$;
 

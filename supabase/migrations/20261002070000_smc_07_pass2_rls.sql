@@ -75,8 +75,8 @@ END $$;
 GRANT SELECT ON public.ads TO authenticated, n8n_app;
 REVOKE ALL ON public.ads FROM anon;
 -- bookings / reports were re-created with appended columns; grants survive CREATE OR REPLACE, repeated for clarity
-GRANT SELECT ON public.bookings, public.reports TO authenticated, n8n_app;
-REVOKE ALL ON public.bookings, public.reports FROM anon;
+GRANT SELECT ON public.bookings, public.smc_reports TO authenticated, n8n_app;
+REVOKE ALL ON public.bookings, public.smc_reports FROM anon;
 
 -- ops views: build line for the console (admin via RLS on ops.build_state), recipients + W22 metrics for n8n only
 GRANT SELECT ON ops.build_state_latest TO authenticated, n8n_app;

@@ -275,7 +275,7 @@ CREATE TABLE IF NOT EXISTS public.broker_media (
 CREATE UNIQUE INDEX IF NOT EXISTS broker_media_one_current ON public.broker_media (broker_id, kind, language) WHERE is_current;
 
 -- -----------------------------------------------------------------------------
--- 9. reports (4.10a, W14) — extend report_history (INV-T21) + view `reports`
+-- 9. reports (4.10a, W14) — extend report_history (INV-T21) + view `smc_reports` (was `reports`)
 -- -----------------------------------------------------------------------------
 ALTER TABLE public.report_history ALTER COLUMN sent_at DROP NOT NULL;      -- generated Sun 23:00, sent Mon 07:00
 ALTER TABLE public.report_history ALTER COLUMN recipients DROP NOT NULL;
@@ -313,9 +313,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS report_history_smc_week_uidx
 DO $smc_v$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns
-                  WHERE table_schema = 'public' AND table_name = 'reports' AND column_name = 'edition') THEN
+                  WHERE table_schema = 'public' AND table_name = 'smc_reports' AND column_name = 'edition') THEN
     EXECUTE $smc_q$
-CREATE OR REPLACE VIEW public.reports WITH (security_invoker = true) AS
+-- SAFETY REWRITE (2026-10-10 drift review): view renamed public.reports -> public.smc_reports. LIVE public.reports is the agency-CRM
+-- client health-report TABLE (4 rows, FK to clients); CREATE OR REPLACE VIEW over a table fails and must never replace it.
+CREATE OR REPLACE VIEW public.smc_reports WITH (security_invoker = true) AS
 SELECT r.id, r.brand_id, r.broker_id, r.cycle_id, r.week, r.report_kind,
        r.report_data AS payload_json, r.pdf_url, r.sent_wa_at, r.sent_email_at,
        r.opened_portal_at, r.opened_wa_at, r.ask, r.ask_done_at, r.judge_passed,
@@ -325,7 +327,7 @@ WHERE r.brand_id IS NOT NULL
     $smc_q$;
   END IF;
 END $smc_v$;
-COMMENT ON VIEW public.reports IS 'SMC 4.10a: prompt name for SortMyCover rows in report_history (INV-T21). One row feeds WhatsApp, portal and email.';
+COMMENT ON VIEW public.smc_reports IS 'SMC 4.10a: prompt name for SortMyCover rows in report_history (INV-T21). One row feeds WhatsApp, portal and email.';
 
 -- -----------------------------------------------------------------------------
 -- 10. message_templates (4.6 template list, W27) — extend INV-T15
@@ -568,4 +570,26 @@ BEGIN
     EXECUTE format('DROP TRIGGER IF EXISTS smc_audit ON %s', t);
     EXECUTE format('CREATE TRIGGER smc_audit AFTER INSERT OR UPDATE OR DELETE ON %s FOR EACH ROW EXECUTE FUNCTION public.smc_audit(%L)', t, 'brand_scoped');
   END LOOP;
+END $$;
+
+-- -----------------------------------------------------------------------------
+-- SAFETY REWRITE (2026-10-10 review): fail closed until smc_05 (see the note at the end of smc_02).
+-- These tables hold bank-adjacent, DSR (requester contact), suppression and breach-register data.
+-- -----------------------------------------------------------------------------
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['public.ad_metrics','public.comments','public.escalations','public.insights','public.lead_pulse',
+                           'public.capi_log','public.suppression','public.dsr_requests','public.retention_log','public.incidents',
+                           'public.obligations','public.broker_media',
+                           'ops.pulses','ops.proposals','ops.signals','ops.notifications','ops.optimisation_memos','ops.costs',
+                           'ops.quality_grades'] LOOP
+    IF to_regclass(t) IS NOT NULL THEN
+      EXECUTE format('ALTER TABLE %s ENABLE ROW LEVEL SECURITY', t);
+      EXECUTE format('REVOKE ALL ON %s FROM PUBLIC, anon, authenticated', t);
+    END IF;
+  END LOOP;
+  IF to_regclass('public.smc_reports') IS NOT NULL THEN
+    EXECUTE 'REVOKE ALL ON public.smc_reports FROM PUBLIC, anon, authenticated';
+  END IF;
 END $$;

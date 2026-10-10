@@ -207,9 +207,14 @@ END $$;
 
 -- Widen the status CHECK (superset; legacy 'Active'/'Inactive' still valid).
 -- NH-11: if the live constraint has another name, the old one must be dropped by hand (runbook).
+-- SAFETY REWRITE (2026-10-10 drift review): the LIVE constraint is ('Active','Inactive','Prospect'). The original list
+-- here omitted 'Prospect', which (a) aborts this migration on any live broker row with status 'Prospect' (the
+-- onboarding trigger fn_onboarding_to_pipeline creates exactly those), and (b) would silently break that trigger
+-- afterwards (it swallows the CHECK error, so new onboarding submissions would stop creating pipeline brokers).
+-- 'Prospect' is now kept: the new list is a strict superset of the live one.
 ALTER TABLE public.brokers DROP CONSTRAINT IF EXISTS brokers_status_check;
 ALTER TABLE public.brokers ADD CONSTRAINT brokers_status_check CHECK (
-  status IS NULL OR status IN ('Active','Inactive',
+  status IS NULL OR status IN ('Active','Inactive','Prospect',
                                'onboarding','onboarded','ready_for_go_live','active','paused','ended'));
 
 CREATE UNIQUE INDEX IF NOT EXISTS brokers_ref_code_uidx ON public.brokers (ref_code) WHERE ref_code IS NOT NULL;
@@ -473,7 +478,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS communications_smc_external_uidx
 CREATE INDEX IF NOT EXISTS communications_smc_lead_time_idx ON public.communications (lead_id, created_at) WHERE brand_id IS NOT NULL;
 
 -- Prompt name (W03/W07/W31 "conversations"): read-only view over SMC rows. RLS of the base table applies.
-CREATE OR REPLACE VIEW public.conversations WITH (security_invoker = true) AS
+-- SAFETY REWRITE (2026-10-10 drift review): renamed public.conversations -> public.smc_conversations. The LIVE project has a TABLE
+-- public.conversations (EMMA assistant: Teams thread refs); CREATE OR REPLACE VIEW over a table fails, and no EMMA object may be touched.
+CREATE OR REPLACE VIEW public.smc_conversations WITH (security_invoker = true) AS
 SELECT c.id, c.brand_id, c.lead_id, c.broker_id, c.channel, c.direction, c.author,
        c.status, c.external_id AS wamid, c.template_name, c.template_category, c.intent,
        c.llm_model, c.latency_ms, c.guardrail_trip, c.guardrail_rule, c.handoff,
@@ -481,7 +488,7 @@ SELECT c.id, c.brand_id, c.lead_id, c.broker_id, c.channel, c.direction, c.autho
        c.workflow, c.created_at
 FROM public.communications c
 WHERE c.brand_id IS NOT NULL;
-COMMENT ON VIEW public.conversations IS 'SMC: prompt name for SortMyCover message rows in communications (INV-T14). Conversation state lives on leads.conv_state.';
+COMMENT ON VIEW public.smc_conversations IS 'SMC: prompt name for SortMyCover message rows in communications (INV-T14). Conversation state lives on leads.conv_state.';
 
 -- -----------------------------------------------------------------------------
 -- 8. appointments → bookings (W04/W05/W10, Section 7 Graph event.id) — extend INV-T24
@@ -781,6 +788,19 @@ CREATE TABLE IF NOT EXISTS public.audit_log (
   diff        jsonb NOT NULL DEFAULT '{}'::jsonb,
   reason      text           -- SET smc.reason (e.g. "Approve & go live")
 );
+-- SAFETY REWRITE (2026-10-10 drift review): the LIVE project already has public.audit_log (uuid id, record_id,
+-- old_data/new_data, changed_by, changed_at ...; 41 rows; written by fn_audit triggers and read by the CRM admin UI).
+-- CREATE TABLE IF NOT EXISTS above is therefore a silent no-op there, and the statements below (index on row_id,
+-- smc_audit() inserting actor_uid/source/diff/...) would fail. Converge instead: ADD the SMC columns to the live
+-- table (all nullable or constant-default, no rewrite) so BOTH writers share one table and nothing live changes.
+ALTER TABLE public.audit_log
+  ADD COLUMN IF NOT EXISTS at         timestamptz NOT NULL DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS actor_uid  uuid,
+  ADD COLUMN IF NOT EXISTS actor_role text,
+  ADD COLUMN IF NOT EXISTS source     text,
+  ADD COLUMN IF NOT EXISTS row_id     text,
+  ADD COLUMN IF NOT EXISTS diff       jsonb NOT NULL DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS reason     text;
 CREATE INDEX IF NOT EXISTS audit_log_table_row_idx ON public.audit_log (table_name, row_id);
 CREATE INDEX IF NOT EXISTS audit_log_at_idx ON public.audit_log (at);
 
@@ -870,6 +890,12 @@ END $$;
 -- 15. v_cycle_progress — Mark's line (0.2): committed · verified · booked · attended · replacements N/cap
 --     security_invoker: a broker sees only his own cycles through base-table RLS.
 -- -----------------------------------------------------------------------------
+-- Guarded (SAFETY REWRITE 2026-10-10): smc_20 re-creates this view with appended columns; re-running this file afterwards must not
+-- try to shrink it ("cannot drop columns from view"), so it is only created when absent.
+DO $smc_v$
+BEGIN
+  IF to_regclass('public.v_cycle_progress') IS NULL THEN
+    EXECUTE $smc_q$
 CREATE OR REPLACE VIEW public.v_cycle_progress WITH (security_invoker = true) AS
 SELECT
   c.id                AS cycle_id,
@@ -895,5 +921,35 @@ SELECT
   (SELECT count(*) FROM public.replacements r WHERE r.cycle_id = c.id AND r.status <> 'rejected') AS replacements_used,
   c.replacement_cap,
   greatest(0, ceil(extract(epoch FROM (coalesce(c.extended_until, c.ends_at) - now())) / 86400))::int AS days_left
-FROM public.cycles c;
+FROM public.cycles c
+    $smc_q$;
+  END IF;
+END $smc_v$;
 COMMENT ON VIEW public.v_cycle_progress IS 'SMC 0.2: this cycle — committed, verified (counts toward commitment; replacement leads excluded), booked, attended, good-fit, replacements N/cap.';
+
+-- -----------------------------------------------------------------------------
+-- 16. SAFETY REWRITE (2026-10-10 review): close the window until smc_05.
+--     Supabase's default privileges give anon / authenticated ALL on every new public table and view, and RLS only arrives in
+--     smc_05 (a separate transaction that also needs roles the project does not have yet). If the chain stopped after this file,
+--     bank_credits / invoices_smc would be readable and writable with the public anon key. Fail closed instead: RLS on, no grants;
+--     service_role (BYPASSRLS) keeps working, smc_05 re-grants and adds the policies. Idempotent.
+-- -----------------------------------------------------------------------------
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['public.brands','public.pricing','public.cycles','public.outcomes','public.replacements',
+                           'public.bank_credits','public.invoices_smc','public.webhook_events'] LOOP
+    IF to_regclass(t) IS NOT NULL THEN
+      EXECUTE format('ALTER TABLE %s ENABLE ROW LEVEL SECURITY', t);
+      EXECUTE format('REVOKE ALL ON %s FROM PUBLIC, anon, authenticated', t);
+    END IF;
+  END LOOP;
+  FOREACH t IN ARRAY ARRAY['public.smc_conversations','public.bookings','public.v_cycle_progress'] LOOP
+    IF to_regclass(t) IS NOT NULL THEN EXECUTE format('REVOKE ALL ON %s FROM PUBLIC, anon, authenticated', t); END IF;
+  END LOOP;
+END $$;
+REVOKE ALL ON FUNCTION public.smc_audit() FROM PUBLIC, anon, authenticated;   -- trigger function; never an RPC
+REVOKE ALL ON FUNCTION public.smc_is_admin(), public.smc_current_broker_id() FROM PUBLIC, anon;   -- authenticated keeps EXECUTE (RLS helpers); smc_05 re-grants n8n_app
+GRANT EXECUTE ON FUNCTION public.smc_is_admin(), public.smc_current_broker_id() TO authenticated;
+-- one-off: legacy audit rows carry changed_at; give the new "at" column the same instant instead of the migration time
+UPDATE public.audit_log SET at = changed_at WHERE changed_at IS NOT NULL AND source IS NULL AND actor_uid IS NULL AND row_id IS NULL;

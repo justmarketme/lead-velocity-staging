@@ -169,7 +169,9 @@ BEGIN
     'admin_documents','document_shares','admin_invites','broker_invites',
     'broker_security_questions','ai_call_requests','notification_preferences',
     'scheduled_reports','report_history','sla_thresholds','sla_alerts',
-    'message_templates','client_engagement_notes','call_coaching','system_logs'
+    'message_templates','client_engagement_notes','call_coaching','system_logs',
+    -- added 2026-10-10 (review): live tables with anon ALL grants and no anon use (RLS was the only control)
+    'audit_log','lead_orders','lead_order_items','broker_feedback','broker_followups','broker_activities'
   ] LOOP
     IF to_regclass('public.' || t) IS NOT NULL THEN
       EXECUTE format('REVOKE ALL ON public.%I FROM anon', t);
@@ -180,3 +182,28 @@ END $$;
 -- broker_reset_requests: anon keeps INSERT only (forgot-password request).
 REVOKE SELECT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON public.broker_reset_requests FROM anon;
 
+
+-- ---------------------------------------------------------------------------
+-- SAFETY REWRITE (2026-10-10 review): three more "any signed-in user" holes found in the LIVE policy set. None has a frontend
+-- caller (grep of src/ and supabase/functions/), so closing them changes no working flow; each is a security fix, listed in
+-- supabase/migrations/MIGRATION-SAFETY-REVIEW.md as a behaviour change to the existing CRM.
+-- ---------------------------------------------------------------------------
+-- 1. "Token holder can update invite": UPDATE USING (true) WITH CHECK (true) let ANY signed-in broker rewrite every broker invite
+--    (email, expiry, portal type). Invite redemption runs through the SECURITY DEFINER trigger handle_new_user_master and the
+--    get-broker-invite-by-token edge function (service role); nothing updates invites from the browser.
+DROP POLICY IF EXISTS "Token holder can update invite" ON public.broker_invites;
+-- 2. "Allow anyone to insert security questions": WITH CHECK (true) let any signed-in user pre-seed security answers for any
+--    user_id that has none yet (UNIQUE(user_id)). Inserts are done by the definer trigger handle_new_user_master.
+DROP POLICY IF EXISTS "Allow anyone to insert security questions" ON public.broker_security_questions;
+-- 3. "Allow authenticated read access" on system_logs: USING (true) let every broker read all system logs (trigger logs carry
+--    new-user emails and metadata). Admin-only instead.
+DO $$
+BEGIN
+  IF to_regclass('public.system_logs') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Allow authenticated read access" ON public.system_logs;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'system_logs' AND policyname = 'smc_sec admins read system logs') THEN
+      CREATE POLICY "smc_sec admins read system logs" ON public.system_logs
+        FOR SELECT TO authenticated USING (public.has_role(auth.uid(), 'admin'::public.app_role));
+    END IF;
+  END IF;
+END $$;

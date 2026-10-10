@@ -60,8 +60,16 @@ BEGIN
 
   -- 3. n8n_app (the workflows' DB role, migration 01): read-only, this bucket only.
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'n8n_app') THEN
-    EXECUTE 'GRANT USAGE ON SCHEMA storage TO n8n_app';
-    EXECUTE 'GRANT SELECT ON storage.objects, storage.buckets TO n8n_app';
+    -- SAFETY REWRITE (2026-10-10 review): on hosted Supabase storage.objects is owned by supabase_storage_admin, so the
+    -- migration role may lack GRANT OPTION there. The original unguarded GRANT could abort this whole file (and stop the
+    -- chain). It is now non-fatal; n8n can always read media through the Storage API with the service key instead.
+    -- storage.buckets is no longer granted (n8n does not need it).
+    BEGIN
+      EXECUTE 'GRANT USAGE ON SCHEMA storage TO n8n_app';
+      EXECUTE 'GRANT SELECT ON storage.objects TO n8n_app';
+    EXCEPTION WHEN insufficient_privilege THEN
+      RAISE WARNING 'smc_09: could not grant storage read to n8n_app (%): use the Storage API / service key from n8n', SQLERRM;
+    END;
     EXECUTE $q$CREATE POLICY "smc broker-media n8n_app read" ON storage.objects FOR SELECT TO n8n_app
               USING (bucket_id = 'broker-media')$q$;
   ELSE

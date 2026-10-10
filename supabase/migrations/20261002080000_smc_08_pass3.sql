@@ -540,7 +540,7 @@ BEGIN
           jsonb_build_object('event_id', v_event, 'type', 'policies.reported', 'broker_id', v_broker,
                              'cycle_id', v_cycle, 'count', p_count, 'occurred_at', now()),
           now(), 'portal:' || v_event::text)
-  ON CONFLICT (idempotency_key) DO NOTHING;
+  ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING;  -- SAFETY REWRITE 2026-10-10: partial unique index needs its predicate or the RPC always errors
   RETURN v_cycle;
 END $$;
 
@@ -766,11 +766,36 @@ AS $$
 BEGIN
   -- I-28 option (b): decide on current_user FIRST, in its own IF (PL/pgSQL does not promise OR short-circuit),
   -- so n8n_app / service / SECURITY DEFINER paths never call auth.uid() and keep working without the auth grant.
-  IF current_user NOT IN ('authenticated','anon') OR OLD.brand_id IS NULL THEN
-    RETURN NEW;   -- n8n/service connections, SECURITY DEFINER portal RPCs (run as owner), legacy rows
+  IF current_user NOT IN ('authenticated','anon') THEN
+    RETURN NEW;   -- n8n/service connections, SECURITY DEFINER portal RPCs (run as owner)
   END IF;
   IF auth.uid() IS NULL OR public.smc_is_admin() THEN
     RETURN NEW;   -- API roles only from here: no session (RLS already blocks) or an admin
+  END IF;
+  -- SAFETY REWRITE (2026-10-10 review): legacy rows (brand_id IS NULL) used to bypass this guard entirely, and the LIVE policy
+  -- "Brokers can update their own profile" has no column limit, so any existing broker could set his OWN brand_id / tier_code /
+  -- routing_on / approved_live_* / fsp_* and promote himself into the SortMyCover pool. Legacy columns (status, tier, mgmt_stage ...)
+  -- stay writable exactly as today; only the SortMyCover control columns are locked on legacy rows.
+  IF OLD.brand_id IS NULL THEN
+    IF NEW.brand_id          IS DISTINCT FROM OLD.brand_id
+    OR NEW.tier_code         IS DISTINCT FROM OLD.tier_code
+    OR NEW.ref_code          IS DISTINCT FROM OLD.ref_code
+    OR NEW.current_cycle_id  IS DISTINCT FROM OLD.current_cycle_id
+    OR NEW.approved_live_by  IS DISTINCT FROM OLD.approved_live_by
+    OR NEW.approved_live_at  IS DISTINCT FROM OLD.approved_live_at
+    OR NEW.fsp_verified_at   IS DISTINCT FROM OLD.fsp_verified_at
+    OR NEW.fsp_check         IS DISTINCT FROM OLD.fsp_check
+    OR NEW.routing_on        IS DISTINCT FROM OLD.routing_on
+    OR NEW.routing_rules     IS DISTINCT FROM OLD.routing_rules
+    OR NEW.consent_mode      IS DISTINCT FROM OLD.consent_mode
+    OR NEW.paystack_customer_code IS DISTINCT FROM OLD.paystack_customer_code
+    OR NEW.calendar_token_ref IS DISTINCT FROM OLD.calendar_token_ref
+    OR NEW.billing_ref       IS DISTINCT FROM OLD.billing_ref
+    OR NEW.next_tier_code    IS DISTINCT FROM OLD.next_tier_code THEN
+      RAISE EXCEPTION 'smc: brokers cannot set SortMyCover routing, tier, billing, go-live or verification fields on their own row'
+        USING ERRCODE = '42501';
+    END IF;
+    RETURN NEW;
   END IF;
   IF NEW.status            IS DISTINCT FROM OLD.status
   OR NEW.brand_id          IS DISTINCT FROM OLD.brand_id

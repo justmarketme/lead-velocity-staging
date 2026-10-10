@@ -70,7 +70,29 @@ CREATE TABLE IF NOT EXISTS public.lead_offers (
   UNIQUE (lead_id, broker_id)                     -- never re-offered to the same broker
 );
 CREATE INDEX IF NOT EXISTS lead_offers_open_idx ON public.lead_offers (expires_at) WHERE status = 'offered';
-ALTER TABLE public.lead_offers ENABLE ROW LEVEL SECURITY; -- service role only (n8n_app); portal reads via RPC
+ALTER TABLE public.lead_offers ENABLE ROW LEVEL SECURITY;
+-- SAFETY REWRITE (2026-10-10 review): the original left RLS on with NO policy and NO grant for n8n_app (workflows would get
+-- "permission denied"), and kept Supabase's default ALL grants for anon/authenticated (incl. TRUNCATE, which RLS does not
+-- govern). Access model: anon nothing; authenticated read-only through the admin policy; n8n_app read/insert/update; broker_id FK.
+REVOKE ALL ON public.lead_offers FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.lead_offers TO authenticated;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'n8n_app') THEN   -- role is created by smc_05
+    GRANT SELECT, INSERT, UPDATE ON public.lead_offers TO n8n_app;
+    DROP POLICY IF EXISTS "smc n8n_app rw" ON public.lead_offers;
+    CREATE POLICY "smc n8n_app rw" ON public.lead_offers FOR ALL TO n8n_app USING (true) WITH CHECK (true);
+  END IF;
+END $$;
+DROP POLICY IF EXISTS "smc admin all" ON public.lead_offers;
+CREATE POLICY "smc admin all" ON public.lead_offers FOR SELECT TO authenticated USING (public.smc_is_admin());
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'lead_offers_broker_id_fkey' AND conrelid = 'public.lead_offers'::regclass) THEN
+    ALTER TABLE public.lead_offers ADD CONSTRAINT lead_offers_broker_id_fkey FOREIGN KEY (broker_id) REFERENCES public.brokers(id);
+  END IF;
+END $$;
+CREATE INDEX IF NOT EXISTS lead_offers_broker_idx ON public.lead_offers (broker_id, status);
 
 COMMENT ON COLUMN public.leads.smoker IS 'Capture v2: optional, adviser brief only. Never sent to Meta (CAPI/Pixel/custom_data) - capture-v2.js NEVER_TO_META.';
 COMMENT ON TABLE public.lead_offers IS 'Capture v2 tier B (R750-R1,499): offered to the routed broker first; 2 working hours to accept, expiry = declined.';
