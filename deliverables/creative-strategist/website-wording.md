@@ -2,12 +2,13 @@
 
 > **For contracts-drafter + compliance-qa sign-off. landing-page-builder implements via W25.**
 > Status: DRAFT v1.1 (fix wave 1 from compliance-qa `phase4-review-2.md` §6: W-1, W-2, W-3, W-4 applied; NH-14 Option A text marked pending) · Owner: creative-strategist · Date: 2026-10-02
+> **Update 10 Oct 2026 (Pilot restored):** Jonathan reversed the 7 Oct withdrawal. The Pilot (R8,500 once-off = 10 Qualified Leads × R850, first-time clients only, then Bronze or higher) is back as a slim row above the three monthly cards (2.3), as the first chip in 2.5 and as one FAQ (2.6). Replacement wording follows the canonical 0.1 rule: **goodwill, up to 3 requests per calendar week on every plan, no-shows and uncontactable leads, proof required** (this replaces every "per cycle" cap below). Shortfall wording follows 0.1: 30-day cycle plus up to 14 days, then roll over or refund at the plan's own per-lead rate. Everything else in this file is the 2 Oct text and is unchanged (see NH-CS-W7).
 
 **Source of "before":** the repo is the live copy (`src/pages/Home.tsx`, `src/components/Hero.tsx`, `src/components/TrustBar.tsx`, `src/pages/Pricing.tsx`, `src/pages/Promotions.tsx`, `src/components/Footer.tsx`). The 3.5a Chrome capture of the deployed site into `/deliverables/website/current/` was **not** done here, because this agent has no browser. landing-page-builder should confirm that the deployed site matches the repo before W25 runs (see NH-12, Vercel).
 
 **Method:** words change, structure doesn't. Every section, heading level, card count and order stays as it is. Three exceptions are flagged as `needs_human` at the end: the FAQ block (none exists today), a CTA button inside each tier card, and removing the Gold "Commission" block.
 
-**Rules held:** Grade ≤ 7 plain SA English, no exclamation marks, no premium or cover figure, no insurer names, the delivery word is always "committed" (0.1), "no lock-in" instead of any claim that there is no agreement (CPA s41: brokers sign one), replacements **per cycle** (0.1), prices excl. VAT (0.1), tier values only from `pricing` fields.
+**Rules held:** Grade ≤ 7 plain SA English, no exclamation marks, no premium or cover figure, no insurer names, the delivery word is always "committed" (0.1), "no lock-in" instead of any claim that there is no agreement (CPA s41: brokers sign one), goodwill replacements, 3 requests per calendar week on every plan (0.1, restated 10 Oct), prices excl. VAT (0.1), plan values only from `pricing` fields and the seed's `pilot` block.
 
 ---
 
@@ -18,7 +19,7 @@
 | 1 | What you're buying | Hero subheading | Page header subheading |
 | 2 | What qualified means (+ link to the full definition) | Features card 1 | Tier-card footnote link + FAQ "What is a pre-qualified lead?" (anchor `#what-qualified-means`) |
 | 3 | Nurtured and managed with AI | Features card 3 | "What every plan includes" column 1 |
-| 4 | Replacements | Features card 4 (generic cap wording) | Tier-card notes (with `{{replacement_cap_cycle}}`) |
+| 4 | Replacements | Features card 4 (generic cap wording) | Tier-card notes and Pilot row (3 requests a week, every plan) |
 | 5 | What we don't do | Features intro line | "What every plan includes" column 2 |
 | 6 | Pricing is all-in | Mission Control paragraph | "What every plan includes" column 3 |
 | 7 | Honesty line (replaces "33–40 estimated leads") | Features card 2 (generic) | Tier-card leads row (with `{{committed_leads}}`) |
@@ -27,11 +28,11 @@
 1. "Month to month, no lock-in. You pay upfront for one month and get a set number of **pre-qualified leads** — people who told us their age band, that they can budget for cover, and that they want a call with a licensed adviser. Not clicks. Not raw form fills."
 2. "**What qualified means:** age band · budget band · valid SA mobile reachable on WhatsApp · agreed to a virtual or phone call · consented to be contacted · not a duplicate in 90 days. [Full definition →](#what-qualified-means)"
 3. "Every lead is followed up within 60 seconds on WhatsApp by our AI assistant, booked straight into your calendar, reminded before the call, and rescheduled if they miss it — automatically. You get a pre-call brief on who they are and what they asked."
-4. "If a verified lead no-shows or can't be reached, we replace it — up to {{replacement_cap_cycle}} per cycle on this plan. If we fall short of your committed number, your cycle extends by up to 14 days to deliver it, and anything still short is credited."
-   *Change from 3.5a: "extends until we deliver" becomes "extends by up to 14 days". 0.1 and the term sheet cap the extension at 14 days (NH-CD-09). contracts-drafter to confirm.*
+4. "If a verified lead no-shows or can't be reached, send us the proof and we may replace it — as goodwill, up to 3 requests a calendar week on every plan, the Pilot included. If we fall short of your committed number, we keep delivering for up to 14 days, and anything still short rolls into your next cycle or is refunded at your plan's rate per lead."
+   *Change from 3.5a: "extends until we deliver" becomes "keep delivering for up to 14 days" (0.1 and the term sheet cap the extension at 14 days, NH-CD-09). Updated 10 Oct 2026 to the canonical 0.1 rows: weekly goodwill cap for every plan (was "up to {{replacement_cap_cycle}} per cycle") and roll-over-or-refund (was "credited"). contracts-drafter to confirm.*
 5. "We don't give financial advice, compare products or quote premiums. You're the licensed adviser; we fill your diary."
 6. "Ad spend, landing pages, WhatsApp automation and reporting are included. No setup fee. No per-policy commission — ever."
-7. "{{committed_leads}} verified, pre-qualified leads per cycle — committed, not estimated. Short? We extend and credit."
+7. "{{committed_leads}} verified, pre-qualified leads per cycle — committed, not estimated. Short? We keep delivering, then roll the balance over or refund it."
 
 ---
 
@@ -67,9 +68,9 @@
 | H2 | Why Choose **Lead Velocity** | Why Choose **Lead Velocity** *(unchanged)* |
 | Intro line | We combine cutting-edge technology with industry expertise to deliver results that matter. | **Statement 5:** We don't give financial advice, compare products or quote premiums. You're the licensed adviser; we fill your diary. |
 | Card 1 title / text | High-Intent Prospects — We don't just find people; we find prospects ready to talk. Our internal algorithms help you reach the right people. | **Pre-Qualified, Not Raw** — **Statement 2** (the qualified-means line + "Full definition →" link to `/pricing#what-qualified-means`). |
-| Card 2 title / text | Predictable Pipeline — Stop guessing where your next deal is coming from. Get a steady flow of verified leads delivered weekly. | **Committed, Not Estimated** — A set number of verified, pre-qualified leads per cycle — committed, not estimated. Short? We extend and credit. *(Statement 7, generic. The tier number is on the pricing page.)* |
+| Card 2 title / text | Predictable Pipeline — Stop guessing where your next deal is coming from. Get a steady flow of verified leads delivered weekly. | **Committed, Not Estimated** — A set number of verified, pre-qualified leads per cycle — committed, not estimated. Short? We keep delivering, then roll the balance over or refund it. *(Statement 7, generic. The plan numbers are on the pricing page.)* |
 | Card 3 title / text | Broker-Verified — Every lead is reviewed by a team that understands the insurance journey, not just a generic call center. | **Nurtured With AI** — **Statement 3** (verbatim). |
-| Card 4 title / text | Scalable Growth — When you're ready to grow, our infrastructure scales with you. Build a more consistent sales calendar. | **Replaced If They No-Show** — If a verified lead no-shows or can't be reached, we replace it, up to your plan's cap each cycle. If we fall short, your cycle extends by up to 14 days, and anything still short is credited. *(Statement 4, generic.)* |
+| Card 4 title / text | Scalable Growth — When you're ready to grow, our infrastructure scales with you. Build a more consistent sales calendar. | **Replaced If They No-Show** — If a verified lead no-shows or can't be reached, send us the proof and we may replace it, as goodwill, up to 3 requests a week on every plan. If we fall short, we keep delivering for up to 14 days, and anything still short rolls over or is refunded. *(Statement 4, generic.)* |
 
 ### 1.5 Brand story — "The Epiphany That Changed Everything."
 | Element | Before | After |
@@ -113,7 +114,17 @@
 | H1 (plain + gradient span) | Structured, Premium, **Scalable.** | Committed, All-In, **Month to Month.** *("Premium" removed: in this category it reads as an insurance premium.)* |
 | Subheading | Transparent pricing designed to anchor value and grow with you. From consistent deal flow to a full revenue partnership. | **Statement 1** (verbatim). *("Revenue partnership" removed: it implies a share of the broker's income, which is the 2.1.1 risk.)* |
 
-### 2.3 Tier cards (3 cards, same component, generated from `pricing`)
+### 2.3 Tier cards (3 cards, same component, generated from `pricing`) and the Pilot row
+
+**Pilot row (new 10 Oct 2026, restores the 5–6 Oct design): one slim row above the three cards, not a fourth card.** It reads `pricing.seed.json` `pilot` (kept outside the monthly `rows`, so checkout, W25 and the Paystack Plans do not change). It is shown whenever the seed offers the Pilot.
+| Slot | Text (values from the seed, never typed) |
+|---|---|
+| Eyebrow / name | Try us first · **Pilot** |
+| Price | `R{{price_per_lead_zar × committed_leads}}` once-off, excl. VAT *(R8,500)* |
+| Leads / rate | `{{committed_leads}}` Qualified Leads · `R{{price_per_lead_zar}}` per lead *(10 · R850)* |
+| Body | One introductory 30-day cycle for first-time clients, paid upfront as a flat fee with ad spend included. Same rollover and replacement rules as every plan. Then continue on Bronze or higher, paid in advance; otherwise the agreement ends. |
+| CTA | Start with a Pilot |
+*Wording rules for the row: no "free trial" and no banned delivery-promise word (3.5a); "first-time clients only" must stay in the body; the price is a flat fee and is never linked to policies, premiums or commission.*
 
 **Template: one card per active row in `pricing`, ordered by `price_zar`.** Nothing is hard-coded (3.6).
 | Card slot (existing component prop) | Before (Bronze / Silver / Gold) | After (template) |
@@ -121,15 +132,15 @@
 | `title` | Bronze / Silver / Gold | `{{name}}` |
 | `description` (subtitle) | Growth Starter / Scale & Optimise / Performance Partner | Start here / More volume / Most volume *(static per `tier_code`. Optional `pricing.tagline` field. "Partner" dropped, see 2.2.)* |
 | `price` + suffix | R8,500 / R10,500 / R16,500+ · "/mo" | `R{{price_zar}}` · "/ 30-day cycle, excl. VAT" *(no "+" suffix: the price is fixed and all-in)* |
-| Row 1 label / value | Est. Leads · ± 17 / ± 23-26 / 33-40+ | **Pre-qualified leads** · `{{committed_leads}}` verified, pre-qualified leads per cycle — committed, not estimated. Short? We extend and credit. *(Statement 7)* |
+| Row 1 label / value | Est. Leads · ± 17 / ± 23-26 / 33-40+ | **Pre-qualified leads** · `{{committed_leads}}` verified, pre-qualified leads per cycle — committed, not estimated. Short? We keep delivering, then roll the balance over or refund it. *(Statement 7)* |
 | Row 2 label / value | Effective CPL · ± R500 / ± R400-R450 / ± R350-R400 | **Price per committed lead** · `R{{price_zar ÷ committed_leads}}` *(derived at render time, not stored)* |
-| "Included" list | SME decision-maker leads, targeting, check-ins, delivery priority, etc. (B2B) | • `{{committed_leads}}` pre-qualified leads per cycle<br>• AI WhatsApp follow-up, booking & reminders included<br>• Up to `{{replacement_cap_cycle}}` replacements per cycle<br>• Media spend included<br>• Pre-call brief for every booked call and a Monday report |
+| "Included" list | SME decision-maker leads, targeting, check-ins, delivery priority, etc. (B2B) | • `{{committed_leads}}` pre-qualified leads per cycle<br>• AI WhatsApp follow-up, booking & reminders included<br>• Goodwill replacements: up to 3 requests a week<br>• Media spend included<br>• Pre-call brief for every booked call and a Monday report |
 | `commission` block | Gold only: "Option to renegotiate for volume/exclusivity" | **Removed on every tier.** Leave the prop unset. *(2.1.1: price never tied to policies.)* |
-| `notes` | Bronze: "Minimum recommended post-pilot. Best for brokers refining their process." · Silver: "Our most popular tier…" · Gold: "For high-performing teams ready to dominate a niche." | **Statement 4** with `{{replacement_cap_cycle}}`. Then: "Qualified means the 6 checks in our [definition](#what-qualified-means)." *(Statement 2 link)* |
+| `notes` | Bronze: "Minimum recommended post-pilot. Best for brokers refining their process." · Silver: "Our most popular tier…" · Gold: "For high-performing teams ready to dominate a niche." | **Statement 4** (3 requests a week, every plan; updated 10 Oct). Then: "Qualified means the 6 checks in our [definition](#what-qualified-means)." *(Statement 2 link)* |
 | "Recommended" badge | Silver | Unchanged (design). Jonathan may move it; it is not a wording decision. |
 | CTA (new, inside the card) | — (none today) | **Start on `{{name}}`** → checkout with the tier pre-selected. *(flagged: adds an element)* |
 
-**Rendered check at today's `pricing` values (3.5):** Bronze R16,500 · 20 · 4 · R825 per lead. Silver R24,500 · 30 · 6 · R817. Gold R35,500 · 45 · 9 · R789. These figures are shown only to check the template. They are not to be typed into the page.
+**Rendered check at today's `pricing` values (3.5):** Pilot R8,500 once-off · 10 · R850 per lead. Bronze R16,500 · 20 · R825. Silver R24,500 · 30 · R817. Gold R35,500 · 45 · R789. Every plan: goodwill replacements, up to 3 requests a week. Top-ups on any plan: R850 per lead, minimum 10, 7 days' notice. These figures are shown only to check the template. They are not to be typed into the page.
 
 **Line under the cards (3.5a, with the old "no-agreement" phrase → "no lock-in" per W-1 / NH-new-A; contracts-drafter confirms):**
 "**Month to month. No lock-in. Pay for a month, get your leads, decide again next month.** Pay upfront by EFT or card; renew (or not) before your next cycle."
@@ -147,7 +158,7 @@
 | Element | Before | After |
 |---|---|---|
 | H3 | Progression Path | How a Cycle Works |
-| Chips | Pilot Phase → Bronze → Silver → Gold | Pick a plan → Pay for one cycle → Verified leads arrive → Renew, change plan, or stop |
+| Chips | Pilot Phase → Bronze → Silver → Gold | Pilot or pick a plan → Pay for one cycle → Verified leads arrive → Renew, top up, change plan, or stop *(10 Oct: "Pilot or" restored; before 10 Oct this chip read "Pick a plan")* |
 
 ### 2.6 FAQ (new block, after "How a Cycle Works", before the footer, reusing the card style of the Promotions "Why Start with a Pilot?" block) — **flagged: no FAQ block exists today**
 
@@ -158,7 +169,8 @@
 | **What does the AI do, and what does it never do?** | It replies on WhatsApp, answers simple questions about the call, books a time, sends reminders, and moves the call if they miss it. It never gives advice, never compares products, never talks about premiums or cover amounts. Those questions go to you, in the pre-call brief. |
 | **Do I need my own ad account?** | No. We run the ads and pay for them. Ad spend is part of your plan price. |
 | **Who owns the leads?** | You do, exclusively, once delivered. We never send the same lead to another adviser. We keep the ads, pages and anonymised performance data. |
-| **What happens if a lead doesn't show?** | Tap the outcome after the meeting. A no-show, or a lead we can't reach, is replaced — up to your plan's cap each cycle. We never replace a lead because they didn't buy. |
+| **What happens if a lead doesn't show?** | Tap the outcome after the meeting. For a no-show, or a lead we can't reach, send us the proof. We may replace it, as goodwill, up to 3 requests a week on every plan. We never replace a lead because they didn't buy. |
+| **What is the Pilot?** | A once-off first cycle for brokers who have not used us before: R8,500 for 10 Qualified Leads (R850 each), paid upfront, ad spend included. It runs for one 30-day cycle with the same rollover and replacement rules as every plan. After it you continue on Bronze or higher, paid in advance. If you don't, the agreement ends. |
 | **Is this compliant with FAIS and POPIA?** | We connect consumers to licensed advisers and never advise. Consumers opt in. You receive their details with their consent. Our fee is a flat price per cycle, never tied to policies. |
 | **Is there a contract?** | There is a short, plain-language agreement that you sign. But there is no lock-in, no minimum term and no notice period. You pay for one 30-day cycle at a time. If you don't renew, it simply ends. |
 
@@ -176,7 +188,7 @@
 | "Option to renegotiate for volume/exclusivity" (Commission) | Pricing, Gold card | 2.1.1 (*Raspberry Academy*) |
 | "revenue partnership", "revenue partner" | Pricing subheading, Broker Positioning | Implies a share of the broker's income (2.1.1) |
 | "Best for brokers refining…" | Pricing, Bronze notes | Banned word "best" |
-| "Pilot Phase" chip | Pricing, Progression Path | Legacy product. See NH-14 |
+| "Pilot Phase" chip | Pricing, Progression Path | The old chip pointed at the legacy B2B Pilot (R6,000). It is replaced by "Pilot or pick a plan", which now means the SortMyCover Pilot (R8,500 / 10 leads, restored 10 Oct). The legacy product is still NH-14 |
 | "delivered weekly" ×4, "Weekly Pipeline", "Weekly Lead Delivery" | Hero, TrustBar, Features, Brand story | Unit is the 30-day cycle (0.1). Leads arrive live, not in weekly batches |
 | "hot leads" | Home, Brand story | Banned word |
 | "Premium" (in "Structured, Premium" and "Premium lead generation") | Pricing H1, Footer | Ambiguous in an insurance context |
@@ -206,7 +218,7 @@ Hand scan of the "before" (grep over the six source files) and of every "after" 
 
 ## 5. NH-14 — the legacy B2B tiers (options shown, not decided)
 
-Today the same site sells B2B SME insurance "lead tokens" (Pilot R6,000 for 10 leads, worded with the banned delivery-promise word; Bronze R8,500, Silver R10,500, Gold R16,500+). The SortMyCover ladder reuses the names Bronze/Silver/Gold at different prices and for a different product. The rewrite above assumes the Home and Pricing pages sell the SortMyCover ladder, as 3.5a requires. Jonathan decides which of these applies:
+Today the same site sells B2B SME insurance "lead tokens" (a legacy Pilot at R6,000 for 10 leads, worded with the banned delivery-promise word, **not** the SortMyCover Pilot of R8,500; Bronze R8,500, Silver R10,500, Gold R16,500+). The SortMyCover ladder reuses the names Bronze/Silver/Gold at different prices and for a different product. The rewrite above assumes the Home and Pricing pages sell the SortMyCover ladder, as 3.5a requires. Jonathan decides which of these applies:
 
 | Option | What changes on the site | Consequences to weigh |
 |---|---|---|
@@ -220,9 +232,10 @@ Either way: the Einstein chatbot prompt, `ProposalGenerator.tsx` and `InvoiceGen
 ## 6. needs_human raised by this document
 - **NH-CS-W1 (structure):** 3.5a says "FAQ additions (same FAQ block as now)", but there is **no FAQ block** on Home or Pricing today. The only similar block is "Why Start with a Pilot?" on `/promotions`. I propose a new block on Pricing (2.6) that reuses that card style. landing-page-builder / Jonathan to confirm.
 - **NH-CS-W2 (structure):** the tier cards have no button today. 3.5a mandates "CTA Start on {tier}". I propose a button inside each existing card.
-- **NH-CS-W3 (contract wording):** statement 4 changed from "extends until we deliver" to "extends by up to 14 days" per 0.1 and NH-CD-09. Statement 4 names no-show / can't be reached, while the agreement's Schedule C also replaces leads that fail the definition (NH-CD-10). contracts-drafter to align the page and the agreement.
+- **NH-CS-W3 (contract wording):** statement 4 changed from "extends until we deliver" to "keeps delivering for up to 14 days" per 0.1 and NH-CD-09 (reworded again 10 Oct). Statement 4 names no-show / can't be reached, while the agreement's Schedule C also replaces leads that fail the definition (NH-CD-10). contracts-drafter to align the page and the agreement.
 - **NH-CS-W4 (money):** NH-14 (section 5), with the Promotions commission line flagged as a 2.1.1 issue under either option. compliance-qa prefers Option A and asks for the commission, delivery-promise and "risk-free" lines to come off the live site now under either option (phase4-review-2 §6). The Option A take-down note above is pending NH-14.
 - **NH-new-A (mandated text):** statement 1, the line under the cards, the trust bar and both SEO descriptions now say "no lock-in" instead of the old "no-agreement" phrase (compliance-qa W-1, CPA s41). Statement 1 and the under-cards line are 3.5a mandated text, so Jonathan signs off the change. The FAQ answer is not mandated and is fixed regardless (W-2).
 - **W-5 (open, not mine to decide):** "Built by Former Brokers" / "Former Broker Founders" stay only if Jonathan confirms he/KG held broker or representative roles; otherwise remove.
 - **NH-CS-W5 (process):** the live site was not captured with the Chrome agent (3.5a method). The repo source is used as "before". Confirm the deployed site matches the repo (NH-12).
+- **NH-CS-W7 (10 Oct update, scope and open items):** only the Pilot, the replacement rule and the shortfall wording were updated. This file still carries 2 Oct text that the 5 Oct decisions overtook on the built page: "pre-qualified" (the page now defines a Qualified Lead as booked and confirmed), and "no notice period" (the seed has 7 days' notice). landing-page-builder should treat `src/pages/Pricing.tsx` and `src/lib/pricing.ts` as the live wording and this file as the spec of intent. Money flag for Jonathan: the Pilot models at 28% at the R250 stress CPL, under the 30% guardrail (MASTER-PROMPT 3.5).
 - **NH-CS-W6 (reading grade):** statements 1–7 are mandated verbatim. Statement 3 has 2 sentences of about 27 and 13 words, so it scores about Grade 8–9 on its own. I did not rewrite mandated text. If compliance-qa wants it at Grade 7, a split version is: "Every lead gets a WhatsApp from our AI assistant within 60 seconds. It books them into your calendar and reminds them before the call. If they miss it, it moves the call — automatically. You get a short brief on who they are and what they asked."
