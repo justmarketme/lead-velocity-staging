@@ -319,7 +319,7 @@ select cycle_id, case when extended_until is null then 0 else facts.sa_date(exte
 
 ## M25 Cost per attended meeting
 - **Means:** What we pay in ads for each meeting that actually took place.
-- **Target and why:** About R850 or less at the stress cost per lead (derived from 3.5 and 3.7: 37 sign-ups at R250 over about 11 meetings). This is the number Meta's own dashboard cannot show; it picks the creative that brings people who turn up.
+- **Target and why:** About R850 or less at the stress cost per lead (derived from 3.5 and 3.7: 37 sign-ups at R250 over about 11 meetings). This is the number Meta's own dashboard cannot show; it picks the creative that brings people who turn up. <!-- price-diff:allow cost-per-attended-meeting target, coincides with the Pilot per-lead price; not a price -->
 - **If it moves:** Rising: check M03 for the ad, then M15; shift budget to the cheapest ad per attended meeting once 5 or more attended.
 - **Tooltip (jargon):** Cost per attended meeting; CPA on offline conversion.
 - **Shown on:** LV weekly; creative review
