@@ -1,3 +1,7 @@
+# SUPERSEDED — do not use, send or sign
+
+> **Replaced by the Lead Generation Services Agreement (LGSA).** Current version: LGSA-v0.2 (7 October 2026), `lead-generation-agreement/lead-velocity-services-agreement.md`. The LGSA is the template for every authorised FSP client (its header and clause 25.1), and it is the only agreement the CRM Contract Generator and the portal signing screen produce (`src/lib/contract/agreement.ts`, since 5 October 2026). BSA-v0.1 below is kept unchanged for the record only. None of its terms apply, including clause 9.4 ("life cover"); for the current scope ("insurance and financial planning") see LGSA-v0.2 clauses 12.3 and 13.5.
+
 # DRAFT — for practitioner review
 
 # Broker Services Agreement

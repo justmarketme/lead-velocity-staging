@@ -2,6 +2,19 @@
 
 All documents are **DRAFT — for practitioner review**. Markdown only; PDF rendering is a later step.
 
+## Consent and privacy CP-v0.3 + consent scope v3 — 2026-10-07
+
+### Changed
+- `consent-and-privacy.md` CP-v0.1 → **CP-v0.3**. It is numbered past CP-v0.2 because that number is already used by `lead-generation-agreement/consent-and-privacy.md`. Consent texts move to v3 scope, "insurance and financial planning". New texts: `SMOKER-Q-v1` and `CTWA-REOFFER-v1` (tier B re-offer, not built yet). Privacy notice **PN-v1.2** mirrors the live page and adds cover through work, the tier B offer path, dispute evidence to the adviser, what Meta never gets, and a smoker retention line marked [CONFIRM with practitioner]. Cookie notice **CN-v1.2** (`smc_sid` row). The Part 5 templates are the live v3 texts. The file ends with its own change log and its open questions.
+- `broker-services-agreement.md`: **SUPERSEDED** header pointing to LGSA-v0.2. The rest is unchanged, for the record.
+- `lead-generation-agreement/consent-and-privacy.md` (CP-v0.2): status note (a proposal, not live). Scope "life cover" → "insurance and financial planning" in 1.1, 1.5 and Part 3 rule 7. Part 5 row 9.
+- `paia-manual.md` §10.1 and `ncc-direct-marketer-pack.md` row 6: the processing purpose and the direct-marketing description now say "insurance and financial planning".
+- `../media-buyer/campaign-spec.md` §3.5: the quoted instant-form consent is now `CONSENT-NAMED-v3` (it matches `instant-form-spec.json` and `consent.json` word for word). The disclaimer body is `DISC-FULL-v2`.
+
+### Open
+- Practitioner: open questions 1 to 8 at the end of CP-v0.3 (scope specificity, smoker status retention and s27 consent, re-offer consent, generic sequential offers, dispute evidence, the separate ads consent in LGSA 13.2(c), NH-60, Q22 against LGSA 8.4).
+- Build: open questions 9 to 12 at the end of CP-v0.3 (a W34 smoker job and 72-hour purge of `capture_state`, the smoker answer withheld on re-offer, a narrow dispute pack, the privacy page mirror and relabel).
+
 ## Lead Generation Services Agreement LGSA-v0.2 — 2026-10-07 (Mark Weston amendments)
 
 ### Added
