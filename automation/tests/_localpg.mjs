@@ -9,7 +9,7 @@ import { existsSync, mkdtempSync, writeFileSync, readFileSync, rmSync, chmodSync
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, execFile } from 'node:child_process';
 import crypto from 'node:crypto';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -30,7 +30,8 @@ export function localPgBackend() {
 }
 
 /**
- * Starts the database. Returns { backend, dir, sql(text, extraArgs) -> stdout, file(path, extraArgs), stop() }.
+ * Starts the database. Returns { backend, dir, sql(text, extraArgs) -> stdout, sqlAsync(text, extraArgs) -> Promise<{err, stdout, stderr}>
+ * (a separate psql session per call, so statements really overlap), file(path, extraArgs), stop() }.
  * `dir` is a host temp dir the caller may use for scratch files (removed by stop()).
  */
 export function startLocalPg(backend = localPgBackend()) {
@@ -48,7 +49,12 @@ export function startLocalPg(backend = localPgBackend()) {
     as(join(PGBIN, 'pg_ctl'), ['-D', data, '-o', `-k ${dir} -c listen_addresses='' -p ${port}`, '-w', '-l', join(dir, 'log'), 'start']);
     const conn = ['-h', dir, '-p', port];
     const sql = (text, extra = []) => { const f = join(dir, `q${crypto.randomBytes(4).toString('hex')}.sql`); writeFileSync(f, text); chmodSync(f, 0o644); return as('psql', [...conn, ...base, ...extra, '-f', f]); };
-    return { backend, dir, sql, file: (p, extra = []) => sql(readFileSync(p, 'utf8'), extra),
+    const sqlAsync = (text, extra = []) => new Promise((resolve) => {
+      const f = join(dir, `q${crypto.randomBytes(4).toString('hex')}.sql`); writeFileSync(f, text); chmodSync(f, 0o644);
+      const args = [...conn, ...base, ...extra, '-f', f];
+      execFile(isRoot ? 'runuser' : 'psql', isRoot ? ['-u', 'postgres', '--', 'psql', ...args] : args, { encoding: 'utf8', maxBuffer: 1 << 26 }, (err, stdout, stderr) => resolve({ err, stdout: String(stdout).trim(), stderr }));
+    });
+    return { backend, dir, sql, sqlAsync, file: (p, extra = []) => sql(readFileSync(p, 'utf8'), extra),
       stop: () => { try { as(join(PGBIN, 'pg_ctl'), ['-D', data, '-m', 'immediate', 'stop']); } catch {} rmSync(dir, { recursive: true, force: true }); } };
   }
   // docker
@@ -63,7 +69,11 @@ export function startLocalPg(backend = localPgBackend()) {
     catch { if (Date.now() > until) { stop(); throw new Error('throwaway Postgres did not become ready'); } execFileSync(process.execPath, ['-e', 'setTimeout(()=>{},500)']); }
   }
   const sql = (text, extra = []) => execFileSync('docker', ['exec', '-i', name, 'psql', '-h', '127.0.0.1', ...base, ...extra, '-f', '-'], { ...opts, input: text });
-  return { backend, dir, sql, file: (p, extra = []) => sql(readFileSync(p, 'utf8'), extra), stop };
+  const sqlAsync = (text, extra = []) => new Promise((resolve) => {
+    const child = execFile('docker', ['exec', '-i', name, 'psql', '-h', '127.0.0.1', ...base, ...extra, '-f', '-'], { encoding: 'utf8', maxBuffer: 1 << 26 }, (err, stdout, stderr) => resolve({ err, stdout: String(stdout).trim(), stderr }));
+    child.stdin.end(text);
+  });
+  return { backend, dir, sql, sqlAsync, file: (p, extra = []) => sql(readFileSync(p, 'utf8'), extra), stop };
 }
 
 /** Applies pg-stub.sql + the repo migration chain exactly as S7-08-09 always has (legacy first with one retry pass, then smc_*). */
@@ -71,11 +81,11 @@ export function applyRepoMigrations(pg) {
   pg.file(join(ROOT, 'automation', 'tests', 'fixtures', 'pg-stub.sql'));
   const MIG = join(ROOT, 'supabase', 'migrations');
   const all = readdirSync(MIG).filter((f) => f.endsWith('.sql')).sort();
-  const legacy = all.filter((f) => !/^2026100\d_smc_/.test(f) && !f.startsWith('20260114094619'));
+  const legacy = all.filter((f) => !/^202610\d\d_smc_/.test(f) && !f.startsWith('20260114094619')); // every smc_NN file (Oct 2026), incl. smc_20
   const deferred = [];
   for (const f of legacy) { try { pg.file(join(MIG, f), ['-1']); } catch { deferred.push(f); } }
   for (const f of deferred) pg.file(join(MIG, f), ['-1']);
-  for (const f of all.filter((x) => /^2026100\d_smc_/.test(x))) pg.file(join(MIG, f), ['-1']);
+  for (const f of all.filter((x) => /^202610\d\d_smc_/.test(x))) pg.file(join(MIG, f), ['-1']);
 }
 
 /** psql with $n parameters inlined as literals (test-only; synthetic values) -> rows of string cells. */
