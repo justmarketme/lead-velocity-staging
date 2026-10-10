@@ -11,10 +11,17 @@ const TAGLINES = { SMC_BRONZE: 'Start here', SMC_SILVER: 'More volume', SMC_GOLD
 
 const LINE_UNDER_CARDS = 'Per 30-day cycle. No lock-in. Pay for a cycle, get your leads, decide again next cycle.';
 const LINE_UNDER_CARDS_2 = 'Pay upfront by EFT or card; renew (or not) before your next cycle.';
-const SMALL_PRINT = "Prices exclude VAT. No notice period: if you don't renew, the cycle simply ends.";
+const SMALL_PRINT = "Prices exclude VAT. If you don't renew, the cycle simply ends.";
 
-const statement4 = (cap) => `If a verified lead no-shows or can't be reached, we replace it — up to ${cap} per cycle on this plan. If we fall short of your committed number, your cycle extends by up to 14 days to deliver it, and anything still short is credited.`;
-const statement7 = (n) => `${n} verified, pre-qualified leads per cycle — committed, not estimated. Short? We extend and credit.`;
+// Terms printed on public surfaces. The pricing table has no column for them, so they are mirrored here from
+// pricing.seed.json `terms`; automation/billing/pilot.test.js fails if either drifts from the seed.
+// Replacements are goodwill, 3 requests per calendar week on EVERY plan (MASTER-PROMPT 0.1; agreement clause 7.2).
+// `pricing.replacement_cap_cycle` is an internal W13 allowance and is never printed.
+const REPLACEMENTS_PER_WEEK = 3;
+const SHORTFALL_ROLLOVER_DAYS = 14;
+
+const statement4 = () => `If a verified lead no-shows or can't be reached, send us the proof and we may replace it — as goodwill, up to ${REPLACEMENTS_PER_WEEK} requests a calendar week on every plan, the Pilot included. If we fall short of your committed number, we keep delivering for up to ${SHORTFALL_ROLLOVER_DAYS} days, and anything still short rolls into your next cycle or is refunded at your plan's rate per lead.`;
+const statement7 = (n) => `${n} verified, pre-qualified leads per cycle — committed, not estimated. Short? We keep delivering, then roll the balance over or refund it.`;
 
 /** Plain view-model per tier: what every surface may print. */
 function tierView(row) {
@@ -46,11 +53,11 @@ function renderTierCards(rows, { checkoutUrl = '/billing/checkout/', at, include
   <ul>
     <li>${esc(v.committed_leads)} pre-qualified leads per cycle</li>
     <li>AI WhatsApp follow-up, booking &amp; reminders included</li>
-    <li>Up to ${esc(v.replacement_cap_cycle)} replacements per cycle</li>
+    <li>Goodwill replacements: up to ${esc(REPLACEMENTS_PER_WEEK)} requests a week</li>
     <li>Media spend included</li>
     <li>Pre-call brief for every lead and a Monday report</li>
   </ul>
-  <p class="tier-notes">${esc(statement4(v.replacement_cap_cycle))} Qualified means the 6 checks in our <a href="#what-qualified-means">definition</a>.</p>
+  <p class="tier-notes">${esc(statement4())} Qualified means the 6 checks in our <a href="#what-qualified-means">definition</a>.</p>
   <a class="tier-cta" href="${esc(checkoutUrl)}?tier=${encodeURIComponent(v.tier_code)}">Start on ${esc(v.name)}</a>
 </article>`;
   });
@@ -67,7 +74,7 @@ function checkoutPricingJson(rows, opts = {}) {
   return JSON.stringify(activeRows(rows, opts).map((r) => {
     const v = tierView(r);
     return { tier_code: v.tier_code, name: v.name, price_cents: v.price_cents, total_cents: v.total_cents, vat_line: v.vat_line,
-      committed_leads: v.committed_leads, replacement_cap_cycle: v.replacement_cap_cycle, paystack_page_code: r.paystack_page_code || null, paystack_plan_code: r.paystack_plan_code || null };
+      committed_leads: v.committed_leads, goodwill_replacements_per_week: REPLACEMENTS_PER_WEEK, paystack_page_code: r.paystack_page_code || null, paystack_plan_code: r.paystack_plan_code || null };
   }));
 }
 
@@ -93,7 +100,7 @@ function proposalTierBlock(row) {
     `Plan: ${v.name} (${v.tier_code})`,
     `Price: ${v.price} per 30-day cycle, ${v.vat_line}. Paid in advance. Per 30-day cycle, no lock-in.`,
     `Committed: ${statement7(v.committed_leads)}`,
-    `Replacements: up to ${v.replacement_cap_cycle} per cycle.`,
+    `Replacements: goodwill, up to ${REPLACEMENTS_PER_WEEK} requests a calendar week on every plan, with proof.`,
     'Included: ad spend, landing pages, WhatsApp assistant, booking, reminders, pre-call briefs, weekly reports. No setup fee. No per-policy fee.',
   ].join('\n');
 }
@@ -108,4 +115,4 @@ function invoiceVars(invoice, row) {
     total: formatZar(invoice.total_cents, { decimals: true }), due: invoice.due_at ? invoice.due_at.slice(0, 10) : '' };
 }
 
-module.exports = { tierView, renderTierCards, checkoutPricingJson, merge, scheduleAVars, proposalTierBlock, invoiceVars, LINE_UNDER_CARDS, LINE_UNDER_CARDS_2, SMALL_PRINT };
+module.exports = { REPLACEMENTS_PER_WEEK, SHORTFALL_ROLLOVER_DAYS, tierView, renderTierCards, checkoutPricingJson, merge, scheduleAVars, proposalTierBlock, invoiceVars, LINE_UNDER_CARDS, LINE_UNDER_CARDS_2, SMALL_PRINT };

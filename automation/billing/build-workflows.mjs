@@ -581,7 +581,7 @@ const endDay = new Date(row.ends_at).toLocaleDateString('en-ZA', { day: 'numeric
 const month = new Date(row.ends_at).toLocaleDateString('en-ZA', { month: 'long', timeZone: 'Africa/Johannesburg' });
 // broker_cycle_end template: {{1}} month {{2}} end {{3}} delivered {{4}} committed {{5}} good-fit {{6}} rating {{7}} replacements line; button suffixes.
 const template = { name: 'broker_cycle_end', body: [month, endDay, String(p.verified || 0), String(p.committed || tier.committed_leads), String(p.good_fit || 0), ctx.quality_avg ? Number(ctx.quality_avg).toFixed(1) : '-',
-  'Replacements used: ' + (p.replacements_used || 0) + ' of ' + (p.replacement_cap || tier.replacement_cap_cycle) + '.'], buttons: ['renew/' + inv.reference, 'r/' + row.cycle_id] };
+  'Replacements used: ' + (p.replacements_used || 0) + '.'], buttons: ['renew/' + inv.reference, 'r/' + row.cycle_id] };
 const v = BILLING.render.invoiceVars(inv, tier);
 const email = { subject: 'Your SortMyCover renewal: reference ' + inv.reference,
   html: '<p>Your cycle ends on ' + endDay + '. If card auto-renew is off, pay for the next cycle before then to keep leads coming with no gap.</p>' +
