@@ -169,7 +169,7 @@ C. The Client wishes to buy marketing and lead-delivery services from Lead Veloc
 
 3.7 **Own account.** Lead Velocity acts for its own account in providing the Services. It does not act for or on behalf of any Consumer or any product supplier, has no agreement with any insurer or other product supplier in connection with the Services, and does not stand between any Consumer and any product supplier. The Client alone deals with product suppliers.
 
-3.8 **Logistics-only messages.** Every message Lead Velocity sends to a Consumer after consent, including the Intro Card and every reminder, is limited to logistics: the appointment date, time, method and link; the Client's name, practice name and FSP number; the statement that SortMyCover and Lead Velocity are not financial services providers and give no advice; rescheduling and cancellation; and how to opt out. Lead Velocity will not include any benefit statement, any reference to "appropriate", "right" or "best" cover, any premium or cover figure, or any other content that promotes a Financial Product, and will never repeat a Consumer's budget band back to them as a price.
+3.8 **Logistics-only messages.** Every message Lead Velocity sends to a Consumer after consent, including the Intro Card and every reminder, is limited to logistics: the appointment date, time, method and link; the Client's name, practice name and FSP number; the statement that SortMyCover gives no financial advice, product comparisons or premium quotes; rescheduling and cancellation; and how to opt out. Lead Velocity will not include any benefit statement, any reference to "appropriate", "right" or "best" cover, any premium or cover figure, or any other content that promotes a Financial Product, and will never repeat a Consumer's budget band back to them as a price.
 
 3.9 **No product control.** The Client will not ask Lead Velocity to promote, prefer, exclude or comment on any Financial Product, insurer or provider, and Lead Velocity has no right to influence which Financial Products the Client offers to any Consumer.
 
@@ -193,7 +193,7 @@ C. The Client wishes to buy marketing and lead-delivery services from Lead Veloc
 
 (c) verify each Consumer's contact details and pre-qualify Consumers against Schedule 2;
 
-(d) introduce the Client to the Consumer on WhatsApp by sending the Client's welcome card (the Intro Card), which states the Client's name, practice name and FSP number and states that SortMyCover and Lead Velocity are not financial services providers and give no advice;
+(d) introduce the Client to the Consumer on WhatsApp by sending the Client's welcome card (the Intro Card), which states the Client's name, practice name and FSP number and states that SortMyCover gives no financial advice, product comparisons or premium quotes;
 
 (e) book an introductory Microsoft Teams appointment in the Client's available calendar slots, so that it appears in the Client's own calendar, and obtain the Consumer's confirmation that they will attend;
 
@@ -721,7 +721,7 @@ S4.3 **Data shared with Lead Velocity by the Client.** Calendar availability, Cl
 
 S4.4 **Channel.** Lead Data is shared with the Client only by WhatsApp to the Client's business WhatsApp number and by email to the Client's notice email address, or through the Lead Velocity client portal once Lead Velocity makes it available. Lead Data is never sent as an unencrypted spreadsheet attachment.
 
-S4.5 **Intro Card and first message.** The first WhatsApp message to each Consumer is the Client's welcome card. It states the Client's name, practice name and FSP number, and that SortMyCover and Lead Velocity are not financial services providers and give no advice. Lead Velocity keeps the approved text with the Origin Records.
+S4.5 **Intro Card and first message.** The first WhatsApp message to each Consumer is the Client's welcome card. It states the Client's name, practice name and FSP number, and that SortMyCover gives no financial advice, product comparisons or premium quotes. Lead Velocity keeps the approved text with the Origin Records.
 
 S4.6 **Lead Velocity's retention.** Lead Velocity keeps:
 

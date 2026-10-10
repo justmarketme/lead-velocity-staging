@@ -17,7 +17,7 @@ Changes from version 0.1 (5 October 2026) are marked in the text as Changed in v
 | 30 days + up to 14 days, never more; after day 44 rollover on top or refund on request at the per-lead price within 7 working days; no open-ended force-majeure extension | 1.1.29, 6 (rewritten), 11.3, 11.7(c), 20.2, 23.2(d), S1.1 |
 | Contact verification; invalid details disqualify | 4.1(c), 5.1(a), 5.8 (new), S2.1, S2.3 |
 | Qualification questions; licence-category flag; optional smoker status with consent | 4.1(c), 5.9 (new), 12.4, 13.2A (new), S2.2, S4.2, S4.6(d) |
-| Microsoft Teams appointment in the broker's calendar; broker welcome card; "Connect my Outlook calendar" onboarding | 1.1.19, 4.1(d)-(e), 14.3(a), S1.5, S2.4, S4.5 |
+| Microsoft Teams appointment in the broker's calendar; broker welcome card; "Connect my Outlook calendar" onboarding | 1.1.19, 3.8, 4.1(d)-(e), 14.3(a), S1.5, S2.4, S4.5 |
 | B-tier leads offered with Accept / Decline; accepted count; declined don't count, aren't charged, are offered elsewhere or held, never re-offered | 1.1.3A, 5.1(d), 5.2, 5.7 (new), 8.4, 12.2, S1.1, S2.1, S2.3, S4.2, S4.3 |
 | Pilot Plan withdrawn; the minimum Plan is Bronze | 1.1.24, 9.6, 9.7, S1.3 |
 | Consequential: consent text v3 says "insurance and financial planning" | Background B, 1.1.17, 12.3, 13.5 |
@@ -188,7 +188,7 @@ C. The Client wishes to buy marketing and lead-delivery services from Lead Veloc
 
 3.7 **Own account.** Lead Velocity acts for its own account in providing the Services. It does not act for or on behalf of any Consumer or any product supplier, has no agreement with any insurer or other product supplier in connection with the Services, and does not stand between any Consumer and any product supplier. The Client alone deals with product suppliers.
 
-3.8 **Logistics-only messages.** Every message Lead Velocity sends to a Consumer after consent, including the Intro Card and every reminder, is limited to logistics: the appointment date, time, method and link; the Client's name, practice name and FSP number; the statement that SortMyCover and Lead Velocity are not financial services providers and give no advice; rescheduling and cancellation; and how to opt out. Lead Velocity will not include any benefit statement, any reference to "appropriate", "right" or "best" cover, any premium or cover figure, or any other content that promotes a Financial Product, and will never repeat a Consumer's budget band back to them as a price.
+3.8 **Logistics-only messages.** [CHANGED v0.2] Every message Lead Velocity sends to a Consumer after consent, including the Intro Card and every reminder, is limited to logistics: the appointment date, time, method and link; the Client's name, practice name and FSP number; the statement that SortMyCover gives no financial advice, product comparisons or premium quotes; rescheduling and cancellation; and how to opt out. Lead Velocity will not include any benefit statement, any reference to "appropriate", "right" or "best" cover, any premium or cover figure, or any other content that promotes a Financial Product, and will never repeat a Consumer's budget band back to them as a price.
 
 3.9 **No product control.** The Client will not ask Lead Velocity to promote, prefer, exclude or comment on any Financial Product, insurer or provider, and Lead Velocity has no right to influence which Financial Products the Client offers to any Consumer.
 
@@ -212,7 +212,7 @@ C. The Client wishes to buy marketing and lead-delivery services from Lead Veloc
 
 (c) [CHANGED v0.2] verify each Consumer's contact details and pre-qualify Consumers against Schedule 2;
 
-(d) [CHANGED v0.2] introduce the Client to the Consumer on WhatsApp by sending the Client's welcome card (the Intro Card), which states the Client's name, practice name and FSP number and states that SortMyCover and Lead Velocity are not financial services providers and give no advice;
+(d) [CHANGED v0.2] introduce the Client to the Consumer on WhatsApp by sending the Client's welcome card (the Intro Card), which states the Client's name, practice name and FSP number and states that SortMyCover gives no financial advice, product comparisons or premium quotes;
 
 (e) [CHANGED v0.2] book an introductory Microsoft Teams appointment in the Client's available calendar slots, so that it appears in the Client's own calendar, and obtain the Consumer's confirmation that they will attend;
 
@@ -740,7 +740,7 @@ S4.3 **Data shared with Lead Velocity by the Client.** Calendar availability, Cl
 
 S4.4 **Channel.** Lead Data is shared with the Client only by WhatsApp to the Client's business WhatsApp number and by email to the Client's notice email address, or through the Lead Velocity client portal once Lead Velocity makes it available. Lead Data is never sent as an unencrypted spreadsheet attachment.
 
-S4.5 **Intro Card and first message.** [CHANGED v0.2] The first WhatsApp message to each Consumer is the Client's welcome card. It states the Client's name, practice name and FSP number, and that SortMyCover and Lead Velocity are not financial services providers and give no advice. Lead Velocity keeps the approved text with the Origin Records.
+S4.5 **Intro Card and first message.** [CHANGED v0.2] The first WhatsApp message to each Consumer is the Client's welcome card. It states the Client's name, practice name and FSP number, and that SortMyCover gives no financial advice, product comparisons or premium quotes. Lead Velocity keeps the approved text with the Origin Records.
 
 S4.6 **Lead Velocity's retention.** Lead Velocity keeps:
 
