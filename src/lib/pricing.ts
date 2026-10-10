@@ -47,6 +47,16 @@ export const isPilot = (t: PricingTier): boolean => t.tier_code === PILOT.tier_c
 export const ALL_PLANS: PricingTier[] = [PILOT, ...TIERS];
 export const planByName = (name: string): PricingTier | undefined =>
   ALL_PLANS.find((t) => t.name.toLowerCase() === String(name || "").trim().toLowerCase().replace(/\s*(tier|plan|phase)$/, ""));
+/** By the pricing-table code on a cycle (SMC_PILOT, SMC_BRONZE, ...). */
+export const tierByCode = (code: string): PricingTier | undefined => ALL_PLANS.find((t) => t.tier_code === code);
+
+/**
+ * Refund for an undelivered Top-Up Lead (agreement clauses 6.5 and 11.6; Jonathan, 10 Oct 2026): the Effective Lead
+ * Price of the client's plan at the time (see perLead() per plan), never the flat top-up price.
+ */
+export const topupRefundPerLead = (t: PricingTier): number => perLead(t);
+export const TOPUP_REFUND_NOTE = (t: PricingTier): string =>
+  `Any top-up leads we don't deliver are refunded at your plan's price per lead (${zar(topupRefundPerLead(t))}), not the top-up price.`;
 
 export const PILOT_TEXT =
   `Pilot: ${zar(seed.pilot.price_per_lead_zar * seed.pilot.committed_leads)} once-off for ${seed.pilot.committed_leads} Qualified Leads ` +
@@ -75,7 +85,8 @@ export const LATE_PAYMENT_TEXT = "If payment hasn't cleared, lead delivery is su
 
 export const TOPUP_TEXT =
   `Top-ups: once this cycle's leads are delivered, add more Qualified Leads at ${zar(TOPUP.price_per_lead_zar)} each, ` +
-  `minimum ${TOPUP.min_leads} (${zar(topupMinimumZar())}), with ${TOPUP.notice_days} days' notice. Paid in advance.`;
+  `minimum ${TOPUP.min_leads} (${zar(topupMinimumZar())}), with ${TOPUP.notice_days} days' notice. Paid in advance. ` +
+  `Any top-up leads we don't deliver are refunded at your plan's effective price per lead, not the top-up price.`;
 
 export const TERMS_TEXT =
   `Month to month. Paid in advance for each ${TERMS.cycle_days}-day cycle. Cancel with ${TERMS.cancel_notice_days} days' ` +
