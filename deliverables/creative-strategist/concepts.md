@@ -379,4 +379,4 @@ All are ≤ 7 (the hard rule). All sit below the Grade 5–7 band, because ad co
 | Landing angle | `landing/angles/_draft/at-45.json` |
 | Compliance self-check | Third person, age as life stage only. "Promoted twice" (H3) implies career, not income; no rand. **For compliance-qa:** H1 lists bond / business / school fees; confirm it reads as a scene, not an assertion about the viewer (C-5 precedent). |
 
-**Measurement for C18–C20:** each is judged on **premium share** (share of qualified leads declaring `1500_plus`) against the cycle average, and on cost per qualified lead, never raw CPL (campaign-spec 11.1c and 13 item 9).
+**Measurement for C18–C20:** each is a creative test judged like every other ad: on cost per qualified lead and show rate, never raw CPL. The share of its qualified leads declaring `1500_plus` is shown in the console as information only; there is no target or threshold for it (campaign-spec 11.1c and 13 item 9, Jonathan 2026-10-10).

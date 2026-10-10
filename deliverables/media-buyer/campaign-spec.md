@@ -238,17 +238,13 @@ Qualifying stays **R750+** (0.1, 3.3). The **aim** is the client who budgets abo
 | Lever | Rule |
 |---|---|
 | Targeting | **No financial-status targeting of any kind.** Since 2 Sep 2025 Meta flags and blocks custom/lookalike audiences that suggest financial status ("high income" is Meta's own example). No income, net-worth, "affluent", "executive", "high-earner" or job-title interest stacks; audience, ad set, ad and file names stay neutral (section 2 convention). Location stays all of South Africa (virtual meetings; no metro or suburb splits) |
-| Age weighting | The ad set stays **35–50** (3.3 bands). Weighting toward 45–50 is done by **creative and budget, not by a narrower ad set in cycle 1**: the premium angles (C18–C20) speak to 45+, and the angle split below gives them their share. From day 14, if premium share (11.1c) is below target, propose a second ad set `SMC_A_BROAD_ZA_45-50` (same settings, exclusions and form; only the age floor differs) carrying the premium-angle ads, with **ad set spend limits 40% minimum** of campaign budget. Single variable, 14 days. If the Special Ad Category applies (section 10), age cannot be set and the weighting is creative-only |
-| Angles | Premium group (scene only a director, partner, estate holder or 45+ professional recognises): **C18 key person, C19 estate/will, C20 at 45**, plus C16, C03, C05, C11. Volume group: C01, C04, C17, C13, C14. Copy and status: `deliverables/creative-strategist/concepts.md` (C18–C20 are DRAFT until compliance-qa clears them) |
-| Placements | Advantage+ placements as 4.2. Add nothing that targets by status; LinkedIn is outside Meta and out of scope for cycle 1. Read placement-level premium share at day 14 (Facebook Feed is expected to skew older than Reels; ASSUMPTION, measure) |
+| Age weighting | The ad set stays **35–50** (3.3 bands). Weighting toward 45–50 is done by **creative, not by a narrower ad set**: the R1,500+ aim angles (C18–C20) speak to 45+. There is no second 45–50 ad set and no share-triggered change. If the Special Ad Category applies (section 10), age cannot be set and the weighting is creative-only |
+| Angles | Angles aimed at the R1,500+ client (the scene only a director, partner, estate holder or 45+ professional recognises): **C18 key person, C19 estate/will, C20 at 45**, plus C16, C03, C05, C11. Other angles: C01, C04, C17, C13, C14. Every angle slot, C18–C20 included, is a **creative test** judged like any other ad on cost per qualified lead and show rate; none has a share target. Copy and status: `deliverables/creative-strategist/concepts.md` (C18–C20 are DRAFT until compliance-qa clears them) |
+| Placements | Advantage+ placements as 4.2. Add nothing that targets by status; LinkedIn is outside Meta and out of scope for cycle 1. The R1,500+ share line (13 item 9) is information only and is read by ad and angle |
 | Qualification | Budget band asked first on WhatsApp (3, `_budget_band_moved`). Bands on every surface we own: **Under R750 / R750–R1,499 / R1,500 or more** (consent-and-privacy.md CP 1.4). `1500_plus` is a **priority tag**, not a new qualifying line |
 | Compliance | Broker-neutral; no product, premium, cover amount, insurer or broker name in any ad (2.1, FAIS). The R1,500 figure never appears in any ad or landing copy; it lives only in the quiz/WhatsApp band options |
 
-**Budget split across angle groups (proposal; NH-64 money is Jonathan's).** Within one ad set Meta allocates across ads itself, so the split is set by **how many slots each group holds**, and enforced by ad set spend limits only once the 45–50 ad set exists:
-| Period | Premium group | Volume group | How |
-|---|---|---|---|
-| Cycle 1, days 1–14 | 4 of 6 slots (C03, C05, C16 + C18 or C19 once cleared) | 2 of 6 (C01 amber, C04 until replaced) | slot count; see `angle-ranking.md` addendum |
-| Day 14+ (if two ad sets) | **60%** (`SMC_A_BROAD_ZA_45-50`, min 40%) | **40%** (`SMC_A_BROAD_ZA_35-50`) | ad set spend limits; moved in <= 20% steps per 48 h by 11.1c |
+**Budget across the live angles (adjustable default; Jonathan decision 2026-10-10: the fee is flat, so there is no premium weighting).** Start with **equal budget across the live angles**. Move budget toward angles with a lower cost per qualified lead and a higher show rate, in steps of **at most 20% per 48 hours** (11.1). Within one ad set Meta allocates across ads itself, so "equal" is set by giving each live angle the same number of ad slots; budget moves are made at ad level through the console, confirm-to-apply. The slots for C18–C20 and the other angles stay as creative tests (`angle-ranking.md` addendum); no angle gets a fixed budget share.
 
 ## 5. Campaign B (website conversions, quiz landing page) — built, paused
 
@@ -393,15 +389,9 @@ How the layers relate: cost per qualified lead (<= R250) is the **leading** numb
 
 Replacements, shortfall credits and good-fit ratings change the real cost per qualified lead; the console computes cost per qualified lead **net of replacements issued** so a cheap lead that is later replaced does not look cheap.
 
-**11.1c Premium share — the R1,500+ aim (added 2026-10-07).** `premium share` = qualified leads with `budget_band = 1500_plus` ÷ all qualified leads, per ad, angle group, ad set and placement (W02/W03 store the band). Target from Jonathan: **ASSUMPTION 40% at day 14, trending to 50%** (confirm; a watchlist target, not typed into rules). It never overrides cost per qualified lead or broker quality; it decides **which** cheap qualified leads we buy more of.
+**11.1c R1,500+ share — information only (Jonathan decision 2026-10-10; replaces the premium-share rules added 2026-10-07).** The fee is flat, so there is **no R1,500+ share target** and **no rule in this document or in the console keys on it**: no scale rule, no kill rule, no ad-set trigger, no pass or fail wording. Scale and kill go back to 11.1 and 11.1b as they stood before: cost per qualified lead, show rate and the R400 stop (with the existing broker-quality checks). The campaigns still aim at the R1,500+ client, through the creative angles in 4.8.
 
-| Trigger (n >= 20 qualified on the object) | Action | Proposes | Confirms |
-|---|---|---|---|
-| Ad premium share >= 1.25x campaign average and cost per qualified <= R250 | Eligible for the +20% step (same 48 h limit); seed its hook family into the next batch | optimisation-advisor | Jonathan |
-| Ad premium share < 0.5x campaign average and cost per qualified > R200 | Pause at the next batch refresh (not mid-flight); replace with a premium-group concept | media-buyer | Jonathan |
-| Campaign premium share < 25% at day 14 | Propose the `SMC_A_BROAD_ZA_45-50` ad set (4.8) and swap the two weakest volume ads for premium-group concepts | media-buyer | Jonathan |
-| Premium share rises but cost per qualified > R400 | The R400 stop (11.1) wins; premium share never justifies breaking it | optimisation-advisor | Jonathan |
-| `1500_plus` leads rated < 2.5/5 by the broker (n >= 5) | Self-declared band is not matching reality: review band wording and WhatsApp step with conversation-designer; do not scale on premium share until fixed | analytics-reporter | Jonathan |
+The console shows one measurement line (13 item 9): qualified leads with `budget_band = 1500_plus` ÷ all qualified leads, per ad and per angle, with n (W02/W03 store the band). It is there to read and to inform creative briefs, nothing else.
 
 ### 11.2 Switching on B and C; Phase 2/3 triggers (4.4, 4.4a, 4.4b)
 | Trigger | What happens | Budget |
@@ -451,7 +441,7 @@ Per campaign, ad set, ad, and **by origin** (`leads.origin`: `lead_ad` = instant
 6. EMQ per event (target >= 6/10, Great >= 8) and dedupe health; offline event upload status; audience sizes and seed counts versus the section 11.2 gates.
 7. Pinned for 14 days: "CPL vs model" tile (6B.12) **and** "cost per qualified vs R250".
 8. Alerts per 6.3 plus: first message > 60 s, token expiring, spend > 1.5x daily budget.
-9. **Premium share (R1,500+ band)**: % of qualified leads self-declaring `1500_plus`, per ad, angle group, ad set, placement and age band, with n; shown beside cost per qualified lead and broker quality for `1500_plus` vs `750_1499` leads (11.1c).
+9. **R1,500+ share (information only)**: % of qualified leads self-declaring `1500_plus`, per ad and per angle, with n; shown beside cost per qualified lead and show rate. No target, no threshold, no colour band, no alert, no proposal (11.1c).
 
 Every write action (pause, budget, duplicate) logs who/when/why and is confirm-to-apply.
 

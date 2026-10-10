@@ -67,7 +67,7 @@
 
 ## Addendum 2026-10-07 — aim at the R1,500+ client (Jonathan, 5 Oct 2026)
 
-Qualifying stays **R750+**. The **aim** moves up: the ideal client budgets about **R1,500+/month** (Mark Weston's profile: 45+, business owners, directors / C-suite, nationwide, virtual). A third score now governs the pool: **PREMIUM FIT** (1–5), how likely the person the scene pulls declares `1500_plus`. It is my judgment until replaced by the measured premium share once ≥ 30 qualified leads per arm exist. Targeting cannot do this (Meta blocks financial-status audiences since 2 Sep 2025); the scene, the 45–50 weighting and the quiz band do.
+Qualifying stays **R750+**. The **aim** moves up: the ideal client budgets about **R1,500+/month** (Mark Weston's profile: 45+, business owners, directors / C-suite, nationwide, virtual). A third score now helps order the pool: **PREMIUM FIT** (1–5), how likely the person the scene pulls declares `1500_plus`. It is my creative judgment only. Jonathan decided on 2026-10-10 that the fee is flat, so there is no R1,500+ share target: the measured share by angle in the console is information, and angles are kept or replaced on cost per qualified lead and show rate. Targeting cannot do this (Meta blocks financial-status audiences since 2 Sep 2025); the scene, the 45–50 weighting and the quiz band do.
 
 | Concept | Afford. | Intent | Premium fit | Note |
 |---|---|---|---|---|
@@ -80,6 +80,6 @@ Qualifying stays **R750+**. The **aim** moves up: the ideal client budgets about
 | C11 business owners | 4 | 2 | 4 | Moves up the pool behind C18 |
 | C17 policy review | 4 | 4 | 4 | |
 | C01 employer gap | 4 | 3 | 3 | |
-| C04 new baby | 3 | 4 | 2 | Younger, cash-squeezed; keep for volume, not premium share |
+| C04 new baby | 3 | 4 | 2 | Younger, cash-squeezed; lower fit for the R1,500+ aim, kept as a creative test |
 
-**Proposed live-set change (proposal; the NH-64 money split is Jonathan's):** once compliance-qa clears them, C18 and C19 replace slot 2 (`C01_H1_vid-teal`, the colour arm that cannot be read in cycle 1) and slot 4 (C04 new baby), the two weakest on premium fit. C20 enters the refresh pool first, ahead of C17. Budget split by angle group: `deliverables/media-buyer/campaign-spec.md` 4.8.
+**Proposed live-set change (proposal; the NH-64 money split is Jonathan's):** once compliance-qa clears them, C18 and C19 replace slot 2 (`C01_H1_vid-teal`, the colour arm that cannot be read in cycle 1) and slot 4 (C04 new baby), the two weakest on premium fit. C20 enters the refresh pool first, ahead of C17. Budget across the live angles (equal start, moves of at most 20% per 48 h toward lower cost per qualified lead and higher show rate): `deliverables/media-buyer/campaign-spec.md` 4.8.
