@@ -2,6 +2,16 @@
 
 All documents are **DRAFT — for practitioner review**. Markdown only; PDF rendering is a later step.
 
+## LGSA-v0.3 repair pass — 2026-10-10 (after independent checks)
+
+### Changed (edit the draft, then `node make-sources.mjs` and `node build-docx.mjs template`)
+- 9.5, 9.7: a move on from the Pilot is made only under 9.7 (pay the next Plan's Fee in advance, no 9.5 notice). S1.3 states the Fee and Committed Leads of Silver and Gold instead of bracketed placeholders; the CRM generator lists Bronze there for a Pilot Client.
+- 1.1.28, S1.1: the weekly maximum (3 requests per Calendar Week) is stated next to the definition and in Schedule 1. 1.1.35: same two calls as S3.4(a).
+- 6.3, 11.6, S1.1: refunds are never more in total than the Client paid (rounded Effective Lead Price over-refunded a full Silver or Gold cycle by R10 or R5).
+- D11 and D12 lawyer notes corrected; D10 row added to the change log. 8.3, 8.4 and 6.1 untouched (open-items.md section 7, questions 7 and 9).
+- `make-sources.mjs` fails if these drop out; `src/lib/contract/agreement.ts` warns when the 1.1.14 prices, the weekly cap or an S1.3 Plan row drift from `pricing.seed.json`. `build-docx.mjs`: the two Silver and Gold substitutions for the old placeholders are gone.
+- `open-items.md`: questions 9 and 10, and section 8 (what this pass fixed, and the system work it deliberately did not do).
+
 ## Lead Generation Services Agreement LGSA-v0.3 — 2026-10-10 (Pilot restored)
 
 ### Changed (Jonathan's 10 Oct decisions; edit `lead-velocity-services-agreement-v2.md`, then `node make-sources.mjs`)

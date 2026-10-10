@@ -64,9 +64,17 @@ const must = [
   ['8.3 no success-based payment', /8\.3 \*\*No success-based payment\.\*\*/],
   ['8.4 attendance and contactability feedback only', /whether each Consumer attended and could be contacted \(clause 14\.3\(c\)\)/],
   ['11.1 notice stays 7 days', /11\.1 \*\*Cancellation on notice\.\*\* .*?at least 7 days'/],
+  ['9.7 move on from the Pilot is by paying in advance, not by 9.5 notice', /no notice under clause 9\.5 is needed/],
+  ['6.3 total refund capped at what was paid (rounding)', /the total refunded for a Billing Cycle \(or for a Top-Up\) is never more than the Client paid for it/],
+  ['11.6 total refund capped at what was paid', /never more in total than the Client paid for those leads/],
+  ['1.1.35 Uncontactable Lead uses the same two calls as S3.4(a)', /answered neither of the Client's calls \(made at the booked start time and again at least 10 minutes later, on every phone number in the Lead Data\)/],
+  ['1.1.28 states the weekly maximum', /within the maximum of 3 replacement requests per Calendar Week in clause 7\.2/],
+  ['Schedule 1 states the weekly maximum', /Replacements \(clause 7\)[^|]*\| Goodwill, not a right: no more than 3 replacement requests per Calendar Week, whichever Plan/],
 ];
 for (const [label, re] of must) if (!re.test(canonical)) throw new Error('canonical lost: ' + label);
 if (/no longer offers a Pilot|minimum Plan is Bronze|per cycle \(Pilot 2/.test(canonical + marked)) throw new Error('withdrawn Pilot wording is back');
+// Schedule 1 is binding text: the Silver and Gold Fees that 1.1.14 and 6.3 quote must be stated there, not left as bracketed placeholders.
+if (/\[PER PRICING PAGE\]|\[CURRENT:/.test(canonical)) throw new Error('Schedule 1 still has bracketed Plan placeholders');
 
 writeFileSync(CANON, canonical);
 writeFileSync(MARKED, marked);

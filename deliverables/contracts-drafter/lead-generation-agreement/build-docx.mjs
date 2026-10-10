@@ -74,10 +74,6 @@ const VARIANTS = {
       '[12] months': '12 months',
       '[5] years': '5 years',
       '[OPTIONAL — CONFIRM] ': '',
-      '| Silver | [PER PRICING PAGE] [CURRENT: R24,500 excl. VAT] | [PER PRICING PAGE] [CURRENT: 30 Qualified Leads, about R817 each] |':
-        '| Silver | R24,500 excl. VAT (current Pricing Page) | 30 Qualified Leads (about R817 each) |',
-      '| Gold | [PER PRICING PAGE] [CURRENT: R35,500 excl. VAT] | [PER PRICING PAGE] [CURRENT: 45 Qualified Leads, about R789 each] |':
-        '| Gold | R35,500 excl. VAT (current Pricing Page) | 45 Qualified Leads (about R789 each) |',
       // blanks Lead Velocity completes before sending / at signing
       '[LV REG NO]': BLANK,
       '[DATE]': BLANK,

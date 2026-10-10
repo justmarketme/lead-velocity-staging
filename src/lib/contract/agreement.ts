@@ -9,7 +9,7 @@
 // from the form. The preview (AgreementPreview), the .docx (contractToDocx) and the PDF (preview DOM)
 // all render the same resolved block list, so they cannot drift apart.
 import agreementMd from "../../../deliverables/contracts-drafter/lead-generation-agreement/lead-velocity-services-agreement.md?raw";
-import { ALL_PLANS, PILOT_OFFERED, QUALIFIED, TERMS, TIERS, TOPUP, isPilot, perLead, planByName, topupMinimumZar, zar, type PricingTier } from "@/lib/pricing";
+import { ALL_PLANS, PILOT, PILOT_OFFERED, QUALIFIED, TERMS, TIERS, TOPUP, isPilot, perLead, planByName, topupMinimumZar, zar, type PricingTier } from "@/lib/pricing";
 
 // ---------------------------------------------------------------- types
 
@@ -261,17 +261,21 @@ function applyPlan(raw: RawBlock[], tier: PricingTier, clientName: string, warni
     }
     if (b.context === "S1.2") return { ...b, rows: overrideRows(b.rows, topupRows(), "Schedule 1 S1.2", warnings, true) };
     if (b.context === "S1.3") {
-      // the template's Pilot row (label and wording) is kept and checked against the pricing source
-      const pilotRow = b.rows.find((r, i) => i > 0 && /^Pilot\b/.test(r[0]));
+      // the template's row for each Plan (the Pilot's label is kept as written) is checked against the pricing source;
+      // the rows printed are always the pricing source's, so a stale template can never reach a signed copy
+      const templateRow = (t: PricingTier) => b.rows.find((r, i) => i > 0 && new RegExp(`^${t.name}\\b`).test(r[0]));
       const rowFor = (t: PricingTier): string[] => {
-        if (!isPilot(t)) return [t.name, `${zar(t.price_zar)} excl. VAT`, `${t.committed_leads} Qualified Leads, about ${zar(perLead(t))} each`];
-        const row = [pilotRow?.[0] || t.name, `${zar(t.price_zar)} excl. VAT, once-off`, `${t.committed_leads} Qualified Leads (${zar(perLead(t))} each)`];
-        if (!pilotRow) warnings.push("Schedule 1 S1.3: no Pilot row in the agreement template.");
-        else if (pilotRow[1] !== row[1] || pilotRow[2] !== row[2])
-          warnings.push(`Schedule 1 S1.3 Pilot: template says "${pilotRow[1]} | ${pilotRow[2]}", pricing source says "${row[1]} | ${row[2]}".`);
+        const pilot = isPilot(t);
+        const tpl = templateRow(t);
+        const row = pilot
+          ? [tpl?.[0] || t.name, `${zar(t.price_zar)} excl. VAT, once-off`, `${t.committed_leads} Qualified Leads (${zar(perLead(t))} each)`]
+          : [t.name, `${zar(t.price_zar)} excl. VAT`, `${t.committed_leads} Qualified Leads, about ${zar(perLead(t))} each`];
+        if (!tpl && pilot) warnings.push("Schedule 1 S1.3: no Pilot row in the agreement template.");
+        else if (tpl && (tpl[1] !== row[1] || tpl[2] !== row[2]))
+          warnings.push(`Schedule 1 S1.3 ${t.name}: template says "${tpl[1]} | ${tpl[2]}", pricing source says "${row[1]} | ${row[2]}".`);
         return row;
       };
-      if (pilotRow && isPilot(tier)) rowFor(tier); // still compare when the Client is on the Pilot
+      if (templateRow(tier)) rowFor(tier); // the Client's own Plan is not printed here, but a listed row is still compared
       return { ...b, rows: [b.rows[0], ...others.map(rowFor)] };
     }
     return b;
@@ -291,6 +295,11 @@ function consistencyWarnings(md: string): string[] {
     ["Rollover end day (1.1.29)", /\(ending on day (\d+) counted from the start/, String(TERMS.cycle_days + TERMS.shortfall_rollover_days)],
     ["Cancellation notice (11.1)", /11\.1 \*\*Cancellation on notice\.\*\* .*?at least (\d+) days'/, String(TERMS.cancel_notice_days)],
     ["Replacements per Calendar Week (7.2)", /no more than (\d+) replacement requests per Calendar Week/, String(TERMS.goodwill_replacements_per_week)],
+    ["Replacements per Calendar Week (1.1.28)", /within the maximum of (\d+) replacement requests per Calendar Week in clause 7\.2/, String(TERMS.goodwill_replacements_per_week)],
+    ["Replacements per Calendar Week (Schedule 1)", /Replacements \(clause 7\)[^|\n]*\| Goodwill, not a right: no more than (\d+) replacement requests per Calendar Week/, String(TERMS.goodwill_replacements_per_week)],
+    // 1.1.14 quotes every Plan's Effective Lead Price (Fee / Committed Leads, rounded to the rand): they must equal the pricing source
+    ["Effective Lead Price, Pilot (1.1.14)", /(R[\d,]+) for the Pilot Plan/, zar(perLead(PILOT))],
+    ...TIERS.map((t): [string, RegExp, string] => [`Effective Lead Price, ${t.name} (1.1.14)`, new RegExp(`(R[\\d,]+) for ${t.name}\\b`), zar(perLead(t))]),
     ["Top-Up minimum (9.1)", /\((\d+) Qualified Leads, being R[\d,]+ at/, String(TOPUP.min_leads)],
     ["Top-Up minimum value (9.1)", /\(\d+ Qualified Leads, being (R[\d,]+) at/, zar(topupMinimumZar())],
     ["Top-Up notice (9.2)", /9\.2 \*\*Notice\.\*\* The Client must give at least (\d+) days'/, String(TOPUP.notice_days)],

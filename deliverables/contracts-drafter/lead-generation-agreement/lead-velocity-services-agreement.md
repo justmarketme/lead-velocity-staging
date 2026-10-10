@@ -87,7 +87,7 @@ C. The Client wishes to buy marketing and lead-delivery services from Lead Veloc
 
 1.1.27 "**Qualified Lead**" means a Consumer who meets every criterion in clause 5.1 and Schedule 2;
 
-1.1.28 "**Replacement Lead**" means a Qualified Lead that Lead Velocity chooses to supply under clause 7 in place of a No-Show Lead or an Uncontactable Lead;
+1.1.28 "**Replacement Lead**" means a Qualified Lead that Lead Velocity chooses to supply under clause 7 in place of a No-Show Lead or an Uncontactable Lead, within the maximum of 3 replacement requests per Calendar Week in clause 7.2;
 
 1.1.29 "**Rollover Period**" means the period of up to 14 days immediately after the end of a Billing Cycle (ending on day 44 counted from the start of that Billing Cycle), and never longer;
 
@@ -101,7 +101,7 @@ C. The Client wishes to buy marketing and lead-delivery services from Lead Veloc
 
 1.1.34 "**Top-Up Price**" means the price per Top-Up Lead set out in Schedule 1;
 
-1.1.35 "**Uncontactable Lead**" means a Qualified Lead whom the Client could not reach after Delivery and before the Consumer attended any appointment with the Client, either because the Consumer did not answer the Client's call at the booked start time of an appointment held by phone or WhatsApp call, or because the Consumer did not answer or reply to at least 3 attempts by the Client to reach the Consumer over at least 72 hours, as established under Schedule 3. A lead whose contact details are shown to be wrong, disconnected or someone else's is not an Uncontactable Lead; clause 5.8(d) applies to it;
+1.1.35 "**Uncontactable Lead**" means a Qualified Lead whom the Client could not reach after Delivery and before the Consumer attended any appointment with the Client, either because, for an appointment held by phone or WhatsApp call, the Consumer answered neither of the Client's calls (made at the booked start time and again at least 10 minutes later, on every phone number in the Lead Data), or because, in any other case, the Consumer did not answer or reply to at least 3 attempts by the Client to reach the Consumer over at least 72 hours, in each case as established under Schedule 3 (S3.4). A lead whose contact details are shown to be wrong, disconnected or someone else's is not an Uncontactable Lead; clause 5.8(d) applies to it;
 
 1.1.36 "**VAT**" means value-added tax under the Value-Added Tax Act 89 of 1991; and
 
@@ -279,7 +279,7 @@ The tier is the Consumer's own answer. Lead Velocity makes no promise about any 
 
 6.2 **After day 44: rollover on top.** Any Shortfall still not Delivered after day 44 rolls over to the next Billing Cycle, on top of that Billing Cycle's Committed Leads, and Lead Velocity keeps delivering. Rolled-over leads count first toward the earlier Billing Cycle.
 
-6.3 **After day 44: refund on request.** At any time after day 44, the Client may instead ask in writing for a refund of the leads not yet Delivered. Lead Velocity will then refund, for each of those leads, the Effective Lead Price of the Client's Plan for the Billing Cycle in which the lead was due (for example, for Bronze, R16,500 ÷ 20 = R825 per lead; at the Fees in Schedule 1 the others are Pilot R850, Silver R817 and Gold R789) within 7 Business Days of the request. Leads refunded no longer roll over.
+6.3 **After day 44: refund on request.** At any time after day 44, the Client may instead ask in writing for a refund of the leads not yet Delivered. Lead Velocity will then refund, for each of those leads, the Effective Lead Price of the Client's Plan for the Billing Cycle in which the lead was due (for example, for Bronze, R16,500 ÷ 20 = R825 per lead; at the Fees in Schedule 1 the others are Pilot R850, Silver R817 and Gold R789) within 7 Business Days of the request. Because the Effective Lead Price is rounded, the total refunded for a Billing Cycle (or for a Top-Up) is never more than the Client paid for it. Leads refunded no longer roll over.
 
 6.4 **Not renewing.** If the Client does not pay for the next Billing Cycle, or this Agreement ends, Lead Velocity will either keep delivering the rolled-over leads or, if the Client asks, refund them under clause 6.3.
 
@@ -289,11 +289,11 @@ The tier is the Consumer's own answer. Lead Velocity makes no promise about any 
 
 6.6 **Top-Ups.** Clauses 6.1 to 6.5 apply to Top-Up Leads, except that an undelivered Top-Up Lead is refunded at the Effective Lead Price of the Client's Plan when the Top-Up was ordered, not at the Top-Up Price.
 
-> [LAWYER REVIEW (D12): Jonathan decided on 10 Oct 2026 that every refund of an undelivered lead, Top-Up Leads included, is at the Effective Lead Price of the Client's Plan (Pilot R850, Bronze R825, Silver R817, Gold R789). A Top-Up Lead is sold at the Top-Up Price (R850), so on Bronze, Silver and Gold the refund is R25, R33 or R61 below the price paid. Confirm this is defensible under CPA s48 and s54 where the CPA applies, and that "the Plan when the leads were due" is the intended reading of "the Plan at the time".]
+> [LAWYER REVIEW (D12): Jonathan decided on 10 Oct 2026 that every refund of an undelivered lead, Top-Up Leads included, is at the Effective Lead Price of the Client's Plan (Pilot R850, Bronze R825, Silver R817, Gold R789). A Top-Up Lead is sold at the Top-Up Price (R850), so on Bronze, Silver and Gold the refund is R25, R33 or R61 below the price paid. Confirm this is defensible under CPA s48 and s54 where the CPA applies. Confirm also the reading adopted in 6.3, 6.6 and 11.6: the Plan for the Billing Cycle in which the lead was due (for a Top-Up Lead, the Plan when the Top-Up was ordered), not the Plan on the day of the refund request (open-items.md section 7, question 3). Because the Effective Lead Price is rounded to the nearest rand, refunding every lead of a full Silver or Gold cycle would exceed the Fee by R10 or R5 (30 x R817 = R24,510 against R24,500; 45 x R789 = R35,505 against R35,500), so 6.3 and 11.6 cap the total refunded at what the Client paid.]
 
 ## 7. No-show and uncontactable-lead replacements (goodwill, not entitlement)
 
-> [LAWYER REVIEW (D11): Replacements stay discretionary goodwill, as in v0.1 and v0.2. The cap is 3 requests per Calendar Week for every Plan, the Pilot Plan included. An Uncontactable Lead ("couldn't reach them") can now earn a replacement, inside the same 3 as no-shows. Clause 7.8 (dispute evidence) is from v0.2. A replacement turns only on attendance and contactability, which clause 8.4 allows, and never on a sale, application or policy.]
+> [LAWYER REVIEW (D11): Replacements stay discretionary goodwill, as in v0.1 and v0.2. The cap is 3 requests per Calendar Week for every Plan, the Pilot Plan included. An Uncontactable Lead ("couldn't reach them") can now earn a replacement, inside the same 3 as no-shows. Clause 7.8 (dispute evidence) is from v0.2. A replacement turns only on attendance and contactability, which are the only feedback clause 8.4 lets the Client give (clause 14.3(c)), and never on a sale, application or policy. The last sentence of 8.4 ("No outcome of any appointment affects any Fee, Top-Up Price, credit, refund or replacement") is left word for word, as instructed, and read literally it does not carve out this clause 7. Confirm it is to be read as "no outcome other than attendance and contactability", or change it to "no sales outcome" (open-items.md section 7, question 7).]
 
 7.1 **Discretionary goodwill.** Lead Velocity may, as a discretionary goodwill gesture and not as an obligation, supply a Replacement Lead for a No-Show Lead or an Uncontactable Lead. The Client has no right to a Replacement Lead.
 
@@ -347,11 +347,11 @@ The tier is the Consumer's own answer. Lead Velocity makes no promise about any 
 
 9.4 **Same terms.** Top-Up Leads are Qualified Leads and are subject to clauses 5, 6 and 7.
 
-9.5 **Plan upgrade.** Instead of a Top-Up, the Client may upgrade to the Silver or Gold Plan at the pricing then shown on the Pricing Page, by giving at least 7 days' written notice before the next Billing Cycle starts. The upgrade takes effect from the start of that Billing Cycle, and Schedule 1 is then read with the new Plan's Fee and Committed Leads.
+9.5 **Plan upgrade.** Instead of a Top-Up, the Client may upgrade to the Silver or Gold Plan at the pricing then shown on the Pricing Page, by giving at least 7 days' written notice before the next Billing Cycle starts. The upgrade takes effect from the start of that Billing Cycle, and Schedule 1 is then read with the new Plan's Fee and Committed Leads. A move on from the Pilot Plan is dealt with only under clause 9.7.
 
 9.6 **Plan downgrade.** The Client may move to a lower Plan (other than the Pilot Plan) on the same notice and with effect from the start of the next Billing Cycle.
 
-9.7 **Pilot Plan.** The Pilot Plan is available once only, to a Client that has not bought Services from Lead Velocity before, and covers one introductory Billing Cycle. Its Fee and Committed Leads are set out in Schedule 1. Before the Pilot Billing Cycle ends, the Client may continue on the Bronze Plan or a higher Plan by paying that Plan's Fee in advance under clause 10. If it does not, no further Billing Cycle starts and this Agreement ends at the end of the Pilot Billing Cycle, subject to clauses 6 and 11.3. All other terms of this Agreement apply to the Pilot Plan in the same way as to every other Plan, including the flat Fee paid in advance, which includes all advertising media spend (clauses 8 and 10), the absence of any commission or success fee (clause 8.3), the Rollover Period ending on day 44 (clause 6) and the same replacement rules, being replacements of up to 3 per Calendar Week with no separate cap for the Pilot Plan (clause 7).
+9.7 **Pilot Plan.** The Pilot Plan is available once only, to a Client that has not bought Services from Lead Velocity before, and covers one introductory Billing Cycle. Its Fee and Committed Leads are set out in Schedule 1. Before the Pilot Billing Cycle ends, the Client may continue on the Bronze Plan or a higher Plan (Silver or Gold) by paying that Plan's Fee in advance under clause 10, at the pricing shown on the Pricing Page when it pays. That payment is the Client's choice of Plan: no notice under clause 9.5 is needed, and Schedule 1 is then read with that Plan's Fee and Committed Leads from the start of the Billing Cycle it pays for. If the Client does not pay, no further Billing Cycle starts and this Agreement ends at the end of the Pilot Billing Cycle, subject to clauses 6 and 11.3. All other terms of this Agreement apply to the Pilot Plan in the same way as to every other Plan, including the flat Fee paid in advance, which includes all advertising media spend (clauses 8 and 10), the absence of any commission or success fee (clause 8.3), the Rollover Period ending on day 44 (clause 6) and the same replacement rules, being replacements of up to 3 per Calendar Week with no separate cap for the Pilot Plan (clause 7).
 
 ## 10. Payment
 
@@ -387,7 +387,7 @@ The tier is the Consumer's own answer. Lead Velocity makes no promise about any 
 
 > [LAWYER REVIEW: Introducing Consumers to a person who is no longer authorised could expose Lead Velocity. Confirm whether Lead Velocity should also check the FSCA register before each Billing Cycle.]
 
-11.6 **Refund on early termination.** If this Agreement ends under clause 11.4 or 11.5 during a Billing Cycle, Lead Velocity will refund the Effective Lead Price of the Client's Plan (for a Top-Up Lead, the Client's Plan when the Top-Up was ordered) for each paid Qualified Lead not yet Delivered, less any amount the Client owes Lead Velocity, within 10 Business Days.
+11.6 **Refund on early termination.** If this Agreement ends under clause 11.4 or 11.5 during a Billing Cycle, Lead Velocity will refund the Effective Lead Price of the Client's Plan (for a Top-Up Lead, the Client's Plan when the Top-Up was ordered) for each paid Qualified Lead not yet Delivered, less any amount the Client owes Lead Velocity, within 10 Business Days, and never more in total than the Client paid for those leads.
 
 11.7 **Effect of termination.** On termination:
 
@@ -627,10 +627,13 @@ S1.1 **Client's Plan.** The Client's Plan is set out below. All amounts exclude 
 | Advertising media spend | Included in the Fee; funded and controlled by Lead Velocity |
 | Billing Cycle | 30 days, plus a Rollover Period of up to 14 days (day 44 at most) |
 | Lead tiers (clauses 5.6 and 5.7) | A-tier: R1,500+ a month (minimum target; counted automatically). B-tier: R750 to R1,499 a month (offered to accept or decline; counted only if accepted). Under R750: never sent or counted |
-| Shortfall after day 44 (clause 6) | Rolls into the next cycle on top of its Committed Leads, or refunded on request at this Plan's Effective Lead Price (above), within 7 Business Days |
+| Shortfall after day 44 (clause 6) | Rolls into the next cycle on top of its Committed Leads, or refunded on request at this Plan's Effective Lead Price (above), within 7 Business Days, and never more in total than the Fee paid for the Billing Cycle |
+| Replacements (clause 7) | Goodwill, not a right: no more than 3 replacement requests per Calendar Week, whichever Plan (no separate Pilot cap); No-Show Leads and Uncontactable Leads count together inside the same 3 |
 | Setup or onboarding fee | None |
 | First payment due | Before the first Billing Cycle starts, on the date stated on Lead Velocity's first invoice |
 | Client status (clause 23.1) | [CLIENT STATUS — natural person / juristic person with asset value or turnover at or above R2,000,000 / juristic person below R2,000,000] |
+
+> [DRAFTING NOTE: the table above is the Bronze Plan, the default. For a Pilot, Silver or Gold Client the CRM contract generator replaces the Plan, Fee, Committed Leads and Effective Lead Price rows from the pricing source and lists the other Plans in S1.3. Do not issue this template unchanged to a Client on another Plan.]
 
 S1.2 **Top-Ups (clause 9).**
 
@@ -642,13 +645,15 @@ S1.2 **Top-Ups (clause 9).**
 | Payment | In advance; delivery starts once payment clears and the notice period ends |
 | Undelivered Top-Up Leads | Refunded at the Effective Lead Price of the Client's Plan when the Top-Up was ordered, not at the Top-Up Price (clause 6.6) |
 
-S1.3 **Other Plans (clauses 9.5 and 9.7).** The Pilot Plan is a once-off introductory Plan for first-time clients only (clause 9.7). Silver and Gold are available at the pricing shown on the Pricing Page at the time of upgrade.
+S1.3 **Other Plans (clauses 9.5 and 9.7).** The Pilot Plan is a once-off introductory Plan for first-time clients only (clause 9.7). The Fees and Committed Leads below are those on the Signature Date. Silver and Gold are available at the pricing shown on the Pricing Page at the time of upgrade, and a Client that moves on from the Pilot Plan to Bronze, Silver or Gold pays the pricing shown on the Pricing Page when it pays (clause 9.7).
 
 | Plan | Fee per Billing Cycle | Committed Leads |
 |---|---|---|
 | Pilot (first-time clients only; one introductory Billing Cycle) | R8,500 excl. VAT, once-off | 10 Qualified Leads (R850 each) |
-| Silver | [PER PRICING PAGE] [CURRENT: R24,500 excl. VAT] | [PER PRICING PAGE] [CURRENT: 30 Qualified Leads, about R817 each] |
-| Gold | [PER PRICING PAGE] [CURRENT: R35,500 excl. VAT] | [PER PRICING PAGE] [CURRENT: 45 Qualified Leads, about R789 each] |
+| Silver | R24,500 excl. VAT | 30 Qualified Leads, about R817 each |
+| Gold | R35,500 excl. VAT | 45 Qualified Leads, about R789 each |
+
+> [DRAFTING NOTE: for a Client on the Pilot Plan the CRM contract generator lists Bronze, Silver and Gold here, taken from the pricing source, so the Fee and Committed Leads of the Plan the Client moves on to (clause 9.7) are in Schedule 1.]
 
 S1.4 **Payment details (clause 10.3).**
 
