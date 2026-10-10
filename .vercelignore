@@ -8,3 +8,6 @@
 deliverables/billing/
 *.docx
 *.pdf
+
+# The SortMyCover site is a separate app deployed on its own; never upload it with the Lead Velocity app
+sites/
