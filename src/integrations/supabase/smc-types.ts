@@ -1,7 +1,7 @@
 /**
  * SortMyCover (SMC) hand-written row types for the objects the console and the broker portal read.
  *
- * Source of truth (the contract): supabase/migrations/20261002_smc_02_core.sql … 20261002_smc_07_pass2_rls.sql.
+ * Source of truth (the contract): supabase/migrations/20261002020000_smc_02_core.sql … 20261002070000_smc_07_pass2_rls.sql.
  * NOT generated: the migrations are not applied yet (NH-11 / NH-15), so `supabase gen types` cannot run.
  * When they are applied, regenerate src/integrations/supabase/types.ts and replace these by the generated ones.
  * Column names here are the physical names (writes) or the view names (reads); never invent a column.

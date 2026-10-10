@@ -54,9 +54,9 @@ supabase secrets set MS_CLIENT_ID=<client id> MS_CLIENT_SECRET=<secret value> \
   MS_REDIRECT_URI=https://<project-ref>.supabase.co/functions/v1/ms-oauth/callback \
   MS_OAUTH_STATE_SECRET=<random 32+ chars> PORTAL_URL=https://leadvelocity.co.za \
   N8N_PUBLIC_URL=<n8n public url> INTERNAL_HMAC_SECRET=<same as n8n>
-psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -1 -f supabase/migrations/20261007_smc_18_ms_oauth_edge.sql
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -1 -f supabase/migrations/20261007180000_smc_18_ms_oauth_edge.sql
                         # this one file only (needs migration 13 applied). Not `supabase db push`: it would push every
-                        # unapplied smc_* file, incl. 20261007_smc_19_capture_v2.sql, which is not approved for live yet.
+                        # unapplied smc_* file, incl. 20261007190000_smc_19_capture_v2.sql, which is not approved for live yet.
 supabase functions deploy ms-oauth --no-verify-jwt
 ```
 

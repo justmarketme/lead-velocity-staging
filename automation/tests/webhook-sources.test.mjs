@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const AUTO = resolve(HERE, '..');
 const MIG = resolve(AUTO, '..', 'supabase', 'migrations');
-const MIGRATIONS = ['20261002_smc_02_core.sql', '20261002_smc_06_pass2.sql', '20261002_smc_13_pass7.sql'];
+const MIGRATIONS = ['20261002020000_smc_02_core.sql', '20261002060000_smc_06_pass2.sql', '20261002130000_smc_13_pass7.sql'];
 
 /** Split the start of `s` into top-level comma-separated expressions (quotes and parens respected). */
 function topLevelItems(s, want) {
@@ -114,7 +114,7 @@ test('W03/W07 claim keys are external_id prefixes, never a source', () => {
 test('CHECK list parsed from migrations: 13 §7 is a superset of 02 (additive)', () => {
   const { current, history } = checkList();
   assert.ok(history.length >= 2, `expected 02 + 13 definitions, got ${history.map((h) => h.file).join(', ')}`);
-  assert.equal(history[0].file, '20261002_smc_02_core.sql');
+  assert.equal(history[0].file, '20261002020000_smc_02_core.sql');
   for (const v of history[0].list) assert.ok(current.includes(v), `02 value '${v}' dropped from the current CHECK`);
 });
 

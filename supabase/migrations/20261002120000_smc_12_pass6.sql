@@ -1,5 +1,5 @@
 -- =============================================================================
--- 20261002_smc_12_pass6.sql  —  SortMyCover build, migration 12: integration pass 6 (I-38a, from W34)
+-- 20261002120000_smc_12_pass6.sql  —  SortMyCover build, migration 12: integration pass 6 (I-38a, from W34)
 -- Owner: platform-architect. Drafted 2026-10-02. NOT applied (NH-11 / NH-15 still gate 01–12).
 -- Additive and idempotent, same conventions as 01–11.
 --   1. ops.notifications kinds: + dsar (W34 inserts), approval_confirmed (W32 "Confirm to approvers"), and the

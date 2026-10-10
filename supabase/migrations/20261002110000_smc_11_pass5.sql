@@ -1,5 +1,5 @@
 -- =============================================================================
--- 20261002_smc_11_pass5.sql  —  SortMyCover build, migration 11: integration pass 5
+-- 20261002110000_smc_11_pass5.sql  —  SortMyCover build, migration 11: integration pass 5
 -- Owner: platform-architect. Drafted 2026-10-02. NOT applied (NH-11 / NH-15 still gate 01–11).
 -- Additive and idempotent, same conventions as 01–10. Nothing else is in this file.
 --   I-37g ops.notifications.attempts — send attempts counter (W22/W32 retry logic).

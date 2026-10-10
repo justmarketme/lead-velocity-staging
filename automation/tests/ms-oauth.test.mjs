@@ -146,13 +146,13 @@ test('edge function source: token reaches only the Vault RPC; never selected, re
   assert.ok(!/VITE_/.test(src), 'secrets are function env, never VITE_');
 });
 test('migration: service_role can run the vault wrappers; disconnect deletes the Vault secret', () => {
-  const sql = readFileSync(join(ROOT, 'supabase/migrations/20261007_smc_18_ms_oauth_edge.sql'), 'utf8');
+  const sql = readFileSync(join(ROOT, 'supabase/migrations/20261007180000_smc_18_ms_oauth_edge.sql'), 'utf8');
   assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.smc_vault_store_ms_refresh[\s\S]*TO service_role/);
   assert.match(sql, /DELETE FROM vault\.secrets/);
   assert.match(sql, /REVOKE ALL ON FUNCTION public\.smc_ms_disconnect\(uuid\) FROM PUBLIC, anon, authenticated/);
 });
 test('W04/W05 still read the stored token the edge function writes (same vault RPC and status gate)', () => {
-  const m13 = readFileSync(join(ROOT, 'supabase/migrations/20261002_smc_13_pass7.sql'), 'utf8');
+  const m13 = readFileSync(join(ROOT, 'supabase/migrations/20261002130000_smc_13_pass7.sql'), 'utf8');
   assert.match(m13, /smc_vault_ms_refresh[\s\S]*calendar_status = 'ok'/);
   assert.ok(readFileSync(join(ROOT, 'automation/build-w04-w05.mjs'), 'utf8').includes('smc_vault_ms_refresh'));
 });

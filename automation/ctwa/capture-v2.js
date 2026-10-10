@@ -436,7 +436,7 @@ async function handle(req, deps) {
   }
 }
 
-/** capture_state -> leads columns (migration 20261007_smc_19_capture_v2.sql). */
+/** capture_state -> leads columns (migration 20261007190000_smc_19_capture_v2.sql). */
 function leadColumns(cap, lead, at) {
   return {
     first_name: cap.first_name ?? lead.first_name ?? null, last_name: cap.last_name ?? null,

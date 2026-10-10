@@ -36,7 +36,7 @@ Date 2026-10-05. Read-only. Nothing was created, clicked or changed. Meta was ch
 | Ad creatives C01–C17 | `deliverables/visual-producer/assets/` | Yes (ads, with CTAs and end-cards) | Do not reuse for organic | These are ad creatives. Posting them organically pre-empts the ad tests. An optional video (C13/C14 myth-bust) needs a compliance check first. |
 | Disclosure DISC-FULL-v1 / S97 / S148 | `deliverables/brand-naming-lead/disclosure-wording.md` | Yes | **REUSE verbatim** | Page About = FULL; Page intro = S97; IG bio = S148. |
 | Warm-up post copy | anywhere | No | **NEW** | Step 3 drafts it. |
-| `brands` table (`business_id`, `page_id`, `ig_user_id`, `ad_account_id`, `dataset_id`, `handles`, etc.) | `supabase/migrations/20261002_smc_02_core.sql` | Yes. SMC row seeded with NULL IDs | **REUSE** | IDs go here, plus `meta-ids.md`. |
+| `brands` table (`business_id`, `page_id`, `ig_user_id`, `ad_account_id`, `dataset_id`, `handles`, etc.) | `supabase/migrations/20261002020000_smc_02_core.sql` | Yes. SMC row seeded with NULL IDs | **REUSE** | IDs go here, plus `meta-ids.md`. |
 | Console "Settings > Brands" screen | `src/pages/smc/` | **No** (only Today/Ads/Ask/Payments) | Gap, out of scope | The checklist says "type ID into Settings > Brands", but that screen doesn't exist. Use an SQL update or `meta-ids.md` for now. |
 | W27 Meta asset health | `automation/W27.json` | Built, inactive | REUSE | Starts reading once `page_id`/`ig_user_id` are set and G6 exists. |
 | W30 comments / W31 DMs | `automation/W30.json`, `W31.json` | Built, inactive | REUSE | Need Page/IG IDs plus G6 token and webhooks. |

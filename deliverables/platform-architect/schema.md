@@ -1,7 +1,7 @@
 # SortMyCover schema (P2-SCHEMA) — drafted, NOT applied
 
 **Owner:** platform-architect · **Date:** 2026-10-02 · **Status:** migration files only. Nothing is applied to project `cmsylaupctrbsvzrgzwy` until NH-11 (live schema dump) has been diffed and NH-15 is a yes.
-**Files:** `supabase/migrations/20261002_smc_01_security.sql` … `20261002_smc_05_rls.sql`, `supabase/seed/smc_synthetic.sql`, `deliverables/platform-architect/security-runbook.md`.
+**Files:** `supabase/migrations/20261002010000_smc_01_security.sql` … `20261002050000_smc_05_rls.sql`, `supabase/seed/smc_synthetic.sql`, `deliverables/platform-architect/security-runbook.md`.
 **Rule:** these migrations are additive and extend the existing CRM (0.2, pre-mortem #8). They create new objects only where `build/crm-gap.md` says **new**. SortMyCover rows are those with `brand_id IS NOT NULL`; legacy B2B rows keep `brand_id = NULL`. Adding broker #2 needs one `brokers` row and one `cycles` row. There are no new tables, no new columns and no tenant abstraction (true north).
 
 ## Validation performed (local only)
@@ -180,7 +180,7 @@ Synthetic rows are excluded unless `SET smc.include_synthetic='on'`. The console
 | — | crm-gap A1 listed disposition codes as `good_fit_*`/`not_fit_*`; 4.12a's `fit_*`/`nofit_*` codes are implemented. crm-gap should be corrected by its owner (me) in the next gap-map pass. | 4.12a wins |
 | — | Quiz copy in 4.5 shows the age band "50+"; 0.1 says `51+`. The schema uses `51plus`. | 0.1 wins |
 
-## Pass 2 (2026-10-02) — `20261002_smc_06_pass2.sql` + `20261002_smc_07_pass2_rls.sql` (drafted, NOT applied)
+## Pass 2 (2026-10-02) — `20261002060000_smc_06_pass2.sql` + `20261002070000_smc_07_pass2_rls.sql` (drafted, NOT applied)
 Implements build/integration-pass2.md I-04 and I-14; I-13 is runbook §E. Additive; disposition codes unchanged (4.12a, I-01).
 
 | Owner request | What 06 adds |
@@ -200,7 +200,7 @@ Also: non-partial unique twins for every partial unique index used as an `ON CON
 **Changed in 02/03/04:** the `bookings`, `reports` and seven `facts.fact_*` view statements are wrapped in a guard that skips them once 06's appended column exists, so re-running the chain cannot try to shrink a view.
 **pulse_daily gaps (no source yet):** quiz_step_dropoff_max, time_to_brief_min, renewal_risk, branded_search_wow, serp_ownership, waba_quality.
 
-## Pass 3 (2026-10-02) — `20261002_smc_08_pass3.sql` (drafted, NOT applied)
+## Pass 3 (2026-10-02) — `20261002080000_smc_08_pass3.sql` (drafted, NOT applied)
 Additive and idempotent. Validated on a local Postgres 16 stub only: 01→08 applied twice, synthetic seed twice, analytics SQL, and the workflow parse-check (155 statements, same 7 untyped-parameter artefacts as before 08, no new errors).
 
 | Item | What 08 does |
@@ -231,7 +231,7 @@ Stub tests (rolled back):
 ### Pass 3 addendum — I-33d (in 08 §12)
 `smc_brokers_guard` checks `current_user` first, in its own IF, before `auth.uid()`. As a result, `n8n_app`, service and SECURITY DEFINER paths never call `auth.uid()`, and updates keep working even if the hosted project refuses the §1 grant. Stub test: the `n8n_app` update succeeds with `auth` access revoked, and a broker's own `status` change still gets 42501.
 
-## Pass 4 (2026-10-02) — `20261002_smc_10_pass4.sql` (drafted, NOT applied)
+## Pass 4 (2026-10-02) — `20261002100000_smc_10_pass4.sql` (drafted, NOT applied)
 Additive and idempotent. Validated on the local stub only. Results:
 - Chain 01→10 applied twice with 0 errors, and 0 legacy errors.
 - Seed applied twice with 0 errors.
@@ -249,7 +249,7 @@ No new browser-facing RPC, so `smc-types.ts` is unchanged.
 
 **needs_human (proposed):** the analytics layer has no migration. That covers `params.sql`, `watchlist.sql`, `kill-scale.sql`, `W14-broker.sql` and the `v_w14_lv_*` views in `W14-lv.sql`, which hold `facts.v_params`, `cycle_counts`, `renewal_risk_at` and the tile views. The functions in 10 exist but fail at call time until those files are applied. There are two options: fold the layer into a migration 11 (analytics-reporter owns the content, and `params.sql`'s `DROP VIEW … CASCADE` must become CREATE OR REPLACE first), or make the deploy runbook apply `analytics/*.sql` after the migrations. Default: runbook step, until analytics-reporter removes the CASCADE.
 
-## Pass 5 (2026-10-02) — `20261002_smc_11_pass5.sql` (drafted, NOT applied)
+## Pass 5 (2026-10-02) — `20261002110000_smc_11_pass5.sql` (drafted, NOT applied)
 This migration contains only the two items below. Stub run: chain 01→11 twice with 0 errors, 0 legacy errors, seed twice and analytics with 0 errors. The workflow parse-check found 227 statements and 7 distinct errors, all of them untyped-parameter artefacts; the one new artefact is in W08, which another agent added.
 
 | Item | What 11 does |
@@ -257,7 +257,7 @@ This migration contains only the two items below. Stub run: chain 01→11 twice 
 | I-37g | `ops.notifications.attempts integer NOT NULL DEFAULT 0`, plus a CHECK that it is ≥ 0. |
 | I-35i | `smc_vault_paystack_sub_token(broker_id)`: a SECURITY DEFINER function that only `n8n_app` can run. It returns the decrypted Paystack subscription email token named in `brokers.paystack_subscription_token_ref`, whether or not `card_autorenew` is on, so W19 can disable the Plan when the broker switches auto-renew off. Stub result: token stored by `smc_vault_store_paystack_sub` → read back. `authenticated` gets permission denied. |
 
-## Pass 6 (2026-10-02) — `20261002_smc_12_pass6.sql` (drafted, NOT applied) — I-38a
+## Pass 6 (2026-10-02) — `20261002120000_smc_12_pass6.sql` (drafted, NOT applied) — I-38a
 Stub run, chain 01→12:
 - Applied twice, plus the seed twice and the analytics SQL: 0 errors, and 0 legacy errors.
 - Workflow parse-check: 251 statements. The only real error is W34 "Clear residual identifiers" (`lr.name` does not exist). The rest are untyped-parameter artefacts.
@@ -289,7 +289,7 @@ Stub tests:
 5. It costs nothing (Supabase edge functions are already in the stack, INV inventory) and is about 40 lines. `W34_MEDIA_ERASE_URL` points at the function.
 6. Owner: devops-security builds it with automation-engineer (I-38b). Until it exists, W34 queues media erasure as a manual `ops.notifications` action and does not hold the service key.
 
-## Pass 7 (2026-10-02) — `20261002_smc_13_pass7.sql` (drafted, NOT applied) — I-40b
+## Pass 7 (2026-10-02) — `20261002130000_smc_13_pass7.sql` (drafted, NOT applied) — I-40b
 Stub, chain 01→13:
 - Applied twice, plus the seed twice and the analytics SQL: 0 errors, and 0 legacy errors.
 - Workflow parse-check: 257 statements. The W34 `lr.name` error is gone (owner fixed). One new error is not from 13: W33 "Judge samples" unions `ops.judge_samples().samples` (`jsonb[]`) with a `jsonb` branch. W33 should wrap the first branch in `to_jsonb(samples)`.

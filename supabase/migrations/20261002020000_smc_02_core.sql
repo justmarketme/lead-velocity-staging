@@ -1,5 +1,5 @@
 -- =============================================================================
--- 20261002_smc_02_core.sql  —  SortMyCover build, migration 2 of 5: core objects
+-- 20261002020000_smc_02_core.sql  —  SortMyCover build, migration 2 of 5: core objects
 -- Owner: platform-architect. Drafted 2026-10-02. NOT applied (NH-11 dump + NH-15 pending).
 -- Implements crm-gap §A1 (+ A2 agreement fields) in the §D build order, steps 2–5:
 --   new:    brands, pricing (+ SMC seed), cycles, outcomes, replacements,

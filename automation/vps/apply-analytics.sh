@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # apply-analytics.sh: W26 step 12 (integration pass 2, I-35k). Applies the analytics layer AFTER the Supabase migrations
-# (supabase/migrations/20261002_smc_01..10), in this fixed order, as ONE transaction:
+# (supabase/migrations/*_smc_01..10), in this fixed order, as ONE transaction:
 #   analytics/params.sql -> watchlist.sql -> kill-scale.sql -> W14-broker.sql -> W14-lv.sql
 # Idempotent: every file is CREATE OR REPLACE / DROP IF EXISTS + CREATE, so a re-run rebuilds the same objects.
 # All-or-nothing: one BEGIN ... COMMIT; any error stops psql (ON_ERROR_STOP) and nothing is kept.

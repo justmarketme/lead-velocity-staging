@@ -27,6 +27,6 @@ test('CTWA list offers both new answers; W03 qualifies them', () => {
   assert.match(rows, /budget_1250_1499/); assert.match(rows, /budget_1500_plus/);
 });
 test('migration is file-only, keeps old value and adds the tag column', () => {
-  const sql = readFileSync(new URL('../../supabase/migrations/20261005_smc_15_budget_1500.sql', import.meta.url), 'utf8');
+  const sql = readFileSync(new URL('../../supabase/migrations/20261005150000_smc_15_budget_1500.sql', import.meta.url), 'utf8');
   assert.match(sql, /'1250plus','1250_1499','1500_plus'/); assert.match(sql, /premium_1500/);
 });

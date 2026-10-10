@@ -1,6 +1,6 @@
 # W35 lead pulse: what the broker sees (I-42a ruling)
 
-**Date:** 2026-10-02 · **By:** compliance-qa · **Question (build/integration-pass2.md I-42a):** platform-architect's pass 8 (`supabase/migrations/20261002_smc_13_pass7.sql` §3, test `supabase/tests/rls-lead-pulse.test.sql`) hides every W35 row from the broker. That covers the timeline rows, and also the pulse ask, the lead's tap, the optional one-line answer and W35's reply in `communications`, through the RESTRICTIVE policy "smc hide lead pulse from brokers". Is this the right reading of "never with your name", or should the broker see a redacted "a pulse happened" marker?
+**Date:** 2026-10-02 · **By:** compliance-qa · **Question (build/integration-pass2.md I-42a):** platform-architect's pass 8 (`supabase/migrations/20261002130000_smc_13_pass7.sql` §3, test `supabase/tests/rls-lead-pulse.test.sql`) hides every W35 row from the broker. That covers the timeline rows, and also the pulse ask, the lead's tap, the optional one-line answer and W35's reply in `communications`, through the RESTRICTIVE policy "smc hide lead pulse from brokers". Is this the right reading of "never with your name", or should the broker see a redacted "a pulse happened" marker?
 
 ## Ruling: keep pass 8 as written. Hide the whole W35 message set from the broker, with no redacted marker. No policy change for platform-architect.
 

@@ -1,4 +1,4 @@
--- 20261007_smc_19_capture_v2.sql  -  WhatsApp capture Flow v2 (Jonathan, 2026-10-07). ADDITIVE ONLY. NOT APPLIED.
+-- 20261007190000_smc_19_capture_v2.sql  -  WhatsApp capture Flow v2 (Jonathan, 2026-10-07). ADDITIVE ONLY. NOT APPLIED.
 -- Owner: automation-engineer. Logic: automation/ctwa/capture-v2.js (leadColumns, makeOffer, decideOffer, email verification).
 -- Every column is nullable or defaulted, every constraint NULL-tolerant, so legacy rows and current workflows keep passing.
 

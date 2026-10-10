@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Scratch-database harness against the REAL schema. Never run against production.
-# Prereq: a database $BASE (default smc_base) holding the Supabase stub + the repo migrations + supabase/migrations/20261002_smc_01..05 (+ smc_06 if present).
+# Prereq: a database $BASE (default smc_base) holding the Supabase stub + the repo migrations + supabase/migrations/*_smc_01..05 (+ smc_06 if present).
 # Builds two copies from it:
 #   $REAL_DB (smc_real) = platform-architect's seed (supabase/seed/smc_synthetic.sql) + the analytics views  -> "what do the seven tiles show on the real seed?"
 #   $FIX_DB  (smc_fix)  = analytics' own 30-lead cycle (tests/synthetic-seed.sql) + the views              -> branch scenarios (tests/scenarios.test.sql), reconcile, W14

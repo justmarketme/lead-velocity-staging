@@ -1,5 +1,5 @@
 -- =============================================================================
--- 20261002_smc_06_pass2.sql  —  SortMyCover build, migration 6: integration pass 2
+-- 20261002060000_smc_06_pass2.sql  —  SortMyCover build, migration 6: integration pass 2
 -- Owner: platform-architect. Drafted 2026-10-02. NOT applied (NH-11 / NH-15 still gate 01–05).
 -- Implements build/integration-pass2.md I-04 and I-14 (I-13 is a dashboard/config step,
 -- documented in deliverables/platform-architect/security-runbook.md §E):

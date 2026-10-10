@@ -4,7 +4,7 @@
 Never paste secret values into chat, commits, tickets or this file (pre-mortem #10). Values live only in `.env`, Supabase secrets or the password manager.
 
 ## A. Order of operations
-1. **NH-11 first.** Jonathan runs `supabase db dump --schema-only` (read-only) and commits it as `supabase/live_schema_2026-10.sql`. platform-architect then diffs it against `20261002_smc_01…05`. Check in particular:
+1. **NH-11 first.** Jonathan runs `supabase db dump --schema-only` (read-only) and commits it as `supabase/live_schema_2026-10.sql`. platform-architect then diffs it against `*_smc_01…05`. Check in particular:
    - whether live tables `invoices`, `proposals`, `notifications`, `conversations`, `bookings` or `reports` exist;
    - the real CHECK constraint names on `brokers.status`, `communications.*`, `report_history.status` and `message_templates.channel`;
    - whether `appointments` has the `client_id` shape;

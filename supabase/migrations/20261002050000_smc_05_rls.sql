@@ -1,5 +1,5 @@
 -- =============================================================================
--- 20261002_smc_05_rls.sql  —  SortMyCover build, migration 5 of 5: access control
+-- 20261002050000_smc_05_rls.sql  —  SortMyCover build, migration 5 of 5: access control
 -- Owner: platform-architect. Drafted 2026-10-02. NOT applied (NH-11 / NH-15 pending).
 -- Salesforce rule from my five: admin vs broker in the database, audit on every write.
 -- Role model reused as-is (inventory §3 / INV-F01, F02, A06): app_role admin|broker,

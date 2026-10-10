@@ -1,5 +1,5 @@
 -- =============================================================================
--- 20261002_smc_10_pass4.sql  —  SortMyCover build, migration 10: integration pass 4
+-- 20261002100000_smc_10_pass4.sql  —  SortMyCover build, migration 10: integration pass 4
 -- Owner: platform-architect. Drafted 2026-10-02. NOT applied (NH-11 / NH-15 still gate 01–10).
 -- Additive and idempotent, same conventions as 01–09.
 --   I-34a public.wa_threads (W03 conversation state, keyed by mobile hash) + ops.ctwa_clicks (W03 tracked redirect counts).

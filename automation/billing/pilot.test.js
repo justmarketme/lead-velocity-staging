@@ -199,7 +199,7 @@ test('public copy: no superseded replacement scope, notice, delivery or spacing 
 });
 
 test('W14 weekly report (analytics SQL, its migration copies, email renderer) prints replacements used without the internal cap', () => {
-  for (const f of ['analytics/W14-broker-payload.sql', 'supabase/migrations/20261002_smc_10_pass4.sql', 'supabase/migrations/20261002_smc_12_pass6.sql', 'supabase/migrations/20261002_smc_13_pass7.sql']) {
+  for (const f of ['analytics/W14-broker-payload.sql', 'supabase/migrations/20261002100000_smc_10_pass4.sql', 'supabase/migrations/20261002120000_smc_12_pass6.sql', 'supabase/migrations/20261002130000_smc_13_pass7.sql']) {
     const sql = read(f);
     assert.ok(sql.includes("'v7', format('Replacements used: %s.', n.replacements_used)"), `${f}: the cycle-end WhatsApp line has no cap`);
     assert.equal(/Replacements used: %s of %s/.test(sql), false, `${f}: no "used of cap" line`);

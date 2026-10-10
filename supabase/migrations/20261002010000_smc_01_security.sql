@@ -1,5 +1,5 @@
 -- =============================================================================
--- 20261002_smc_01_security.sql  —  SortMyCover build, migration 1 of 5
+-- 20261002010000_smc_01_security.sql  —  SortMyCover build, migration 1 of 5
 -- *** APPLY ONLY AFTER NH-15 YES ***  (build/tasks.json NH-15; crm-gap §E, §D.1)
 -- *** and only after NH-11 (live schema dump) has been diffed against this file ***
 --

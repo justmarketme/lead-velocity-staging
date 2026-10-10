@@ -1,5 +1,5 @@
 -- =============================================================================
--- 20261002_smc_03_ops_reporting.sql  —  SortMyCover build, migration 3 of 5
+-- 20261002030000_smc_03_ops_reporting.sql  —  SortMyCover build, migration 3 of 5
 -- Owner: platform-architect. Drafted 2026-10-02. NOT applied (NH-11 / NH-15 pending).
 -- Implements crm-gap §A2 (broker_media), §A3, §A4, §A5 (ops schema, NH-16) — build order §D steps 6–7.
 --   public, new:    ad_metrics, comments, escalations, insights, lead_pulse, capi_log,

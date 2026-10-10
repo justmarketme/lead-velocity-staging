@@ -1,5 +1,5 @@
 -- =============================================================================
--- 20261002_smc_14_pass8.sql  —  SortMyCover build, migration 14: integration pass 8 (I-22)
+-- 20261002140000_smc_14_pass8.sql  —  SortMyCover build, migration 14: integration pass 8 (I-22)
 -- Owner: platform-architect. Drafted 2026-10-03. NOT applied (NH-11 / NH-15 still gate 01-14).
 -- Additive and idempotent, same conventions as 01-13.
 --   1. brokers.media_share_pct (I-22): the broker's share (0-100) of the shared Meta media budget that W26 raises

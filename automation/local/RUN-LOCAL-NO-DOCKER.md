@@ -30,7 +30,7 @@ runuser -u postgres -- /usr/lib/postgresql/16/bin/pg_ctl -D /tmp/pg54329/data -l
   -o "-p 54329 -k /tmp/pg54329 -c listen_addresses=127.0.0.1" -w start
 # rebuild: stub + legacy migrations, then SMC 01–13, then the synthetic seed (same as scratchpad/p3pa/full.sh)
 bash <scratchpad>/p3pa/rebuild.sh
-cd supabase/migrations && for f in 20261002_smc_[01][0-9]_*.sql; do psql -h 127.0.0.1 -p 54329 -U postgres -d smc -v ON_ERROR_STOP=1 -1 -f $f; done
+cd supabase/migrations && for f in 2026100*_smc_[01][0-9]_*.sql; do psql -h 127.0.0.1 -p 54329 -U postgres -d smc -v ON_ERROR_STOP=1 -1 -f $f; done
 (echo "SET smc.allow_synthetic='on';"; cat supabase/seed/smc_synthetic.sql) | psql -h 127.0.0.1 -p 54329 -U postgres -d smc -v ON_ERROR_STOP=1
 psql -h 127.0.0.1 -p 54329 -U postgres -c "alter role n8n_app password 'synthetic-local-n8n-app'"   # local stub only
 # stop

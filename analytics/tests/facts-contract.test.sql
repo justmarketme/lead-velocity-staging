@@ -1,4 +1,4 @@
--- analytics/tests/facts-contract.test.sql — CONTRACT TEST against the REAL schema (supabase/migrations/20261002_smc_04_facts.sql and the tables it reads).
+-- analytics/tests/facts-contract.test.sql — CONTRACT TEST against the REAL schema (supabase/migrations/20261002040000_smc_04_facts.sql and the tables it reads).
 -- This file used to be a stand-in DDL; the real facts layer now exists, so it only CHECKS that every column analytics/*.sql reads is there.
 -- Run after the smc migrations and before params.sql. Raises an exception listing anything missing. Prints the OPTIONAL objects that were
 -- requested from platform-architect (integration I-04 / smc_06) and are not yet present, so nothing is silently assumed.

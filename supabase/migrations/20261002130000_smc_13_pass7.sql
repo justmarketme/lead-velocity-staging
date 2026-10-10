@@ -1,5 +1,5 @@
 -- =============================================================================
--- 20261002_smc_13_pass7.sql  —  SortMyCover build, migration 13: integration pass 7 (I-40b)
+-- 20261002130000_smc_13_pass7.sql  —  SortMyCover build, migration 13: integration pass 7 (I-40b)
 -- Owner: platform-architect. Drafted 2026-10-02. NOT applied (NH-11 / NH-15 still gate 01–13).
 -- Additive and idempotent, same conventions as 01–12.
 --   1. ops.proposals.decided_via (optimisation/sql-additions.sql; W32 Decide writes it).

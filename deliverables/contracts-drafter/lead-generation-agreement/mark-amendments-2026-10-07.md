@@ -59,7 +59,7 @@ Classification: **ACCEPT** / **ACCEPT WITH CHANGE** (exact counter given) / **DE
 
 ## Sources
 
-**Repo (canonical):** `docs/MASTER-PROMPT.md` 0.1 (Unit sold, Replacement cap, Shortfall, Qualifying bands), 3.2, 3.3, 3.4, 3.5, 3.5a #4, 3.7, 4.6 W08/W12, 4.13 Schedules C/D; `automation/billing/pricing.seed.json`; `supabase/migrations/20261005_smc_15_budget_1500.sql`; `docs/research/high-premium-client-meta-targeting.md`; `lead-generation-agreement/research-memo.md` (§1, §2, §5, R3, R6, R8, R13); `open-items.md` (D1–D3).
+**Repo (canonical):** `docs/MASTER-PROMPT.md` 0.1 (Unit sold, Replacement cap, Shortfall, Qualifying bands), 3.2, 3.3, 3.4, 3.5, 3.5a #4, 3.7, 4.6 W08/W12, 4.13 Schedules C/D; `automation/billing/pricing.seed.json`; `supabase/migrations/20261005150000_smc_15_budget_1500.sql`; `docs/research/high-premium-client-meta-targeting.md`; `lead-generation-agreement/research-memo.md` (§1, §2, §5, R3, R6, R8, R13); `open-items.md` (D1–D3).
 
 **Law (Grade A):**
 - Raspberry Academy (Pty) Ltd v Oaksure Financial Services (Pty) Ltd [2026] ZAGPJHC 388, paras [25]–[27], [30]: https://www.saflii.org/za/cases/ZAGPJHC/2026/388.html

@@ -1,5 +1,5 @@
 -- =============================================================================
--- 20261002_smc_09_storage.sql  —  SortMyCover build, migration 9: private `broker-media` bucket (I-30g)
+-- 20261002090000_smc_09_storage.sql  —  SortMyCover build, migration 9: private `broker-media` bucket (I-30g)
 -- Owner: devops-security. Drafted 2026-10-02. NOT applied anywhere (NH-11: the chain is applied by a human
 -- after review; never by an agent, never to the live project from a session).
 -- Additive and idempotent: re-running converges (bucket upsert keeps it private; policies are dropped and

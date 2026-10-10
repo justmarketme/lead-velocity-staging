@@ -10,10 +10,10 @@ Evidence notes: file:line is the first line proving the item. Migrations are dra
 
 | ID | Evidence |
 |---|---|
-| I-01 | supabase/migrations/20261002_smc_06_pass2.sql:15 |
+| I-01 | supabase/migrations/20261002060000_smc_06_pass2.sql:15 |
 | I-02 | analytics/W14-broker-payload.sql:3 |
 | I-03 | automation/security/verify-webhooks.js:59 (W30/W31 now call it positionally, automation/W30.json Verify signature; no object-arg caller remains, so no overload needed) |
-| I-04 | supabase/migrations/20261002_smc_06_pass2.sql:877 |
+| I-04 | supabase/migrations/20261002060000_smc_06_pass2.sql:877 |
 | I-05 | automation/.env.example:177 (all 19 names present) |
 | I-07 | automation/templates/README.md:78 (8 onboarding templates broker_onb_*, broker_weekly_noask, broker_disposition in automation/templates) |
 | I-08 | automation/tests/W22.test.mjs:516 |
@@ -22,40 +22,40 @@ Evidence notes: file:line is the first line proving the item. Migrations are dra
 | I-11 | automation/tests/W01.test.mjs:434 |
 | I-12 | automation/W16.json:852 |
 | I-13 | src/pages/smc/Today.tsx:4 |
-| I-14 | supabase/migrations/20261002_smc_06_pass2.sql:1272 |
+| I-14 | supabase/migrations/20261002060000_smc_06_pass2.sql:1272 |
 | I-15 | automation/docker-compose.yml:12 (commit b609a9d) |
 | I-17 | automation/W30.json:125 (same as I-03: callers aligned to positional) |
 | I-18 | analytics/tests/scenarios.test.sql:2 |
-| I-19 | supabase/migrations/20261002_smc_08_pass3.sql:9 |
+| I-19 | supabase/migrations/20261002080000_smc_08_pass3.sql:9 |
 | I-20 | automation/tests/W14.test.mjs:76 |
 | I-21 | automation/W21.json:116 (+ W16.json SET LOCAL smc.reason; W27.json meta_status; W31.json dm_threads; W30.json assigned_agent; W23.json approved_by guard; commit 5a6ad33) |
 | I-23 | knowledge/metrics.md:5 |
-| I-24 | supabase/migrations/20261002_smc_08_pass3.sql:127 |
+| I-24 | supabase/migrations/20261002080000_smc_08_pass3.sql:127 |
 | I-26 | automation/tests/W22.test.mjs:138 |
 | I-27 | automation/W30.json:674 |
-| I-28 | supabase/migrations/20261002_smc_08_pass3.sql:47 |
+| I-28 | supabase/migrations/20261002080000_smc_08_pass3.sql:47 |
 | I-30a | automation/CONTRACTS.md:49 |
-| I-30b | supabase/migrations/20261002_smc_08_pass3.sql:419 |
-| I-30c | supabase/migrations/20261002_smc_08_pass3.sql:414 |
-| I-30d | supabase/migrations/20261002_smc_08_pass3.sql:506 |
+| I-30b | supabase/migrations/20261002080000_smc_08_pass3.sql:419 |
+| I-30c | supabase/migrations/20261002080000_smc_08_pass3.sql:414 |
+| I-30d | supabase/migrations/20261002080000_smc_08_pass3.sql:506 |
 | I-30e | automation/W19.json:369 |
 | I-30f | automation/W14-broker.md:32 |
-| I-30g | supabase/migrations/20261002_smc_09_storage.sql:2 |
-| I-30i | supabase/migrations/20261002_smc_08_pass3.sql:548 |
+| I-30g | supabase/migrations/20261002090000_smc_09_storage.sql:2 |
+| I-30i | supabase/migrations/20261002080000_smc_08_pass3.sql:548 |
 | I-30j | automation/CONTRACTS.md:75 |
-| I-30k | supabase/migrations/20261002_smc_10_pass4.sql:81 |
+| I-30k | supabase/migrations/20261002100000_smc_10_pass4.sql:81 |
 | I-31a | automation/local/LOCAL-STAGING.md:19 |
 | I-31c | automation/.env.example:258 (name + W30 sticky note; the value flip itself is I-35g, BLOCKED) |
 | I-32a | automation/media/patch-w23-auth.mjs (commit c4110db) |
 | I-33a | automation/W16.json:734 |
 | I-33b | deliverables/analytics-reporter/SUMMARY.md:7 |
 | I-33c | src/pages/smc/Today.tsx:4 |
-| I-33d | supabase/migrations/20261002_smc_08_pass3.sql:17 |
+| I-33d | supabase/migrations/20261002080000_smc_08_pass3.sql:17 |
 | I-33f | automation/W03.json:17 |
-| I-33g | supabase/migrations/20261002_smc_10_pass4.sql:81 |
+| I-33g | supabase/migrations/20261002100000_smc_10_pass4.sql:81 |
 | I-33h | scripts/build-broker-report-email.mjs + scripts/build-broker-report-email.test.mjs (commit 50e1a84 area) |
-| I-33i | supabase/migrations/20261002_smc_10_pass4.sql:9 |
-| I-34a | supabase/migrations/20261002_smc_10_pass4.sql:5 |
+| I-33i | supabase/migrations/20261002100000_smc_10_pass4.sql:9 |
+| I-34a | supabase/migrations/20261002100000_smc_10_pass4.sql:5 |
 | I-34b | landing/template/page.js:202 |
 | I-34c | automation/local/LOCAL-STAGING.md:50 |
 | I-34d | automation/W32.json:2506 |
@@ -69,7 +69,7 @@ Evidence notes: file:line is the first line proving the item. Migrations are dra
 | I-35e | deliverables/conversation-designer/w07-alignment.md:17 |
 | I-35f | automation/.env.example:183 |
 | I-35h | automation/local/LOCAL-STAGING.md:36 |
-| I-35i | supabase/migrations/20261002_smc_11_pass5.sql:6 |
+| I-35i | supabase/migrations/20261002110000_smc_11_pass5.sql:6 |
 | I-35j | automation/templates/broker_autorenew_off.json:1 |
 | I-35k | automation/vps/apply-analytics.sh:20 |
 | I-35l | automation/W34.json:52 |
@@ -82,13 +82,13 @@ Evidence notes: file:line is the first line proving the item. Migrations are dra
 | I-37d | automation/W23.json:31 (executeWorkflowTrigger; no WhatsApp Trigger node) |
 | I-37e | automation/lib/w07.mjs:110 |
 | I-37f | automation/security/n8n-webhook-pattern.md:32 |
-| I-37g | supabase/migrations/20261002_smc_11_pass5.sql:5 |
+| I-37g | supabase/migrations/20261002110000_smc_11_pass5.sql:5 |
 | I-37h | automation/local/LOCAL-STAGING.md:48 |
 | I-37i | deliverables/devops-security/static-hosting.md:47 |
 | I-37j | deploy/hostinger-app/.htaccess:1 |
 | I-37k | landing/holding/privacy.html:38 |
 | I-37l | automation/CONTRACTS.md:177 |
-| I-38a | supabase/migrations/20261002_smc_12_pass6.sql:2 |
+| I-38a | supabase/migrations/20261002120000_smc_12_pass6.sql:2 |
 | I-38b | automation/W22.json:434 |
 | I-38c | automation/templates/broker_dsr_erase.json:1 |
 | I-38d | automation/CONTRACTS.md:162 |
@@ -98,15 +98,15 @@ Evidence notes: file:line is the first line proving the item. Migrations are dra
 | I-39d | automation/lib/w07.mjs:128 |
 | I-39e | conversation/lines.mjs:163 |
 | I-39f | automation/W34.json:511 |
-| I-39g | supabase/migrations/20261002_smc_12_pass6.sql:177 |
+| I-39g | supabase/migrations/20261002120000_smc_12_pass6.sql:177 |
 | I-39j | supabase/functions/w34-media-erase/index.ts (skeleton, commit 3adcc54) |
 | I-39k | conversation/lines.mjs:66 |
-| I-40b | supabase/migrations/20261002_smc_13_pass7.sql:40 |
+| I-40b | supabase/migrations/20261002130000_smc_13_pass7.sql:40 |
 | I-40d | conversation/lines.mjs:67 |
 | I-40e | optimisation/rubrics/lead-pulse.md:1 |
 | I-40g | optimisation/build-workflows.cjs:64 |
 | I-40h | automation/flows/w28-endpoint.js:176 |
-| I-43c | supabase/migrations/20261002_smc_13_pass7.sql:13 |
+| I-43c | supabase/migrations/20261002130000_smc_13_pass7.sql:13 |
 | I-44f | automation/local/CREDENTIALS.md:1 |
 | I-46e | automation/SUB-whatsapp-send.json, SUB-capi-send.json, SUB-ads-budget.json, SUB-w26-runner.json |
 | I-48c | automation/lib/w12.mjs:10 |

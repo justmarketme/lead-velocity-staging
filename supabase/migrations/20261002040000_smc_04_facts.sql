@@ -1,5 +1,5 @@
 -- =============================================================================
--- 20261002_smc_04_facts.sql  —  SortMyCover build, migration 4 of 5: decision data (6A2)
+-- 20261002040000_smc_04_facts.sql  —  SortMyCover build, migration 4 of 5: decision data (6A2)
 -- Owner: platform-architect (+ analytics-reporter, optimisation-advisor read it). Drafted 2026-10-02. NOT applied.
 -- Implements crm-gap §A5 `facts` row and 6A2 items 1 and 3:
 --   facts.fact_lead, fact_message, fact_booking, fact_outcome, fact_comment,

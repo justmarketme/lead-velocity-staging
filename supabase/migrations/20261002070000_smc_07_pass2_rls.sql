@@ -1,5 +1,5 @@
 -- =============================================================================
--- 20261002_smc_07_pass2_rls.sql  —  SortMyCover build, migration 7: access control for pass 2
+-- 20261002070000_smc_07_pass2_rls.sql  —  SortMyCover build, migration 7: access control for pass 2
 -- Owner: platform-architect. Drafted 2026-10-02. NOT applied.
 -- Same model as 05: admin all · broker own rows · n8n_app rw without DELETE · facts_reader facts only · anon nothing.
 -- I-13: the console reads ops.* through the API once `ops` is an exposed schema (runbook §E);

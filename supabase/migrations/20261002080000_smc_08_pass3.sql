@@ -1,5 +1,5 @@
 -- =============================================================================
--- 20261002_smc_08_pass3.sql  —  SortMyCover build, migration 8: integration pass 3
+-- 20261002080000_smc_08_pass3.sql  —  SortMyCover build, migration 8: integration pass 3
 -- Owner: platform-architect. Drafted 2026-10-02. NOT applied (NH-11 / NH-15 still gate 01–08).
 -- Additive and idempotent, same conventions as 01–07 (re-runnable; every object guarded or OR REPLACE).
 -- Covers build/integration-pass2.md:

@@ -360,7 +360,7 @@ const LINES = [
   // pulse_business_line_seen=true (first pulse row has business_line).
   { id: 'S7-04', amber: true, checks: () => [
     custom('build', 'facts schema (smc_04)', () => {
-      const rel = 'supabase/migrations/20261002_smc_04_facts.sql';
+      const rel = 'supabase/migrations/20261002040000_smc_04_facts.sql';
       if (!exists(rel)) return [MISSING, `${rel} not found`];
       const s = read(rel); const views = (s.match(/CREATE OR REPLACE VIEW facts\.fact_\w+/gi) || []).length;
       return [/CREATE SCHEMA IF NOT EXISTS facts/i.test(s) && views >= 8 ? PASS : MISSING, `facts schema, ${views} fact_* views`];
@@ -385,7 +385,7 @@ const LINES = [
       return [lack.length ? MISSING : PASS, lack.length ? `tiles not defined: ${lack.join(', ')}` : 'tiles 1–7 (+ tile 0) defined'];
     }),
     grep('build', 'optimisation/prompts/pulse.md', /What this means for the business/, 'pulse business line (prompt)'),
-    grep('build', 'supabase/migrations/20261002_smc_03_ops_reporting.sql', /business_line\s+text/, 'pulse business line (ops.pulses column)'),
+    grep('build', 'supabase/migrations/20261002030000_smc_03_ops_reporting.sql', /business_line\s+text/, 'pulse business line (ops.pulses column)'),
     files('build', ['src/pages/smc/Ask.tsx', 'src/pages/smc/Today.tsx'], 'console Ask + Today screens'),
     ev('live', 'S7-04', 'facts_populated_synthetic', 'true: facts views return the synthetic cycle on the staging DB'),
     ev('live', 'S7-04', 'ask_the_data_pass', '20: ask-questions.test.py 20 of 20 on that DB', (v) => Number(v) >= 20),
@@ -501,7 +501,7 @@ const LINES = [
   { id: 'S7-08', amber: true, checks: () => [
     file('build', 'src/pages/smc/Today.tsx', 'Today screen built'),
     custom('build', '11 faculty tiles', () => {
-      const rel = 'supabase/migrations/20261002_smc_03_ops_reporting.sql';
+      const rel = 'supabase/migrations/20261002030000_smc_03_ops_reporting.sql';
       if (!exists(rel)) return [MISSING, `${rel} not found`];
       const m = read(rel).match(/faculty\s+text NOT NULL CHECK \(faculty IN \(([^)]*)\)/);
       const n = m ? m[1].split(',').length : 0;
@@ -866,7 +866,7 @@ const LINES = [
     }),
     custom('build', 'pricing table in migrations', () => {
       const d = 'supabase/migrations';
-      const hit = readdirSync(p(d)).find((f) => /^20261002_smc_.*\.sql$/.test(f) && /CREATE TABLE IF NOT EXISTS (public\.)?pricing\b/i.test(read(`${d}/${f}`)));
+      const hit = readdirSync(p(d)).find((f) => /^\d{14}_smc_.*\.sql$/.test(f) && /CREATE TABLE IF NOT EXISTS (public\.)?pricing\b/i.test(read(`${d}/${f}`)));
       return [hit ? PASS : MISSING, hit ? `${d}/${hit}` : 'no CREATE TABLE pricing in the smc migrations'];
     }),
     custom('live', 'repo price diff clean (W25)', () => {
