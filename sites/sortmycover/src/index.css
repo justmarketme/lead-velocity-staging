@@ -208,3 +208,20 @@ legend { padding: 0; width: 100%; }
   .menu summary { padding: 0 10px; font-size: 14px; }
   .site-header .bar { gap: 6px; }
 }
+
+/* sticky booking bar (fixed: no layout shift) */
+.sticky-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 35; background: var(--sm-bg); border-top: 1px solid var(--sm-border); padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px)); box-shadow: 0 -8px 24px rgba(31, 41, 51, 0.08); }
+.sticky-bar small { color: var(--sm-text-muted); font-size: 14px; }
+.sticky-bar .btn { margin-left: auto; }
+
+/* how-it-works connector line: fully drawn at rest; Motion scroll() draws it as you scroll */
+.steps { position: relative; }
+.steps-line { position: absolute; background: var(--sm-amber); border-radius: 2px; pointer-events: none; }
+.steps-line[data-axis="y"] { left: 20px; top: 22px; bottom: 22px; width: 3px; transform-origin: 50% 0; }
+.steps-line[data-axis="x"] { display: none; }
+@media (min-width: 768px) {
+  .steps-line[data-axis="y"] { display: none; }
+  .steps-line[data-axis="x"] { display: block; left: 22px; right: 22px; top: 21px; height: 3px; transform-origin: 0 50%; }
+}
+.steps > li { position: relative; z-index: 1; }
+.filter-input { font: inherit; padding: 10px 14px; border: 2px solid var(--ctl); border-radius: 12px; background: var(--sm-surface); color: var(--sm-text); min-height: 48px; width: 100%; max-width: 360px; }

@@ -9,7 +9,7 @@ import { postLead, beacon, type LeadBody } from "@/lib/api";
 import { AGE_OPTIONS, BUDGET_OPTIONS, consentText, dayLabel, prettyMobile, qualifies, toE164 } from "@/lib/quiz";
 import { COST_LINE, API_BASE, apex, consentCfg, site, strs } from "@/lib/site";
 import { beaconOff, grantAds, track, uuid, type TrackContext } from "@/lib/pixel";
-import { prefersReducedMotion } from "@/lib/motion";
+import { leave, prefersReducedMotion, pulse, shake } from "@/lib/motion";
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
 const PROGRESS: Record<number, number> = { 1: 0.34, 2: 0.67, 3: 1, 4: 1, 5: 1, 6: 1 };
@@ -150,7 +150,9 @@ export default function Quiz({ angle, metaCode, lang = "en-ZA" }: Props) {
     startQuiz();
     const next = { ...answers, [field]: value };
     setAnswers(next);
-    if (viaPointer.current) { const s = step; setTimeout(() => advanceFrom(s, next), 220); setShowNext(false); }
+    const picked = document.querySelector<HTMLElement>(`[data-quiz] input[name="${field}"][value="${value}"]`)?.closest(".opt");
+    if (picked) pulse(picked);
+    if (viaPointer.current) { const s = step; setTimeout(() => { const panel = panelScope.current as HTMLElement | null; if (panel) leave(panel, () => advanceFrom(s, next)); else advanceFrom(s, next); }, 180); setShowNext(false); }
     else setShowNext(true);
   }
 
@@ -161,6 +163,7 @@ export default function Quiz({ angle, metaCode, lang = "en-ZA" }: Props) {
     if (step !== 3 || sending) return;
     const nameOk = validName(), e164 = toE164(phone), consentOk = consent;
     setBad({ name: !nameOk, phone: !e164, consent: !consentOk });
+    requestAnimationFrame(() => document.querySelectorAll("[data-quiz] .field.bad, [data-quiz] .consent-wrap.bad").forEach(shake));
     if (!(nameOk && e164 && consentOk)) {
       const id = !nameOk ? idBase + "-name" : !e164 ? idBase + "-phone" : idBase + "-consent";
       document.getElementById(id)?.focus();

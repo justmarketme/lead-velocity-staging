@@ -1,13 +1,27 @@
 /* The Motion-enhanced interactions. Each renders complete, visible HTML on the server; Motion only adds effects after hydration. */
 import { useEffect, useRef, type ReactNode } from "react";
-import { linkReadProgress, revealChildren, toggleDetails } from "@/lib/motion";
+import { drawLineOnScroll, linkReadProgress, revealChildren, toggleDetails } from "@/lib/motion";
 
 /** 1. Staggered reveal of the three how-it-works steps. */
 export function Steps({ items }: { items: { title: string; body: string }[] }) {
-  const ref = useRef<HTMLOListElement>(null);
-  useEffect(() => (ref.current ? revealChildren(ref.current, "[data-step-item]") : undefined), []);
+  const ref = useRef<HTMLDivElement>(null);
+  const lineY = useRef<HTMLSpanElement>(null);
+  const lineX = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const offs = [revealChildren(el, "[data-step-item]")];
+    // (b) the connector draws as you scroll: vertical on phones, horizontal from 768px (the other one is display:none)
+    const wide = window.matchMedia("(min-width: 768px)").matches;
+    const line = wide ? lineX.current : lineY.current;
+    if (line) offs.push(drawLineOnScroll(el, line, wide ? "x" : "y"));
+    return () => offs.forEach((o) => o());
+  }, []);
   return (
-    <ol ref={ref} className="grid gap-5 md:grid-cols-3 list-none p-0 m-0">
+    <div ref={ref} className="steps">
+    <span ref={lineY} className="steps-line" data-axis="y" aria-hidden="true" />
+    <span ref={lineX} className="steps-line" data-axis="x" aria-hidden="true" />
+    <ol className="grid gap-5 md:grid-cols-3 list-none p-0 m-0">
       {items.map((s, i) => (
         <li key={s.title} data-step-item className="flex gap-4 md:flex-col">
           <span className="step-n" aria-hidden="true">{i + 1}</span>
@@ -15,6 +29,7 @@ export function Steps({ items }: { items: { title: string; body: string }[] }) {
         </li>
       ))}
     </ol>
+    </div>
   );
 }
 

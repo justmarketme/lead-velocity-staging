@@ -1,4 +1,6 @@
+import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
+import { revealChildren } from "@/lib/motion";
 import PageFrame from "@/components/PageFrame";
 import { articlesForHub, articlePath, hubPath, hubs, type Hub } from "@/content";
 
@@ -7,24 +9,30 @@ const CRUMB_ROOT = { name: "SortMyCover", path: "/" };
 export function LearnHub() {
   return (
     <PageFrame title="Learn about life cover | SortMyCover" description="Short guides in plain words, with sources and dates. Four topics and a glossary. Information, not advice." path="/learn/" h1="Learn" lede="Short guides in plain words, with sources and dates. They are information, not advice." crumbs={[CRUMB_ROOT, { name: "Learn", path: "/learn/" }]}>
-      <div className="grid gap-3 mt-6">
+      <Reveal className="grid gap-3 mt-6">
         {hubs.map((h) => (
-          <Link key={h.slug} to={hubPath(h)} className="card-link"><b>{h.title}</b><span>{h.intro}</span></Link>
+          <Link key={h.slug} to={hubPath(h)} className="card-link" data-reveal><b>{h.title}</b><span>{h.intro}</span></Link>
         ))}
-        <Link to="/learn/glossary/" className="card-link"><b>Glossary</b><span>36 terms, defined objectively.</span></Link>
-      </div>
+        <Link to="/learn/glossary/" className="card-link" data-reveal><b>Glossary</b><span>36 terms, defined objectively.</span></Link>
+      </Reveal>
     </PageFrame>
   );
+}
+
+function Reveal({ children, className }: { children: React.ReactNode; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => (ref.current ? revealChildren(ref.current, "[data-reveal]") : undefined), []);
+  return <div ref={ref} className={className}>{children}</div>;
 }
 
 export function ArticleList({ items }: { items: { slug: string; title: string; description: string }[] }) {
   if (!items.length) return <p>More guides in this topic are on the way.</p>;
   return (
-    <div className="grid gap-3 mt-4">
+    <Reveal className="grid gap-3 mt-4">
       {items.map((a) => (
         <Link key={a.slug} to={articlePath(a.slug)} className="card-link" data-reveal><b>{a.title}</b><span>{a.description}</span></Link>
       ))}
-    </div>
+    </Reveal>
   );
 }
 

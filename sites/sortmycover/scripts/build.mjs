@@ -27,11 +27,15 @@ try {
   const hosts = await server.ssrLoadModule("/src/build/hosts.ts");
 
   // chunk preload: the route's own chunk starts downloading with the HTML instead of after the entry script has run
+  const PAGE = { '/': 'Home', '/book/': 'Book', '/book/thanks/': 'BookThanks', '/how-it-works/': 'HowItWorks', '/how-we-make-money/': 'HowWeMakeMoney', '/advisers/': 'Advisers', '/about/': 'About', '/contact/': 'Contact', '/complaints/': 'Complaints', '/faq/': 'Faq', '/learn/': 'Learn', '/learn/glossary/': 'Glossary', '/editorial-policy/': 'EditorialPolicy', '/privacy/': 'Legal', '/terms/': 'Legal', '/paia/': 'Legal' };
   const chunkFor = (r) => {
-    const keys = r.campaign ? ["src/pages/Campaign.tsx"] : Object.keys(manifest).filter((k) => {
-      const base = r.path === "/" ? "Home" : null;
-      return base && k.endsWith(`pages/${base}.tsx`);
-    });
+    let keys;
+    if (r.campaign) keys = ['src/pages/Campaign.tsx'];
+    else if (PAGE[r.path]) keys = ['src/pages/' + PAGE[r.path] + '.tsx'];
+    else if (/^\/learn\/(life-events|reading-your-cover|the-call-and-trust|myths-and-definitions)\/$/.test(r.path) && r.path !== '/learn/life-events/') keys = ['src/pages/Learn.tsx'];
+    else if (r.path.startsWith('/learn/')) keys = ['src/pages/ArticlePage.tsx', 'src/content/articles/' + (r.path === '/learn/life-events/' ? 'life-events' : r.path.split('/')[2]) + '.ts'];
+    else keys = [];
+    if (r.path === '/' || r.campaign || r.path === '/book/') keys.push('src/components/Quiz.tsx');
     return keys.map((k) => manifest[k]).filter(Boolean);
   };
   const preloadTags = (r) => {

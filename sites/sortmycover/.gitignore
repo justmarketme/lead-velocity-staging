@@ -7,3 +7,4 @@ screenshots/tmp
 # the repo root ignores *.json; this app tracks its own json (config, tsconfig, vercel.json, evidence)
 !*.json
 !config/*.json
+docs/screenshots/

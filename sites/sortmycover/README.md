@@ -1,0 +1,148 @@
+# SortMyCover website (`sites/sortmycover`)
+
+A pre-rendered React site for sortmycover.co.za, on the same stack as leadvelocity.co.za: React 18, Vite 5, Tailwind 3, shadcn-style components (Radix Slot, class-variance-authority, tailwind-merge), react-router 6. It is a self-contained app: it imports nothing from the CRM `src/`, has its own `package.json`, and touches nothing outside this folder. It has **no backend of its own**: no Supabase client, no serverless functions, no secrets in the browser. Every server action is an n8n workflow.
+
+## Commands
+
+```
+cd sites/sortmycover
+npm install
+npm run dev          # Vite dev server (not pre-rendered)
+npm run build        # client build + pre-render of 51 routes + sitemap/robots + vercel.json + hostinger/.htaccess -> dist/
+npm run preview      # node scripts/serve.mjs: serves dist/ like the deployment (folder URLs, 404, campaign hosts via *.localhost)
+npm test             # vitest (110 tests; the dist-output tests need a build first)
+npm run verify       # build, then test
+npm run typecheck
+node scripts/sizes.mjs   # raw / gzip / brotli of every asset and the JS each route downloads
+```
+
+Campaign pages locally: `http://new-bond.localhost:4173/` (the preview server maps `<slug>.localhost` like the production host rules do).
+
+## How a lead reaches the CRM
+
+```
+visitor browser (sortmycover.co.za or <slug>.sortmycover.co.za)
+   |  POST /lead  (+ GET /slots, POST /book, POST /lead/skip, POST /beacon)      config/site.json: n8n_base + api_prefix
+   v
+n8n webhook  ->  n8n workflow  ->  Lead Velocity CRM (the leads/appointments tables, written by n8n)
+                                \-> CAPI Send sub-workflow -> Meta Conversions API (server side, same event_id as the browser Pixel)
+```
+
+| Endpoint (under `n8n_base + api_prefix`) | n8n workflow (read-only reference: `automation/`) |
+|---|---|
+| `POST /lead` | W01 Lead intake (web): validates bands, consent, honeypot, Turnstile; inserts the lead; routes; returns `lead_id`, `lead_token`, `methods_supported`; calls W06 First touch and CAPI Send (`Lead`) |
+| `POST /lead/skip` | W01 (same workflow, second webhook): tells W06 the lead skipped booking so the WhatsApp slots card goes out now |
+| `GET /slots` | W04 Slots API (token-authenticated, broker chosen server side) |
+| `POST /book` | W05 Book (re-checks free/busy, inserts the appointment, invite, W06 `booking`, W09 reminders, CAPI `Schedule`) |
+| `POST /beacon` | `SUB-visit-beacon` (first-party page and quiz-step counters, always answers 204) |
+| `GET /c/{booking_id}` (calendar file) | W05 (served by the VPS route, not by this site) |
+
+**Switching n8n hosts**: the base URL lives in one place, `config/site.json` -> `n8n_base` (now `https://n8n.leadvelocity.co.za`; change to `https://n8n.sortmycover.co.za` when that host exists). `npm run build` regenerates the CSP (`connect-src`, `form-action`) in `vercel.json` and `hostinger/.htaccess` from the same value, and a test fails if the committed files drift. No code change is needed. n8n must send CORS for `https://sortmycover.co.za` and each campaign origin (n8n's allow-list takes exact origins, not a pattern: list the apex plus each live `https://<slug>.sortmycover.co.za`).
+
+### Contract differences from the old `landing/` page (n8n needs to accept these)
+
+1. The quiz is two taps. Bond, dependants and work-cover answers are no longer sent (spec DEC-3). If W01 requires them, relax it.
+2. `budget_band` values: `lt750`, `750_1499`, `1500_plus` (the old `750_1250` and `1250_1499` bands are merged). `age_band` values are unchanged (`lt35` is now labelled "18 to 34").
+3. New fields: `consent_ads` (boolean), `consent_ads_text`, `consent_ads_version` for the separate optional ad-measurement consent. W01 must send Meta CAPI events only when `consent_ads` is true (it sets `leads.consent_ads_at`).
+4. `angle` is `"generic"` on `/book/`. For the no-JS fallback the 303 target should be `https://<slug>.sortmycover.co.za/thanks/` for campaigns and `https://sortmycover.co.za/book/thanks/` for `generic`.
+5. `content_name` sent to Meta is a neutral code (`c00` to `c13`, `meta_code` in `config/angles.json`), never the human-readable angle, because angles like `self-employed` and `new-baby` describe personal circumstances.
+6. `consent_version` is now `CONSENT-GENERIC-v4web` (the 18+ statement is inside the consent line); `consent_mode` defaults to `generic` (broker-neutral). Named mode works when `practice_name` and `fsp_number` are set in `config/site.json`, and fails closed to generic when they are empty.
+
+## Why a custom pre-render script (not vite-react-ssg)
+
+`scripts/build.mjs` runs the Vite client build, then loads `src/entry-server.tsx` through Vite's own SSR loader and writes one finished HTML file per route using `react-dom/server` and `StaticRouter`. About 100 lines, no extra dependency. Chosen over vite-react-ssg because: (1) campaign pages must be written under `/_c/<slug>/` but hydrate while the browser URL is `/` on a campaign host, which a generic router-driven generator does not model; (2) head tags, JSON-LD, per-route `modulepreload`, the sitemap and the deployment config are generated in the same pass from one route table (`src/routes.tsx`); (3) fewer moving parts to pin (vite-react-ssg tracks Vite and react-router majors closely). Each route is code-split; the browser loads the current route's chunk before hydrating, so hydration always matches the server HTML.
+
+## Layout
+
+```
+config/            site.json (n8n base, pixel id, identity), consent.json, strings.json, angles.json (11 campaign angles), evidence.json
+src/routes.tsx     the single route table (router, pre-render, sitemap, tests)
+src/pages/         one file per page; Campaign.tsx is the one-page-one-goal template
+src/content/       meta/<slug>.ts + articles/<slug>.ts (two files per article), glossary.ts, hubs, legal/*.html (ported privacy and terms text)
+src/components/    Layout, Footer (identity block), Quiz, Booking, Interactive (Motion components), ui/button.tsx
+src/lib/           pixel.ts (opt-in Meta Pixel), api.ts (n8n client), quiz.ts (pure logic), head.tsx, jsonld.ts, motion.ts
+src/build/         redirects.ts, seo.ts (sitemap, robots), hosts.ts (vercel.json + .htaccess generators), wording.ts (compliance scan)
+vercel.json        GENERATED. hostinger/.htaccess GENERATED. (npm run build rewrites them; tests fail on drift.)
+docs/              SEO-AND-AI-SEARCH-CHECKLIST.md, screenshots/ (not committed)
+```
+
+## Deploying
+
+### Vercel (recommended)
+Create a separate Vercel project (do not reuse the CRM's) with Root Directory `sites/sortmycover`; build `npm run build`, output `dist` (already in `vercel.json`). Add the apex and `www` domains, then one CNAME per campaign host (no wildcard). `vercel.json` uses the legacy `routes` format because it is the only one that can rewrite `/` per host before the filesystem: redirects, security headers, per-host rewrites (`^/$` -> `/_c/<slug>/index.html`, `^/thanks/?$` -> `/_c/<slug>/thanks/index.html`), then `handle: filesystem`, then a slashless-folder 308 and the 404. `routes` cannot be mixed with `headers`/`redirects`/`rewrites` keys, so everything is expressed as routes. Test with a spoofed Host header before pointing DNS (subdomain research F11). Plan: the Hobby plan is non-commercial; move to Pro before the first paid click. Apex `/<slug>/` redirects with 307 first; switch to 308 about a month after traffic is stable.
+
+### Hostinger (Apache) if chosen instead
+Upload `dist/` (it contains `.htaccess`) to the apex document root, and point **every campaign subdomain's document root at the same folder** (hPanel > Subdomains > custom folder). The `.htaccess` rewrites on `%{HTTP_HOST}`: `new-bond.sortmycover.co.za/` serves `/_c/new-bond/index.html`, `/thanks/` serves the thank-you, shared files (`/assets`, `/fonts`, icons) pass through, everything else 307s to the apex. Requires `mod_rewrite` and `mod_headers` (standard on Hostinger). Alternative layout if Hostinger cannot share a document root: for each slug create `public_html/<slug>/` as that subdomain's root, copy `dist/_c/<slug>/index.html` and `dist/_c/<slug>/thanks/index.html` to its root and `dist/{assets,fonts,*.png,*.ico,*.svg,robots.txt,manifest.webmanifest}` beside them, and keep the CSP and `X-Robots-Tag: noindex` headers from `.htaccess`.
+
+### Campaign host mapping
+Host label = angle slug = n8n `angle` = file `/_c/<slug>/`. `config/angles.json` is the list; `"host": true` gives an angle a host. Each campaign page: `noindex` in a header and a meta tag, self-canonical on its own host, no navigation, not in the sitemap, not blocked in robots.txt. Every other path on a campaign host redirects to the apex.
+
+## Adding things
+
+- **Angle**: add an object to `config/angles.json` (`slug`, a new `meta_code`, `ad_hook`, `h1` with `*emphasis*` and `\n`, `sub`, `title`, `description`), run `npm run build` (this regenerates `vercel.json` and `.htaccess`) and `npm test` (checks H1 length, banned wording, host-label rules, unique codes), then add the DNS CNAME and attach the host in Vercel.
+- **Article**: create `src/content/meta/<slug>.ts` (exports `meta`) and `src/content/articles/<slug>.ts` (exports `body`), listing sources and `fact_checked_by`. The route, hub listing, sitemap entry and JSON-LD appear automatically. `npm test` enforces: answer block of 40 to 60 words ending "This is information, not advice.", non-empty sources, no reviewer block without `verified_on` and an FSCA link, every `%`, salary multiple or rand figure tied to a `usable` entry in `config/evidence.json`, and the wording scan.
+- **Glossary term**: add to `src/content/glossary.ts` (keep alphabetical; the test pins 36 until the spec changes).
+
+## Motion
+
+Free MIT `motion` 14.1.0, pinned. Code-split: only routes that use it download it (static legal pages do not; `Layout` loads it on demand and skips privacy, terms and PAIA). No `animateView`, no `animateLayout` (28 KB brotli, and a layout engine we do not need), and none of the paid Motion+ pieces. Every effect is skipped under `prefers-reduced-motion` and leaves content fully visible; only opacity and transform change (no layout shift); no exit animation is longer than 90 ms; nothing loops.
+
+| # | Interaction | Where | Motion API |
+|---|---|---|---|
+| 1 | Staggered reveal of the three steps (and learn-hub cards) | Home, How it works, campaign pages, Learn | `inView`, `stagger`, `animate` (mini) |
+| 2 | Connector line that draws while you scroll (vertical on phones, horizontal from 768px) | the three steps | `scroll` with `target` and `offset` |
+| 3 | Reading-progress bar on articles | `ArticlePage` | `scroll` |
+| 4 | Subtle hero parallax (transform only) and a diary that fills in, with the tick drawn by SVG `pathLength` | Home hero (decorative, `aria-hidden`, plays once) | `scroll`, `animate`, `stagger` |
+| 5 | Spring hover and press feedback on buttons and cards | everywhere except legal pages | `spring` (sampled into a CSS `linear()` easing so the small mini `animate` plays it), `hover`, `press` |
+| 6 | Quiz: step slide-in, short exit, animated progress bar, option pulse, validation shake | `Quiz` | `useAnimate` from `motion/react-mini`, `animate` |
+| 7 | Smooth FAQ accordion on native `<details>` (answers stay in the HTML) | FAQ, campaign FAQ | `animate` (height) |
+| 8 | Sticky "Book my adviser call" bar, appearing once you are past the hero and hiding at the footer | apex pages except book and legal | `inView` (sentinel), `spring`, `animate` |
+| 9 | Glossary filter | Glossary | none (state only; `hidden`) |
+
+Verified in Chrome at 390 and 1280 wide, with and without reduced motion (see "Checks run").
+
+## Compliance behaviour built in
+
+Footer identity block on every page including campaign hosts; "not a financial services provider" line; flat-fee explanation scoped to SortMyCover; CTA "Book my adviser call"; cost line "The call costs you nothing."; no ratings, testimonials, counters, "2 to 4x salary" or price anywhere; consent unticked, with the 18+ statement inside it; ad-measurement consent separate, optional and unticked, Pixel inert until given, opt-out cookie on `.sortmycover.co.za`, Global Privacy Control respected; out-of-band answers exit client-side with nothing sent or saved; no output computed from answers. The wording scan in `src/build/wording.ts` runs over every rendered page and fails the build tests on "free", "best", "independent", "we check/sort/review/arrange/match", "you should" and similar.
+
+## Checks run (10 Oct 2026)
+
+- `npm run build`: 51 pages pre-rendered; `npm test`: 110 passing; `tsc --noEmit` clean.
+- Headless Chrome 154 against `dist/` served by `scripts/serve.mjs`: zero console errors, zero CSP violations, no horizontal overflow at 390 and 1280 on the pages checked, one H1 per page, with and without reduced motion. Full booking flow (age, budget, details, slots, method, book) against a mocked n8n; out-of-band path sends no answers; no Meta request without consent; campaign host mapping via `new-bond.localhost`.
+- Screenshots (not committed): `sites/sortmycover/docs/screenshots/*.png`, for example `home-390.png`, `home-1280.png`, `quiz-details-390.png`, `quiz-booking-390.png`, `quiz-done-390.png`, `campaign-new-bond-390.png`, `faq-open-390.png`, `learn-how-to-check-an-adviser-390.png`, and `*-reduced.png` for the reduced-motion runs.
+
+### Bundle sizes (gzip / brotli, from `node scripts/sizes.mjs`)
+
+| Piece | gzip | brotli |
+|---|---|---|
+| Main bundle (React, router, layout, shell) | 64.9 KB | 56.8 KB |
+| Stylesheet (all routes) | 6.4 KB | 5.7 KB |
+| Motion chunk (inView, scroll, spring, hover, press, mini animate) | 10.9 KB | 10.1 KB |
+| Quiz + booking chunk | 7.6 KB | 6.8 KB |
+| Legal pages chunk (privacy, terms, PAIA) | 7.0 KB | 5.9 KB |
+| Each other route chunk | 0.4 to 3.3 KB | 0.4 to 2.7 KB |
+
+JS + CSS downloaded per route (gzip): `/` 87.9 KB, `/book/` 90.5 KB, `/how-it-works/` 86.3 KB, `/faq/` 86.4 KB, `/learn/` 84.3 KB, an article 88.0 KB, glossary 75.9 KB, `/privacy/` 79.6 KB (no Motion), a campaign page 93.6 KB. HTML per page 2.4 to 6.9 KB gzip. Fonts: two DM Sans woff2 files, 14 KB each.
+
+## Not done / needs Jonathan or the practitioner
+
+- **Nothing is deployed, pushed or DNS-attached.** Lighthouse was not run (no network tool in this environment); run it against the deployed URL (`landing/lighthouse.sh` style, mobile). The bundle sizes above are the best local proxy.
+- `config/site.json` still has `env: "staging"`, empty `pixel_id`, `domain_verification`, `turnstile_sitekey`, `whatsapp_number`. The thank-you pages say "from the SortMyCover WhatsApp number" until `whatsapp_number` is set.
+- n8n: accept the contract differences above; list CORS origins; make W01 respect `consent_ads`; the no-JS 303 targets.
+- Privacy, Terms and PAIA are ported with compliance edits but remain DRAFT and `noindex`. The PAIA manual itself does not exist (the page is a placeholder with the Information Officer route). Remove the DRAFT notes and flip `indexable` in `src/routes.tsx` after sign-off.
+- Directors' names are not in the footer (rule S31 asks for them; none are in the repo to copy, and none are invented).
+- `public/og-image.png` and the manifest tagline come from the holding site and carry "Sort your cover. 30 minutes. A real adviser." Replace the image; the manifest description was left unchanged.
+- Wave 2 and 3 articles (17 titles) are not written. The Learn index and the four hub pages exist; they list only published articles.
+- No reviewer on any article (none verified), no testimonials, no counters, no `sameAs` profiles.
+- The sticky-bar and hero-visual animations are decorative extras; delete `StickyCta` in `Layout.tsx` or `HeroVisual` if you prefer a quieter site.
+
+## Compliance doubts for the practitioner
+
+1. "Authorised adviser" is used instead of "licensed adviser" (Q5 open). Is "authorised" fine as shorthand throughout?
+2. Opt-in default for the Meta Pixel (Q3): built as opt-in; a single `consent` change could move it to notice mode.
+3. Angles reworded to remove "check", "2 to 4x salary" and needs framing: `new-bond`, `employer-gap`, `c13-check-not-buy`, `new-baby`. The matching **ads must change too** (message match, rule S26); `legacy_ad_hook` records the old lines. `extended-family` is built but marked `hold`.
+4. The consent line now carries "I am 18 or older." and the ad-measurement consent is separate: the consent version strings (`CONSENT-GENERIC-v4web`, `CONSENT-ADS-v2web`) need the contract owner's sign-off, and the Meta Instant Form disclaimer must match.
+5. First-party `/beacon` counts (page and quiz-step views, anonymous session id, off with Do Not Track, Global Privacy Control or the opt-out cookie) run without consent. The privacy notice describes them; confirm that is acceptable.
+6. The quiz still asks an age band and budget band before consent; the out-of-band screen says nothing is sent or saved, which is true of the answers (only the anonymous step counter fires).
+7. `how-to-complain` and the complaints page name the NCC, Information Regulator, ARB and FAIS Ombud routes in general terms; scope not checked against each body's own pages.
+8. Terms s6 and the privacy notice now describe the NCC opt-out registry in the future tense (enforcement December 2026 to May 2027).
