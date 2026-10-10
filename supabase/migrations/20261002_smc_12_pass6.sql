@@ -186,7 +186,7 @@ declare
   pr facts.v_params%rowtype; c public.cycles%rowtype; b public.brokers%rowtype;
   d date; tier text; n record; w record;
   start_d date; end_d date; elapsed int; cycle_len int; pace int; week_no int; weeks_in int; send_day date; edition text; on_track boolean;
-  show_now numeric; show_prev numeric; rated_now numeric; rated_prev numeric; light_show text; light_rep text;
+  show_now numeric; show_prev numeric; rated_now numeric; rated_prev numeric; light_show text;
   lastwk jsonb; nxt jsonb; unmarked jsonb; followups jsonb; not_reached jsonb; mix jsonb; themes jsonb; notices jsonb := '[]'::jsonb;
   n_unmarked int; n_follow int; n_missed int; todo_words text;
   roi jsonb;
@@ -211,7 +211,6 @@ begin
   show_now := round(n.attended::numeric / nullif(n.held, 0), 2); show_prev := round(w.attended::numeric / nullif(w.held, 0), 2);
   rated_now := round(n.rated::numeric / nullif(n.attended, 0), 2); rated_prev := round(w.rated::numeric / nullif(w.attended, 0), 2);
   light_show := case when show_now is null then 'grey' when show_now >= pr.show_target then 'green' when show_now >= pr.show_floor then 'amber' else 'red' end;
-  light_rep  := case when n.replacements_used >= c.replacement_cap then 'red' when n.replacements_used >= 0.75 * c.replacement_cap then 'amber' else 'green' end;
   send_day := d + 1;
   edition := coalesce(p_edition, case when send_day = facts.sa_date(coalesce(c.extended_until, c.ends_at)) - 1 then 'cycle_end'
                                       when send_day - start_d + 1 = 15 then 'midcycle' else 'weekly' end);
@@ -327,7 +326,7 @@ begin
             'v6', coalesce(n.quality_avg::text, 'not rated yet'), 'v7', status_line, 'v8', to_char(end_d, 'FMDy FMDD FMMon'))
     when 'cycle_end' then jsonb_build_object('v1', to_char(start_d + 14, 'FMMonth'), 'v2', to_char(facts.sa_date(coalesce(c.extended_until, c.ends_at)) - 1, 'FMDy FMDD FMMon'), 'v3', n.delivered::text,
             'v4', c.committed_leads::text, 'v5', (n.good_fit)::text, 'v6', coalesce(n.quality_avg::text, 'not rated yet'),
-            'v7', format('Replacements used: %s of %s.', n.replacements_used, c.replacement_cap) || end_note)
+            'v7', format('Replacements used: %s.', n.replacements_used) || end_note)
     else jsonb_build_object(
             'v1', format('Week %s of your %s cycle. %s', case when week_no > 4 then week_no || ' (extension)' else week_no::text end, to_char(start_d + 14, 'FMMonth'), case when on_track then 'On track.' else 'A bit behind.' end),
             'v2', format('%s of %s (target %s by now, last week %s)', n.delivered, c.committed_leads, pace, w.delivered),
@@ -349,7 +348,7 @@ begin
       'booked', facts.vtl(n.booked, pr.booking_target, w.booked) || jsonb_build_object('rate', round(n.booked::numeric / nullif(n.delivered, 0), 2)),
       'attended', facts.vtl(n.attended, null, w.attended),
       'show_rate', facts.vtl(show_now, pr.show_target, show_prev) || jsonb_build_object('light', light_show),
-      'replacements', jsonb_build_object('used', n.replacements_used, 'cap', c.replacement_cap, 'last_used', w.replacements_used, 'light', light_rep),
+      'replacements', jsonb_build_object('used', n.replacements_used, 'last_used', w.replacements_used),   -- no cap, no light: goodwill, 3 requests a calendar week (LGSA 7.2), not a per-cycle allowance
       'days_left', greatest(0, facts.sa_date(coalesce(c.extended_until, c.ends_at)) - d - 1)),
     's3_meetings', jsonb_build_object('last_week', lastwk, 'next_week', nxt,
       'todos', jsonb_build_object('unmarked', unmarked, 'followups_due', followups, 'not_reached', not_reached)),
@@ -389,7 +388,6 @@ begin
   return query select 'booked', pl #>> '{s2_progress,booked,v}', co.booked::text, (pl #>> '{s2_progress,booked,v}')::int = co.booked;
   return query select 'attended', pl #>> '{s2_progress,attended,v}', co.attended::text, (pl #>> '{s2_progress,attended,v}')::int = co.attended;
   return query select 'replacements_used', pl #>> '{s2_progress,replacements,used}', co.replacements_used::text, (pl #>> '{s2_progress,replacements,used}')::int = co.replacements_used;
-  return query select 'replacements_cap', pl #>> '{s2_progress,replacements,cap}', co.replacement_cap::text, (pl #>> '{s2_progress,replacements,cap}')::int = co.replacement_cap;
   return query select 'show_rate', pl #>> '{s2_progress,show_rate,v}', show_c::text, (pl #>> '{s2_progress,show_rate,v}')::numeric is not distinct from show_c;
   return query select 'good_fit_in_one_line_and_mix', (pl #>> '{s4_quality,mix,fit_proceeding}')::int + (pl #>> '{s4_quality,mix,fit_followup}')::int || '', co.good_fit::text,
                       (pl #>> '{s4_quality,mix,fit_proceeding}')::int + (pl #>> '{s4_quality,mix,fit_followup}')::int = co.good_fit;

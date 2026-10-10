@@ -76,7 +76,8 @@ for (const key of ['weekly_close_rate', 'weekly_no_close_rate', 'midcycle', 'cyc
     assert.ok(Number.isInteger(p.s2_progress.booked.last), 'booked.last is a count (I-20), not the 0.60 rate of the old example');
     assert.ok(p.s2_progress.booked.last >= 0);
     assert.ok(['green', 'amber', 'red', 'grey'].includes(p.s2_progress.show_rate.light));
-    assert.ok(['green', 'amber', 'red'].includes(p.s2_progress.replacements.light));
+    // 10 Oct 2026: goodwill, 3 requests a calendar week (LGSA 7.2): the payload has no replacement cap and no traffic light
+    assert.deepEqual(Object.keys(p.s2_progress.replacements).sort(), ['last_used', 'used']);
     assert.deepEqual(Object.keys(p.s3_meetings).sort(), ['last_week', 'next_week', 'todos']);
     assert.deepEqual(Object.keys(p.s3_meetings.todos).sort(), ['followups_due', 'not_reached', 'unmarked']);
     for (const k of ['avg_rating', 'ratings_given', 'mix', 'themes', 'lead_pulse']) assert.ok(k in p.s4_quality);

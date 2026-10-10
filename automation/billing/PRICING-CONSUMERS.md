@@ -1,6 +1,6 @@
 # The 3.6 pricing consumers: where each reads its numbers from
 
-Source of truth: the Postgres `pricing` table, seeded from `automation/billing/pricing.seed.json` (`node automation/billing/pricing.js --sql`). Status refreshed 10 Oct 2026 (the 2 Oct run of `node automation/billing/price-diff.mjs` was FAIL: 47 hard-coded prices in 13 files, all 7 legacy locations). It is now **CLEAN**; the one excluded legacy location is `src/components/dashboard/ContractGenerator.tsx` (NH-14). The Pilot is not in `rows`, so the checker also reads `pilot` from the seed (R8,500 and R850), and `pilot.test.js` pins both numbers and every surface that quotes them. No price is typed in this file.
+Source of truth: the Postgres `pricing` table, seeded from `automation/billing/pricing.seed.json` (`node automation/billing/pricing.js --sql`). Status refreshed 10 Oct 2026 (the 2 Oct run of `node automation/billing/price-diff.mjs` was FAIL: 47 hard-coded prices in 13 files, all 7 legacy locations). It is now **CLEAN**; the one excluded legacy location is `src/components/dashboard/ContractGenerator.tsx` (NH-14). The Pilot is not in `rows`, so the checker also reads `pilot` from the seed (its total and its price per lead), and `pilot.test.js` pins both numbers and every surface that quotes them. No price is typed in this file.
 
 | # | Consumer (3.6) | Status | Where | What is left (owner) |
 |---|---|---|---|---|

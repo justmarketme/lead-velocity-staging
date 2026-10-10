@@ -199,7 +199,7 @@ export interface SmcReportPayload {
   s1_one_line?: string;
   s2_progress?: { delivered: SmcFig & { committed?: number }; verified?: SmcFig; booked: SmcFig & { rate?: number };
     attended: SmcFig; show_rate: SmcFig & { light?: string };
-    replacements: { used: number; cap: number; last_used?: number; light?: string }; days_left: number };
+    replacements: { used: number; last_used?: number }; days_left: number };
   s3_meetings?: {
     last_week: { lead_ref?: string; first_name: string; initial: string; full_name?: string; when: Ts; method: string;
       outcome: string | null; unconfirmed?: boolean; disposition?: SmcDispositionCode | null; quality?: number | null; booking_id?: Uuid }[];

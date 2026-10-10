@@ -170,6 +170,11 @@ test('price-diff: a Pilot price (total or per lead) typed outside the seed fails
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
+test('price-diff on the real tree: no tier, Pilot or per-lead price is typed outside the seed', () => {
+  try { execFileSync(process.execPath, [path.join(__dirname, 'price-diff.mjs')], { stdio: 'pipe' }); }
+  catch (e) { assert.fail(`price-diff exited ${e.status}:\n${String(e.stdout).split('\n').slice(0, 14).join('\n')}`); }
+});
+
 test('public copy: no superseded replacement scope, notice, delivery or spacing text', () => {
   const surfaces = [
     'src/lib/pricing.ts', 'src/pages/Pricing.tsx', 'src/pages/portal/Agreement.tsx', 'src/pages/portal/Help.tsx', 'src/pages/portal/Leads.tsx',
@@ -191,6 +196,18 @@ test('public copy: no superseded replacement scope, notice, delivery or spacing 
   }
   // the JSX line break after {PILOT.continue_on} drops its trailing space ("higherby" on the live page)
   assert.ok(read('src/pages/Pricing.tsx').includes('{PILOT.continue_on}{" "}'), 'Pricing.tsx: space kept between "Bronze or higher" and "by paying in advance"');
+});
+
+test('W14 weekly report (analytics SQL, its migration copies, email renderer) prints replacements used without the internal cap', () => {
+  for (const f of ['analytics/W14-broker-payload.sql', 'supabase/migrations/20261002_smc_10_pass4.sql', 'supabase/migrations/20261002_smc_12_pass6.sql', 'supabase/migrations/20261002_smc_13_pass7.sql']) {
+    const sql = read(f);
+    assert.ok(sql.includes("'v7', format('Replacements used: %s.', n.replacements_used)"), `${f}: the cycle-end WhatsApp line has no cap`);
+    assert.equal(/Replacements used: %s of %s/.test(sql), false, `${f}: no "used of cap" line`);
+    assert.equal(/'replacements', jsonb_build_object\([^)]*'(cap|light)'/.test(sql), false, `${f}: the stored payload (readable by the broker) carries no replacement cap or light`);
+    assert.equal(/light_rep|'replacements_cap'/.test(sql), false, `${f}: no cap-derived light or cap reconcile row`);
+  }
+  assert.equal(/rp\.cap|rp\.light/.test(read('scripts/build-broker-report-email.mjs')), false, 'email / PDF renderer');
+  assert.equal(/replacements\.(cap|light)/.test(read('src/pages/portal/Reports.tsx')), false, 'portal Reports tab');
 });
 
 test('every plan-aware generator offers the Pilot through ALL_PLANS', () => {

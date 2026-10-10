@@ -123,9 +123,7 @@
         "target": 0.65
       },
       "replacements": {
-        "cap": 4,
         "used": 1,
-        "light": "green",
         "last_used": 1
       }
     },
@@ -332,9 +330,7 @@
         "target": 0.65
       },
       "replacements": {
-        "cap": 4,
         "used": 1,
-        "light": "green",
         "last_used": 1
       }
     },
@@ -543,9 +539,7 @@
         "target": 0.65
       },
       "replacements": {
-        "cap": 4,
         "used": 1,
-        "light": "green",
         "last_used": 1
       }
     },
@@ -640,7 +634,7 @@
       "v4": "20",
       "v5": "3",
       "v6": "3.4",
-      "v7": "Replacements used: 1 of 4."
+      "v7": "Replacements used: 1."
     },
     "week": "2026-W40",
     "cycle": {
@@ -753,9 +747,7 @@
         "target": 0.65
       },
       "replacements": {
-        "cap": 4,
         "used": 1,
-        "light": "green",
         "last_used": 1
       }
     },

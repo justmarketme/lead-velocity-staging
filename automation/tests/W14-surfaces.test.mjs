@@ -53,13 +53,17 @@ for (const key of ['weekly_close_rate', 'weekly_no_close_rate']) {
       const t = visibleText(html);
       assert.ok(t.includes(q.s1_one_line.replace(/\s+/g, ' ')) || t.includes(String(s2.delivered.v)), `${label} carries the one-liner or delivered`);
       for (const n of [`${s2.delivered.v}`, `${s2.delivered.committed}`, `${s2.booked.v}`, `${s2.attended.v}`, pct(s2.show_rate.v)]) assert.ok(t.includes(n), `${label} shows ${n}`);
-      assert.ok(t.includes(String(s2.replacements.used)) && t.includes(String(s2.replacements.cap)), `${label} shows replacements`);
+      // 10 Oct 2026: replacements are goodwill (3 requests a calendar week, LGSA 7.2), so no surface prints "used of cap"
+      assert.ok(t.includes(String(s2.replacements.used)), `${label} shows replacements used`);
+      assert.equal('cap' in s2.replacements, false, 'the payload carries no cap');
+      assert.equal(/Replacements used\W*\d+\s+of\s+\d+/i.test(t), false, `${label} shows no "used of cap"`);
     }
   });
 }
 
 test('(2c) portal Reports tab reads the same payload and computes no figures of its own', () => {
-  for (const f of ['s2.delivered.v', 's2.delivered.committed', 's2.booked.v', 's2.attended.v', 's2.show_rate.v', 's2.replacements.used', 's2.replacements.cap', 'p.s1_one_line']) assert.ok(TSX.includes(`{${f}}`) || TSX.includes(`${f}`), f);
+  for (const f of ['s2.delivered.v', 's2.delivered.committed', 's2.booked.v', 's2.attended.v', 's2.show_rate.v', 's2.replacements.used', 'p.s1_one_line']) assert.ok(TSX.includes(`{${f}}`) || TSX.includes(`${f}`), f);
+  assert.doesNotMatch(TSX, /replacements\.cap|replacements\.light/, 'the Reports tab does not read a replacement cap (goodwill, not an allowance)');
   assert.match(TSX, /smcDb\.from\("reports"\)\.select\("\*"\)/, 'one reports row feeds the page');
   assert.doesNotMatch(TSX, /\.reduce\(|\.filter\([^)]*attended|\/ *s2\.attended/, 'no recomputed rates');
   assert.ok(TSX.includes('p.s1_one_line'));

@@ -58,7 +58,9 @@ test('S7-07 local: W14 from the synthetic cycle; WhatsApp 6-liner, Reports tab a
   // ---- (2) the Reports tab reads public.reports.payload_json for that row (no figures of its own)
   const viewP = JSON.parse(q(`SELECT payload_json FROM public.reports WHERE id = '${reportId}'`)[0][0]);
   assert.deepEqual(viewP, P, 'Reports tab payload === generated payload');
-  for (const f of ['s2.delivered.v', 's2.delivered.committed', 's2.booked.v', 's2.attended.v', 's2.show_rate.v', 's2.replacements.used', 's2.replacements.cap']) assert.ok(TSX.includes(f), `Reports.tsx renders ${f}`);
+  for (const f of ['s2.delivered.v', 's2.delivered.committed', 's2.booked.v', 's2.attended.v', 's2.show_rate.v', 's2.replacements.used']) assert.ok(TSX.includes(f), `Reports.tsx renders ${f}`);
+  assert.doesNotMatch(TSX, /replacements\.cap|replacements\.light/, 'Reports.tsx reads no replacement cap (goodwill, 3 requests a calendar week)');
+  assert.equal('cap' in P.s2_progress.replacements, false, 'the generated payload carries no replacement cap');
   const s2 = viewP.s2_progress;
 
   // ---- (3) the WhatsApp 6-liner from the same stored row
@@ -78,7 +80,8 @@ test('S7-07 local: W14 from the synthetic cycle; WhatsApp 6-liner, Reports tab a
     assert.ok(email.includes(String(v)), `email shows ${k}=${v}`);
     assert.ok(print.includes(String(v)), `PDF shows ${k}=${v}`);
   }
-  for (const v of [s2.attended.v, s2.replacements.used, s2.replacements.cap]) { assert.ok(email.includes(String(v))); assert.ok(print.includes(String(v))); }
+  for (const v of [s2.attended.v, s2.replacements.used]) { assert.ok(email.includes(String(v))); assert.ok(print.includes(String(v))); }
+  for (const [label, text] of [['email', email], ['print', print], ['WhatsApp', waText]]) assert.equal(/Replacements used\W*\d+\s+of\s+\d+/i.test(text), false, `${label} shows no "replacements used of cap"`);
 
   // ---- (5) one-ask: same deep link in WhatsApp and email; the tap (portal RPC) marks it once, owner only
   if (P.s7_ask) {
