@@ -1,7 +1,23 @@
 # UX sprint 1: build notes
 
 Branch `ux-sprint-1`. Date: 6 Oct 2026. Scope: the "first sprint" in `crm-ux-synthesis.md` §5 (S1 to S5).
-Not pushed, not deployed.
+Not deployed.
+
+## Update 10 Oct 2026: Jonathan's decisions (code only; the agreement text is edited elsewhere)
+
+1. **"Couldn't reach them" can earn a replacement request**, like a no-show: goodwill, discretionary, never because the consumer did not buy. Clause 8.4 is unchanged (the feedback is still attendance and contactability only).
+2. **One counter: 3 requests per Calendar Week, no-shows and unreachables together** (every request row counts, decided or not). Notice stays 7 days. No per-cycle cap anywhere in wording; `pricing.replacement_cap_cycle`, `cycles.replacement_cap` and `v_cycle_progress.replacement_cap` stay as history and drive nothing.
+3. **Proof for unreachable** (Schedule 3): a screenshot of the call log or WhatsApp chat showing at least 2 attempts across the 30 minutes after the start with no reply, or showing the number is wrong or invalid. Same window as a no-show: opens 10 minutes after the start, closes 30 minutes after.
+4. **Top-up refunds** are at the Effective Lead Price of the client's plan at the time (Pilot, Bronze, Silver, Gold = price divided by committed leads, rounded), not the flat top-up price. `src/lib/pricing.ts` (`topupRefundPerLead`, `TOPUP_REFUND_NOTE`) and the seed (`topup.refund_basis`) carry it; the top-up sheet, the portal agreement page and the chatbot text say it.
+
+| Area | Change |
+|---|---|
+| Portal | The "Couldn't reach them" button behaves like "No-show" (`markPlan` in `smcRules.ts`): disabled until start + 10 min ("wait N min"), then in the window it opens the proof sheet "Ask for a replacement" (screenshot first for this answer), with "Just mark ... (no request)" below. After minute 30, or at 3 of 3 this week, it just records the answer. The shared counter reads "Replacement requests this week: n of 3 (no-shows and leads you couldn't reach, together)". `sendReplacementProof(..., kind)` calls the new RPC, then the old no-show RPC, then the portal-event fallback. Help, Agreement, Leads and the lead timeline use the new wording. |
+| DB (`20261010_smc_20_unreachable_replacements.sql`, NOT applied, apply after smc_18) | `smc_request_replacement(booking, proof_path, kind)` for `no_show` or `unreachable` (reason `no_show` / `uncontactable`, reason_code `schedule3_proof` / `schedule3_proof_unreachable`, activity `noshow_proof_sent` / `unreachable_proof_sent`); same checks as smc_18 and ONE weekly count of all rows; `smc_request_noshow_replacement` becomes a wrapper; LEGACY comments on the per-cycle cap columns. Number 20 on purpose: 18 and 19 are already used on other branches. Proved on the real migration chain by `S7-20.local.test.mjs` (docker). |
+| WhatsApp / n8n | The tap on "Couldn't reach them" is still outcome-only (no lead message, no CAPI, no W13/W10 call): the outcome check arrives after the 30-minute proof window. The request arrives as the proof image the broker sends within the window (W07 routes it to W13). W13 now tells the kind from the caption, else the booked method (phone or WhatsApp call = unreachable), records `uncontactable` or `no_show` from parameters, and counts both under the same broker-week lock. Replies are session text in both kinds' words. `broker_outcome_check` is unchanged (Meta-approved body and buttons). |
+| Reports | "Replacements used: N of cap" is gone from the W14 payload line, the broker email, the W19 cycle-end line and the template example: a plain count ("Replacement requests this cycle: N") and no traffic light (payload key `light` is null, `cap` stays as data). |
+
+**Left as data or history on purpose:** analytics math that reads `replacement_cap` (watchlist scaling, kill/scale, `W14-lv.sql`, `optimisation/slos.json`, `optimisation/build-workflows.cjs`) and old migrations (smc_02 to smc_13). Follow-up for whoever owns them: replace the per-cycle cap with the weekly rule where it is used for capacity or alerts. When the sprint-2 top-up checkout (it adds top-up leads to `committed_leads`) is merged, its shortfall refund must use the plan's Effective Lead Price per lead, not price over the new committed number.
 
 ## What changed for the broker
 
@@ -72,10 +88,11 @@ Templates retired, moved to `automation/templates/retired/` and taken out of `su
 - "Couldn't reach them" resolves to `unreachable`, with no lead message, no CAPI event, and no W13 or W10 call.
 - W29 refuses disposition, quality and voice notes.
 - Tests were updated with a `clause 8.4 (ux-sprint-1)` comment at each changed assertion.
+- 10 Oct: the "Couldn't reach them" tap itself stays outcome-only, but the lead can now earn a replacement request through the proof image (see the update above).
 
 ## Follow-ups (not done in this sprint, need an owner)
 
-- **F1, W13 (automation-engineer).** W13 still does three things that conflict with clause 7:
+- **F1, W13 (automation-engineer). DONE in a398e5b (7 Oct), extended on 10 Oct for unreachable leads.** It used to do three things that conflict with clause 7:
   - It opens a replacement automatically after a confirmed lead no-show, with no proof.
   - It caps per cycle (4/6/9).
   - It still accepts `unreachable`/`nofit_criteria` claims.
@@ -91,4 +108,4 @@ Templates retired, moved to `automation/templates/retired/` and taken out of `su
 - **F4, docs.** `portal/spec/07-my-leads.md`, `08-reports.md`, `portal/prototype/leads.html`, `reports.html`, `CONTRACTS.md` (lines ~138, 206, 207, 223), `conversation/state-machine.md` and `automation/ads/CONSOLE-ADS-API.md` still describe dispositions, ratings and ROI.
 - **F5, console ads rules.** In `src/lib/smcAdsPlan.ts` the quality pause/scale rules depend on broker ratings that are no longer collected. They will simply never fire. Replace them with show-rate rules.
 - **F6, CI checks named in the acceptance criteria.** Not built: the axe + Playwright 44 px check in CI, Lighthouse ≥ 95, and the RLS test that a second broker gets nothing for another broker's lead. The 44 px check was done by hand at 360 px. RLS is unchanged: every read goes through existing owner policies.
-- **NH-UX-2 (Jonathan).** "Couldn't reach them" is treated as feedback, not a replacement trigger, as the synthesis proposes.
+- **NH-UX-2 (Jonathan): RESOLVED 10 Oct 2026.** "Couldn't reach them" CAN earn a goodwill replacement request (3 a Calendar Week, shared with no-shows).
