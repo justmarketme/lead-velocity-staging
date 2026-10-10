@@ -8,7 +8,7 @@
 import { useEffect, useState } from "react";
 import PortalShell, { StepClip, usePortal } from "./PortalShell";
 import { CHECKOUT_URL, CLIPS_BASE, PAYSTACK_ENABLED, errText, fmtDay, fmtDayTime, fmtZar, portalEvent, postWebhook, sha256Hex, smcDb } from "@/lib/smc";
-import { TERMS } from "@/lib/pricing";
+import { PILOT, TERMS } from "@/lib/pricing";
 import { AGREEMENT_STRUCTURE } from "@/lib/contract/agreement";
 import type { SmcAdminDocument, SmcAgreementAcceptances, SmcCycle, SmcInvoice, SmcPricing, SmcSignDocumentArgs } from "@/integrations/supabase/smc-types";
 
@@ -101,6 +101,8 @@ function Body() {
   const cur = cycles[0];
   const curTier = tiers.find((t) => t.tier_code === (cur?.tier_code || broker.tier_code));
   const curInvoice = invoices.find((i) => i.cycle_id === cur?.id && i.kind === "cycle");
+  // the Pilot is one introductory cycle: the next cycle is a different plan, not "the same price"
+  const onPilot = (cur?.tier_code || broker.tier_code) === PILOT.tier_code;
   const payUrl = (pay: string, tier?: string) => `${CHECKOUT_URL}${CHECKOUT_URL.includes("?") ? "&" : "?"}tier=${encodeURIComponent(tier || cur?.tier_code || broker.tier_code || "")}&pay=${pay}&cycle=next`;
   const vatLine = (t?: SmcPricing) => (t?.vat_rate ? ` + VAT ${(t.vat_rate * 100).toFixed(0)}%` : " excl. VAT");
 
@@ -119,14 +121,14 @@ function Body() {
     <>
       <section className="card">
         <h2>Sign your agreement</h2>
-        <p className="muted">It is written in plain words. Flat price per {TERMS.cycle_days}-day cycle, month to month, no lock-in. Read it, tick the boxes, type your name. Done.</p>
+        <p className="muted">It is written in plain words. {onPilot ? `A flat once-off price for one introductory ${TERMS.cycle_days}-day cycle.` : `Flat price per ${TERMS.cycle_days}-day cycle, month to month, no lock-in.`} Read it, tick the boxes, type your name. Done.</p>
         {/* Summary of the Lead Generation Services Agreement (clauses 6, 7, 8.3, 11, 12); numbers from src/lib/pricing.ts */}
         <ul style={{ margin: "6px 0 10px", paddingLeft: 18, fontSize: 14 }}>
           <li>One flat price per cycle, never linked to policies, premiums or sales. No commission, ever.</li>
-          <li>Month to month. Cancel with {TERMS.cancel_notice_days} days' written notice before your next cycle. If you don't pay for the next cycle, the agreement simply ends.</li>
+          <li>{onPilot ? `The Pilot is one cycle. To carry on, pay for Bronze or higher in advance before it ends; if you don't, the agreement simply ends.` : `Month to month. Cancel with ${TERMS.cancel_notice_days} days' written notice before your next cycle. If you don't pay for the next cycle, the agreement simply ends.`}</li>
           <li>We won't give the same consumer's enquiry to another broker. We keep the campaign data, pages, ad accounts and consent records.</li>
-          <li>No-show replacements are goodwill, not a right: up to {TERMS.goodwill_replacements_per_week} requests a week, with proof.</li>
-          <li>Shortfall: we deliver the balance within {TERMS.shortfall_rollover_days} days after the cycle. Anything still owed carries into your next paid cycle, or is refunded if you stop.</li>
+          <li>Replacements are goodwill, not a right: up to {TERMS.goodwill_replacements_per_week} requests a week for no-shows and leads you couldn't reach, with proof.</li>
+          <li>Shortfall: we keep delivering for up to {TERMS.shortfall_rollover_days} more days after the cycle, only for delays outside our control. After that, what is still owed rolls into your next cycle on top of its number, or you can ask for a refund at your plan's price per lead, paid within 7 working days.</li>
         </ul>
         {!agreement && <p className="alert">Your agreement is being prepared. We'll message you on WhatsApp when it's ready to sign.</p>}
         {agreement && (
@@ -181,7 +183,7 @@ function Body() {
           </>
         )}
         <h3 style={{ marginTop: 12 }}>{PAYSTACK_ENABLED ? "Next cycle: pick how you want to pay" : "Next cycle: payment by EFT, in advance"}</h3>
-        <p className="muted" style={{ margin: "0 0 8px" }}>Same price. No lock-in. Payment is by EFT, in advance, per 30-day cycle. The payment details are on your invoice. We show the renewal offer 7 days before your cycle ends. Your next cycle starts when you pay.</p>
+        <p className="muted" style={{ margin: "0 0 8px" }}>{onPilot ? "The Pilot is one cycle; pick Bronze or higher below to carry on. No lock-in." : "Same price. No lock-in."} Payment is by EFT, in advance, per 30-day cycle. The payment details are on your invoice. We show the renewal offer 7 days before your cycle ends. Your next cycle starts when you pay.</p>
         {PAYSTACK_ENABLED && <a className="btn" href={payUrl("instant_eft")}>Pay by Instant EFT (recommended)</a>}
         <a className={PAYSTACK_ENABLED ? "btn ghost" : "btn"} href={payUrl("manual_eft")}>Pay by EFT with a reference (no fee)</a>
         {PAYSTACK_ENABLED && <a className="btn ghost" href={payUrl("card_autorenew")}>Pay by card and renew automatically (optional)</a>}
@@ -191,7 +193,7 @@ function Body() {
         )}
         {tiers.filter((t) => t.tier_code !== (cur?.tier_code || broker.tier_code)).length > 0 && (
           <>
-            <h3 style={{ marginTop: 12 }}>Change tier for the next cycle</h3>
+            <h3 style={{ marginTop: 12 }}>{onPilot ? "Carry on after the Pilot" : "Change tier for the next cycle"}</h3>
             <div className="row">
               {tiers.filter((t) => t.tier_code !== (cur?.tier_code || broker.tier_code)).map((t) => (
                 <a key={t.tier_code} className="tap g" href={payUrl(PAYSTACK_ENABLED ? "instant_eft" : "manual_eft", t.tier_code)}>Move to {t.name}: {t.committed_leads} leads, {fmtZar(t.price_zar)}{vatLine(t)}</a>

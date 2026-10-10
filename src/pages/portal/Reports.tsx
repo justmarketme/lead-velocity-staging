@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import PortalShell, { StepClip, usePortal } from "./PortalShell";
 import { CLIPS_BASE, DISPOSITIONS, dispositionLabel, errText, fmtDay, fmtPct, fmtTime, methodLabel, smcDb } from "@/lib/smc";
+import { TERMS } from "@/lib/pricing";
 import type { SmcFig, SmcReport, SmcReportPoliciesWrittenArgs } from "@/integrations/supabase/smc-types";
 
 const ASK_ROUTE: Record<string, string> = {
@@ -96,7 +97,7 @@ function Body() {
             <div className="kpi"><b>{s2.delivered.v}</b><span>delivered (verified)</span><div className="tg">{tg(s2.delivered)}</div></div>
             <div className="kpi"><b>{s2.booked.v}</b><span>booked</span><div className="tg">{s2.booked.rate !== undefined ? `${fmtPct(Number(s2.booked.rate))} of delivered · ` : ""}{tg(s2.booked, true)}</div></div>
             <div className="kpi"><b>{s2.attended.v}</b><span>attended</span><div className="tg">show rate <i className={light(s2.show_rate.light)}>{fmtPct(s2.show_rate.v)}</i> · {tg(s2.show_rate, true)}</div></div>
-            <div className="kpi"><b>{s2.replacements.used} of {s2.replacements.cap}</b><span>replacements used</span><div className="tg"><i className={light(s2.replacements.light)}>●</i> last week {s2.replacements.last_used ?? 0}</div></div>
+            <div className="kpi"><b>{s2.replacements.used}</b><span>replacements used this cycle (goodwill, up to {TERMS.goodwill_replacements_per_week} a week)</span><div className="tg">last week {s2.replacements.last_used ?? 0}</div></div>
           </div>
           <p className="small" style={{ margin: "8px 0 0" }}>Cycle extension: {p.cycle?.extension?.active ? `extended to ${fmtDay(p.cycle.extension.until + "T12:00:00Z")} to deliver your committed leads` : "none needed"}. Days left: {s2.days_left}.</p>
         </section>

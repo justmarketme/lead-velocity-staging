@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import PortalShell, { StepClip, usePortal } from "./PortalShell";
 import { AGE_LABEL, BUDGET_LABEL, CLIPS_BASE, isPremium1500, DISPOSITIONS, dispositionLabel, errText, fmtDay, fmtTime, methodLabel, portalEvent, saDate, smcDb } from "@/lib/smc";
+import { TERMS } from "@/lib/pricing";
 import type { SmcBooking, SmcCycleProgress, SmcDispositionCode, SmcLead, SmcOutcome, SmcOutcomeKind, SmcReplacement } from "@/integrations/supabase/smc-types";
 
 const CALL_METHODS = new Set(["phone", "whatsapp_call"]);
@@ -169,7 +170,7 @@ function Body() {
           <>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}><span><b>{delivered}</b> of {prog.committed} delivered</span><span className="muted">{dayOf ? `day ${dayOf} · ` : ""}{prog.days_left} days left</span></div>
             <div className="prog"><i style={{ width: `${Math.min(100, Math.round((delivered / Math.max(1, prog.committed)) * 100))}%` }} /></div>
-            <div className="small">{prog.booked} booked · {prog.attended} attended{showRate !== null ? <> (<i className={showRate >= 0.65 ? "tl-g" : showRate >= 0.5 ? "tl-a" : "tl-r"}>{Math.round(showRate * 100)}%</i>, target 65%)</> : ""} · replacements <i className={prog.replacements_used >= prog.replacement_cap ? "tl-r" : prog.replacements_used >= prog.replacement_cap / 2 ? "tl-a" : "tl-g"}>{prog.replacements_used} of {prog.replacement_cap}</i></div>
+            <div className="small">{prog.booked} booked · {prog.attended} attended{showRate !== null ? <> (<i className={showRate >= 0.65 ? "tl-g" : showRate >= 0.5 ? "tl-a" : "tl-r"}>{Math.round(showRate * 100)}%</i>, target 65%)</> : ""} · replacements {prog.replacements_used} this cycle</div>
           </>
         ) : <p className="muted">Your first lead will land here. We'll WhatsApp you the moment someone books.</p>}
       </section>
@@ -198,7 +199,7 @@ function Body() {
         <p className="muted">Takes about 20 seconds each. Same buttons you get on WhatsApp.</p>
         {flash && <div className="next-slot" role="status"><span style={{ fontSize: 24 }}>✓</span><div><b>{flash}</b>{groups.toMark.length ? `${groups.toMark.length} more to mark.` : ""}</div></div>}
         {groups.toMark.map((b) => <div key={b.id} {...mark(b.lead_id)}><MarkOne b={b} l={leads[b.lead_id]} existing={outcomes[b.id]} onDone={(m) => { setFlash(m); void load(); }} /></div>)}
-        <p className="hint">Out of goodwill, up to 3 no-shows a week can be replaced (no-shows only) after a 48-hour check. Not marked within 24 hours? We record it as attended and flag it, so please mark in time.</p>
+        <p className="hint">Out of goodwill, up to {TERMS.goodwill_replacements_per_week} no-shows or leads you couldn't reach a week can be replaced, with proof, after a 48-hour check. Not marked within 24 hours? We record it as attended and flag it, so please mark in time.</p>
       </section>
 
       {groups.notReached.length > 0 && (
@@ -228,7 +229,7 @@ function Body() {
 
       <section className="card">
         <h3>Replacements</h3>
-        <p className="muted" style={{ margin: "4px 0 6px" }}>{prog ? `${prog.replacements_used} used this cycle. ` : ""}Out of goodwill, up to 3 no-show replacements a week, no-shows only. Never "didn't buy". <Link to="/broker/help#replacements">Read more</Link></p>
+        <p className="muted" style={{ margin: "4px 0 6px" }}>{prog ? `${prog.replacements_used} used this cycle. ` : ""}Out of goodwill, up to {TERMS.goodwill_replacements_per_week} replacements a week for no-shows and leads you couldn't reach, with proof. Never "didn't buy". <Link to="/broker/help#replacements">Read more</Link></p>
         <table className="tbl"><tbody>
           {reps.map((r) => <tr key={r.id}><td>{leads[r.lead_id]?.first_name || "Lead"} · {r.reason.replace("_", " ")}</td><td>{fmtDay(r.claimed_at)}</td><td><span className={`st${r.status === "fulfilled" || r.status === "approved" ? " ok" : ""}`}>{r.status}</span></td></tr>)}
         </tbody></table>

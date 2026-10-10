@@ -12,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getProposalEmailSignature } from "@/utils/emailSignature";
 import { callLegalAI } from "@/utils/legalAI";
 import { BrokerSelector } from "./BrokerSelector";
-import { TIERS, ALL_PLANS, PILOT, isPilot, TERMS, TOPUP, QUALIFIED, zar, perLead, topupMinimumZar, VAT_NOTE, SHORTFALL_TEXT, LATE_PAYMENT_TEXT, type PricingTier } from "@/lib/pricing";
+import { TIERS, ALL_PLANS, PILOT, isPilot, TERMS, TOPUP, QUALIFIED, zar, perLead, topupMinimumZar, VAT_NOTE, SHORTFALL_TEXT, REPLACEMENT_TEXT, LATE_PAYMENT_TEXT, type PricingTier } from "@/lib/pricing";
 
 // Plan fields for the proposal, built from the pricing source (3.6) - no price is typed in this file.
 // FAIS: nothing here may tie the fee to sales or policies, or promise outcomes (Raspberry Academy v Oaksure).
@@ -28,7 +28,7 @@ const proposalTierFields = (t: PricingTier) => ({
     alignmentText: `${isPilot(t) ? "Paid in advance, before the introductory cycle starts." : "Paid monthly in advance, before each cycle starts."} All-inclusive of advertising media spend. Top-ups once the cycle's leads are delivered: ${zar(TOPUP.price_per_lead_zar)} per Qualified Lead, minimum ${TOPUP.min_leads} (${zar(topupMinimumZar())}), with ${TOPUP.notice_days} days' notice. ${VAT_NOTE}`,
     purposeTitle: "Lead Generation & Marketing Services",
     purposeText: `We run broker-neutral advertising, capture consumer interest and consent, pre-qualify on stated age and budget, and book an introductory appointment into your calendar with reminders. Your ${t.name} plan delivers <strong>${t.committed_leads} Qualified Leads</strong> ${isPilot(t) ? "in one introductory cycle" : "per cycle"}.`,
-    purposeSubText: `${isPilot(t) ? `Once-off introductory ${TERMS.cycle_days}-day cycle for first-time clients only, paid in advance as a flat fee; after the ${t.name} you continue on ${PILOT.continue_on} by paying in advance, otherwise the agreement ends. ` : `Month to month. `}Either party may cancel with ${TERMS.cancel_notice_days} days' written notice before the next cycle. Fees for a cycle that has started are not refundable. ${SHORTFALL_TEXT(t)} ${LATE_PAYMENT_TEXT}`,
+    purposeSubText: `${isPilot(t) ? `Once-off introductory ${TERMS.cycle_days}-day cycle for first-time clients only, paid in advance as a flat fee; after the ${t.name} you continue on ${PILOT.continue_on} by paying in advance, otherwise the agreement ends. ` : `Month to month. `}Either party may cancel with ${TERMS.cancel_notice_days} days' written notice before the next cycle. Fees for a cycle that has started are not refundable. ${SHORTFALL_TEXT(t)} ${REPLACEMENT_TEXT} ${LATE_PAYMENT_TEXT}`,
     alignmentBoxText: "The fee pays for marketing and lead-delivery services. It is payable regardless of any appointment outcome, sale or policy, and no commission or success fee is ever payable.",
 });
 

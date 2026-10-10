@@ -27,7 +27,7 @@ Lead Velocity is structured and intentional. We're not another lead vendor hopin
 1. Define Ideal Client: establish geographic area, income bracket, product focus.
 2. Targeted Generation: campaigns designed to attract fresh matching prospects.
 3. Qualified Against Criteria: checked against the defined profile. Quality over volume.
-4. Weekly Delivery: predictable schedule.
+4. Consistent Delivery: leads arrive as they qualify, each with a pre-call brief; a set number every 30-day cycle.
 **KEY DIFFERENTIATOR: We don't just sell leads — we book confirmed appointments and place them directly into the broker's calendar.**
 
 ### WHAT "QUALIFIED" MEANS

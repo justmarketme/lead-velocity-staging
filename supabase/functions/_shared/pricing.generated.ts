@@ -164,6 +164,12 @@ export const SHORTFALL_TEXT = (t: PricingTier): string =>
 
 export const LATE_PAYMENT_TEXT = "If payment hasn't cleared, lead delivery is suspended until it has. No interest is charged.";
 
+/** Replacements (agreement clause 7, Jonathan 2026-10-10): goodwill, one weekly cap on every plan (Pilot included); no-shows and unreachable leads count together. */
+export const REPLACEMENT_TEXT =
+  `Out of goodwill, we replace up to ${TERMS.goodwill_replacements_per_week} no-shows or leads you couldn't reach a week, on every plan including the Pilot, ` +
+  `if you send proof (for a no-show, straight after waiting 10 minutes). We never replace a lead because they didn't buy. ` +
+  `Invalid contact details never count in the first place.`;
+
 export const TOPUP_TEXT =
   `Top-ups: once this cycle's leads are delivered, add more Qualified Leads at ${zar(TOPUP.price_per_lead_zar)} each, ` +
   `minimum ${TOPUP.min_leads} (${zar(topupMinimumZar())}), with ${TOPUP.notice_days} days' notice. Paid in advance.`;
@@ -190,7 +196,7 @@ export const pricingSummaryText = (): string =>
     QUALIFIED_LEAD_TEXT,
     BUDGET_TARGET_TEXT,
     `Shortfall: up to ${TERMS.shortfall_rollover_days} extra days only for delays outside our control (day 44 at most); after that the balance rolls into the next cycle on top of its number, or the client may ask for a refund at the plan's effective price per undelivered lead, paid within 7 working days.`,
-    `Replacements: out of goodwill, up to ${TERMS.goodwill_replacements_per_week} no-show replacements a week (no-shows only). Invalid contact details never count in the first place.`,
+    `Replacements: ${REPLACEMENT_TEXT}`,
     LATE_PAYMENT_TEXT,
     NO_GUARANTEE_TEXT,
   ].join("\n");

@@ -7,8 +7,8 @@ import { Check, Zap, TrendingUp, Star, type LucideIcon } from "lucide-react";
 import { useScrollAnimation } from "@/hooks/use-scroll-animation";
 import SEO from "@/components/SEO";
 import {
-    TIERS, TERMS, TOPUP, QUALIFIED, zar, perLead, topupMinimumZar,
-    PILOT, PILOT_OFFERED, VAT_NOTE, QUALIFIED_LEAD_TEXT, NO_GUARANTEE_TEXT, BUDGET_TARGET_TEXT, SHORTFALL_TEXT, LATE_PAYMENT_TEXT, type PricingTier,
+    ALL_PLANS, TIERS, TERMS, TOPUP, QUALIFIED, zar, perLead, topupMinimumZar,
+    PILOT, PILOT_OFFERED, VAT_NOTE, QUALIFIED_LEAD_TEXT, NO_GUARANTEE_TEXT, BUDGET_TARGET_TEXT, SHORTFALL_TEXT, REPLACEMENT_TEXT, LATE_PAYMENT_TEXT, type PricingTier,
 } from "@/lib/pricing";
 
 // Every number on this page comes from automation/billing/pricing.seed.json via src/lib/pricing.ts (3.6).
@@ -34,6 +34,7 @@ const PricingTierCard = ({ tier, animation }: { tier: PricingTier; animation: Re
         `${tier.committed_leads} Qualified Leads per ${TERMS.cycle_days}-day cycle`,
         "Ad spend included — we run and pay for the ads",
         "AI WhatsApp follow-up, booking and reminders included",
+        `Goodwill replacements: up to ${TERMS.goodwill_replacements_per_week} requests a week, with proof`,
         "A pre-call brief for every booked appointment",
         "Live lead tracking in your broker portal",
     ];
@@ -106,15 +107,15 @@ const PricingTierCard = ({ tier, animation }: { tier: PricingTier; animation: Re
 
 const FAQ: { id?: string; q: string; a: string }[] = [
     { id: "what-qualified-means", q: "What is a Qualified Lead?", a: `${QUALIFIED_LEAD_TEXT} Age and budget are what the consumer tells us — we don't check income or underwrite. An A-tier lead counts toward your number once they have booked and confirmed; a B-tier lead counts only if you accept it. Every lead is labelled A or B. What happens in the appointment is up to you. ${BUDGET_TARGET_TEXT}` },
-    { q: "Do I need my own ad account?", a: "No. We run the ads and pay for them. Ad spend is part of your monthly price." },
+    { q: "Do I need my own ad account?", a: "No. We run the ads and pay for them. Ad spend is part of your price." },
     ...(PILOT_OFFERED ? [{ q: "Can I try you before committing to a plan?", a: `Yes. The ${PILOT.name} is ${zar(PILOT.price_zar)} once-off (excl. VAT) for ${PILOT.committed_leads} Qualified Leads (${zar(perLead(PILOT))} per lead) in one introductory ${TERMS.cycle_days}-day cycle, for first-time clients only. It is a flat fee paid in advance, ad spend included, and never linked to sales, policies or commission. The same ${TERMS.shortfall_rollover_days}-day rollover and replacement rules apply as on every plan. After the ${PILOT.name} you continue on ${PILOT.continue_on} by paying in advance; otherwise the agreement ends.` }] : []),
     { q: "What if I want more leads in a cycle?", a: `Once your cycle's leads are delivered, you can top up at ${zar(TOPUP.price_per_lead_zar)} per Qualified Lead, minimum ${TOPUP.min_leads} (${zar(topupMinimumZar())}). Give us ${TOPUP.notice_days} days' notice so we can scale the ads. Top-ups are paid in advance. Or move up to the next plan.` },
-    { q: "What if you fall short?", a: SHORTFALL_TEXT(TIERS[0]) + " On other plans the refund is that plan's effective price per lead." },
+    { q: "What if you fall short?", a: `${SHORTFALL_TEXT(TIERS[0])} On other plans the refund is that plan's effective price per lead (${ALL_PLANS.filter((t) => t !== TIERS[0]).map((t) => `${t.name} ${zar(perLead(t))}`).join(", ")}).` },
     { q: "What if a payment is late?", a: LATE_PAYMENT_TEXT },
-    { q: "What if a lead doesn't show up?", a: `Out of goodwill, we replace up to ${TERMS.goodwill_replacements_per_week} no-shows a week (no-shows only), if you send proof straight after waiting 10 minutes. We never replace a lead because they didn't buy. Invalid contact details never count in the first place.` },
+    { q: "What if a lead doesn't show up, or I can't reach them?", a: REPLACEMENT_TEXT },
     { q: "What does the AI do, and what does it never do?", a: "It replies on WhatsApp, books the appointment into your calendar and sends reminders. It never gives advice, compares products or talks about premiums or cover. Those questions go to you." },
-    { q: "Is there a contract?", a: `You sign a short, plain-language agreement. It runs month to month with no minimum term. Either side can stop with ${TERMS.cancel_notice_days} days' written notice before the next cycle.` },
-    { q: "Is this compliant with FAIS and POPIA?", a: "We are a marketing and lead-generation agency, not a financial services provider. We never advise. Consumers opt in, and you receive their details with their consent. Our fee is a flat monthly price — never tied to sales, applications or policies." },
+    { q: "Is there a contract?", a: `You sign a short, plain-language agreement. It runs month to month with no minimum term${PILOT_OFFERED ? ` (the ${PILOT.name} is one introductory cycle: after it you continue on ${PILOT.continue_on}, or the agreement ends)` : ""}. Either side can stop with ${TERMS.cancel_notice_days} days' written notice before the next cycle.` },
+    { q: "Is this compliant with FAIS and POPIA?", a: "We are a marketing and lead-generation agency, not a financial services provider. We never advise. Consumers opt in, and you receive their details with their consent. Our fee is a flat price for each cycle — never tied to sales, applications or policies." },
 ];
 
 const Pricing = () => {
@@ -166,7 +167,7 @@ const Pricing = () => {
                     </div>
                     <p className="text-sm text-slate-400 flex-1">
                         One introductory {TERMS.cycle_days}-day cycle for first-time clients, paid upfront as a flat fee with ad spend
-                        included. Same {TERMS.shortfall_rollover_days}-day rollover and replacement rules as every plan. Then continue on {PILOT.continue_on}
+                        included. Same {TERMS.shortfall_rollover_days}-day rollover and replacement rules as every plan. Then continue on {PILOT.continue_on}{" "}
                         by paying in advance, otherwise the agreement ends.
                     </p>
                     <Link

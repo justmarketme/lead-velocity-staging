@@ -591,7 +591,7 @@ const BrokerOnboarding = () => {
                                         { title: "Define Ideal Client", desc: "We establish exactly who you want to reach. Geographic area, income bracket, product focus." },
                                         { title: "Targeted Generation", desc: "Campaigns designed to attract prospects matching your criteria. Fresh, targeted contacts." },
                                         { title: "Qualified Against Criteria", desc: "Checked against defined profile. Quality over volume." },
-                                        { title: "Weekly Delivery", desc: "Predictable schedule. No surprises." }
+                                        { title: "Consistent Delivery", desc: "Leads arrive as they qualify. A set number every 30-day cycle. No surprises." }
                                     ].map((step, i) => (
                                         <div key={i} className="flex gap-4">
                                             <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0 text-primary font-bold border border-primary/20">
