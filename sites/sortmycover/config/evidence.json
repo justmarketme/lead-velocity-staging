@@ -36,6 +36,24 @@
     "note": "HOLD. STALE-RISK: 19 years old (ARB 4.1.2 needs up-to-date evidence). Do not use in article text."
   },
   {
+    "id": "asisa-gap-release-2025-10",
+    "claim": "ASISA media release of 28 October 2025: the average formally employed earner holds R0.8m of death cover against R2.1m needed (and R1.2m of disability cover against R3m); R50.4 trillion national life and disability shortfall at 31 December 2024.",
+    "publisher": "ASISA",
+    "url": "https://www.asisa.org.za/media-releases/south-africa-s-life-and-disability-insurance-shortfall-widens-to-r504-trillion/",
+    "month": "2025-10",
+    "status": "usable",
+    "note": "Page read at source on 10 Oct 2026 (desk research, grade A). Quote only as a dated national average, never as a per-person figure, and always labelled general information, not advice. Before the first ad: save a dated copy of the release in the evidence folder (S15) and have the practitioner confirm S14 vs S12 (rand figures are a sourced average, not an amount offered). Distinct from the HOLD entry asisa-true-south-2025, which points at the PDF study."
+  },
+  {
+    "id": "sanlam-legacy-2026",
+    "claim": "Sanlam Legacy survey, released 1 September 2026: online survey of 1,200 people (67% women, 70% aged 25 to 49, not nationally representative); 76% own at least one significant asset; 39% of will-holders have not told loved ones where the will is.",
+    "publisher": "Sanlam (reported by FAnews and Moonstone)",
+    "url": "https://www.fanews.co.za/article/life-insurance/9/estates-wills/1001/sanlam-survey-shows-a-nation-that-cares-without-a-plan-only-28-of-south-africans-have-a-completed-will/44602",
+    "month": "2026-09",
+    "status": "hold",
+    "note": "HOLD. Grade B: read through two press reports; the Sanlam primary release was not read. Confirm what the 76% is a share of (all respondents or only those without a will) before any ad. Used only by the unhosted will-myth page."
+  },
+  {
     "id": "fee-model",
     "claim": "The fee advisers pay does not depend on whether you buy anything; SortMyCover takes no commission and no share of any premium",
     "publisher": "Lead Velocity (Pty) Ltd, Lead Generation Services Agreement LGSA-v0.2 DRAFT, clauses 8.2 and 8.3 (unsigned)",

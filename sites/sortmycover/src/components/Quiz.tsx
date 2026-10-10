@@ -20,6 +20,8 @@ interface Props {
   /** Neutral code sent to Meta as content_name (never the human-readable angle). */
   metaCode: string;
   lang?: string;
+  /** Angle-aware wording of the budget question: what the monthly amount is for. Default "life cover". The answer bands are unchanged. */
+  budgetTopic?: string;
   /** Where the no-JS fallback form redirects after the lead is accepted (informational; n8n builds it from the validated angle). */
   idPrefix?: string;
 }
@@ -30,7 +32,8 @@ const Check = () => (
 
 const fmt = (s: string, vars: Record<string, string>) => Object.keys(vars).reduce((a, k) => a.replace("{" + k + "}", vars[k]), s);
 
-export default function Quiz({ angle, metaCode, lang = "en-ZA" }: Props) {
+export default function Quiz({ angle, metaCode, lang = "en-ZA", budgetTopic = "life cover" }: Props) {
+  const budgetLegend = `Roughly what monthly budget could you set aside for ${budgetTopic}? This is not a quote.`;
   const uid = useId();
   const [step, setStep] = useState<Step>(1);
   const [answers, setAnswers] = useState<{ age_band?: string; budget_band?: string }>({});
@@ -262,7 +265,7 @@ export default function Quiz({ angle, metaCode, lang = "en-ZA" }: Props) {
 
       <div className="q" ref={panelScope}>
         {step === 1 && hearOpt("age_band", AGE_OPTIONS, "How old are you?", "You must be 18 or older. This only decides if we can book a call.", idBase + "-h1")}
-        {step === 2 && hearOpt("budget_band", BUDGET_OPTIONS, "Roughly what monthly budget could you set aside for life cover? This is not a quote.", "It is never shown back to you.", idBase + "-h2")}
+        {step === 2 && hearOpt("budget_band", BUDGET_OPTIONS, budgetLegend, "It is never shown back to you.", idBase + "-h2")}
         {step === 3 && (
           <form onSubmit={detailsNext} noValidate autoComplete="on" aria-labelledby={idBase + "-h3"}>
             <h3 id={idBase + "-h3"} tabIndex={-1} data-focus>Where should we send your adviser’s details?</h3>
@@ -348,7 +351,7 @@ export default function Quiz({ angle, metaCode, lang = "en-ZA" }: Props) {
         <form method="post" action={API_BASE + "/lead"}>
           <p><strong>Book my adviser call</strong></p>
           <fieldset><legend>How old are you?</legend>{AGE_OPTIONS.map((o) => (<label key={o.value}><input type="radio" name="age_band" value={o.value} required /> {o.label}</label>))}</fieldset>
-          <fieldset><legend>Roughly what monthly budget could you set aside for life cover? This is not a quote.</legend>{BUDGET_OPTIONS.map((o) => (<label key={o.value}><input type="radio" name="budget_band" value={o.value} required /> {o.label}</label>))}</fieldset>
+          <fieldset><legend>{budgetLegend}</legend>{BUDGET_OPTIONS.map((o) => (<label key={o.value}><input type="radio" name="budget_band" value={o.value} required /> {o.label}</label>))}</fieldset>
           <p><label>First name <input name="first_name" required /></label></p>
           <p><label>Mobile number (WhatsApp) <input name="mobile" type="tel" required /></label></p>
           <p><label><input type="checkbox" name="consent" value="yes" required /> {consentInfo.text}</label></p>

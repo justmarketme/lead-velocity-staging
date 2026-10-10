@@ -53,7 +53,7 @@ describe.skipIf(!have)("pre-rendered output", () => {
       expect(p.html, p.rel).toMatch(/<meta name="robots" content="noindex/);
       const c = meta(p.html, /<link rel="canonical" href="([^"]+)"/)!;
       expect(c, p.rel).toBe(`https://${hostLabel(ANGLES.find((a) => a.slug === slug)!)}.sortmycover.co.za/` + (p.rel.includes("/thanks/") ? "thanks/" : ""));
-      expect(sitemap).not.toContain(slug);
+      expect(sitemap, p.rel).not.toContain(`/${slug}/`); // slash-delimited: the slug "cover-gap" is a suffix of the article slug what-is-a-life-cover-gap
       expect(p.html).toContain(`data-campaign="${slug}"`);
     }
     expect(robots).not.toMatch(/Disallow:\s*\S/);

@@ -38,6 +38,10 @@ function CampaignSticky() {
   );
 }
 
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+/** "2025-10" -> "October 2025" (the proof line always shows its source month, rule S15). */
+const proofMonth = (ym: string) => { const [y, m] = ym.split("-"); return MONTHS[+m - 1] + " " + y; };
+
 export function CampaignLanding({ angle }: { angle: Angle }) {
   const origin = campaignOrigin(hostLabel(angle));
   return (
@@ -50,10 +54,16 @@ export function CampaignLanding({ angle }: { angle: Angle }) {
           <div className="wrap-narrow py-8">
             <h1 className="text-[clamp(30px,8vw,44px)] leading-[1.05]">{h1Segments(angle.h1).map((s, i) => s.br ? <br key={i} /> : s.em ? <em key={i} className="not-italic text-amber">{s.text}</em> : <Fragment key={i}>{s.text}</Fragment>)}</h1>
             <p className="mt-4 text-[17px] text-[#d7d2c8] max-w-[40ch]">{angle.sub}</p>
+            {angle.note && <p className="mt-3 text-[15px] text-[#c9c3b8] max-w-[44ch]" data-disclosure>{angle.note}</p>}
+            {angle.proof && (
+              <p className="mt-4 text-[14px] text-[#c9c3b8] max-w-[46ch] border-l-2 border-amber pl-3" data-proof data-disclosure>
+                {angle.proof.text} <span>Source: {angle.proof.source}, {proofMonth(angle.proof.month)}.</span>
+              </p>
+            )}
           </div>
         </section>
         <section className="wrap-narrow py-6" id="quiz" aria-label="Book my adviser call">
-          <Quiz angle={angle.slug} metaCode={angle.meta_code} />
+          <Quiz angle={angle.slug} metaCode={angle.meta_code} budgetTopic={angle.budget_topic} />
           <p className="fine mt-3" data-disclosure>Run by Lead Velocity (Pty) Ltd. Not a financial services provider. {COST_LINE}</p>
         </section>
         <section className="wrap-narrow py-6" aria-labelledby="h-how"><h2 id="h-how" className="text-[24px] mb-4">What happens next</h2><Steps items={HOW_STEPS} /></section>

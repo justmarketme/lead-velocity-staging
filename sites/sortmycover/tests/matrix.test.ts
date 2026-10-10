@@ -83,15 +83,19 @@ describe.skipIf(!have)("routing acceptance matrix (emulated)", () => {
       expect(r.headers.Location).toBe(`https://${hostLabel(a)}.sortmycover.co.za/`);
     });
   }
-  it("a held angle (employer-gap) gets no host and no apex redirect", () => {
-    const r = request("employer-gap.sortmycover.co.za", "/");
-    expect(r.served).not.toBe("/_c/employer-gap/index.html");
-    expect(request("sortmycover.co.za", "/employer-gap/").status).toBe(404);
+  it("a held angle (the wills and estate pages) gets no host and no apex redirect", () => {
+    for (const slug of ["children-guardian", "will-and-cover", "will-myth", "where-is-the-will"]) {
+      const r = request(`${slug}.sortmycover.co.za`, "/");
+      expect(r.served, slug).not.toBe(`/_c/${slug}/index.html`);
+      expect(request("sortmycover.co.za", `/${slug}/`).status, slug).toBe(404);
+    }
+    // retired slugs were never live and keep no redirect
+    for (const slug of ["employer-gap", "bond-paperwork", "myth-bust", "self-employed", "turned-40", "virtual", "what-the-call", "c13-check-not-buy"]) expect(request("sortmycover.co.za", `/${slug}/`).status, slug).toBe(404);
   });
   it("unknown paths return the 404 page", () => expect(request("sortmycover.co.za", "/nope/x.html").status).toBe(404));
   it("the Hostinger .htaccess carries the same host mappings", () => {
     const h = fs.readFileSync(path.resolve(__dirname, "../hostinger/.htaccess"), "utf8");
     for (const a of ANGLES.filter((x) => x.host && !x.hold)) expect(h).toContain(`RewriteRule ^$ /_c/${a.slug}/index.html [L]`);
-    expect(h).not.toContain("employer-gap");
+    for (const slug of ["children-guardian", "will-and-cover", "will-myth", "where-is-the-will", "employer-gap", "bond-paperwork", "looking-is-not-buying"]) expect(h).not.toContain(slug);
   });
 });

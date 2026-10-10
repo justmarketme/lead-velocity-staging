@@ -123,6 +123,19 @@
       }
     },
     {
+      "src": "^/(?:_c/)?adviser-conversation/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://adviser-conversation.sortmycover.co.za/"
+      }
+    },
+    {
       "src": "^/(?:_c/)?new-bond/?$",
       "has": [
         {
@@ -136,7 +149,7 @@
       }
     },
     {
-      "src": "^/(?:_c/)?bond-paperwork/?$",
+      "src": "^/(?:_c/)?salary-stops/?$",
       "has": [
         {
           "type": "host",
@@ -145,11 +158,11 @@
       ],
       "status": 307,
       "headers": {
-        "Location": "https://bond-paperwork.sortmycover.co.za/"
+        "Location": "https://salary-stops.sortmycover.co.za/"
       }
     },
     {
-      "src": "^/(?:_c/)?myth-bust/?$",
+      "src": "^/(?:_c/)?cover-gap/?$",
       "has": [
         {
           "type": "host",
@@ -158,7 +171,20 @@
       ],
       "status": 307,
       "headers": {
-        "Location": "https://myth-bust.sortmycover.co.za/"
+        "Location": "https://cover-gap.sortmycover.co.za/"
+      }
+    },
+    {
+      "src": "^/(?:_c/)?owners-directors/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://owners-directors.sortmycover.co.za/"
       }
     },
     {
@@ -172,71 +198,6 @@
       "status": 307,
       "headers": {
         "Location": "https://new-baby.sortmycover.co.za/"
-      }
-    },
-    {
-      "src": "^/(?:_c/)?self-employed/?$",
-      "has": [
-        {
-          "type": "host",
-          "value": "sortmycover\\.co\\.za"
-        }
-      ],
-      "status": 307,
-      "headers": {
-        "Location": "https://self-employed.sortmycover.co.za/"
-      }
-    },
-    {
-      "src": "^/(?:_c/)?turned-40/?$",
-      "has": [
-        {
-          "type": "host",
-          "value": "sortmycover\\.co\\.za"
-        }
-      ],
-      "status": 307,
-      "headers": {
-        "Location": "https://turned-40.sortmycover.co.za/"
-      }
-    },
-    {
-      "src": "^/(?:_c/)?virtual/?$",
-      "has": [
-        {
-          "type": "host",
-          "value": "sortmycover\\.co\\.za"
-        }
-      ],
-      "status": 307,
-      "headers": {
-        "Location": "https://virtual.sortmycover.co.za/"
-      }
-    },
-    {
-      "src": "^/(?:_c/)?what-the-call/?$",
-      "has": [
-        {
-          "type": "host",
-          "value": "sortmycover\\.co\\.za"
-        }
-      ],
-      "status": 307,
-      "headers": {
-        "Location": "https://what-the-call.sortmycover.co.za/"
-      }
-    },
-    {
-      "src": "^/(?:_c/)?c13-check-not-buy/?$",
-      "has": [
-        {
-          "type": "host",
-          "value": "sortmycover\\.co\\.za"
-        }
-      ],
-      "status": 307,
-      "headers": {
-        "Location": "https://looking-is-not-buying.sortmycover.co.za/"
       }
     },
     {
@@ -314,6 +275,26 @@
       "has": [
         {
           "type": "host",
+          "value": "adviser-conversation\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/adviser-conversation/index.html"
+    },
+    {
+      "src": "^/thanks/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "adviser-conversation\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/adviser-conversation/thanks/index.html"
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "host",
           "value": "new-bond\\.sortmycover\\.co\\.za"
         }
       ],
@@ -334,40 +315,60 @@
       "has": [
         {
           "type": "host",
-          "value": "bond-paperwork\\.sortmycover\\.co\\.za"
+          "value": "salary-stops\\.sortmycover\\.co\\.za"
         }
       ],
-      "dest": "/_c/bond-paperwork/index.html"
+      "dest": "/_c/salary-stops/index.html"
     },
     {
       "src": "^/thanks/?$",
       "has": [
         {
           "type": "host",
-          "value": "bond-paperwork\\.sortmycover\\.co\\.za"
+          "value": "salary-stops\\.sortmycover\\.co\\.za"
         }
       ],
-      "dest": "/_c/bond-paperwork/thanks/index.html"
+      "dest": "/_c/salary-stops/thanks/index.html"
     },
     {
       "src": "^/$",
       "has": [
         {
           "type": "host",
-          "value": "myth-bust\\.sortmycover\\.co\\.za"
+          "value": "cover-gap\\.sortmycover\\.co\\.za"
         }
       ],
-      "dest": "/_c/myth-bust/index.html"
+      "dest": "/_c/cover-gap/index.html"
     },
     {
       "src": "^/thanks/?$",
       "has": [
         {
           "type": "host",
-          "value": "myth-bust\\.sortmycover\\.co\\.za"
+          "value": "cover-gap\\.sortmycover\\.co\\.za"
         }
       ],
-      "dest": "/_c/myth-bust/thanks/index.html"
+      "dest": "/_c/cover-gap/thanks/index.html"
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "host",
+          "value": "owners-directors\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/owners-directors/index.html"
+    },
+    {
+      "src": "^/thanks/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "owners-directors\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/owners-directors/thanks/index.html"
     },
     {
       "src": "^/$",
@@ -388,106 +389,6 @@
         }
       ],
       "dest": "/_c/new-baby/thanks/index.html"
-    },
-    {
-      "src": "^/$",
-      "has": [
-        {
-          "type": "host",
-          "value": "self-employed\\.sortmycover\\.co\\.za"
-        }
-      ],
-      "dest": "/_c/self-employed/index.html"
-    },
-    {
-      "src": "^/thanks/?$",
-      "has": [
-        {
-          "type": "host",
-          "value": "self-employed\\.sortmycover\\.co\\.za"
-        }
-      ],
-      "dest": "/_c/self-employed/thanks/index.html"
-    },
-    {
-      "src": "^/$",
-      "has": [
-        {
-          "type": "host",
-          "value": "turned-40\\.sortmycover\\.co\\.za"
-        }
-      ],
-      "dest": "/_c/turned-40/index.html"
-    },
-    {
-      "src": "^/thanks/?$",
-      "has": [
-        {
-          "type": "host",
-          "value": "turned-40\\.sortmycover\\.co\\.za"
-        }
-      ],
-      "dest": "/_c/turned-40/thanks/index.html"
-    },
-    {
-      "src": "^/$",
-      "has": [
-        {
-          "type": "host",
-          "value": "virtual\\.sortmycover\\.co\\.za"
-        }
-      ],
-      "dest": "/_c/virtual/index.html"
-    },
-    {
-      "src": "^/thanks/?$",
-      "has": [
-        {
-          "type": "host",
-          "value": "virtual\\.sortmycover\\.co\\.za"
-        }
-      ],
-      "dest": "/_c/virtual/thanks/index.html"
-    },
-    {
-      "src": "^/$",
-      "has": [
-        {
-          "type": "host",
-          "value": "what-the-call\\.sortmycover\\.co\\.za"
-        }
-      ],
-      "dest": "/_c/what-the-call/index.html"
-    },
-    {
-      "src": "^/thanks/?$",
-      "has": [
-        {
-          "type": "host",
-          "value": "what-the-call\\.sortmycover\\.co\\.za"
-        }
-      ],
-      "dest": "/_c/what-the-call/thanks/index.html"
-    },
-    {
-      "src": "^/$",
-      "has": [
-        {
-          "type": "host",
-          "value": "looking-is-not-buying\\.sortmycover\\.co\\.za"
-        }
-      ],
-      "dest": "/_c/c13-check-not-buy/index.html"
-    },
-    {
-      "src": "^/thanks/?$",
-      "has": [
-        {
-          "type": "host",
-          "value": "looking-is-not-buying\\.sortmycover\\.co\\.za"
-        }
-      ],
-      "dest": "/_c/c13-check-not-buy/thanks/index.html"
     },
     {
       "src": "^/(?!assets/|fonts/|thanks(?:/|$)|robots\\.txt$|favicon|apple-touch-icon|icon-|mask-icon|manifest|browserconfig|mstile)(.+)$",

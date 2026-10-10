@@ -91,17 +91,57 @@ describe("glossary", () => {
 });
 
 describe("campaign angles", () => {
-  it("are the 10 campaign angles (extended-family was dropped) with valid host labels and unique codes", () => {
-    expect(ANGLES.map((a) => a.slug).sort()).toEqual(["bond-paperwork", "c13-check-not-buy", "employer-gap", "myth-bust", "new-baby", "new-bond", "self-employed", "turned-40", "virtual", "what-the-call"]);
+  /* Final set of 10 (deliverables/website/angles-final.md, 11 Oct 2026): 6 long-term insurance angles (theme A, non-funeral) and 4 wills and
+     estate angles (theme B, all HELD). Expectation changed from the earlier ten (bond-paperwork, c13-check-not-buy, employer-gap, myth-bust,
+     self-employed, turned-40, virtual, what-the-call retired or merged; extended-family dropped before that). */
+  const FINAL = ["adviser-conversation", "cover-gap", "new-baby", "new-bond", "owners-directors", "salary-stops", "children-guardian", "will-and-cover", "will-myth", "where-is-the-will"];
+  it("are the 10 final campaign angles with valid host labels and unique codes", () => {
+    expect(ANGLES.map((a) => a.slug).sort()).toEqual([...FINAL].sort());
     expect(new Set(ANGLES.map((a) => a.meta_code)).size).toBe(ANGLES.length);
+    expect(ANGLES.filter((a) => a.theme === "A")).toHaveLength(6);
+    expect(ANGLES.filter((a) => a.theme === "B")).toHaveLength(4);
+    expect(ANGLES.map((a) => a.rank)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
     for (const a of ANGLES) expect(a.slug).toMatch(HOST_LABEL);
   });
-  it("copy is scrubbed: short H1, banned words absent, no salary multiple, CTA wording", () => {
+  it("retired angles are gone (never live, so no redirects are kept)", () => {
+    for (const gone of ["bond-paperwork", "c13-check-not-buy", "employer-gap", "myth-bust", "self-employed", "turned-40", "virtual", "what-the-call", "extended-family"]) expect(ANGLES.map((a) => a.slug)).not.toContain(gone);
+  });
+  it("copy is scrubbed: short H1, short sub, banned and blocker words absent, no salary multiple, CTA wording", () => {
     for (const a of ANGLES) {
-      const all = [h1Plain(a.h1), a.sub, a.title, a.description].join(" ");
+      const all = [h1Plain(a.h1), a.sub, a.title, a.description, a.ad_hook, a.note ?? "", a.proof?.text ?? ""].join(" ");
       expect(h1Plain(a.h1).split(/\s+/).length, a.slug).toBeLessThanOrEqual(12);
-      for (const [re, label] of BANNED) if (label !== "best") expect(all, `${a.slug}: ${label}`).not.toMatch(re);
-      expect(all).not.toMatch(/\blicensed\b/i);
+      expect(a.sub.split(/\s+/).length, a.slug + " sub").toBeLessThanOrEqual(25);
+      expect(a.title.length, a.slug + " title").toBeLessThanOrEqual(60);
+      for (const [re, label] of BANNED) expect(all, `${a.slug}: ${label}`).not.toMatch(re);
+      expect(all, a.slug).not.toMatch(/\blicensed\b/i);
+      // site-spec I.2 word scan (SortMyCover never checks, reviews, sorts, arranges or matches cover; no comparison; no guarantee)
+      expect(all, a.slug).not.toMatch(/\b(check|checks|checked|review|reviews|sort|sorted|arrange|arranged|match|matched|compare|cheapest|cheap|affordable|discount|premium|premiums|guaranteed|regulated|funeral)\b/i);
+      expect(a.sub + a.description, a.slug).toMatch(/authorised adviser/);
+      expect(a.sub, a.slug).toMatch(/The call costs you nothing\./);
+    }
+  });
+  it("any rand or percentage figure in angle copy is a sourced fact: proof object with a usable evidence file, month shown (S12, S15, S17)", () => {
+    const ev = evidence as { id: string; status: string; month: string }[];
+    for (const a of ANGLES) {
+      const copy = [h1Plain(a.h1), a.sub, a.title, a.description, a.ad_hook].join(" ");
+      if (/\bR\s?\d|\d\s?%|trillion|billion/.test(copy)) expect(a.proof, `${a.slug} has a figure but no proof`).toBeTruthy();
+      if (a.proof) {
+        const e = ev.find((x) => x.id === a.proof!.evidence);
+        expect(e, a.slug + " evidence id").toBeTruthy();
+        expect(a.proof.month, a.slug).toMatch(/^\d{4}-\d\d$/);
+        expect(e!.month, a.slug + " proof month matches the evidence file").toBe(a.proof.month);
+        expect(a.proof.text, a.slug).toMatch(/General information, not advice\./);
+        // a hosted page may rest only on a usable evidence entry; a held page may still wait on a HOLD entry
+        if (isAttached(a)) expect(e!.status, a.slug).toBe("usable");
+      }
+    }
+  });
+  it("every theme B (wills and estate) page carries the scope note and is held", () => {
+    for (const a of ANGLES.filter((x) => x.theme === "B")) {
+      expect(a.hold, a.slug).toBe(true);
+      expect(a.note, a.slug).toMatch(/does not itself draft a will/);
+      expect(a.budget_topic, a.slug).toBe("cover and planning");
+      expect(a.status, a.slug).toMatch(/^HOLD/);
     }
   });
 });
@@ -109,12 +149,22 @@ describe("campaign angles", () => {
 describe("campaign hosts (spec C.3)", () => {
   it("labels follow the regex, avoid the S28 word list and the reserved labels", () => {
     for (const a of ANGLES) { const l = hostLabel(a); expect(l, a.slug).toMatch(HOST_LABEL); expect(l).not.toMatch(LABEL_BANNED); expect(RESERVED_LABELS).not.toContain(l); expect(l).not.toMatch(/--/); }
-    expect(hostLabel(ANGLES.find((a) => a.slug === "c13-check-not-buy")!)).toBe("looking-is-not-buying");
     expect(new Set(ANGLES.map(hostLabel)).size).toBe(ANGLES.length);
   });
-  it("employer-gap is held: built, but never attached to a host", () => {
-    expect(ANGLES.find((a) => a.slug === "employer-gap")!.hold).toBe(true);
-    expect(ANGLES.filter(isAttached).map((a) => a.slug)).not.toContain("employer-gap");
+  it("the host-label override mechanism still works (no angle uses it today)", () => {
+    expect(hostLabel({ slug: "x-check", host_label: "x-looking" })).toBe("x-looking");
+    expect(ANGLES.filter((a) => a.host_label)).toHaveLength(0);
+  });
+  it("the four wills and estate angles are held: built, but never attached to a host", () => {
+    const held = ["children-guardian", "will-and-cover", "will-myth", "where-is-the-will"];
+    for (const slug of held) expect(ANGLES.find((a) => a.slug === slug)!.hold, slug).toBe(true);
+    expect(ANGLES.filter(isAttached).map((a) => a.slug).sort()).toEqual(["adviser-conversation", "cover-gap", "new-baby", "new-bond", "owners-directors", "salary-stops"]);
+  });
+});
+
+describe("angle-aware quiz copy", () => {
+  it("budget topics are short plain phrases with no banned wording", () => {
+    for (const a of ANGLES.filter((x) => x.budget_topic)) { expect(a.budget_topic!.split(/\s+/).length).toBeLessThanOrEqual(6); for (const [re, label] of BANNED) expect(a.budget_topic!, `${a.slug}: ${label}`).not.toMatch(re); }
   });
 });
 
