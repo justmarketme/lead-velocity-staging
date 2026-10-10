@@ -1,0 +1,106 @@
+-- UNDO of 20261002050000_smc_05_rls.sql
+-- Generated 2026-10-10 from a local catalog diff (supabase/drift/gen-undo.mjs). Run ONLY after every later migration's undo has run (reverse order).
+-- Safe while no SortMyCover data exists. Dropping tables/columns here deletes whatever was written into them since the apply: take the backup first.
+-- Review before running. Run in one transaction.
+BEGIN;
+SET LOCAL check_function_bodies = off;   -- restored function bodies may reference objects an earlier undo already dropped
+DROP TRIGGER IF EXISTS "smc_brokers_guard" ON "public"."brokers";
+DROP POLICY IF EXISTS "smc admin all" ON "ops"."costs";
+DROP POLICY IF EXISTS "smc n8n_app rw" ON "ops"."costs";
+DROP POLICY IF EXISTS "smc admin all" ON "ops"."notifications";
+DROP POLICY IF EXISTS "smc n8n_app rw" ON "ops"."notifications";
+DROP POLICY IF EXISTS "smc admin all" ON "ops"."optimisation_memos";
+DROP POLICY IF EXISTS "smc n8n_app rw" ON "ops"."optimisation_memos";
+DROP POLICY IF EXISTS "smc admin all" ON "ops"."proposals";
+DROP POLICY IF EXISTS "smc n8n_app rw" ON "ops"."proposals";
+DROP POLICY IF EXISTS "smc admin all" ON "ops"."pulses";
+DROP POLICY IF EXISTS "smc n8n_app rw" ON "ops"."pulses";
+DROP POLICY IF EXISTS "smc admin all" ON "ops"."quality_grades";
+DROP POLICY IF EXISTS "smc n8n_app rw" ON "ops"."quality_grades";
+DROP POLICY IF EXISTS "smc admin all" ON "ops"."signals";
+DROP POLICY IF EXISTS "smc n8n_app rw" ON "ops"."signals";
+DROP POLICY IF EXISTS "smc admin all" ON "public"."ad_metrics";
+DROP POLICY IF EXISTS "smc n8n_app rw" ON "public"."ad_metrics";
+DROP POLICY IF EXISTS "smc broker read own documents" ON "public"."admin_documents";
+DROP POLICY IF EXISTS "smc n8n_app brand rows" ON "public"."admin_documents";
+DROP POLICY IF EXISTS "smc n8n_app brand rows" ON "public"."appointments";
+DROP POLICY IF EXISTS "smc restrict broker writes on brand rows (insert)" ON "public"."appointments";
+DROP POLICY IF EXISTS "smc restrict broker writes on brand rows (update)" ON "public"."appointments";
+DROP POLICY IF EXISTS "smc admin read audit" ON "public"."audit_log";
+DROP POLICY IF EXISTS "smc admin all" ON "public"."bank_credits";
+DROP POLICY IF EXISTS "smc n8n_app rw" ON "public"."bank_credits";
+DROP POLICY IF EXISTS "smc admin all" ON "public"."brands";
+DROP POLICY IF EXISTS "smc n8n_app rw" ON "public"."brands";
+DROP POLICY IF EXISTS "smc admin all" ON "public"."broker_media";
+DROP POLICY IF EXISTS "smc broker add own" ON "public"."broker_media";
+DROP POLICY IF EXISTS "smc broker read own" ON "public"."broker_media";
+DROP POLICY IF EXISTS "smc n8n_app rw" ON "public"."broker_media";
+DROP POLICY IF EXISTS "smc n8n_app brand rows" ON "public"."brokers";
+DROP POLICY IF EXISTS "smc restrict broker self-insert" ON "public"."brokers";
+DROP POLICY IF EXISTS "smc admin all" ON "public"."capi_log";
+DROP POLICY IF EXISTS "smc n8n_app rw" ON "public"."capi_log";
+DROP POLICY IF EXISTS "smc admin all" ON "public"."comments";
+DROP POLICY IF EXISTS "smc n8n_app rw" ON "public"."comments";
+DROP POLICY IF EXISTS "smc n8n_app brand rows" ON "public"."communications";
+DROP POLICY IF EXISTS "smc admin all" ON "public"."cycles";
+DROP POLICY IF EXISTS "smc broker read own" ON "public"."cycles";
+DROP POLICY IF EXISTS "smc n8n_app rw" ON "public"."cycles";
+DROP POLICY IF EXISTS "smc admin all" ON "public"."dsr_requests";
+DROP POLICY IF EXISTS "smc n8n_app rw" ON "public"."dsr_requests";
+DROP POLICY IF EXISTS "smc admin all" ON "public"."escalations";
+DROP POLICY IF EXISTS "smc n8n_app rw" ON "public"."escalations";
+DROP POLICY IF EXISTS "smc admin all" ON "public"."incidents";
+DROP POLICY IF EXISTS "smc n8n_app rw" ON "public"."incidents";
+DROP POLICY IF EXISTS "smc admin all" ON "public"."insights";
+DROP POLICY IF EXISTS "smc n8n_app rw" ON "public"."insights";
+DROP POLICY IF EXISTS "smc admin all" ON "public"."invoices_smc";
+DROP POLICY IF EXISTS "smc broker read own" ON "public"."invoices_smc";
+DROP POLICY IF EXISTS "smc n8n_app rw" ON "public"."invoices_smc";
+DROP POLICY IF EXISTS "smc broker read own timeline" ON "public"."lead_activities";
+DROP POLICY IF EXISTS "smc n8n_app brand rows" ON "public"."lead_activities";
+DROP POLICY IF EXISTS "smc restrict broker writes on brand rows (insert)" ON "public"."lead_activities";
+DROP POLICY IF EXISTS "smc restrict broker writes on brand rows (update)" ON "public"."lead_activities";
+DROP POLICY IF EXISTS "smc admin all" ON "public"."lead_pulse";
+DROP POLICY IF EXISTS "smc n8n_app rw" ON "public"."lead_pulse";
+DROP POLICY IF EXISTS "smc n8n_app brand rows" ON "public"."leads";
+DROP POLICY IF EXISTS "smc restrict broker writes on brand rows (insert)" ON "public"."leads";
+DROP POLICY IF EXISTS "smc restrict broker writes on brand rows (update)" ON "public"."leads";
+DROP POLICY IF EXISTS "smc n8n_app brand rows" ON "public"."message_templates";
+DROP POLICY IF EXISTS "smc admin all" ON "public"."obligations";
+DROP POLICY IF EXISTS "smc n8n_app rw" ON "public"."obligations";
+DROP POLICY IF EXISTS "smc admin all" ON "public"."outcomes";
+DROP POLICY IF EXISTS "smc broker correct own" ON "public"."outcomes";
+DROP POLICY IF EXISTS "smc broker mark own" ON "public"."outcomes";
+DROP POLICY IF EXISTS "smc broker read own" ON "public"."outcomes";
+DROP POLICY IF EXISTS "smc n8n_app rw" ON "public"."outcomes";
+DROP POLICY IF EXISTS "smc admin all" ON "public"."pricing";
+DROP POLICY IF EXISTS "smc n8n_app rw" ON "public"."pricing";
+DROP POLICY IF EXISTS "smc signed-in read pricing" ON "public"."pricing";
+DROP POLICY IF EXISTS "smc n8n_app admin profiles" ON "public"."profiles";
+DROP POLICY IF EXISTS "smc admin all" ON "public"."replacements";
+DROP POLICY IF EXISTS "smc broker read own" ON "public"."replacements";
+DROP POLICY IF EXISTS "smc n8n_app rw" ON "public"."replacements";
+DROP POLICY IF EXISTS "smc broker read own reports" ON "public"."report_history";
+DROP POLICY IF EXISTS "smc n8n_app brand rows" ON "public"."report_history";
+DROP POLICY IF EXISTS "smc admin all" ON "public"."retention_log";
+DROP POLICY IF EXISTS "smc n8n_app rw" ON "public"."retention_log";
+DROP POLICY IF EXISTS "smc n8n_app brand rows" ON "public"."sla_thresholds";
+DROP POLICY IF EXISTS "smc admin all" ON "public"."suppression";
+DROP POLICY IF EXISTS "smc n8n_app rw" ON "public"."suppression";
+DROP POLICY IF EXISTS "smc n8n_app read roles" ON "public"."user_roles";
+DROP POLICY IF EXISTS "smc admin all" ON "public"."webhook_events";
+DROP POLICY IF EXISTS "smc n8n_app rw" ON "public"."webhook_events";
+-- NOTE: ACL/config of facts.lead_key(p_id uuid) changed here: was secdef=true cfg=search_path=smc_private, public anon=true auth=true svc=true
+DROP FUNCTION IF EXISTS public.smc_brokers_guard() CASCADE;
+-- NOTE: ACL/config of public.smc_hash_contact(p text) changed here: was secdef=false cfg= anon=true auth=true svc=true
+DROP FUNCTION IF EXISTS public.smc_mark_report_opened(p_report_id uuid) CASCADE;
+DROP FUNCTION IF EXISTS public.smc_sign_document(p_document_id uuid, p_signed_by_name text, p_doc_sha256 text, p_signer_ip text, p_user_agent text) CASCADE;
+-- NOTE: ACL/config of public.smc_watchlist(p_include_synthetic boolean) changed here: was secdef=true cfg=search_path=public, facts anon=true auth=true svc=true
+DROP OWNED BY "facts_reader";
+DROP ROLE IF EXISTS "facts_reader";
+DROP OWNED BY "n8n_app";
+DROP ROLE IF EXISTS "n8n_app";
+-- Privileges this migration revoked from pre-existing tables (restoring them RE-OPENS the earlier, weaker posture):
+GRANT DELETE, INSERT, TRUNCATE, UPDATE ON "public"."audit_log" TO authenticated;
+GRANT DELETE, TRUNCATE, UPDATE ON "public"."audit_log" TO service_role;
+COMMIT;
