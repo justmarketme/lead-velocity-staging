@@ -103,7 +103,7 @@ test('existing media-row logic is intact and answers are sent', () => {
 
 test('inlined verifier is the repo module (sha stamp matches lead-token.js)', () => {
   const sha = crypto.createHash('sha256').update(fs.readFileSync(path.join(__dirname, '..', 'security', 'lead-token.js'))).digest('hex').slice(0, 12);
-  for (const [ver] of BOTH) assert.ok(node(ver).parameters.jsCode.includes('sha256:' + sha), 're-run node automation/media/patch-w23-auth.mjs');
+  for (const [ver] of BOTH) assert.ok(node(ver).parameters.jsCode.includes('sha256:' + sha), 'refresh the inlined lead-token.js copy in the W23 Verify broker JWT nodes in place (patch-w23-auth.mjs rebuilds W23 from a stale base)');
 });
 
 test('static page: Bearer header from the Supabase session, no cookie, no broker id sent', () => {
@@ -335,4 +335,16 @@ test('every W23 node name is unique and every connection source/target names an 
   }
   assert.ok(node('Verify broker JWT (upload-url)') && node('Verify broker JWT (upload)'));
   assert.equal(node('Intro upload-url (browser, Bearer JWT)').parameters.path, 'intro/upload');
+});
+
+test('patch-w23-auth.mjs refuses to run without --i-know-this-rebuilds-w23 and leaves W23.json untouched', () => {
+  const file = path.join(__dirname, '..', 'W23.json');
+  const before = fs.readFileSync(file);
+  const r = require('node:child_process').spawnSync(process.execPath, [path.join(__dirname, 'patch-w23-auth.mjs')], { encoding: 'utf8' });
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /refused, W23\.json not touched/);
+  assert.match(r.stderr, /stale base/);
+  assert.match(r.stderr, /--i-know-this-rebuilds-w23/);
+  assert.equal(r.stdout, '');
+  assert.ok(fs.readFileSync(file).equals(before), 'W23.json byte-identical');
 });

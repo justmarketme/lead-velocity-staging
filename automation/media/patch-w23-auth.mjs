@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// I-32a: puts the Supabase-JWT gate in front of W23's two browser-facing endpoints. Idempotent; rewrites automation/W23.json.
-//   node automation/media/patch-w23-auth.mjs
-// Re-run after any change to automation/security/lead-token.js so the inlined copy (sha-stamped) stays current.
+// I-32a: puts the Supabase-JWT gate in front of W23's two browser-facing endpoints. Rewrites automation/W23.json from its own (stale) node definitions.
+//   node automation/media/patch-w23-auth.mjs --i-know-this-rebuilds-w23   (refuses without the flag: see GUARD below)
+// After a change to automation/security/lead-token.js, refresh the inlined copy (sha-stamped) in W23's "Verify broker JWT (...)"
+// nodes in place; do not re-run this script for that.
 // Before: portal back end -> /webhook/w23-portal-upload and /webhook/w23-approve, header auth, broker_id taken from the body.
 // After:  browser -> {API}/intro/upload-confirm and {API}/intro/approve with Authorization: Bearer <Supabase access token>;
 //         HS256 verify (SUPABASE_JWT_SECRET, env name) -> broker = brokers.user_id = sub. broker_id in the body is never read.
@@ -10,6 +11,24 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 // TODO(I-44a): when the other workflows move Code nodes from import($env.REPO_DIR + ...) to require('lv-automation/lib/...'), change PRE below the same way.
 import { inlineModule } from '../security/inline-for-n8n.mjs';
+
+// GUARD: do not re-run casually. W23.json has no generator; this script drops and rebuilds W23's intro/* webhooks and the
+// script-generate / script-recheck nodes from the definitions below, which predate later edits to W23.json. A re-run silently
+// reverts them (checked 7 Oct 2026: 18 Code nodes go back from require('lv-automation') to import($env.REPO_DIR ...), which the
+// n8n runner does not allow-list, and 8 Anthropic calls lose ANTHROPIC_BASE_URL), plus any send gate or fix added to those nodes since.
+// Make W23 changes as minimal, targeted edits to automation/W23.json instead, then run node automation/gate-egress.mjs --check.
+const FORCE_FLAG = '--i-know-this-rebuilds-w23';
+if (!process.argv.slice(2).includes(FORCE_FLAG)) {
+  console.error([
+    'patch-w23-auth.mjs: refused, W23.json not touched.',
+    'This script rebuilds W23 from a stale base: it drops and re-creates the intro/* webhooks and the script-generate /',
+    'script-recheck nodes, reverting every later change to them (the require(\'lv-automation\') Code nodes, ANTHROPIC_BASE_URL',
+    'on the LLM calls, any send gate or fix added since). Edit automation/W23.json in place instead (minimal, targeted),',
+    'then run: node automation/gate-egress.mjs --check',
+    `If you really mean to rebuild and will re-apply the later changes by hand: node automation/media/patch-w23-auth.mjs ${FORCE_FLAG}`,
+  ].join('\n'));
+  process.exit(2);
+}
 
 const here = dirname(fileURLToPath(import.meta.url));
 const file = join(here, '..', 'W23.json');
