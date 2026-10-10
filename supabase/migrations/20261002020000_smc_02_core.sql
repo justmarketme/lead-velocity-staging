@@ -952,4 +952,9 @@ REVOKE ALL ON FUNCTION public.smc_audit() FROM PUBLIC, anon, authenticated;   --
 REVOKE ALL ON FUNCTION public.smc_is_admin(), public.smc_current_broker_id() FROM PUBLIC, anon;   -- authenticated keeps EXECUTE (RLS helpers); smc_05 re-grants n8n_app
 GRANT EXECUTE ON FUNCTION public.smc_is_admin(), public.smc_current_broker_id() TO authenticated;
 -- one-off: legacy audit rows carry changed_at; give the new "at" column the same instant instead of the migration time
-UPDATE public.audit_log SET at = changed_at WHERE changed_at IS NOT NULL AND source IS NULL AND actor_uid IS NULL AND row_id IS NULL;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'audit_log' AND column_name = 'changed_at') THEN   -- only the live (legacy-shaped) table has it; a fresh database does not
+    UPDATE public.audit_log SET at = changed_at WHERE changed_at IS NOT NULL AND source IS NULL AND actor_uid IS NULL AND row_id IS NULL;
+  END IF;
+END $$;

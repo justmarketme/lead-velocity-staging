@@ -3,7 +3,7 @@
 SELECT id AS brand FROM brands WHERE code='SMC' \gset
 UPDATE brokers SET brand_id=:'brand', tier_code='SMC_BRONZE', status='active' WHERE id='10000000-0000-4000-8000-000000000001';
 INSERT INTO cycles (id, broker_id, brand_id, tier_code, cycle_no, price_zar, committed_leads, replacement_cap, media_share_zar, starts_at, ends_at, status)
- VALUES ('50000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001',:'brand','SMC_BRONZE',1,16500,20,4,8492, now()-interval '5 days', now()+interval '25 days','active');
+ SELECT '50000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001',:'brand',p.tier_code,1,p.price_zar,p.committed_leads,p.replacement_cap_cycle,p.media_share_zar, now()-interval '5 days', now()+interval '25 days','active' FROM pricing p WHERE p.tier_code='SMC_BRONZE';
 INSERT INTO leads (id,email,phone,brand_id,broker_id,cycle_id,consent_text,consent_source,consent_at,first_name,source)
  SELECT ('60000000-0000-4000-8000-'||lpad(g::text,12,'0'))::uuid, 'x'||g||'@example.test','+27600009'||lpad(g::text,3,'0'), :'brand','10000000-0000-4000-8000-000000000001','50000000-0000-4000-8000-000000000001','consent','page', now(),'L'||g,'Search Lead' FROM generate_series(1,5) g;
 INSERT INTO appointments (id,broker_id,client_id,appointment_date,status,brand_id,cycle_id,method,ends_at)

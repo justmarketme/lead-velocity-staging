@@ -159,4 +159,4 @@ Undo rules (`supabase/migrations/undo/*.undo.sql`, generated from a catalog diff
 
 ## 9. Local test results
 
-(See the section at the end of `MIGRATION-SAFETY-REVIEW.md`.)
+See section 7 of `MIGRATION-SAFETY-REVIEW.md`: S7-06, S7-07, S7-08/09 pass on the live-schema mirror and on the repo-replayed schema, the 57 static suites pass, apply+undo and apply+verify are clean.

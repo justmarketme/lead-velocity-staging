@@ -167,6 +167,19 @@ See section 2.
 * `brokers`, `leads`, `lead_activities`, `communications`, `appointments`, `admin_documents`, `report_history`, `message_templates`, `profiles` gain columns; three tables (brokers, leads, appointments) get RESTRICTIVE write policies, triggers or guards that act on SortMyCover rows only; a legacy broker can no longer enrol himself in SortMyCover.
 * No existing row is modified or deleted.
 
-## 7. Test results
+## 7. Test results (final files, run 2026-10-11, one at a time, throwaway `--network none` Postgres 17 containers)
 
-Filled in by the final run (see `APPLY-RUNBOOK.md` section 9 and the commit message of the test run): S7-06, S7-07, S7-08/09 against the live-schema mirror; static suites (`node --test` over `automation/tests/*.test.mjs`, `automation/billing/*.test.js`).
+| Suite | Base schema | Result |
+|---|---|---|
+| S7-06 (W20 nudges, 2 tests) | live-schema mirror (`SMC_BASE=real`) | 2/2 pass |
+| S7-07 (W14 report from the synthetic cycle, surfaces, one-ask) | live-schema mirror | 1/1 pass |
+| S7-08/S7-09 (W22 alerts, Approve -> task) | live-schema mirror | 1/1 pass |
+| the same three | repo-replayed legacy schema (the harness default) | 2/2, 1/1, 1/1 pass |
+| 57 static/offline suites (`automation/tests/*.test.mjs`, `automation/billing/*.test.js`) | none | all pass (incl. W14-surfaces, pilot price-diff, ms-oauth, budget-1500, capture-v2) |
+| `tsc -p tsconfig.smc.json` | | clean |
+| `supabase/drift/smoke-rpc-and-guards.sql` | mirror + chain | replacement RPCs, weekly cap, traversal, cross-broker and broker-guard checks pass |
+| apply 25 files, `backup-live.mjs verify` | mirror | VERIFY OK (46 tables; only audit_log +5, sla_thresholds +1) |
+| apply 25 files then undo 25..00 | mirror | catalog and data identical to baseline (except the `broker-media` bucket) |
+| apply as non-superuser CREATEROLE role | fresh cluster | 25/25 ok |
+
+Not run: `S7-20` (a readiness evidence gate from W20 evidence files, not a database test); `W13-claim-tx.local` (needs native Postgres binaries, skipped on Windows; note W13's SQL still enforces the old per-cycle cap, see smc_20); `analytics/tests/run-all.sh` (needs a local `psql` and python; separate analytics harness, not part of migration safety). One S7-07 run failed in 9 s with no output while the static suites ran concurrently on the same machine; the identical run alone, and the final sequential run, pass.
