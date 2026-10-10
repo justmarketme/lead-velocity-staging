@@ -1,0 +1,30 @@
+{
+  "name": "breach_subject_notice",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "Notice about your details"
+    },
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}. This is Lead Velocity, who run SortMyCover. On {{2}} some of your details (your name, mobile number and the cover enquiry answers you gave) were shown on a public web page by mistake. We took it down at {{3}} and have no sign that anyone misused them. Please be careful with unexpected messages that mention your enquiry, and never share a code or PIN. We have told the Information Regulator. If you have questions, want to object, or want your details deleted, write to {{4}}. We are sorry. Reply STOP to opt out.",
+      "example": {
+        "body_text": [
+          [
+            "Lerato",
+            "3 October",
+            "13:00",
+            "privacy@example.test"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "Lead Velocity"
+    }
+  ]
+}

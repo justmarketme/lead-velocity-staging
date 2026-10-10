@@ -1,0 +1,154 @@
+# hide-words.txt  version 0.1  STATUS: DRAFT
+# DRAFT pending GATE-HIDE-WORDS. Jonathan approves (KG second approver) before this goes live. Nothing here is applied to any real Page.
+# Parsed by W30 (Load config node): [SECTION] headers, '#' comment lines, one entry per line.
+# [REGEX] lines are NAME<TAB>FLAGS<TAB>SOURCE. Keywords are matched case-insensitively as whole words/phrases.
+# Slurs (racial, ethnic, xenophobic, homophobic, gendered, religious, threats) are NOT spelled out here on purpose:
+# Jonathan/KG type them into Meta's keyword box by hand; W30 also classifies them as abuse by meaning. See community/hide-words.md s1.
+# Deliberately NOT listed: "dm me", "whatsapp me", "inbox me", "message me", "call me" (interest, handled as leads).
+# Insurer names are NOT listed (product question, deferral line). isiZulu/isiXhosa/Afrikaans terms need native-speaker review at the gate.
+# Bump the version above on any change and re-run evals/comment-cases.json.
+
+[KEYWORDS-SCAM]
+# --- general profanity (EN) ---
+fuck
+fucking
+fucker
+motherfucker
+shit
+bullshit
+bitch
+asshole
+dickhead
+cunt
+wanker
+piss off
+# --- general profanity (Afrikaans) ---
+fok
+fokken
+fokof
+kak
+poes
+moer jou
+bliksem
+etter
+# --- general profanity (isiZulu / isiXhosa, mild; native review needed) ---
+isidina
+hamba uyofa
+# --- forex / crypto / trading ---
+forex
+crypto
+bitcoin
+binary options
+trading signals
+signal group
+guaranteed returns
+double your money
+investment opportunity
+passive income
+mining pool
+# --- loans and credit ---
+quick loan
+fast loan
+loan offer
+need a loan
+loans available
+no credit check
+blacklisted loan
+blacklisted ok
+payday
+debt relief
+dm me for a loan
+loan without collateral
+# --- bank-detail and phishing patterns ---
+send me your bank details
+send your bank details
+bank details required
+send your account number
+confirm your account
+verify your account
+click the link to claim
+sassa grant
+sassa loan
+srd grant
+unclaimed funds
+your account is suspended
+share your pin
+share your otp
+# --- work from home / get rich ---
+work from home
+earn r
+make money online
+earn daily
+get rich
+be your own boss
+financial freedom
+side hustle
+join my team
+network marketing
+# --- lottery / prizes ---
+you have won
+you won
+claim your prize
+lottery
+winner announced
+free giveaway
+# --- spiritual / miracle / adult / followers ---
+spell caster
+spell casting
+lost love spell
+bring back your ex
+traditional healer
+penis enlargement
+miracle cure
+herbal cure
+escort
+sugar daddy
+sugar mummy
+nudes
+onlyfans
+buy followers
+cheap followers
+promote your page
+# --- chat-app and shortener links ---
+t.me
+telegram.me
+wa.me
+chat.whatsapp.com
+bit.ly
+tinyurl
+goo.gl
+cutt.ly
+
+[KEYWORDS-COMPETITOR-PLACEHOLDERS]
+# Placeholders only. Jonathan to name lead-generation competitors, comparison sites and lead marketplaces at the gate.
+# Do NOT add insurer names.
+[COMPETITOR-NAME-1]
+[COMPETITOR-NAME-2]
+[COMPARISON-SITE-1]
+[LEAD-MARKETPLACE-1]
+
+[REGEX]
+own_data.sa_mobile	i	(?:\+?27|0027|\b0)[\s\-.]?[6-8]\d[\s\-.]?\d{3}[\s\-.]?\d{4}\b
+own_data.sa_landline	i	(?:\+?27|0027|\b0)[\s\-.]?(?:1[0-8]|2[1-3478]|3[1-69]|4[0-9]|5[1-8])[\s\-.]?\d{3}[\s\-.]?\d{4}\b
+own_data.intl_phone	i	\+(?!27)[1-9]\d{0,2}[\s\-.]?\d{2,4}[\s\-.]?\d{3,4}[\s\-.]?\d{3,4}\b
+own_data.sa_id	i	\b\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{4}[01]\d{2}\b
+own_data.email	i	[a-z0-9._%+\-]+\s?(?:@|\(at\)|\[at\])\s?[a-z0-9.\-]+\.[a-z]{2,}
+own_data.bank_account	i	\b(?:acc(?:ount)?|acct|a\/c)\W{0,6}(?:no\.?|number|nr|#)?\W{0,4}\d{8,11}\b
+own_data.card_digits	i	\b(?:\d[\s\-]?){15}\d\b
+own_data.digits_words	i	\b(?:zero|oh|nil|nul)[\s,\-]+(?:(?:one|two|three|four|five|six|seven|eight|nine|zero|oh)[\s,\-]*){7,}
+spam.url	i	\bhttps?:\/\/\S+
+spam.bare_domain	i	\b[a-z0-9\-]+\.(?:com|net|org|info|biz|xyz|top|club|online|site|shop|link|ru|cn)(?:\/\S*)?\b
+competitor.invite	i	\b(?:join|follow|visit|check out)\s+(?:my|our)\s+(?:page|group|channel|site|profile)\b
+
+[ALLOW]
+# Checked first by W30. Own domains and normal phrases that look like keywords.
+sortmycover.co.za
+sortmycover.com
+coverklaar.co.za
+leadvelocity.co.za
+how do i book
+how do i apply
+how much does it cost
+is this a scam
+is this legit
+is this real

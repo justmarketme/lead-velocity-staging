@@ -1,6 +1,14 @@
 {
   "rewrites": [
     {
+      "source": "/s/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/broker/:path*",
+      "destination": "/index.html"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

@@ -1,0 +1,674 @@
+{
+  "id": "smc-ads-console",
+  "name": "Ads console webhooks (confirm, budget, ad status, campaign status)",
+  "nodes": [
+    {
+      "name": "Parse request + verify caller (JWT)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').adsConsole;\n// The caller must hold a valid Supabase user JWT (HS256, SUPABASE_JWT_SECRET). The admin role is checked in the next Postgres node (public.has_role).\nreturn { json: L.parseRequest({ route: $json.route, headers: $json.headers || {}, body: $json.body || {} }, { jwtSecret: $env.SUPABASE_JWT_SECRET }) };"
+      },
+      "id": "smc-ads-console-1",
+      "position": [
+        0,
+        240
+      ]
+    },
+    {
+      "name": "POST /ads-confirm",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "smc-ads-confirm",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ads-confirm",
+        "authentication": "none",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"
+        }
+      },
+      "id": "smc-ads-console-2",
+      "position": [
+        220,
+        240
+      ]
+    },
+    {
+      "name": "Route: confirm",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { json: { headers: $json.headers, body: $json.body, route: 'confirm' } };"
+      },
+      "id": "smc-ads-console-3",
+      "position": [
+        440,
+        240
+      ]
+    },
+    {
+      "name": "POST /ads-budget",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "smc-ads-budget",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ads-budget",
+        "authentication": "none",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"
+        }
+      },
+      "id": "smc-ads-console-4",
+      "position": [
+        660,
+        240
+      ]
+    },
+    {
+      "name": "Route: budget",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { json: { headers: $json.headers, body: $json.body, route: 'budget' } };"
+      },
+      "id": "smc-ads-console-5",
+      "position": [
+        880,
+        240
+      ]
+    },
+    {
+      "name": "POST /ads-ad-status",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "smc-ads-ad-status",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ads-ad-status",
+        "authentication": "none",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"
+        }
+      },
+      "id": "smc-ads-console-6",
+      "position": [
+        1100,
+        240
+      ]
+    },
+    {
+      "name": "Route: ad-status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { json: { headers: $json.headers, body: $json.body, route: 'ad-status' } };"
+      },
+      "id": "smc-ads-console-7",
+      "position": [
+        1320,
+        240
+      ]
+    },
+    {
+      "name": "POST /ads-campaign-status",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "smc-ads-campaign-status",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ads-campaign-status",
+        "authentication": "none",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"
+        }
+      },
+      "id": "smc-ads-console-8",
+      "position": [
+        1540,
+        240
+      ]
+    },
+    {
+      "name": "Route: campaign-status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { json: { headers: $json.headers, body: $json.body, route: 'campaign-status' } };"
+      },
+      "id": "smc-ads-console-9",
+      "position": [
+        1760,
+        240
+      ]
+    },
+    {
+      "name": "Caller ok?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.ok === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-ads-console-10",
+      "position": [
+        0,
+        400
+      ]
+    },
+    {
+      "name": "Respond (refused or preview)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "responseCode": "={{ $json.status || 400 }}"
+        }
+      },
+      "id": "smc-ads-console-11",
+      "position": [
+        220,
+        400
+      ]
+    },
+    {
+      "name": "Load context (admin?, SMC brand, target in ad cache, active cycles, plan, cycle spend)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH b AS (SELECT * FROM public.brands WHERE code = 'SMC' LIMIT 1),\no AS (SELECT ao.* FROM public.ad_objects ao JOIN b ON b.id = ao.brand_id WHERE ao.id = $2)\nSELECT public.has_role($1::uuid, 'admin'::public.app_role) AS is_admin,\n  (SELECT to_jsonb(x) FROM (SELECT id::text AS id, code, business_id, page_id, ig_user_id, ad_account_id, pixel_id, dataset_id FROM b) x) AS brand,\n  (SELECT to_jsonb(x) FROM (SELECT id, level, campaign_id, adset_id, name, status, effective_status, daily_budget_zar::float8 AS daily_budget_zar,\n                                   spend_cap_zar::float8 AS spend_cap_zar, last_budget_change_at FROM o) x) AS obj,\n  COALESCE((SELECT jsonb_agg(jsonb_build_object('broker_id', c.broker_id::text, 'share', c.media_share_zar::float8, 'starts_at', c.starts_at))\n              FROM public.cycles c JOIN b ON b.id = c.brand_id JOIN public.brokers br ON br.id = c.broker_id\n             WHERE c.status IN ('active', 'extended') AND br.status = 'active'), '[]'::jsonb) AS shares,\n  (SELECT p.plan FROM public.ads_launch_plan p JOIN b ON b.id = p.brand_id) AS plan,\n  (SELECT min(c.starts_at) FROM public.cycles c JOIN b ON b.id = c.brand_id JOIN public.brokers br ON br.id = c.broker_id WHERE c.status IN ('active', 'extended') AND br.status = 'active') AS cycle_start,\n  (SELECT min(COALESCE(c.extended_until, c.ends_at)) FROM public.cycles c JOIN b ON b.id = c.brand_id JOIN public.brokers br ON br.id = c.broker_id WHERE c.status IN ('active', 'extended') AND br.status = 'active') AS cycle_end,\n  (SELECT min(m.date)::text FROM public.ad_metrics m JOIN o ON m.campaign_id = o.id WHERE m.spend_zar > 0) AS first_spend_date,\n  COALESCE((SELECT sum(m.spend_zar)::float8 FROM public.ad_metrics m JOIN o ON m.campaign_id = o.id\n             WHERE m.date >= COALESCE((SELECT min(c.starts_at) FROM public.cycles c JOIN b ON b.id = c.brand_id JOIN public.brokers br ON br.id = c.broker_id\n                                        WHERE c.status IN ('active', 'extended') AND br.status = 'active'), '-infinity'::timestamptz)::date), 0) AS spend_to_date;",
+        "options": {
+          "queryReplacement": "={{ [ $json.user_id, $json.target ] }}"
+        }
+      },
+      "id": "smc-ads-console-12",
+      "position": [
+        440,
+        400
+      ]
+    },
+    {
+      "name": "Decide (admin, SMC target, caps, mint or verify token)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').adsConsole;\n// confirm route: guardrails + mint a bound, single-use token. Apply routes: verify the token against the SERVER-normalised params.\n// The go-live share comes from the cycles row loaded above; nothing the browser sends can widen a cap.\nconst sd = $getWorkflowStaticData('global');\nconst d = L.decide({ parsed: $('Parse request + verify caller (JWT)').item.json, ctx: $json, env: $env, blockedUntil: sd.metaBlockedUntil || 0 });\nif (d.ok === true && d.mode === 'apply') return { json: d };\nif (d.ok === true) return { json: { mode: 'respond', status: d.status, body: d.body } };\nreturn { json: { mode: 'respond', status: d.status, body: d.body } };"
+      },
+      "id": "smc-ads-console-13",
+      "position": [
+        660,
+        400
+      ]
+    },
+    {
+      "name": "Needs a Meta write?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.mode === 'apply' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-ads-console-14",
+      "position": [
+        880,
+        400
+      ]
+    },
+    {
+      "name": "Claim confirm token (single use, before the Graph call)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.ads_write_log (nonce, brand_id, action, target, params, before, requested_by, confirmed_by, reason)\nVALUES ($1, $2::uuid, $3, $4, $5::jsonb, $6::jsonb, $7::uuid, $8::uuid, $9)\nON CONFLICT (nonce) DO NOTHING\nRETURNING id::text AS log_id;",
+        "options": {
+          "queryReplacement": "={{ [ $json.nonce, $json.brandId, $json.plan.action, $json.plan.target, JSON.stringify($json.plan.params), JSON.stringify($json.plan.before), $json.plan.requestedBy, $json.confirmedBy, $json.plan.reason ] }}"
+        }
+      },
+      "id": "smc-ads-console-15",
+      "position": [
+        1100,
+        400
+      ]
+    },
+    {
+      "name": "Claimed?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// An empty result means the nonce is already in ads_write_log: the token was used before (CONFIRM_REUSED).\nconst d = $('Decide (admin, SMC target, caps, mint or verify token)').item.json;\nif (!$json.log_id) return { json: { mode: 'respond', status: 409, body: { ok: false, code: 'CONFIRM_REUSED', message: 'confirmToken already used' } } };\nreturn { json: { ...d, logId: $json.log_id } };"
+      },
+      "id": "smc-ads-console-16",
+      "position": [
+        1320,
+        400
+      ]
+    },
+    {
+      "name": "Token claimed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.mode === 'apply' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-ads-console-17",
+      "position": [
+        1540,
+        400
+      ]
+    },
+    {
+      "name": "Apply at Meta (system user token; ADS_DRY_RUN sends nothing)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').adsConsole;\nconst d = $json;\nconst applied = await L.applyWrite({ d, env: $env });\nconst sd = $getWorkflowStaticData('global');\nif (applied.blockedUntil) sd.metaBlockedUntil = applied.blockedUntil; // rate-limit back-off survives across webhook runs\nreturn { json: { d, applied } };"
+      },
+      "id": "smc-ads-console-18",
+      "position": [
+        1760,
+        400
+      ]
+    },
+    {
+      "name": "Shape response + DB record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').adsConsole;\nconst s = L.shape({ d: $json.d, applied: $json.applied });\nreturn { json: { status: s.status, body: s.body, record: s.record } };"
+      },
+      "id": "smc-ads-console-19",
+      "position": [
+        0,
+        560
+      ]
+    },
+    {
+      "name": "Record result (ads_write_log, ad cache, ops.notifications)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH u AS (\n  UPDATE public.ads_write_log SET status = $2, result = $3::jsonb, error_code = $4, error_message = $5 WHERE id = $1::uuid RETURNING id, target\n), o AS (\n  UPDATE public.ad_objects ao SET daily_budget_zar = COALESCE($6::numeric, ao.daily_budget_zar), spend_cap_zar = COALESCE($7::numeric, ao.spend_cap_zar),\n         status = COALESCE($8, ao.status), last_budget_change_at = CASE WHEN $6::numeric IS NOT NULL THEN now() ELSE ao.last_budget_change_at END, updated_at = now()\n    FROM u WHERE ao.id = u.target AND $2 = 'applied' RETURNING ao.id\n), n AS (\n  INSERT INTO ops.notifications (kind, recipient, channel, source, status, ref_table, ref_id, dedupe_key, what, body, payload)\n  SELECT 'ads_audit', 'jonathan', 'console', 'ads_write', 'queued', 'ads_write_log', u.id::text, $9, $10, $11::jsonb, $11::jsonb\n    FROM u WHERE $2 IN ('applied', 'dry_run') RETURNING id\n)\nSELECT (SELECT count(*) FROM u) AS logged, (SELECT count(*) FROM o) AS cache_updated;",
+        "options": {
+          "queryReplacement": "={{ $json.record }}"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "id": "smc-ads-console-20",
+      "position": [
+        220,
+        560
+      ]
+    },
+    {
+      "name": "Respond (applied or failed)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($('Shape response + DB record').item.json.body) }}",
+        "options": {
+          "responseCode": "={{ $('Shape response + DB record').item.json.status }}"
+        }
+      },
+      "id": "smc-ads-console-21",
+      "position": [
+        440,
+        560
+      ]
+    },
+    {
+      "name": "Note: smc-ads-console",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "width": 640,
+        "height": 420,
+        "content": "## smc-ads-console (CONSOLE-ADS-API.md section 2)\nWebhooks `ads-confirm`, `ads-budget`, `ads-ad-status`, `ads-campaign-status`. The console sends its Supabase JWT; no other credential reaches the browser.\n\n1. JWT verified (HS256) and `public.has_role(uid, admin)`; `confirmed_by` / `requested_by` are the JWT user.\n2. The target must be in `ad_objects` joined to the `brands` row `SMC` (SortMyCover only). Page / account IDs come from that row.\n3. Caps, +20% step, 48 h, Meta minimum are checked at preview AND at apply. Caps are per 30-day broker cycle: sum of active cycles media_share_zar / 1.15 (never typed); spend counts from the cycle start.\n4. Go-live: the share is read from `cycles` here; a browser-sent share is ignored.\n5. Token: HMAC `META_CONFIRM_SECRET`, bound to action + target + server params, 15 min. Single use is a unique nonce row in `public.ads_write_log` claimed BEFORE the Graph call (migration smc_17).\n6. Result: `ads_write_log` (audited by smc_audit), `ad_objects` cache (budget, status, last_budget_change_at), one `ops.notifications` row (ads_audit).\n\n**Env:** `SUPABASE_JWT_SECRET`, `META_CONFIRM_SECRET` (>= 16 chars), `META_SYSTEM_USER_TOKEN`, `META_API_VERSION` (optional), `PUBLIC_ALLOWED_ORIGINS`, `ADS_DRY_RUN=true` (validate and log, send nothing).\nNeeds migrations smc_16 (ads_launch_plan) and smc_17 (ads_write_log). A failed Graph call after the claim spends the token: preview again. Never autonomous: only a console tap reaches these webhooks."
+      },
+      "id": "smc-ads-console-22"
+    }
+  ],
+  "connections": {
+    "POST /ads-confirm": {
+      "main": [
+        [
+          {
+            "node": "Route: confirm",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route: confirm": {
+      "main": [
+        [
+          {
+            "node": "Parse request + verify caller (JWT)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /ads-budget": {
+      "main": [
+        [
+          {
+            "node": "Route: budget",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route: budget": {
+      "main": [
+        [
+          {
+            "node": "Parse request + verify caller (JWT)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /ads-ad-status": {
+      "main": [
+        [
+          {
+            "node": "Route: ad-status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route: ad-status": {
+      "main": [
+        [
+          {
+            "node": "Parse request + verify caller (JWT)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /ads-campaign-status": {
+      "main": [
+        [
+          {
+            "node": "Route: campaign-status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route: campaign-status": {
+      "main": [
+        [
+          {
+            "node": "Parse request + verify caller (JWT)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse request + verify caller (JWT)": {
+      "main": [
+        [
+          {
+            "node": "Caller ok?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Caller ok?": {
+      "main": [
+        [
+          {
+            "node": "Load context (admin?, SMC brand, target in ad cache, active cycles, plan, cycle spend)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond (refused or preview)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load context (admin?, SMC brand, target in ad cache, active cycles, plan, cycle spend)": {
+      "main": [
+        [
+          {
+            "node": "Decide (admin, SMC target, caps, mint or verify token)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide (admin, SMC target, caps, mint or verify token)": {
+      "main": [
+        [
+          {
+            "node": "Needs a Meta write?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs a Meta write?": {
+      "main": [
+        [
+          {
+            "node": "Claim confirm token (single use, before the Graph call)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond (refused or preview)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim confirm token (single use, before the Graph call)": {
+      "main": [
+        [
+          {
+            "node": "Claimed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claimed?": {
+      "main": [
+        [
+          {
+            "node": "Token claimed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Token claimed?": {
+      "main": [
+        [
+          {
+            "node": "Apply at Meta (system user token; ADS_DRY_RUN sends nothing)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond (refused or preview)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply at Meta (system user token; ADS_DRY_RUN sends nothing)": {
+      "main": [
+        [
+          {
+            "node": "Shape response + DB record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shape response + DB record": {
+      "main": [
+        [
+          {
+            "node": "Record result (ads_write_log, ad cache, ops.notifications)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record result (ads_write_log, ad cache, ops.notifications)": {
+      "main": [
+        [
+          {
+            "node": "Respond (applied or failed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "errorWorkflow": "smc-w22",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    {
+      "name": "SortMyCover"
+    },
+    {
+      "name": "ads"
+    }
+  ],
+  "meta": {
+    "generatedBy": "automation/build-ads-console.mjs"
+  }
+}

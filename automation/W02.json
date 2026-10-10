@@ -1,0 +1,590 @@
+{
+  "id": "smc-w02",
+  "name": "W02 Lead intake (Meta instant form)",
+  "nodes": [
+    {
+      "id": "n01",
+      "name": "Sticky: read me",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -260
+      ],
+      "parameters": {
+        "width": 700,
+        "height": 320,
+        "content": "W02 Lead Ads webhook (leadgen). Verify X-Hub-Signature-256 over the raw body -> 200 immediately -> fetch lead via Graph (retry x3 in meta-ads.js) -> idempotency on leadgen_id -> backstop qualification (bands + consent; form conditional logic is not trusted) -> same path as W01 via the sub-workflow \"W01 Lead core\": dedupe 90 d, Twilio line-type, route to broker, store, CAPI Lead, first WhatsApp < 60 s. Out-of-band / no-consent leads are NOT stored and never enter the automation (2.1.7); only an anonymous counter row is written. CONTRACT ASSUMPTION: automation/tests/W01.test.mjs does not exist yet; payload below follows crm-gap leads columns and must be reconciled by automation-engineer. Needs env META_APP_SECRET, META_WEBHOOK_VERIFY_TOKEN, META_SYSTEM_USER_TOKEN.\n\nPage ingress (I-16/I-25): this callback is the Meta `page` object. leadgen changes take the path above; `feed` comments are forwarded to W30 and Messenger DMs to W31 (Execute Workflow, no wait) with the raw body (base64 of the received bytes) and the original X-Hub-Signature-256, so they verify it themselves."
+      }
+    },
+    {
+      "id": "n02",
+      "name": "Lead Ads webhook (POST)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "meta-leadgen",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "webhookId": "w02-leadgen-post"
+    },
+    {
+      "id": "n03",
+      "name": "Verify signature + parse leadgen events",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const M = require('lv-automation').metaAds;\nconst it = $input.first();\n// Raw bytes exactly as received (binary), kept for the byte-for-byte forward to W30 / W31 (I-16, I-25).\nconst buf = it.binary && it.binary.data ? Buffer.from(it.binary.data.data, 'base64') : Buffer.from(it.json.rawBody || JSON.stringify(it.json.body), 'utf8');\nconst raw = buf.toString('utf8');\nconst sig = (it.json.headers || {})['x-hub-signature-256'];\nif (!M.verifyWebhookSignature(raw, sig, $env.META_APP_SECRET)) return [{ json: { valid: false } }];\nconst body = JSON.parse(raw);\nconst events = M.parseLeadgenWebhook(body);\nconst out = events.map((e) => ({ json: { valid: true, ...e } }));\n// Page object: feed comments -> W30, Messenger DMs -> W31. Forward the ORIGINAL body (base64 of the received bytes) + the\n// original signature header; the callee verifies it itself. Nothing is re-serialised, nothing is trusted because W02 checked it.\nif (body && body.object === 'page') {\n  const entries = Array.isArray(body.entry) ? body.entry : [];\n  const hasComment = entries.some((e) => (e.changes || []).some((c) => c && c.field === 'feed' && c.value && c.value.item === 'comment'));\n  const hasDm = entries.some((e) => Array.isArray(e.messaging) && e.messaging.length > 0);\n  const fwd = (route) => ({ json: { valid: true, route, raw_body_b64: buf.toString('base64'), signature: sig } });\n  if (hasComment) out.push(fwd('w30'));\n  if (hasDm) out.push(fwd('w31'));\n}\nif (!out.length) return [{ json: { valid: true, empty: true } }];\nreturn out;"
+      }
+    },
+    {
+      "id": "n04",
+      "name": "Respond 200 / 401",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        -120
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.valid ? \"ok\" : \"bad signature\" }}",
+        "options": {
+          "responseCode": "={{ $json.valid ? 200 : 401 }}"
+        }
+      }
+    },
+    {
+      "id": "n05",
+      "name": "Valid and has a lead?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        60
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.valid && !$json.empty && !$json.route) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n06",
+      "name": "Idempotency: already stored?",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        60
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- physical column, full unique index leads_leadgen_full_uidx (06). The insert itself is W01's: it must use INSERT INTO public.leads (leadgen_id, ...) ... ON CONFLICT (leadgen_id) DO NOTHING, so a webhook re-delivery racing this check still stores one lead.\nSELECT id FROM public.leads WHERE leadgen_id = $1 LIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ [$json.leadgen_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n07",
+      "name": "Fetch lead via Graph + backstop",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        60
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const M = require('lv-automation').metaAds;\nconst client = M.createClient({ token: $env.META_SYSTEM_USER_TOKEN, apiVersion: $env.META_API_VERSION || 'v23.0', maxInlineWaitMs: 5000 });\nconst ev = $('Verify signature + parse leadgen events').item.json;\nif ($input.item.json.id) return [{ json: { action: 'duplicate', leadgen_id: ev.leadgen_id } }]; // webhook re-delivery\nconst lead = await client.fetchLead(ev.leadgen_id);\nconst q = M.qualifyLead(lead);\nif (!q.qualified) return [{ json: { action: 'routed_out', leadgen_id: ev.leadgen_id, form_id: lead.form_id, ad_id: lead.ad_id, reasons: q.reasons } }];\n// Payload for \"W01 Lead core\" (same contract as the web path; origin = lead_ad). No raw Meta blobs, no age/budget beyond the bands.\nreturn [{ json: { action: 'ingest', lead: {\n  origin: 'lead_ad', leadgen_id: lead.leadgen_id, form_id: lead.form_id, full_name: lead.full_name, mobile_raw: lead.phone, email: lead.email || null,\n  campaign_id: lead.campaign_id, adset_id: lead.adset_id, ad_id: lead.ad_id, concept: lead.ad_parts && lead.ad_parts.concept, angle: lead.ad_parts && lead.ad_parts.angle,\n  platform: lead.platform, age_band: lead.answers.age_band, budget_band: lead.answers.budget_band, preferred_method_ok: true, bond_children: q.bond_children,\n  consent: { given: true, source: 'meta_instant_form', form_id: lead.form_id, text_version: 'CONSENT-NAMED-v3+CONSENT-ADS-v1', raw: lead.consent_raw, captured_at: lead.created_time },\n  lead_event_id: 'evt_' + lead.leadgen_id + '_lead', is_synthetic: false } } }];"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n08",
+      "name": "Action?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1100,
+        60
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "ingest",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s1",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "ingest",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "routed_out",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s2",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "routed_out",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      }
+    },
+    {
+      "id": "n09",
+      "name": "W01 Lead core (validate, dedupe, route, store, CAPI Lead)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1320,
+        -60
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w01",
+          "cachedResultName": "W01 Lead core"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "n10",
+      "name": "Count routed-out (anonymous, no PII)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1320,
+        80
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO ops.notifications (kind, \"to\", channel, severity, status, source, dedupe_key, what, body)\nSELECT 'lead_routed_out', 'console', 'console', 'info', 'sent', 'W02', $1::text, 'Lead Ad lead routed out (not qualified)', jsonb_build_object('ad_id', $2::text)\nWHERE NOT EXISTS (SELECT 1 FROM ops.notifications n WHERE n.dedupe_key = $1::text AND n.created_at > now() - interval '24 hours')\nRETURNING 1; -- anonymous: ad id only, reasons stay in the execution data and the lead is not stored (2.1.7).",
+        "options": {
+          "queryReplacement": "={{ [ \"routed_out:\" + $json.ad_id + \":\" + $json.leadgen_id, String($json.ad_id || '') ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "n11",
+      "name": "Duplicate delivery: ignore",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1320,
+        220
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "n12",
+      "name": "W22 Alerts: W02 failure",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        260
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w22",
+          "cachedResultName": "W22 Alerts"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "n13",
+      "name": "Meta webhook verify (GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        420
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "meta-leadgen",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "w02-leadgen-get"
+    },
+    {
+      "id": "n14",
+      "name": "Check hub.verify_token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        420
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const q = $json.query || {};\nconst ok = q['hub.mode'] === 'subscribe' && q['hub.verify_token'] === $env.META_WEBHOOK_VERIFY_TOKEN;\nreturn [{ json: { ok, challenge: ok ? String(q['hub.challenge']) : 'forbidden' } }];"
+      }
+    },
+    {
+      "id": "n15",
+      "name": "Respond hub.challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        420
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.challenge }}",
+        "options": {
+          "responseCode": "={{ $json.ok ? 200 : 403 }}"
+        }
+      }
+    },
+    {
+      "id": "n20",
+      "name": "Page forward route?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        440,
+        260
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "w30",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "r1",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "w30",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "w31",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "r2",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "w31",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "notes": "I-16 / I-25: W02 is the `page` ingress. feed comment -> W30, Messenger DM -> W31. Leadgen items never match (they take \"Valid and has a lead?\")."
+    },
+    {
+      "id": "n21",
+      "name": "W30 Comment handler (forward raw body + signature)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        700,
+        200
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w30",
+          "cachedResultName": "W30 Comment handler"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Input { raw_body_b64, signature, route }: the received bytes and X-Hub-Signature-256, unchanged. CONTRACTS.md \"Sub-workflow interfaces\"."
+    },
+    {
+      "id": "n22",
+      "name": "W31 DM handler (forward raw body + signature)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        700,
+        320
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w31",
+          "cachedResultName": "W31 DM handler"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Same input as the W30 forward."
+    }
+  ],
+  "connections": {
+    "Lead Ads webhook (POST)": {
+      "main": [
+        [
+          {
+            "node": "Verify signature + parse leadgen events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify signature + parse leadgen events": {
+      "main": [
+        [
+          {
+            "node": "Respond 200 / 401",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Valid and has a lead?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Page forward route?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid and has a lead?": {
+      "main": [
+        [
+          {
+            "node": "Idempotency: already stored?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Idempotency: already stored?": {
+      "main": [
+        [
+          {
+            "node": "Fetch lead via Graph + backstop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch lead via Graph + backstop": {
+      "main": [
+        [
+          {
+            "node": "Action?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Action?": {
+      "main": [
+        [
+          {
+            "node": "W01 Lead core (validate, dedupe, route, store, CAPI Lead)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Count routed-out (anonymous, no PII)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Duplicate delivery: ignore",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta webhook verify (GET)": {
+      "main": [
+        [
+          {
+            "node": "Check hub.verify_token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check hub.verify_token": {
+      "main": [
+        [
+          {
+            "node": "Respond hub.challenge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Page forward route?": {
+      "main": [
+        [
+          {
+            "node": "W30 Comment handler (forward raw body + signature)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "W31 DM handler (forward raw body + signature)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "saveManualExecutions": true,
+    "errorWorkflow": "smc-w22"
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "ads"
+    },
+    {
+      "name": "meta"
+    }
+  ],
+  "meta": {
+    "notes": "ads-api-engineer. Lead Ads intake. Replaces nothing in W01; calls it."
+  }
+}

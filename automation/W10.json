@@ -1,0 +1,2629 @@
+{
+  "id": "smc-w10",
+  "name": "W10 Reschedule / cancel",
+  "nodes": [
+    {
+      "id": "n01",
+      "name": "Sticky: read me",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "width": 760,
+        "height": 360,
+        "content": "W10 Reschedule / cancel (4.6 item 8; W28 reschedule Flow; Schedule C/D). Entry: Execute Workflow from W07 (taps Reschedule / Other times / Cancel / Keep it, typed intents, slot picks slot_{ISO}:resched:{booking}) and W12 (broker tapped Rescheduled).\nSlots ALWAYS come from the W04 slot engine (sub-workflow 'W04 Slots API', excluding the booking being moved). Booking UI: brands.booking_ui = flow -> reschedule Flow with the current booking pre-filled (automation/flows/reschedule-flow.json, completion goes W28 -> here as a pick); list -> 10-slot list in-window, reschedule_offer template (3 slots on 3 days) outside it.\nMove = same appointments row + same Graph event (PATCH), reschedule_count + 1, re-checked against Outlook getSchedule AND our own bookings (buffer) inside one statement; the gist exclusion constraint is the last line of defence. Slot gone -> next 3.\nSecond reschedule -> flagged (escalations kind other, esc_kind=second_reschedule). Cancel -> Graph DELETE, status cancelled, W09 jobs cancelled, broker told, ONE rebooking offer.\nReplacements: none of these events opens one (lead choice / Schedule D); a rebooking after a no-show writes lead_activities 'rebooked_after_no_show' so W13 stops its 48-h clock.\nBroker notice: session message if the broker's 24-h window is open, else utility template broker_booking_changed (automation/templates, I-35a; pending Meta review) plus email from howzit@. Logic automation/lib/w10.mjs; tests automation/tests/W10.test.mjs.\n\n**Schedule C1A (default pending NH-42, options a + b; `W10_C1A_MODE` = a | b | a+b | off):** a verified lead who cancels and does not rebook by the end of the rebooking offer + follow-up sequence (96 h) -> W13 `claim` uncontactable / `unreachable` / `cancel_no_rebook`; a plain \"I don't want a call\" / \"No thanks\" -> messaging stops at once (op `no_call`), then W13 `claim` disqualified / `nofit_criteria` / `no_call`; a rebook -> nothing claimed. Hourly sweep, one decision row per cancelled booking (`w10:c1a:{booking_id}`). Every send to the lead updates `leads.last_contact_at` (I-38d)."
+      }
+    },
+    {
+      "id": "n02",
+      "name": "Execute Workflow Trigger (W07 / W12 / W28)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "n03",
+      "name": "Classify op",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w10;\nconst j = $json; const op = L.classifyOp(j);\nconst sp = L.parseSlotPayload((j.msg && (j.msg.payload || j.msg.list_id)) || '');\nreturn { json: { ...j, op, pick: sp, booking_id: (sp && sp.booking_id) || (j.booking && j.booking.id) || null, lead_id: j.lead ? j.lead.id : null } };"
+      }
+    },
+    {
+      "id": "n04",
+      "name": "Load booking, lead, broker, brand",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT a.id, a.client_id, a.broker_id, a.brand_id, a.cycle_id, a.appointment_date, a.ends_at, a.method, a.status, a.graph_event_id, a.calendar_provider, a.reschedule_count, a.call_number,\n       l.first_name, l.last_name, l.phone, l.email, l.email_status, l.conv_state, l.opted_out_at, l.language, l.stage,\n       b.contact_person, b.whatsapp_number, b.email AS broker_email, b.methods_supported, b.calendar_email, b.calendar_status, b.calendar_mode, b.calendar_status_detail, b.buffer_minutes, b.slot_minutes,\n       br.booking_ui, br.booking_flow_id,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'inbound') AS last_inbound_at,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.broker_id = b.id AND c.lead_id IS NULL AND c.direction = 'inbound' AND c.sender_type = 'broker') AS broker_last_inbound_at\n  FROM public.appointments a\n  JOIN public.leads l ON l.id = a.client_id\n  JOIN public.brokers b ON b.id = a.broker_id\n  JOIN public.brands br ON br.id = a.brand_id\n WHERE a.brand_id IS NOT NULL\n   AND (a.id = $1::uuid OR ($1::uuid IS NULL AND a.client_id = $2::uuid))\n ORDER BY a.appointment_date DESC\n LIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ [$json.booking_id, $json.lead_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n05",
+      "name": "Merge context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const i = $('Classify op').item.json; const r = $json;\nreturn { json: { ...i, bk: { id: r.id, client_id: r.client_id, broker_id: r.broker_id, brand_id: r.brand_id, cycle_id: r.cycle_id, appointment_date: r.appointment_date, ends_at: r.ends_at, method: r.method, status: r.status, graph_event_id: r.graph_event_id, calendar_provider: r.calendar_provider, reschedule_count: r.reschedule_count }, ld: { id: r.client_id, first_name: r.first_name, last_name: r.last_name, phone: r.phone, email: r.email, email_status: r.email_status, conv_state: r.conv_state || {}, opted_out_at: r.opted_out_at, language: r.language, stage: r.stage }, br: { id: r.broker_id, contact_person: r.contact_person, whatsapp_number: r.whatsapp_number, email: r.broker_email, methods_supported: r.methods_supported, calendar_email: r.calendar_email, calendar_status: r.calendar_status, calendar_mode: r.calendar_mode, calendar_status_detail: r.calendar_status_detail, buffer_minutes: r.buffer_minutes || 15, slot_minutes: r.slot_minutes || 30, last_inbound_ms: r.broker_last_inbound_at ? Date.parse(r.broker_last_inbound_at) : NaN }, brand: { booking_ui: r.booking_ui || $env.BOOKING_UI_DEFAULT || 'list', booking_flow_id: r.booking_flow_id }, last_inbound_ms: r.last_inbound_at ? Date.parse(r.last_inbound_at) : NaN } };"
+      }
+    },
+    {
+      "id": "n06",
+      "name": "Op",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "offer",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s0",
+                    "leftValue": "={{ $json.op }}",
+                    "rightValue": "offer",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "pick",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s1",
+                    "leftValue": "={{ $json.op }}",
+                    "rightValue": "pick",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "cancel",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s2",
+                    "leftValue": "={{ $json.op }}",
+                    "rightValue": "cancel",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "cancel_ask",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s3",
+                    "leftValue": "={{ $json.op }}",
+                    "rightValue": "cancel_ask",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "keep",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s4",
+                    "leftValue": "={{ $json.op }}",
+                    "rightValue": "keep",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "change_method",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s5",
+                    "leftValue": "={{ $json.op }}",
+                    "rightValue": "change_method",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "broker_rescheduled",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s6",
+                    "leftValue": "={{ $json.op }}",
+                    "rightValue": "broker_rescheduled",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "no_call",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s8",
+                    "leftValue": "={{ $json.op }}",
+                    "rightValue": "no_call",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      }
+    },
+    {
+      "id": "n07",
+      "name": "W04 slots (exclude this booking)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w04",
+          "cachedResultName": "W04 Slots API"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "notes": "Called with { broker_id, exclude_booking_id, limit: 10 }; returns { slots: [{start,end}] } using the same rules as GET /slots."
+    },
+    {
+      "id": "n08",
+      "name": "Build offer (Flow / list / template)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w10;\nconst j = $('Merge context').item.json;\nconst o = L.offerMessage({ booking: j.bk, lead: j.ld, broker: j.br, brand: j.brand, slots: $json.slots || [], now_ms: Date.now(), last_inbound_ms: j.last_inbound_ms, reason: j.op, delegate: j.delegate || null }); // I-39a: delegate.body is the one message body\nlet wa = null;\nif (o.kind === 'list_session') wa = { type: 'interactive', interactive: { type: 'list', body: { text: o.body }, action: { button: 'See times', sections: [{ title: 'Open times', rows: o.rows }] } } };\nelse if (o.kind === 'flow_session') wa = { type: 'interactive', interactive: { type: 'flow', body: { text: o.body }, action: { name: 'flow', parameters: { flow_message_version: '3', flow_id: j.brand.booking_flow_id || $env.RESCHEDULE_FLOW_ID, flow_cta: 'Pick a new time', flow_action: 'data_exchange', flow_token: 'resched:' + j.bk.id } } } };\nelse if (o.kind === 'template') { const comps = [{ type: 'body', parameters: o.vars.map((t) => ({ type: 'text', text: String(t) })) }]; (o.buttons || []).forEach((p, i) => comps.push({ type: 'button', sub_type: 'quick_reply', index: String(i), parameters: [{ type: 'payload', payload: p }] })); if (o.template === 'reschedule_offer_v2') comps.push({ type: 'button', sub_type: 'flow', index: '0', parameters: [{ type: 'action', action: { flow_token: 'resched:' + j.bk.id } }] }); wa = { type: 'template', template: { name: o.template, language: { code: 'en' }, components: comps } }; }\nreturn { json: { ...j, offer: o, wa: wa ? { messaging_product: 'whatsapp', to: j.ld.phone, ...wa } : null, text: o.body || o.template || o.kind } };"
+      }
+    },
+    {
+      "id": "n09",
+      "name": "Claim reschedule key (idempotency)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W10', 'lead', 'reschedule_requested', jsonb_build_object('booking_id', $5::text, 'new_start', $6::text), now(), $7)\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$json.ld.id, $json.bk.brand_id, $json.bk.broker_id, $json.bk.cycle_id, $json.bk.id, $json.pick.start, 'w10:' + ($json.idempotency_key || ($json.msg && $json.msg.wamid) || ($json.bk.id + ':' + $json.pick.start))] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n10",
+      "name": "W04 Outlook getSchedule re-check",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        200
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w04",
+          "cachedResultName": "W04 Slots API"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "notes": "Called with { op: 'is_free', broker_id, start, end, exclude_booking_id }; returns { free, next_slots }. Calendar error -> free=false (fail closed)."
+    },
+    {
+      "id": "n11",
+      "name": "Decide move (w10.applyReschedule)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w10;\nconst j = $('Merge context').item.json;\nconst claimed = !!$('Claim reschedule key (idempotency)').item.json.id;\nconst start = j.pick.start; const end = new Date(Date.parse(start) + j.br.slot_minutes * 60000).toISOString();\nconst after = Date.parse(j.bk.ends_at) <= Date.now() || ['no_show', 'attended', 'rescheduled'].includes(j.bk.status);\nconst d = L.applyReschedule(j.bk, { start, end }, { now_ms: Date.now(), free: !!$json.free, next_slots: $json.next_slots || [], initiated_by: j.source === 'W12' ? 'broker' : 'lead', after_meeting: after, idempotency_key: 'k', seen_keys: new Set(claimed ? [] : ['k']) });\nreturn { json: { ...j, d, new_start: start, new_end: end, rebooked_after_no_show: j.bk.status === 'no_show' } };"
+      }
+    },
+    {
+      "id": "n12",
+      "name": "Move result",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        660,
+        200
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "move",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s0",
+                    "leftValue": "={{ $json.d.action }}",
+                    "rightValue": "move",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "new_booking",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s1",
+                    "leftValue": "={{ $json.d.action }}",
+                    "rightValue": "new_booking",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "slot_taken",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s2",
+                    "leftValue": "={{ $json.d.action }}",
+                    "rightValue": "slot_taken",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "replay",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s3",
+                    "leftValue": "={{ $json.d.action }}",
+                    "rightValue": "replay",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      }
+    },
+    {
+      "id": "n13",
+      "name": "Move booking in place (re-check overlap + buffer)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        880,
+        200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH chk AS (\n  SELECT NOT EXISTS (\n           SELECT 1 FROM public.appointments x\n            WHERE x.broker_id = $2::uuid AND x.brand_id IS NOT NULL AND x.status IN ('booked','confirmed') AND x.id <> $1::uuid\n              AND tstzrange(x.appointment_date - make_interval(mins => $5::int), x.ends_at + make_interval(mins => $5::int), '[)')\n                  && tstzrange($3::timestamptz, $4::timestamptz, '[)')) AS free)\nUPDATE public.appointments a\n   SET appointment_date = $3::timestamptz, ends_at = $4::timestamptz, reschedule_count = a.reschedule_count + 1,\n       status = 'booked', confirmed_at = NULL, updated_at = now()\n  FROM chk\n WHERE a.id = $1::uuid AND chk.free AND a.status IN ('booked','confirmed')\nRETURNING a.id, a.graph_event_id, a.reschedule_count;",
+        "options": {
+          "queryReplacement": "={{ [$json.bk.id, $json.bk.broker_id, $json.new_start, $json.new_end, $json.br.buffer_minutes] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n14",
+      "name": "Moved? (else slot taken in the last second)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$json.id) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n15",
+      "name": "Graph token for broker",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1320,
+        200
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w04",
+          "cachedResultName": "W04 Slots API"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "notes": "Called with { op: 'graph_token', broker_id } (W04 owns token refresh + calendar.refresh_failed activities)."
+    },
+    {
+      "id": "n16",
+      "name": "Graph PATCH event (same event id)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        200
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $('Graph target (move)').item.json.gt.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ start: { dateTime: $('Decide move (w10.applyReschedule)').item.json.new_start, timeZone: 'Africa/Johannesburg' }, end: { dateTime: $('Decide move (w10.applyReschedule)').item.json.new_end, timeZone: 'Africa/Johannesburg' } }) }}",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n17",
+      "name": "W09 rebuild reminders",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        400
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w09",
+          "cachedResultName": "W09 Reminder sequence"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Called with { op: 'rebuild', booking_id } (cancels jobs for the old time; intro media is not repeated)."
+    },
+    {
+      "id": "n18",
+      "name": "Timeline: moved (+ rebooked_after_no_show, second reschedule flag)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        220,
+        400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH a1 AS (\n  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\n  VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W10', $8, 'booking_moved', jsonb_build_object('booking_id', $5::text, 'from', $6::text, 'to', $7::text), now(), 'w10:moved:' || $5 || ':' || $7)\n  ON CONFLICT (idempotency_key) DO NOTHING RETURNING id),\ne AS (\n  INSERT INTO public.escalations (brand_id, kind, severity, ref_table, ref_id, lead_id, broker_id, raised_at, note)\n  SELECT $2::uuid, 'other', 'normal', 'appointments', $5, $1::uuid, $3::uuid, now(), 'esc_kind=second_reschedule'\n   WHERE $9::boolean AND EXISTS (SELECT 1 FROM a1)\n  RETURNING id)\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT $1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W10', 'lead', 'rebooked_after_no_show', jsonb_build_object('booking_id', $5::text), now(), 'w10:rebooked:' || $5\n WHERE $10::boolean\nON CONFLICT (idempotency_key) DO NOTHING;",
+        "options": {
+          "queryReplacement": "={{ (() => { const j = $('Decide move (w10.applyReschedule)').item.json; return [j.ld.id, j.bk.brand_id, j.bk.broker_id, j.bk.cycle_id, j.bk.id, j.bk.appointment_date, j.new_start, j.source === 'W12' ? 'broker' : 'lead', !!j.d.flag_second_reschedule, !!j.rebooked_after_no_show]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n19",
+      "name": "-> W05 new booking (after the meeting)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        400
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w05",
+          "cachedResultName": "W05 Book"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Called with { previous_booking_id, lead_id, slot_start, method, booked_via: 'chat', idempotency_key }. W05 re-checks free/busy, creates the event, sends booking_confirmed, fires CAPI Schedule."
+    },
+    {
+      "id": "n20",
+      "name": "Old booking -> rescheduled",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.appointments SET status = 'rescheduled', updated_at = now() WHERE id = $1::uuid AND status IN ('booked','confirmed','no_show');",
+        "options": {
+          "queryReplacement": "={{ [$('Decide move (w10.applyReschedule)').item.json.bk.id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n21",
+      "name": "Lead + broker messages (moved)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w10;\nconst j = $('Decide move (w10.applyReschedule)').item.json;\nconst label = L.slotLabel(j.new_start);\nconst lead = { messaging_product: 'whatsapp', to: j.ld.phone, type: 'text', text: { body: 'Done. Your call with ' + String(j.br.contact_person).split(' ')[0] + ' is now ' + label + '.' } };\nconst notice = L.brokerNotice(j.d.broker_notice, j.ld);\nconst who = (String(j.ld.first_name || '').trim() + ' ' + (j.ld.last_name ? String(j.ld.last_name).trim().slice(0, 1) + '.' : '')).trim();\nconst dayOf = (iso) => new Date(Date.parse(iso) + 7200000).toISOString().slice(0, 10);\n// Outside the broker's 24-h window: approved utility template broker_booking_changed (I-35a); the howzit@ email still goes as the written record.\nconst tpl = (oldIso, nowText, dayIso) => ({ messaging_product: 'whatsapp', to: j.br.whatsapp_number, type: 'template', template: { name: 'broker_booking_changed', language: { code: 'en' }, components: [{ type: 'body', parameters: [String(j.br.contact_person || '').split(' ')[0] || 'there', who, L.METHOD_LABEL[j.bk.method] || String(j.bk.method || 'call'), L.slotLabel(oldIso), nowText].map((t) => ({ type: 'text', text: String(t) })) }, { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: 'calendar?day=' + dayOf(dayIso) }] }] } });\nconst brokerWindow = Number.isFinite(j.br.last_inbound_ms) && Date.now() - j.br.last_inbound_ms < 86400000;\nreturn [{ json: { to: 'lead', wa: lead } }, { json: { to: 'broker', channel: brokerWindow ? 'whatsapp' : 'email', wa: brokerWindow ? { messaging_product: 'whatsapp', to: j.br.whatsapp_number, type: 'text', text: { body: notice } } : (j.br.whatsapp_number ? tpl(j.bk.appointment_date, label, j.new_start) : null), email: { to: j.br.email, subject: 'SortMyCover booking moved', body: notice } } }];"
+      }
+    },
+    {
+      "id": "n22",
+      "name": "Slot taken: next 3",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w10;\nconst j = $('Decide move (w10.applyReschedule)').item.json;\nconst slots = (j.d.offer && j.d.offer.length) ? j.d.offer : [];\nconst rows = slots.map((s) => ({ id: 'slot_' + s.start + ':resched:' + j.bk.id, title: L.slotLabel(s.start).slice(0, 24) }));\nreturn { json: { to: 'lead', wa: rows.length ? { messaging_product: 'whatsapp', to: j.ld.phone, type: 'interactive', interactive: { type: 'list', body: { text: L.leadBody('slots', { lead: j.ld, booking: j.bk, broker: j.br }) }, action: { button: 'See times', sections: [{ title: 'Open times', rows }] } } } : null } };"
+      }
+    },
+    {
+      "id": "n23",
+      "name": "Decide cancel (w10.applyCancel)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w10;\nconst j = $json; const d = L.applyCancel(j.bk, j.ld, { now_ms: Date.now(), initiated_by: j.source === 'W12' ? 'broker' : 'lead' }); return { json: { ...j, d } };"
+      }
+    },
+    {
+      "id": "n24",
+      "name": "Cancel allowed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.d.action === 'cancel') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n25",
+      "name": "Cancel booking",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        600
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH c AS (\n  UPDATE public.appointments SET status = 'cancelled', cancelled_at = now(), updated_at = now()\n   WHERE id = $1::uuid AND status IN ('booked','confirmed')\n  RETURNING id, client_id)\nUPDATE public.leads l\n   SET stage = 'qualified', conv_state = COALESCE(l.conv_state, '{}'::jsonb) || $2::jsonb, updated_at = now()\n  FROM c\n WHERE l.id = c.client_id\nRETURNING l.id;",
+        "options": {
+          "queryReplacement": "={{ [$json.bk.id, JSON.stringify($json.d.conv_state_patch)] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n26",
+      "name": "Graph token for broker (cancel)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        600
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w04",
+          "cachedResultName": "W04 Slots API"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "notes": "Called with { op: 'graph_token', broker_id }."
+    },
+    {
+      "id": "n27",
+      "name": "Graph DELETE event",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        600
+      ],
+      "parameters": {
+        "method": "DELETE",
+        "url": "={{ $('Graph target (cancel)').item.json.gt.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n28",
+      "name": "W09 cancel all reminders",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        660,
+        600
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w09",
+          "cachedResultName": "W09 Reminder sequence"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Called with { op: 'cancel_all', booking_id }."
+    },
+    {
+      "id": "n29",
+      "name": "Timeline: cancelled",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        880,
+        600
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W10', $6, 'booking_cancelled', jsonb_build_object('booking_id', $5::text, 'replacement', 'none'), now(), 'w10:cancelled:' || $5)\nON CONFLICT (idempotency_key) DO NOTHING;",
+        "options": {
+          "queryReplacement": "={{ (() => { const j = $('Decide cancel (w10.applyCancel)').item.json; return [j.ld.id, j.bk.brand_id, j.bk.broker_id, j.bk.cycle_id, j.bk.id, j.source === 'W12' ? 'broker' : 'lead']; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n30",
+      "name": "Broker notice (cancelled) + rebook once?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w10;\nconst j = $('Decide cancel (w10.applyCancel)').item.json;\nconst notice = L.brokerNotice(j.d.broker_notice, j.ld);\nconst who = (String(j.ld.first_name || '').trim() + ' ' + (j.ld.last_name ? String(j.ld.last_name).trim().slice(0, 1) + '.' : '')).trim();\nconst dayOf = (iso) => new Date(Date.parse(iso) + 7200000).toISOString().slice(0, 10);\n// Outside the broker's 24-h window: approved utility template broker_booking_changed (I-35a); the howzit@ email still goes as the written record.\nconst tpl = (oldIso, nowText, dayIso) => ({ messaging_product: 'whatsapp', to: j.br.whatsapp_number, type: 'template', template: { name: 'broker_booking_changed', language: { code: 'en' }, components: [{ type: 'body', parameters: [String(j.br.contact_person || '').split(' ')[0] || 'there', who, L.METHOD_LABEL[j.bk.method] || String(j.bk.method || 'call'), L.slotLabel(oldIso), nowText].map((t) => ({ type: 'text', text: String(t) })) }, { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: 'calendar?day=' + dayOf(dayIso) }] }] } });\nconst brokerWindow = Number.isFinite(j.br.last_inbound_ms) && Date.now() - j.br.last_inbound_ms < 86400000;\nreturn { json: { ...j, op: 'rebook_after_cancel', to: 'broker', channel: brokerWindow ? 'whatsapp' : 'email', wa: brokerWindow ? { messaging_product: 'whatsapp', to: j.br.whatsapp_number, type: 'text', text: { body: notice } } : (j.br.whatsapp_number ? tpl(j.bk.appointment_date, 'Cancelled', j.bk.appointment_date) : null), email: { to: j.br.email, subject: 'SortMyCover booking cancelled', body: notice } } };"
+      }
+    },
+    {
+      "id": "n31",
+      "name": "Offer rebooking once?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        600
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.d.rebook_offer === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n32",
+      "name": "Cancel confirm buttons",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w10;\n// I-39a: one message. delegate.body (W07's fixed lines + CANCEL_CONFIRM_Q) when present, else lines.mjs in the lead's language.\nconst j = $json; const m = L.cancelConfirmMessage(j.bk, j.ld, j.br, j.delegate || null);\nreturn { json: { to: 'lead', ld: j.ld, wa: L.toWa(j.ld.phone, m) } };"
+      }
+    },
+    {
+      "id": "n33",
+      "name": "Keep it",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        800
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const j = $json; return { json: { to: 'lead', wa: { messaging_product: 'whatsapp', to: j.ld.phone, type: 'text', text: { body: 'Great, it stays booked.' } } } };"
+      }
+    },
+    {
+      "id": "n34",
+      "name": "Decide method change",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        800
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w10;\nconst j = $json;\nconst p = String((j.msg && (j.msg.payload || j.msg.list_id)) || '').split(':');\nconst method = (j.delegate && j.delegate.method) || (p[0] === 'change_method' ? p[1] : null);\nconst d = L.changeMethod(j.bk, j.ld, j.br, method); return { json: { ...j, method, d } };"
+      }
+    },
+    {
+      "id": "n35",
+      "name": "Method result",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        440,
+        800
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "change",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s0",
+                    "leftValue": "={{ $json.d.action }}",
+                    "rightValue": "change",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "ask_email",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s1",
+                    "leftValue": "={{ $json.d.action }}",
+                    "rightValue": "ask_email",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "reject",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s2",
+                    "leftValue": "={{ $json.d.action }}",
+                    "rightValue": "reject",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      }
+    },
+    {
+      "id": "n36",
+      "name": "Save method",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        800
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.appointments SET method = $2, updated_at = now() WHERE id = $1::uuid AND status IN ('booked','confirmed') RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$json.bk.id, $json.d.update.method] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n37",
+      "name": "-> W28 / W05 email step",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        800
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w28",
+          "cachedResultName": "W28 Booking Flow"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Called with { op: 'ask_email', booking_id, method } (Flow screen 4, or the page email step; typo/MX checks)."
+    },
+    {
+      "id": "n38",
+      "name": "W05 update event method (Teams link / body)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        800
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w05",
+          "cachedResultName": "W05 Book"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Called with { op: 'update_method', booking_id } so the event body / online meeting is rebuilt by the owner of event creation."
+    },
+    {
+      "id": "n39",
+      "name": "Broker said Rescheduled: offer (template, Schedule D)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        800
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const j = $json; return { json: { ...j, op: 'broker_rescheduled' } };"
+      }
+    },
+    {
+      "id": "n40",
+      "name": "Has WhatsApp payload + live?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        800
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$json.wa && $env.DRY_RUN_SENDS !== 'true') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n41",
+      "name": "Send WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        1000
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION }}/{{ $env.PHONE_NUMBER_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.META_SYSTEM_USER_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.wa) }}",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "n42",
+      "name": "Email to broker?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        220,
+        1000
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.channel === 'email' && !!$json.email && $env.DRY_RUN_SENDS !== 'true') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n43",
+      "name": "Email broker from howzit@ (Graph sendMail)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        1000
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.microsoft.com/v1.0/users/{{ encodeURIComponent($env.HOWZIT_MAILBOX) }}/sendMail",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.howzit_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ message: { subject: $json.email.subject, body: { contentType: 'Text', content: $json.email.body }, toRecipients: [{ emailAddress: { address: $json.email.to } }] }, saveToSentItems: true }) }}",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n44",
+      "name": "Decide no-call (C1A point 2)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        1400
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w10;\n// Schedule C1A point 2 (default pending NH-42): a plain \"I don't want a call\" / \"No thanks\" stops messaging AT ONCE.\n// The W13 claim (option b: nofit_criteria / no_call) is made by the hourly C1A sweep below from the message log.\nconst j = $json; const nc = L.applyNoCall(j.bk, j.ld);\nreturn { json: { ...j, nc, op: 'cancel_all', booking_id: j.bk.id } };"
+      }
+    },
+    {
+      "id": "n45",
+      "name": "Stop messaging (no call)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        1300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- C1A point 2: W08 stops on declined_nurture / unbooked_closed; W07 sees declined_call. Stage kept while a booking is live.\n-- R5-01: the plain \"no call\" is an objection -> the number hash goes on the suppression list in the SAME statement (as W08 \"Save tap result\").\nWITH upd AS (UPDATE public.leads\n   SET conv_state = COALESCE(conv_state, '{}'::jsonb) || $2::jsonb,\n       stage = COALESCE($3, stage),\n       updated_at = now()\n WHERE id = $1::uuid\nRETURNING id, phone),\nsup AS (INSERT INTO public.suppression (mobile_hash, source, brand_id, lead_id, note)\n        SELECT public.smc_hash_contact(upd.phone), $4, NULL, upd.id, $5 FROM upd WHERE $4 IS NOT NULL AND upd.phone IS NOT NULL\n        ON CONFLICT DO NOTHING RETURNING id)\nSELECT (SELECT count(*) FROM upd) AS updated, (SELECT count(*) FROM sup) AS suppressed;",
+        "options": {
+          "queryReplacement": "={{ [$json.ld.id, JSON.stringify($json.nc.conv_state_patch), $json.nc.lead_stage, $json.nc.suppress ? $json.nc.suppress.source : null, $json.nc.suppress ? $json.nc.suppress.note : null] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "n46",
+      "name": "Booking still live? (confirm cancel first)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        1500
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.nc.action === 'confirm_cancel_first') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n47",
+      "name": "W09 cancel all (no call)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        1600
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w09",
+          "cachedResultName": "W09 Reminder sequence"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Called with { op: 'cancel_all', booking_id }. Idempotent."
+    },
+    {
+      "id": "n48",
+      "name": "Hourly (C1A sweep)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        1800
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1,
+              "triggerAtMinute": 17
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n49",
+      "name": "C1A candidates (latest booking cancelled, not yet decided)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        220,
+        1800
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- W10 Schedule C1A sweep - DEFAULT PENDING NH-42 (options a + b). Latest booking per lead is cancelled (last 30 days),\n-- no C1A decision row yet. Evidence = message log: who cancelled (W10 timeline actor), rebook offered, inbound after cancel.\nWITH latest AS (\n  SELECT DISTINCT ON (a.client_id) a.id, a.client_id, a.broker_id, a.brand_id, a.cycle_id, a.status, a.cancelled_at, a.created_at\n    FROM public.appointments a\n   WHERE a.brand_id IS NOT NULL\n   ORDER BY a.client_id, a.created_at DESC)\nSELECT t.id AS booking_id, t.client_id AS lead_id, t.broker_id, t.brand_id, t.cycle_id, t.status, t.cancelled_at,\n       l.verified_at, l.first_message_at, l.opted_out_at, l.conv_state,\n       (SELECT x.actor_type FROM public.lead_activities x WHERE x.idempotency_key = 'w10:cancelled:' || t.id::text LIMIT 1) AS cancelled_by,\n       EXISTS (SELECT 1 FROM public.appointments a2 WHERE a2.client_id = t.client_id AND a2.id <> t.id AND a2.created_at > t.cancelled_at) AS rebooked,\n       COALESCE((l.conv_state->>'rebook_offered')::boolean, false) AS rebook_offered,\n       COALESCE((SELECT jsonb_agg(jsonb_build_object('content', q.content))\n                   FROM (SELECT c.content FROM public.communications c\n                          WHERE c.lead_id = t.client_id AND c.direction = 'inbound' AND c.created_at > t.cancelled_at\n                          ORDER BY c.created_at LIMIT 20) q), '[]'::jsonb) AS inbound_after_cancel,\n       EXISTS (SELECT 1 FROM public.replacements r WHERE r.lead_id = t.client_id AND r.status <> 'rejected') AS already_claimed\n  FROM latest t\n  JOIN public.leads l ON l.id = t.client_id\n WHERE t.status = 'cancelled'\n   AND t.cancelled_at > now() - interval '30 days'\n   AND NOT EXISTS (SELECT 1 FROM public.lead_activities y WHERE y.idempotency_key = 'w10:c1a:' || t.id::text);",
+        "options": {
+          "queryReplacement": "={{ [] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "n50",
+      "name": "C1A decide (w10.c1aDecision)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        1800
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w10;\nconst r = $json;\nconst d = L.c1aDecision({ lead: { id: r.lead_id, verified_at: r.verified_at, first_message_at: r.first_message_at, opted_out_at: r.opted_out_at, conv_state: r.conv_state || {} },\n  booking: { id: r.booking_id, brand_id: r.brand_id, broker_id: r.broker_id, cycle_id: r.cycle_id, status: r.status, cancelled_at: r.cancelled_at },\n  cancelled_by: r.cancelled_by === 'broker' ? 'broker' : 'lead', rebooked: r.rebooked, rebook_offered: r.rebook_offered,\n  inbound_after_cancel: r.inbound_after_cancel || [], already_claimed: r.already_claimed, now_ms: Date.now(), mode: $env.W10_C1A_MODE || L.C1A_DEFAULT_MODE });\nreturn { json: { ...r, d } };"
+      }
+    },
+    {
+      "id": "n51",
+      "name": "C1A claim?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        1800
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.d.claim === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n52",
+      "name": "C1A decision row (idempotency + evidence)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        880,
+        1700
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- One row per cancelled booking ('w10:c1a:{booking_id}'); the claim goes to W13 only if this insert wins.\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W10', 'system', $5, $6::jsonb, now(), $7)\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$json.lead_id, $json.brand_id, $json.broker_id, $json.cycle_id, $json.d.activity, JSON.stringify({ schedule: 'C1A', default_pending: 'NH-42', mode: $json.d.w13.c1a_mode, reason: $json.d.w13.reason, code: $json.d.w13.code, reason_code: $json.d.w13.reason_code, booking_id: $json.booking_id }), $json.d.w13.idempotency_key] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "n53",
+      "name": "W13 claim payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        1700
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const d = $('C1A decide (w10.c1aDecision)').item.json.d;\nreturn { json: d.w13 };"
+      }
+    },
+    {
+      "id": "n54",
+      "name": "-> W13 claim (C1A)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1320,
+        1700
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w13",
+          "cachedResultName": "W13 No-show & replacement"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Called with { op: 'claim', lead_id, booking_id, outcome_id: null, reason, code, reason_code, idempotency_key }. W13 owns replacements, the cap and the 48-h dispute window (C3)."
+    },
+    {
+      "id": "n55",
+      "name": "Touch leads.last_contact_at (lead outbound)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        220,
+        1000
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- I-38d / CONTRACTS.md: every outbound to the lead updates last_contact_at (W34 retention clock). Broker notices and\n-- unaccepted sends (no wamid) do not.\nUPDATE public.leads SET last_contact_at = now()\n WHERE id = $1::uuid AND $2 = 'lead' AND $3 <> ''\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ (() => { const h = $('Has WhatsApp payload + live?').item.json; const m = $('Merge context').item.json; const toBroker = h.to === 'broker' || (h.wa && m.br && h.wa.to === m.br.whatsapp_number); return [m.ld ? m.ld.id : null, toBroker ? 'broker' : 'lead', ($json.messages && $json.messages[0] && $json.messages[0].id) || '']; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "n56",
+      "name": "Method lead message (one message)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        1100
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w10;\n// I-39a: change -> METHOD_CHANGED (or delegate.body); reject -> lead_lines + SAME_METHOD with the adviser's methods.\nconst j = $('Decide method change').item.json;\nconst m = L.methodMessage(j.d, j.bk, j.ld, j.br, j.delegate || null, j.method);\nreturn { json: { to: 'lead', ld: j.ld, wa: L.toWa(j.ld.phone, m) } };"
+      }
+    },
+    {
+      "id": "n57",
+      "name": "Graph target (move)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w05;\nconst s = $('Merge context').item.json;\nconst t = L.graphEventTarget(s.bk, s.br, { HOWZIT_MAILBOX: $env.HOWZIT_MAILBOX, SMC_SHARED_CALENDAR_ID: $env.SMC_SHARED_CALENDAR_ID });\nreturn { json: { ...$json, gt: { ...t, route: t.error || t.route === 'none' ? 'skip' : t.route } } };"
+      }
+    },
+    {
+      "id": "n58",
+      "name": "Graph calendar? (move)",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "shared",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s0",
+                    "leftValue": "={{ $json.gt.route }}",
+                    "rightValue": "shared",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "broker",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s1",
+                    "leftValue": "={{ $json.gt.route }}",
+                    "rightValue": "broker",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "skip",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s2",
+                    "leftValue": "={{ $json.gt.route }}",
+                    "rightValue": "skip",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n59",
+      "name": "Graph PATCH event (howzit@ shared calendar)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        -200
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $('Graph target (move)').item.json.gt.url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "microsoftOutlookOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ start: { dateTime: $('Decide move (w10.applyReschedule)').item.json.new_start, timeZone: 'Africa/Johannesburg' }, end: { dateTime: $('Decide move (w10.applyReschedule)').item.json.new_end, timeZone: 'Africa/Johannesburg' } }) }}",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "",
+          "name": "Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n60",
+      "name": "Graph target (cancel)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w05;\nconst s = $('Decide cancel (w10.applyCancel)').item.json;\nconst t = L.graphEventTarget(s.bk, s.br, { HOWZIT_MAILBOX: $env.HOWZIT_MAILBOX, SMC_SHARED_CALENDAR_ID: $env.SMC_SHARED_CALENDAR_ID });\nreturn { json: { ...$json, gt: { ...t, route: t.error || t.route === 'none' ? 'skip' : t.route } } };"
+      }
+    },
+    {
+      "id": "n61",
+      "name": "Graph calendar? (cancel)",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        440,
+        400
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "shared",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s0",
+                    "leftValue": "={{ $json.gt.route }}",
+                    "rightValue": "shared",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "broker",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s1",
+                    "leftValue": "={{ $json.gt.route }}",
+                    "rightValue": "broker",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "skip",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s2",
+                    "leftValue": "={{ $json.gt.route }}",
+                    "rightValue": "skip",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n62",
+      "name": "Graph DELETE event (howzit@ shared calendar)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        200
+      ],
+      "parameters": {
+        "method": "DELETE",
+        "url": "={{ $('Graph target (cancel)').item.json.gt.url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "microsoftOutlookOAuth2Api",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "",
+          "name": "Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger (W07 / W12 / W28)": {
+      "main": [
+        [
+          {
+            "node": "Classify op",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify op": {
+      "main": [
+        [
+          {
+            "node": "Load booking, lead, broker, brand",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load booking, lead, broker, brand": {
+      "main": [
+        [
+          {
+            "node": "Merge context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge context": {
+      "main": [
+        [
+          {
+            "node": "Op",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Op": {
+      "main": [
+        [
+          {
+            "node": "W04 slots (exclude this booking)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Claim reschedule key (idempotency)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Decide cancel (w10.applyCancel)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cancel confirm buttons",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Keep it",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Decide method change",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Broker said Rescheduled: offer (template, Schedule D)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Decide no-call (C1A point 2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W04 slots (exclude this booking)": {
+      "main": [
+        [
+          {
+            "node": "Build offer (Flow / list / template)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build offer (Flow / list / template)": {
+      "main": [
+        [
+          {
+            "node": "Has WhatsApp payload + live?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has WhatsApp payload + live?": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim reschedule key (idempotency)": {
+      "main": [
+        [
+          {
+            "node": "W04 Outlook getSchedule re-check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W04 Outlook getSchedule re-check": {
+      "main": [
+        [
+          {
+            "node": "Decide move (w10.applyReschedule)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide move (w10.applyReschedule)": {
+      "main": [
+        [
+          {
+            "node": "Move result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Move result": {
+      "main": [
+        [
+          {
+            "node": "Move booking in place (re-check overlap + buffer)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> W05 new booking (after the meeting)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slot taken: next 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Move booking in place (re-check overlap + buffer)": {
+      "main": [
+        [
+          {
+            "node": "Moved? (else slot taken in the last second)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Moved? (else slot taken in the last second)": {
+      "main": [
+        [
+          {
+            "node": "Graph target (move)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slot taken: next 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graph token for broker": {
+      "main": [
+        [
+          {
+            "node": "Graph PATCH event (same event id)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graph PATCH event (same event id)": {
+      "main": [
+        [
+          {
+            "node": "W09 rebuild reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W09 rebuild reminders": {
+      "main": [
+        [
+          {
+            "node": "Timeline: moved (+ rebooked_after_no_show, second reschedule flag)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Timeline: moved (+ rebooked_after_no_show, second reschedule flag)": {
+      "main": [
+        [
+          {
+            "node": "Lead + broker messages (moved)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lead + broker messages (moved)": {
+      "main": [
+        [
+          {
+            "node": "Has WhatsApp payload + live?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Email to broker?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "-> W05 new booking (after the meeting)": {
+      "main": [
+        [
+          {
+            "node": "Old booking -> rescheduled",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Old booking -> rescheduled": {
+      "main": [
+        [
+          {
+            "node": "Timeline: moved (+ rebooked_after_no_show, second reschedule flag)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slot taken: next 3": {
+      "main": [
+        [
+          {
+            "node": "Has WhatsApp payload + live?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide cancel (w10.applyCancel)": {
+      "main": [
+        [
+          {
+            "node": "Cancel allowed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cancel allowed?": {
+      "main": [
+        [
+          {
+            "node": "Cancel booking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cancel booking": {
+      "main": [
+        [
+          {
+            "node": "Graph target (cancel)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graph token for broker (cancel)": {
+      "main": [
+        [
+          {
+            "node": "Graph DELETE event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graph DELETE event": {
+      "main": [
+        [
+          {
+            "node": "W09 cancel all reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W09 cancel all reminders": {
+      "main": [
+        [
+          {
+            "node": "Timeline: cancelled",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Timeline: cancelled": {
+      "main": [
+        [
+          {
+            "node": "Broker notice (cancelled) + rebook once?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Broker notice (cancelled) + rebook once?": {
+      "main": [
+        [
+          {
+            "node": "Has WhatsApp payload + live?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Email to broker?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Offer rebooking once?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Offer rebooking once?": {
+      "main": [
+        [
+          {
+            "node": "W04 slots (exclude this booking)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cancel confirm buttons": {
+      "main": [
+        [
+          {
+            "node": "Has WhatsApp payload + live?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keep it": {
+      "main": [
+        [
+          {
+            "node": "Has WhatsApp payload + live?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide method change": {
+      "main": [
+        [
+          {
+            "node": "Method result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Method result": {
+      "main": [
+        [
+          {
+            "node": "Save method",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Method lead message (one message)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "-> W28 / W05 email step",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Method lead message (one message)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save method": {
+      "main": [
+        [
+          {
+            "node": "W05 update event method (Teams link / body)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Broker said Rescheduled: offer (template, Schedule D)": {
+      "main": [
+        [
+          {
+            "node": "W04 slots (exclude this booking)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email to broker?": {
+      "main": [
+        [
+          {
+            "node": "Email broker from howzit@ (Graph sendMail)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide no-call (C1A point 2)": {
+      "main": [
+        [
+          {
+            "node": "Stop messaging (no call)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Booking still live? (confirm cancel first)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Booking still live? (confirm cancel first)": {
+      "main": [
+        [
+          {
+            "node": "Cancel confirm buttons",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "W09 cancel all (no call)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hourly (C1A sweep)": {
+      "main": [
+        [
+          {
+            "node": "C1A candidates (latest booking cancelled, not yet decided)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "C1A candidates (latest booking cancelled, not yet decided)": {
+      "main": [
+        [
+          {
+            "node": "C1A decide (w10.c1aDecision)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "C1A decide (w10.c1aDecision)": {
+      "main": [
+        [
+          {
+            "node": "C1A claim?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "C1A claim?": {
+      "main": [
+        [
+          {
+            "node": "C1A decision row (idempotency + evidence)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "C1A decision row (idempotency + evidence)": {
+      "main": [
+        [
+          {
+            "node": "W13 claim payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W13 claim payload": {
+      "main": [
+        [
+          {
+            "node": "-> W13 claim (C1A)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Touch leads.last_contact_at (lead outbound)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Method lead message (one message)": {
+      "main": [
+        [
+          {
+            "node": "Has WhatsApp payload + live?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graph target (move)": {
+      "main": [
+        [
+          {
+            "node": "Graph calendar? (move)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graph calendar? (move)": {
+      "main": [
+        [
+          {
+            "node": "Graph PATCH event (howzit@ shared calendar)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Graph token for broker",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "W09 rebuild reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graph PATCH event (howzit@ shared calendar)": {
+      "main": [
+        [
+          {
+            "node": "W09 rebuild reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graph target (cancel)": {
+      "main": [
+        [
+          {
+            "node": "Graph calendar? (cancel)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graph calendar? (cancel)": {
+      "main": [
+        [
+          {
+            "node": "Graph DELETE event (howzit@ shared calendar)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Graph token for broker (cancel)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "W09 cancel all reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graph DELETE event (howzit@ shared calendar)": {
+      "main": [
+        [
+          {
+            "node": "W09 cancel all reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "saveManualExecutions": true,
+    "errorWorkflow": "smc-w22"
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "booking"
+    },
+    {
+      "name": "whatsapp"
+    },
+    {
+      "name": "core"
+    }
+  ],
+  "meta": {
+    "notes": "automation-engineer. W10 reschedule/cancel; logic automation/lib/w10.mjs; tests automation/tests/W10.test.mjs."
+  }
+}

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Calendar & availability | SortMyCover broker portal (prototype)</title>
+<link rel="stylesheet" href="portal.css">
+</head><body>
+<div class="app">
+<header class="top"><div class="who">Mark Williams Financial Planning &middot; FSP 00000 (example data)</div><h1>Your calendar</h1><div class="bar"><i style="width:29%"></i></div><div class="bar-l"><span>2 of 7 done</span><span>about 6 minutes to go live</span></div></header>
+<main class="main">
+
+<section class="card" id="connect">
+  <h2>Connect your Outlook calendar</h2>
+  <p class="muted">One tap. We only look at when you are free, and we add your meetings. We never read your emails.</p>
+  <div id="beforeConn">
+    <button class="btn ms" id="ms"><span class="ms-logo"><i></i><i></i><i></i><i></i></span>Sign in with Microsoft</button>
+    <p class="hint" style="margin-top:8px">Use the work account you use for Outlook or Microsoft 365. Do you use Google? <a href="#">Connect Google instead</a>.</p>
+    <details style="margin-top:10px"><summary>Microsoft says "Need admin approval"?</summary>
+      <p class="muted">Your IT admin has switched off new apps. Two easy ways forward:</p>
+      <ol class="muted"><li>Send this link to whoever looks after your Microsoft 365. They tap "Approve", and you try again: <a href="#">copy admin approval link</a>.</li>
+      <li>Or skip it. We create each meeting in a shared calendar you subscribe to, and the Teams link comes from our side. <a href="#">Use the shared calendar instead</a>.</li></ol>
+    </details>
+  </div>
+  <div id="afterConn" hidden>
+    <div class="next-slot" role="status" aria-live="polite"><span style="font-size:26px">&#10003;</span><div><span class="small" style="color:inherit">Calendar connected. Your next free slot:</span><b>Tue 6 Oct, 10:00</b>Found from your real calendar just now.</div></div>
+    <p class="muted" style="margin-top:10px">Wrong? Your calendar looks busy then? <a href="#hours">Change your hours</a> or <a href="#">pick another calendar</a>.</p>
+  </div>
+  <p class="small" style="margin-top:10px">Connected as: <b id="who">not yet</b></p>
+</section>
+<a class="step-clip" href="#"><span class="play"></span><span>Watch: connecting your calendar<small>0:40 &middot; captions on</small></span></a>
+
+<section class="card" id="hours">
+  <h2>Your hours and how you meet</h2>
+  <p class="muted">We started you on a normal week. Change anything, or just tap Looks right.</p>
+  <label>Days and hours leads can book</label>
+  <div class="chips"><label class="chip on"><input type="checkbox" checked> Mon</label><label class="chip on"><input type="checkbox" checked> Tue</label><label class="chip on"><input type="checkbox" checked> Wed</label><label class="chip on"><input type="checkbox" checked> Thu</label><label class="chip on"><input type="checkbox" checked> Fri</label><label class="chip"><input type="checkbox"> Sat</label><label class="chip"><input type="checkbox"> Sun</label></div>
+  <div class="row2"><div><label for="from">From</label><input id="from" type="text" value="09:00"></div><div><label for="to">Until</label><input id="to" type="text" value="17:00"></div></div>
+  <label>How you can meet</label>
+  <div class="chips"><label class="chip on"><input type="checkbox" checked> Teams</label><label class="chip on"><input type="checkbox" checked> Phone</label><label class="chip"><input type="checkbox"> WhatsApp call</label><label class="chip"><input type="checkbox"> Zoom</label><label class="chip"><input type="checkbox"> Google Meet</label></div>
+  <div class="row2"><div><label for="d">Most meetings a day</label><input id="d" type="number" inputmode="numeric" value="3" min="1" max="10"></div><div><label for="w">Most a week</label><input id="w" type="number" inputmode="numeric" value="12" min="1" max="50"></div></div>
+  <p class="hint">We never book you past these numbers.</p>
+  <details style="margin-top:10px"><summary>More settings (most people never change these)</summary>
+    <div class="row2"><div><label for="sl">Meeting length</label><select id="sl"><option>30 minutes</option><option>45 minutes</option></select></div><div><label for="bf">Gap between meetings</label><select id="bf"><option>15 minutes</option><option>0 minutes</option><option>30 minutes</option></select></div></div>
+    <div class="row2"><div><label for="nt">Shortest notice</label><select id="nt"><option>2 hours</option><option>4 hours</option><option>24 hours</option></select></div><div><label for="hz">How far ahead</label><select id="hz"><option>14 days</option><option>7 days</option><option>21 days</option></select></div></div>
+    <label class="chip" style="display:flex;margin-top:12px"><input type="checkbox"> Pause new bookings (leads already booked stay booked)</label>
+  </details>
+  <div style="height:12px"></div>
+  <button class="btn">Looks right</button>
+</section>
+<a class="step-clip" href="#"><span class="play"></span><span>Watch: hours, methods and how many<small>0:35 &middot; captions on</small></span></a>
+
+</main>
+</div>
+<nav class="tabs" aria-label="Portal"><div><a href="start.html">Start</a><a href="leads.html">My leads</a><a href="calendar.html" class=cur>Calendar</a><a href="reports.html">Reports</a><a href="help.html">Help</a></div></nav>
+<script>
+
+// Prototype only. Real flow: Microsoft OAuth (Calendars.ReadWrite) -> W04 GET /slots?broker_id -> first slot rendered here.
+document.getElementById("ms").addEventListener("click",function(){
+  document.getElementById("beforeConn").hidden=true;
+  document.getElementById("afterConn").hidden=false;
+  document.getElementById("who").textContent="mark@example.co.za (Microsoft 365)";
+});
+
+</script>
+</body></html>

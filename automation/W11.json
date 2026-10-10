@@ -1,0 +1,1104 @@
+{
+  "id": "smc-w11",
+  "name": "W11 Broker reminders",
+  "nodes": [
+    {
+      "id": "n01",
+      "name": "Sticky: read me",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "width": 760,
+        "height": 360,
+        "content": "W11 Broker reminders (4.6 item 7 + W11 row; 4.11 pre-call brief; 4.12a unmarked rule).\n(1) 07:30 SAST daily digest broker_daily_digest to every active broker with >= 1 live meeting today (none -> nothing sent) + the same list by email.\n(2) Every minute: T-15 min pre-call brief precall_brief. Input built from Postgres only (precall-brief.md \"Inputs\"): bands, contact data, lead_theme rows (I-22, written by W07), confirm/intro signals, the broker's 'what_mattered' corpus (W29). Sonnet writes it; briefCheck() gates it; any failure -> deterministic fallback brief (a brief is never skipped). Health detail never leaves Postgres (only \"has a health question for you\").\n(3) Hourly backstop: slot end + 24 h with no outcomes row -> attended + auto_marked + unconfirmed (ON CONFLICT (booking_id) DO NOTHING so it cannot fight W12, which owns the normal path); lead said \"No, not yet\" -> console queue instead; two unconfirmed in a cycle -> Jonathan calls the broker.\nBrokers see first name + initial only. Idempotency: lead_activities keys w11:digest:{broker}:{date}, w11:brief:{booking}:{epoch}, w11:auto:{booking}. Logic automation/lib/w11.mjs; tests automation/tests/W11.test.mjs.\nNOTE: the brief that launched this asked for broker reminders at T-24 h / T-1 h; 4.6 specifies 07:30 + T-15 and there is no approved broker template for T-24 h / T-1 h - built to 4.6, logged needs_human."
+      }
+    },
+    {
+      "id": "n02",
+      "name": "Daily 07:30 SAST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 7 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n03",
+      "name": "Today's live meetings per broker",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT a.id, a.broker_id, a.appointment_date, a.method, a.status, l.first_name, l.last_name,\n       b.contact_person, b.whatsapp_number, b.email\n  FROM public.appointments a\n  JOIN public.leads l ON l.id = a.client_id\n  JOIN public.brokers b ON b.id = a.broker_id\n WHERE a.brand_id IS NOT NULL\n   AND a.status IN ('booked','confirmed')\n   AND b.status = 'active'\n   AND a.appointment_date >= (date_trunc('day', now() AT TIME ZONE 'Africa/Johannesburg') AT TIME ZONE 'Africa/Johannesburg')\n   AND a.appointment_date <  ((date_trunc('day', now() AT TIME ZONE 'Africa/Johannesburg') + interval '1 day') AT TIME ZONE 'Africa/Johannesburg')\n ORDER BY a.broker_id, a.appointment_date;",
+        "options": {
+          "queryReplacement": "={{ [] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n04",
+      "name": "Build digests (w11.digest)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w11;\nconst rows = $input.all().map((i) => i.json).filter((r) => r.id);\nconst byBroker = {};\nfor (const r of rows) (byBroker[r.broker_id] ||= { broker: { id: r.broker_id, contact_person: r.contact_person, whatsapp_number: r.whatsapp_number, email: r.email }, bookings: [] }).bookings.push({ broker_id: r.broker_id, status: r.status, appointment_date: r.appointment_date, method: r.method, lead: { first_name: r.first_name, last_name: r.last_name } });\nconst out = [];\nfor (const v of Object.values(byBroker)) { const d = L.digest(v.broker, v.bookings, Date.now()); if (d) out.push({ json: { broker: v.broker, d } }); }\nreturn out;"
+      }
+    },
+    {
+      "id": "n05",
+      "name": "Claim digest (idempotency)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT NULL, b.brand_id, b.id, 'W11', 'system', 'broker_digest_sent', jsonb_build_object('count', $2::int), now(), $3\n  FROM public.brokers b WHERE b.id = $1::uuid\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$json.broker.id, Number($json.d.vars[1]), $json.d.idempotency_key] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n06",
+      "name": "Digest claimed + live?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$json.id && $env.DRY_RUN_SENDS !== 'true') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n07",
+      "name": "Digest template payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const j = $('Build digests (w11.digest)').item.json;\nreturn { json: { ...j, wa: { messaging_product: 'whatsapp', to: j.broker.whatsapp_number, type: 'template', template: { name: 'broker_daily_digest', language: { code: 'en' }, components: [{ type: 'body', parameters: j.d.vars.map((t) => ({ type: 'text', text: String(t) })) }, { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: 'today' }] }] } } } };"
+      }
+    },
+    {
+      "id": "n08",
+      "name": "Send digest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION }}/{{ $env.PHONE_NUMBER_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.META_SYSTEM_USER_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.wa) }}",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "n09",
+      "name": "Every minute (T-15 briefs)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "* * * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n10",
+      "name": "Meetings starting within 15 min, not yet briefed",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        220,
+        200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT a.id, a.client_id, a.broker_id, a.brand_id, a.cycle_id, a.appointment_date, a.ends_at, a.method, a.status, a.call_number, a.join_url,\n       a.reschedule_count, a.confirmed_at, a.intro_played_at,\n       l.first_name, l.last_name, l.phone, l.age_band, l.budget_band, l.bond, l.dependants, l.work_cover,\n       l.call_number AS lead_call_number, l.alt_number, l.best_time, l.language,\n       b.contact_person, b.whatsapp_number,\n       COALESCE((SELECT jsonb_agg(t.payload ORDER BY t.occurred_at) FROM public.lead_activities t WHERE t.lead_id = l.id AND t.activity_type = 'lead_theme'), '[]'::jsonb) AS themes,\n       COALESCE((SELECT jsonb_agg(q.text) FROM (SELECT i.text FROM public.insights i WHERE i.broker_id = b.id AND i.kind = 'what_mattered' ORDER BY i.created_at DESC LIMIT 5) q), '[]'::jsonb) AS corpus\n  FROM public.appointments a\n  JOIN public.leads l ON l.id = a.client_id\n  JOIN public.brokers b ON b.id = a.broker_id\n WHERE a.brand_id IS NOT NULL\n   AND a.status IN ('booked','confirmed')\n   AND a.appointment_date > now()\n   AND a.appointment_date <= now() + interval '15 minutes'\n   AND NOT EXISTS (SELECT 1 FROM public.lead_activities x\n                    WHERE x.idempotency_key = 'w11:brief:' || a.id || ':' || extract(epoch FROM a.appointment_date)::bigint);",
+        "options": {
+          "queryReplacement": "={{ [] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n11",
+      "name": "Brief input (w11.briefInput)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w11;\nconst r = $json; if (!r.id) return { json: { skip: true } };\nconst lead = { first_name: r.first_name, last_name: r.last_name, phone: r.phone, age_band: r.age_band, budget_band: r.budget_band, bond: r.bond, dependants: r.dependants, work_cover: r.work_cover, call_number: r.lead_call_number, alt_number: r.alt_number, best_time: r.best_time, language: r.language };\nconst booking = { id: r.id, appointment_date: r.appointment_date, method: r.method, call_number: r.call_number, join_url: r.join_url, reschedule_count: r.reschedule_count, status: r.status };\nconst input = L.briefInput(lead, booking, r.themes || [], { confirmed_t24: !!r.confirmed_at, intro_media_played: !!r.intro_played_at }, r.corpus || []);\nconst fallback = L.fallbackBrief(lead, booking, input);\nconst fs = require('fs');\nconst md = fs.readFileSync(REPO + '/conversation/prompts/precall-brief.md', 'utf8');\nconst system = (md.split('\\u0060\\u0060\\u0060prompt')[1] || '').split('\\u0060\\u0060\\u0060')[0].trim();\nreturn { json: { skip: false, r, lead, booking, input, fallback, key: L.briefKey(booking), body: { model: $env.ANTHROPIC_MODEL_STRONG || 'claude-sonnet-5-5', max_tokens: 600, temperature: 0.2, system, messages: [{ role: 'user', content: JSON.stringify(input) }] } } };"
+      }
+    },
+    {
+      "id": "n12",
+      "name": "Claim brief (idempotency)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W11', 'system', 'precall_brief_sent', jsonb_build_object('booking_id', $5::text), now(), $6)\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$json.r.client_id, $json.r.brand_id, $json.r.broker_id, $json.r.cycle_id, $json.r.id, $json.key] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n13",
+      "name": "Brief claimed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        880,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$json.id) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n14",
+      "name": "Pre-call brief LLM (Sonnet)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Brief input (w11.briefInput)').item.json.body) }}",
+        "options": {
+          "timeout": 12000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1500,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "n15",
+      "name": "briefCheck -> LLM or fallback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w11;\nconst j = $('Brief input (w11.briefInput)').item.json;\nlet model = null; try { model = JSON.parse((($json.content && $json.content[0] && $json.content[0].text) || '').replace(/\\u0060\\u0060\\u0060json|\\u0060\\u0060\\u0060/g, '').trim()); } catch (e) { model = null; }\nconst c = L.chooseBrief(model, j.fallback, { last_name: j.lead.last_name });\nconst vars = L.briefVarsArray(c.brief);\nreturn { json: { ...j, used: c.used, issues: c.issues, wa: { messaging_product: 'whatsapp', to: j.r.whatsapp_number, type: 'template', template: { name: 'precall_brief', language: { code: 'en' }, components: [{ type: 'body', parameters: vars.map((t) => ({ type: 'text', text: t })) }, { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: 'brief/' + j.r.id }] }] } } } };"
+      }
+    },
+    {
+      "id": "n16",
+      "name": "Live send? (brief)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($env.DRY_RUN_SENDS !== 'true') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n17",
+      "name": "Send pre-call brief",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        400
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION }}/{{ $env.PHONE_NUMBER_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.META_SYSTEM_USER_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.wa) }}",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "n18",
+      "name": "Hourly (unmarked backstop)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        400
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "5 * * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n19",
+      "name": "Ended 24 h+ ago, no outcome",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        440,
+        400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT a.id, a.client_id, a.broker_id, a.cycle_id, a.brand_id, a.ends_at, a.status,\n       (SELECT x.payload->>'answer' FROM public.lead_activities x WHERE x.lead_id = a.client_id AND x.activity_type = 'reach_check' ORDER BY x.occurred_at DESC LIMIT 1) AS reach\n  FROM public.appointments a\n WHERE a.brand_id IS NOT NULL\n   AND a.status IN ('booked','confirmed')\n   AND a.ends_at <= now() - interval '24 hours'\n   AND a.ends_at > now() - interval '14 days'\n   AND NOT EXISTS (SELECT 1 FROM public.outcomes o WHERE o.booking_id = a.id);",
+        "options": {
+          "queryReplacement": "={{ [] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n20",
+      "name": "Decide (w11.unmarkedSweep)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w11;\nconst r = $json; if (!r.id) return { json: { action: 'none' } };\nconst d = L.unmarkedSweep(r, { outcome_exists: false, reach: r.reach || null }, Date.now());\nreturn { json: { ...d, r } };"
+      }
+    },
+    {
+      "id": "n21",
+      "name": "Sweep action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        880,
+        400
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "auto_attend",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s0",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "auto_attend",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "queue",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s1",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "queue",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      }
+    },
+    {
+      "id": "n22",
+      "name": "Insert auto-attended outcome (never overrides W12)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1100,
+        400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH o AS (\n  INSERT INTO public.outcomes (booking_id, lead_id, broker_id, cycle_id, brand_id, outcome, lead_reach_check, marked_via, auto_marked, unconfirmed)\n  VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid, 'attended', $6, 'auto', true, true)\n  ON CONFLICT (booking_id) DO NOTHING\n  RETURNING id, booking_id, lead_id, cycle_id),\na AS (UPDATE public.appointments SET status = 'attended', updated_at = now() WHERE id IN (SELECT booking_id FROM o) RETURNING id),\nl AS (UPDATE public.leads SET stage = 'attended', updated_at = now() WHERE id IN (SELECT lead_id FROM o) RETURNING id),\ne AS (INSERT INTO public.escalations (brand_id, kind, severity, ref_table, ref_id, lead_id, broker_id, raised_at, note)\n      SELECT $5::uuid, 'outcome_unmarked', 'normal', 'outcomes', o.id::text, o.lead_id, $3::uuid, now(), 'esc_kind=outcome_unmarked; auto-marked attended at 24 h, unconfirmed' FROM o RETURNING id)\nSELECT o.id AS outcome_id,\n       (SELECT count(*) FROM public.outcomes x WHERE x.cycle_id = o.cycle_id AND x.unconfirmed) + 1 AS unconfirmed_in_cycle\n  FROM o;",
+        "options": {
+          "queryReplacement": "={{ [$json.insert.booking_id, $json.insert.lead_id, $json.insert.broker_id, $json.insert.cycle_id, $json.insert.brand_id, $json.insert.lead_reach_check] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n23",
+      "name": "Inserted?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$json.outcome_id) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n24",
+      "name": "-> W12 auto_attended (thank-you, CAPI, W29)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1540,
+        400
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w12",
+          "cachedResultName": "W12 Outcome, disposition & feedback"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Called with { event: 'auto_attended', outcome_id } so the attended path (attended_thanks, CAPI Attended rules, W29) stays in one place."
+    },
+    {
+      "id": "n25",
+      "name": "Two unconfirmed in cycle? (4.12a)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        0,
+        600
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(Number($json.unconfirmed_in_cycle) >= 2) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n26",
+      "name": "Escalate: Jonathan calls the broker",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        220,
+        600
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.escalations (brand_id, kind, severity, ref_table, ref_id, broker_id, raised_at, note)\nVALUES ($1::uuid, 'outcome_unmarked', 'urgent', 'outcomes', $2, $3::uuid, now(), 'esc_kind=two_unconfirmed; Jonathan calls the broker (4.12a)');",
+        "options": {
+          "queryReplacement": "={{ [$('Decide (w11.unmarkedSweep)').item.json.r.brand_id, $json.outcome_id, $('Decide (w11.unmarkedSweep)').item.json.r.broker_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n27",
+      "name": "Queue: lead said adviser did not call",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        440,
+        600
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.escalations (brand_id, kind, severity, ref_table, ref_id, lead_id, broker_id, raised_at, note)\nSELECT $1::uuid, 'outcome_unmarked', 'normal', 'appointments', $2, $3::uuid, $4::uuid, now(), $5\n WHERE NOT EXISTS (SELECT 1 FROM public.escalations e WHERE e.ref_table = 'appointments' AND e.ref_id = $2 AND e.kind = 'outcome_unmarked');",
+        "options": {
+          "queryReplacement": "={{ [$json.r.brand_id, $json.r.id, $json.r.client_id, $json.r.broker_id, $json.escalation.note] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n28",
+      "name": "Touch last_contact_at (digest leads)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1760,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- I-38d / CONTRACTS.md: the digest is about today's calls with these leads, so their W34 retention clock restarts.\n-- Only when Meta accepted the send (wamid). Same leads as the digest: this broker's live meetings today (SAST).\nUPDATE public.leads l SET last_contact_at = now()\n  FROM public.appointments a\n WHERE a.client_id = l.id AND a.broker_id = $1::uuid AND a.brand_id IS NOT NULL\n   AND a.status IN ('booked','confirmed')\n   AND (a.appointment_date AT TIME ZONE 'Africa/Johannesburg')::date = $2::date\n   AND $3 <> ''\nRETURNING l.id;",
+        "options": {
+          "queryReplacement": "={{ (() => { const j = $('Digest template payload').item.json; return [j.broker.id, new Date(Date.now() + 7200000).toISOString().slice(0, 10), ($json.messages && $json.messages[0] && $json.messages[0].id) || '']; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "n29",
+      "name": "Touch last_contact_at (brief lead)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        220,
+        400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- I-38d / CONTRACTS.md: the T-15 brief precedes the broker's call to this lead; restart the W34 retention clock.\n-- Only when Meta accepted the send (wamid).\nUPDATE public.leads SET last_contact_at = now()\n WHERE id = $1::uuid AND $2 <> ''\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [($('Brief input (w11.briefInput)').item.json.r || {}).client_id || null, ($json.messages && $json.messages[0] && $json.messages[0].id) || ''] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "n11b",
+      "name": "Meeting to brief? (empty minute stops here)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.skip !== true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily 07:30 SAST": {
+      "main": [
+        [
+          {
+            "node": "Today's live meetings per broker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Today's live meetings per broker": {
+      "main": [
+        [
+          {
+            "node": "Build digests (w11.digest)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build digests (w11.digest)": {
+      "main": [
+        [
+          {
+            "node": "Claim digest (idempotency)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim digest (idempotency)": {
+      "main": [
+        [
+          {
+            "node": "Digest claimed + live?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Digest claimed + live?": {
+      "main": [
+        [
+          {
+            "node": "Digest template payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Digest template payload": {
+      "main": [
+        [
+          {
+            "node": "Send digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every minute (T-15 briefs)": {
+      "main": [
+        [
+          {
+            "node": "Meetings starting within 15 min, not yet briefed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meetings starting within 15 min, not yet briefed": {
+      "main": [
+        [
+          {
+            "node": "Brief input (w11.briefInput)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Brief input (w11.briefInput)": {
+      "main": [
+        [
+          {
+            "node": "Meeting to brief? (empty minute stops here)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim brief (idempotency)": {
+      "main": [
+        [
+          {
+            "node": "Brief claimed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Brief claimed?": {
+      "main": [
+        [
+          {
+            "node": "Pre-call brief LLM (Sonnet)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pre-call brief LLM (Sonnet)": {
+      "main": [
+        [
+          {
+            "node": "briefCheck -> LLM or fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "briefCheck -> LLM or fallback": {
+      "main": [
+        [
+          {
+            "node": "Live send? (brief)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Live send? (brief)": {
+      "main": [
+        [
+          {
+            "node": "Send pre-call brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hourly (unmarked backstop)": {
+      "main": [
+        [
+          {
+            "node": "Ended 24 h+ ago, no outcome",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ended 24 h+ ago, no outcome": {
+      "main": [
+        [
+          {
+            "node": "Decide (w11.unmarkedSweep)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide (w11.unmarkedSweep)": {
+      "main": [
+        [
+          {
+            "node": "Sweep action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sweep action": {
+      "main": [
+        [
+          {
+            "node": "Insert auto-attended outcome (never overrides W12)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Queue: lead said adviser did not call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert auto-attended outcome (never overrides W12)": {
+      "main": [
+        [
+          {
+            "node": "Inserted?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inserted?": {
+      "main": [
+        [
+          {
+            "node": "-> W12 auto_attended (thank-you, CAPI, W29)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Two unconfirmed in cycle? (4.12a)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Two unconfirmed in cycle? (4.12a)": {
+      "main": [
+        [
+          {
+            "node": "Escalate: Jonathan calls the broker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send digest": {
+      "main": [
+        [
+          {
+            "node": "Touch last_contact_at (digest leads)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send pre-call brief": {
+      "main": [
+        [
+          {
+            "node": "Touch last_contact_at (brief lead)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meeting to brief? (empty minute stops here)": {
+      "main": [
+        [
+          {
+            "node": "Claim brief (idempotency)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "saveManualExecutions": true,
+    "errorWorkflow": "smc-w22"
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "broker"
+    },
+    {
+      "name": "whatsapp"
+    }
+  ],
+  "meta": {
+    "notes": "automation-engineer. W11 broker reminders; logic automation/lib/w11.mjs; tests automation/tests/W11.test.mjs."
+  }
+}

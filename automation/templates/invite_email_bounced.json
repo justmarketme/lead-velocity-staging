@@ -1,0 +1,24 @@
+{
+  "name": "invite_email_bounced",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, the {{2}} invite for your call with {{3}} didn't reach your inbox, so when you have a moment, please reply with the email address you'd like us to use. Reply STOP to opt out.",
+      "example": {
+        "body_text": [
+          [
+            "Lerato",
+            "Teams",
+            "Mark Smith"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover"
+    }
+  ]
+}

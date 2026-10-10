@@ -1,0 +1,989 @@
+{
+  "version": "7.0",
+  "data_api_version": "3.0",
+  "routing_model": {
+    "REASONS": [
+      "SPEND",
+      "END"
+    ],
+    "SPEND": [
+      "NAME",
+      "END"
+    ],
+    "NAME": [
+      "EMAIL",
+      "END"
+    ],
+    "EMAIL": [
+      "NUMBER",
+      "END"
+    ],
+    "NUMBER": [
+      "AGE",
+      "END"
+    ],
+    "AGE": [
+      "BUDGET",
+      "END"
+    ],
+    "BUDGET": [
+      "SMOKER",
+      "END"
+    ],
+    "SMOKER": [
+      "INCOME",
+      "END"
+    ],
+    "INCOME": [
+      "DATE",
+      "END"
+    ],
+    "DATE": [
+      "SLOTS",
+      "END"
+    ],
+    "SLOTS": [
+      "CONFIRM",
+      "END"
+    ],
+    "CONFIRM": [
+      "END"
+    ],
+    "END": []
+  },
+  "screens": [
+    {
+      "id": "REASONS",
+      "title": "What can we help with?",
+      "data": {
+        "reasons_options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "life_cover",
+              "title": "Life cover"
+            },
+            {
+              "id": "funeral_cover",
+              "title": "Funeral cover"
+            },
+            {
+              "id": "retirement_planning",
+              "title": "Retirement planning"
+            },
+            {
+              "id": "investments",
+              "title": "Investments"
+            },
+            {
+              "id": "disability",
+              "title": "Disability cover"
+            },
+            {
+              "id": "paying_too_much",
+              "title": "I feel like I'm paying too much"
+            },
+            {
+              "id": "other",
+              "title": "Something else"
+            }
+          ]
+        },
+        "show_error": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "error_message": {
+          "type": "string",
+          "__example__": ""
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "f",
+            "children": [
+              {
+                "type": "TextSubheading",
+                "text": "What would you like to talk to an adviser about?"
+              },
+              {
+                "type": "CheckboxGroup",
+                "name": "reasons",
+                "label": "Choose all that apply",
+                "required": true,
+                "min-selected-items": 1,
+                "data-source": "${data.reasons_options}"
+              },
+              {
+                "type": "TextBody",
+                "text": "${data.error_message}",
+                "visible": "${data.show_error}",
+                "font-weight": "bold"
+              },
+              {
+                "type": "Footer",
+                "label": "Continue",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "screen": "REASONS",
+                    "reasons": "${form.reasons}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "SPEND",
+      "title": "Your current cover",
+      "data": {
+        "spend_heading": {
+          "type": "string",
+          "__example__": "You said you might be paying too much. What are you paying at the moment? (Optional)"
+        },
+        "show_error": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "error_message": {
+          "type": "string",
+          "__example__": ""
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "f",
+            "children": [
+              {
+                "type": "TextSubheading",
+                "text": "${data.spend_heading}"
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "name": "spend",
+                "label": "Total per month",
+                "required": false,
+                "data-source": [
+                  {
+                    "id": "lt500",
+                    "title": "Under R500"
+                  },
+                  {
+                    "id": "500_1000",
+                    "title": "R500 to R1,000"
+                  },
+                  {
+                    "id": "1000_1500",
+                    "title": "R1,000 to R1,500"
+                  },
+                  {
+                    "id": "1500_2500",
+                    "title": "R1,500 to R2,500"
+                  },
+                  {
+                    "id": "2500plus",
+                    "title": "R2,500 or more"
+                  },
+                  {
+                    "id": "prefer_not",
+                    "title": "Prefer not to say"
+                  }
+                ]
+              },
+              {
+                "type": "TextBody",
+                "text": "${data.error_message}",
+                "visible": "${data.show_error}",
+                "font-weight": "bold"
+              },
+              {
+                "type": "Footer",
+                "label": "Continue",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "screen": "SPEND",
+                    "spend": "${form.spend}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "NAME",
+      "title": "Your name",
+      "data": {
+        "show_error": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "error_message": {
+          "type": "string",
+          "__example__": ""
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "f",
+            "children": [
+              {
+                "type": "TextSubheading",
+                "text": "What is your name?"
+              },
+              {
+                "type": "TextInput",
+                "name": "first_name",
+                "label": "Name",
+                "input-type": "text",
+                "required": true
+              },
+              {
+                "type": "TextInput",
+                "name": "last_name",
+                "label": "Surname",
+                "input-type": "text",
+                "required": true
+              },
+              {
+                "type": "TextBody",
+                "text": "${data.error_message}",
+                "visible": "${data.show_error}",
+                "font-weight": "bold"
+              },
+              {
+                "type": "Footer",
+                "label": "Continue",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "screen": "NAME",
+                    "first_name": "${form.first_name}",
+                    "last_name": "${form.last_name}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "EMAIL",
+      "title": "Your email",
+      "data": {
+        "init_email": {
+          "type": "string",
+          "__example__": "lerato@example.co.za"
+        },
+        "show_error": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "error_message": {
+          "type": "string",
+          "__example__": ""
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "f",
+            "children": [
+              {
+                "type": "TextSubheading",
+                "text": "Where should we send your meeting invite?"
+              },
+              {
+                "type": "TextInput",
+                "name": "email",
+                "label": "Email",
+                "input-type": "email",
+                "required": true,
+                "init-value": "${data.init_email}"
+              },
+              {
+                "type": "OptIn",
+                "name": "alt_same",
+                "label": "Same as above (no other email)"
+              },
+              {
+                "type": "TextInput",
+                "name": "alt_email",
+                "label": "Alternative email (optional)",
+                "input-type": "email",
+                "required": false
+              },
+              {
+                "type": "TextBody",
+                "text": "${data.error_message}",
+                "visible": "${data.show_error}",
+                "font-weight": "bold"
+              },
+              {
+                "type": "Footer",
+                "label": "Continue",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "screen": "EMAIL",
+                    "email": "${form.email}",
+                    "alt_same": "${form.alt_same}",
+                    "alt_email": "${form.alt_email}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "NUMBER",
+      "title": "Your number",
+      "data": {
+        "number_heading": {
+          "type": "string",
+          "__example__": "Is 082 555 0101 the number to call you on?"
+        },
+        "show_error": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "error_message": {
+          "type": "string",
+          "__example__": ""
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "f",
+            "children": [
+              {
+                "type": "TextSubheading",
+                "text": "${data.number_heading}"
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "name": "same_number",
+                "label": "Contact number",
+                "required": true,
+                "data-source": [
+                  {
+                    "id": "same",
+                    "title": "Yes, use my WhatsApp number"
+                  },
+                  {
+                    "id": "other",
+                    "title": "No, use another number"
+                  }
+                ]
+              },
+              {
+                "type": "TextInput",
+                "name": "other_number",
+                "label": "Other number (only if you chose another)",
+                "input-type": "phone",
+                "required": false
+              },
+              {
+                "type": "TextBody",
+                "text": "${data.error_message}",
+                "visible": "${data.show_error}",
+                "font-weight": "bold"
+              },
+              {
+                "type": "Footer",
+                "label": "Continue",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "screen": "NUMBER",
+                    "same_number": "${form.same_number}",
+                    "other_number": "${form.other_number}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "AGE",
+      "title": "Your age",
+      "data": {
+        "show_error": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "error_message": {
+          "type": "string",
+          "__example__": ""
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "f",
+            "children": [
+              {
+                "type": "TextSubheading",
+                "text": "Which age group are you in?"
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "name": "age_band",
+                "label": "Age",
+                "required": true,
+                "data-source": [
+                  {
+                    "id": "lt35",
+                    "title": "Under 35"
+                  },
+                  {
+                    "id": "35_44",
+                    "title": "35 to 44"
+                  },
+                  {
+                    "id": "45_50",
+                    "title": "45 to 50"
+                  },
+                  {
+                    "id": "51plus",
+                    "title": "51 or older"
+                  }
+                ]
+              },
+              {
+                "type": "TextBody",
+                "text": "${data.error_message}",
+                "visible": "${data.show_error}",
+                "font-weight": "bold"
+              },
+              {
+                "type": "Footer",
+                "label": "Continue",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "screen": "AGE",
+                    "age_band": "${form.age_band}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "BUDGET",
+      "title": "Your budget",
+      "data": {
+        "show_error": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "error_message": {
+          "type": "string",
+          "__example__": ""
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "f",
+            "children": [
+              {
+                "type": "TextSubheading",
+                "text": "Roughly what could you put towards cover each month?"
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "name": "budget_band",
+                "label": "Per month",
+                "required": true,
+                "data-source": [
+                  {
+                    "id": "1500_plus",
+                    "title": "R1,500 or more"
+                  },
+                  {
+                    "id": "1250_1499",
+                    "title": "R1,250 to R1,499"
+                  },
+                  {
+                    "id": "750_1250",
+                    "title": "R750 to R1,249"
+                  },
+                  {
+                    "id": "lt750",
+                    "title": "Under R750"
+                  }
+                ]
+              },
+              {
+                "type": "TextBody",
+                "text": "${data.error_message}",
+                "visible": "${data.show_error}",
+                "font-weight": "bold"
+              },
+              {
+                "type": "Footer",
+                "label": "Continue",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "screen": "BUDGET",
+                    "budget_band": "${form.budget_band}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "SMOKER",
+      "title": "One more thing",
+      "data": {
+        "smoker_heading": {
+          "type": "string",
+          "__example__": "Do you smoke? (Optional — used only to brief your adviser Mark before the call.)"
+        },
+        "show_error": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "error_message": {
+          "type": "string",
+          "__example__": ""
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "f",
+            "children": [
+              {
+                "type": "TextBody",
+                "text": "${data.smoker_heading}"
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "name": "smoker",
+                "label": "Smoker",
+                "required": false,
+                "data-source": [
+                  {
+                    "id": "no",
+                    "title": "No"
+                  },
+                  {
+                    "id": "yes",
+                    "title": "Yes"
+                  },
+                  {
+                    "id": "prefer_not",
+                    "title": "Prefer not to say"
+                  }
+                ]
+              },
+              {
+                "type": "TextBody",
+                "text": "${data.error_message}",
+                "visible": "${data.show_error}",
+                "font-weight": "bold"
+              },
+              {
+                "type": "Footer",
+                "label": "Continue",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "screen": "SMOKER",
+                    "smoker": "${form.smoker}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "INCOME",
+      "title": "Your income",
+      "data": {
+        "show_error": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "error_message": {
+          "type": "string",
+          "__example__": ""
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "f",
+            "children": [
+              {
+                "type": "TextSubheading",
+                "text": "What is your monthly income before tax? (Optional)"
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "name": "income",
+                "label": "Income",
+                "required": false,
+                "data-source": [
+                  {
+                    "id": "lt20k",
+                    "title": "Under R20,000"
+                  },
+                  {
+                    "id": "20k_40k",
+                    "title": "R20,000 to R39,999"
+                  },
+                  {
+                    "id": "40k_60k",
+                    "title": "R40,000 to R59,999"
+                  },
+                  {
+                    "id": "60k_100k",
+                    "title": "R60,000 to R99,999"
+                  },
+                  {
+                    "id": "100kplus",
+                    "title": "R100,000 or more"
+                  },
+                  {
+                    "id": "prefer_not",
+                    "title": "Prefer not to say"
+                  }
+                ]
+              },
+              {
+                "type": "TextBody",
+                "text": "${data.error_message}",
+                "visible": "${data.show_error}",
+                "font-weight": "bold"
+              },
+              {
+                "type": "Footer",
+                "label": "Continue",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "screen": "INCOME",
+                    "income": "${form.income}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "DATE",
+      "title": "Pick a day",
+      "data": {
+        "date_heading": {
+          "type": "string",
+          "__example__": "Pick a day for your Teams call with Mark"
+        },
+        "min_date": {
+          "type": "string",
+          "__example__": "2026-10-08"
+        },
+        "max_date": {
+          "type": "string",
+          "__example__": "2026-10-21"
+        },
+        "include_days": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "__example__": [
+            "Mon",
+            "Tue",
+            "Wed",
+            "Thu",
+            "Fri"
+          ]
+        },
+        "unavailable_dates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "__example__": [
+            "2026-10-09"
+          ]
+        },
+        "show_error": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "error_message": {
+          "type": "string",
+          "__example__": ""
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "f",
+            "children": [
+              {
+                "type": "TextSubheading",
+                "text": "${data.date_heading}"
+              },
+              {
+                "type": "CalendarPicker",
+                "name": "date",
+                "label": "Day",
+                "mode": "single",
+                "required": true,
+                "min-date": "${data.min_date}",
+                "max-date": "${data.max_date}",
+                "include-days": "${data.include_days}",
+                "unavailable-dates": "${data.unavailable_dates}"
+              },
+              {
+                "type": "TextBody",
+                "text": "${data.error_message}",
+                "visible": "${data.show_error}",
+                "font-weight": "bold"
+              },
+              {
+                "type": "Footer",
+                "label": "Continue",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "screen": "DATE",
+                    "date": "${form.date}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "SLOTS",
+      "title": "Pick a time",
+      "data": {
+        "date": {
+          "type": "string",
+          "__example__": "2026-10-08"
+        },
+        "date_label": {
+          "type": "string",
+          "__example__": "Thu 8 Oct (South African time)"
+        },
+        "slots": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "2026-10-08T10:00:00+02:00",
+              "title": "10:00"
+            }
+          ]
+        },
+        "show_error": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "error_message": {
+          "type": "string",
+          "__example__": ""
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "f",
+            "children": [
+              {
+                "type": "TextSubheading",
+                "text": "${data.date_label}"
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "name": "slot",
+                "label": "Time",
+                "required": true,
+                "data-source": "${data.slots}"
+              },
+              {
+                "type": "TextBody",
+                "text": "${data.error_message}",
+                "visible": "${data.show_error}",
+                "font-weight": "bold"
+              },
+              {
+                "type": "Footer",
+                "label": "Continue",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "screen": "SLOTS",
+                    "slot": "${form.slot}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "CONFIRM",
+      "title": "Check and book",
+      "data": {
+        "summary_text": {
+          "type": "string",
+          "__example__": "Thu 8 Oct at 10:00 (South African time), 30-minute Microsoft Teams call with Mark."
+        },
+        "show_error": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "error_message": {
+          "type": "string",
+          "__example__": ""
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "f",
+            "children": [
+              {
+                "type": "TextBody",
+                "text": "${data.summary_text}"
+              },
+              {
+                "type": "TextBody",
+                "text": "${data.error_message}",
+                "visible": "${data.show_error}",
+                "font-weight": "bold"
+              },
+              {
+                "type": "Footer",
+                "label": "Book my call",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "screen": "CONFIRM"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "END",
+      "title": "SortMyCover",
+      "terminal": true,
+      "success": true,
+      "data": {
+        "heading": {
+          "type": "string",
+          "__example__": "You're booked"
+        },
+        "body": {
+          "type": "string",
+          "__example__": "..."
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "${data.heading}"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.body}"
+          },
+          {
+            "type": "Footer",
+            "label": "Done",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {}
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

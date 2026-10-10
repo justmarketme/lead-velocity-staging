@@ -1,0 +1,115 @@
+// The one place the web app gets SortMyCover / Lead Velocity plan numbers from (MASTER-PROMPT 3.6).
+// Every value comes from automation/billing/pricing.seed.json — no price is typed in src/.
+// Wording rules (3.5a + Jonathan 2026-10-05): prices excl. VAT, month to month, never tied to
+// policies, sales or results (FAIS — Raspberry Academy v Oaksure).
+import seed from "../../automation/billing/pricing.seed.json";
+
+export interface PricingTier {
+  tier_code: string;
+  name: string;
+  ref_code: string;
+  price_zar: number;
+  committed_leads: number;
+  replacement_cap_cycle: number;
+  media_share_zar: number;
+  sort: number;
+}
+
+export const TIERS: PricingTier[] = [...(seed.rows as PricingTier[])].sort((a, b) => a.sort - b.sort);
+export const TERMS = seed.terms;
+export const TOPUP = seed.topup;
+export const QUALIFIED = seed.qualified_lead;
+
+export const tierByName = (name: string): PricingTier | undefined =>
+  TIERS.find((t) => t.name.toLowerCase() === String(name || "").trim().toLowerCase().replace(/\s*(tier|plan)$/, ""));
+
+/** "R" + thousands separated by commas, as used across the site. */
+export const zar = (n: number): string => "R" + Math.round(n).toLocaleString("en-US");
+
+export const perLead = (t: PricingTier): number => Math.round(t.price_zar / t.committed_leads);
+export const topupMinimumZar = (): number => TOPUP.price_per_lead_zar * TOPUP.min_leads;
+
+/** Pilot: once-off introductory cycle for first-time clients (not part of the monthly ladder in TIERS). */
+export const PILOT: PricingTier & { once_off: true; continue_on: string } = {
+  tier_code: seed.pilot.tier_code,
+  name: seed.pilot.name,
+  ref_code: seed.pilot.ref_code,
+  price_zar: seed.pilot.price_per_lead_zar * seed.pilot.committed_leads,
+  committed_leads: seed.pilot.committed_leads,
+  replacement_cap_cycle: 0, // goodwill replacements per TERMS, same as every plan
+  media_share_zar: seed.pilot.media_share_zar ?? 0,
+  sort: 0,
+  once_off: true,
+  continue_on: seed.pilot.continue_on,
+};
+export const isPilot = (t: PricingTier): boolean => t.tier_code === PILOT.tier_code;
+/** The Pilot is offered unless the seed sets pilot.offered to false (withdrawn 2026-10-07, reinstated 2026-10-10 by Jonathan). */
+export const PILOT_OFFERED: boolean = (seed.pilot as { offered?: boolean }).offered !== false;
+/** Every plan a broker can be on or be quoted: Pilot first (only while offered), then the monthly ladder. */
+export const ALL_PLANS: PricingTier[] = PILOT_OFFERED ? [PILOT, ...TIERS] : [...TIERS];
+export const planByName = (name: string): PricingTier | undefined =>
+  ALL_PLANS.find((t) => t.name.toLowerCase() === String(name || "").trim().toLowerCase().replace(/\s*(tier|plan|phase)$/, ""));
+
+export const PILOT_TEXT =
+  `Pilot: ${zar(seed.pilot.price_per_lead_zar * seed.pilot.committed_leads)} once-off for ${seed.pilot.committed_leads} Qualified Leads ` +
+  `(${zar(seed.pilot.price_per_lead_zar)} per lead) in one introductory ${seed.terms.cycle_days}-day cycle, for first-time clients only, ` +
+  `then continue on ${seed.pilot.continue_on} by paying in advance, otherwise the agreement ends. Flat fee paid in advance, all-inclusive of ad spend; ` +
+  `same ${seed.terms.shortfall_rollover_days}-day rollover and replacement rules as every plan.`;
+
+
+export const VAT_NOTE = TERMS.vat_registered ? "Prices exclude VAT; VAT is added on the invoice." : "All prices exclude VAT.";
+
+export const QUALIFIED_LEAD_TEXT =
+  `A Qualified Lead is a South African consumer who consented to be contacted and introduced to you, ` +
+  `self-declared an age of ${QUALIFIED.age_min}–${QUALIFIED.age_max} and a monthly premium budget of ` +
+  `${zar(QUALIFIED.budget_min_zar)} or more, booked an appointment with you and confirmed they will attend.`;
+
+/** Lead tiers (Jonathan 2026-10-07): A counts automatically; B is offered with Accept / Decline. */
+export const BUDGET_TARGET_TEXT =
+  `A-tier: ${zar(QUALIFIED.campaign_target_budget_zar)}+ a month, our minimum target, delivered and counted automatically. ` +
+  `B-tier: ${zar(QUALIFIED.budget_min_zar)}–${zar(QUALIFIED.campaign_target_budget_zar - 1)} a month, offered to you to accept or decline; ` +
+  `accepted ones count toward your number, declined ones don't count and aren't charged. Under ${zar(QUALIFIED.budget_min_zar)} is never sent.`;
+
+export const SHORTFALL_TEXT = (t: PricingTier): string =>
+  `If fewer than ${t.committed_leads} Qualified Leads are delivered in a cycle, we keep delivering for up to ` +
+  `${TERMS.shortfall_rollover_days} more days, only for delays outside our control, never longer. After that, anything still owed ` +
+  `rolls into your next cycle on top of its number, or you can ask for a refund of ${zar(perLead(t))} per undelivered lead, paid within 7 working days.`;
+
+export const LATE_PAYMENT_TEXT = "If payment hasn't cleared, lead delivery is suspended until it has. No interest is charged.";
+
+/** Replacements (agreement clause 7, Jonathan 2026-10-10): goodwill, one weekly cap on every plan (Pilot included); no-shows and unreachable leads count together. */
+export const REPLACEMENT_TEXT =
+  `Out of goodwill, we replace up to ${TERMS.goodwill_replacements_per_week} no-shows or leads you couldn't reach a week, on every plan including the Pilot, ` +
+  `if you send proof (for a no-show, straight after waiting 10 minutes). We never replace a lead because they didn't buy. ` +
+  `Invalid contact details never count in the first place.`;
+
+export const TOPUP_TEXT =
+  `Top-ups: once this cycle's leads are delivered, add more Qualified Leads at ${zar(TOPUP.price_per_lead_zar)} each, ` +
+  `minimum ${TOPUP.min_leads} (${zar(topupMinimumZar())}), with ${TOPUP.notice_days} days' notice. Paid in advance.`;
+
+export const TERMS_TEXT =
+  `Month to month. Paid in advance for each ${TERMS.cycle_days}-day cycle. Cancel with ${TERMS.cancel_notice_days} days' ` +
+  `written notice before your next cycle.`;
+
+export const NO_GUARANTEE_TEXT =
+  "Your fee pays for marketing and lead delivery. It never depends on sales or policies, and we don't promise attendance, sales or policy outcomes. No commission, ever.";
+
+/** One plain-text summary for chatbots and generated copy. */
+export const pricingSummaryText = (): string =>
+  [
+    ...(PILOT_OFFERED ? [PILOT_TEXT] : []),
+    ...TIERS.map(
+      (t) =>
+        `${t.name}: ${zar(t.price_zar)} per ${TERMS.cycle_days}-day cycle for ${t.committed_leads} Qualified Leads ` +
+        `(effective ${zar(perLead(t))} per lead), all-inclusive of ad spend.`
+    ),
+    TOPUP_TEXT,
+    TERMS_TEXT,
+    VAT_NOTE,
+    QUALIFIED_LEAD_TEXT,
+    BUDGET_TARGET_TEXT,
+    `Shortfall: up to ${TERMS.shortfall_rollover_days} extra days only for delays outside our control (day 44 at most); after that the balance rolls into the next cycle on top of its number, or the client may ask for a refund at the plan's effective price per undelivered lead, paid within 7 working days.`,
+    `Replacements: ${REPLACEMENT_TEXT}`,
+    LATE_PAYMENT_TEXT,
+    NO_GUARANTEE_TEXT,
+  ].join("\n");

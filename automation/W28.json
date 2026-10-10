@@ -1,0 +1,1296 @@
+{
+ "id": "smc-w28",
+ "name": "W28 Booking Flow endpoint",
+ "nodes": [
+  {
+   "id": "n01",
+   "name": "Sticky: read me",
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    0,
+    -360
+   ],
+   "parameters": {
+    "width": 760,
+    "height": 340,
+    "content": "W28 Booking Flow endpoint (automation-engineer). Contract: automation/flows/booking-flow-endpoint.md. NOT on the launch path (0.3 #3): brands.booking_ui = list ships first; the Flow is a flag flip once published (HUMAN GATE) and the _v2 templates are approved. POST /flow: X-Hub-Signature-256 (432) -> decrypt (421; flow-crypto.js = placeholder mirror of Meta reference code, swap verbatim at W28 step 2) -> ping answers at once -> flow_token verified by HMAC (lead-token.js, no flow_tokens table; payload ids never trusted) -> lead/broker/booking from Postgres -> W04 slot engine (same engine as /slots; fresh getSchedule for slot_selected) -> w28-endpoint.js screens (METHOD/DATE/SLOTS/EMAIL/SUMMARY; email only for Teams/Zoom/Meet) -> encrypted 200 in < 3 s. Complete is NOT here: nfm_reply -> W07 ingress (POST /whatsapp) -> W05 (transactional re-check). Fallback ladder: 2 errors on a token, calendar down, no slots, or op=send_list -> interactive list of the next 10 slots (spread across days). op=revert (called by W22 on ping failure) sets booking_ui = list. Env: META_APP_SECRET, FLOW_PRIVATE_KEY, FLOW_PRIVATE_KEY_PASSPHRASE, LEAD_TOKEN_SECRET, LEAD_TOKEN_SECRET_PREVIOUS, META_GRAPH_VERSION, PHONE_NUMBER_ID. NODE_FUNCTION_ALLOW_BUILTIN=crypto,dns."
+   }
+  },
+  {
+   "id": "n02",
+   "name": "Flow endpoint (POST)",
+   "type": "n8n-nodes-base.webhook",
+   "typeVersion": 2,
+   "position": [
+    0,
+    0
+   ],
+   "parameters": {
+    "httpMethod": "POST",
+    "path": "flow",
+    "responseMode": "responseNode",
+    "options": {
+     "rawBody": true
+    }
+   },
+   "webhookId": "w28-flow-post"
+  },
+  {
+   "id": "n03",
+   "name": "Verify + decrypt",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    220,
+    0
+   ],
+   "parameters": {
+    "mode": "runOnceForAllItems",
+    "jsCode": "// --- inlined verify-webhooks.js sha256:ac70f3c06e10 (regenerate: node automation/security/inline-for-n8n.mjs) ---\nconst VW = (function () { const module = { exports: {} }; const exports = module.exports;\n'use strict';\n/**\n * verify-webhooks.js — inbound webhook verification for the SortMyCover build.\n * Node 18+, zero dependencies (node:crypto only). CommonJS so it can be inlined into an\n * n8n Code node (see inline-for-n8n.mjs and n8n-webhook-pattern.md).\n *\n * Source of each rule (devops-security's five): Meta / WhatsApp webhook security docs\n * (X-Hub-Signature-256 + hub.verify_token handshake), OWASP ASVS L1 (timing-safe compare,\n * reject before parse, log the reason not the payload). Paystack and Twilio signatures follow\n * their providers' published schemes (HMAC-SHA512 hex; HMAC-SHA1 base64 over URL + sorted params).\n *\n * Every verifier takes the RAW request body (Buffer or string). A parsed-then-re-serialised\n * body will not match the provider's signature, so objects are rejected with 'raw_body_required'.\n * Every verifier returns { ok: boolean, reason: string } and never throws on bad input.\n * Secrets are passed in by the caller (from .env / n8n credentials); nothing here reads env.\n */\nconst crypto = require('crypto');\n\nconst OK = Object.freeze({ ok: true, reason: 'ok' });\nconst fail = (reason) => ({ ok: false, reason });\n\n/** Constant-time string compare. Hashing both sides first removes the length side channel. */\nfunction timingSafeEqualStr(a, b) {\n  if (typeof a !== 'string' || typeof b !== 'string') return false;\n  const ha = crypto.createHash('sha256').update(a, 'utf8').digest();\n  const hb = crypto.createHash('sha256').update(b, 'utf8').digest();\n  return crypto.timingSafeEqual(ha, hb) && a.length === b.length;\n}\n\nfunction toRawBuffer(rawBody) {\n  if (Buffer.isBuffer(rawBody)) return rawBody;\n  if (typeof rawBody === 'string') return Buffer.from(rawBody, 'utf8');\n  if (rawBody instanceof Uint8Array) return Buffer.from(rawBody);\n  return null;\n}\n\nfunction headerValue(headers, name) {\n  if (!headers) return undefined;\n  const want = name.toLowerCase();\n  for (const k of Object.keys(headers)) {\n    if (k.toLowerCase() === want) {\n      const v = headers[k];\n      return Array.isArray(v) ? v[0] : v;\n    }\n  }\n  return undefined;\n}\n\nfunction hmac(alg, secret, data, enc) {\n  return crypto.createHmac(alg, secret).update(data).digest(enc);\n}\n\n/* ------------------------------------------------------------------ Meta / WhatsApp */\n\n/**\n * Meta webhooks (WhatsApp Cloud API, Lead Ads `page` object, Page feed, Instagram, Flow endpoint):\n * header `X-Hub-Signature-256: sha256=<hex HMAC-SHA256(rawBody, META_APP_SECRET)>`.\n */\nfunction verifyMetaSignature(rawBody, signatureHeader, appSecret) {\n  if (!appSecret) return fail('missing_secret');\n  const raw = toRawBuffer(rawBody);\n  if (!raw) return fail('raw_body_required');\n  if (typeof signatureHeader !== 'string' || !signatureHeader.startsWith('sha256=')) {\n    return fail('missing_or_malformed_signature');\n  }\n  const got = signatureHeader.slice('sha256='.length).trim().toLowerCase();\n  if (!/^[0-9a-f]{64}$/.test(got)) return fail('missing_or_malformed_signature');\n  const want = hmac('sha256', appSecret, raw, 'hex');\n  return timingSafeEqualStr(got, want) ? OK : fail('signature_mismatch');\n}\n\n/**\n * GET subscription handshake: Meta calls ?hub.mode=subscribe&hub.verify_token=…&hub.challenge=…\n * Returns the HTTP response to send: 200 + challenge (plain text) or 403.\n * Accepts n8n's parsed query (keys 'hub.mode' etc.) or a { hub: { mode, … } } nested shape.\n */\nfunction metaVerifyHandshake(query, verifyToken) {\n  const q = query || {};\n  const pick = (k) => (q['hub.' + k] !== undefined ? q['hub.' + k] : q.hub && q.hub[k]);\n  const mode = pick('mode');\n  const token = pick('verify_token');\n  const challenge = pick('challenge');\n  if (!verifyToken) return { ok: false, reason: 'missing_secret', status: 403, body: 'Forbidden' };\n  if (mode !== 'subscribe') return { ok: false, reason: 'bad_mode', status: 403, body: 'Forbidden' };\n  if (typeof token !== 'string' || !timingSafeEqualStr(token, verifyToken)) {\n    return { ok: false, reason: 'verify_token_mismatch', status: 403, body: 'Forbidden' };\n  }\n  if (typeof challenge !== 'string' || !/^[A-Za-z0-9_-]{1,256}$/.test(challenge)) {\n    return { ok: false, reason: 'bad_challenge', status: 400, body: 'Bad Request' };\n  }\n  return { ok: true, reason: 'ok', status: 200, body: challenge };\n}\n\n/* ------------------------------------------------------------------ Paystack */\n\n/** Paystack: header `x-paystack-signature` = hex HMAC-SHA512(rawBody, PAYSTACK_SECRET_KEY). */\nfunction verifyPaystackSignature(rawBody, signatureHeader, secretKey) {\n  if (!secretKey) return fail('missing_secret');\n  const raw = toRawBuffer(rawBody);\n  if (!raw) return fail('raw_body_required');\n  if (typeof signatureHeader !== 'string') return fail('missing_or_malformed_signature');\n  const got = signatureHeader.trim().toLowerCase();\n  if (!/^[0-9a-f]{128}$/.test(got)) return fail('missing_or_malformed_signature');\n  const want = hmac('sha512', secretKey, raw, 'hex');\n  return timingSafeEqualStr(got, want) ? OK : fail('signature_mismatch');\n}\n\n/* ------------------------------------------------------------------ Twilio */\n\nfunction twilioUrlVariants(url) {\n  // Twilio may sign with or without the default port; accept both (as Twilio's own helpers do).\n  const out = new Set([url]);\n  try {\n    const u = new URL(url);\n    const def = u.protocol === 'https:' ? '443' : '80';\n    if (u.port) {\n      if (u.port === def) { const v = new URL(url); v.port = ''; out.add(v.toString()); }\n    } else {\n      out.add(url.replace(/^(https?:\\/\\/[^/?#]+)/, `$1:${def}`));\n    }\n  } catch (_) { /* malformed URL -> only the literal is tried */ }\n  return [...out];\n}\n\nfunction twilioSignedString(url, params) {\n  let s = url;\n  if (params && typeof params === 'object') {\n    for (const key of Object.keys(params).sort()) {\n      const v = params[key];\n      if (Array.isArray(v)) for (const item of [...v].map(String).sort()) s += key + item;\n      else s += key + (v === undefined || v === null ? '' : String(v));\n    }\n  }\n  return s;\n}\n\n/**\n * Twilio: header `X-Twilio-Signature` = base64 HMAC-SHA1(url + sorted(key+value), TWILIO_AUTH_TOKEN).\n * - Form-encoded callbacks: pass `params` = the parsed POST fields.\n * - JSON-body callbacks: Twilio adds `bodySHA256` to the URL query; pass `rawBody` and the\n *   signature covers the URL only, while bodySHA256 must equal hex SHA-256 of the raw body.\n * NB: Twilio signs with the account Auth Token, not an API key secret.\n */\nfunction verifyTwilioSignature({ url, params, rawBody, signatureHeader, authToken } = {}) {\n  if (!authToken) return fail('missing_secret');\n  if (typeof url !== 'string' || !/^https?:\\/\\//.test(url)) return fail('bad_url');\n  if (typeof signatureHeader !== 'string' || signatureHeader.length < 20) {\n    return fail('missing_or_malformed_signature');\n  }\n  let bodyHash = null;\n  try { bodyHash = new URL(url).searchParams.get('bodySHA256'); } catch (_) { /* handled above */ }\n  if (bodyHash) {\n    const raw = toRawBuffer(rawBody);\n    if (!raw) return fail('raw_body_required');\n    const want = crypto.createHash('sha256').update(raw).digest('hex');\n    if (!timingSafeEqualStr(bodyHash.toLowerCase(), want)) return fail('body_hash_mismatch');\n  }\n  for (const u of twilioUrlVariants(url)) {\n    const expected = hmac('sha1', authToken, Buffer.from(twilioSignedString(u, bodyHash ? null : params), 'utf8'), 'base64');\n    if (timingSafeEqualStr(signatureHeader.trim(), expected)) return OK;\n  }\n  return fail('signature_mismatch');\n}\n\n/* ------------------------------------------------------------------ Replay window + idempotency */\n\n/**\n * Generic replay window. `timestamp` may be epoch seconds, epoch ms, or an ISO string.\n * Default tolerance 300 s in the past, 60 s clock skew into the future.\n * Use where the provider sends a timestamp (WhatsApp message `timestamp`, entry `time`,\n * our own X-LV-Timestamp on internal calls). Paystack/Twilio carry none: idempotency is the guard.\n */\nfunction checkReplayWindow(timestamp, { nowMs = Date.now(), toleranceSec = 300, futureSkewSec = 60 } = {}) {\n  let ms;\n  if (typeof timestamp === 'number' || (typeof timestamp === 'string' && /^\\d+$/.test(timestamp))) {\n    const n = Number(timestamp);\n    ms = n < 1e12 ? n * 1000 : n;\n  } else if (typeof timestamp === 'string') {\n    ms = Date.parse(timestamp);\n  }\n  if (!Number.isFinite(ms)) return fail('bad_timestamp');\n  if (ms > nowMs + futureSkewSec * 1000) return fail('timestamp_in_future');\n  if (nowMs - ms > toleranceSec * 1000) return fail('outside_replay_window');\n  return OK;\n}\n\n/** Stable key for webhook_events(source, external_id) — unique per provider event. */\nfunction idempotencyKey(source, externalId) {\n  if (!source || externalId === undefined || externalId === null || externalId === '') return null;\n  return `${String(source).toLowerCase()}:${String(externalId)}`;\n}\n\n/**\n * Pull the provider's own event ids out of a parsed payload, so a redelivery maps to the same key.\n * Falls back to a SHA-256 of the raw body when the provider gives no id.\n */\nfunction extractEventIds(source, payload, rawBody) {\n  const ids = [];\n  const p = payload || {};\n  if (source === 'meta' || source === 'whatsapp') {\n    for (const entry of p.entry || []) {\n      for (const ch of entry.changes || []) {\n        const v = ch.value || {};\n        for (const m of v.messages || []) if (m.id) ids.push(`msg:${m.id}`);\n        for (const s of v.statuses || []) if (s.id) ids.push(`status:${s.id}:${s.status || ''}`);\n        if (v.leadgen_id) ids.push(`leadgen:${v.leadgen_id}`);\n        if (v.comment_id) ids.push(`comment:${v.comment_id}:${v.verb || ''}`);\n        if (ch.field && !v.messages && !v.statuses && !v.leadgen_id && !v.comment_id && v.id) {\n          ids.push(`${ch.field}:${v.id}`);\n        }\n      }\n      for (const m of entry.messaging || []) if (m.message && m.message.mid) ids.push(`mid:${m.message.mid}`);\n    }\n  } else if (source === 'paystack') {\n    const d = p.data || {};\n    const ref = d.id || d.reference || d.subscription_code || d.invoice_code;\n    if (p.event && ref) ids.push(`${p.event}:${ref}`);\n  } else if (source === 'twilio') {\n    const sid = p.MessageSid || p.CallSid || p.Sid;\n    const status = p.MessageStatus || p.CallStatus || '';\n    if (sid) ids.push(`${sid}:${status}`);\n  }\n  if (ids.length === 0) {\n    const raw = toRawBuffer(rawBody);\n    if (raw) ids.push('sha256:' + crypto.createHash('sha256').update(raw).digest('hex'));\n  }\n  return ids;\n}\n\n/**\n * In-memory idempotency store (tests, and n8n `$getWorkflowStaticData('global')` as a cache).\n * Production truth is Postgres: INSERT INTO webhook_events (source, external_id, …)\n * ON CONFLICT (source, external_id) DO NOTHING RETURNING id  — no row returned = duplicate.\n * `backing` lets the n8n Code node pass its static-data object so state survives executions.\n */\nfunction createIdempotencyStore({ ttlMs = 72 * 3600 * 1000, backing = {}, now = () => Date.now() } = {}) {\n  const map = backing;\n  return {\n    /** true if the key was already seen inside the TTL; records it otherwise. */\n    seen(key) {\n      const t = now();\n      for (const k of Object.keys(map)) if (t - map[k] > ttlMs) delete map[k];\n      if (Object.prototype.hasOwnProperty.call(map, key)) return true;\n      map[key] = t;\n      return false;\n    },\n    size() { return Object.keys(map).length; },\n  };\n}\n\n/** SQL used by the n8n Postgres node after verification (parameterised; never string-built). */\nconst WEBHOOK_EVENTS_INSERT_SQL =\n  'INSERT INTO webhook_events (source, external_id, received_at, signature_ok, payload_hash) ' +\n  'VALUES ($1, $2, now(), $3, $4) ON CONFLICT (source, external_id) DO NOTHING RETURNING id';\n\nfunction payloadHash(rawBody) {\n  const raw = toRawBuffer(rawBody);\n  return raw ? crypto.createHash('sha256').update(raw).digest('hex') : null;\n}\n\nmodule.exports = {\n  timingSafeEqualStr,\n  headerValue,\n  verifyMetaSignature,\n  metaVerifyHandshake,\n  verifyPaystackSignature,\n  verifyTwilioSignature,\n  twilioSignedString,\n  checkReplayWindow,\n  idempotencyKey,\n  extractEventIds,\n  createIdempotencyStore,\n  payloadHash,\n  WEBHOOK_EVENTS_INSERT_SQL,\n};\n\nreturn module.exports; })();\n// --- inlined ../flows/flow-crypto.js sha256:f50eab3a4b60 (regenerate: node automation/security/inline-for-n8n.mjs) ---\nconst FC = (function () { const module = { exports: {} }; const exports = module.exports;\n'use strict';\n// W28 Flow endpoint envelope (decrypt request / encrypt response) - I-34g.\n// Implements WhatsApp Flows endpoint encryption as Meta documents it (same steps and error code as Meta's reference\n// WhatsApp-Flows-Tools examples/endpoint/nodejs decryptRequest/encryptResponse, node:crypto only, no hand-rolled crypto):\n//   request : encrypted_aes_key = RSA-OAEP (SHA-256 hash and MGF1) of a 128-bit AES key under our registered public key;\n//             encrypted_flow_data = AES-128-GCM ciphertext with the 16-byte tag appended; initial_vector = the IV\n//   response: AES-128-GCM with the SAME key and the IV with every bit flipped; base64(ciphertext || 16-byte tag)\n//   failure : HTTP 421 (\"re-fetch the public key\") on any decryption problem; never 200 with a plaintext body.\n// ASSUMPTION (4.0a lookup, see build/costs.jsonl): the one WebFetch of developers.facebook.com was blocked by the\n// egress proxy (EGRESS_BLOCKED), so this mirrors the documented algorithm from the existing W28 spec and Meta's\n// published sample as already recorded in booking-flow-endpoint.md; re-confirm against Meta's page and the Flow\n// Builder endpoint test before publish (W28 step 5). Request signature (X-Hub-Signature-256) is checked by the caller.\nconst crypto = require('crypto');\n\nclass FlowEndpointException extends Error {\n  constructor(statusCode, message) { super(message); this.statusCode = statusCode; }\n}\n\nfunction decryptRequest(body, privatePem, passphrase) {\n  const { encrypted_aes_key, encrypted_flow_data, initial_vector } = body || {};\n  if (![encrypted_aes_key, encrypted_flow_data, initial_vector].every((x) => typeof x === 'string' && x.length)) {\n    throw new FlowEndpointException(421, 'Failed to decrypt the request. Missing encryption fields.');\n  }\n  let aesKey;\n  try {\n    const key = crypto.createPrivateKey({ key: privatePem, passphrase: passphrase || undefined });\n    aesKey = crypto.privateDecrypt({ key, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, oaepHash: 'sha256' }, Buffer.from(encrypted_aes_key, 'base64'));\n    if (aesKey.length !== 16) throw new Error('AES key is not 128-bit');\n  } catch (e) {\n    throw new FlowEndpointException(421, 'Failed to decrypt the request. Please verify your private key.');\n  }\n  const flowBuf = Buffer.from(encrypted_flow_data, 'base64');\n  const iv = Buffer.from(initial_vector, 'base64');\n  const TAG = 16;\n  if (flowBuf.length <= TAG || iv.length < 12) throw new FlowEndpointException(421, 'Failed to decrypt the request.');\n  try {\n    const d = crypto.createDecipheriv('aes-128-gcm', aesKey, iv);\n    d.setAuthTag(flowBuf.subarray(-TAG));\n    const json = Buffer.concat([d.update(flowBuf.subarray(0, -TAG)), d.final()]).toString('utf8');\n    return { decryptedBody: JSON.parse(json), aesKeyBuffer: aesKey, initialVectorBuffer: iv };\n  } catch (e) {\n    throw new FlowEndpointException(421, 'Failed to decrypt the request.');\n  }\n}\n\nfunction encryptResponse(response, aesKeyBuffer, initialVectorBuffer) {\n  const flipped = Buffer.from(initialVectorBuffer.map((b) => ~b & 0xff));\n  const c = crypto.createCipheriv('aes-128-gcm', aesKeyBuffer, flipped);\n  return Buffer.concat([c.update(JSON.stringify(response), 'utf8'), c.final(), c.getAuthTag()]).toString('base64');\n}\n\nmodule.exports = { decryptRequest, encryptResponse, FlowEndpointException };\n\nreturn module.exports; })();\n// --- inlined lead-token.js sha256:7a61d67f6a48 (regenerate: node automation/security/inline-for-n8n.mjs) ---\nconst LT = (function () { const module = { exports: {} }; const exports = module.exports;\n'use strict';\n// lead_token (I-29) + caller resolution for GET /slots (I-30a). Contract: automation/CONTRACTS.md \"lead_token\".\n// Zero dependencies (node:crypto only). CommonJS like verify-webhooks.js so inline-for-n8n.mjs can inline it\n// into an n8n Code node (needs NODE_FUNCTION_ALLOW_BUILTIN=crypto). Secrets are passed in by the caller from\n// $env.LEAD_TOKEN_SECRET / $env.LEAD_TOKEN_SECRET_PREVIOUS / $env.SUPABASE_JWT_SECRET; nothing is read here.\n//\n// Token:  lt1.<lead_id>.<exp>.<sig>\n//   lead_id  the leads.id as stored (uuid in production; [A-Za-z0-9_-]{1,64})\n//   exp      unix seconds, mint time + 14 days\n//   sig      base64url( HMAC-SHA256( secret, `${lead_id}|${exp}` ) )\n// Stateless: nothing is stored. Revocation = the lead row check the endpoint does after verify\n// (row exists, opted_out_at is null, not erased). Rotation: verify accepts LEAD_TOKEN_SECRET_PREVIOUS too.\n\nconst crypto = require('crypto');\n\nconst VERSION = 'lt1';\nconst TTL_SECONDS = 14 * 24 * 3600;\nconst LEAD_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;\nconst MAX_TOKEN_LEN = 256;\nconst MIN_SECRET_LEN = 32;\nconst HEADER = 'x-lead-token';\n\nconst b64url = (buf) => Buffer.from(buf).toString('base64').replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');\nconst fromB64url = (s) => Buffer.from(String(s).replace(/-/g, '+').replace(/_/g, '/'), 'base64');\n\nfunction sign(secret, leadId, exp) {\n  return crypto.createHmac('sha256', secret).update(`${leadId}|${exp}`).digest();\n}\n\nfunction safeEqual(a, b) {\n  // constant-time for equal lengths; a length mismatch still burns one compare so timing does not leak which part failed\n  if (!Buffer.isBuffer(a) || !Buffer.isBuffer(b)) return false;\n  if (a.length !== b.length) { crypto.timingSafeEqual(a, a); return false; }\n  return crypto.timingSafeEqual(a, b);\n}\n\nfunction assertSecret(secret) {\n  if (typeof secret !== 'string' || secret.length < MIN_SECRET_LEN) throw new Error('LEAD_TOKEN_SECRET missing or shorter than 32 chars');\n}\n\n/** Mint at lead insert (W01/W02/W03). Returns { token, exp, expires_at }. */\nfunction mintLeadToken(leadId, { secret, nowMs = Date.now(), ttlSeconds = TTL_SECONDS } = {}) {\n  assertSecret(secret);\n  if (!LEAD_ID_RE.test(String(leadId || ''))) throw new Error('lead_id not token-safe');\n  const exp = Math.floor(nowMs / 1000) + ttlSeconds;\n  const token = `${VERSION}.${leadId}.${exp}.${b64url(sign(secret, leadId, exp))}`;\n  return { token, exp, expires_at: new Date(exp * 1000).toISOString() };\n}\n\n/** Verify. Returns { ok:true, lead_id, exp } or { ok:false, reason } (reason is logged, never returned to the browser). */\nfunction verifyLeadToken(token, { secret, previousSecret, nowMs = Date.now() } = {}) {\n  assertSecret(secret);\n  if (typeof token !== 'string' || !token || token.length > MAX_TOKEN_LEN) return { ok: false, reason: 'missing' };\n  const parts = token.split('.');\n  if (parts.length !== 4 || parts[0] !== VERSION) return { ok: false, reason: 'malformed' };\n  const [, leadId, expStr, sigStr] = parts;\n  if (!LEAD_ID_RE.test(leadId) || !/^\\d{1,12}$/.test(expStr) || !/^[A-Za-z0-9_-]{43}$/.test(sigStr)) return { ok: false, reason: 'malformed' };\n  const exp = Number(expStr);\n  const given = fromB64url(sigStr);\n  const secrets = [secret].concat(typeof previousSecret === 'string' && previousSecret.length >= MIN_SECRET_LEN ? [previousSecret] : []);\n  let match = false;\n  for (const s of secrets) if (safeEqual(sign(s, leadId, exp), given)) match = true; // no early exit\n  if (!match) return { ok: false, reason: 'bad_signature' };\n  if (exp * 1000 <= nowMs) return { ok: false, reason: 'expired' };\n  if (exp - Math.floor(nowMs / 1000) > TTL_SECONDS + 300) return { ok: false, reason: 'exp_too_far' }; // never longer than the TTL\n  return { ok: true, lead_id: leadId, exp };\n}\n\n// ---------- broker-authenticated path (I-30a): Supabase access token, HS256 ----------\n// ASSUMPTION: the project signs access tokens with the legacy shared secret (HS256, SUPABASE_JWT_SECRET).\n// If the live project uses asymmetric signing keys, swap this for a JWKS verify; the caller contract is unchanged.\nfunction verifySupabaseJwt(jwt, { secret, nowMs = Date.now(), leewaySec = 30 } = {}) {\n  if (typeof secret !== 'string' || secret.length < MIN_SECRET_LEN) throw new Error('SUPABASE_JWT_SECRET missing');\n  if (typeof jwt !== 'string' || jwt.length > 4096) return { ok: false, reason: 'missing' };\n  const parts = jwt.split('.');\n  if (parts.length !== 3) return { ok: false, reason: 'malformed' };\n  let header, claims;\n  try {\n    header = JSON.parse(fromB64url(parts[0]).toString('utf8'));\n    claims = JSON.parse(fromB64url(parts[1]).toString('utf8'));\n  } catch { return { ok: false, reason: 'malformed' }; }\n  if (!header || header.alg !== 'HS256') return { ok: false, reason: 'alg' }; // blocks alg=none and key-confusion\n  const expect = crypto.createHmac('sha256', secret).update(`${parts[0]}.${parts[1]}`).digest();\n  if (!safeEqual(expect, fromB64url(parts[2]))) return { ok: false, reason: 'bad_signature' };\n  const now = Math.floor(nowMs / 1000);\n  if (typeof claims.exp !== 'number' || claims.exp + leewaySec <= now) return { ok: false, reason: 'expired' };\n  if (typeof claims.nbf === 'number' && claims.nbf - leewaySec > now) return { ok: false, reason: 'not_yet_valid' };\n  const aud = Array.isArray(claims.aud) ? claims.aud : [claims.aud];\n  if (!aud.includes('authenticated') || claims.role !== 'authenticated') return { ok: false, reason: 'role' };\n  if (!/^[0-9a-f-]{36}$/i.test(String(claims.sub || ''))) return { ok: false, reason: 'sub' };\n  return { ok: true, user_id: claims.sub, exp: claims.exp };\n}\n\nfunction headerValue(headers, name) {\n  if (!headers) return undefined;\n  const k = Object.keys(headers).find((h) => h.toLowerCase() === name);\n  const v = k === undefined ? undefined : headers[k];\n  return Array.isArray(v) ? v[0] : v;\n}\n\n/**\n * Decide who is calling GET /slots. Broker ids in the query are NEVER read (I-29): the lead path takes the broker\n * from leads.broker_id, the broker path from brokers.user_id = jwt.sub. Returns\n *   { ok:true, mode:'lead',   lead_id, limit, date }      -> SELECT broker_id FROM leads WHERE id = lead_id\n *   { ok:true, mode:'broker', user_id, limit }            -> SELECT * FROM brokers WHERE user_id = user_id\n *   { ok:false, status, reason }\n */\nfunction resolveSlotsCaller({ headers = {}, query = {} } = {}, { leadSecret, leadPreviousSecret, jwtSecret, nowMs = Date.now() } = {}) {\n  const auth = headerValue(headers, 'authorization');\n  const lt = headerValue(headers, HEADER);\n  if (auth && lt) return { ok: false, status: 400, reason: 'ambiguous_caller' };\n  const date = /^\\d{4}-\\d{2}-\\d{2}$/.test(String(query.date || '')) ? query.date : null;\n  if (auth) {\n    const m = /^Bearer\\s+(\\S+)$/i.exec(String(auth));\n    if (!m) return { ok: false, status: 401, reason: 'malformed' };\n    const v = verifySupabaseJwt(m[1], { secret: jwtSecret, nowMs });\n    if (!v.ok) return { ok: false, status: 401, reason: v.reason };\n    const limit = Math.min(Math.max(parseInt(query.limit, 10) || 1, 1), 3); // portal \"next free slot\": 1 by default, 3 max\n    return { ok: true, mode: 'broker', user_id: v.user_id, limit };\n  }\n  if (lt) {\n    const v = verifyLeadToken(String(lt), { secret: leadSecret, previousSecret: leadPreviousSecret, nowMs });\n    if (!v.ok) return { ok: false, status: 401, reason: v.reason };\n    const limit = Math.min(Math.max(parseInt(query.limit, 10) || 3, 1), 20);\n    return { ok: true, mode: 'lead', lead_id: v.lead_id, limit, date };\n  }\n  return { ok: false, status: 401, reason: 'no_credentials' };\n}\n\n\n// ---------- flow_token (W28): same HMAC scheme, so no flow_tokens table is needed ----------\n// ft1.<lead_id>.<kind>.<booking_id|->.<exp>.<sig>, sig = HMAC-SHA256(secret, `ft1|lead_id|kind|booking_id|exp`)\n// Minted by W06/W10 when they send the Flow template; the W28 endpoint trusts only this mapping (never payload ids).\nconst FLOW_KINDS = new Set(['book', 'reschedule', 'capture']); // capture = capture Flow v2 (ctwa/capture-v2.js); W28 rejects it\nfunction mintFlowToken(leadId, kind, bookingId, { secret, nowMs = Date.now(), ttlSeconds = TTL_SECONDS } = {}) {\n  assertSecret(secret);\n  if (!LEAD_ID_RE.test(String(leadId || '')) || !FLOW_KINDS.has(kind)) throw new Error('bad flow token input');\n  const b = bookingId ? String(bookingId) : '-';\n  if (b !== '-' && !LEAD_ID_RE.test(b)) throw new Error('booking_id not token-safe');\n  const exp = Math.floor(nowMs / 1000) + ttlSeconds;\n  const sig = b64url(crypto.createHmac('sha256', secret).update(`ft1|${leadId}|${kind}|${b}|${exp}`).digest());\n  return `ft1.${leadId}.${kind}.${b}.${exp}.${sig}`;\n}\nfunction verifyFlowToken(token, { secret, previousSecret, nowMs = Date.now() } = {}) {\n  assertSecret(secret);\n  if (typeof token !== 'string' || token.length > MAX_TOKEN_LEN) return { ok: false, reason: 'missing' };\n  const p = token.split('.');\n  if (p.length !== 6 || p[0] !== 'ft1' || !LEAD_ID_RE.test(p[1]) || !FLOW_KINDS.has(p[2]) || !(p[3] === '-' || LEAD_ID_RE.test(p[3])) || !/^\\d{1,12}$/.test(p[4]) || !/^[A-Za-z0-9_-]{43}$/.test(p[5])) return { ok: false, reason: 'malformed' };\n  const given = fromB64url(p[5]);\n  let match = false;\n  for (const s of [secret].concat(previousSecret && previousSecret.length >= MIN_SECRET_LEN ? [previousSecret] : [])) {\n    if (safeEqual(crypto.createHmac('sha256', s).update(`ft1|${p[1]}|${p[2]}|${p[3]}|${p[4]}`).digest(), given)) match = true;\n  }\n  if (!match) return { ok: false, reason: 'bad_signature' };\n  if (Number(p[4]) * 1000 <= nowMs) return { ok: false, reason: 'expired' };\n  return { ok: true, lead_id: p[1], kind: p[2], booking_id: p[3] === '-' ? null : p[3], exp: Number(p[4]) };\n}\n\nmodule.exports = { mintFlowToken, verifyFlowToken, VERSION, TTL_SECONDS, HEADER, mintLeadToken, verifyLeadToken, verifySupabaseJwt, resolveSlotsCaller, safeEqual };\n\nreturn module.exports; })();\nconst it = $input.first();\nconst raw = it.binary && it.binary.data ? Buffer.from(it.binary.data.data, 'base64').toString('utf8') : (it.json.rawBody || JSON.stringify(it.json.body));\nconst sig = (it.json.headers || {})['x-hub-signature-256'];\nif (!VW.verifyMetaSignature(raw, sig, $env.META_APP_SECRET).ok) return [{ json: { status: 432 } }];\nlet dec;\ntry { dec = FC.decryptRequest(JSON.parse(raw), String($env.FLOW_PRIVATE_KEY || '').replace(/\\\\n/g, '\\n'), $env.FLOW_PRIVATE_KEY_PASSPHRASE); }\ncatch (e) { return [{ json: { status: e.statusCode || 421 } }]; }\nconst req = dec.decryptedBody;\nconst aes = dec.aesKeyBuffer.toString('base64');\nconst iv = dec.initialVectorBuffer.toString('base64');\nif (req.action === 'ping') return [{ json: { status: 200, ping: true, encrypted: FC.encryptResponse({ data: { status: 'active' } }, dec.aesKeyBuffer, dec.initialVectorBuffer) } }];\nconst tok = LT.verifyFlowToken(req.flow_token, { secret: $env.LEAD_TOKEN_SECRET, previousSecret: $env.LEAD_TOKEN_SECRET_PREVIOUS });\nconst d = req.data || {};\nreturn [{ json: { status: 200, ping: false, req, tok, aes, iv, lead_id: tok.ok ? tok.lead_id : null, booking_id: tok.ok ? tok.booking_id : null,\n  date: d.date || null, fresh: d.action_type === 'slot_selected' } }];"
+   }
+  },
+  {
+   "id": "n04",
+   "name": "Status?",
+   "type": "n8n-nodes-base.switch",
+   "typeVersion": 3,
+   "position": [
+    440,
+    0
+   ],
+   "parameters": {
+    "rules": {
+     "values": [
+      {
+       "conditions": {
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "strict"
+        },
+        "conditions": [
+         {
+          "leftValue": "={{ $json.status === 200 ? ($json.ping ? \"ping\" : \"work\") : \"reject\" }}",
+          "rightValue": "ping",
+          "operator": {
+           "type": "string",
+           "operation": "equals"
+          }
+         }
+        ],
+        "combinator": "and"
+       },
+       "renameOutput": true,
+       "outputKey": "ping"
+      },
+      {
+       "conditions": {
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "strict"
+        },
+        "conditions": [
+         {
+          "leftValue": "={{ $json.status === 200 ? ($json.ping ? \"ping\" : \"work\") : \"reject\" }}",
+          "rightValue": "work",
+          "operator": {
+           "type": "string",
+           "operation": "equals"
+          }
+         }
+        ],
+        "combinator": "and"
+       },
+       "renameOutput": true,
+       "outputKey": "work"
+      },
+      {
+       "conditions": {
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "strict"
+        },
+        "conditions": [
+         {
+          "leftValue": "={{ $json.status === 200 ? ($json.ping ? \"ping\" : \"work\") : \"reject\" }}",
+          "rightValue": "reject",
+          "operator": {
+           "type": "string",
+           "operation": "equals"
+          }
+         }
+        ],
+        "combinator": "and"
+       },
+       "renameOutput": true,
+       "outputKey": "reject"
+      }
+     ]
+    },
+    "options": {
+     "fallbackOutput": "none"
+    }
+   }
+  },
+  {
+   "id": "n05",
+   "name": "Respond ping (encrypted)",
+   "type": "n8n-nodes-base.respondToWebhook",
+   "typeVersion": 1.1,
+   "position": [
+    660,
+    -160
+   ],
+   "parameters": {
+    "respondWith": "text",
+    "responseBody": "={{ $json.encrypted }}",
+    "options": {
+     "responseCode": 200
+    }
+   }
+  },
+  {
+   "id": "n06",
+   "name": "Respond 421 / 432",
+   "type": "n8n-nodes-base.respondToWebhook",
+   "typeVersion": 1.1,
+   "position": [
+    660,
+    160
+   ],
+   "parameters": {
+    "respondWith": "text",
+    "responseBody": "={{ \"\" }}",
+    "options": {
+     "responseCode": "={{ $json.status }}"
+    }
+   }
+  },
+  {
+   "id": "n07",
+   "name": "Load token context",
+   "type": "n8n-nodes-base.postgres",
+   "typeVersion": 2.5,
+   "position": [
+    660,
+    0
+   ],
+   "parameters": {
+    "operation": "executeQuery",
+    "query": "-- The flow_token (HMAC) names the lead; everything else is looked up here, never taken from the payload.\nSELECT row_to_json(l) AS lead, row_to_json(b) AS broker, row_to_json(a) AS booking, br.booking_ui,\n       (SELECT count(*) FROM public.lead_activities x\n         WHERE x.lead_id = l.id AND x.activity_type = 'flow_error' AND x.payload->>'flow_token' = $2)::int AS flow_errors,\n       (SELECT x.payload->>'typed_hash' FROM public.lead_activities x\n         WHERE x.lead_id = l.id AND x.activity_type = 'flow_email_suggested' AND x.payload->>'flow_token' = $2\n         ORDER BY x.occurred_at DESC LIMIT 1) AS email_suggested_for\n  FROM (SELECT id, email, opted_out_at, brand_id, broker_id, phone FROM public.leads WHERE id = $1::uuid) l\n  JOIN (SELECT id AS broker_id, adviser_name, split_part(adviser_name, ' ', 1) AS adviser_first_name, methods_supported, calendar_provider,\n               meeting_hours, slot_minutes, buffer_minutes, min_notice_hours, horizon_days, max_meetings_per_day, max_meetings_per_week,\n               bookings_paused, status\n          FROM public.brokers) b ON b.broker_id = l.broker_id\n  JOIN public.brands br ON br.id = l.brand_id\n  LEFT JOIN LATERAL (SELECT ap.id, ap.method, to_char(ap.appointment_date AT TIME ZONE 'Africa/Johannesburg', 'YYYY-MM-DD\"T\"HH24:MI:SS\"+02:00\"') AS start\n                       FROM public.appointments ap\n                      WHERE ap.id = $3::uuid AND ap.client_id = l.id) a ON true;",
+    "options": {
+     "queryReplacement": "={{ [ $json.lead_id, $json.req.flow_token, $json.booking_id ] }}"
+    }
+   },
+   "credentials": {
+    "postgres": {
+     "id": "",
+     "name": "LV Supabase - n8n_app (least privilege)"
+    }
+   },
+   "alwaysOutputData": true
+  },
+  {
+   "id": "n08",
+   "name": "W04 Slot engine",
+   "type": "n8n-nodes-base.executeWorkflow",
+   "typeVersion": 1.1,
+   "position": [
+    880,
+    0
+   ],
+   "parameters": {
+    "source": "database",
+    "workflowId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "smc-w04",
+     "cachedResultName": "W04 Slots API"
+    },
+    "options": {
+     "waitForSubWorkflow": true
+    }
+   },
+   "alwaysOutputData": true
+  },
+  {
+   "id": "n09",
+   "name": "Handle (w28-endpoint.js)",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1100,
+    0
+   ],
+   "parameters": {
+    "mode": "runOnceForAllItems",
+    "jsCode": "// --- inlined lead-token.js sha256:7a61d67f6a48 (regenerate: node automation/security/inline-for-n8n.mjs) ---\nconst LT = (function () { const module = { exports: {} }; const exports = module.exports;\n'use strict';\n// lead_token (I-29) + caller resolution for GET /slots (I-30a). Contract: automation/CONTRACTS.md \"lead_token\".\n// Zero dependencies (node:crypto only). CommonJS like verify-webhooks.js so inline-for-n8n.mjs can inline it\n// into an n8n Code node (needs NODE_FUNCTION_ALLOW_BUILTIN=crypto). Secrets are passed in by the caller from\n// $env.LEAD_TOKEN_SECRET / $env.LEAD_TOKEN_SECRET_PREVIOUS / $env.SUPABASE_JWT_SECRET; nothing is read here.\n//\n// Token:  lt1.<lead_id>.<exp>.<sig>\n//   lead_id  the leads.id as stored (uuid in production; [A-Za-z0-9_-]{1,64})\n//   exp      unix seconds, mint time + 14 days\n//   sig      base64url( HMAC-SHA256( secret, `${lead_id}|${exp}` ) )\n// Stateless: nothing is stored. Revocation = the lead row check the endpoint does after verify\n// (row exists, opted_out_at is null, not erased). Rotation: verify accepts LEAD_TOKEN_SECRET_PREVIOUS too.\n\nconst crypto = require('crypto');\n\nconst VERSION = 'lt1';\nconst TTL_SECONDS = 14 * 24 * 3600;\nconst LEAD_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;\nconst MAX_TOKEN_LEN = 256;\nconst MIN_SECRET_LEN = 32;\nconst HEADER = 'x-lead-token';\n\nconst b64url = (buf) => Buffer.from(buf).toString('base64').replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');\nconst fromB64url = (s) => Buffer.from(String(s).replace(/-/g, '+').replace(/_/g, '/'), 'base64');\n\nfunction sign(secret, leadId, exp) {\n  return crypto.createHmac('sha256', secret).update(`${leadId}|${exp}`).digest();\n}\n\nfunction safeEqual(a, b) {\n  // constant-time for equal lengths; a length mismatch still burns one compare so timing does not leak which part failed\n  if (!Buffer.isBuffer(a) || !Buffer.isBuffer(b)) return false;\n  if (a.length !== b.length) { crypto.timingSafeEqual(a, a); return false; }\n  return crypto.timingSafeEqual(a, b);\n}\n\nfunction assertSecret(secret) {\n  if (typeof secret !== 'string' || secret.length < MIN_SECRET_LEN) throw new Error('LEAD_TOKEN_SECRET missing or shorter than 32 chars');\n}\n\n/** Mint at lead insert (W01/W02/W03). Returns { token, exp, expires_at }. */\nfunction mintLeadToken(leadId, { secret, nowMs = Date.now(), ttlSeconds = TTL_SECONDS } = {}) {\n  assertSecret(secret);\n  if (!LEAD_ID_RE.test(String(leadId || ''))) throw new Error('lead_id not token-safe');\n  const exp = Math.floor(nowMs / 1000) + ttlSeconds;\n  const token = `${VERSION}.${leadId}.${exp}.${b64url(sign(secret, leadId, exp))}`;\n  return { token, exp, expires_at: new Date(exp * 1000).toISOString() };\n}\n\n/** Verify. Returns { ok:true, lead_id, exp } or { ok:false, reason } (reason is logged, never returned to the browser). */\nfunction verifyLeadToken(token, { secret, previousSecret, nowMs = Date.now() } = {}) {\n  assertSecret(secret);\n  if (typeof token !== 'string' || !token || token.length > MAX_TOKEN_LEN) return { ok: false, reason: 'missing' };\n  const parts = token.split('.');\n  if (parts.length !== 4 || parts[0] !== VERSION) return { ok: false, reason: 'malformed' };\n  const [, leadId, expStr, sigStr] = parts;\n  if (!LEAD_ID_RE.test(leadId) || !/^\\d{1,12}$/.test(expStr) || !/^[A-Za-z0-9_-]{43}$/.test(sigStr)) return { ok: false, reason: 'malformed' };\n  const exp = Number(expStr);\n  const given = fromB64url(sigStr);\n  const secrets = [secret].concat(typeof previousSecret === 'string' && previousSecret.length >= MIN_SECRET_LEN ? [previousSecret] : []);\n  let match = false;\n  for (const s of secrets) if (safeEqual(sign(s, leadId, exp), given)) match = true; // no early exit\n  if (!match) return { ok: false, reason: 'bad_signature' };\n  if (exp * 1000 <= nowMs) return { ok: false, reason: 'expired' };\n  if (exp - Math.floor(nowMs / 1000) > TTL_SECONDS + 300) return { ok: false, reason: 'exp_too_far' }; // never longer than the TTL\n  return { ok: true, lead_id: leadId, exp };\n}\n\n// ---------- broker-authenticated path (I-30a): Supabase access token, HS256 ----------\n// ASSUMPTION: the project signs access tokens with the legacy shared secret (HS256, SUPABASE_JWT_SECRET).\n// If the live project uses asymmetric signing keys, swap this for a JWKS verify; the caller contract is unchanged.\nfunction verifySupabaseJwt(jwt, { secret, nowMs = Date.now(), leewaySec = 30 } = {}) {\n  if (typeof secret !== 'string' || secret.length < MIN_SECRET_LEN) throw new Error('SUPABASE_JWT_SECRET missing');\n  if (typeof jwt !== 'string' || jwt.length > 4096) return { ok: false, reason: 'missing' };\n  const parts = jwt.split('.');\n  if (parts.length !== 3) return { ok: false, reason: 'malformed' };\n  let header, claims;\n  try {\n    header = JSON.parse(fromB64url(parts[0]).toString('utf8'));\n    claims = JSON.parse(fromB64url(parts[1]).toString('utf8'));\n  } catch { return { ok: false, reason: 'malformed' }; }\n  if (!header || header.alg !== 'HS256') return { ok: false, reason: 'alg' }; // blocks alg=none and key-confusion\n  const expect = crypto.createHmac('sha256', secret).update(`${parts[0]}.${parts[1]}`).digest();\n  if (!safeEqual(expect, fromB64url(parts[2]))) return { ok: false, reason: 'bad_signature' };\n  const now = Math.floor(nowMs / 1000);\n  if (typeof claims.exp !== 'number' || claims.exp + leewaySec <= now) return { ok: false, reason: 'expired' };\n  if (typeof claims.nbf === 'number' && claims.nbf - leewaySec > now) return { ok: false, reason: 'not_yet_valid' };\n  const aud = Array.isArray(claims.aud) ? claims.aud : [claims.aud];\n  if (!aud.includes('authenticated') || claims.role !== 'authenticated') return { ok: false, reason: 'role' };\n  if (!/^[0-9a-f-]{36}$/i.test(String(claims.sub || ''))) return { ok: false, reason: 'sub' };\n  return { ok: true, user_id: claims.sub, exp: claims.exp };\n}\n\nfunction headerValue(headers, name) {\n  if (!headers) return undefined;\n  const k = Object.keys(headers).find((h) => h.toLowerCase() === name);\n  const v = k === undefined ? undefined : headers[k];\n  return Array.isArray(v) ? v[0] : v;\n}\n\n/**\n * Decide who is calling GET /slots. Broker ids in the query are NEVER read (I-29): the lead path takes the broker\n * from leads.broker_id, the broker path from brokers.user_id = jwt.sub. Returns\n *   { ok:true, mode:'lead',   lead_id, limit, date }      -> SELECT broker_id FROM leads WHERE id = lead_id\n *   { ok:true, mode:'broker', user_id, limit }            -> SELECT * FROM brokers WHERE user_id = user_id\n *   { ok:false, status, reason }\n */\nfunction resolveSlotsCaller({ headers = {}, query = {} } = {}, { leadSecret, leadPreviousSecret, jwtSecret, nowMs = Date.now() } = {}) {\n  const auth = headerValue(headers, 'authorization');\n  const lt = headerValue(headers, HEADER);\n  if (auth && lt) return { ok: false, status: 400, reason: 'ambiguous_caller' };\n  const date = /^\\d{4}-\\d{2}-\\d{2}$/.test(String(query.date || '')) ? query.date : null;\n  if (auth) {\n    const m = /^Bearer\\s+(\\S+)$/i.exec(String(auth));\n    if (!m) return { ok: false, status: 401, reason: 'malformed' };\n    const v = verifySupabaseJwt(m[1], { secret: jwtSecret, nowMs });\n    if (!v.ok) return { ok: false, status: 401, reason: v.reason };\n    const limit = Math.min(Math.max(parseInt(query.limit, 10) || 1, 1), 3); // portal \"next free slot\": 1 by default, 3 max\n    return { ok: true, mode: 'broker', user_id: v.user_id, limit };\n  }\n  if (lt) {\n    const v = verifyLeadToken(String(lt), { secret: leadSecret, previousSecret: leadPreviousSecret, nowMs });\n    if (!v.ok) return { ok: false, status: 401, reason: v.reason };\n    const limit = Math.min(Math.max(parseInt(query.limit, 10) || 3, 1), 20);\n    return { ok: true, mode: 'lead', lead_id: v.lead_id, limit, date };\n  }\n  return { ok: false, status: 401, reason: 'no_credentials' };\n}\n\n\n// ---------- flow_token (W28): same HMAC scheme, so no flow_tokens table is needed ----------\n// ft1.<lead_id>.<kind>.<booking_id|->.<exp>.<sig>, sig = HMAC-SHA256(secret, `ft1|lead_id|kind|booking_id|exp`)\n// Minted by W06/W10 when they send the Flow template; the W28 endpoint trusts only this mapping (never payload ids).\nconst FLOW_KINDS = new Set(['book', 'reschedule', 'capture']); // capture = capture Flow v2 (ctwa/capture-v2.js); W28 rejects it\nfunction mintFlowToken(leadId, kind, bookingId, { secret, nowMs = Date.now(), ttlSeconds = TTL_SECONDS } = {}) {\n  assertSecret(secret);\n  if (!LEAD_ID_RE.test(String(leadId || '')) || !FLOW_KINDS.has(kind)) throw new Error('bad flow token input');\n  const b = bookingId ? String(bookingId) : '-';\n  if (b !== '-' && !LEAD_ID_RE.test(b)) throw new Error('booking_id not token-safe');\n  const exp = Math.floor(nowMs / 1000) + ttlSeconds;\n  const sig = b64url(crypto.createHmac('sha256', secret).update(`ft1|${leadId}|${kind}|${b}|${exp}`).digest());\n  return `ft1.${leadId}.${kind}.${b}.${exp}.${sig}`;\n}\nfunction verifyFlowToken(token, { secret, previousSecret, nowMs = Date.now() } = {}) {\n  assertSecret(secret);\n  if (typeof token !== 'string' || token.length > MAX_TOKEN_LEN) return { ok: false, reason: 'missing' };\n  const p = token.split('.');\n  if (p.length !== 6 || p[0] !== 'ft1' || !LEAD_ID_RE.test(p[1]) || !FLOW_KINDS.has(p[2]) || !(p[3] === '-' || LEAD_ID_RE.test(p[3])) || !/^\\d{1,12}$/.test(p[4]) || !/^[A-Za-z0-9_-]{43}$/.test(p[5])) return { ok: false, reason: 'malformed' };\n  const given = fromB64url(p[5]);\n  let match = false;\n  for (const s of [secret].concat(previousSecret && previousSecret.length >= MIN_SECRET_LEN ? [previousSecret] : [])) {\n    if (safeEqual(crypto.createHmac('sha256', s).update(`ft1|${p[1]}|${p[2]}|${p[3]}|${p[4]}`).digest(), given)) match = true;\n  }\n  if (!match) return { ok: false, reason: 'bad_signature' };\n  if (Number(p[4]) * 1000 <= nowMs) return { ok: false, reason: 'expired' };\n  return { ok: true, lead_id: p[1], kind: p[2], booking_id: p[3] === '-' ? null : p[3], exp: Number(p[4]) };\n}\n\nmodule.exports = { mintFlowToken, verifyFlowToken, VERSION, TTL_SECONDS, HEADER, mintLeadToken, verifyLeadToken, verifySupabaseJwt, resolveSlotsCaller, safeEqual };\n\nreturn module.exports; })();\n// --- inlined ../flows/w28-endpoint.js sha256:3bf31fa72399 (regenerate: node automation/security/inline-for-n8n.mjs) ---\nconst EP = (function () { const module = { exports: {} }; const exports = module.exports;\n'use strict';\n// W28 Booking Flow endpoint: screen logic only (crypto is flow-crypto.js, slots are W04's engine).\n// Contract: automation/flows/booking-flow-endpoint.md. Inlined into automation/W28.json; tested by automation/tests/W28.test.mjs.\n// Which of my five: Meta Flows docs (CalendarPicker, data_exchange, <3 s, ping), Calendly/Cal.com slot rules (W04 engine,\n// re-check before book), Chili Piper (the lead never leaves WhatsApp; failure falls back to an in-chat list, not a web page).\n\nconst OFF = 2 * 3600 * 1000; // Africa/Johannesburg, UTC+02:00, no DST\nconst DAY = 24 * 3600 * 1000;\nconst DOW3 = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];\nconst DOWK = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];\nconst DOWL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];\nconst MON = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];\nconst sastDate = (t) => new Date(t + OFF).toISOString().slice(0, 10);\nconst dayLabel = (date) => { const d = new Date(`${date}T12:00:00Z`); return `${DOWL[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]}`; };\nconst shortLabel = (isoStart) => { const d = new Date(Date.parse(isoStart) + OFF); return `${DOW3[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()].slice(0, 3)}, ${isoStart.slice(11, 16)}`; };\n\nconst METHOD_COPY = {\n  teams: ['Microsoft Teams video call', 'We email you the Teams link'],\n  zoom: ['Zoom video call', 'We email you the Zoom link'],\n  google_meet: ['Google Meet video call', 'We email you the Meet link'],\n  whatsapp_call: ['WhatsApp call', '{a} calls you on WhatsApp'],\n  phone: ['Phone call', '{a} calls your mobile'],\n};\nconst INVITE_METHODS = new Set(['teams', 'zoom', 'google_meet']);\nconst DB_TO_FLOW_METHOD = { meet: 'google_meet' };\nconst MAX_DAY_SLOTS = 20; // RadioButtonsGroup limit\nconst LIST_ROWS = 10; // WhatsApp interactive list limit\n\n// ---------------------------------------------------------------- email checks (< 300 ms)\nconst TYPOS = { 'gmial.com': 'gmail.com', 'gmal.com': 'gmail.com', 'gmail.co': 'gmail.com', 'gamil.com': 'gmail.com', 'yaho.com': 'yahoo.com', 'yahooo.com': 'yahoo.com', 'outlok.com': 'outlook.com', 'hotmial.com': 'hotmail.com', 'webmial.co.za': 'webmail.co.za', 'gmail.co.za': 'gmail.com' };\nconst EMAIL_RE = /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@([A-Za-z0-9-]{1,63}\\.)+[A-Za-z]{2,24}$/;\n\nasync function checkEmail(raw, { resolveMx, disposable = new Set(), previous, hash } = {}) {\n  const email = String(raw || '').trim();\n  if (!EMAIL_RE.test(email) || email.length > 254) return { ok: false, error: 'That email address doesn’t look right. Please check it.' };\n  const domain = email.split('@')[1].toLowerCase();\n  const seenBefore = !!previous && (previous === email || (typeof hash === 'function' && previous === hash(email)));\n  if (TYPOS[domain] && !seenBefore) {\n    const suggestion = `${email.split('@')[0]}@${TYPOS[domain]}`;\n    return { ok: false, suggestion, suggestion_text: `Did you mean ${suggestion}?` }; // second submit of the same text is accepted\n  }\n  if (disposable.has(domain)) return { ok: false, error: 'Please use an email address you check regularly.' };\n  let mx = [];\n  try { mx = await resolveMx(domain); } catch { mx = []; }\n  if (!mx || !mx.length) return { ok: false, error: `We couldn’t find ${domain}. Please check the address.` };\n  return { ok: true, email, email_status: 'mx_ok', email_purpose: 'meeting_invite' };\n}\n\n// ---------------------------------------------------------------- calendar bounds for CalendarPicker\nfunction bounds(broker, slots, now) {\n  const minDate = sastDate(now + broker.min_notice_hours * 3600 * 1000);\n  const maxDate = sastDate(now + broker.horizon_days * DAY);\n  const include = DOWK.filter((k) => (broker.meeting_hours[k] || []).length).map((k) => DOW3[DOWK.indexOf(k)]);\n  const free = new Set(slots.map((s) => s.start.slice(0, 10)));\n  const unavailable = [];\n  for (let t = Date.parse(`${minDate}T00:00:00+02:00`); sastDate(t) <= maxDate; t += DAY) {\n    const d = sastDate(t);\n    const works = (broker.meeting_hours[DOWK[new Date(`${d}T12:00:00Z`).getUTCDay()]] || []).length > 0;\n    if (works && !free.has(d)) unavailable.push(d); // full, capped, blocked, holiday or paused\n  }\n  return { min_date: minDate, max_date: maxDate, include_days: include, unavailable_dates: unavailable };\n}\n\nconst common = (ctx) => {\n  const c = { broker_id: ctx.broker.broker_id, lead_id: ctx.lead.id, adviser_name: ctx.broker.adviser_first_name || ctx.broker.adviser_name };\n  if (ctx.token.kind === 'reschedule') c.booking_id = ctx.token.booking_id;\n  return c;\n};\n\n/**\n * @param req  decrypted Flow request\n * @param deps { verifyToken(t), loadContext(lead_id, token) -> {lead, broker, booking, flow_errors, booking_ui},\n *               slots(broker, {fresh}) -> {fallback?, slots:[{start,end}]}, now, resolveMx, disposable }\n * @returns { response, effects[] }  effects are executed by the workflow (log rows, list fallback, alerts)\n */\nasync function handle(req, deps) {\n  const effects = [];\n  if (!req || req.action === 'ping') return { response: { data: { status: 'active' } }, effects };\n  const tok = deps.verifyToken(req.flow_token);\n  if (!tok.ok || tok.kind === 'capture') { // a capture-Flow token is never a booking token (ctwa/capture-v2.js owns it)\n    effects.push({ kind: 'security_event', reason: tok.ok ? 'flow_token_wrong_kind' : `flow_token_${tok.reason}` });\n    return { response: { data: { error_message: 'This booking link has expired. We’ll send you times here on WhatsApp.' } }, effects };\n  }\n  const ctx = await deps.loadContext(tok.lead_id, tok);\n  ctx.token = tok;\n  if (!ctx.lead || !ctx.broker || ctx.lead.opted_out_at) {\n    effects.push({ kind: 'security_event', reason: 'flow_token_lead_gone' });\n    return { response: { data: { error_message: 'This booking link is no longer active.' } }, effects };\n  }\n  const d = req.data || {};\n  // never trust ids in the payload: they must equal the token's mapping\n  if ((d.lead_id && d.lead_id !== ctx.lead.id) || (d.broker_id && d.broker_id !== ctx.broker.broker_id) || (tok.kind === 'reschedule' && d.booking_id && d.booking_id !== tok.booking_id)) {\n    effects.push({ kind: 'security_event', reason: 'flow_payload_mismatch' });\n    return { response: { data: { error_message: 'Something went wrong. We’ll send you times here on WhatsApp.' } }, effects: effects.concat([{ kind: 'send_list', lead_id: ctx.lead.id, reason: 'payload_mismatch' }]) };\n  }\n\n  if (req.action === 'error') {\n    const n = (ctx.flow_errors || 0) + 1;\n    effects.push({ kind: 'activity', activity_type: 'flow_error', payload: { flow_token: req.flow_token, error: d.error || null, n } });\n    if (n >= 2) effects.push({ kind: 'send_list', lead_id: ctx.lead.id, reason: 'two_flow_errors' }); // W28 failure rule\n    return { response: { data: { acknowledged: true } }, effects };\n  }\n\n  const now = deps.now;\n  const fail = (screen, data) => ({ response: { screen, data: { ...common(ctx), ...data, slots: [], show_error: true, error_message: 'We can’t load times right now. We’ll send you times here on WhatsApp.' } }, effects: effects.concat([{ kind: 'send_list', lead_id: ctx.lead.id, reason: 'calendar_unavailable' }]) });\n\n  if (req.action === 'INIT') {\n    effects.push({ kind: 'activity', activity_type: 'flow_opened', payload: { flow_token: req.flow_token, kind: tok.kind } }); // I-22\n    const r = await deps.slots(ctx.broker, { fresh: false });\n    const methods = (ctx.broker.methods_supported || []).map((m) => DB_TO_FLOW_METHOD[m] || m)\n      .filter((m) => METHOD_COPY[m] && (m !== 'google_meet' || ctx.broker.calendar_provider === 'google'))\n      .map((m) => ({ id: m, title: METHOD_COPY[m][0], description: METHOD_COPY[m][1].replace('{a}', common(ctx).adviser_name) }));\n    if (r.fallback || !r.slots.length) {\n      effects.push({ kind: 'send_list', lead_id: ctx.lead.id, reason: r.fallback ? 'calendar_unavailable' : 'no_slots' });\n      return { response: { data: { error_message: 'No times are open right now. We’ll message you here with the next times.' } }, effects };\n    }\n    const data = { ...common(ctx), heading: `How would you like to meet ${common(ctx).adviser_name}?`, methods, ...bounds(ctx.broker, r.slots, now) };\n    if (tok.kind === 'reschedule' && ctx.booking) {\n      Object.assign(data, { current_method: DB_TO_FLOW_METHOD[ctx.booking.method] || ctx.booking.method, current_date: ctx.booking.start.slice(0, 10), current_booking_text: `Now booked: ${shortLabel(ctx.booking.start)}, ${(METHOD_COPY[DB_TO_FLOW_METHOD[ctx.booking.method] || ctx.booking.method] || ['call'])[0]}` });\n    }\n    return { response: { screen: 'METHOD', data }, effects };\n  }\n\n  if (req.action !== 'data_exchange') return { response: { data: { acknowledged: true } }, effects };\n\n  if (d.action_type === 'date_selected') {\n    const r = await deps.slots(ctx.broker, { fresh: false, date: d.date });\n    if (r.fallback) return fail('SLOTS', { method: d.method, date: d.date, date_label: dayLabel(d.date) });\n    const day = r.slots.filter((s) => s.start.startsWith(d.date)).slice(0, MAX_DAY_SLOTS);\n    if (!day.length) return { response: { screen: 'DATE', data: { ...common(ctx), method: d.method, ...bounds(ctx.broker, r.slots, now) } }, effects };\n    return { response: { screen: 'SLOTS', data: { ...common(ctx), method: d.method, date: d.date, date_label: `${dayLabel(d.date)} (South African time)`, slots: day.map((s) => ({ id: s.start, title: s.start.slice(11, 16) })), show_error: false, error_message: '' } }, effects };\n  }\n\n  if (d.action_type === 'slot_selected') {\n    const r = await deps.slots(ctx.broker, { fresh: true }); // fresh getSchedule, no cache\n    if (r.fallback) return fail('SLOTS', { method: d.method, date: d.date, date_label: dayLabel(d.date) });\n    if (!r.slots.some((s) => s.start === d.slot)) {\n      const next3 = r.slots.filter((s) => s.start > d.slot).slice(0, 3);\n      return { response: { screen: 'SLOTS', data: { ...common(ctx), method: d.method, date: d.date, date_label: `${dayLabel(d.date)} (South African time)`, slots: next3.map((s) => ({ id: s.start, title: shortLabel(s.start) })), show_error: true, error_message: 'That time was just taken. Here are the next free times.' } }, effects };\n    }\n    const base = { ...common(ctx), method: d.method, date: d.date, slot: d.slot };\n    if (INVITE_METHODS.has(d.method)) {\n      const word = d.method === 'teams' ? 'Teams' : d.method === 'zoom' ? 'Zoom' : 'Google Meet';\n      return { response: { screen: 'EMAIL', data: { ...base, prompt: `Where should we send the ${word} invite?`, init_email: ctx.lead.email || '', show_suggestion: false, suggestion_text: '', show_error: false, error_message: '' } }, effects };\n    }\n    return { response: { screen: 'SUMMARY', data: { ...base, email: '', summary_text: summary(ctx, d.method, d.slot) } }, effects }; // 0.1: never ask email for call methods\n  }\n\n  if (d.action_type === 'email_entered') {\n    if (!INVITE_METHODS.has(d.method)) return { response: { screen: 'SUMMARY', data: { ...common(ctx), method: d.method, date: d.date, slot: d.slot, email: '', summary_text: summary(ctx, d.method, d.slot) } }, effects };\n    const c = await checkEmail(d.email, { resolveMx: deps.resolveMx, disposable: deps.disposable, previous: d.previous_email || ctx.email_suggested_for, hash: deps.hash });\n    if (c.suggestion) effects.push({ kind: 'activity', activity_type: 'flow_email_suggested', payload: { flow_token: req.flow_token, typed_domain: String(d.email).split('@')[1] || null, typed_hash: deps.hash ? deps.hash(String(d.email)) : null } });\n    const base = { ...common(ctx), method: d.method, date: d.date, slot: d.slot };\n    if (!c.ok) {\n      const word = d.method === 'teams' ? 'Teams' : d.method === 'zoom' ? 'Zoom' : 'Google Meet';\n      return { response: { screen: 'EMAIL', data: { ...base, prompt: `Where should we send the ${word} invite?`, init_email: c.suggestion || String(d.email || ''), show_suggestion: !!c.suggestion, suggestion_text: c.suggestion_text || '', show_error: !c.suggestion, error_message: c.error || '' } }, effects };\n    }\n    effects.push({ kind: 'store_email', lead_id: ctx.lead.id, email: c.email, email_status: c.email_status, email_purpose: c.email_purpose });\n    return { response: { screen: 'SUMMARY', data: { ...base, email: c.email, summary_text: summary(ctx, d.method, d.slot, c.email) } }, effects };\n  }\n  return { response: { data: { acknowledged: true } }, effects };\n}\n\nfunction summary(ctx, method, slot, email) {\n  const a = common(ctx).adviser_name;\n  const how = { teams: `Microsoft Teams video call. We’ll email the link to ${email}.`, zoom: `Zoom video call. We’ll email the link to ${email}.`, google_meet: `Google Meet video call. We’ll email the link to ${email}.`, whatsapp_call: `${a} will call you on WhatsApp.`, phone: `${a} will call your mobile.` }[method] || '';\n  return `${shortLabel(slot)} (South African time), 30 minutes with ${a}. ${how}`;\n}\n\n\n// ---------------------------------------------------------------- I-39k: one message, never two\n// When W07/W10 hand W28 a delegate (automation/lib/w07.mjs planActions -> oneMessage: { body, lead_lines, intro_line, lang }),\n// every lead-facing message W28 sends OUTSIDE the Flow screens (ask_email, the 10-slot list) carries those lines inside\n// its ONE message. When absent, the intro comes from conversation/lines.mjs (passed in as `lines`) in the lead's language.\nconst WA_BODY_MAX = 1024;\n// EMAIL_Q / TZ live in conversation/lines.mjs (I-40h); callers pass `lines` (the generator inlines those keys).\nconst METHOD_WORD = { teams: 'Teams', zoom: 'Zoom', meet: 'Google Meet', google_meet: 'Google Meet' };\nconst fillLine = (line, vars) => String(line || '').replace(/\\{([a-z_]+)\\}/g, (m, k) => (vars[k] !== undefined ? String(vars[k]) : m));\nconst hasBody = (d) => Boolean(d && typeof d.body === 'string' && d.body.trim());\nfunction langOf(delegate, lead, lines) {\n  const ok = (l) => Boolean(l && lines && lines[l]);\n  return ok(delegate && delegate.lang) ? delegate.lang : ok(lead && lead.language) ? lead.language : 'en';\n}\n/** head (delegate body | lead_lines + intro_line | lines.mjs intro) + W28's own line, one body, <= 1,024 with the own line kept whole. */\nfunction oneBody(ownLine, { delegate = null, lead = {}, lines = null, introKey = null, vars = {} } = {}) {\n  const lang = langOf(delegate, lead, lines);\n  if (!lines || !lines.en) throw new Error('W28: conversation/lines.mjs LINES required');\n  const own = fillLine((lines[lang] || lines.en)[ownLine] || lines.en[ownLine], vars);\n  let head = '';\n  if (hasBody(delegate)) head = delegate.body.trim();\n  else if (delegate && ((delegate.lead_lines || []).length || delegate.intro_line)) head = [...(delegate.lead_lines || []), delegate.intro_line].map((x) => String(x || '').trim()).filter(Boolean).join(' ');\n  else if (introKey && lines) head = fillLine((lines[lang] || lines.en)[introKey], vars);\n  if (head && head.length + own.length + 1 > WA_BODY_MAX) head = head.slice(0, WA_BODY_MAX - own.length - 1).trim();\n  return { lang, body: [head, own].filter(Boolean).join(' ') };\n}\n/**\n * ask_email (W10 change_method -> ask_email, or a list booking that needs an invite): ONE text message.\n * reason 'change_method' uses METHOD_CHANGED as the intro when no delegate lines came with it.\n */\nfunction askEmailMessage({ to, method, broker = {}, lead = {}, delegate = null, lines = null, reason = 'book' } = {}) {\n  const adviser = broker.adviser_first_name || String(broker.adviser_name || broker.contact_person || '').split(' ')[0];\n  const vars = { method: METHOD_WORD[method] || method, adviser_first: adviser, first_name: lead.first_name || '' };\n  const { body, lang } = oneBody('EMAIL_Q', { delegate, lead, lines, introKey: reason === 'change_method' ? 'METHOD_CHANGED' : null, vars });\n  return { lang, message: { messaging_product: 'whatsapp', recipient_type: 'individual', to: String(to).replace('+', ''), type: 'text', text: { body } } };\n}\n\n/** Fallback ladder step 2 (0.3 #3, the launch path): interactive list of the next 10 slots, spread across days. */\nfunction listFallback(broker, slots, offerSpread, to, { delegate = null, lead = {}, lines = null } = {}) {\n  const picks = offerSpread(slots, LIST_ROWS);\n  if (!picks.length) return null;\n  const a = broker.adviser_first_name || broker.adviser_name;\n  return {\n    messaging_product: 'whatsapp', recipient_type: 'individual', to: String(to).replace('+', ''), type: 'interactive',\n    interactive: {\n      type: 'list',\n      body: { text: oneBody('TZ', { delegate, lead, lines, introKey: 'SLOTS_INTRO', vars: { adviser_first: a } }).body },\n      footer: { text: 'Reply STOP to opt out' },\n      action: { button: 'See times', sections: [{ title: 'Next free times', rows: picks.map((s) => ({ id: `slot_${s.start}`, title: shortLabel(s.start) })) }] },\n    },\n  };\n}\n\nmodule.exports = { askEmailMessage, oneBody, WA_BODY_MAX, handle, checkEmail, bounds, listFallback, shortLabel, dayLabel, INVITE_METHODS, LIST_ROWS, MAX_DAY_SLOTS };\n\nreturn module.exports; })();\nconst dns = require('dns').promises;\nconst crypto = require('crypto');\nconst base = $('Verify + decrypt').first().json;\nconst ctx = $('Load token context').first()?.json || {};\nconst w04 = $input.first()?.json || { fallback: 'whatsapp', slots: [] };   // W04 output: { fallback?, slots:[{start,end}] }\nconst DISPOSABLE = new Set(['mailinator.com', 'guerrillamail.com', '10minutemail.com', 'tempmail.com', 'yopmail.com', 'trashmail.com']);\nconst withTimeout = (p, ms) => Promise.race([p, new Promise((_, r) => setTimeout(() => r(new Error('timeout')), ms))]);\nconst out = await EP.handle(base.req, {\n  verifyToken: () => base.tok,\n  loadContext: async () => ({ lead: ctx.lead, broker: ctx.broker, booking: ctx.booking, flow_errors: ctx.flow_errors || 0, email_suggested_for: ctx.email_suggested_for }),\n  slots: async () => w04,\n  now: Date.now(),\n  resolveMx: (d) => withTimeout(dns.resolveMx(d), 250),\n  disposable: DISPOSABLE,\n  hash: (s) => crypto.createHash('sha256').update(s.toLowerCase()).digest('hex'),\n});\nreturn [{ json: { response: out.response, effects: out.effects, lead_id: ctx.lead ? ctx.lead.id : null, brand_id: ctx.lead ? ctx.lead.brand_id : null, broker_id: ctx.broker ? ctx.broker.broker_id : null, aes: base.aes, iv: base.iv } }];"
+   }
+  },
+  {
+   "id": "n10",
+   "name": "Encrypt response",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1320,
+    -100
+   ],
+   "parameters": {
+    "mode": "runOnceForAllItems",
+    "jsCode": "// --- inlined ../flows/flow-crypto.js sha256:f50eab3a4b60 (regenerate: node automation/security/inline-for-n8n.mjs) ---\nconst FC = (function () { const module = { exports: {} }; const exports = module.exports;\n'use strict';\n// W28 Flow endpoint envelope (decrypt request / encrypt response) - I-34g.\n// Implements WhatsApp Flows endpoint encryption as Meta documents it (same steps and error code as Meta's reference\n// WhatsApp-Flows-Tools examples/endpoint/nodejs decryptRequest/encryptResponse, node:crypto only, no hand-rolled crypto):\n//   request : encrypted_aes_key = RSA-OAEP (SHA-256 hash and MGF1) of a 128-bit AES key under our registered public key;\n//             encrypted_flow_data = AES-128-GCM ciphertext with the 16-byte tag appended; initial_vector = the IV\n//   response: AES-128-GCM with the SAME key and the IV with every bit flipped; base64(ciphertext || 16-byte tag)\n//   failure : HTTP 421 (\"re-fetch the public key\") on any decryption problem; never 200 with a plaintext body.\n// ASSUMPTION (4.0a lookup, see build/costs.jsonl): the one WebFetch of developers.facebook.com was blocked by the\n// egress proxy (EGRESS_BLOCKED), so this mirrors the documented algorithm from the existing W28 spec and Meta's\n// published sample as already recorded in booking-flow-endpoint.md; re-confirm against Meta's page and the Flow\n// Builder endpoint test before publish (W28 step 5). Request signature (X-Hub-Signature-256) is checked by the caller.\nconst crypto = require('crypto');\n\nclass FlowEndpointException extends Error {\n  constructor(statusCode, message) { super(message); this.statusCode = statusCode; }\n}\n\nfunction decryptRequest(body, privatePem, passphrase) {\n  const { encrypted_aes_key, encrypted_flow_data, initial_vector } = body || {};\n  if (![encrypted_aes_key, encrypted_flow_data, initial_vector].every((x) => typeof x === 'string' && x.length)) {\n    throw new FlowEndpointException(421, 'Failed to decrypt the request. Missing encryption fields.');\n  }\n  let aesKey;\n  try {\n    const key = crypto.createPrivateKey({ key: privatePem, passphrase: passphrase || undefined });\n    aesKey = crypto.privateDecrypt({ key, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, oaepHash: 'sha256' }, Buffer.from(encrypted_aes_key, 'base64'));\n    if (aesKey.length !== 16) throw new Error('AES key is not 128-bit');\n  } catch (e) {\n    throw new FlowEndpointException(421, 'Failed to decrypt the request. Please verify your private key.');\n  }\n  const flowBuf = Buffer.from(encrypted_flow_data, 'base64');\n  const iv = Buffer.from(initial_vector, 'base64');\n  const TAG = 16;\n  if (flowBuf.length <= TAG || iv.length < 12) throw new FlowEndpointException(421, 'Failed to decrypt the request.');\n  try {\n    const d = crypto.createDecipheriv('aes-128-gcm', aesKey, iv);\n    d.setAuthTag(flowBuf.subarray(-TAG));\n    const json = Buffer.concat([d.update(flowBuf.subarray(0, -TAG)), d.final()]).toString('utf8');\n    return { decryptedBody: JSON.parse(json), aesKeyBuffer: aesKey, initialVectorBuffer: iv };\n  } catch (e) {\n    throw new FlowEndpointException(421, 'Failed to decrypt the request.');\n  }\n}\n\nfunction encryptResponse(response, aesKeyBuffer, initialVectorBuffer) {\n  const flipped = Buffer.from(initialVectorBuffer.map((b) => ~b & 0xff));\n  const c = crypto.createCipheriv('aes-128-gcm', aesKeyBuffer, flipped);\n  return Buffer.concat([c.update(JSON.stringify(response), 'utf8'), c.final(), c.getAuthTag()]).toString('base64');\n}\n\nmodule.exports = { decryptRequest, encryptResponse, FlowEndpointException };\n\nreturn module.exports; })();\nconst j = $input.first().json;\nreturn [{ json: { ...j, encrypted: FC.encryptResponse(j.response, Buffer.from(j.aes, 'base64'), Buffer.from(j.iv, 'base64')) } }];"
+   }
+  },
+  {
+   "id": "n11",
+   "name": "Respond 200 (encrypted)",
+   "type": "n8n-nodes-base.respondToWebhook",
+   "typeVersion": 1.1,
+   "position": [
+    1540,
+    -100
+   ],
+   "parameters": {
+    "respondWith": "text",
+    "responseBody": "={{ $json.encrypted }}",
+    "options": {
+     "responseCode": 200
+    }
+   }
+  },
+  {
+   "id": "n12",
+   "name": "Fan out effects",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1320,
+    100
+   ],
+   "parameters": {
+    "mode": "runOnceForAllItems",
+    "jsCode": "return $input.all().flatMap((it) => (it.json.effects || []).map((e) => ({ json: { ...e, _lead_id: it.json.lead_id, _brand_id: it.json.brand_id, _broker_id: it.json.broker_id } })));"
+   }
+  },
+  {
+   "id": "n13",
+   "name": "Effect?",
+   "type": "n8n-nodes-base.switch",
+   "typeVersion": 3,
+   "position": [
+    1540,
+    100
+   ],
+   "parameters": {
+    "rules": {
+     "values": [
+      {
+       "conditions": {
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "strict"
+        },
+        "conditions": [
+         {
+          "leftValue": "={{ $json.kind }}",
+          "rightValue": "activity",
+          "operator": {
+           "type": "string",
+           "operation": "equals"
+          }
+         }
+        ],
+        "combinator": "and"
+       },
+       "renameOutput": true,
+       "outputKey": "activity"
+      },
+      {
+       "conditions": {
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "strict"
+        },
+        "conditions": [
+         {
+          "leftValue": "={{ $json.kind }}",
+          "rightValue": "store_email",
+          "operator": {
+           "type": "string",
+           "operation": "equals"
+          }
+         }
+        ],
+        "combinator": "and"
+       },
+       "renameOutput": true,
+       "outputKey": "store_email"
+      },
+      {
+       "conditions": {
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "strict"
+        },
+        "conditions": [
+         {
+          "leftValue": "={{ $json.kind }}",
+          "rightValue": "send_list",
+          "operator": {
+           "type": "string",
+           "operation": "equals"
+          }
+         }
+        ],
+        "combinator": "and"
+       },
+       "renameOutput": true,
+       "outputKey": "send_list"
+      },
+      {
+       "conditions": {
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "strict"
+        },
+        "conditions": [
+         {
+          "leftValue": "={{ $json.kind }}",
+          "rightValue": "security_event",
+          "operator": {
+           "type": "string",
+           "operation": "equals"
+          }
+         }
+        ],
+        "combinator": "and"
+       },
+       "renameOutput": true,
+       "outputKey": "security_event"
+      }
+     ]
+    },
+    "options": {
+     "fallbackOutput": "none"
+    }
+   }
+  },
+  {
+   "id": "n14",
+   "name": "Log activity (flow_opened / flow_error)",
+   "type": "n8n-nodes-base.postgres",
+   "typeVersion": 2.5,
+   "position": [
+    1760,
+    0
+   ],
+   "parameters": {
+    "operation": "executeQuery",
+    "query": "-- I-22: W28 is the feeder for lead_activities 'flow_opened'; 'flow_error' rows drive the two-errors -> list rule.\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, $3::uuid, 'W28', 'lead', $4, $5::jsonb, now(),\n        CASE WHEN $4 = 'flow_opened' THEN 'W28:flow_opened:' || ($5::jsonb->>'flow_token') ELSE NULL END)\nON CONFLICT DO NOTHING\nRETURNING id;",
+    "options": {
+     "queryReplacement": "={{ [ $json._lead_id, $json._brand_id, $json._broker_id, $json.activity_type, JSON.stringify($json.payload) ] }}"
+    }
+   },
+   "credentials": {
+    "postgres": {
+     "id": "",
+     "name": "LV Supabase - n8n_app (least privilege)"
+    }
+   }
+  },
+  {
+   "id": "n15",
+   "name": "Store email (meeting_invite only)",
+   "type": "n8n-nodes-base.postgres",
+   "typeVersion": 2.5,
+   "position": [
+    1760,
+    140
+   ],
+   "parameters": {
+    "operation": "executeQuery",
+    "query": "-- 0.1 Email: only for Teams/Zoom/Meet, purpose meeting_invite. Delivery check happens when W05 sends the invite.\nUPDATE public.leads SET email = $2, email_status = $3, email_purpose = 'meeting_invite', updated_at = now()\n WHERE id = $1::uuid AND $4 = 'meeting_invite'\nRETURNING id;",
+    "options": {
+     "queryReplacement": "={{ [ $json.lead_id, $json.email, $json.email_status, $json.email_purpose ] }}"
+    }
+   },
+   "credentials": {
+    "postgres": {
+     "id": "",
+     "name": "LV Supabase - n8n_app (least privilege)"
+    }
+   }
+  },
+  {
+   "id": "n16",
+   "name": "W22 Alerts: flow security event",
+   "type": "n8n-nodes-base.executeWorkflow",
+   "typeVersion": 1.1,
+   "position": [
+    1760,
+    420
+   ],
+   "parameters": {
+    "source": "database",
+    "workflowId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "smc-w22",
+     "cachedResultName": "W22 Alerts"
+    },
+    "options": {
+     "waitForSubWorkflow": false
+    }
+   }
+  },
+  {
+   "id": "n17",
+   "name": "Called by W06/W07/W10/W22",
+   "type": "n8n-nodes-base.executeWorkflowTrigger",
+   "typeVersion": 1.1,
+   "position": [
+    0,
+    600
+   ],
+   "parameters": {
+    "inputSource": "passthrough"
+   }
+  },
+  {
+   "id": "n18",
+   "name": "Op?",
+   "type": "n8n-nodes-base.switch",
+   "typeVersion": 3,
+   "position": [
+    220,
+    600
+   ],
+   "parameters": {
+    "rules": {
+     "values": [
+      {
+       "conditions": {
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "strict"
+        },
+        "conditions": [
+         {
+          "leftValue": "={{ $json.op }}",
+          "rightValue": "send_list",
+          "operator": {
+           "type": "string",
+           "operation": "equals"
+          }
+         }
+        ],
+        "combinator": "and"
+       },
+       "renameOutput": true,
+       "outputKey": "send_list"
+      },
+      {
+       "conditions": {
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "strict"
+        },
+        "conditions": [
+         {
+          "leftValue": "={{ $json.op }}",
+          "rightValue": "revert",
+          "operator": {
+           "type": "string",
+           "operation": "equals"
+          }
+         }
+        ],
+        "combinator": "and"
+       },
+       "renameOutput": true,
+       "outputKey": "revert"
+      },
+      {
+       "conditions": {
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "strict"
+        },
+        "conditions": [
+         {
+          "leftValue": "={{ $json.op }}",
+          "rightValue": "ask_email",
+          "operator": {
+           "type": "string",
+           "operation": "equals"
+          }
+         }
+        ],
+        "combinator": "and"
+       },
+       "renameOutput": true,
+       "outputKey": "ask_email"
+      }
+     ]
+    },
+    "options": {
+     "fallbackOutput": "none"
+    }
+   }
+  },
+  {
+   "id": "n19",
+   "name": "Normalise send_list input",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1760,
+    280
+   ],
+   "parameters": {
+    "mode": "runOnceForAllItems",
+    "jsCode": "return $input.all().map((it) => ({ json: { op: 'send_list', lead_id: it.json._lead_id || it.json.lead_id, reason: it.json.reason || null } }));"
+   }
+  },
+  {
+   "id": "n20",
+   "name": "Load lead for list",
+   "type": "n8n-nodes-base.postgres",
+   "typeVersion": 2.5,
+   "position": [
+    440,
+    520
+   ],
+   "parameters": {
+    "operation": "executeQuery",
+    "query": "SELECT l.id AS lead_id, l.phone, l.brand_id, l.opted_out_at, l.language, l.first_name, b.id AS broker_id, b.adviser_name, split_part(b.adviser_name, ' ', 1) AS adviser_first_name\n  FROM public.leads l JOIN public.brokers b ON b.id = l.broker_id\n WHERE l.id = $1::uuid AND l.opted_out_at IS NULL;",
+    "options": {
+     "queryReplacement": "={{ [ $json.lead_id ] }}"
+    }
+   },
+   "credentials": {
+    "postgres": {
+     "id": "",
+     "name": "LV Supabase - n8n_app (least privilege)"
+    }
+   }
+  },
+  {
+   "id": "n21",
+   "name": "W04 Slot engine (list)",
+   "type": "n8n-nodes-base.executeWorkflow",
+   "typeVersion": 1.1,
+   "position": [
+    660,
+    520
+   ],
+   "parameters": {
+    "source": "database",
+    "workflowId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "smc-w04",
+     "cachedResultName": "W04 Slots API"
+    },
+    "options": {
+     "waitForSubWorkflow": true
+    }
+   }
+  },
+  {
+   "id": "n22",
+   "name": "Build 10-slot list",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    880,
+    520
+   ],
+   "parameters": {
+    "mode": "runOnceForAllItems",
+    "jsCode": "// --- inlined ../flows/w28-endpoint.js sha256:3bf31fa72399 (regenerate: node automation/security/inline-for-n8n.mjs) ---\nconst EP = (function () { const module = { exports: {} }; const exports = module.exports;\n'use strict';\n// W28 Booking Flow endpoint: screen logic only (crypto is flow-crypto.js, slots are W04's engine).\n// Contract: automation/flows/booking-flow-endpoint.md. Inlined into automation/W28.json; tested by automation/tests/W28.test.mjs.\n// Which of my five: Meta Flows docs (CalendarPicker, data_exchange, <3 s, ping), Calendly/Cal.com slot rules (W04 engine,\n// re-check before book), Chili Piper (the lead never leaves WhatsApp; failure falls back to an in-chat list, not a web page).\n\nconst OFF = 2 * 3600 * 1000; // Africa/Johannesburg, UTC+02:00, no DST\nconst DAY = 24 * 3600 * 1000;\nconst DOW3 = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];\nconst DOWK = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];\nconst DOWL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];\nconst MON = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];\nconst sastDate = (t) => new Date(t + OFF).toISOString().slice(0, 10);\nconst dayLabel = (date) => { const d = new Date(`${date}T12:00:00Z`); return `${DOWL[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]}`; };\nconst shortLabel = (isoStart) => { const d = new Date(Date.parse(isoStart) + OFF); return `${DOW3[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()].slice(0, 3)}, ${isoStart.slice(11, 16)}`; };\n\nconst METHOD_COPY = {\n  teams: ['Microsoft Teams video call', 'We email you the Teams link'],\n  zoom: ['Zoom video call', 'We email you the Zoom link'],\n  google_meet: ['Google Meet video call', 'We email you the Meet link'],\n  whatsapp_call: ['WhatsApp call', '{a} calls you on WhatsApp'],\n  phone: ['Phone call', '{a} calls your mobile'],\n};\nconst INVITE_METHODS = new Set(['teams', 'zoom', 'google_meet']);\nconst DB_TO_FLOW_METHOD = { meet: 'google_meet' };\nconst MAX_DAY_SLOTS = 20; // RadioButtonsGroup limit\nconst LIST_ROWS = 10; // WhatsApp interactive list limit\n\n// ---------------------------------------------------------------- email checks (< 300 ms)\nconst TYPOS = { 'gmial.com': 'gmail.com', 'gmal.com': 'gmail.com', 'gmail.co': 'gmail.com', 'gamil.com': 'gmail.com', 'yaho.com': 'yahoo.com', 'yahooo.com': 'yahoo.com', 'outlok.com': 'outlook.com', 'hotmial.com': 'hotmail.com', 'webmial.co.za': 'webmail.co.za', 'gmail.co.za': 'gmail.com' };\nconst EMAIL_RE = /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@([A-Za-z0-9-]{1,63}\\.)+[A-Za-z]{2,24}$/;\n\nasync function checkEmail(raw, { resolveMx, disposable = new Set(), previous, hash } = {}) {\n  const email = String(raw || '').trim();\n  if (!EMAIL_RE.test(email) || email.length > 254) return { ok: false, error: 'That email address doesn’t look right. Please check it.' };\n  const domain = email.split('@')[1].toLowerCase();\n  const seenBefore = !!previous && (previous === email || (typeof hash === 'function' && previous === hash(email)));\n  if (TYPOS[domain] && !seenBefore) {\n    const suggestion = `${email.split('@')[0]}@${TYPOS[domain]}`;\n    return { ok: false, suggestion, suggestion_text: `Did you mean ${suggestion}?` }; // second submit of the same text is accepted\n  }\n  if (disposable.has(domain)) return { ok: false, error: 'Please use an email address you check regularly.' };\n  let mx = [];\n  try { mx = await resolveMx(domain); } catch { mx = []; }\n  if (!mx || !mx.length) return { ok: false, error: `We couldn’t find ${domain}. Please check the address.` };\n  return { ok: true, email, email_status: 'mx_ok', email_purpose: 'meeting_invite' };\n}\n\n// ---------------------------------------------------------------- calendar bounds for CalendarPicker\nfunction bounds(broker, slots, now) {\n  const minDate = sastDate(now + broker.min_notice_hours * 3600 * 1000);\n  const maxDate = sastDate(now + broker.horizon_days * DAY);\n  const include = DOWK.filter((k) => (broker.meeting_hours[k] || []).length).map((k) => DOW3[DOWK.indexOf(k)]);\n  const free = new Set(slots.map((s) => s.start.slice(0, 10)));\n  const unavailable = [];\n  for (let t = Date.parse(`${minDate}T00:00:00+02:00`); sastDate(t) <= maxDate; t += DAY) {\n    const d = sastDate(t);\n    const works = (broker.meeting_hours[DOWK[new Date(`${d}T12:00:00Z`).getUTCDay()]] || []).length > 0;\n    if (works && !free.has(d)) unavailable.push(d); // full, capped, blocked, holiday or paused\n  }\n  return { min_date: minDate, max_date: maxDate, include_days: include, unavailable_dates: unavailable };\n}\n\nconst common = (ctx) => {\n  const c = { broker_id: ctx.broker.broker_id, lead_id: ctx.lead.id, adviser_name: ctx.broker.adviser_first_name || ctx.broker.adviser_name };\n  if (ctx.token.kind === 'reschedule') c.booking_id = ctx.token.booking_id;\n  return c;\n};\n\n/**\n * @param req  decrypted Flow request\n * @param deps { verifyToken(t), loadContext(lead_id, token) -> {lead, broker, booking, flow_errors, booking_ui},\n *               slots(broker, {fresh}) -> {fallback?, slots:[{start,end}]}, now, resolveMx, disposable }\n * @returns { response, effects[] }  effects are executed by the workflow (log rows, list fallback, alerts)\n */\nasync function handle(req, deps) {\n  const effects = [];\n  if (!req || req.action === 'ping') return { response: { data: { status: 'active' } }, effects };\n  const tok = deps.verifyToken(req.flow_token);\n  if (!tok.ok || tok.kind === 'capture') { // a capture-Flow token is never a booking token (ctwa/capture-v2.js owns it)\n    effects.push({ kind: 'security_event', reason: tok.ok ? 'flow_token_wrong_kind' : `flow_token_${tok.reason}` });\n    return { response: { data: { error_message: 'This booking link has expired. We’ll send you times here on WhatsApp.' } }, effects };\n  }\n  const ctx = await deps.loadContext(tok.lead_id, tok);\n  ctx.token = tok;\n  if (!ctx.lead || !ctx.broker || ctx.lead.opted_out_at) {\n    effects.push({ kind: 'security_event', reason: 'flow_token_lead_gone' });\n    return { response: { data: { error_message: 'This booking link is no longer active.' } }, effects };\n  }\n  const d = req.data || {};\n  // never trust ids in the payload: they must equal the token's mapping\n  if ((d.lead_id && d.lead_id !== ctx.lead.id) || (d.broker_id && d.broker_id !== ctx.broker.broker_id) || (tok.kind === 'reschedule' && d.booking_id && d.booking_id !== tok.booking_id)) {\n    effects.push({ kind: 'security_event', reason: 'flow_payload_mismatch' });\n    return { response: { data: { error_message: 'Something went wrong. We’ll send you times here on WhatsApp.' } }, effects: effects.concat([{ kind: 'send_list', lead_id: ctx.lead.id, reason: 'payload_mismatch' }]) };\n  }\n\n  if (req.action === 'error') {\n    const n = (ctx.flow_errors || 0) + 1;\n    effects.push({ kind: 'activity', activity_type: 'flow_error', payload: { flow_token: req.flow_token, error: d.error || null, n } });\n    if (n >= 2) effects.push({ kind: 'send_list', lead_id: ctx.lead.id, reason: 'two_flow_errors' }); // W28 failure rule\n    return { response: { data: { acknowledged: true } }, effects };\n  }\n\n  const now = deps.now;\n  const fail = (screen, data) => ({ response: { screen, data: { ...common(ctx), ...data, slots: [], show_error: true, error_message: 'We can’t load times right now. We’ll send you times here on WhatsApp.' } }, effects: effects.concat([{ kind: 'send_list', lead_id: ctx.lead.id, reason: 'calendar_unavailable' }]) });\n\n  if (req.action === 'INIT') {\n    effects.push({ kind: 'activity', activity_type: 'flow_opened', payload: { flow_token: req.flow_token, kind: tok.kind } }); // I-22\n    const r = await deps.slots(ctx.broker, { fresh: false });\n    const methods = (ctx.broker.methods_supported || []).map((m) => DB_TO_FLOW_METHOD[m] || m)\n      .filter((m) => METHOD_COPY[m] && (m !== 'google_meet' || ctx.broker.calendar_provider === 'google'))\n      .map((m) => ({ id: m, title: METHOD_COPY[m][0], description: METHOD_COPY[m][1].replace('{a}', common(ctx).adviser_name) }));\n    if (r.fallback || !r.slots.length) {\n      effects.push({ kind: 'send_list', lead_id: ctx.lead.id, reason: r.fallback ? 'calendar_unavailable' : 'no_slots' });\n      return { response: { data: { error_message: 'No times are open right now. We’ll message you here with the next times.' } }, effects };\n    }\n    const data = { ...common(ctx), heading: `How would you like to meet ${common(ctx).adviser_name}?`, methods, ...bounds(ctx.broker, r.slots, now) };\n    if (tok.kind === 'reschedule' && ctx.booking) {\n      Object.assign(data, { current_method: DB_TO_FLOW_METHOD[ctx.booking.method] || ctx.booking.method, current_date: ctx.booking.start.slice(0, 10), current_booking_text: `Now booked: ${shortLabel(ctx.booking.start)}, ${(METHOD_COPY[DB_TO_FLOW_METHOD[ctx.booking.method] || ctx.booking.method] || ['call'])[0]}` });\n    }\n    return { response: { screen: 'METHOD', data }, effects };\n  }\n\n  if (req.action !== 'data_exchange') return { response: { data: { acknowledged: true } }, effects };\n\n  if (d.action_type === 'date_selected') {\n    const r = await deps.slots(ctx.broker, { fresh: false, date: d.date });\n    if (r.fallback) return fail('SLOTS', { method: d.method, date: d.date, date_label: dayLabel(d.date) });\n    const day = r.slots.filter((s) => s.start.startsWith(d.date)).slice(0, MAX_DAY_SLOTS);\n    if (!day.length) return { response: { screen: 'DATE', data: { ...common(ctx), method: d.method, ...bounds(ctx.broker, r.slots, now) } }, effects };\n    return { response: { screen: 'SLOTS', data: { ...common(ctx), method: d.method, date: d.date, date_label: `${dayLabel(d.date)} (South African time)`, slots: day.map((s) => ({ id: s.start, title: s.start.slice(11, 16) })), show_error: false, error_message: '' } }, effects };\n  }\n\n  if (d.action_type === 'slot_selected') {\n    const r = await deps.slots(ctx.broker, { fresh: true }); // fresh getSchedule, no cache\n    if (r.fallback) return fail('SLOTS', { method: d.method, date: d.date, date_label: dayLabel(d.date) });\n    if (!r.slots.some((s) => s.start === d.slot)) {\n      const next3 = r.slots.filter((s) => s.start > d.slot).slice(0, 3);\n      return { response: { screen: 'SLOTS', data: { ...common(ctx), method: d.method, date: d.date, date_label: `${dayLabel(d.date)} (South African time)`, slots: next3.map((s) => ({ id: s.start, title: shortLabel(s.start) })), show_error: true, error_message: 'That time was just taken. Here are the next free times.' } }, effects };\n    }\n    const base = { ...common(ctx), method: d.method, date: d.date, slot: d.slot };\n    if (INVITE_METHODS.has(d.method)) {\n      const word = d.method === 'teams' ? 'Teams' : d.method === 'zoom' ? 'Zoom' : 'Google Meet';\n      return { response: { screen: 'EMAIL', data: { ...base, prompt: `Where should we send the ${word} invite?`, init_email: ctx.lead.email || '', show_suggestion: false, suggestion_text: '', show_error: false, error_message: '' } }, effects };\n    }\n    return { response: { screen: 'SUMMARY', data: { ...base, email: '', summary_text: summary(ctx, d.method, d.slot) } }, effects }; // 0.1: never ask email for call methods\n  }\n\n  if (d.action_type === 'email_entered') {\n    if (!INVITE_METHODS.has(d.method)) return { response: { screen: 'SUMMARY', data: { ...common(ctx), method: d.method, date: d.date, slot: d.slot, email: '', summary_text: summary(ctx, d.method, d.slot) } }, effects };\n    const c = await checkEmail(d.email, { resolveMx: deps.resolveMx, disposable: deps.disposable, previous: d.previous_email || ctx.email_suggested_for, hash: deps.hash });\n    if (c.suggestion) effects.push({ kind: 'activity', activity_type: 'flow_email_suggested', payload: { flow_token: req.flow_token, typed_domain: String(d.email).split('@')[1] || null, typed_hash: deps.hash ? deps.hash(String(d.email)) : null } });\n    const base = { ...common(ctx), method: d.method, date: d.date, slot: d.slot };\n    if (!c.ok) {\n      const word = d.method === 'teams' ? 'Teams' : d.method === 'zoom' ? 'Zoom' : 'Google Meet';\n      return { response: { screen: 'EMAIL', data: { ...base, prompt: `Where should we send the ${word} invite?`, init_email: c.suggestion || String(d.email || ''), show_suggestion: !!c.suggestion, suggestion_text: c.suggestion_text || '', show_error: !c.suggestion, error_message: c.error || '' } }, effects };\n    }\n    effects.push({ kind: 'store_email', lead_id: ctx.lead.id, email: c.email, email_status: c.email_status, email_purpose: c.email_purpose });\n    return { response: { screen: 'SUMMARY', data: { ...base, email: c.email, summary_text: summary(ctx, d.method, d.slot, c.email) } }, effects };\n  }\n  return { response: { data: { acknowledged: true } }, effects };\n}\n\nfunction summary(ctx, method, slot, email) {\n  const a = common(ctx).adviser_name;\n  const how = { teams: `Microsoft Teams video call. We’ll email the link to ${email}.`, zoom: `Zoom video call. We’ll email the link to ${email}.`, google_meet: `Google Meet video call. We’ll email the link to ${email}.`, whatsapp_call: `${a} will call you on WhatsApp.`, phone: `${a} will call your mobile.` }[method] || '';\n  return `${shortLabel(slot)} (South African time), 30 minutes with ${a}. ${how}`;\n}\n\n\n// ---------------------------------------------------------------- I-39k: one message, never two\n// When W07/W10 hand W28 a delegate (automation/lib/w07.mjs planActions -> oneMessage: { body, lead_lines, intro_line, lang }),\n// every lead-facing message W28 sends OUTSIDE the Flow screens (ask_email, the 10-slot list) carries those lines inside\n// its ONE message. When absent, the intro comes from conversation/lines.mjs (passed in as `lines`) in the lead's language.\nconst WA_BODY_MAX = 1024;\n// EMAIL_Q / TZ live in conversation/lines.mjs (I-40h); callers pass `lines` (the generator inlines those keys).\nconst METHOD_WORD = { teams: 'Teams', zoom: 'Zoom', meet: 'Google Meet', google_meet: 'Google Meet' };\nconst fillLine = (line, vars) => String(line || '').replace(/\\{([a-z_]+)\\}/g, (m, k) => (vars[k] !== undefined ? String(vars[k]) : m));\nconst hasBody = (d) => Boolean(d && typeof d.body === 'string' && d.body.trim());\nfunction langOf(delegate, lead, lines) {\n  const ok = (l) => Boolean(l && lines && lines[l]);\n  return ok(delegate && delegate.lang) ? delegate.lang : ok(lead && lead.language) ? lead.language : 'en';\n}\n/** head (delegate body | lead_lines + intro_line | lines.mjs intro) + W28's own line, one body, <= 1,024 with the own line kept whole. */\nfunction oneBody(ownLine, { delegate = null, lead = {}, lines = null, introKey = null, vars = {} } = {}) {\n  const lang = langOf(delegate, lead, lines);\n  if (!lines || !lines.en) throw new Error('W28: conversation/lines.mjs LINES required');\n  const own = fillLine((lines[lang] || lines.en)[ownLine] || lines.en[ownLine], vars);\n  let head = '';\n  if (hasBody(delegate)) head = delegate.body.trim();\n  else if (delegate && ((delegate.lead_lines || []).length || delegate.intro_line)) head = [...(delegate.lead_lines || []), delegate.intro_line].map((x) => String(x || '').trim()).filter(Boolean).join(' ');\n  else if (introKey && lines) head = fillLine((lines[lang] || lines.en)[introKey], vars);\n  if (head && head.length + own.length + 1 > WA_BODY_MAX) head = head.slice(0, WA_BODY_MAX - own.length - 1).trim();\n  return { lang, body: [head, own].filter(Boolean).join(' ') };\n}\n/**\n * ask_email (W10 change_method -> ask_email, or a list booking that needs an invite): ONE text message.\n * reason 'change_method' uses METHOD_CHANGED as the intro when no delegate lines came with it.\n */\nfunction askEmailMessage({ to, method, broker = {}, lead = {}, delegate = null, lines = null, reason = 'book' } = {}) {\n  const adviser = broker.adviser_first_name || String(broker.adviser_name || broker.contact_person || '').split(' ')[0];\n  const vars = { method: METHOD_WORD[method] || method, adviser_first: adviser, first_name: lead.first_name || '' };\n  const { body, lang } = oneBody('EMAIL_Q', { delegate, lead, lines, introKey: reason === 'change_method' ? 'METHOD_CHANGED' : null, vars });\n  return { lang, message: { messaging_product: 'whatsapp', recipient_type: 'individual', to: String(to).replace('+', ''), type: 'text', text: { body } } };\n}\n\n/** Fallback ladder step 2 (0.3 #3, the launch path): interactive list of the next 10 slots, spread across days. */\nfunction listFallback(broker, slots, offerSpread, to, { delegate = null, lead = {}, lines = null } = {}) {\n  const picks = offerSpread(slots, LIST_ROWS);\n  if (!picks.length) return null;\n  const a = broker.adviser_first_name || broker.adviser_name;\n  return {\n    messaging_product: 'whatsapp', recipient_type: 'individual', to: String(to).replace('+', ''), type: 'interactive',\n    interactive: {\n      type: 'list',\n      body: { text: oneBody('TZ', { delegate, lead, lines, introKey: 'SLOTS_INTRO', vars: { adviser_first: a } }).body },\n      footer: { text: 'Reply STOP to opt out' },\n      action: { button: 'See times', sections: [{ title: 'Next free times', rows: picks.map((s) => ({ id: `slot_${s.start}`, title: shortLabel(s.start) })) }] },\n    },\n  };\n}\n\nmodule.exports = { askEmailMessage, oneBody, WA_BODY_MAX, handle, checkEmail, bounds, listFallback, shortLabel, dayLabel, INVITE_METHODS, LIST_ROWS, MAX_DAY_SLOTS };\n\nreturn module.exports; })();\nconst LINES = {\"en\":{\"SLOTS_INTRO\":\"Here are the next open times with {adviser_first}.\",\"METHOD_CHANGED\":\"I'll change it to {method}.\",\"EMAIL_Q\":\"Where should we send the {method} invite? Reply with your email address.\",\"TZ\":\"Times are South African time.\"},\"af\":{\"SLOTS_INTRO\":\"Hier is die volgende oop tye met {adviser_first}.\",\"METHOD_CHANGED\":\"Ek sal dit na {method} verander.\",\"EMAIL_Q\":\"Waarheen moet ons die {method}-uitnodiging stuur? Antwoord met jou e-posadres.\",\"TZ\":\"Die tye is in Suid-Afrikaanse tyd.\"}};\n// Spread across days, earliest first (W04 rule); same as _slots.mjs offerSlots.\nconst spread = (slots, n) => { const by = new Map(); for (const s of slots) { const d = s.start.slice(0, 10); if (!by.has(d)) by.set(d, []); by.get(d).push(s); }\n  const days = [...by.keys()].sort(); const out = []; for (let r = 0; out.length < n; r++) { let add = false; for (const d of days) { const s = by.get(d)[r]; if (s && out.length < n) { out.push(s); add = true; } } if (!add) break; } return out; };\nconst l = $('Load lead for list').first().json;\nconst w04 = $input.first().json || {};\nlet delegate = null; try { delegate = $('Called by W06/W07/W10/W22').first().json.delegate || null; } catch (e) { delegate = null; }   // I-39k\nif (w04.fallback || !(w04.slots || []).length) return [{ json: { lead_id: l.lead_id, body: null, last_resort: true } }];   // ladder step 4: W07 asks for a day\nconst body = EP.listFallback({ adviser_name: l.adviser_name, adviser_first_name: l.adviser_first_name }, w04.slots, spread, l.phone, { delegate, lead: { language: l.language, first_name: l.first_name }, lines: LINES });\nreturn [{ json: { lead_id: l.lead_id, brand_id: l.brand_id, broker_id: l.broker_id, body, last_resort: false } }];"
+   }
+  },
+  {
+   "id": "n23",
+   "name": "Have slots?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2,
+   "position": [
+    1100,
+    520
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "loose"
+     },
+     "conditions": [
+      {
+       "id": "c1",
+       "leftValue": "={{ !$json.last_resort }}",
+       "rightValue": true,
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "n24",
+   "name": "WhatsApp send list",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    1320,
+    460
+   ],
+   "parameters": {
+    "method": "POST",
+    "url": "={{ 'https://graph.facebook.com/' + $env.META_GRAPH_VERSION + '/' + $env.PHONE_NUMBER_ID + '/messages' }}",
+    "authentication": "genericCredentialType",
+    "genericAuthType": "httpHeaderAuth",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify($json.body) }}",
+    "options": {
+     "timeout": 10000
+    }
+   },
+   "credentials": {
+    "httpHeaderAuth": {
+     "id": "",
+     "name": "WhatsApp Cloud API (system user)"
+    }
+   },
+   "retryOnFail": true,
+   "maxTries": 3,
+   "waitBetweenTries": 2000
+  },
+  {
+   "id": "n25",
+   "name": "Log list sent",
+   "type": "n8n-nodes-base.postgres",
+   "typeVersion": 2.5,
+   "position": [
+    1540,
+    460
+   ],
+   "parameters": {
+    "operation": "executeQuery",
+    "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at)\nVALUES ($1::uuid, $2::uuid, $3::uuid, 'W28', 'system', 'booking_list_sent', jsonb_build_object('wamid', $4::text), now())\nRETURNING id;",
+    "options": {
+     "queryReplacement": "={{ [ $('Build 10-slot list').item.json.lead_id, $('Build 10-slot list').item.json.brand_id, $('Build 10-slot list').item.json.broker_id, ($json.messages || [{}])[0].id || null ] }}"
+    }
+   },
+   "credentials": {
+    "postgres": {
+     "id": "",
+     "name": "LV Supabase - n8n_app (least privilege)"
+    }
+   }
+  },
+  {
+   "id": "n26",
+   "name": "W07 last resort (ask for a day, offer 3)",
+   "type": "n8n-nodes-base.executeWorkflow",
+   "typeVersion": 1.1,
+   "position": [
+    1320,
+    600
+   ],
+   "parameters": {
+    "source": "database",
+    "workflowId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "smc-w07",
+     "cachedResultName": "W07 Conversation agent"
+    },
+    "options": {
+     "waitForSubWorkflow": false
+    }
+   }
+  },
+  {
+   "id": "n27",
+   "name": "Revert booking_ui to list",
+   "type": "n8n-nodes-base.postgres",
+   "typeVersion": 2.5,
+   "position": [
+    440,
+    760
+   ],
+   "parameters": {
+    "operation": "executeQuery",
+    "query": "-- Fallback ladder step 3: endpoint ping failed (W22 hourly). Idempotent.\nUPDATE public.brands SET booking_ui = 'list', updated_at = now() WHERE booking_ui = 'flow' RETURNING id;",
+    "options": {}
+   },
+   "credentials": {
+    "postgres": {
+     "id": "",
+     "name": "LV Supabase - n8n_app (least privilege)"
+    }
+   }
+  },
+  {
+   "id": "n28",
+   "name": "W22 Alerts: booking_ui reverted",
+   "type": "n8n-nodes-base.executeWorkflow",
+   "typeVersion": 1.1,
+   "position": [
+    660,
+    760
+   ],
+   "parameters": {
+    "source": "database",
+    "workflowId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "smc-w22",
+     "cachedResultName": "W22 Alerts"
+    },
+    "options": {
+     "waitForSubWorkflow": false
+    }
+   }
+  },
+  {
+   "id": "n29",
+   "name": "Load lead for email ask",
+   "type": "n8n-nodes-base.postgres",
+   "typeVersion": 2.5,
+   "position": [
+    440,
+    900
+   ],
+   "parameters": {
+    "operation": "executeQuery",
+    "query": "SELECT l.id AS lead_id, l.phone, l.brand_id, l.language, l.first_name, b.id AS broker_id, b.adviser_name, split_part(b.adviser_name, ' ', 1) AS adviser_first_name\n  FROM public.leads l JOIN public.brokers b ON b.id = l.broker_id\n WHERE l.id = $1::uuid AND l.opted_out_at IS NULL;",
+    "options": {
+     "queryReplacement": "={{ [ $json.lead_id ] }}"
+    }
+   },
+   "credentials": {
+    "postgres": {
+     "id": "",
+     "name": "LV Supabase - n8n_app (least privilege)"
+    }
+   }
+  },
+  {
+   "id": "n30",
+   "name": "Build ask_email (one message)",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    660,
+    900
+   ],
+   "parameters": {
+    "mode": "runOnceForAllItems",
+    "jsCode": "// --- inlined ../flows/w28-endpoint.js sha256:3bf31fa72399 (regenerate: node automation/security/inline-for-n8n.mjs) ---\nconst EP = (function () { const module = { exports: {} }; const exports = module.exports;\n'use strict';\n// W28 Booking Flow endpoint: screen logic only (crypto is flow-crypto.js, slots are W04's engine).\n// Contract: automation/flows/booking-flow-endpoint.md. Inlined into automation/W28.json; tested by automation/tests/W28.test.mjs.\n// Which of my five: Meta Flows docs (CalendarPicker, data_exchange, <3 s, ping), Calendly/Cal.com slot rules (W04 engine,\n// re-check before book), Chili Piper (the lead never leaves WhatsApp; failure falls back to an in-chat list, not a web page).\n\nconst OFF = 2 * 3600 * 1000; // Africa/Johannesburg, UTC+02:00, no DST\nconst DAY = 24 * 3600 * 1000;\nconst DOW3 = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];\nconst DOWK = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];\nconst DOWL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];\nconst MON = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];\nconst sastDate = (t) => new Date(t + OFF).toISOString().slice(0, 10);\nconst dayLabel = (date) => { const d = new Date(`${date}T12:00:00Z`); return `${DOWL[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]}`; };\nconst shortLabel = (isoStart) => { const d = new Date(Date.parse(isoStart) + OFF); return `${DOW3[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()].slice(0, 3)}, ${isoStart.slice(11, 16)}`; };\n\nconst METHOD_COPY = {\n  teams: ['Microsoft Teams video call', 'We email you the Teams link'],\n  zoom: ['Zoom video call', 'We email you the Zoom link'],\n  google_meet: ['Google Meet video call', 'We email you the Meet link'],\n  whatsapp_call: ['WhatsApp call', '{a} calls you on WhatsApp'],\n  phone: ['Phone call', '{a} calls your mobile'],\n};\nconst INVITE_METHODS = new Set(['teams', 'zoom', 'google_meet']);\nconst DB_TO_FLOW_METHOD = { meet: 'google_meet' };\nconst MAX_DAY_SLOTS = 20; // RadioButtonsGroup limit\nconst LIST_ROWS = 10; // WhatsApp interactive list limit\n\n// ---------------------------------------------------------------- email checks (< 300 ms)\nconst TYPOS = { 'gmial.com': 'gmail.com', 'gmal.com': 'gmail.com', 'gmail.co': 'gmail.com', 'gamil.com': 'gmail.com', 'yaho.com': 'yahoo.com', 'yahooo.com': 'yahoo.com', 'outlok.com': 'outlook.com', 'hotmial.com': 'hotmail.com', 'webmial.co.za': 'webmail.co.za', 'gmail.co.za': 'gmail.com' };\nconst EMAIL_RE = /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@([A-Za-z0-9-]{1,63}\\.)+[A-Za-z]{2,24}$/;\n\nasync function checkEmail(raw, { resolveMx, disposable = new Set(), previous, hash } = {}) {\n  const email = String(raw || '').trim();\n  if (!EMAIL_RE.test(email) || email.length > 254) return { ok: false, error: 'That email address doesn’t look right. Please check it.' };\n  const domain = email.split('@')[1].toLowerCase();\n  const seenBefore = !!previous && (previous === email || (typeof hash === 'function' && previous === hash(email)));\n  if (TYPOS[domain] && !seenBefore) {\n    const suggestion = `${email.split('@')[0]}@${TYPOS[domain]}`;\n    return { ok: false, suggestion, suggestion_text: `Did you mean ${suggestion}?` }; // second submit of the same text is accepted\n  }\n  if (disposable.has(domain)) return { ok: false, error: 'Please use an email address you check regularly.' };\n  let mx = [];\n  try { mx = await resolveMx(domain); } catch { mx = []; }\n  if (!mx || !mx.length) return { ok: false, error: `We couldn’t find ${domain}. Please check the address.` };\n  return { ok: true, email, email_status: 'mx_ok', email_purpose: 'meeting_invite' };\n}\n\n// ---------------------------------------------------------------- calendar bounds for CalendarPicker\nfunction bounds(broker, slots, now) {\n  const minDate = sastDate(now + broker.min_notice_hours * 3600 * 1000);\n  const maxDate = sastDate(now + broker.horizon_days * DAY);\n  const include = DOWK.filter((k) => (broker.meeting_hours[k] || []).length).map((k) => DOW3[DOWK.indexOf(k)]);\n  const free = new Set(slots.map((s) => s.start.slice(0, 10)));\n  const unavailable = [];\n  for (let t = Date.parse(`${minDate}T00:00:00+02:00`); sastDate(t) <= maxDate; t += DAY) {\n    const d = sastDate(t);\n    const works = (broker.meeting_hours[DOWK[new Date(`${d}T12:00:00Z`).getUTCDay()]] || []).length > 0;\n    if (works && !free.has(d)) unavailable.push(d); // full, capped, blocked, holiday or paused\n  }\n  return { min_date: minDate, max_date: maxDate, include_days: include, unavailable_dates: unavailable };\n}\n\nconst common = (ctx) => {\n  const c = { broker_id: ctx.broker.broker_id, lead_id: ctx.lead.id, adviser_name: ctx.broker.adviser_first_name || ctx.broker.adviser_name };\n  if (ctx.token.kind === 'reschedule') c.booking_id = ctx.token.booking_id;\n  return c;\n};\n\n/**\n * @param req  decrypted Flow request\n * @param deps { verifyToken(t), loadContext(lead_id, token) -> {lead, broker, booking, flow_errors, booking_ui},\n *               slots(broker, {fresh}) -> {fallback?, slots:[{start,end}]}, now, resolveMx, disposable }\n * @returns { response, effects[] }  effects are executed by the workflow (log rows, list fallback, alerts)\n */\nasync function handle(req, deps) {\n  const effects = [];\n  if (!req || req.action === 'ping') return { response: { data: { status: 'active' } }, effects };\n  const tok = deps.verifyToken(req.flow_token);\n  if (!tok.ok || tok.kind === 'capture') { // a capture-Flow token is never a booking token (ctwa/capture-v2.js owns it)\n    effects.push({ kind: 'security_event', reason: tok.ok ? 'flow_token_wrong_kind' : `flow_token_${tok.reason}` });\n    return { response: { data: { error_message: 'This booking link has expired. We’ll send you times here on WhatsApp.' } }, effects };\n  }\n  const ctx = await deps.loadContext(tok.lead_id, tok);\n  ctx.token = tok;\n  if (!ctx.lead || !ctx.broker || ctx.lead.opted_out_at) {\n    effects.push({ kind: 'security_event', reason: 'flow_token_lead_gone' });\n    return { response: { data: { error_message: 'This booking link is no longer active.' } }, effects };\n  }\n  const d = req.data || {};\n  // never trust ids in the payload: they must equal the token's mapping\n  if ((d.lead_id && d.lead_id !== ctx.lead.id) || (d.broker_id && d.broker_id !== ctx.broker.broker_id) || (tok.kind === 'reschedule' && d.booking_id && d.booking_id !== tok.booking_id)) {\n    effects.push({ kind: 'security_event', reason: 'flow_payload_mismatch' });\n    return { response: { data: { error_message: 'Something went wrong. We’ll send you times here on WhatsApp.' } }, effects: effects.concat([{ kind: 'send_list', lead_id: ctx.lead.id, reason: 'payload_mismatch' }]) };\n  }\n\n  if (req.action === 'error') {\n    const n = (ctx.flow_errors || 0) + 1;\n    effects.push({ kind: 'activity', activity_type: 'flow_error', payload: { flow_token: req.flow_token, error: d.error || null, n } });\n    if (n >= 2) effects.push({ kind: 'send_list', lead_id: ctx.lead.id, reason: 'two_flow_errors' }); // W28 failure rule\n    return { response: { data: { acknowledged: true } }, effects };\n  }\n\n  const now = deps.now;\n  const fail = (screen, data) => ({ response: { screen, data: { ...common(ctx), ...data, slots: [], show_error: true, error_message: 'We can’t load times right now. We’ll send you times here on WhatsApp.' } }, effects: effects.concat([{ kind: 'send_list', lead_id: ctx.lead.id, reason: 'calendar_unavailable' }]) });\n\n  if (req.action === 'INIT') {\n    effects.push({ kind: 'activity', activity_type: 'flow_opened', payload: { flow_token: req.flow_token, kind: tok.kind } }); // I-22\n    const r = await deps.slots(ctx.broker, { fresh: false });\n    const methods = (ctx.broker.methods_supported || []).map((m) => DB_TO_FLOW_METHOD[m] || m)\n      .filter((m) => METHOD_COPY[m] && (m !== 'google_meet' || ctx.broker.calendar_provider === 'google'))\n      .map((m) => ({ id: m, title: METHOD_COPY[m][0], description: METHOD_COPY[m][1].replace('{a}', common(ctx).adviser_name) }));\n    if (r.fallback || !r.slots.length) {\n      effects.push({ kind: 'send_list', lead_id: ctx.lead.id, reason: r.fallback ? 'calendar_unavailable' : 'no_slots' });\n      return { response: { data: { error_message: 'No times are open right now. We’ll message you here with the next times.' } }, effects };\n    }\n    const data = { ...common(ctx), heading: `How would you like to meet ${common(ctx).adviser_name}?`, methods, ...bounds(ctx.broker, r.slots, now) };\n    if (tok.kind === 'reschedule' && ctx.booking) {\n      Object.assign(data, { current_method: DB_TO_FLOW_METHOD[ctx.booking.method] || ctx.booking.method, current_date: ctx.booking.start.slice(0, 10), current_booking_text: `Now booked: ${shortLabel(ctx.booking.start)}, ${(METHOD_COPY[DB_TO_FLOW_METHOD[ctx.booking.method] || ctx.booking.method] || ['call'])[0]}` });\n    }\n    return { response: { screen: 'METHOD', data }, effects };\n  }\n\n  if (req.action !== 'data_exchange') return { response: { data: { acknowledged: true } }, effects };\n\n  if (d.action_type === 'date_selected') {\n    const r = await deps.slots(ctx.broker, { fresh: false, date: d.date });\n    if (r.fallback) return fail('SLOTS', { method: d.method, date: d.date, date_label: dayLabel(d.date) });\n    const day = r.slots.filter((s) => s.start.startsWith(d.date)).slice(0, MAX_DAY_SLOTS);\n    if (!day.length) return { response: { screen: 'DATE', data: { ...common(ctx), method: d.method, ...bounds(ctx.broker, r.slots, now) } }, effects };\n    return { response: { screen: 'SLOTS', data: { ...common(ctx), method: d.method, date: d.date, date_label: `${dayLabel(d.date)} (South African time)`, slots: day.map((s) => ({ id: s.start, title: s.start.slice(11, 16) })), show_error: false, error_message: '' } }, effects };\n  }\n\n  if (d.action_type === 'slot_selected') {\n    const r = await deps.slots(ctx.broker, { fresh: true }); // fresh getSchedule, no cache\n    if (r.fallback) return fail('SLOTS', { method: d.method, date: d.date, date_label: dayLabel(d.date) });\n    if (!r.slots.some((s) => s.start === d.slot)) {\n      const next3 = r.slots.filter((s) => s.start > d.slot).slice(0, 3);\n      return { response: { screen: 'SLOTS', data: { ...common(ctx), method: d.method, date: d.date, date_label: `${dayLabel(d.date)} (South African time)`, slots: next3.map((s) => ({ id: s.start, title: shortLabel(s.start) })), show_error: true, error_message: 'That time was just taken. Here are the next free times.' } }, effects };\n    }\n    const base = { ...common(ctx), method: d.method, date: d.date, slot: d.slot };\n    if (INVITE_METHODS.has(d.method)) {\n      const word = d.method === 'teams' ? 'Teams' : d.method === 'zoom' ? 'Zoom' : 'Google Meet';\n      return { response: { screen: 'EMAIL', data: { ...base, prompt: `Where should we send the ${word} invite?`, init_email: ctx.lead.email || '', show_suggestion: false, suggestion_text: '', show_error: false, error_message: '' } }, effects };\n    }\n    return { response: { screen: 'SUMMARY', data: { ...base, email: '', summary_text: summary(ctx, d.method, d.slot) } }, effects }; // 0.1: never ask email for call methods\n  }\n\n  if (d.action_type === 'email_entered') {\n    if (!INVITE_METHODS.has(d.method)) return { response: { screen: 'SUMMARY', data: { ...common(ctx), method: d.method, date: d.date, slot: d.slot, email: '', summary_text: summary(ctx, d.method, d.slot) } }, effects };\n    const c = await checkEmail(d.email, { resolveMx: deps.resolveMx, disposable: deps.disposable, previous: d.previous_email || ctx.email_suggested_for, hash: deps.hash });\n    if (c.suggestion) effects.push({ kind: 'activity', activity_type: 'flow_email_suggested', payload: { flow_token: req.flow_token, typed_domain: String(d.email).split('@')[1] || null, typed_hash: deps.hash ? deps.hash(String(d.email)) : null } });\n    const base = { ...common(ctx), method: d.method, date: d.date, slot: d.slot };\n    if (!c.ok) {\n      const word = d.method === 'teams' ? 'Teams' : d.method === 'zoom' ? 'Zoom' : 'Google Meet';\n      return { response: { screen: 'EMAIL', data: { ...base, prompt: `Where should we send the ${word} invite?`, init_email: c.suggestion || String(d.email || ''), show_suggestion: !!c.suggestion, suggestion_text: c.suggestion_text || '', show_error: !c.suggestion, error_message: c.error || '' } }, effects };\n    }\n    effects.push({ kind: 'store_email', lead_id: ctx.lead.id, email: c.email, email_status: c.email_status, email_purpose: c.email_purpose });\n    return { response: { screen: 'SUMMARY', data: { ...base, email: c.email, summary_text: summary(ctx, d.method, d.slot, c.email) } }, effects };\n  }\n  return { response: { data: { acknowledged: true } }, effects };\n}\n\nfunction summary(ctx, method, slot, email) {\n  const a = common(ctx).adviser_name;\n  const how = { teams: `Microsoft Teams video call. We’ll email the link to ${email}.`, zoom: `Zoom video call. We’ll email the link to ${email}.`, google_meet: `Google Meet video call. We’ll email the link to ${email}.`, whatsapp_call: `${a} will call you on WhatsApp.`, phone: `${a} will call your mobile.` }[method] || '';\n  return `${shortLabel(slot)} (South African time), 30 minutes with ${a}. ${how}`;\n}\n\n\n// ---------------------------------------------------------------- I-39k: one message, never two\n// When W07/W10 hand W28 a delegate (automation/lib/w07.mjs planActions -> oneMessage: { body, lead_lines, intro_line, lang }),\n// every lead-facing message W28 sends OUTSIDE the Flow screens (ask_email, the 10-slot list) carries those lines inside\n// its ONE message. When absent, the intro comes from conversation/lines.mjs (passed in as `lines`) in the lead's language.\nconst WA_BODY_MAX = 1024;\n// EMAIL_Q / TZ live in conversation/lines.mjs (I-40h); callers pass `lines` (the generator inlines those keys).\nconst METHOD_WORD = { teams: 'Teams', zoom: 'Zoom', meet: 'Google Meet', google_meet: 'Google Meet' };\nconst fillLine = (line, vars) => String(line || '').replace(/\\{([a-z_]+)\\}/g, (m, k) => (vars[k] !== undefined ? String(vars[k]) : m));\nconst hasBody = (d) => Boolean(d && typeof d.body === 'string' && d.body.trim());\nfunction langOf(delegate, lead, lines) {\n  const ok = (l) => Boolean(l && lines && lines[l]);\n  return ok(delegate && delegate.lang) ? delegate.lang : ok(lead && lead.language) ? lead.language : 'en';\n}\n/** head (delegate body | lead_lines + intro_line | lines.mjs intro) + W28's own line, one body, <= 1,024 with the own line kept whole. */\nfunction oneBody(ownLine, { delegate = null, lead = {}, lines = null, introKey = null, vars = {} } = {}) {\n  const lang = langOf(delegate, lead, lines);\n  if (!lines || !lines.en) throw new Error('W28: conversation/lines.mjs LINES required');\n  const own = fillLine((lines[lang] || lines.en)[ownLine] || lines.en[ownLine], vars);\n  let head = '';\n  if (hasBody(delegate)) head = delegate.body.trim();\n  else if (delegate && ((delegate.lead_lines || []).length || delegate.intro_line)) head = [...(delegate.lead_lines || []), delegate.intro_line].map((x) => String(x || '').trim()).filter(Boolean).join(' ');\n  else if (introKey && lines) head = fillLine((lines[lang] || lines.en)[introKey], vars);\n  if (head && head.length + own.length + 1 > WA_BODY_MAX) head = head.slice(0, WA_BODY_MAX - own.length - 1).trim();\n  return { lang, body: [head, own].filter(Boolean).join(' ') };\n}\n/**\n * ask_email (W10 change_method -> ask_email, or a list booking that needs an invite): ONE text message.\n * reason 'change_method' uses METHOD_CHANGED as the intro when no delegate lines came with it.\n */\nfunction askEmailMessage({ to, method, broker = {}, lead = {}, delegate = null, lines = null, reason = 'book' } = {}) {\n  const adviser = broker.adviser_first_name || String(broker.adviser_name || broker.contact_person || '').split(' ')[0];\n  const vars = { method: METHOD_WORD[method] || method, adviser_first: adviser, first_name: lead.first_name || '' };\n  const { body, lang } = oneBody('EMAIL_Q', { delegate, lead, lines, introKey: reason === 'change_method' ? 'METHOD_CHANGED' : null, vars });\n  return { lang, message: { messaging_product: 'whatsapp', recipient_type: 'individual', to: String(to).replace('+', ''), type: 'text', text: { body } } };\n}\n\n/** Fallback ladder step 2 (0.3 #3, the launch path): interactive list of the next 10 slots, spread across days. */\nfunction listFallback(broker, slots, offerSpread, to, { delegate = null, lead = {}, lines = null } = {}) {\n  const picks = offerSpread(slots, LIST_ROWS);\n  if (!picks.length) return null;\n  const a = broker.adviser_first_name || broker.adviser_name;\n  return {\n    messaging_product: 'whatsapp', recipient_type: 'individual', to: String(to).replace('+', ''), type: 'interactive',\n    interactive: {\n      type: 'list',\n      body: { text: oneBody('TZ', { delegate, lead, lines, introKey: 'SLOTS_INTRO', vars: { adviser_first: a } }).body },\n      footer: { text: 'Reply STOP to opt out' },\n      action: { button: 'See times', sections: [{ title: 'Next free times', rows: picks.map((s) => ({ id: `slot_${s.start}`, title: shortLabel(s.start) })) }] },\n    },\n  };\n}\n\nmodule.exports = { askEmailMessage, oneBody, WA_BODY_MAX, handle, checkEmail, bounds, listFallback, shortLabel, dayLabel, INVITE_METHODS, LIST_ROWS, MAX_DAY_SLOTS };\n\nreturn module.exports; })();\nconst LINES = {\"en\":{\"SLOTS_INTRO\":\"Here are the next open times with {adviser_first}.\",\"METHOD_CHANGED\":\"I'll change it to {method}.\",\"EMAIL_Q\":\"Where should we send the {method} invite? Reply with your email address.\",\"TZ\":\"Times are South African time.\"},\"af\":{\"SLOTS_INTRO\":\"Hier is die volgende oop tye met {adviser_first}.\",\"METHOD_CHANGED\":\"Ek sal dit na {method} verander.\",\"EMAIL_Q\":\"Waarheen moet ons die {method}-uitnodiging stuur? Antwoord met jou e-posadres.\",\"TZ\":\"Die tye is in Suid-Afrikaanse tyd.\"}};\nconst l = $input.first().json;\nconst inp = $('Called by W06/W07/W10/W22').first().json;\nconst r = EP.askEmailMessage({ to: l.phone, method: inp.method, broker: l, lead: l, delegate: inp.delegate || null, lines: LINES, reason: inp.reason || 'book' });\nreturn [{ json: { lead_id: l.lead_id, brand_id: l.brand_id, broker_id: l.broker_id, body: r.message } }];"
+   }
+  },
+  {
+   "id": "n31",
+   "name": "WhatsApp send ask_email",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    880,
+    900
+   ],
+   "parameters": {
+    "method": "POST",
+    "url": "={{ 'https://graph.facebook.com/' + $env.META_GRAPH_VERSION + '/' + $env.PHONE_NUMBER_ID + '/messages' }}",
+    "authentication": "genericCredentialType",
+    "genericAuthType": "httpHeaderAuth",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify($json.body) }}",
+    "options": {
+     "timeout": 10000
+    }
+   },
+   "credentials": {
+    "httpHeaderAuth": {
+     "id": "",
+     "name": "WhatsApp Cloud API (system user)"
+    }
+   },
+   "retryOnFail": true,
+   "maxTries": 3,
+   "waitBetweenTries": 2000
+  },
+  {
+   "id": "3cc86dab-a3dc-5d0a-1640-3f26a56e1334",
+   "name": "Live send? (WhatsApp send list)",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2,
+   "position": [
+    1120,
+    460
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "loose"
+     },
+     "conditions": [
+      {
+       "id": "c1",
+       "leftValue": "={{ $env.DRY_RUN_SENDS !== 'true' }}",
+       "rightValue": true,
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "c30e910a-0630-3cb4-391a-c159b79fd959",
+   "name": "Dry-run stub (WhatsApp send list)",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1320,
+    620
+   ],
+   "parameters": {
+    "mode": "runOnceForAllItems",
+    "jsCode": "// DRY_RUN_SENDS=true: nothing leaves the box (whatsapp). Pass the input on with a fake 2xx so downstream logging still runs.\nreturn $input.all().map((i, n) => ({ json: { ...i.json, dry_run: true, statusCode: 200, body: { messages: [{ id: 'dry:' + n }] } } }));"
+   }
+  },
+  {
+   "id": "a19bdb0f-5570-cdf0-e04d-bc1bccc7b389",
+   "name": "Live send? (WhatsApp send ask_email)",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2,
+   "position": [
+    680,
+    900
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "loose"
+     },
+     "conditions": [
+      {
+       "id": "c1",
+       "leftValue": "={{ $env.DRY_RUN_SENDS !== 'true' }}",
+       "rightValue": true,
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "fb7afde3-2f39-0e08-1701-0713ab3cb1c1",
+   "name": "Dry-run stub (WhatsApp send ask_email)",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    880,
+    1060
+   ],
+   "parameters": {
+    "mode": "runOnceForAllItems",
+    "jsCode": "// DRY_RUN_SENDS=true: nothing leaves the box (whatsapp). Pass the input on with a fake 2xx so downstream logging still runs.\nreturn $input.all().map((i, n) => ({ json: { ...i.json, dry_run: true, statusCode: 200, body: { messages: [{ id: 'dry:' + n }] } } }));"
+   }
+  }
+ ],
+ "connections": {
+  "Op?": {
+   "main": [
+    [
+     {
+      "node": "Load lead for list",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Revert booking_ui to list",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Load lead for email ask",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Load lead for email ask": {
+   "main": [
+    [
+     {
+      "node": "Build ask_email (one message)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Build ask_email (one message)": {
+   "main": [
+    [
+     {
+      "node": "Live send? (WhatsApp send ask_email)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Flow endpoint (POST)": {
+   "main": [
+    [
+     {
+      "node": "Verify + decrypt",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Verify + decrypt": {
+   "main": [
+    [
+     {
+      "node": "Status?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Status?": {
+   "main": [
+    [
+     {
+      "node": "Respond ping (encrypted)",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Load token context",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Respond 421 / 432",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Load token context": {
+   "main": [
+    [
+     {
+      "node": "W04 Slot engine",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "W04 Slot engine": {
+   "main": [
+    [
+     {
+      "node": "Handle (w28-endpoint.js)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Handle (w28-endpoint.js)": {
+   "main": [
+    [
+     {
+      "node": "Encrypt response",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "Fan out effects",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Encrypt response": {
+   "main": [
+    [
+     {
+      "node": "Respond 200 (encrypted)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Fan out effects": {
+   "main": [
+    [
+     {
+      "node": "Effect?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Effect?": {
+   "main": [
+    [
+     {
+      "node": "Log activity (flow_opened / flow_error)",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Store email (meeting_invite only)",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Normalise send_list input",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "W22 Alerts: flow security event",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Normalise send_list input": {
+   "main": [
+    [
+     {
+      "node": "Load lead for list",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Called by W06/W07/W10/W22": {
+   "main": [
+    [
+     {
+      "node": "Op?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Load lead for list": {
+   "main": [
+    [
+     {
+      "node": "W04 Slot engine (list)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "W04 Slot engine (list)": {
+   "main": [
+    [
+     {
+      "node": "Build 10-slot list",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Build 10-slot list": {
+   "main": [
+    [
+     {
+      "node": "Have slots?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Have slots?": {
+   "main": [
+    [
+     {
+      "node": "Live send? (WhatsApp send list)",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "W07 last resort (ask for a day, offer 3)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "WhatsApp send list": {
+   "main": [
+    [
+     {
+      "node": "Log list sent",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Revert booking_ui to list": {
+   "main": [
+    [
+     {
+      "node": "W22 Alerts: booking_ui reverted",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Live send? (WhatsApp send list)": {
+   "main": [
+    [
+     {
+      "node": "WhatsApp send list",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Dry-run stub (WhatsApp send list)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Dry-run stub (WhatsApp send list)": {
+   "main": [
+    [
+     {
+      "node": "Log list sent",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Live send? (WhatsApp send ask_email)": {
+   "main": [
+    [
+     {
+      "node": "WhatsApp send ask_email",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Dry-run stub (WhatsApp send ask_email)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Dry-run stub (WhatsApp send ask_email)": {
+   "main": [
+    []
+   ]
+  }
+ },
+ "active": false,
+ "settings": {
+  "executionOrder": "v1",
+  "timezone": "Africa/Johannesburg",
+  "saveManualExecutions": true,
+  "errorWorkflow": "smc-w22"
+ },
+ "pinData": {},
+ "tags": [
+  {
+   "name": "booking"
+  },
+  {
+   "name": "whatsapp"
+  },
+  {
+   "name": "flow"
+  }
+ ],
+ "meta": {
+  "notes": "automation-engineer. Logic: automation/flows/w28-endpoint.js + flow-crypto.js + security/lead-token.js. Generated by automation/build-w03-w28.mjs; do not hand-edit Code nodes."
+ }
+}

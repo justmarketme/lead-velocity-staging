@@ -1,0 +1,41 @@
+{
+  "name": "broker_onb_calendar_ok",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "Calendar connected"
+    },
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, your calendar is connected. Your next free slot is {{2}}. Leads are only ever booked into free times like this one.",
+      "example": {
+        "body_text": [
+          [
+            "Mark",
+            "Tue 6 Oct, 10:00"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover by Lead Velocity"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Next step",
+          "url": "https://leadvelocity.co.za/s/{{1}}",
+          "example": [
+            "https://leadvelocity.co.za/s/availability"
+          ]
+        }
+      ]
+    }
+  ]
+}

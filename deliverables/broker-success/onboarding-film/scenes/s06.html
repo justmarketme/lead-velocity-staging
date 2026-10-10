@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>06 More data, better leads</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .top { position: absolute; left: 140px; top: 168px; }
+  .top h1 { margin-top: 14px; }
+  .steps { position: absolute; left: 140px; top: 330px; width: 520px; display: grid; gap: 18px; }
+  .st { position: relative; display: flex; gap: 20px; align-items: flex-start; padding: 22px 24px; }
+  .st .ic { flex: none; width: 52px; height: 52px; border-radius: 14px; background: var(--grad); display: grid; place-items: center; }
+  .st .ic svg { width: 26px; height: 26px; stroke: #fff; fill: none; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+  .st .a { font-size: 27px; font-weight: 700; color: var(--navy); line-height: 1.2; }
+  .st .b { font-size: 19px; color: var(--muted); margin-top: 4px; line-height: 1.35; }
+  .slow { padding: 18px 24px; border-radius: 18px; background: var(--paper); border: 1.5px solid #475569; }
+  .slow .a { font-size: 23px; font-weight: 700; color: var(--navy); }
+  .slow .b { font-size: 18px; color: var(--muted); margin-top: 2px; }
+  .gridwrap { position: absolute; left: 730px; top: 330px; width: 1050px; height: 540px; padding: 26px 30px 0; }
+  .ghdr { display: flex; justify-content: space-between; align-items: baseline; padding: 0 2px; }
+  .ghdr .cnt { font-size: 40px; font-weight: 700; color: var(--navy); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+  .ghdr .cnt small { font-size: 18px; color: var(--muted); font-weight: 600; letter-spacing: 0; margin-left: 8px; }
+  canvas { position: absolute; left: 73px; top: 100px; }
+  .mk { position: absolute; border-radius: 12px; pointer-events: none; }
+  .mk.m100 { border: 2.5px solid var(--pink); }
+  .mk.m1k { border: 2px dashed #64748b; }
+  .legend { position: absolute; left: 30px; right: 30px; top: 494px; display: flex; gap: 40px; align-items: center; }
+  .pill { display: flex; align-items: center; gap: 12px; white-space: nowrap; font-size: 22px; font-weight: 700; color: var(--navy); }
+  .pill i { width: 30px; height: 20px; border-radius: 6px; flex: none; }
+  .pill.p100 i { border: 2.5px solid var(--pink); background: var(--pink-wash); }
+  .pill.p1k i { border: 2px dashed #64748b; }
+  .pool { display: inline-block; color: var(--purple-2); }
+  .small { position: absolute; left: 140px; top: 726px; width: 540px; display: grid; gap: 8px; }
+  .small div { display: flex; align-items: flex-start; gap: 12px; font-size: 18.5px; line-height: 1.4; color: var(--muted); }
+  .small div::before { content: ""; width: 6px; height: 6px; margin-top: 10px; border-radius: 50%; background: var(--faint); flex: none; }
+  .small b { color: var(--navy); font-weight: 700; }
+</style></head>
+<body data-scene="s06"><div class="stage">
+  <div class="top"><div class="eyebrow">Step five</div><h1 class="h"><i></i>More data, better leads</h1></div>
+  <div class="steps">
+    <div class="card st"><div class="ic"><svg viewBox="0 0 24 24"><path d="M8 12.5l2.7 2.7L16.5 9"/><circle cx="12" cy="12" r="9"/></svg></div><div><div class="a">They attend</div><div class="b">and said yes to ad measurement</div></div></div>
+    <div class="card st"><div class="ic"><svg viewBox="0 0 24 24"><path d="M4 12h13M13 7l5 5-5 5"/></svg></div><div><div class="a">We tell Meta</div><div class="b">who your real clients look like, not just who clicked</div></div></div>
+    <div class="slow"><div class="a">At around 20 a month</div><div class="b">A slow build, not a switch</div></div>
+  </div>
+  <div class="card gridwrap">
+    <div class="ghdr"><div class="lbl">Seed audience<span class="pool">&nbsp;· pooled across advisers</span></div><div class="cnt"><span id="n">0</span><small>people</small></div></div>
+    <canvas id="cv" width="904" height="364"></canvas>
+    <div class="mk m100"></div><div class="mk m1k"></div>
+    <div class="legend"><div class="pill p100"><i></i>100: lookalike possible</div><div class="pill p1k"><i></i>1,000+: works better</div></div>
+  </div>
+  <div class="small">
+    <div><span>Only people who ticked the <b>ad-measurement</b> box.</span></div>
+    <div><span>Lookalikes are a bonus, never a promise. <b>Availability set by Meta.</b></span></div>
+    <div><span><b>Never targeted by health, income or other sensitive traits.</b></span></div>
+  </div>
+</div>
+<script src="timings.js"></script><script src="film.js"></script>
+<script>
+  const COLS = 50, ROWS = 20, PITCH = 18, R = 5.6, OX = 11, OY = 11;
+  const cv = $('#cv'), ctx = cv.getContext('2d');
+  const CX = 73, CY = 100;
+  // markers: first two rows = 100 people; whole grid = 1,000
+  const box = (el, r0, r1, pad) => { Object.assign(el.style, { left: (CX + OX - PITCH / 2 - pad) + 'px', top: (CY + OY - PITCH / 2 + r0 * PITCH - pad) + 'px', width: (COLS * PITCH + 2 * pad) + 'px', height: ((r1 - r0) * PITCH + 2 * pad) + 'px' }); };
+  box($('.m100'), 0, 2, 3); box($('.m1k'), 0, ROWS, 10);
+  const cols = [[219, 39, 119], [147, 51, 234]];
+  const mix = f => cols[0].map((c, i) => Math.round(lerp(c, cols[1][i], f)));
+
+  const tAtt = cue('attends'), tYes = cue('yes'), tTell = cue('tell'), tShows = cue('shows'), tHund = cue('hundred'), tLook = cue('lookalike');
+  const tThou = cue('thousand'), tPool = cue('pool'), tTwenty = cue('twenty'), tAvail = cue('lookalikes'), tChange = cue('change'), tHealth = cue('health');
+  // seed size over time: a trickle, up to 100 by "a hundred", then pooled up to 1,000
+  const seed = t => {
+    if (t < tAtt) return 0;
+    if (t < tHund) return lerp(0, 100, E.inOut(clamp((t - tAtt) / (tHund + .4 - tAtt))));
+    if (t < tThou) return 100;
+    return lerp(100, 1000, E.inOut(clamp((t - tThou + .2) / 4.2)));
+  };
+  // when each dot fills (for its pop-in)
+  const fillAt = new Float32Array(1000).fill(Infinity);
+  for (let tt = 0, k = 0; tt < SCENE.clip && k < 1000; tt += 1 / 120) { const n = Math.floor(seed(tt) + 1e-6); while (k < n) fillAt[k++] = tt; }
+
+  window.update = t => {
+    rv('.top .eyebrow', t, .2, { y: 16 });
+    rv('.top h1', t, .3, { y: 30, blur: 6, dur: 1 });
+    const st = $$('.st');
+    rv(st[0], t, tAtt - .3, { x: -24, y: 0, dur: .8 });
+    rv(st[0].querySelector('.b'), t, tYes - .1, { y: 8, dur: .6 });
+    rv(st[1], t, tTell - .3, { x: -24, y: 0, dur: .8 });
+    rv(st[1].querySelector('.b'), t, tShows, { y: 8, dur: .6 });
+    rv('.slow', t, tTwenty - .2, { x: -24, y: 0, dur: .8 });
+    rv('.gridwrap', t, .6, { y: 34, dur: 1.1 });
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    for (let k = 0; k < 1000; k++) {
+      const r = Math.floor(k / COLS), c = k % COLS, x = OX + c * PITCH, y = OY + r * PITCH;
+      const p = clamp((t - fillAt[k]) / .35);
+      ctx.beginPath(); ctx.arc(x, y, R * .55, 0, Math.PI * 2); ctx.fillStyle = '#e2e8f0'; ctx.fill();
+      if (p > 0) {
+        const s = E.back(p), [rr, gg, bb] = mix(c / (COLS - 1));
+        ctx.beginPath(); ctx.arc(x, y, R * s, 0, Math.PI * 2); ctx.fillStyle = `rgb(${rr},${gg},${bb})`; ctx.fill();
+      }
+    }
+    $('#n').textContent = Math.floor(seed(t) + 1e-6).toLocaleString('en-US') + (seed(t) >= 1000 ? '+' : '');
+    rv('.m100', t, tHund - .1, { y: 0, scale: 1.03, dur: .7 });
+    rv('.p100', t, tHund, { y: 0, x: -10, dur: .7 });
+    rv('.m1k', t, tThou + 3.6, { y: 0, scale: 1.01, dur: .8 });
+    rv('.p1k', t, tThou - .1, { y: 0, x: -10, dur: .7 });
+    $$('.small div').forEach((d, i) => rv(d, t, [tAvail, tChange, tHealth][i] - .2, { y: 10, dur: .7 }));
+    rv('.pool', t, tPool - .1, { x: -10, y: 0, dur: .7 });
+    rv('.legend', t, tHund - .2, { y: 10, dur: .7 });
+  };
+</script></body></html>

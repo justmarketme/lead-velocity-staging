@@ -1,0 +1,735 @@
+{
+  "id": "smc-whatsapp-send",
+  "name": "WhatsApp Send (shared sender sub-workflow)",
+  "nodes": [
+    {
+      "name": "Called by caller (whatsapp-send)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "smc-whatsapp-send-1",
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "name": "Normalise input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').subWhatsappSend;\nreturn { json: L.normalise($json) };"
+      },
+      "id": "smc-whatsapp-send-2",
+      "position": [
+        440,
+        340
+      ]
+    },
+    {
+      "name": "Input valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.valid === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-whatsapp-send-3",
+      "position": [
+        660,
+        380
+      ]
+    },
+    {
+      "name": "Result (rejected input)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').subWhatsappSend;\nreturn { json: L.result({ action: 'skip', reason: 'invalid_input', missing: $json.missing }) };"
+      },
+      "id": "smc-whatsapp-send-4",
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "name": "Load context (brand, suppression, window, template, duplicate)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH tgt AS (\n  SELECT COALESCE((SELECT l.brand_id FROM public.leads l WHERE l.id = NULLIF($1, '')::uuid),\n                  (SELECT b.brand_id FROM public.brokers b WHERE b.id = NULLIF($2, '')::uuid)) AS brand_id\n)\nSELECT t.brand_id::text AS brand_id,\n       EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact($3)) AS suppressed,\n       (SELECT max(c.created_at) FROM public.communications c\n         WHERE c.channel = 'whatsapp' AND c.direction = 'inbound' AND c.sender_type IN ('broker', 'client')\n           AND ((NULLIF($1, '') IS NOT NULL AND c.lead_id = NULLIF($1, '')::uuid)\n             OR (NULLIF($1, '') IS NULL AND c.broker_id = NULLIF($2, '')::uuid))) AS last_inbound_at,\n       (SELECT br.template_status FROM public.brands br WHERE br.id = t.brand_id) AS template_status,\n       EXISTS (SELECT 1 FROM public.communications d\n                WHERE d.workflow = 'smc-whatsapp-send' AND d.metadata->>'correlation' = $4) AS duplicate\n  FROM tgt t;",
+        "options": {
+          "queryReplacement": "={{ [ $json.lead_id || '', $json.broker_id || '', $json.to, $json.correlation ] }}"
+        }
+      },
+      "id": "smc-whatsapp-send-5",
+      "position": [
+        1100,
+        340
+      ]
+    },
+    {
+      "name": "Decide (suppression, allow-list, window, template, dry run)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Order: duplicate -> suppression (smc_hash_contact, digits only) -> WHATSAPP_TEST_RECIPIENTS -> template approval /\n// 24-h window -> DRY_RUN_SENDS (external_id dry:<correlation>) -> send.\nconst L = require('lv-automation').subWhatsappSend;\nconst n = $('Normalise input').item.json;\nreturn { json: L.decide(n, $json, $env, Date.now()) };"
+      },
+      "id": "smc-whatsapp-send-6",
+      "position": [
+        1320,
+        380
+      ]
+    },
+    {
+      "name": "Already sent (same correlation)?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.action === 'duplicate' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-whatsapp-send-7",
+      "position": [
+        1540,
+        300
+      ]
+    },
+    {
+      "name": "Record communications row (claim before the Graph call)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- recipient_contact is the legacy NOT NULL column: the recipient in E.164 (+ digits), I-50b.\nINSERT INTO public.communications (channel, direction, sender_type, recipient_type, recipient_contact, lead_id, broker_id, brand_id, content, status, external_id, failed_reason, template_name, workflow, metadata)\nSELECT 'whatsapp', 'outbound', 'system', $1, $12, NULLIF($2, '')::uuid, NULLIF($3, '')::uuid, NULLIF($4, '')::uuid, $5, $6, NULLIF($7, ''), NULLIF($8, ''), NULLIF($9, ''), 'smc-whatsapp-send', $10::jsonb\n WHERE NOT EXISTS (SELECT 1 FROM public.communications d WHERE d.workflow = 'smc-whatsapp-send' AND d.metadata->>'correlation' = $11)\nRETURNING id::text AS comm_id;",
+        "options": {
+          "queryReplacement": "={{ (() => { const L = $json; return [ L.lead_id ? 'client' : 'broker', L.lead_id || '', L.broker_id || '', L.brand_id || '', L.action === 'skip' ? '[skipped]' : (L.sent_as === 'text' ? '[text]' : (L.template ? 'template:' + L.template : '[' + L.kind + ']')), L.action === 'skip' ? 'failed' : 'pending', L.action === 'dry' ? L.external_id : '', L.action === 'skip' ? L.reason : '', L.template || '', JSON.stringify({ correlation: L.correlation, kind: L.kind, sent_as: L.sent_as || null, dry_run: L.action === 'dry', skip_reason: L.action === 'skip' ? L.reason : null }), L.correlation, '+' + String(L.to || '').replace(/\\D/g, '') ]; })() }}"
+        }
+      },
+      "id": "smc-whatsapp-send-8",
+      "position": [
+        1760,
+        340
+      ]
+    },
+    {
+      "name": "Claimed and a live send?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ !!$json.comm_id && $('Decide (suppression, allow-list, window, template, dry run)').item.json.action === 'send' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-whatsapp-send-9",
+      "position": [
+        1980,
+        380
+      ]
+    },
+    {
+      "name": "Graph POST /messages",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "WhatsApp Cloud API (system user)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION || 'v21.0' }}/{{ $env.PHONE_NUMBER_ID }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Decide (suppression, allow-list, window, template, dry run)').item.json.payload) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "smc-whatsapp-send-10",
+      "position": [
+        2200,
+        300
+      ]
+    },
+    {
+      "name": "Provider is twilio?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $('Decide (suppression, allow-list, window, template, dry run)').item.json.provider === 'twilio' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-whatsapp-send-11",
+      "position": [
+        2420,
+        340
+      ]
+    },
+    {
+      "name": "Build Twilio request (Messages API form)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const P = require('lv-automation').waProvider;\nconst d = $('Decide (suppression, allow-list, window, template, dry run)').item.json;\nconst cb = $env.WEBHOOK_URL ? String($env.WEBHOOK_URL).replace(/\\/$/, '') + '/webhook/whatsapp-twilio' : undefined;\nconst r = P.toTwilioRequest(d.payload, $env, { statusCallback: cb });\nif (r.skip) return { json: { twilio_skip: r.reason, email_fallback: /content_sid_missing/.test(r.reason) } };\nconst body = new URLSearchParams(r.form).toString();\nconst auth = 'Basic ' + Buffer.from($env.TWILIO_API_KEY_SID + ':' + $env.TWILIO_API_KEY_SECRET).toString('base64');\nreturn { json: { body, auth, via: r.via || 'native' } };"
+      },
+      "id": "smc-whatsapp-send-12",
+      "position": [
+        2640,
+        380
+      ]
+    },
+    {
+      "name": "Twilio request built?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ !$json.twilio_skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-whatsapp-send-13",
+      "position": [
+        2860,
+        300
+      ]
+    },
+    {
+      "name": "Twilio POST /Messages",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.twilio.com/2010-04-01/Accounts/{{ $env.TWILIO_ACCOUNT_SID }}/Messages.json",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.auth }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/x-www-form-urlencoded",
+        "body": "={{ $json.body }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "smc-whatsapp-send-14",
+      "position": [
+        3080,
+        340
+      ]
+    },
+    {
+      "name": "Interpret Graph response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').subWhatsappSend;\n// Both providers land here (name kept for callers/tests): Graph { messages[0].id } or Twilio { sid } / { twilio_skip }.\nreturn { json: L.interpret($json) };"
+      },
+      "id": "smc-whatsapp-send-15",
+      "position": [
+        3300,
+        380
+      ]
+    },
+    {
+      "name": "Update communications row (+ leads.last_contact_at on a real wamid)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH c AS (\n  UPDATE public.communications SET status = $2, external_id = NULLIF($3, ''), failed_reason = NULLIF($4, ''), updated_at = now()\n   WHERE id = $1::uuid\n  RETURNING lead_id\n)\nUPDATE public.leads SET last_contact_at = now()\n WHERE id = (SELECT lead_id FROM c) AND $3 <> '' AND $3 NOT LIKE 'dry:%'\nRETURNING id::text AS lead_id;",
+        "options": {
+          "queryReplacement": "={{ [ $('Record communications row (claim before the Graph call)').item.json.comm_id, $json.ok ? 'sent' : 'failed', $json.external_id || '', $json.error || '' ] }}"
+        }
+      },
+      "id": "smc-whatsapp-send-16",
+      "position": [
+        3520,
+        300
+      ]
+    },
+    {
+      "name": "Send failed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $('Interpret Graph response').item.json.ok !== true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-whatsapp-send-17",
+      "position": [
+        3740,
+        340
+      ]
+    },
+    {
+      "name": "Alert ops: W22 signal (send failed)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// I-47g: W22 producer contract (automation/W22.md section 3), handed over by Execute Workflow smc-w22.\nconst d = $('Decide (suppression, allow-list, window, template, dry run)').item.json;\nconst r = $('Interpret Graph response').item.json;\nreturn { json: { signal_key: 'whatsapp_send_failed', scope: d.broker_id ? 'broker:' + d.broker_id : 'lead:' + d.lead_id, severity: 'amber', what: 'WhatsApp send failed (' + (d.template || d.sent_as) + '): ' + (r.error || 'non-2xx'), impact: 'A broker or ops message was not delivered', first_action: 'Check the template status and the Graph error in the execution', source: 'smc-whatsapp-send' } };"
+      },
+      "id": "smc-whatsapp-send-18",
+      "position": [
+        3960,
+        380
+      ]
+    },
+    {
+      "name": "Alert ops (send failed)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w22",
+          "cachedResultName": "W22 Alerts"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "id": "smc-whatsapp-send-19",
+      "position": [
+        4180,
+        300
+      ]
+    },
+    {
+      "name": "Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// { ok, external_id, error } (callers do not wait today; kept for a waiting caller).\nconst L = require('lv-automation').subWhatsappSend;\nconst d = $('Decide (suppression, allow-list, window, template, dry run)').item.json;\nlet r = null; try { r = $('Interpret Graph response').item.json; } catch (e) { r = null; }\nreturn { json: L.result(d, r) };"
+      },
+      "id": "smc-whatsapp-send-20",
+      "position": [
+        4400,
+        340
+      ]
+    },
+    {
+      "name": "Note: smc-whatsapp-send",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "content": "## smc-whatsapp-send (LOCAL-STAGING §7)\nInput: `{ to, kind, template, variables, buttons, text?, interactive?, media?, lead_id?, broker_id?, correlation }` or the §7 shape `{ broker_id, to, template: { name, body, buttons }, idempotency_key }`.\n- Idempotent on `correlation` / `idempotency_key` (communications.metadata.correlation, claimed before the Graph call).\n- Suppression via smc_hash_contact (digits). WHATSAPP_TEST_RECIPIENTS allow-list. DRY_RUN_SENDS -> external_id `dry:<correlation>`.\n- Template not approved -> session text inside 24 h if `text`/`reminder.text` given, else skipped with `email_fallback: true` (the email leg stays with the caller, needs_human).\n- WHATSAPP_PROVIDER=meta (default) posts to Graph; =twilio builds a Messages API form (ContentSid from TWILIO_CONTENT_SIDS) and posts to api.twilio.com, same gate, claim and idempotency.\n- Content logged as `template:<name>` / `[text]`, never the body.",
+        "width": 520,
+        "height": 300
+      },
+      "id": "smc-whatsapp-send-21"
+    }
+  ],
+  "connections": {
+    "Called by caller (whatsapp-send)": {
+      "main": [
+        [
+          {
+            "node": "Normalise input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise input": {
+      "main": [
+        [
+          {
+            "node": "Input valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Input valid?": {
+      "main": [
+        [
+          {
+            "node": "Load context (brand, suppression, window, template, duplicate)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Result (rejected input)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load context (brand, suppression, window, template, duplicate)": {
+      "main": [
+        [
+          {
+            "node": "Decide (suppression, allow-list, window, template, dry run)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide (suppression, allow-list, window, template, dry run)": {
+      "main": [
+        [
+          {
+            "node": "Already sent (same correlation)?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Already sent (same correlation)?": {
+      "main": [
+        [
+          {
+            "node": "Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record communications row (claim before the Graph call)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record communications row (claim before the Graph call)": {
+      "main": [
+        [
+          {
+            "node": "Claimed and a live send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claimed and a live send?": {
+      "main": [
+        [
+          {
+            "node": "Provider is twilio?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Provider is twilio?": {
+      "main": [
+        [
+          {
+            "node": "Build Twilio request (Messages API form)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Graph POST /messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Twilio request (Messages API form)": {
+      "main": [
+        [
+          {
+            "node": "Twilio request built?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twilio request built?": {
+      "main": [
+        [
+          {
+            "node": "Twilio POST /Messages",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Interpret Graph response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twilio POST /Messages": {
+      "main": [
+        [
+          {
+            "node": "Interpret Graph response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graph POST /messages": {
+      "main": [
+        [
+          {
+            "node": "Interpret Graph response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Interpret Graph response": {
+      "main": [
+        [
+          {
+            "node": "Update communications row (+ leads.last_contact_at on a real wamid)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update communications row (+ leads.last_contact_at on a real wamid)": {
+      "main": [
+        [
+          {
+            "node": "Send failed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send failed?": {
+      "main": [
+        [
+          {
+            "node": "Alert ops: W22 signal (send failed)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert ops: W22 signal (send failed)": {
+      "main": [
+        [
+          {
+            "node": "Alert ops (send failed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "errorWorkflow": "smc-w22",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    {
+      "name": "SortMyCover"
+    },
+    {
+      "name": "sub-workflow"
+    }
+  ],
+  "meta": {
+    "generatedBy": "automation/build-sub-workflows.mjs"
+  }
+}

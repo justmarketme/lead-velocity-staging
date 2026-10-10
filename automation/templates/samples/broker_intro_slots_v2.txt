@@ -1,0 +1,6 @@
+broker_intro_slots_v2 (UTILITY, en)
+
+[header] IMAGE
+Hi Lerato, thanks for your insurance and financial planning enquiry. Your details have been passed to *Mark Smith Financial Services (FSP 00000)*, an authorised financial services provider. *Mark Smith* can do a 30-minute call. Pick a time below. Our WhatsApp assistant uses AI. Reply STOP to opt out.
+[footer] SortMyCover
+[button] Pick a time

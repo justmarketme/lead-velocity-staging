@@ -1,0 +1,22 @@
+{
+  "_comment": "Per-environment config. env=staging tolerates empty broker/pixel fields (pages get noindex + visible placeholders). env=production fails the build if any required field is empty. practice_name / fsp_number come from the brokers row (consent_mode named).",
+  "env": "staging",
+  "site_url": "https://sortmycover.co.za",
+  "page_base_url": "https://sortmycover.co.za",
+  "privacy_url": "https://sortmycover.co.za/privacy.html",
+  "terms_url": "https://sortmycover.co.za/terms.html",
+  "how_we_make_money_url": "https://sortmycover.co.za/how-we-make-money.html",
+  "complaints_url": "https://sortmycover.co.za/complaints.html",
+  "optout_url": "https://sortmycover.co.za/privacy.html#opt-out",
+  "contact_email": "hello@sortmycover.co.za",
+  "api_base": "https://REPLACE-N8N-HOST/webhook/smc",
+  "pixel_id": "",
+  "domain_verification": "",
+  "turnstile_sitekey": "",
+  "robots": "noindex,nofollow",
+  "booking": true,
+  "consent_mode": "named",
+  "practice_name": "",
+  "fsp_number": "",
+  "lang": "en-ZA"
+}

@@ -59,8 +59,9 @@ async function injectPageBreakSpacers(clone: HTMLElement): Promise<HTMLElement[]
         await new Promise((r) => setTimeout(r, 50));
     }
 
-    // Up to 8 passes — each pass fixes one split, then re-measures from scratch
-    for (let pass = 0; pass < 8; pass++) {
+    // Each pass fixes one split (at most one per page), then re-measures from scratch.
+    const maxPasses = Math.ceil(clone.scrollHeight / A4_HEIGHT_PX) * 2 + 8;
+    for (let pass = 0; pass < maxPasses; pass++) {
         // Target the semantic content blocks used in all three generators
         const blocks = Array.from(
             clone.querySelectorAll("section, table, thead, tbody, tr, h1, h2, h3, h4, p, div[class*='bg-'], div.border, .invoice-section, .document-section")
@@ -70,8 +71,6 @@ async function injectPageBreakSpacers(clone: HTMLElement): Promise<HTMLElement[]
 
         for (const block of blocks) {
             if (block.dataset.pdfSpacer) continue;
-            // Never add spacer before Commercial Terms — contract generator removes gap via margin overrides
-            if (block.hasAttribute?.("data-pdf-commercial-terms")) continue;
             const height = block.getBoundingClientRect().height;
             if (height < 20 || height >= A4_HEIGHT_PX * 0.9) continue;
 
@@ -139,10 +138,13 @@ export async function generateSmartPDF(
     // Step 2: Small pause for layout settle
     await new Promise((r) => setTimeout(r, 200));
 
-    // Step 3: Render the full document to canvas
-    console.log(`PDF DEBUG: Starting html2canvas render (scale: ${scale})...`);
+    // Step 3: Render the full document to canvas. Browsers cap a canvas side at ~32k px (blank
+    // canvas beyond that), so long documents (e.g. a 25-page agreement) render at a lower scale.
+    const MAX_CANVAS_PX = 32000;
+    const renderScale = Math.min(scale, MAX_CANVAS_PX / Math.max(1, clone.scrollHeight));
+    console.log(`PDF DEBUG: Starting html2canvas render (scale: ${renderScale.toFixed(2)})...`);
     const canvas = await html2canvas(clone, {
-        scale,
+        scale: renderScale,
         useCORS: true,
         logging: true,
         backgroundColor: "#ffffff",

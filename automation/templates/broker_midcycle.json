@@ -1,0 +1,47 @@
+{
+  "name": "broker_midcycle",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "Day 15 of your cycle"
+    },
+    {
+      "type": "BODY",
+      "text": "Halfway point of your {{1}} cycle: {{2}} of {{3}} committed leads delivered, {{4}} booked, {{5}} attended, your average rating {{6}} out of 5. {{7}} Your cycle ends on {{8}}. Tap below for the full mid-cycle report.",
+      "example": {
+        "body_text": [
+          [
+            "October",
+            "11",
+            "20",
+            "8",
+            "6",
+            "4.1",
+            "On track to deliver all 20.",
+            "31 Oct"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover by Lead Velocity"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Open report",
+          "url": "https://leadvelocity.co.za/{{1}}",
+          "example": [
+            "https://leadvelocity.co.za/r/rp_2026m10"
+          ]
+        }
+      ]
+    }
+  ]
+}

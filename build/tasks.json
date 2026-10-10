@@ -1,0 +1,2656 @@
+{
+  "version": 1,
+  "generated_from": "docs/MASTER-PROMPT.md",
+  "status_values": [
+    "pending",
+    "in_progress",
+    "green",
+    "red",
+    "needs_human"
+  ],
+  "nodes": [
+    {
+      "id": "P0-SEED",
+      "title": "Seed repo: MASTER-PROMPT, CLAUDE.md, 23 agent files, tasks.json, secret guard",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "test -f docs/MASTER-PROMPT.md && test -f CLAUDE.md && [ $(ls .claude/agents/*.md | wc -l) -eq 23 ] && node build/validate-tasks.mjs",
+      "human_gate": false,
+      "status": "green",
+      "section": "0.0 step 4"
+    },
+    {
+      "id": "P0-INVENTORY",
+      "title": "0.2 inventory + CRM gap map (/build/inventory.md, /build/crm-gap.md)",
+      "owner": "platform-architect",
+      "phase": "0",
+      "depends_on": [
+        "P0-SEED"
+      ],
+      "acceptance_test": "test -s build/inventory.md && test -s build/crm-gap.md && grep -q \"reuse as-is\" build/crm-gap.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "0.2"
+    },
+    {
+      "id": "P0-VERIFIED-FACTS",
+      "title": "4.0a time-sensitive checks → /deliverables/verified-facts.md",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [
+        "P0-SEED"
+      ],
+      "acceptance_test": "test -s deliverables/verified-facts.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.0a"
+    },
+    {
+      "id": "P0-FIRST-PRINCIPLES",
+      "title": "4B first-principles memos (6 agents)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [
+        "P0-SEED"
+      ],
+      "acceptance_test": "for a in market-research-analyst creative-strategist media-buyer conversation-designer contracts-drafter compliance-qa; do test -s deliverables/$a/first-principles.md || exit 1; done",
+      "human_gate": false,
+      "status": "green",
+      "section": "4B"
+    },
+    {
+      "id": "P0-BATCHED-GATES",
+      "title": "Send Jonathan one batched list of Phase 0 gates",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "test -s build/gates-batch.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4C.6"
+    },
+    {
+      "id": "AGENT-ads-api-engineer",
+      "title": "Agent file .claude/agents/ads-api-engineer.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/ads-api-engineer.md && grep -q \"Identity (fixed\" .claude/agents/ads-api-engineer.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-analytics-reporter",
+      "title": "Agent file .claude/agents/analytics-reporter.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/analytics-reporter.md && grep -q \"Identity (fixed\" .claude/agents/analytics-reporter.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-attribution-analyst",
+      "title": "Agent file .claude/agents/attribution-analyst.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/attribution-analyst.md && grep -q \"Identity (fixed\" .claude/agents/attribution-analyst.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-automation-engineer",
+      "title": "Agent file .claude/agents/automation-engineer.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/automation-engineer.md && grep -q \"Identity (fixed\" .claude/agents/automation-engineer.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-billing-automation",
+      "title": "Agent file .claude/agents/billing-automation.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/billing-automation.md && grep -q \"Identity (fixed\" .claude/agents/billing-automation.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-brand-naming-lead",
+      "title": "Agent file .claude/agents/brand-naming-lead.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/brand-naming-lead.md && grep -q \"Identity (fixed\" .claude/agents/brand-naming-lead.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-broker-success",
+      "title": "Agent file .claude/agents/broker-success.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/broker-success.md && grep -q \"Identity (fixed\" .claude/agents/broker-success.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-community-response-lead",
+      "title": "Agent file .claude/agents/community-response-lead.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/community-response-lead.md && grep -q \"Identity (fixed\" .claude/agents/community-response-lead.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-compliance-qa",
+      "title": "Agent file .claude/agents/compliance-qa.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/compliance-qa.md && grep -q \"Identity (fixed\" .claude/agents/compliance-qa.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-contracts-drafter",
+      "title": "Agent file .claude/agents/contracts-drafter.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/contracts-drafter.md && grep -q \"Identity (fixed\" .claude/agents/contracts-drafter.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-conversation-designer",
+      "title": "Agent file .claude/agents/conversation-designer.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/conversation-designer.md && grep -q \"Identity (fixed\" .claude/agents/conversation-designer.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-creative-strategist",
+      "title": "Agent file .claude/agents/creative-strategist.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/creative-strategist.md && grep -q \"Identity (fixed\" .claude/agents/creative-strategist.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-devops-security",
+      "title": "Agent file .claude/agents/devops-security.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/devops-security.md && grep -q \"Identity (fixed\" .claude/agents/devops-security.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-intro-media-producer",
+      "title": "Agent file .claude/agents/intro-media-producer.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/intro-media-producer.md && grep -q \"Identity (fixed\" .claude/agents/intro-media-producer.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-landing-page-builder",
+      "title": "Agent file .claude/agents/landing-page-builder.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/landing-page-builder.md && grep -q \"Identity (fixed\" .claude/agents/landing-page-builder.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-market-research-analyst",
+      "title": "Agent file .claude/agents/market-research-analyst.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/market-research-analyst.md && grep -q \"Identity (fixed\" .claude/agents/market-research-analyst.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-media-buyer",
+      "title": "Agent file .claude/agents/media-buyer.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/media-buyer.md && grep -q \"Identity (fixed\" .claude/agents/media-buyer.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-meta-operator",
+      "title": "Agent file .claude/agents/meta-operator.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/meta-operator.md && grep -q \"Identity (fixed\" .claude/agents/meta-operator.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-optimisation-advisor",
+      "title": "Agent file .claude/agents/optimisation-advisor.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/optimisation-advisor.md && grep -q \"Identity (fixed\" .claude/agents/optimisation-advisor.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-performance-creative-director",
+      "title": "Agent file .claude/agents/performance-creative-director.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/performance-creative-director.md && grep -q \"Identity (fixed\" .claude/agents/performance-creative-director.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-platform-architect",
+      "title": "Agent file .claude/agents/platform-architect.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/platform-architect.md && grep -q \"Identity (fixed\" .claude/agents/platform-architect.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-search-findability-lead",
+      "title": "Agent file .claude/agents/search-findability-lead.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/search-findability-lead.md && grep -q \"Identity (fixed\" .claude/agents/search-findability-lead.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "AGENT-visual-producer",
+      "title": "Agent file .claude/agents/visual-producer.md (Identity + True north verbatim)",
+      "owner": "orchestrator",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "grep -q \"^model:\" .claude/agents/visual-producer.md && grep -q \"Identity (fixed\" .claude/agents/visual-producer.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4 / 4A"
+    },
+    {
+      "id": "W01",
+      "title": "Lead intake (web)",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "GATE-TEST-W01"
+      ],
+      "acceptance_test": "node automation/tests/W01.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "4.6 inventory",
+      "note": "DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W01 approves the test and it passes on the draft"
+    },
+    {
+      "id": "W02",
+      "title": "Lead intake (Meta form)",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W01"
+      ],
+      "acceptance_test": "node automation/tests/W02.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W03",
+      "title": "Lead intake (Click-to-WhatsApp)",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W01"
+      ],
+      "acceptance_test": "node automation/tests/W03.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W04",
+      "title": "Slots API",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "GATE-TEST-W04"
+      ],
+      "acceptance_test": "node automation/tests/W04.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "4.6 inventory",
+      "note": "DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W04 approves the test and it passes on the draft"
+    },
+    {
+      "id": "W05",
+      "title": "Book",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W04",
+        "GATE-TEST-W05"
+      ],
+      "acceptance_test": "node automation/tests/W05.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "4.6 inventory",
+      "note": "DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W05 approves the test and it passes on the draft"
+    },
+    {
+      "id": "W06",
+      "title": "First touch (< 60 s)",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W01",
+        "GATE-TEST-W06"
+      ],
+      "acceptance_test": "node automation/tests/W06.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "4.6 inventory",
+      "note": "DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W06 approves the test and it passes on the draft"
+    },
+    {
+      "id": "W07",
+      "title": "Conversation agent",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W06"
+      ],
+      "acceptance_test": "node automation/tests/W07.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W08",
+      "title": "Unbooked nurture",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W06"
+      ],
+      "acceptance_test": "node automation/tests/W08.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W09",
+      "title": "Reminder sequence",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W05",
+        "GATE-TEST-W09"
+      ],
+      "acceptance_test": "node automation/tests/W09.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "4.6 inventory",
+      "note": "DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W09 approves the test and it passes on the draft"
+    },
+    {
+      "id": "W10",
+      "title": "Reschedule / cancel",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W05"
+      ],
+      "acceptance_test": "node automation/tests/W10.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W11",
+      "title": "Broker reminders",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W05"
+      ],
+      "acceptance_test": "node automation/tests/W11.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W12",
+      "title": "Outcome, disposition & feedback (two-sided)",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W05",
+        "GATE-TEST-W12"
+      ],
+      "acceptance_test": "node automation/tests/W12.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "4.6 inventory",
+      "note": "DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W12 approves the test and it passes on the draft"
+    },
+    {
+      "id": "W13",
+      "title": "No-show & replacement",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W12",
+        "GATE-TEST-W13"
+      ],
+      "acceptance_test": "node automation/tests/W13.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "4.6 inventory",
+      "note": "DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W13 approves the test and it passes on the draft"
+    },
+    {
+      "id": "W14",
+      "title": "Reports (broker weekly + Lead Velocity weekly)",
+      "owner": "analytics-reporter",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W12"
+      ],
+      "acceptance_test": "node automation/tests/W14.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W15",
+      "title": "Opt-out",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W01",
+        "GATE-TEST-W15"
+      ],
+      "acceptance_test": "node automation/tests/W15.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "4.6 inventory",
+      "note": "DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W15 approves the test and it passes on the draft"
+    },
+    {
+      "id": "W16",
+      "title": "Payment received",
+      "owner": "billing-automation",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W17"
+      ],
+      "acceptance_test": "node automation/tests/W16.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W17",
+      "title": "inContact parser",
+      "owner": "billing-automation",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "node automation/tests/W17.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W18",
+      "title": "Statement import",
+      "owner": "billing-automation",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "node automation/tests/W18.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W19",
+      "title": "Cycle renewal offer",
+      "owner": "billing-automation",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W16"
+      ],
+      "acceptance_test": "node automation/tests/W19.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W20",
+      "title": "Onboarding wizard",
+      "owner": "broker-success",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W16"
+      ],
+      "acceptance_test": "node automation/tests/W20.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W21",
+      "title": "Ads sync",
+      "owner": "ads-api-engineer",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "node automation/tests/W21.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W22",
+      "title": "Alerts",
+      "owner": "devops-security",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "node automation/tests/W22.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W23",
+      "title": "Media processing",
+      "owner": "intro-media-producer",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "node automation/tests/W23.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W27",
+      "title": "Meta asset health",
+      "owner": "ads-api-engineer",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "node automation/tests/W27.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W26",
+      "title": "Go-live runner",
+      "owner": "devops-security",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W16"
+      ],
+      "acceptance_test": "node automation/tests/W26.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W25",
+      "title": "Pricing & website sync",
+      "owner": "billing-automation",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "node automation/tests/W25.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W24",
+      "title": "Compliance cleanse & calendar",
+      "owner": "compliance-qa",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "node automation/tests/W24.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W28",
+      "title": "Booking Flow (WhatsApp-native calendar)",
+      "owner": "automation-engineer",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W04",
+        "W05"
+      ],
+      "acceptance_test": "node automation/tests/W28.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W29",
+      "title": "Feedback loop",
+      "owner": "automation-engineer",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W12"
+      ],
+      "acceptance_test": "node automation/tests/W29.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W30",
+      "title": "Comment handler (FB + IG, organic + ad posts)",
+      "owner": "community-response-lead",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "node automation/tests/W30.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W31",
+      "title": "DM handler (Messenger + Instagram)",
+      "owner": "community-response-lead",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "node automation/tests/W31.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W32",
+      "title": "Optimisation pulse / memo / retro",
+      "owner": "optimisation-advisor",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W33"
+      ],
+      "acceptance_test": "node automation/tests/W32.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W33",
+      "title": "Daily judge (LLM-as-judge)",
+      "owner": "optimisation-advisor",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "node automation/tests/W33.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W34",
+      "title": "POPIA operations",
+      "owner": "compliance-qa",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W01"
+      ],
+      "acceptance_test": "node automation/tests/W34.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "W35",
+      "title": "Lead pulse",
+      "owner": "conversation-designer",
+      "phase": "4b",
+      "depends_on": [
+        "P0-INVENTORY",
+        "W12"
+      ],
+      "acceptance_test": "node automation/tests/W35.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
+      "human_gate": false,
+      "status": "in_progress",
+      "section": "4.6 inventory"
+    },
+    {
+      "id": "LP01",
+      "title": "Landing page: Sticky top bar",
+      "owner": "landing-page-builder",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "LP-TEMPLATE"
+      ],
+      "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.5 page spec",
+      "note": "Lighthouse mobile PASS on all 10 pages (landing/tests/test-log.md, 2026-10-02 23:15 UTC) + quiz.spec 9/9; public-URL re-run at S7-15"
+    },
+    {
+      "id": "LP02",
+      "title": "Landing page: Hero",
+      "owner": "landing-page-builder",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "LP-TEMPLATE"
+      ],
+      "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.5 page spec",
+      "note": "Lighthouse mobile PASS on all 10 pages (landing/tests/test-log.md, 2026-10-02 23:15 UTC) + quiz.spec 9/9; public-URL re-run at S7-15"
+    },
+    {
+      "id": "LP03",
+      "title": "Landing page: 3 trust chips",
+      "owner": "landing-page-builder",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "LP-TEMPLATE"
+      ],
+      "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.5 page spec",
+      "note": "Lighthouse mobile PASS on all 10 pages (landing/tests/test-log.md, 2026-10-02 23:15 UTC) + quiz.spec 9/9; public-URL re-run at S7-15"
+    },
+    {
+      "id": "LP04",
+      "title": "Landing page: The gap, in one picture",
+      "owner": "landing-page-builder",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "LP-TEMPLATE"
+      ],
+      "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.5 page spec",
+      "note": "Lighthouse mobile PASS on all 10 pages (landing/tests/test-log.md, 2026-10-02 23:15 UTC) + quiz.spec 9/9; public-URL re-run at S7-15"
+    },
+    {
+      "id": "LP05",
+      "title": "Landing page: **Quiz (step 1 of 3)**",
+      "owner": "landing-page-builder",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "LP-TEMPLATE"
+      ],
+      "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.5 page spec",
+      "note": "Lighthouse mobile PASS on all 10 pages (landing/tests/test-log.md, 2026-10-02 23:15 UTC) + quiz.spec 9/9; public-URL re-run at S7-15"
+    },
+    {
+      "id": "LP06",
+      "title": "Landing page: **Budget (step 2 of 3)**",
+      "owner": "landing-page-builder",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "LP-TEMPLATE"
+      ],
+      "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.5 page spec",
+      "note": "Lighthouse mobile PASS on all 10 pages (landing/tests/test-log.md, 2026-10-02 23:15 UTC) + quiz.spec 9/9; public-URL re-run at S7-15"
+    },
+    {
+      "id": "LP07",
+      "title": "Landing page: Result screen",
+      "owner": "landing-page-builder",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "LP-TEMPLATE"
+      ],
+      "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.5 page spec",
+      "note": "Lighthouse mobile PASS on all 10 pages (landing/tests/test-log.md, 2026-10-02 23:15 UTC) + quiz.spec 9/9; public-URL re-run at S7-15"
+    },
+    {
+      "id": "LP08",
+      "title": "Landing page: **Details (step 3 of 3)**",
+      "owner": "landing-page-builder",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "LP-TEMPLATE"
+      ],
+      "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.5 page spec",
+      "note": "Lighthouse mobile PASS on all 10 pages (landing/tests/test-log.md, 2026-10-02 23:15 UTC) + quiz.spec 9/9; public-URL re-run at S7-15"
+    },
+    {
+      "id": "LP09",
+      "title": "Landing page: **Booking widget**",
+      "owner": "landing-page-builder",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "LP-TEMPLATE"
+      ],
+      "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.5 page spec",
+      "note": "Lighthouse mobile PASS on all 10 pages (landing/tests/test-log.md, 2026-10-02 23:15 UTC) + quiz.spec 9/9; public-URL re-run at S7-15"
+    },
+    {
+      "id": "LP10",
+      "title": "Landing page: Thank-you state",
+      "owner": "landing-page-builder",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "LP-TEMPLATE"
+      ],
+      "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.5 page spec",
+      "note": "Lighthouse mobile PASS on all 10 pages (landing/tests/test-log.md, 2026-10-02 23:15 UTC) + quiz.spec 9/9; public-URL re-run at S7-15"
+    },
+    {
+      "id": "LP11",
+      "title": "Landing page: Social proof block",
+      "owner": "landing-page-builder",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "LP-TEMPLATE"
+      ],
+      "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.5 page spec",
+      "note": "Lighthouse mobile PASS on all 10 pages (landing/tests/test-log.md, 2026-10-02 23:15 UTC) + quiz.spec 9/9; public-URL re-run at S7-15"
+    },
+    {
+      "id": "LP12",
+      "title": "Landing page: FAQ (5)",
+      "owner": "landing-page-builder",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "LP-TEMPLATE"
+      ],
+      "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.5 page spec",
+      "note": "Lighthouse mobile PASS on all 10 pages (landing/tests/test-log.md, 2026-10-02 23:15 UTC) + quiz.spec 9/9; public-URL re-run at S7-15"
+    },
+    {
+      "id": "LP13",
+      "title": "Landing page: Footer",
+      "owner": "landing-page-builder",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY",
+        "LP-TEMPLATE"
+      ],
+      "acceptance_test": "npx playwright test landing/tests/quiz.spec.ts && npx lighthouse --preset=perf (mobile ≥ 90, LCP < 2.5 s)",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.5 page spec",
+      "note": "Lighthouse mobile PASS on all 10 pages (landing/tests/test-log.md, 2026-10-02 23:15 UTC) + quiz.spec 9/9; public-URL re-run at S7-15"
+    },
+    {
+      "id": "GATE-REPO",
+      "title": "Confirm LV repo + branch",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "green",
+      "section": "0.0 step 3"
+    },
+    {
+      "id": "GATE-CLOUD-ENV",
+      "title": "Cloud environment: Trusted network + env vars (names only)",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "0.0 step 6"
+    },
+    {
+      "id": "GATE-DOMAINS",
+      "title": "Register sortmycover.co.za/.com + coverklaar.co.za/.com (~R250, the only pre-payment spend); hello@sortmycover.co.za must be a live monitored M365 alias before the holding site is published",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "0.1 / 4D.4"
+    },
+    {
+      "id": "GATE-TERM-SHEET",
+      "title": "Mark signs term sheet (20 verified qualified leads @ R16,500 excl. VAT/cycle)",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "5 Phase 0"
+    },
+    {
+      "id": "GATE-META-PORTFOLIO",
+      "title": "Meta Business Portfolio + Business Verification + 2 admins with 2FA",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4.7 ★1"
+    },
+    {
+      "id": "GATE-META-PAGE-IG",
+      "title": "SortMyCover Facebook Page + Instagram",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [
+        "GATE-META-PORTFOLIO"
+      ],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4.7 ★2-3"
+    },
+    {
+      "id": "GATE-WABA",
+      "title": "WhatsApp Business Account, number, display name, standby number",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [
+        "GATE-META-PORTFOLIO"
+      ],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4.7 ★4"
+    },
+    {
+      "id": "GATE-AD-ACCOUNT",
+      "title": "Ad account + standby; payment method added by Jonathan",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [
+        "GATE-META-PORTFOLIO"
+      ],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4.7 ★5"
+    },
+    {
+      "id": "GATE-PIXEL",
+      "title": "Pixel/Dataset, domain verification, CAPI system-user token — verify on test events: API version v23.0, business-messaging Schedule, offline stage events via dataset /events, ZAR as value currency (attribution-analyst ASSUMPTIONS); Automatic Advanced Matching OFF in Events Manager",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [
+        "GATE-META-PORTFOLIO",
+        "GATE-DOMAINS"
+      ],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4.7 ★6"
+    },
+    {
+      "id": "GATE-TEMPLATES",
+      "title": "Submit WhatsApp utility templates (6 core first)",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [
+        "GATE-WABA",
+        "P2-TEMPLATE-SAMPLES"
+      ],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4.6 / 0.3 #1"
+    },
+    {
+      "id": "GATE-PAYSTACK-KYC",
+      "title": "Paystack business account + documents uploaded by Jonathan",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "6.5 ★1"
+    },
+    {
+      "id": "GATE-PAY-WITH-BANK",
+      "title": "Paystack Pay-with-Bank activation",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [
+        "GATE-PAYSTACK-KYC"
+      ],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "6.5 ★2"
+    },
+    {
+      "id": "GATE-R1-LIVE",
+      "title": "R1 live Paystack transaction + refund; R1 EFT to test inContact parsing",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [
+        "GATE-PAY-WITH-BANK",
+        "GATE-INCONTACT"
+      ],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "6.5 ★6 / 7"
+    },
+    {
+      "id": "GATE-INCONTACT",
+      "title": "FNB inContact credit alerts → howzit@",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "8 Q6"
+    },
+    {
+      "id": "GATE-INFO-OFFICER",
+      "title": "Register Information Officer (+ deputy KG)",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "2.3"
+    },
+    {
+      "id": "GATE-NCC",
+      "title": "NCC direct-marketer registration (Annexure P)",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "2.3"
+    },
+    {
+      "id": "GATE-OPINION",
+      "title": "Commission external FAIS/POPIA opinion (not blocking)",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "2.3"
+    },
+    {
+      "id": "GATE-DNS",
+      "title": "GoDaddy DNS records for go./app./api./staging",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "6.7"
+    },
+    {
+      "id": "GATE-ENTRA",
+      "title": "Entra ID app registration (Graph: Calendars, OnlineMeetings, Mail)",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4.6"
+    },
+    {
+      "id": "GATE-HIDE-WORDS",
+      "title": "Approve hide-word list + first 50 live comment replies",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4.14"
+    },
+    {
+      "id": "GATE-FLOW-PUBLISH",
+      "title": "Publish WhatsApp booking Flow (one tap)",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [
+        "W28"
+      ],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "W28 step 6"
+    },
+    {
+      "id": "GATE-ADS-APPROVE-3",
+      "title": "First 3 ads approved by Meta before full batch",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "2.1.8"
+    },
+    {
+      "id": "GATE-CAMPAIGN-PUBLISH",
+      "title": "Campaigns created, approved, paused at R0",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [
+        "GATE-ADS-APPROVE-3",
+        "GATE-AD-ACCOUNT"
+      ],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4.7 ★5 / 6.6"
+    },
+    {
+      "id": "GATE-AGREEMENT",
+      "title": "Broker agreement + authorisation letter signed",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4.10 / 4.13"
+    },
+    {
+      "id": "GATE-USABILITY",
+      "title": "Five ICP people for usability test (names by Day 5)",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "6B.3 / 8 Q9"
+    },
+    {
+      "id": "GATE-VPS",
+      "title": "Buy Hostinger KVM 2 VPS (after first payment only)",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [
+        "W16"
+      ],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "W26 / 6.6"
+    },
+    {
+      "id": "GATE-GO-LIVE",
+      "title": "Press Go live (Section 7 all green)",
+      "owner": "jonathan",
+      "phase": "5b",
+      "depends_on": [
+        "S7-01",
+        "S7-02",
+        "S7-03",
+        "S7-04",
+        "S7-05",
+        "S7-06",
+        "S7-07",
+        "S7-08",
+        "S7-09",
+        "S7-10",
+        "S7-11",
+        "S7-12",
+        "S7-13",
+        "S7-14",
+        "S7-15",
+        "S7-16",
+        "S7-17",
+        "S7-18",
+        "S7-19",
+        "S7-20",
+        "S7-21",
+        "S7-22",
+        "S7-23",
+        "S7-24",
+        "S7-25",
+        "S7-26",
+        "S7-27",
+        "S7-28"
+      ],
+      "acceptance_test": "human approval recorded in build/gates.jsonl",
+      "human_gate": true,
+      "status": "pending",
+      "section": "7"
+    },
+    {
+      "id": "GATE-TEST-W01",
+      "title": "Jonathan writes/approves the acceptance test for W01 — draft ready: automation/tests/W01.test.mjs (see automation/tests/README.md)",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "test -f automation/tests/W01.test.mjs && grep -q \"approved-by: jonathan\" automation/tests/W01.test.mjs",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4C.2"
+    },
+    {
+      "id": "GATE-TEST-W04",
+      "title": "Jonathan writes/approves the acceptance test for W04 — draft ready: automation/tests/W04.test.mjs (see automation/tests/README.md)",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "test -f automation/tests/W04.test.mjs && grep -q \"approved-by: jonathan\" automation/tests/W04.test.mjs",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4C.2"
+    },
+    {
+      "id": "GATE-TEST-W05",
+      "title": "Jonathan writes/approves the acceptance test for W05 — draft ready: automation/tests/W05.test.mjs (see automation/tests/README.md)",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "test -f automation/tests/W05.test.mjs && grep -q \"approved-by: jonathan\" automation/tests/W05.test.mjs",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4C.2"
+    },
+    {
+      "id": "GATE-TEST-W06",
+      "title": "Jonathan writes/approves the acceptance test for W06 — draft ready: automation/tests/W06.test.mjs (see automation/tests/README.md)",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "test -f automation/tests/W06.test.mjs && grep -q \"approved-by: jonathan\" automation/tests/W06.test.mjs",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4C.2"
+    },
+    {
+      "id": "GATE-TEST-W09",
+      "title": "Jonathan writes/approves the acceptance test for W09 — draft ready: automation/tests/W09.test.mjs (see automation/tests/README.md)",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "test -f automation/tests/W09.test.mjs && grep -q \"approved-by: jonathan\" automation/tests/W09.test.mjs",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4C.2"
+    },
+    {
+      "id": "GATE-TEST-W12",
+      "title": "Jonathan writes/approves the acceptance test for W12 — draft ready: automation/tests/W12.test.mjs (see automation/tests/README.md)",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "test -f automation/tests/W12.test.mjs && grep -q \"approved-by: jonathan\" automation/tests/W12.test.mjs",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4C.2"
+    },
+    {
+      "id": "GATE-TEST-W13",
+      "title": "Jonathan writes/approves the acceptance test for W13 — draft ready: automation/tests/W13.test.mjs (see automation/tests/README.md)",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "test -f automation/tests/W13.test.mjs && grep -q \"approved-by: jonathan\" automation/tests/W13.test.mjs",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4C.2"
+    },
+    {
+      "id": "GATE-TEST-W15",
+      "title": "Jonathan writes/approves the acceptance test for W15 — draft ready: automation/tests/W15.test.mjs (see automation/tests/README.md)",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "test -f automation/tests/W15.test.mjs && grep -q \"approved-by: jonathan\" automation/tests/W15.test.mjs",
+      "human_gate": true,
+      "status": "pending",
+      "section": "4C.2"
+    },
+    {
+      "id": "S7-01",
+      "title": "15 broker-neutral concepts approved; assets in all 3 ratios; all ads approved by Meta and paused at R0.",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition"
+    },
+    {
+      "id": "S7-02",
+      "title": "Brand bible v1 published (`/brand/`): SVG logo system, favicon set verified light/dark, every 4D.4b.3 placement exported, tokens.css the only colour source, trust layer live on the site (About, How we",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition",
+      "note": "Brand bible v1 published (`/brand/`): SVG logo system, favicon set verified light/dark, every 4D.4b.3 placement exported, tokens.css the only colour source, trust layer live on the site (About, How we make money, Privacy, complaints)."
+    },
+    {
+      "id": "S7-03",
+      "title": "Contact-data quality: Lookup line-type check live on W01; email typo/MX check inside the Flow and on the page; bounce → WhatsApp correction path tested with a deliberately wrong address; call-number c",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition",
+      "note": "Contact-data quality: Lookup line-type check live on W01; email typo/MX check inside the Flow and on the page; bounce → WhatsApp correction path tested with a deliberately wrong address; call-number confirm / alt number / best time taps live and landing in the pre-call brief."
+    },
+    {
+      "id": "S7-04",
+      "title": "Decision data (6A2): `facts` schema populated from the synthetic cycle; metric dictionary complete; seven watchlist tiles live; \"Ask the data\" passes the 20 owner questions; pulse carries the \"what th",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition",
+      "note": "Decision data (6A2): `facts` schema populated from the synthetic cycle; metric dictionary complete; seven watchlist tiles live; \"Ask the data\" passes the 20 owner questions; pulse carries the \"what this means for the business\" line."
+    },
+    {
+      "id": "S7-05",
+      "title": "World-class bar (6B): eval gate in CI with golden set; W35 lead pulse; usability test done; WCAG AA pass; bot protection on `/lead`/`/book`; DKIM + DMARC live; W34 DSR + breach runbook; `/brand/tokens",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition",
+      "note": "World-class bar (6B): eval gate in CI with golden set; W35 lead pulse; usability test done; WCAG AA pass; bot protection on `/lead`/`/book`; DKIM + DMARC live; W34 DSR + breach runbook; `/brand/tokens.json` consumed by every surface; single FAQ corpus; rehearsal done; drills scheduled; CPL-vs-model tile pinned for 14 days."
+    },
+    {
+      "id": "S7-06",
+      "title": "Intro video module (4.10b): step explainer clip + example video live; interview → 3 scripts → FAIS gate → record (iOS/Android tested) → AI check → W23 pipeline (captions, lower-third, ≤ 16 MB, OGG) → ",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition",
+      "note": "Intro video module (4.10b): step explainer clip + example video live; interview → 3 scripts → FAIS gate → record (iOS/Android tested) → AI check → W23 pipeline (captions, lower-third, ≤ 16 MB, OGG) → approve → stored; WhatsApp-capture path tested; 24/72-h nudges wired."
+    },
+    {
+      "id": "S7-07",
+      "title": "Broker weekly report (4.10a): W14 generates from synthetic cycle data; WhatsApp 6-liner, portal Reports tab and email/PDF all show the same numbers; one-ask button works; judge rubric passes.",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition"
+    },
+    {
+      "id": "S7-08",
+      "title": "Pulse screen + notifications (6.8b): Today screen live, 11 faculty tiles with control limits, Approve creates a task, `ops_*` templates approved, DND + dedupe + escalation tested with synthetic alerts",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition",
+      "note": "Pulse screen + notifications (6.8b): Today screen live, 11 faculty tiles with control limits, Approve creates a task, `ops_*` templates approved, DND + dedupe + escalation tested with synthetic alerts."
+    },
+    {
+      "id": "S7-09",
+      "title": "Optimisation loop: W32 daily pulse + W33 judge scheduled; SLOs and control limits seeded from synthetic data; first pulse and first weekly memo generated; Approve button creates a task; daily + weekly",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition",
+      "note": "Optimisation loop: W32 daily pulse + W33 judge scheduled; SLOs and control limits seeded from synthetic data; first pulse and first weekly memo generated; Approve button creates a task; daily + weekly caps set."
+    },
+    {
+      "id": "S7-10",
+      "title": "Comments & DMs: W30/W31 live on the Page and IG; hide-word list approved; first 50 replies reviewed; public-reply SLA dashboard green on synthetic comments.",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition"
+    },
+    {
+      "id": "S7-11",
+      "title": "Pixel/CAPI: domain verified, event priority set, EMQ ≥ 6 on test events, exclusions + engagement audiences created (4.4a Phase 1).",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition"
+    },
+    {
+      "id": "S7-12",
+      "title": "SortMyCover Facebook Page + Instagram live, linked, disclosure in About, 7-day warm-up done; Business Portfolio verified (or verification submitted); all Meta IDs stored in the `brands` row and visibl",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition",
+      "note": "SortMyCover Facebook Page + Instagram live, linked, disclosure in About, 7-day warm-up done; Business Portfolio verified (or verification submitted); all Meta IDs stored in the `brands` row and visible in the CRM (W27 health green)."
+    },
+    {
+      "id": "S7-13",
+      "title": "Campaigns A (instant form, Higher Intent + Rich Creative variant), B (landing page), C (CTWA) created exactly per `campaign-spec.md`; Special Ad Category decision recorded.",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition"
+    },
+    {
+      "id": "S7-14",
+      "title": "Pixel + CAPI verified in Events Manager (test events received, `event_id` dedupe working); Lead Ads webhook subscribed and tested.",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition"
+    },
+    {
+      "id": "S7-15",
+      "title": "Landing pages live on Hostinger (`go.leadvelocity.co.za`), Lighthouse ≥ 90 mobile, LCP < 2.5 s, consent checkbox unticked by default, privacy + terms pages live.",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Acquisition"
+    },
+    {
+      "id": "S7-16",
+      "title": "WhatsApp Business number live on Cloud API; Business Verification complete; the 6 core templates approved (any category — category cost logged): intro booked/slots, booking confirmed, 24 h, 2 h, misse",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Conversation & booking",
+      "note": "WhatsApp Business number live on Cloud API; Business Verification complete; the 6 core templates approved (any category — category cost logged): intro booked/slots, booking confirmed, 24 h, 2 h, missed-you; the rest submitted and tracked; standby number registered on the same WABA; quality-rating alert in W22; display name approved."
+    },
+    {
+      "id": "S7-17",
+      "title": "LLM agent passed the 50-prompt adversarial red-team with zero advice leaks; guardrail gate on; human-handoff tested to Jonathan's and KG's numbers.",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Conversation & booking"
+    },
+    {
+      "id": "S7-18",
+      "title": "`GET /slots` returns Mark's real Outlook availability via Graph `getSchedule`; `POST /book` creates the Outlook event (Teams link when method = Teams) and stores the Graph `event.id` on the booking; `",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Conversation & booking",
+      "note": "`GET /slots` returns Mark's real Outlook availability via Graph `getSchedule`; `POST /book` creates the Outlook event (Teams link when method = Teams) and stores the Graph `event.id` on the booking; `.ics` works on iOS and Android."
+    },
+    {
+      "id": "S7-19",
+      "title": "Full synthetic run (10 leads) passed on production URLs: intake → intro card → booking → reminders (time-shifted) → outcome → no-show → replacement counter → STOP.",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Conversation & booking"
+    },
+    {
+      "id": "S7-20",
+      "title": "Mark's row complete: FSP verified on FSCA register, calendar connected, methods/hours/capacity set, intro card approved, voice/video approved, consent_mode set.",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Broker"
+    },
+    {
+      "id": "S7-21",
+      "title": "Agreement e-signed; authorisation letter signed; tier selected; Paystack plan or EFT reference issued.",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Broker"
+    },
+    {
+      "id": "S7-22",
+      "title": "Explainer video watched (portal tracks completion) or Jonathan has walked him through.",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Broker"
+    },
+    {
+      "id": "S7-23",
+      "title": "Paystack live keys, plans per tier, webhooks verified with a R1 live transaction (refunded).",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Platform & money"
+    },
+    {
+      "id": "S7-24",
+      "title": "FNB inContact alerts arriving at howzit@ and parsed (test with a R1 EFT); statement import scheduled.",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Platform & money"
+    },
+    {
+      "id": "S7-25",
+      "title": "`pricing` table is the only price source — repo diff clean (W25).",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Platform & money"
+    },
+    {
+      "id": "S7-26",
+      "title": "VPS provisioned (bought after first payment — W26 step 1), nightly `pg_dump` copied off-server (consent records are legal evidence), backups on, secrets in `.env`, uptime monitor pinging `api.`; webho",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Platform & money",
+      "note": "VPS provisioned (bought after first payment — W26 step 1), nightly `pg_dump` copied off-server (consent records are legal evidence), backups on, secrets in `.env`, uptime monitor pinging `api.`; webhook signature verification on for Meta, WhatsApp, Paystack. *Pre-payment, this line shows amber \"ready to provision\" — it goes green inside W26 and is the last line before the button.*"
+    },
+    {
+      "id": "S7-27",
+      "title": "Console dashboard shows live spend/leads/qualified/booked/show; alerts route to both phones.",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Platform & money"
+    },
+    {
+      "id": "S7-28",
+      "title": "Information Officer registered; PAIA manual + privacy notice published; NCC direct-marketer registration submitted; W24 cleanse scheduled; obligations register populated; external opinion commissioned",
+      "owner": "compliance-qa",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "console readiness check (auto) — line must be green",
+      "human_gate": false,
+      "status": "pending",
+      "section": "7 / Compliance",
+      "note": "Information Officer registered; PAIA manual + privacy notice published; NCC direct-marketer registration submitted; W24 cleanse scheduled; obligations register populated; external opinion commissioned (not blocking)."
+    },
+    {
+      "id": "NH-01",
+      "title": "Branch: 0.0 step 4 says `sortmycover-build`; this cloud session pushes to `claude/relaxed-edison-0hcidb`. Seeded on the session branch.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "0.1 conflict rule"
+    },
+    {
+      "id": "NH-02",
+      "title": "Replacement cap: 0.1 says per cycle (Bronze 4); 4.6 workflow list item 11 (No-show) says \"cap 3/week per broker\"; 3.5 says \"up to X/week\". 0.1 wins — confirm and fix the text.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "0.1 conflict rule"
+    },
+    {
+      "id": "NH-03",
+      "title": "Grace: 0.1 says no grace; 4.13 agreement text says \"pause for non-payment (7-day grace)\". 0.1 wins — contracts-drafter to drop it.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "0.1 conflict rule"
+    },
+    {
+      "id": "NH-04",
+      "title": "Phase 6 exit says margin ≥ 50%; 3.5 models ~43% at R200 CPL. Which target?",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "0.1 conflict rule"
+    },
+    {
+      "id": "NH-05",
+      "title": "W33 judge should be a \"separate agent file\" (4.15) but the roster is 23 files. Add a 24th file?",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "0.1 conflict rule"
+    },
+    {
+      "id": "NH-06",
+      "title": "4C.5 says unattended runs are \"not GitHub Actions\" and also \"from a Makefile/GitHub Actions workflow\". Pick one (recommend Makefile on the n8n host).",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "0.1 conflict rule"
+    },
+    {
+      "id": "NH-07",
+      "title": "6.6 says \"All 25 workflows\"; 0.1 says W01–W35 (35).",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "0.1 conflict rule"
+    },
+    {
+      "id": "NH-08",
+      "title": "4.3 production path still uses Google Flow renders; 0.1 says code-rendered first, Flow only as week-3 experiment. 0.1 wins.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "0.1 conflict rule"
+    },
+    {
+      "id": "NH-09",
+      "title": "Data store: master prompt targets self-hosted Postgres on the VPS; the existing CRM already runs on Supabase. platform-architect to resolve in the gap map (0.2 says reuse).",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "0.1 conflict rule"
+    },
+    {
+      "id": "NH-10",
+      "title": "Repo .gitignore ignores *.json and *.txt globally — exception added for build/tasks.json; agents writing JSON/TXT deliverables need explicit exceptions.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "0.1 conflict rule"
+    },
+    {
+      "id": "NH-11",
+      "title": "Live schema drift: 12 tables referenced but undefined in repo; types.ts stale; appointments defined twice. Need a read-only schema dump of the live Supabase project before the first migration.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "build/crm-gap.md §E"
+    },
+    {
+      "id": "NH-12",
+      "title": "Hosting: CRM (incl. the public LV site pages) deploys to Vercel; prompt 6.7 says Hostinger + leadvelocity.co.za static. Keep Vercel for the CRM app? Confirm the live LV site is this repo.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "build/crm-gap.md §E"
+    },
+    {
+      "id": "NH-13",
+      "title": "Email transport: code sends via Resend; prompt 6.7 says Graph Mail.Send from howzit@. SortMyCover mail via Graph (bounce detection, audit trail); legacy stays on Resend; magic-link SMTP choice.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "build/crm-gap.md §E"
+    },
+    {
+      "id": "NH-14",
+      "title": "Two products, one CRM: legacy B2B tiers (Pilot/Bronze/Silver/Gold R6k–R16.5k, \"guaranteed\" wording, Ayanda cold calls) vs SortMyCover ladder. Separate by brand_id + SMC_* tier codes; withdraw B2B tiers from site (W25)? NCC cleanse to cover legacy cold-call leads? Money decision. compliance-qa recommends YES to cleansing legacy cold-call leads (penalty up to R1m / 10% turnover). The live Promotions page says \"10% of broker commission (on placed business)\" — the Raspberry Academy pattern (2.1.1) — plus \"guaranteed\" ×4 and sum-insured figures; creative-strategist recommends it comes down in W25 whatever else is decided.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "build/crm-gap.md §E; contracts needs-human NH-CD-17"
+    },
+    {
+      "id": "NH-15",
+      "title": "Pre-existing security/POPIA defects in the live CRM (public PII read/write, USING(true) RLS, public bucket, unauthenticated service-role functions, browser-exposed Gemini key, passwords in tracked scripts). Approve migration 1 = security fixes + rotate + untrack scripts. Changes live product behaviour. NEW S10 (found while drafting migration 01): two live policies let ANY signed-in broker read every lead and every message - broker #2 is unsafe until migration 01 is applied.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "build/inventory.md §11"
+    },
+    {
+      "id": "NH-16",
+      "title": "Name collisions: put 6.8b/4.15 tables (proposals, notifications, pulses, signals, quality_grades, costs) in a Postgres schema `ops`. Default: yes.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "build/crm-gap.md §E"
+    },
+    {
+      "id": "NH-17",
+      "title": "POPIA processor list: add Supabase, Vercel, Twilio, Resend (+ Hostinger, ElevenLabs if voice fallback on) with regions to the privacy notice and processing register. Default: yes, regions read from each dashboard.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "build/crm-gap.md §E; contracts needs-human NH-CD-18"
+    },
+    {
+      "id": "NH-18",
+      "title": "Contract mechanics drafted by default, need a money/legal yes: (a) dispute outcome after 48 h = LV decides within 2 business days with reasons; (b) \"uncontactable\" = verified lead who then goes silent through the full W08 sequence → replaceable within cap; (c) cycle start = day routing goes live after payment clears; (d) term sheet carries R16,500 typed — exclude signed docs from the W25 hard-coded-price check or generate from pricing; (e) refund within 10 business days when not renewing. Compliance-qa view: (b) as drafted quietly makes \"booked\" the unit sold — limit \"uncontactable\" to messages undelivered after verification or the broker marking unreachable on the booked call; and amend 3.3 so a lead who attends the call counts as verified even without a WhatsApp reply. (f) a delivered lead later found on the NCC opt-out registry cannot be contacted by the broker — does it count as uncontactable (replacement-eligible)?",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "deliverables/contracts-drafter/needs-human.md NH-CD-09/11/12/14/16"
+    },
+    {
+      "id": "NH-19",
+      "title": "WhatsApp wording set to confirm (compliance-qa fixes 1+2): (a) add the AI-assistant disclosure to the three broker_intro_* templates and the CTWA consent message — proposed sentence before \"Reply STOP\": \"This chat is run by Lead Velocity’s AI booking assistant.\" (4.6 calls the intro text exact, so a yes is needed); (b) one disposition label set ≤ 25 chars for buttons, portal, CRM and Schedule C: Good fit – proceeding · Good fit – follow-up · Not a fit – budget · Not a fit – well covered · Not a fit – criteria · Unreachable/wrong number; (c) broker_intro_slots keeps the 4.6 sentences + 3 slot lines with buttons Time 1/2/3 · Other times; (d) lead_pulse uses text buttons, not emoji. Default: accept all.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "deliverables/automation-engineer/SUMMARY.md"
+    },
+    {
+      "id": "NH-20",
+      "title": "Company and personal details needed to finish legal docs and the holding site: CIPC registration number, registered address, Jonathan full name, KG full name + role (deputy IO), FNB account name for the EFT reference block, data regions per processor. Placeholders stay until supplied.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "contracts needs-human NH-CD-22/23; holding deploy.md step 0"
+    },
+    {
+      "id": "P2-TEMPLATE-SAMPLES",
+      "title": "Review samples for media-header templates: automation/templates/samples/intro_card_sample.png + intro_video_sample.mp4 (needed before Meta accepts the IMAGE/VIDEO templates)",
+      "owner": "visual-producer",
+      "phase": "1",
+      "depends_on": [],
+      "acceptance_test": "test -s automation/templates/samples/intro_card_sample.png && test -s automation/templates/samples/intro_video_sample.mp4",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.6 templates; automation-engineer SUMMARY"
+    },
+    {
+      "id": "P2-TEMPLATE-FIT-FOLLOWUP",
+      "title": "Draft the missing broker 7-day fit_followup reminder template (4.12a) in automation/templates/",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "node -e \"JSON.parse(require(fs).readFileSync(automation/templates/broker_fit_followup.json))\"",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.12a; automation-engineer SUMMARY"
+    },
+    {
+      "id": "P1-RESEARCH",
+      "title": "Compile /deliverables/market-research-analyst/research.md from Sections 1–4D + assumptions register (no new research)",
+      "owner": "market-research-analyst",
+      "phase": "1",
+      "depends_on": [
+        "P0-SEED"
+      ],
+      "acceptance_test": "test -s deliverables/market-research-analyst/research.md && test -s deliverables/market-research-analyst/assumptions-register.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "5 Phase 1"
+    },
+    {
+      "id": "P1-BRAND-KIT",
+      "title": "Brand kit v1: /brand/tokens.json + tokens.css, SVG logo system (8 variants), favicon set, placement exports, template samples (incl. intro_card_sample.png)",
+      "owner": "visual-producer",
+      "phase": "1",
+      "depends_on": [
+        "P0-SEED"
+      ],
+      "acceptance_test": "test -s brand/tokens.json && test -s brand/tokens.css && ls brand/logo/*.svg | wc -l | xargs test 6 -le && test -s brand/favicon/favicon.svg",
+      "human_gate": false,
+      "status": "green",
+      "section": "4D.4b"
+    },
+    {
+      "id": "P1-BRAND-GUIDE",
+      "title": "Brand bible v1 (markdown) + availability/legal check list + disclosure wording — brand-naming-lead",
+      "owner": "brand-naming-lead",
+      "phase": "1",
+      "depends_on": [
+        "P0-SEED"
+      ],
+      "acceptance_test": "test -s brand/brand-bible.md && test -s deliverables/brand-naming-lead/availability-checks.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4D.6"
+    },
+    {
+      "id": "P1-SERP-PAGES",
+      "title": "SERP plan + 5 YMYL educational pages (static HTML) + schema",
+      "owner": "search-findability-lead",
+      "phase": "1",
+      "depends_on": [
+        "P0-SEED"
+      ],
+      "acceptance_test": "ls landing/holding/learn/*.html | wc -l | xargs test 5 -le && test -s deliverables/search-findability-lead/serp-plan.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4D.6"
+    },
+    {
+      "id": "P2-SCHEMA",
+      "title": "Supabase migrations (drafted, NOT applied): security fix migration 1, brands/brokers/pricing/cycles/leads/bookings/outcomes/replacements/invoices/bank_credits/ad_metrics/comments/reports/suppression/dsr/ops.*/facts.* + RLS + audit log + pricing seed",
+      "owner": "platform-architect",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "ls supabase/migrations/2026100*_smc_*.sql | wc -l | xargs test 3 -le && test -s deliverables/platform-architect/schema.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "6.4 / crm-gap §D"
+    },
+    {
+      "id": "P2-CONCEPTS",
+      "title": "15 broker-neutral ad concepts (concepts.md + CSV) per 4.2 + 4D.4a hook library",
+      "owner": "creative-strategist",
+      "phase": "2",
+      "depends_on": [
+        "P0-SEED"
+      ],
+      "acceptance_test": "test -s deliverables/creative-strategist/concepts.md && test -s deliverables/creative-strategist/concepts.csv",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.2"
+    },
+    {
+      "id": "P2-WEBSITE-WORDING",
+      "title": "leadvelocity.co.za wording rewrite per 3.5a (before/after per section, FAQ, banned-word scan)",
+      "owner": "creative-strategist",
+      "phase": "2",
+      "depends_on": [
+        "P0-SEED"
+      ],
+      "acceptance_test": "test -s deliverables/creative-strategist/website-wording.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "3.5a"
+    },
+    {
+      "id": "P2-CAMPAIGN-SPEC",
+      "title": "campaign-spec.md — exact Meta settings for Campaigns A/B/C, audiences, CAPI stages, test matrix, kill/scale",
+      "owner": "media-buyer",
+      "phase": "2",
+      "depends_on": [
+        "P0-SEED"
+      ],
+      "acceptance_test": "test -s deliverables/media-buyer/campaign-spec.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.4"
+    },
+    {
+      "id": "P2-CONVERSATION-AGENT",
+      "title": "Thandi: system prompts (intent/slot, reply, guardrail classifier), state machine, golden set (200 turns + 50 red-team), eval harness, deferral lines, pre-call brief prompt, FAQ corpus /knowledge/faq.md",
+      "owner": "conversation-designer",
+      "phase": "2",
+      "depends_on": [
+        "P0-SEED"
+      ],
+      "acceptance_test": "test -s evals/golden-set.json && test -s evals/red-team.json && node evals/run.mjs --dry-run && test -s knowledge/faq.md",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.11 / 6B.1 / 6B.9"
+    },
+    {
+      "id": "P2-TEST-DRAFTS",
+      "title": "Draft acceptance tests + synthetic-lead fixtures for the 8 core-path workflows for Jonathan to approve (GATE-TEST-*)",
+      "owner": "automation-engineer",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "for w in W01 W04 W05 W06 W09 W12 W13 W15; do test -s automation/tests/$w.test.mjs || exit 1; done && test -s automation/tests/fixtures/synthetic-leads.json",
+      "human_gate": false,
+      "status": "green",
+      "section": "4C.2"
+    },
+    {
+      "id": "LP-TEMPLATE",
+      "title": "Quiz landing page template + per-angle JSON + Playwright quiz test + Lighthouse script (built from the 4.5 spec table; reconcile with the approved reference when it lands — NH-21)",
+      "owner": "landing-page-builder",
+      "phase": "2",
+      "depends_on": [
+        "P0-INVENTORY"
+      ],
+      "acceptance_test": "test -s landing/template/index.html && test -s landing/tests/quiz.spec.ts && ls landing/angles/*.json | wc -l | xargs test 6 -le",
+      "human_gate": false,
+      "status": "green",
+      "section": "4.5"
+    },
+    {
+      "id": "NH-21",
+      "title": "Approved landing reference `/landing/reference/sortmycover-landing.html` (and docs/design mocks) are not in the repo — 0.0 step 4 said copy from Downloads. Jonathan/laptop to add them; LP-TEMPLATE is built from the 4.5 spec table meanwhile and reconciled when the reference lands.",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "test -s landing/reference/sortmycover-landing.html",
+      "human_gate": true,
+      "status": "green",
+      "section": "4.5 Reference implementation"
+    },
+    {
+      "id": "NH-22",
+      "title": "Media budget money decisions (media-buyer): (a) is media_share_zar VAT-inclusive? Meta bills ex-VAT, so dividing by 30 may overspend 15%; (b) cycle-1 R350/day = R10,500/month vs Bronze media share R8,492 — who funds the gap, or start at R283/day; (c) at R350/day the ad set likely stays learning-limited — accept, or raise; (d) 4D.4a test matrix needs ~60 leads/factor → cycle 2, or cut cycle 1 to colour-on-H1 only; (e) named consent means one instant form per broker — accept until the practitioner opines on generic.",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "deliverables/media-buyer/SUMMARY.md"
+    },
+    {
+      "id": "NH-23",
+      "title": "Brand decisions: (a) CoverKlaar — run Afrikaans under SortMyCover and keep CoverKlaar as a defensive registration only (\"klaar\" = finished reads badly next to life cover)? (b) CIPC trade-mark filing for the word mark + tick (classes 35/36) costs fees before first payment — file now or after payment? (c) Google Business Profile only if eligible for a virtual-only service, never a fake address.",
+      "owner": "jonathan",
+      "phase": "1",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "deliverables/brand-naming-lead/first-principles.md"
+    },
+    {
+      "id": "NH-24",
+      "title": "Intro video: (a) script close is day-neutral (\"looking forward to speaking\") rather than \"see you on {day}\" because one recording serves many dates — confirm; (b) who is the consenting real person for the 15-s example-adviser clip (no avatar, no stock)?",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "deliverables/intro-media/script-prompt.md"
+    },
+    {
+      "id": "NH-25",
+      "title": "Targets to confirm (analytics): cost per good-fit meeting target R900 (6A2 example) looks unreachable - the 3.5/3.7 model implies ~R1,100-R1,600 at full volume; and the qualified-CPL line: 6.8 says <= R250, 3.4 says R400 (a raw R250 at 65% qualify is ~R385). Default: R1,300 per good-fit meeting as the target, R900 as stretch; the 3.4 R400 line as the qualified-CPL escalation.",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "knowledge/metrics.md"
+    },
+    {
+      "id": "NH-26",
+      "title": "Bank reference format (money): 3.6 says LV-{broker_id}-{tier}-{YYYYMM}, 6.5 says LV-{broker_id}-{YYYYMM}; a UUID broker id is too long for an FNB reference. Drafted as LV-{ref_code}-{tier}-{YYYYMM} with a short brokers.ref_code (e.g. LV-MS01-BRZ-202610). Confirm.",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "deliverables/platform-architect/schema.md; contracts needs-human NH-CD-07"
+    },
+    {
+      "id": "NH-27",
+      "title": "Billing decisions (money): (a) card auto-renew charges the saved card on OUR 30-day cycle end (retry day 1 and 3), not via Paystack calendar-monthly Plans (plans still created per tier) - confirm; (b) tier changes apply at the cycle boundary only, no mid-cycle pro-rata (3.6 wording says pro-rata invoice) - confirm; (c) the broker row (+ auth user) is created when the invoice is issued, status invited/prospect, and W16 moves it to onboarding on payment - confirm; (d) the checkout page is a Lead Velocity (B2B) surface - use LV branding or SortMyCover tokens?",
+      "owner": "jonathan",
+      "phase": "4b",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "deliverables/billing-automation/SUMMARY.md"
+    },
+    {
+      "id": "NH-28",
+      "title": "Conversation rules to confirm: (a) a booked lead who later types an out-of-band age/budget keeps the booking and is flagged to a person (not auto-closed); (b) STOP while booked: the acceptance tests cancel the booking + Graph event, Thandi's design keeps the booking unless the lead replies CANCEL - pick one; (c) human-handoff hours 08:00-20:00 every day incl. weekends/holidays?; (d) which extra languages to build golden cases for (isiZulu, Sesotho, isiXhosa, Setswana) - none goes live without passing cases; Afrikaans lines need one native-speaker read.",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "conversation/state-machine.md"
+    },
+    {
+      "id": "NH-29",
+      "title": "Infra decisions: (a) DMARC starts at p=none for 14 days (any sender that does not DKIM-sign would be quarantined otherwise) then quarantine; (b) off-server backup target - default a free S3-compatible bucket with a write-only key, chosen at W26; (c) n8n UI protection: SSO is an Enterprise feature, so IP allowlist / SSH tunnel + owner login with MFA; (d) add POPIA breach to the always-send-at-night alert list? (default: strict 6.8b list); (e) Supabase auth schema and Storage are not in the nightly dump - acceptable (magic-link re-auth) or mirror media?",
+      "owner": "jonathan",
+      "phase": "4b",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "automation/security/SECURITY.md; automation/backup/BACKUP.md"
+    },
+    {
+      "id": "NH-30",
+      "title": "Compliance review 2 decisions: (A) replace \"no contract\" with \"no lock-in / no minimum term\" everywhere (brokers do sign an agreement); (B) either add a Schedule D clause that the broker will not sell on the introductory call, or change every \"no selling on the call\" line to \"no obligation to buy\"; (C) file the guide URL behind \"2-4x salary\", say \"many bonds\" not \"most bonds\", no \"costs less\" claim without a source; (D) no learn-page reviewer line until a real review exists, and never a broker we route leads to. Also: compliance-qa recommends NH-14 Option A (take the Promotions page down now) and NH-28 b = STOP cancels the booking.",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "deliverables/compliance-qa/phase4-review-2.md"
+    },
+    {
+      "id": "NH-31",
+      "title": "Meta decisions (money): (a) the 7-day Page warm-up (~R350 paid Reach ad) before first payment vs 0.1 no-spend rule - approve ~R350 now, or organic posts now and the paid week after payment (delays live campaigns 7 days); (b) two SA mobile numbers not registered on WhatsApp are needed (main + standby) - use numbers Lead Velocity owns, or stay on Meta's test number until payment; (c) ads in a switched-off campaign may not get reviewed; switching on spends - leave off (default); (d) acknowledge the standby-asset rule: never use the standby account/Page/number while a Meta policy decision stands.",
+      "owner": "jonathan",
+      "phase": "0",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "deliverables/meta-operator/setup-checklist.md §14"
+    },
+    {
+      "id": "NH-32",
+      "title": "Bot-protection default: if the Turnstile verification service is down, /lead fails OPEN (lead stored with bot_check=unverified, tighter rate limits) while /book fails CLOSED. Confirm, or make /lead fail closed too (fewer junk leads, more lost real ones during an outage).",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "automation/W03-notes.md §B"
+    },
+    {
+      "id": "NH-33",
+      "title": "Distress handling: (a) when a lead writes about self-harm or bereavement the bot sends nothing, pauses reminders and alerts Jonathan + KG - should that alert ring at night (add to the 6.8b do-not-disturb exceptions)? conversation-designer recommends yes; (b) if nobody replies within the handoff window, send a pre-approved support-line message automatically? default no (compliance asked for no automated content).",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "conversation/handoff.md trigger 6"
+    },
+    {
+      "id": "NH-34",
+      "title": "Landing sub-lines + employer-gap H1 (signed off by compliance-qa review 3; Jonathan confirms copy)",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.5"
+    },
+    {
+      "id": "NH-35",
+      "title": "Creative renders: review sheet; NH-PCD-01 source, NH-PCD-02 refused, NH-PCD-04 held",
+      "owner": "jonathan",
+      "phase": "3",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4D"
+    },
+    {
+      "id": "NH-36",
+      "title": "PCD choices: test-arm palette A/B, C14 phone zone, 4:5 safe zones",
+      "owner": "jonathan",
+      "phase": "3",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4D.4a"
+    },
+    {
+      "id": "NH-37",
+      "title": "Creative fix wave 1 sign-offs: 3.5a 'no lock-in', C01 wording, 2–4× URL, Former Broker claims, NH-14",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "3.5a"
+    },
+    {
+      "id": "NH-38",
+      "title": "Review 3 decisions: NH-PCD-01 URL, NH-19a AI sentence, 'no lock-in' + '30-day cycle' in mandated text, Afrikaans reader",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "2.1"
+    },
+    {
+      "id": "NH-39",
+      "title": "Re-render follow-ups (owner alignment; nothing for Jonathan)",
+      "owner": "jonathan",
+      "phase": "3",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4D.5"
+    },
+    {
+      "id": "NH-40",
+      "title": "Consent fixture vs named default — decide at GATE-TEST-W01",
+      "owner": "jonathan",
+      "phase": "2",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4C.2"
+    },
+    {
+      "id": "NH-41",
+      "title": "Privacy page placeholders (surname, KG name, IO phone, CIPC, address) + practitioner items",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "2.3"
+    },
+    {
+      "id": "NH-42",
+      "title": "Schedule C1A: lead cancels and never rebooks — pick (a)/(b)/(a)+(b); STOP-after-cancel addendum",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "Schedule C"
+    },
+    {
+      "id": "NH-43",
+      "title": "Policies-written field: keep portal-only (default keep)",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.12a"
+    },
+    {
+      "id": "NH-44",
+      "title": "Broker PDF initials-only (default yes)",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.10a"
+    },
+    {
+      "id": "NH-45",
+      "title": "Nudge template wording 'no obligation to buy' + 72 h rewrite (default apply)",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.12"
+    },
+    {
+      "id": "NH-46",
+      "title": "W34 practitioner questions; howzit@ read by n8n for DSR intake (default yes)",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "POPIA"
+    },
+    {
+      "id": "NH-47",
+      "title": "4.0a lookups queued (8) — run from laptop or confirm at gates",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.0a"
+    },
+    {
+      "id": "NH-48",
+      "title": "go.leadvelocity.co.za in CORS origins? (default no); media-erase key; CSP report-only",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "6.7"
+    },
+    {
+      "id": "NH-49",
+      "title": "Microsoft scopes for the broker Outlook connect: no Mail.* (default) — decide only if a broker mailbox must send invites",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.6"
+    },
+    {
+      "id": "NH-50",
+      "title": "W26 day reminder: Supabase CLI + SUPABASE_ACCESS_TOKEN / SUPABASE_PROJECT_REF on the laptop before provision.sh step 13 (edge-function deploy)",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.7 / W26"
+    },
+    {
+      "id": "NH-51",
+      "title": "Explainer clip: accept 9:16 + 1:1 at 44 s (row 1 at 11.5 s); VO voice choice",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.10b"
+    },
+    {
+      "id": "NH-52",
+      "title": "STOP from a lead with a live booking cancels it (default) — W15 / NH-28b",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.6 W15"
+    },
+    {
+      "id": "NH-53",
+      "title": "Chat booking with no method on the tap: method_pref, else broker first call method (default)",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.6 W05"
+    },
+    {
+      "id": "NH-54",
+      "title": "Broker never marks + lead says adviser did not call = broker no-show + apology line (default) — W12 L03",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.12a"
+    },
+    {
+      "id": "NH-57",
+      "title": "Ad budget changes by workflow: one-tap confirm for every change (default) or raises only",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.4 / W16 / W19"
+    },
+    {
+      "id": "NH-58",
+      "title": "Service-role key on the VPS: accept for cycle 1 or move W16/W20/W23 calls behind edge functions first (default)",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "6.6 security"
+    },
+    {
+      "id": "NH-59",
+      "title": "Qualifying question order: 4.6 (age, budget, bond/dependants, method — default) vs state machine (age, bond, dependants, budget)",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.6 / conversation"
+    },
+    {
+      "id": "NH-60",
+      "title": "CTWA consent covers Meta measurement events (consent_ads_at at consent time, default) — practitioner",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "2.3 / 4.4a"
+    },
+    {
+      "id": "NH-61",
+      "title": "Payments (money): sequence Paystack last — manual EFT + inContact (W16/W17/W18) is the cycle-1 launch path; Paystack built but off behind a flag; Paystack gates and the Paystack half of S7-23/GATE-R1-LIVE move post-launch. Relayed from Jonathan via the bootstrap session; needs his confirmation in the build thread (changes the 0.1 Instant-EFT default). Extended (relayed 09:15Z): FNB inContact notifications also last — GATE-INCONTACT and the R1 EFT inContact test post-launch; cycle-1 payment = manual EFT with the unique reference, marked paid by Jonathan one-tap Payment received in the console (fires the same W16 event); W17/W18 stay built and tested on fixtures but switched off; the S7-24 inContact line leaves the Go-live gate. Extended (relayed 09:16Z): \"The banking details can just be that they need to eft.\" → agreement, term sheet, checkout, site and portal say only payment by EFT, in advance, per 30-day cycle; no bank details in any document/page/template; Jonathan supplies them on his own invoice; NH-20 drops the FNB account name; invoice keeps a short reference (LV-{ref_code}-{YYYYMM}, relates to NH-26) for recognition only.",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "0.1 / 6.5 / pre-mortem #5"
+    },
+    {
+      "id": "NH-62",
+      "title": "I-54g: after KG rules not_attended on an Attended-vs-No conflict, what happens to the outcomes row and the delivered/verified count? Default proposal: outcome → no_show, replacement_eligible within the cycle cap.",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.12a / Schedule C"
+    },
+    {
+      "id": "NH-63",
+      "title": "I-54i: once the broker marks an outcome, the lead reach_check is skipped so CAPI Attended always waits for the lead window to close. Default: keep.",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.12a / 4.4a"
+    },
+    {
+      "id": "NH-64",
+      "title": "Ad money split (money, relayed): cycle-1 live set of 6 ads, not 10 — C01 H1 amber, C01 H1 teal (colour test), C03 new bond, C04 new baby, C05 turned 40, and the new bond-paperwork concept C16 once compliance passes (C14 holds the slot until then); refresh pool C17 policy review, C14, C13, C08, C10; hold C06, C12. Needs Jonathan confirmation in the build thread.",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.4 cycle 1 reality / 4D"
+    },
+    {
+      "id": "NH-65",
+      "title": "Lookalike seed: MASTER-PROMPT 4.4b seeds the week-2 lookalike from raw Lead; relayed direction says Qualified/GoodFit, never raw. Spec now seeds from Qualified, then GoodFit/Attended (default applied; confirm or revert). Campaign A still optimises on native Lead (Conversion Leads needs 200+/month).",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "4.4b"
+    },
+    {
+      "id": "NH-66",
+      "title": "creative-strategist identity rule (0.1 'Agent identity': cite only its five inspirations) vs Jonathan's 5 Oct request to research the top 5 social content marketers for a daily FB/IG engine. Default applied: research done as asked (deliverables/meta-operator/content-engine.md); each practitioner tactic is only kept where Meta docs, large datasets or peer-reviewed work back it (A/B), and the five inspirations stay the filter. Also: daily posting (Jonathan, 5 Oct) supersedes profile-kit 4 #1 '3-4 posts a week'. Confirm or revert.",
+      "owner": "jonathan",
+      "phase": "4",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "0.1 Agent identity / 4.2 / 4.7"
+    },
+    {
+      "id": "NH-67",
+      "title": "Approve LGSA-v0.2 before anything goes to Mark Weston (deliverables/contracts-drafter/lead-generation-agreement/lead-velocity-services-agreement-v2.md; marked copy lead-velocity-services-agreement-v0.2-marked.md). v0.2 applies Jonathan's final decisions of 7 Oct (D1-D9, C1): A/B lead tiers by stated premium budget, under R750 filtered (D1); replacements stay discretionary goodwill, up to 3 no-shows a week (D2; the earlier 'obligation within the per-cycle cap' draft is withdrawn); dispute evidence within 2 working days (D3); 30 days + up to 14, then rollover on top or refund on request (D4); contact verification (D5); qualification capture (D6); Teams booking + welcome card (D7); B-tier Accept/Decline (D8); consent v3 'insurance and financial planning' (C1). Pilot Plan withdrawn 7 Oct (D9; pricing.seed.json pilot.offered=false): the minimum Plan is Bronze (R16,500); clause 9.7 now says the Pilot is no longer offered and 1.1.24, 9.6 and S1.3 no longer mention a Pilot (1.1.24 lists Bronze, Silver or Gold), so no Pilot replacement cap or Pilot terms remain. Still open, NOT changed: 11.1 7-day cancellation notice (= seed terms.cancel_notice_days 7) vs 0.1 'no notice period'; seed rows.replacement_cap_cycle 4/6/9 and W13 per-cycle caps (0.1, no weekly cap) vs v0.2 clause 7 goodwill up to 3 a week (= seed terms.goodwill_replacements_per_week 3), billing-automation + automation-engineer to align after approval; the .docx/PDF client copy is still v0.1 (5 Oct), rebuild after approval.",
+      "owner": "jonathan",
+      "phase": "5",
+      "depends_on": [],
+      "acceptance_test": "decision recorded in build/decisions.md; seed + agreement agree",
+      "human_gate": true,
+      "status": "needs_human",
+      "section": "0.1 Replacement cap / 3.3 / 4.13"
+    }
+  ]
+}

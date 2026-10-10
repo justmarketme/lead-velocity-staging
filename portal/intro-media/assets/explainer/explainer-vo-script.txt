@@ -1,0 +1,14 @@
+# Step explainer: voice-over script (plain text, one block per storyboard row). Voice: Jonathan own voice preferred; stock TTS allowed; never a cloned voice.
+# Source: deliverables/intro-media/explainer-storyboard.md. Timings are the windows in manifest.json; read at a steady pace.
+
+[Row 1  0.0s to 11.5s]
+This is the step we're testing to help people turn up. People show up for people. If a lead has seen your face before the call, we expect they're more likely to come, and we measure it.
+
+[Row 2  11.5s to 22.5s]
+Answer eight quick questions, typed or spoken. We write three short scripts in your own words. You pick one and change anything you like.
+
+[Row 3  22.5s to 35.5s]
+Face a window. Hold the phone at eye level and look at the lens. Read the teleprompter. It takes about twenty-five seconds, and one take is fine.
+
+[Row 4  35.5s to 44.0s]
+We add captions and your details. You approve it. That's it. Ten minutes, once.

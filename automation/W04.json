@@ -1,0 +1,1264 @@
+{
+  "id": "smc-w04",
+  "name": "W04 Slots API (DRAFT pending GATE-TEST-W04)",
+  "nodes": [
+    {
+      "id": "n01",
+      "name": "Sticky: read me",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "width": 760,
+        "height": 360,
+        "content": "W04 Slots API (DRAFT pending GATE-TEST-W04; automation-engineer). GET /slots: X-Lead-Token (lead path, broker from leads.broker_id, never the query) OR Authorization: Bearer <broker JWT> (portal next-free-slot), CONTRACTS.md. Sub-workflow ops list / is_free / graph_token (CONTRACTS \"Sub-workflow interfaces\"); W07 W04_list -> W28 send_list. Logic automation/lib/w04.mjs (tests automation/tests/W04.test.mjs). Calendar route: calendar_status ok -> Vault refresh token (smc_vault_ms_refresh) -> token exchange -> Graph getSchedule (ASSUMPTION shapes, lib comments); blocked_admin_consent / shared_fallback -> shared calendar = hours minus our appointments (0.3 #4); anything else -> fallback whatsapp. Refresh failure -> lead_activities calendar.refresh_failed (W22 metric) + smc_set_calendar_status. Busy blocks cached 60 s per broker in static data (never tokens); is_free is always fresh. Successful executions are not saved (tokens pass through items)."
+      }
+    },
+    {
+      "id": "n02",
+      "name": "GET /slots",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "slots",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"
+        }
+      },
+      "webhookId": "w04-slots-get"
+    },
+    {
+      "id": "n03",
+      "name": "Resolve caller (lead token | broker JWT)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w04;\nconst j = $input.first().json;\nconst h = j.headers || {};\nconst req = L.resolveCaller(h, j.query || {}, $env, Date.now());\nreturn [{ json: { lane: 'http', req, hdr: { 'x-test-token': h['x-test-token'] || '', 'x-test-now': h['x-test-now'] || '' } } }];"
+      }
+    },
+    {
+      "id": "n04",
+      "name": "Caller ok?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.req.ok === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n05",
+      "name": "Caller error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w04;\nconst r = $json.req;\nreturn [{ json: { lane: 'http', status: r.status || 401, body: { error: r.error || 'try_again' } } }];"
+      }
+    },
+    {
+      "id": "n06",
+      "name": "Load lead + broker + holds (http)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Lead path: the broker comes from leads.broker_id (I-29). Broker path: brokers.user_id = jwt.sub (I-30a).\nWITH ld AS (\n  SELECT l.id, l.broker_id, l.brand_id, l.opted_out_at, l.is_synthetic\n    FROM public.leads l\n   WHERE $1 <> '' AND l.id::text = $1 AND l.brand_id IS NOT NULL\n), bk AS (\n  SELECT b.id, b.brand_id, b.status, b.adviser_name, b.contact_person, b.practice_name, b.firm_name, b.fsp_number, b.adviser_whatsapp, b.whatsapp_number, b.email,\n         b.methods_supported, b.meeting_hours, b.slot_minutes, b.buffer_minutes, b.min_notice_hours, b.horizon_days, b.max_meetings_per_day,\n         b.max_meetings_per_week, b.bookings_paused, b.add_client_as_attendee, b.calendar_provider, b.calendar_status, b.calendar_mode,\n         b.calendar_email, b.ms_tenant_id, b.calendar_status_at, b.calendar_status_detail, b.current_cycle_id\n    FROM public.brokers b\n   WHERE b.brand_id IS NOT NULL\n     AND (b.id = (SELECT ld.broker_id FROM ld) OR ($2 <> '' AND b.user_id::text = $2))\n   LIMIT 1\n)\nSELECT (SELECT to_jsonb(ld) FROM ld) AS lead, (SELECT to_jsonb(bk) FROM bk) AS broker,\n       COALESCE((SELECT jsonb_agg(jsonb_build_object('id', a.id, 'start', a.appointment_date, 'end', a.ends_at, 'status', a.status))\n                   FROM public.appointments a\n                  WHERE a.broker_id::text = (SELECT bk.id::text FROM bk) AND a.brand_id IS NOT NULL\n                    AND a.status IN ('booked','confirmed') AND a.ends_at > now() - interval '1 day'), '[]'::jsonb) AS bookings;",
+        "options": {
+          "queryReplacement": "={{ [$json.req.mode === 'lead' ? $json.req.lead_id : '', $json.req.mode === 'broker' ? $json.req.user_id : ''] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n07",
+      "name": "Merge (http)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w04;\nconst c = $('Resolve caller (lead token | broker JWT)').first().json;\nconst r = $input.first().json;\nreturn [{ json: { lane: 'http', req: c.req, hdr: c.hdr, lead: r.lead || null, broker: r.broker || null, bookings: r.bookings || [] } }];"
+      }
+    },
+    {
+      "id": "n08",
+      "name": "Called by W05/W06/W07/W10/W28",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        1680,
+        0
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "n09",
+      "name": "Normalise sub-call (w04.subcallInput)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w04;\nreturn $input.all().map((it) => ({ json: { lane: 'sub', req: L.subcallInput(it.json || {}), raw_delegate: (it.json && it.json.delegate) || null } }));"
+      }
+    },
+    {
+      "id": "n10",
+      "name": "Sub op?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        240,
+        200
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ ['list','is_free','graph_token'].includes($json.req.op) ? 'work' : $json.req.op }}",
+                    "rightValue": "work",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "work"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ ['list','is_free','graph_token'].includes($json.req.op) ? 'work' : $json.req.op }}",
+                    "rightValue": "send_list",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "send_list"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ ['list','is_free','graph_token'].includes($json.req.op) ? 'work' : $json.req.op }}",
+                    "rightValue": "reject",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "reject"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "n11",
+      "name": "Log subcall_rejected",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        480,
+        200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, workflow, actor_type, activity_type, payload, occurred_at)\nVALUES (NULLIF($1, '')::uuid, 'W04', 'system', 'subcall_rejected', jsonb_build_object('reason', $2::text), now())\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$json.req.lead_id || '', $json.req.reason || 'unknown'] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n12",
+      "name": "Return (rejected)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w04;\nreturn [{ json: { slots: [], fallback: 'whatsapp', free: false, next_slots: [], error: 'subcall_rejected' } }];"
+      }
+    },
+    {
+      "id": "n13",
+      "name": "W28 send_list input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w04;\nreturn $input.all().map((it) => ({ json: { op: 'send_list', lead_id: it.json.req.lead_id, reason: it.json.req.reason, delegate: it.json.raw_delegate } }));"
+      }
+    },
+    {
+      "id": "n14",
+      "name": "-> W28 send_list (10-slot list)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        200
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w28",
+          "cachedResultName": "W28 Booking Flow endpoint"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    },
+    {
+      "id": "n15",
+      "name": "Load broker + holds (sub)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1440,
+        200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT (SELECT to_jsonb(k) FROM (SELECT b.id, b.brand_id, b.status, b.adviser_name, b.contact_person, b.practice_name, b.firm_name, b.fsp_number, b.adviser_whatsapp, b.whatsapp_number, b.email,\n         b.methods_supported, b.meeting_hours, b.slot_minutes, b.buffer_minutes, b.min_notice_hours, b.horizon_days, b.max_meetings_per_day,\n         b.max_meetings_per_week, b.bookings_paused, b.add_client_as_attendee, b.calendar_provider, b.calendar_status, b.calendar_mode,\n         b.calendar_email, b.ms_tenant_id, b.calendar_status_at, b.calendar_status_detail, b.current_cycle_id FROM public.brokers b WHERE b.id::text = $1 AND b.brand_id IS NOT NULL) k) AS broker,\n       COALESCE((SELECT jsonb_agg(jsonb_build_object('id', a.id, 'start', a.appointment_date, 'end', a.ends_at, 'status', a.status))\n                   FROM public.appointments a\n                  WHERE a.broker_id::text = $1 AND a.brand_id IS NOT NULL\n                    AND a.status IN ('booked','confirmed') AND a.ends_at > now() - interval '1 day'), '[]'::jsonb) AS bookings;",
+        "options": {
+          "queryReplacement": "={{ [$json.req.broker_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n16",
+      "name": "Merge (sub)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w04;\nconst c = $('Normalise sub-call (w04.subcallInput)').first().json;\nconst r = $input.first().json;\nreturn [{ json: { lane: 'sub', req: c.req, hdr: {}, lead: null, broker: r.broker || null, bookings: r.bookings || [] } }];"
+      }
+    },
+    {
+      "id": "n17",
+      "name": "Plan (w04.planRequest)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w04;\nconst x = $input.first().json;\nconst now = x.lane === 'sub' ? L.subClockFor(x.req, $env) : L.clockFor(x.hdr || {}, $env, !!(x.lead && x.lead.is_synthetic));\nconst plan = L.planRequest(x);\nconst b = L.brokerConfig(x.broker || {});\nconst gs = plan.next === 'graph' ? L.getScheduleRequest(b, now, { fresh: !!x.req.fresh }) : null;\nconst tk = plan.next === 'graph' ? L.tokenRefreshForm({ clientId: $env.MS_GRAPH_CLIENT_ID, tenant: b.ms_tenant_id || $env.MS_GRAPH_TENANT }) : null;\nconst stale = !b.calendar_status_at || now - Date.parse(b.calendar_status_at) > 86400000;\nreturn [{ json: { ...x, now, plan, gs, tk, stale, token_only: !!plan.token_only, busy: plan.route === 'shared' ? [] : null } }];"
+      }
+    },
+    {
+      "id": "n18",
+      "name": "Next?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        240,
+        400
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.plan.next }}",
+                    "rightValue": "respond",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "respond"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.plan.next }}",
+                    "rightValue": "graph",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "graph"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.plan.next }}",
+                    "rightValue": "compute",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "compute"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "n19",
+      "name": "Busy cache (60 s)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w04;\nconst x = $input.first().json;\nconst hit = !x.token_only && !x.req.fresh ? L.cacheGet($getWorkflowStaticData('global').w04_busy, L.brokerConfig(x.broker).broker_id, x.now) : null;\nreturn [{ json: { ...x, busy: hit, cached: !!hit } }];"
+      }
+    },
+    {
+      "id": "n20",
+      "name": "Cached?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.cached === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n21",
+      "name": "Vault: Microsoft refresh token",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        960,
+        400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Returns the refresh token only while brokers.calendar_status = 'ok' (migration 13). Never logged: this workflow does not save successful executions.\nSELECT public.smc_vault_ms_refresh($1::uuid) AS rt;",
+        "options": {
+          "queryReplacement": "={{ [$json.plan && $json.broker ? $json.broker.id : null] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n22",
+      "name": "Microsoft token refresh",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        400
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Plan (w04.planRequest)').first().json.tk.url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "client_id",
+              "value": "={{ $env.MS_GRAPH_CLIENT_ID }}"
+            },
+            {
+              "name": "grant_type",
+              "value": "refresh_token"
+            },
+            {
+              "name": "refresh_token",
+              "value": "={{ $json.rt || \"\" }}"
+            },
+            {
+              "name": "scope",
+              "value": "offline_access User.Read Calendars.ReadWrite OnlineMeetings.ReadWrite"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Microsoft Graph broker-connect client secret (W20)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n23",
+      "name": "Token plan (w04.planToken)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w04;\nconst x = $('Plan (w04.planRequest)').first().json;\nconst tok = L.planToken($input.first().json, x.now);\nreturn [{ json: { ...x, tok } }];"
+      }
+    },
+    {
+      "id": "n24",
+      "name": "Token ok?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.tok.ok === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n25",
+      "name": "calendar.refresh_failed (+ status)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        600
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH s AS (SELECT CASE WHEN $3 <> '' THEN public.smc_set_calendar_status($1::uuid, $3, jsonb_build_object('reason', $2::text)) END AS st)\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at)\nSELECT NULL, b.brand_id, b.id, 'W04', 'system', 'calendar.refresh_failed', jsonb_build_object('reason', $2::text, 'transient', $4::boolean), now()\n  FROM public.brokers b, s WHERE b.id = $1::uuid\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$json.broker.id, $json.tok.reason || 'unknown', $json.tok.status_to || '', !!$json.tok.transient] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n26",
+      "name": "Refresh failed -> fail closed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w04;\nconst x = $('Token plan (w04.planToken)').first().json;\nreturn [{ json: { ...x, busy: null } }];"
+      }
+    },
+    {
+      "id": "n27",
+      "name": "Vault: keep rotated refresh token (daily)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        480,
+        600
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- ASSUMPTION: Microsoft rotates refresh tokens and the previous one stays valid; store the new one at most once a day.\nSELECT CASE WHEN $2 <> '' AND $3::boolean THEN public.smc_vault_store_ms_refresh($1::uuid, $2, NULL, NULL) END AS stored;",
+        "options": {
+          "queryReplacement": "={{ [$json.broker.id, ($('Microsoft token refresh').first().json.body || {}).refresh_token || '', !!$json.stale] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n28",
+      "name": "Token only?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        600
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($('Token plan (w04.planToken)').first().json.token_only === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n29",
+      "name": "Graph getSchedule (ASSUMPTION)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        600
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Plan (w04.planRequest)').first().json.gs.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Token plan (w04.planToken)').first().json.tok.access_token }}"
+            },
+            {
+              "name": "Prefer",
+              "value": "={{ $('Plan (w04.planRequest)').first().json.gs.headers.Prefer }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Plan (w04.planRequest)').first().json.gs.body) }}",
+        "options": {
+          "timeout": 8000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n30",
+      "name": "Parse getSchedule + cache",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w04;\nconst x = $('Token plan (w04.planToken)').first().json;\nconst busy = L.parseGetSchedule($input.first().json);\nconst sd = $getWorkflowStaticData('global'); sd.w04_busy = sd.w04_busy || {};\nif (busy) L.cachePut(sd.w04_busy, L.brokerConfig(x.broker).broker_id, busy, x.now);\nconst { tok, ...rest } = x;\nreturn [{ json: { ...rest, busy } }];"
+      }
+    },
+    {
+      "id": "n31",
+      "name": "Compute (w04.respond)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w04;\nconst HOL = new Set(require('lv-automation').holidays.holidays.map((h) => h.date));\nlet x = $input.first().json;\nif (!x.plan) x = $('Token plan (w04.planToken)').first().json;\nlet out;\nif (x.plan.next === 'respond') out = x.plan.result;\nelse if (x.token_only) out = x.tok && x.tok.ok ? { access_token: x.tok.access_token, expires_at: x.tok.expires_at } : { error: 'refresh_failed' };\nelse out = L.respond({ lane: x.lane, req: x.req, broker: x.broker, bookings: x.bookings, busy: x.busy, route: x.plan.route, now: x.now, holidays: HOL });\nreturn [{ json: x.lane === 'http' ? { lane: 'http', status: out.status, body: out.body } : { lane: 'sub', body: out } }];"
+      }
+    },
+    {
+      "id": "n32",
+      "name": "HTTP lane?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        600
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.lane === 'http') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n33",
+      "name": "Respond (slots JSON)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        800
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "responseCode": "={{ $json.status }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "n34",
+      "name": "Return to caller",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w04;\nreturn [{ json: $input.first().json.body }];"
+      }
+    }
+  ],
+  "connections": {
+    "GET /slots": {
+      "main": [
+        [
+          {
+            "node": "Resolve caller (lead token | broker JWT)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve caller (lead token | broker JWT)": {
+      "main": [
+        [
+          {
+            "node": "Caller ok?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Caller ok?": {
+      "main": [
+        [
+          {
+            "node": "Load lead + broker + holds (http)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Caller error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Caller error": {
+      "main": [
+        [
+          {
+            "node": "HTTP lane?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load lead + broker + holds (http)": {
+      "main": [
+        [
+          {
+            "node": "Merge (http)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge (http)": {
+      "main": [
+        [
+          {
+            "node": "Plan (w04.planRequest)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Called by W05/W06/W07/W10/W28": {
+      "main": [
+        [
+          {
+            "node": "Normalise sub-call (w04.subcallInput)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise sub-call (w04.subcallInput)": {
+      "main": [
+        [
+          {
+            "node": "Sub op?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sub op?": {
+      "main": [
+        [
+          {
+            "node": "Load broker + holds (sub)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "W28 send_list input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log subcall_rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log subcall_rejected": {
+      "main": [
+        [
+          {
+            "node": "Return (rejected)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W28 send_list input": {
+      "main": [
+        [
+          {
+            "node": "-> W28 send_list (10-slot list)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load broker + holds (sub)": {
+      "main": [
+        [
+          {
+            "node": "Merge (sub)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge (sub)": {
+      "main": [
+        [
+          {
+            "node": "Plan (w04.planRequest)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan (w04.planRequest)": {
+      "main": [
+        [
+          {
+            "node": "Next?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Next?": {
+      "main": [
+        [
+          {
+            "node": "Compute (w04.respond)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Busy cache (60 s)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Compute (w04.respond)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Busy cache (60 s)": {
+      "main": [
+        [
+          {
+            "node": "Cached?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cached?": {
+      "main": [
+        [
+          {
+            "node": "Compute (w04.respond)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Vault: Microsoft refresh token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vault: Microsoft refresh token": {
+      "main": [
+        [
+          {
+            "node": "Microsoft token refresh",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Microsoft token refresh": {
+      "main": [
+        [
+          {
+            "node": "Token plan (w04.planToken)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Token plan (w04.planToken)": {
+      "main": [
+        [
+          {
+            "node": "Token ok?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Token ok?": {
+      "main": [
+        [
+          {
+            "node": "Vault: keep rotated refresh token (daily)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "calendar.refresh_failed (+ status)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "calendar.refresh_failed (+ status)": {
+      "main": [
+        [
+          {
+            "node": "Refresh failed -> fail closed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Refresh failed -> fail closed": {
+      "main": [
+        [
+          {
+            "node": "Compute (w04.respond)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vault: keep rotated refresh token (daily)": {
+      "main": [
+        [
+          {
+            "node": "Token only?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Token only?": {
+      "main": [
+        [
+          {
+            "node": "Compute (w04.respond)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Graph getSchedule (ASSUMPTION)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Graph getSchedule (ASSUMPTION)": {
+      "main": [
+        [
+          {
+            "node": "Parse getSchedule + cache",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse getSchedule + cache": {
+      "main": [
+        [
+          {
+            "node": "Compute (w04.respond)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute (w04.respond)": {
+      "main": [
+        [
+          {
+            "node": "HTTP lane?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP lane?": {
+      "main": [
+        [
+          {
+            "node": "Respond (slots JSON)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return to caller",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "saveManualExecutions": false,
+    "saveDataSuccessExecution": "none",
+    "errorWorkflow": "smc-w22"
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "booking"
+    },
+    {
+      "name": "core"
+    },
+    {
+      "name": "draft"
+    }
+  ],
+  "meta": {
+    "notes": "automation-engineer. W04 slots; logic automation/lib/w04.mjs; tests automation/tests/W04.test.mjs. Callers bind by id smc-w04 (name kept as cachedResultName only)."
+  }
+}

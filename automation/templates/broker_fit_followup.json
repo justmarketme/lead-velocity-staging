@@ -1,0 +1,45 @@
+{
+  "name": "broker_fit_followup",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, a quick nudge. On {{2}} you marked {{3}} as a good fit who needs a follow-up. The follow-up is yours; this is only a reminder. Tap below to tell us where it stands.",
+      "example": {
+        "body_text": [
+          [
+            "Mark",
+            "Thu 15 Oct",
+            "Lerato M."
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover by Lead Velocity"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "QUICK_REPLY",
+          "text": "Followed up"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Still to do"
+        },
+        {
+          "type": "URL",
+          "text": "Open in portal",
+          "url": "https://leadvelocity.co.za/{{1}}",
+          "example": [
+            "https://leadvelocity.co.za/l/ld_51c9"
+          ]
+        }
+      ]
+    }
+  ]
+}

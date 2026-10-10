@@ -1,0 +1,391 @@
+<title>Lead Velocity Broker Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: a course player. Video and its hands-on checkpoint on the left, the nine-chapter rail on the right (stacks on phones).
+   One committed look, Lead Velocity's own: near-black, purple to pink, Einstein. */
+:root{
+  --bg:#0B0A0E; --panel:#141218; --panel2:#1B1821; --line:#2D2537; --fg:#F4F1F8; --mut:#A9A3B5;
+  --p:#A53BF2; --s:#EE4B8F; --grad:linear-gradient(90deg,#A53BF2,#EE4B8F);
+  --ok:#4ADE80; --ok-bg:rgba(74,222,128,.12); --bad:#F87171; --bad-bg:rgba(248,113,113,.12); --amber:#F5A623;
+  --font:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:400 1rem/1.6 var(--font);margin:0;
+  background-image:radial-gradient(60rem 40rem at 90% -10%,rgba(165,59,242,.18),transparent 60%),radial-gradient(50rem 40rem at -10% 110%,rgba(238,75,143,.12),transparent 60%)}
+.wrap{max-width:78rem;margin:0 auto;padding-inline:16px}
+h1,h2,h3{margin:0;line-height:1.15;text-wrap:balance}
+p{margin:0}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--s);outline-offset:2px}
+.grad{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.mono{font-family:var(--mono)}
+
+/* header */
+header{padding-block:1.25rem 1.5rem}
+.top{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:.75rem}
+.brand img{height:3.25rem;width:auto}
+.brand span{font:600 .75rem/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mut)}
+.prog{display:flex;align-items:center;gap:.75rem;font-size:.875rem;color:var(--mut)}
+.bar{width:10rem;height:.5rem;border-radius:999px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--grad);width:0;transition:width .4s}
+.hero{display:grid;grid-template-columns:auto 1fr;gap:1.25rem;align-items:center;margin-top:1.5rem}
+.ein{width:5.5rem;height:5.5rem;border-radius:50%;overflow:hidden;border:3px solid transparent;background:linear-gradient(var(--panel),var(--panel)) padding-box,var(--grad) border-box;flex:none}
+.ein img{width:100%;height:100%;object-fit:cover;display:block}
+.hero h1{font-size:clamp(1.6rem,3.6vw,2.6rem);font-weight:800;letter-spacing:-.03em}
+.hero p{color:var(--mut);margin-top:.35rem;max-width:62ch}
+
+/* layout */
+.course{display:grid;grid-template-columns:minmax(0,1fr) 20rem;gap:1.5rem;align-items:start;padding-bottom:3rem}
+.player{min-width:0}
+.screen{position:relative;border-radius:16px;overflow:hidden;background:#000;aspect-ratio:16/9;box-shadow:0 0 0 1px var(--line),0 30px 80px -30px rgba(165,59,242,.55)}
+.screen video{width:100%;height:100%;display:block;background:#000}
+.nowbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-top:.9rem;flex-wrap:wrap}
+.nowbar h2{font-size:1.35rem;font-weight:700;letter-spacing:-.015em}
+.nowbar .k{font:600 .75rem/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:#D69BFF;display:block;margin-bottom:.35rem}
+.navbtns{display:flex;gap:.5rem}
+.btn{border:0;cursor:pointer;border-radius:999px;padding:.6rem 1.1rem;font-weight:700;font-size:.9375rem}
+.btn.pri{background:var(--grad);color:#fff}
+.btn.sec{background:var(--panel2);border:1px solid var(--line)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* checkpoint */
+.cp{margin-top:1.25rem;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:1.25rem 1.25rem 1.4rem}
+.cp-h{display:flex;align-items:center;gap:.6rem;font:600 .75rem/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--mut)}
+.cp-h b{background:var(--grad);color:#fff;border-radius:999px;padding:.3rem .6rem;letter-spacing:.06em}
+.cp h3{font-size:1.2rem;font-weight:700;margin-top:.75rem}
+.cp .lead{color:var(--mut);margin-top:.3rem;max-width:62ch}
+.opts{display:grid;gap:.5rem;margin-top:1rem}
+.opt{display:flex;gap:.75rem;align-items:flex-start;text-align:left;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:.75rem .9rem;cursor:pointer;width:100%}
+.opt:hover{border-color:#4A3D5C}
+.opt.right{border-color:var(--ok);background:var(--ok-bg)}
+.opt.wrong{border-color:var(--bad);background:var(--bad-bg)}
+.opt .l{flex:none;width:1.6rem;height:1.6rem;border-radius:50%;display:grid;place-items:center;background:var(--line);font:600 .8rem/1 var(--mono)}
+.fb{margin-top:.75rem;border-radius:10px;padding:.7rem .9rem;font-size:.9375rem}
+.fb.ok{background:var(--ok-bg);color:#BBF7D0}.fb.no{background:var(--bad-bg);color:#FECACA}
+.fld{display:grid;gap:.35rem;margin-top:.9rem}
+.fld label{font-weight:600;font-size:.9375rem}
+.fld small{color:var(--mut);font-size:.8125rem}
+input[type=text],textarea,select{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--fg);padding:.65rem .8rem;font:inherit}
+textarea{min-height:5.5rem;resize:vertical}
+.row2{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.75rem}
+.lintout{margin-top:.75rem;display:grid;gap:.4rem;font-size:.9375rem}
+.lintout .preview{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:.7rem .9rem;line-height:1.55}
+.preview mark{background:var(--bad-bg);color:#FECACA;border-bottom:2px solid var(--bad);padding:0 .15rem;border-radius:3px}
+.pill{display:inline-flex;align-items:center;gap:.35rem;border-radius:999px;padding:.2rem .65rem;font-size:.8125rem;font-weight:600}
+.pill.ok{background:var(--ok-bg);color:var(--ok)}.pill.no{background:var(--bad-bg);color:var(--bad)}.pill.n{background:var(--panel2);color:var(--mut);border:1px solid var(--line)}
+.checks{display:grid;gap:.4rem;margin-top:1rem}
+.chk{display:flex;gap:.7rem;align-items:flex-start;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:.65rem .8rem;cursor:pointer}
+.chk input{margin-top:.25rem;accent-color:var(--p);width:1.1rem;height:1.1rem;flex:none}
+.chk span{display:grid;gap:.1rem}
+.chk small{color:var(--mut)}
+.gate{margin-top:1rem;border-radius:12px;padding:.8rem 1rem;font-weight:600}
+.gate.ok{background:var(--ok-bg);color:#BBF7D0}.gate.no{background:rgba(245,166,35,.12);color:#FDE3B0}
+.pairs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem;margin-top:1rem}
+.pair{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:.75rem;min-width:0}
+.pair b{display:block;font-size:.9375rem}
+.pair .two{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-top:.5rem;max-width:17rem}
+.pick{border:2px solid var(--line);border-radius:10px;overflow:hidden;cursor:pointer;background:none;padding:0;position:relative}
+.pick svg{display:block;width:100%;height:auto}
+.pick.right{border-color:var(--ok)}.pick.wrong{border-color:var(--bad)}
+.pick .tag{position:absolute;left:.4rem;top:.4rem;font:700 .75rem/1 var(--font);padding:.25rem .45rem;border-radius:999px}
+.pick.right .tag{background:var(--ok);color:#052e16}.pick.wrong .tag{background:var(--bad);color:#450a0a}
+.pair .why{font-size:.8125rem;color:var(--mut);margin-top:.5rem;min-height:1.2em}
+.script{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:.9rem 1rem;margin-top:1rem;line-height:1.6}
+.meta{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.6rem}
+.tp{position:relative;margin-top:1rem;border-radius:14px;overflow:hidden;height:15rem;background:linear-gradient(170deg,#3E3448,#1D1924)}
+.tp .txt{position:absolute;left:0;right:0;top:0;padding:1rem 1.25rem;font-size:1.35rem;font-weight:700;line-height:1.5;will-change:transform}
+.tp .fade{position:absolute;inset:auto 0 0 0;height:4rem;background:linear-gradient(transparent,#1D1924)}
+.tp .cd{position:absolute;inset:0;display:grid;place-items:center;font-size:6rem;font-weight:800;background:rgba(0,0,0,.45)}
+.tp .clock{position:absolute;right:.75rem;bottom:.6rem;font:600 .9rem/1 var(--mono);background:rgba(0,0,0,.55);padding:.35rem .6rem;border-radius:999px}
+.tp .clock i{display:inline-block;width:.55rem;height:.55rem;border-radius:50%;background:#EF4444;margin-right:.35rem}
+.ctrl{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-top:.75rem}
+.ctrl label{font-size:.875rem;color:var(--mut)}
+.list7{display:grid;gap:.4rem;margin-top:1rem}
+.list7 div{display:grid;grid-template-columns:2rem 1fr auto;gap:.6rem;align-items:center;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:.55rem .8rem}
+.list7 i{font-style:normal;font:600 .8rem/1 var(--mono);color:#D69BFF}
+.list7 small{color:var(--mut);font-variant-numeric:tabular-nums}
+
+/* rail */
+.rail{position:sticky;top:calc(env(safe-area-inset-top, 0px) + 1rem);background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:.6rem}
+.rail h3{font:600 .75rem/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--mut);padding:.6rem .6rem .7rem}
+.ch{display:grid;grid-template-columns:1.9rem 1fr auto;gap:.6rem;align-items:center;width:100%;text-align:left;border:0;background:none;border-radius:10px;padding:.55rem .6rem;cursor:pointer}
+.ch:hover{background:var(--panel2)}
+.ch.on{background:var(--panel2);box-shadow:inset 3px 0 0 var(--s)}
+.ch .st{width:1.6rem;height:1.6rem;border-radius:50%;display:grid;place-items:center;border:1.5px solid var(--line);font:600 .75rem/1 var(--mono);color:var(--mut)}
+.ch.done .st{background:var(--grad);border-color:transparent;color:#fff}
+.ch .t{font-weight:600;font-size:.9375rem;line-height:1.3}
+.ch .t small{display:block;font-weight:400;color:var(--mut);font-size:.8125rem}
+.ch .d{font:500 .75rem/1 var(--mono);color:var(--mut);font-variant-numeric:tabular-nums}
+.note{font-size:.8125rem;color:var(--mut);padding:.75rem .6rem .4rem;border-top:1px solid var(--line);margin-top:.4rem}
+footer{color:var(--mut);font-size:.8125rem;padding-block:0 2.5rem}
+
+@media (max-width:900px){.course{grid-template-columns:1fr}.rail{position:static}.row2{grid-template-columns:1fr}}
+@media (max-width:560px){.pairs{grid-template-columns:1fr}.hero{grid-template-columns:1fr}.bar{width:6rem}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<header class="wrap">
+  <div class="top">
+    <div class="brand"><img src="img/lv-logo.png" alt="Lead Velocity"><span>Broker Academy</span></div>
+    <div class="prog" aria-live="polite"><span id="progTxt">0 of 9 chapters</span><span class="bar"><i id="progBar"></i></span></div>
+  </div>
+  <div class="hero">
+    <div class="ein"><img src="img/einstein-wave.jpg" alt="Einstein, the Lead Velocity mascot, waving"></div>
+    <div>
+      <h1>Get set up, and record an intro <span class="grad">your clients will show up for.</span></h1>
+      <p>Nine short chapters with voice-over, about four minutes in all. After each one, try it yourself: check your FSP wording, draft your script, spot the right setup and practise on the teleprompter.</p>
+    </div>
+  </div>
+</header>
+
+<main class="wrap course">
+  <section class="player" aria-label="Chapter player">
+    <div class="screen"><video id="vid" controls playsinline preload="metadata"></video></div>
+    <div class="nowbar">
+      <div><span class="k" id="nowK">Chapter 1 of 9</span><h2 id="nowT"></h2></div>
+      <div class="navbtns"><button class="btn sec" id="prev" type="button">Back</button><button class="btn pri" id="next" type="button">Next chapter</button></div>
+    </div>
+    <div class="cp" id="cp" aria-live="polite"></div>
+  </section>
+
+  <aside class="rail" aria-label="Chapters">
+    <h3>Chapters</h3>
+    <div id="chapters"></div>
+    <p class="note">Your progress is saved in this browser. The real steps happen in your portal, which opens from the link we WhatsApp you.</p>
+  </aside>
+</main>
+
+<footer class="wrap">Examples use a fictional adviser, Sam Example, Example Financial Planning, FSP 00000. Lead Velocity runs SortMyCover, the brand your clients see.</footer>
+
+<script>
+(function () {
+  var CH = [
+    { id: 'c1', t: 'Welcome', s: 'What to expect', d: '0:16' },
+    { id: 'c2', t: 'Why we need this', s: 'Your FSP, the register, your face', d: '0:30' },
+    { id: 'c3', t: 'The seven steps', s: 'And the four that unlock go-live', d: '0:25' },
+    { id: 'c4', t: 'Your details and FSP', s: 'Practice, FSP number, two lines', d: '0:27' },
+    { id: 'c5', t: 'Calendar and agreement', s: 'Outlook, hours, signing', d: '0:25' },
+    { id: 'c6', t: 'The interview', s: 'Eight questions, three scripts', d: '0:36' },
+    { id: 'c7', t: 'Your look and setting', s: 'Light, angle, sound, background', d: '0:28' },
+    { id: 'c8', t: 'Recording', s: 'Teleprompter, checks, options', d: '0:26' },
+    { id: 'c9', t: 'Approve and go live', s: 'What your clients receive', d: '0:21' }
+  ];
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var store = { get: function (k, d) { try { var v = localStorage.getItem('lva_' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+                set: function (k, v) { try { localStorage.setItem('lva_' + k, JSON.stringify(v)); } catch (e) {} } };
+  var done = store.get('done', {}), cur = store.get('cur', 0);
+  if (typeof cur !== 'number' || cur < 0 || cur > 8) cur = 0;
+  var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+
+  /* compliance words: mirrors the portal check (no products, insurers, premiums, amounts, promises, superlatives) */
+  var BANNED = [
+    [/\b(best|cheapest|cheap|top|number one|no\.? ?1)\b/gi, 'superlatives'],
+    [/\b(guarantee[ds]?|guaranteed|promise[ds]?|risk[- ]free|100%)\b/gi, 'promises'],
+    [/\b(premiums?|quotes?|discounts?|savings?|save|returns?|invest(ment|ing)?s?|growth|interest rate)\b/gi, 'money talk'],
+    [/\bR ?\d[\d ,.]*\b|\b\d+ ?%/gi, 'amounts'],
+    [/\b(discovery|old mutual|sanlam|liberty|momentum|hollard|clientele|brightrock|pps|assupol|1life|fnb|absa|capitec|nedbank|standard bank|metropolitan|bidvest|king price|outsurance|miway)\b/gi, 'insurer or bank names'],
+    [/\b(no medicals?|no medical|anyone qualifies|everyone qualifies|guaranteed acceptance|regardless of health)\b/gi, 'health promises'],
+    [/\b(free cover|policy|policies|product)\b/gi, 'product talk'],
+    [/\b(today only|limited time|act now|hurry|last chance)\b/gi, 'pressure']
+  ];
+  function lint(text) {
+    var hits = [], spans = [];
+    BANNED.forEach(function (b) { var re = new RegExp(b[0].source, b[0].flags), m; while ((m = re.exec(text))) { hits.push({ w: m[0], why: b[1] }); spans.push([m.index, m.index + m[0].length]); if (!m[0].length) re.lastIndex++; } });
+    spans.sort(function (a, b) { return a[0] - b[0]; });
+    var out = '', i = 0; spans.forEach(function (s) { if (s[0] < i) return; out += esc(text.slice(i, s[0])) + '<mark>' + esc(text.slice(s[0], s[1])) + '</mark>'; i = s[1]; }); out += esc(text.slice(i));
+    return { hits: hits, html: out };
+  }
+
+  /* the draft script, shared by chapters 6 and 8 */
+  var draft = store.get('draft', null);
+  var DEF_SCRIPT = "Hi, I'm Sam from Example Financial Planning, FSP 00000. I work with families who've got a bond and people depending on them. On our call I'll ask a few questions and tell you plainly where you stand. There's nothing to buy and no pressure. Thirty minutes is usually all it takes. Looking forward to speaking with you.";
+
+  var SETUP = [
+    { t: 'Light', bad: 'win-behind', good: 'win-front', why: 'Face a window or lamp. A window behind you turns you into a silhouette.' },
+    { t: 'Camera angle', bad: 'low', good: 'eye', why: 'Eye level, upright, an arm’s length away. Looking down at the lens reads as distant.' },
+    { t: 'Background', bad: 'wall', good: 'room', why: 'A tidy room with some depth looks natural. A wall right behind you looks like a passport photo.' },
+    { t: 'Sound', bad: 'noisy', good: 'quiet', why: 'Door closed, fan and aircon off. People stop watching when the audio is bad.' }
+  ];
+  function scene(kind) {
+    var P = '<circle cx="45" cy="62" r="17" fill="SK"/><path d="M14 160c0-32 14-56 31-56s31 24 31 56z" fill="SH"/>';
+    var person = function (sk, sh) { return P.replace('SK', sk).replace('SH', sh); };
+    var bg = '#3A3346', body = '';
+    if (kind === 'win-behind') body = '<rect width="90" height="160" fill="#2A2433"/><rect x="18" y="18" width="54" height="74" fill="#FFF7D6"/>' + person('#15121A', '#15121A');
+    if (kind === 'win-front') body = '<rect width="90" height="160" fill="' + bg + '"/><path d="M0 0L90 0L90 160L0 160Z" fill="url(#lg)"/>' + person('#EBC8AA', '#4B6A8C');
+    if (kind === 'low') body = '<rect width="90" height="160" fill="' + bg + '"/><g transform="translate(-14,10) scale(1.3)">' + person('#C9A88E', '#3C5A7A') + '</g><rect y="140" width="90" height="20" fill="#221D29"/>';
+    if (kind === 'eye') body = '<rect width="90" height="160" fill="' + bg + '"/>' + person('#EBC8AA', '#4B6A8C') + '<circle cx="45" cy="34" r="3" fill="#F8C83E"/>';
+    if (kind === 'wall') body = '<rect width="90" height="160" fill="#D9D4CC"/>' + person('#EBC8AA', '#4B6A8C');
+    if (kind === 'room') body = '<rect width="90" height="160" fill="#4A4052"/><rect y="96" width="90" height="64" fill="#3A3146"/><rect x="5" y="28" width="22" height="34" fill="#6B5A7A"/><rect x="63" y="40" width="18" height="52" fill="#5A4A66"/><circle cx="72" cy="36" r="8" fill="#4ADE80" opacity=".45"/>' + person('#EBC8AA', '#4B6A8C');
+    if (kind === 'noisy') body = '<rect width="90" height="160" fill="' + bg + '"/>' + person('#EBC8AA', '#4B6A8C') + '<g fill="none" stroke="#F87171" stroke-width="3" stroke-linecap="round"><path d="M10 30q8-8 0-16M18 34q14-14 0-28M80 30q-8-8 0-16M72 34q-14-14 0-28"/></g>';
+    if (kind === 'quiet') body = '<rect width="90" height="160" fill="' + bg + '"/>' + person('#EBC8AA', '#4B6A8C') + '<rect x="62" y="14" width="20" height="32" rx="2" fill="#2A2433" stroke="#4ADE80" stroke-width="2"/>';
+    return '<svg viewBox="0 0 90 160" role="img" aria-label="' + kind.replace('-', ' ') + '"><defs><linearGradient id="lg" x1="0" x2="1"><stop offset="0" stop-color="#FFF4D0" stop-opacity=".35"/><stop offset="1" stop-color="#FFF4D0" stop-opacity="0"/></linearGradient></defs>' + body + '</svg>';
+  }
+
+  var CP = {
+    c1: function (el) {
+      el.innerHTML = head('Before you start') + '<h3>What do you want to get done today?</h3><p class="lead">Pick one. We\'ll point you at the right chapters.</p>' +
+        '<div class="opts"><button class="opt" data-go="1" type="button"><span class="l">A</span><span><b>Get ready to go live</b><br><small>Chapters 2 to 5 · about 12 minutes in the portal</small></span></button>' +
+        '<button class="opt" data-go="5" type="button"><span class="l">B</span><span><b>Record my intro video</b><br><small>Chapters 6 to 9 · about 10 minutes in the portal</small></span></button>' +
+        '<button class="opt" data-go="1" type="button"><span class="l">C</span><span><b>Everything, in order</b><br><small>All nine chapters · about 5 minutes to watch</small></span></button></div>';
+      el.querySelectorAll('[data-go]').forEach(function (b) { b.onclick = function () { go(+b.dataset.go); }; });
+    },
+    c2: function (el) {
+      quiz(el, 'Quick check', 'When does a client first see your name and FSP number?', [
+        ['On the Facebook or Instagram ad', false, 'Not on the ad. Ads are SortMyCover-branded and never name an adviser.'],
+        ['In their first WhatsApp, before any meeting', true, 'Right. Your intro card, with your practice and FSP number, arrives within 60 seconds of the form, before anything is booked.'],
+        ['Only when you speak on the call', false, 'Too late. The law wants your details disclosed before any meeting, so we send them first.']]);
+    },
+    c3: function (el) {
+      var steps = [['Watch the overview', '3 min', 0], ['Details and FSP number', '3 min', 1], ['Connect Outlook', '1 min', 1], ['Hours and how you meet', '1 min', 0], ['Sign the agreement', '3 min', 1], ['Approve your intro card', '1 min', 1], ['Record your intro', '10 min', 0]];
+      var st = store.get('steps', [0, 0, 0, 0, 0, 0, 0]);
+      el.innerHTML = head('Try it') + '<h3>Tick what you\'ve done. See if you can go live.</h3><p class="lead">The four marked “go-live” must be done. Your video can come later.</p><div class="checks" id="s7"></div><div class="gate" id="gate"></div>';
+      var box = $('#s7', el);
+      steps.forEach(function (s, i) {
+        var l = document.createElement('label'); l.className = 'chk';
+        l.innerHTML = '<input type="checkbox" id="step' + i + '"' + (st[i] ? ' checked' : '') + '><span><b>' + (i + 1) + '. ' + s[0] + (s[2] ? ' <span class="pill n">go-live</span>' : '') + '</b><small>' + s[1] + '</small></span>';
+        box.appendChild(l); $('input', l).onchange = function (e) { st[i] = e.target.checked ? 1 : 0; store.set('steps', st); gate(); };
+      });
+      function gate() {
+        var miss = steps.filter(function (s, i) { return s[2] && !st[i]; }).map(function (s) { return s[0]; });
+        var g = $('#gate', el); g.className = 'gate ' + (miss.length ? 'no' : 'ok');
+        g.textContent = miss.length ? 'Not yet. Still needed: ' + miss.join(', ') + '.' : 'Ready. We run a final check, then switch you on and leads start.' + (st[6] ? '' : ' Your video can follow any time.');
+      }
+      gate();
+    },
+    c4: function (el) {
+      var v = store.get('bio', 'I offer the best cover at the cheapest premiums.');
+      el.innerHTML = head('Try it') + '<h3>Write your “two lines about you”.</h3><p class="lead">This is the same check the portal runs when you save. It flags words we can\'t send to clients, and shows you exactly which one.</p>' +
+        '<div class="fld"><label for="bio">Two lines about who you help</label><textarea id="bio" maxlength="260"></textarea><small>40 to 220 characters. Your own words.</small></div><div class="lintout" id="lo"></div>';
+      var ta = $('#bio', el); ta.value = v;
+      function run() {
+        var t = ta.value, r = lint(t), n = t.trim().length, okLen = n >= 40 && n <= 220;
+        store.set('bio', t);
+        $('#lo', el).innerHTML = '<div class="preview">' + (r.html || '<span style="color:var(--mut)">Start typing…</span>') + '</div><div class="meta">' +
+          (r.hits.length ? '<span class="pill no">✕ ' + r.hits.map(function (h) { return '“' + esc(h.w) + '” (' + h.why + ')'; }).join(', ') + '</span>' : '<span class="pill ok">✓ No blocked words</span>') +
+          '<span class="pill ' + (okLen ? 'ok' : 'n') + '">' + n + ' characters' + (okLen ? '' : n < 40 ? ' · a bit short' : ' · too long') + '</span></div>' +
+          (r.hits.length ? '<p style="color:var(--mut);font-size:.875rem">Try: “I help young families work out if the cover they have still fits their life.”</p>' : '');
+      }
+      ta.oninput = run; run();
+    },
+    c5: function (el) {
+      quiz(el, 'Quick check', 'You connect Outlook. What can we see?', [
+        ['Your emails and contacts, so we can follow up', false, 'No. We never read your email. The sign-in only asks for your calendar.'],
+        ['When you\'re free, and we can add the meetings we book', true, 'Right. Free and busy times, plus adding meetings (with a Teams link if it\'s a video call). Nothing else.'],
+        ['Everything in your Microsoft account', false, 'No. The sign-in screen lists exactly what we ask for: your calendar and online meetings.']]);
+    },
+    c6: function (el) {
+      var d = draft || { name: 'Sam', practice: 'Example Financial Planning', fsp: '00000', who: 'families who\'ve got a bond and people depending on them', not: 'push anyone to decide on the call', prep: 'nothing special, a recent payslip helps' };
+      el.innerHTML = head('Try it') + '<h3>Answer three of the eight questions. See a draft script.</h3><p class="lead">In the portal you answer all eight, by typing or talking, and we write three versions. This is a quick taste.</p>' +
+        '<div class="row2"><div class="fld"><label for="f-name">First name</label><input type="text" id="f-name"></div><div class="fld"><label for="f-prac">Practice name</label><input type="text" id="f-prac"></div><div class="fld"><label for="f-fsp">FSP number</label><input type="text" id="f-fsp" inputmode="numeric"></div></div>' +
+        '<div class="fld"><label for="f-who">Who do you help most?</label><input type="text" id="f-who"><small>e.g. families in their 30s and 40s with a bond and kids</small></div>' +
+        '<div class="fld"><label for="f-not">What do you not do?</label><input type="text" id="f-not"><small>e.g. push anyone to decide on the call</small></div>' +
+        '<div class="fld"><label for="f-prep">How should someone prepare?</label><input type="text" id="f-prep"><small>e.g. nothing special, a recent payslip helps</small></div>' +
+        '<div class="ctrl"><button class="btn pri" id="mk" type="button">Write my draft</button></div><div id="out"></div>';
+      var map = { name: 'f-name', practice: 'f-prac', fsp: 'f-fsp', who: 'f-who', not: 'f-not', prep: 'f-prep' };
+      Object.keys(map).forEach(function (k) { $('#' + map[k], el).value = d[k] || ''; });
+      function build() {
+        Object.keys(map).forEach(function (k) { d[k] = $('#' + map[k], el).value.trim(); });
+        var lc = function (s) { return s.charAt(0).toLowerCase() + s.slice(1).replace(/[.!]+$/, ''); };
+        var txt = 'Hi, I\'m ' + (d.name || 'Sam') + ' from ' + (d.practice || 'my practice') + ', FSP ' + (d.fsp || '00000') + '. I work with ' + lc(d.who || 'people with others depending on them') + '. On our call I\'ll ask a few questions and tell you plainly where you stand. I don\'t ' + lc(d.not || 'push anyone').replace(/^i don'?t /i, '') + ', and there\'s nothing to buy. To prepare: ' + lc(d.prep || 'nothing special') + '. Thirty minutes is usually all it takes. Looking forward to speaking with you.';
+        var words = txt.split(/\s+/).length, secs = Math.round(words / 2.6), r = lint(txt), hasFsp = /FSP \d{3,6}/.test(txt);
+        draft = d; d.text = txt; store.set('draft', d);
+        $('#out', el).innerHTML = '<div class="script">' + r.html + '</div><div class="meta"><span class="pill ' + (words <= 90 ? 'ok' : 'no') + '">' + words + ' words · about ' + secs + ' s</span>' +
+          (r.hits.length ? '<span class="pill no">✕ Fix: ' + r.hits.map(function (h) { return '“' + esc(h.w) + '”'; }).join(', ') + '</span>' : '<span class="pill ok">✓ No products, premiums or advice</span>') +
+          '<span class="pill ' + (hasFsp ? 'ok' : 'no') + '">' + (hasFsp ? '✓ Practice and FSP included' : '✕ Add your FSP number') + '</span></div>' +
+          '<p style="color:var(--mut);font-size:.875rem;margin-top:.6rem">Saved for the teleprompter in chapter 8. In the portal, a final compliance check runs on whatever you pick.</p>';
+      }
+      $('#mk', el).onclick = build; if (draft && draft.text) build();
+    },
+    c7: function (el) {
+      var score = store.get('setup', {});
+      el.innerHTML = head('Try it') + '<h3>Spot the right setup.</h3><p class="lead">In each pair, tap the one you\'d want your clients to see.</p><div class="pairs" id="pairs"></div>' +
+        '<h3 style="margin-top:1.5rem">Your two-minute checklist</h3><p class="lead">Tick each one before you press record.</p><div class="checks" id="cl"></div>';
+      var pairs = $('#pairs', el);
+      SETUP.forEach(function (s, i) {
+        var flip = i % 2 === 1, a = flip ? s.good : s.bad, b = flip ? s.bad : s.good;
+        var p = document.createElement('div'); p.className = 'pair';
+        p.innerHTML = '<b>' + s.t + '</b><div class="two"><button class="pick" type="button" data-k="' + a + '">' + scene(a) + '<span class="tag"></span></button><button class="pick" type="button" data-k="' + b + '">' + scene(b) + '<span class="tag"></span></button></div><p class="why"></p>';
+        pairs.appendChild(p);
+        function mark(k) { p.querySelectorAll('.pick').forEach(function (x) { var good = x.dataset.k === s.good; x.classList.toggle('right', good); x.classList.toggle('wrong', !good && x.dataset.k === k); $('.tag', x).textContent = good ? '✓ Do' : (x.dataset.k === k ? '✕ Don\'t' : ''); });
+          $('.why', p).textContent = (k === s.good ? 'Yes. ' : 'Not quite. ') + s.why; }
+        p.querySelectorAll('.pick').forEach(function (x) { x.onclick = function () { score[i] = x.dataset.k; store.set('setup', score); mark(x.dataset.k); }; });
+        if (score[i]) mark(score[i]);
+      });
+      var CL = [['Face a window or lamp, no window behind you', 'Front light shows your face. Backlight makes you a silhouette.'], ['Phone upright, at eye level, an arm’s length away', 'Eye level puts you on equal footing. Portrait fills a phone screen.'], ['Look at the lens, not at yourself', 'Eye contact is the trust signal the whole video exists for.'], ['Quiet room, door closed, fan and aircon off', 'Your voice matters more than the picture.'], ['A tidy room behind you, not a bare wall', 'Depth looks natural. A wall looks like a passport photo.'], ['Wear what you’d wear to meet a client', 'Match what they’ll see on the call.'], ['Smile first, speak to one person', 'One person is watching, not an audience.'], ['20 to 30 seconds, one take is fine', 'Short videos get watched to the end.']];
+      var ck = store.get('cl', []), cl = $('#cl', el);
+      CL.forEach(function (c, i) { var l = document.createElement('label'); l.className = 'chk'; l.innerHTML = '<input type="checkbox" id="cl' + i + '"' + (ck[i] ? ' checked' : '') + '><span><b>' + c[0] + '</b><small>' + c[1] + '</small></span>'; cl.appendChild(l); $('input', l).onchange = function (e) { ck[i] = e.target.checked; store.set('cl', ck); }; });
+    },
+    c8: function (el) {
+      var text = (draft && draft.text) || DEF_SCRIPT;
+      el.innerHTML = head('Try it') + '<h3>Practise with the teleprompter.</h3><p class="lead">Read along out loud. Aim for 20 to 30 seconds. ' + (draft && draft.text ? 'This is your draft from chapter 6.' : 'Write your own draft in chapter 6, or use this example.') + '</p>' +
+        '<div class="tp" id="tp"><div class="txt" id="tpt"></div><div class="fade"></div><div class="cd" id="tcd" hidden></div><div class="clock" id="tck" hidden><i></i><span id="tcs">0:00</span></div></div>' +
+        '<div class="ctrl"><button class="btn pri" id="tgo" type="button">Start 3-2-1</button><button class="btn sec" id="tst" type="button" disabled>Stop</button><label for="spd">Speed</label><select id="spd" style="width:auto"><option value="130">Relaxed</option><option value="150" selected>Normal</option><option value="170">Brisk</option></select></div><p class="fb" id="tres" hidden></p>';
+      $('#tpt', el).textContent = text;
+      var timer = null, raf = null, t0 = 0;
+      function stop(finished) {
+        clearInterval(timer); cancelAnimationFrame(raf); $('#tst', el).disabled = true; $('#tgo', el).disabled = false; $('#tcd', el).hidden = true;
+        var secs = t0 ? (performance.now() - t0) / 1000 : 0;
+        if (t0) { var r = $('#tres', el); r.hidden = false; r.className = 'fb ' + (secs >= 18 && secs <= 35 ? 'ok' : 'no');
+          r.textContent = Math.round(secs) + ' seconds. ' + (secs < 18 ? 'A little quick. Slow down and smile.' : secs > 35 ? 'A bit long. Try Brisk, or trim a line in your script.' : 'Good length. That\'s what clients watch to the end.'); }
+        t0 = 0;
+      }
+      $('#tgo', el).onclick = function () {
+        var n = 3, cd = $('#tcd', el), txt = $('#tpt', el), box = $('#tp', el);
+        $('#tres', el).hidden = true; $('#tgo', el).disabled = true; $('#tst', el).disabled = false; txt.style.transform = 'translateY(0)'; cd.hidden = false; cd.textContent = n;
+        timer = setInterval(function () {
+          n--; if (n > 0) { cd.textContent = n; return; }
+          clearInterval(timer); cd.hidden = true; $('#tck', el).hidden = false; t0 = performance.now();
+          var words = text.split(/\s+/).length, dur = words / (+$('#spd', el).value) * 60, dist = Math.max(0, txt.offsetHeight - box.offsetHeight * 0.45);
+          (function step() { var s = (performance.now() - t0) / 1000; txt.style.transform = 'translateY(' + (-dist * Math.min(1, s / dur)) + 'px)';
+            $('#tcs', el).textContent = '0:' + String(Math.floor(s)).padStart(2, '0'); if (s < dur + 1.5) raf = requestAnimationFrame(step); else stop(true); })();
+        }, 800);
+      };
+      $('#tst', el).onclick = function () { stop(false); };
+    },
+    c9: function (el) {
+      var steps = [['Watch the overview', '3 min'], ['Details and FSP number', '3 min'], ['Connect Outlook', '1 min'], ['Hours and how you meet', '1 min'], ['Sign the agreement', '3 min'], ['Approve your intro card', '1 min'], ['Record your intro', '10 min']];
+      el.innerHTML = head('You\'re ready') + '<h3>Your next steps in the portal</h3><p class="lead">Open the portal from the link we WhatsApp you. Everything you type is saved, so you never type it twice. Stuck? Reply to us on WhatsApp. No call needed.</p>' +
+        '<div class="list7">' + steps.map(function (s, i) { return '<div><i>' + (i + 1) + '</i><span>' + s[0] + '</span><small>' + s[1] + '</small></div>'; }).join('') + '</div>' +
+        '<p class="lead" style="margin-top:1rem">When your video is approved, your clients get it after they book, or two days before the call, and as a friendly nudge if they haven\'t booked yet.</p>';
+    }
+  };
+  function head(label) { return '<div class="cp-h"><b>' + label + '</b><span>Chapter ' + (cur + 1) + ' · ' + esc(CH[cur].t) + '</span></div>'; }
+  function quiz(el, label, q, opts) {
+    var ans = store.get('q_' + CH[cur].id, null);
+    el.innerHTML = head(label) + '<h3>' + esc(q) + '</h3><div class="opts">' + opts.map(function (o, i) { return '<button class="opt" type="button" data-i="' + i + '"><span class="l">' + 'ABC'[i] + '</span><span>' + esc(o[0]) + '</span></button>'; }).join('') + '</div><p class="fb" hidden></p>';
+    function pick(i) { el.querySelectorAll('.opt').forEach(function (b, j) { b.classList.toggle('right', opts[j][1] && j === i); b.classList.toggle('wrong', !opts[j][1] && j === i); });
+      var fb = $('.fb', el); fb.hidden = false; fb.className = 'fb ' + (opts[i][1] ? 'ok' : 'no'); fb.textContent = opts[i][2]; }
+    el.querySelectorAll('.opt').forEach(function (b) { b.onclick = function () { var i = +b.dataset.i; store.set('q_' + CH[cur].id, i); pick(i); }; });
+    if (ans != null) pick(ans);
+  }
+
+  var vid = $('#vid');
+  function renderRail() {
+    $('#chapters').innerHTML = CH.map(function (c, i) {
+      return '<button class="ch' + (i === cur ? ' on' : '') + (done[c.id] ? ' done' : '') + '" type="button" data-i="' + i + '"' + (i === cur ? ' aria-current="step"' : '') + '><span class="st">' + (done[c.id] ? '✓' : i + 1) + '</span><span class="t">' + esc(c.t) + '<small>' + esc(c.s) + '</small></span><span class="d">' + c.d + '</span></button>';
+    }).join('');
+    $('#chapters').querySelectorAll('.ch').forEach(function (b) { b.onclick = function () { go(+b.dataset.i, true); }; });
+    var n = CH.filter(function (c) { return done[c.id]; }).length;
+    $('#progTxt').textContent = n + ' of 9 chapters'; $('#progBar').style.width = (n / 9 * 100) + '%';
+  }
+  function go(i, play) {
+    cur = Math.max(0, Math.min(8, i)); store.set('cur', cur);
+    var c = CH[cur];
+    vid.src = 'clips/' + c.id + '.mp4'; vid.poster = 'clips/' + c.id + '.jpg';
+    $('#nowK').textContent = 'Chapter ' + (cur + 1) + ' of 9 · ' + c.d; $('#nowT').textContent = c.t;
+    $('#prev').disabled = cur === 0; $('#next').textContent = cur === 8 ? 'Finish' : 'Next chapter';
+    CP[c.id]($('#cp')); renderRail();
+    if (play) { var p = vid.play(); if (p && p.catch) p.catch(function () {}); }
+  }
+  vid.addEventListener('ended', function () { done[CH[cur].id] = 1; store.set('done', done); renderRail(); $('#cp').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); });
+  vid.addEventListener('timeupdate', function () { if (vid.duration && vid.currentTime / vid.duration > 0.9 && !done[CH[cur].id]) { done[CH[cur].id] = 1; store.set('done', done); renderRail(); } });
+  $('#prev').onclick = function () { go(cur - 1, true); };
+  $('#next').onclick = function () { done[CH[cur].id] = done[CH[cur].id] || 0; if (cur < 8) go(cur + 1, true); else { done[CH[8].id] = 1; store.set('done', done); renderRail(); } };
+  var h = (location.hash || '').replace('#', ''); var hi = CH.findIndex(function (c) { return c.id === h; }); if (hi >= 0) cur = hi;
+  go(cur, false);
+})();
+</script>

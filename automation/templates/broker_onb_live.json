@@ -1,0 +1,38 @@
+{
+  "name": "broker_onb_live",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "You're live"
+    },
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, you're live. New leads can now be booked into your calendar. Each one reaches you as a WhatsApp message with the time and method. You'll get a morning list at 07:30, a short brief 15 minutes before each call, and your first report on {{2}} at 07:00.",
+      "example": {
+        "body_text": [
+          [
+            "Mark",
+            "Monday"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover by Lead Velocity"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Open my leads",
+          "url": "https://leadvelocity.co.za/leads"
+        }
+      ]
+    }
+  ]
+}

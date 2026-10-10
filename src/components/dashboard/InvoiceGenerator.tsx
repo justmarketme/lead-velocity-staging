@@ -12,6 +12,20 @@ import { supabase } from "@/integrations/supabase/client";
 import { getInvoiceEmailSignature } from "@/utils/emailSignature";
 import { BrokerSelector } from "./BrokerSelector";
 import { callLegalAI } from "@/utils/legalAI";
+import { TIERS, ALL_PLANS, PILOT, isPilot, TERMS, TOPUP, zar, topupMinimumZar, LATE_PAYMENT_TEXT, type PricingTier } from "@/lib/pricing";
+
+// Invoice line + terms built from the pricing source (3.6) - no price is typed in this file.
+// Wording never mentions policies, commission or success (FAIS, Raspberry Academy v Oaksure).
+const invoiceLine = (t: PricingTier) => ({
+    description: isPilot(t)
+        ? `Lead generation & marketing services: ${t.name} (once-off introductory cycle), billing cycle [START]-[END]: ${t.committed_leads} Qualified Leads, all-inclusive of advertising media spend`
+        : `Lead generation & marketing services: ${t.name} plan, billing cycle [START]-[END]: ${t.committed_leads} Qualified Leads, all-inclusive of advertising media spend`,
+    quantity: 1,
+    price: t.price_zar,
+});
+const invoiceTerms = (t: PricingTier) => `Payable in advance, before the billing cycle starts; delivery starts once payment has cleared. ${LATE_PAYMENT_TEXT} ${isPilot(t) ? `Once-off introductory cycle: the ${t.name} is a single ${TERMS.cycle_days}-day cycle; to continue, the client pays in advance for ${PILOT.continue_on}, otherwise the agreement ends.` : `Month to month: either party may cancel with ${TERMS.cancel_notice_days} days' written notice before the next cycle.`} Fees for a cycle that has started are not refundable. Top-ups (once the cycle's leads are delivered): ${zar(TOPUP.price_per_lead_zar)} per Qualified Lead, minimum ${TOPUP.min_leads} (${zar(topupMinimumZar())}), ${TOPUP.notice_days} days' notice, paid in advance.`;
+// A preset swaps the terms only while they are still one of the generated texts, so a hand-edited note is never overwritten.
+const isGeneratedTerms = (notes: string) => ALL_PLANS.some((p) => invoiceTerms(p) === notes);
 
 interface InvoiceGeneratorProps {
     onBack: () => void;
@@ -109,20 +123,15 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
         clientName: "Client Company Name",
         clientAddress: "123 Client Street, City, Country",
         clientVat: "VAT: 4000123456",
-        items: [
-            { description: "Lead Generation Strategy (Bronze Tier)", quantity: 1, price: 8500 },
-            { description: "Platform Setup & Configuration", quantity: 1, price: 0 }
-        ],
-        notes: "Terms: Paid monthly in advance. Should the Client breach material terms (non-payment or commission violations), lead delivery will be suspended until re-activated. No refunds are provided for premature cancellation within an active 30-day cycle, as allocations cover digital inventory costs.",
-        bankName: "First National Bank",
-        accountName: "Lead Velocity Pty Ltd",
-        accountNumber: "63174286724", // Updated to match requested banking details
-        branchCode: "250655",
+        items: [invoiceLine(TIERS[0])],
+        notes: invoiceTerms(TIERS[0]),
+        // NH-61: no bank account details in the build. Payment is by EFT, in advance, per 30-day cycle; Jonathan adds the account details on his own invoice.
+        paymentWording: `Payment by EFT or Paystack, in advance, per ${TERMS.cycle_days}-day cycle.`,
         reference: "INV-2024-001",
-        companyAddressLine1: "100 West Street, Sandton",
-        companyAddressLine2: "Johannesburg, 2196",
+        companyAddressLine1: "210 Amarand Avenue, Pegasus Building 1, Menlyn Maine",
+        companyAddressLine2: "Pretoria, 0184",
         companyEmail: "howzit@leadvelocity.co.za",
-        companyRegNumber: "Reg: 2024/123456/07"
+        companyRegNumber: "Reg: [REG NO]"
     });
 
     const [history, setHistory] = useState<any[]>([]);
@@ -174,30 +183,9 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
         const clientCompany = broker.firm_name || broker.company_name || "Independent Broker";
         const leads = broker.desired_leads_weekly || 0;
 
-        let tierPrice = 8500;
-        let tierName = "Bronze Tier";
-        let leadCount = 17;
-
-        if (leads <= 10 && leads > 0) {
-            tierPrice = 6000;
-            tierName = "Pilot Phase";
-            leadCount = 10;
-        } else if (leads > 32) {
-            tierPrice = 16500;
-            tierName = "Gold Tier";
-            leadCount = 40;
-        } else if (leads >= 21) {
-            tierPrice = 10500;
-            tierName = "Silver Tier";
-            leadCount = 26;
-        }
-
-        const tierDesc = tierName;
-
-        const newItems = [...invoiceData.items];
-        if (newItems.length > 0) {
-            newItems[0] = { ...newItems[0], description: tierDesc, price: tierPrice };
-        }
+        // Smallest plan that covers the broker's stated volume (weekly x 4 = per cycle).
+        const wantedPerCycle = Math.round(Number(leads) * 4);
+        const tier = TIERS.find((t) => t.committed_leads >= wantedPerCycle) || TIERS[TIERS.length - 1];
 
         setInvoiceData(prev => ({
             ...prev,
@@ -206,19 +194,8 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
             clientEmail: broker.email || "",
             clientPhone: broker.phone_number || broker.phone || "",
             clientAddress: broker.office_address || "Address: To be updated",
-            items: [
-                {
-                    description: `Monthly Service Fee - ${tierDesc} (${leadCount} Lead Tokens)`,
-                    quantity: 1,
-                    price: tierPrice,
-                },
-                {
-                    description: "Lead Management Platform & Advanced Filtering",
-                    quantity: 1,
-                    price: 0,
-                }
-            ],
-            notes: `Terms: Paid in advance for each monthly delivery cycle. Delivery follows a 'Lead Token' model. Top-Ups (min 5 tokens at R2,500) require 1 week notice. Engagement is month-to-month. Subscription pauses automatically upon non-payment at end of cycle. Cancellation during an active cycle is effective immediately but is subject to a strict no-refund policy.`
+            items: [invoiceLine(tier)],
+            notes: invoiceTerms(tier),
         }));
 
         if (broker.email) {
@@ -602,50 +579,24 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
                                 <div className="space-y-3">
                                     <h3 className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Apply Preset Tier</h3>
                                     <div className="grid grid-cols-1 gap-2">
-                                        {[
-                                            {
-                                                name: "Pilot Phase",
-                                                desc: "Lead Generation Pilot Strategy (10 Leads)",
-                                                price: 6000,
-                                                color: "border-pink-500/20 hover:bg-pink-500/10 text-pink-200"
-                                            },
-                                            {
-                                                name: "Bronze",
-                                                desc: "Growth Starter Lead Strategy (17 Leads)",
-                                                price: 8500,
-                                                color: "border-orange-500/20 hover:bg-orange-500/10 text-orange-200"
-                                            },
-                                            {
-                                                name: "Silver",
-                                                desc: "Scale & Optimise Strategy (23-26 Leads)",
-                                                price: 10500,
-                                                color: "border-slate-400/20 hover:bg-slate-400/10 text-slate-200"
-                                            },
-                                            {
-                                                name: "Gold",
-                                                desc: "Performance Partner Strategy (33-40+ Leads)",
-                                                price: 16500,
-                                                color: "border-yellow-500/20 hover:bg-yellow-500/10 text-yellow-200"
-                                            }
-                                        ].map((tier) => (
+                                        {ALL_PLANS.map((tier) => (
                                             <button
-                                                key={tier.name}
+                                                key={tier.tier_code}
                                                 onClick={() => {
                                                     const newItems = [...invoiceData.items];
-                                                    if (newItems.length > 0) {
-                                                        newItems[0] = { ...newItems[0], description: tier.desc, price: tier.price };
-                                                    }
+                                                    newItems[0] = invoiceLine(tier);
                                                     setInvoiceData(prev => ({
                                                         ...prev,
-                                                        items: newItems
+                                                        items: newItems,
+                                                        notes: isGeneratedTerms(prev.notes) ? invoiceTerms(tier) : prev.notes
                                                     }));
                                                     toast({ title: `${tier.name} Applied`, description: "Line item updated." });
                                                 }}
-                                                className={`w-full text-left p-2.5 rounded-xl border ${tier.color} transition-all text-xs font-medium`}
+                                                className="w-full text-left p-2.5 rounded-xl border border-slate-400/20 hover:bg-slate-400/10 text-slate-200 transition-all text-xs font-medium"
                                             >
                                                 <div className="flex justify-between items-center">
-                                                    <span>{tier.name}</span>
-                                                    <span className="opacity-60 font-normal">R{tier.price.toLocaleString()}</span>
+                                                    <span>{tier.name} · {tier.committed_leads} leads</span>
+                                                    <span className="opacity-60 font-normal">{zar(tier.price_zar)}</span>
                                                 </div>
                                             </button>
                                         ))}
@@ -937,10 +888,14 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
                                                 <span className="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Net Subtotal</span>
                                                 <span className="font-bold text-sm">R{calculateTotal().toLocaleString()}</span>
                                             </div>
-                                            <div className="flex justify-between mb-6 pb-6 border-b border-white/10">
-                                                <span className="text-slate-500 text-[10px] uppercase font-bold tracking-widest">VAT (0%)</span>
-                                                <span className="font-bold text-sm">R0.00</span>
-                                            </div>
+                                            {TERMS.vat_registered ? (
+                                                <div className="flex justify-between mb-6 pb-6 border-b border-white/10">
+                                                    <span className="text-slate-500 text-[10px] uppercase font-bold tracking-widest">VAT</span>
+                                                    <span className="font-bold text-sm">[VAT]</span>
+                                                </div>
+                                            ) : (
+                                                <div className="mb-6 pb-6 border-b border-white/10 text-slate-500 text-[10px] uppercase font-bold tracking-widest">Not VAT registered — no VAT charged</div>
+                                            )}
                                             <div className="flex justify-between items-end">
                                                 <span className="font-black text-xs uppercase tracking-widest text-green-400">Total Due</span>
                                                 <span className="font-black text-2xl text-white">R{calculateTotal().toLocaleString()}</span>
@@ -953,25 +908,10 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
                                         <div className="bg-slate-50 p-6 rounded-xl border border-slate-100">
                                             <h4 className="font-black text-slate-900 text-[10px] uppercase tracking-widest mb-4 flex items-center gap-2">
                                                 <span className="h-2 w-2 rounded-full bg-green-500" />
-                                                EFT Payment Details
+                                                Payment by EFT
                                             </h4>
                                             <div className="space-y-2 text-xs text-slate-600 leading-tight">
-                                                <div className="flex justify-between">
-                                                    <span className="text-slate-400 font-bold uppercase text-[9px]">Bank</span>
-                                                    <Editable tag="span" className="font-bold text-slate-900" value={invoiceData.bankName} onChange={(val) => updateField('bankName', val)} />
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <span className="text-slate-400 font-bold uppercase text-[9px]">Account</span>
-                                                    <Editable tag="span" className="font-bold text-slate-900" value={invoiceData.accountName} onChange={(val) => updateField('accountName', val)} />
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <span className="text-slate-400 font-bold uppercase text-[9px]">Acc #</span>
-                                                    <Editable tag="span" className="font-bold text-slate-900" value={invoiceData.accountNumber} onChange={(val) => updateField('accountNumber', val)} />
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <span className="text-slate-400 font-bold uppercase text-[9px]">Branch</span>
-                                                    <Editable tag="span" className="font-bold text-slate-900" value={invoiceData.branchCode} onChange={(val) => updateField('branchCode', val)} />
-                                                </div>
+                                                <Editable tag="p" className="font-bold text-slate-900" value={invoiceData.paymentWording} onChange={(val) => updateField('paymentWording', val)} />
                                                 <div className="flex justify-between pt-2 border-t border-slate-200">
                                                     <span className="text-slate-400 font-bold uppercase text-[9px]">Ref</span>
                                                     <Editable tag="span" className="font-black text-green-600" value={invoiceData.reference} onChange={(val) => updateField('reference', val)} />

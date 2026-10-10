@@ -1,0 +1,42 @@
+{
+  "name": "broker_onb_issue",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "A small snag"
+    },
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, a small snag with your setup. {{2}} Next: {{3}} Tap below to fix it, or reply here and we'll sort it.",
+      "example": {
+        "body_text": [
+          [
+            "Mark",
+            "We could not match your FSP number to your practice name.",
+            "Check the number and try again. After three tries we'll check it by hand."
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover by Lead Velocity"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Fix it",
+          "url": "https://leadvelocity.co.za/s/{{1}}",
+          "example": [
+            "https://leadvelocity.co.za/s/profile"
+          ]
+        }
+      ]
+    }
+  ]
+}

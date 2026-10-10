@@ -1,0 +1,43 @@
+{
+  "name": "ops_alert",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "Red alert"
+    },
+    {
+      "type": "BODY",
+      "text": "*{{1}}* since {{2}}. Impact: {{3}}. First action: {{4}}. Open the console for the detail.",
+      "example": {
+        "body_text": [
+          [
+            "WhatsApp template rejected: reminder_24h",
+            "09:14",
+            "T-24 h reminders paused for 2 bookings",
+            "Edit wording in console and resubmit"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "Lead Velocity ops"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Open console",
+          "url": "https://leadvelocity.co.za/{{1}}",
+          "example": [
+            "https://leadvelocity.co.za/alerts/al_7731"
+          ]
+        }
+      ]
+    }
+  ]
+}

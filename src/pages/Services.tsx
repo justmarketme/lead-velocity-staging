@@ -14,7 +14,7 @@ const Services = () => {
       features: [
         "Pre-qualified prospects",
         "Verified contact information",
-        "Consistent weekly delivery",
+        "A set number of leads every 30-day cycle",
         "Industry-specific targeting",
       ],
       link: "/onboarding",

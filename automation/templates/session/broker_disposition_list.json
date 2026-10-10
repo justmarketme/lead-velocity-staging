@@ -1,0 +1,60 @@
+{
+  "_note": "SESSION message, not a template (never submitted). W12 sends it inside the 24-h window that the broker opened by tapping Attended on broker_outcome_check. Row titles <= 24 chars (interactive list limit) and are the NH-19 label set word for word; row ids are the 4.12a codes. {{lead}} = lead first name + initial.",
+  "messaging_product": "whatsapp",
+  "recipient_type": "individual",
+  "to": "{{adviser_whatsapp}}",
+  "type": "interactive",
+  "interactive": {
+    "type": "list",
+    "body": {
+      "text": "Thanks. Which best describes {{lead}} after the call? Pick the closest one."
+    },
+    "footer": {
+      "text": "SortMyCover by Lead Velocity"
+    },
+    "action": {
+      "button": "Choose one",
+      "sections": [
+        {
+          "title": "Good fit",
+          "rows": [
+            {
+              "id": "fit_proceeding",
+              "title": "Good fit – proceeding"
+            },
+            {
+              "id": "fit_followup",
+              "title": "Good fit – follow-up"
+            }
+          ]
+        },
+        {
+          "title": "Not a fit",
+          "rows": [
+            {
+              "id": "nofit_budget",
+              "title": "Not a fit – budget"
+            },
+            {
+              "id": "nofit_covered",
+              "title": "Not a fit – well covered"
+            },
+            {
+              "id": "nofit_criteria",
+              "title": "Not a fit – criteria"
+            }
+          ]
+        },
+        {
+          "title": "Could not talk",
+          "rows": [
+            {
+              "id": "unreachable",
+              "title": "Unreachable/wrong number"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

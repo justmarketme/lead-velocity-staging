@@ -17,6 +17,9 @@ import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Pencil, History as HistoryIcon } from "lucide-react";
 import { format } from "date-fns";
 
 interface BrokerAnalysis {
@@ -76,9 +79,90 @@ const BrokerAnalysisDashboard = () => {
     const [portalStyle, setPortalStyle] = useState<"Standard" | "Elite">("Standard");
     const [isLeadLoading, setIsLeadLoading] = useState(true);
 
+    // Edit + change-history (paper trail) for a submission
+    const [editResponseId, setEditResponseId] = useState<string | null>(null);
+    const [editForm, setEditForm] = useState({ full_name: "", email: "", phone_number: "", whatsapp_number: "", firm_name: "", preferred_call_time: "" });
+    const [savingEdit, setSavingEdit] = useState(false);
+    const [historyForId, setHistoryForId] = useState<string | null>(null);
+    const [history, setHistory] = useState<any[]>([]);
+    const [loadingHistory, setLoadingHistory] = useState(false);
+
     useEffect(() => {
         fetchAnalyses();
     }, []);
+
+    const openEdit = (r: NonNullable<BrokerAnalysis["responses"]>) => {
+        setEditForm({
+            full_name: r.full_name || "",
+            email: r.email || "",
+            phone_number: r.phone_number || r.phone || "",
+            whatsapp_number: r.whatsapp_number || "",
+            firm_name: r.firm_name || r.company_name || "",
+            preferred_call_time: r.preferred_call_time || "",
+        });
+        setEditResponseId(r.id);
+    };
+
+    const saveEdit = async () => {
+        if (!editResponseId) return;
+        setSavingEdit(true);
+        const { error } = await supabase
+            .from("broker_onboarding_responses")
+            .update({
+                full_name: editForm.full_name.trim() || null,
+                email: editForm.email.trim() || null,
+                phone_number: editForm.phone_number.trim() || null,
+                whatsapp_number: editForm.whatsapp_number.trim() || null,
+                firm_name: editForm.firm_name.trim() || null,
+                preferred_call_time: editForm.preferred_call_time.trim() || null,
+            } as any)
+            .eq("id", editResponseId);
+        setSavingEdit(false);
+        if (error) { toast({ title: "Update failed", description: error.message, variant: "destructive" }); return; }
+        toast({ title: "Details updated", description: "The correction is saved and logged in the change history." });
+        notifyCrmChange("broker_onboarding_responses", editResponseId, "Client contact details corrected");
+        setEditResponseId(null);
+        fetchAnalyses();
+    };
+
+    // Admin notes — previously a dead textarea that saved nothing.
+    const [notesDraft, setNotesDraft] = useState<Record<string, string>>({});
+    const [savingNotes, setSavingNotes] = useState<string | null>(null);
+
+    const saveAdminNotes = async (analysisId: string) => {
+        const text = notesDraft[analysisId] ?? "";
+        setSavingNotes(analysisId);
+        const { error } = await supabase
+            .from("broker_analysis")
+            .update({ admin_notes: text.trim() || null } as any)
+            .eq("id", analysisId);
+        setSavingNotes(null);
+        if (error) { toast({ title: "Couldn't save notes", description: error.message, variant: "destructive" }); return; }
+        setAnalyses(prev => prev.map(a => a.id === analysisId ? { ...a, admin_notes: text.trim() || null } : a));
+        toast({ title: "Notes saved", description: "Saved and logged in the change history." });
+        notifyCrmChange("broker_analysis", analysisId, "Admin notes updated");
+    };
+
+    // Tell the team an admin changed something in the CRM (emails howzit@).
+    const notifyCrmChange = (table: string, recordId: string, label: string) => {
+        supabase.functions
+            .invoke("notify-crm-change", { body: { table, recordId, label } })
+            .then(({ error }) => { if (error) console.error("notify-crm-change:", error); })
+            .catch((e) => console.error("notify-crm-change failed:", e));
+    };
+
+    const openHistory = async (responseId: string) => {
+        setHistoryForId(responseId);
+        setLoadingHistory(true);
+        const { data, error } = await (supabase as any)
+            .from("audit_log")
+            .select("*")
+            .eq("record_id", responseId)
+            .order("changed_at", { ascending: false });
+        if (error) { toast({ title: "Couldn't load history", description: error.message, variant: "destructive" }); }
+        setHistory((data || []) as any[]);
+        setLoadingHistory(false);
+    };
 
     const fetchAnalyses = async () => {
         try {
@@ -461,9 +545,21 @@ const BrokerAnalysisDashboard = () => {
 
                                         {/* Admin Actions */}
                                         <div className="space-y-6 pt-6 border-t border-white/5">
-                                            <h4 className="flex items-center gap-2 text-sm font-black text-emerald-400">
-                                                <CheckCircle2 className="w-5 h-5 text-emerald-400" /> Admin Actions
-                                            </h4>
+                                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                                                <h4 className="flex items-center gap-2 text-sm font-black text-emerald-400">
+                                                    <CheckCircle2 className="w-5 h-5 text-emerald-400" /> Admin Actions
+                                                </h4>
+                                                {submission.responses && (
+                                                    <div className="flex gap-2">
+                                                        <Button variant="outline" size="sm" className="h-8 bg-slate-900/50 border-white/10 text-xs" onClick={() => openEdit(submission.responses!)}>
+                                                            <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit details
+                                                        </Button>
+                                                        <Button variant="outline" size="sm" className="h-8 bg-slate-900/50 border-white/10 text-xs" onClick={() => openHistory(submission.responses!.id)}>
+                                                            <HistoryIcon className="h-3.5 w-3.5 mr-1.5" /> History
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                            </div>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                                 <div className="space-y-4">
                                                     <div className="space-y-2">
@@ -496,9 +592,19 @@ const BrokerAnalysisDashboard = () => {
                                                 <div className="space-y-2">
                                                     <Label className="text-[10px] uppercase text-slate-500 font-bold mb-1">Admin Notes</Label>
                                                     <Textarea
-                                                        placeholder="Add internal notes..."
+                                                        placeholder="Add internal notes — call outcome, what they said, next step..."
                                                         className="bg-[#020617] border-white/10 min-h-[100px] text-sm focus-visible:ring-primary/50 resize-none"
+                                                        value={notesDraft[submission.id] ?? submission.admin_notes ?? ""}
+                                                        onChange={(e) => setNotesDraft(prev => ({ ...prev, [submission.id]: e.target.value }))}
                                                     />
+                                                    <Button
+                                                        size="sm"
+                                                        className="mt-2 h-8 text-xs"
+                                                        disabled={savingNotes === submission.id}
+                                                        onClick={() => saveAdminNotes(submission.id)}
+                                                    >
+                                                        {savingNotes === submission.id ? "Saving…" : "Save notes"}
+                                                    </Button>
                                                 </div>
                                             </div>
                                         </div>
@@ -509,6 +615,71 @@ const BrokerAnalysisDashboard = () => {
                     ))
                 )}
             </div>
+
+            {/* Edit contact details */}
+            <Dialog open={!!editResponseId} onOpenChange={(o) => !o && setEditResponseId(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Edit contact details</DialogTitle>
+                        <DialogDescription>Correct anything the client got wrong (e.g. a mistyped email). Every change is saved to the history.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3">
+                        <div><Label className="text-xs">Full name</Label><Input value={editForm.full_name} onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })} /></div>
+                        <div><Label className="text-xs">Firm</Label><Input value={editForm.firm_name} onChange={(e) => setEditForm({ ...editForm, firm_name: e.target.value })} /></div>
+                        <div><Label className="text-xs">Email</Label><Input value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} /></div>
+                        <div><Label className="text-xs">Phone</Label><Input value={editForm.phone_number} onChange={(e) => setEditForm({ ...editForm, phone_number: e.target.value })} /></div>
+                        <div><Label className="text-xs">WhatsApp</Label><Input value={editForm.whatsapp_number} onChange={(e) => setEditForm({ ...editForm, whatsapp_number: e.target.value })} /></div>
+                        <div><Label className="text-xs">Preferred call time</Label><Input value={editForm.preferred_call_time} onChange={(e) => setEditForm({ ...editForm, preferred_call_time: e.target.value })} /></div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setEditResponseId(null)}>Cancel</Button>
+                        <Button onClick={saveEdit} disabled={savingEdit}>{savingEdit ? "Saving…" : "Save changes"}</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Change history (paper trail) */}
+            <Dialog open={!!historyForId} onOpenChange={(o) => !o && setHistoryForId(null)}>
+                <DialogContent className="max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>Change history</DialogTitle>
+                        <DialogDescription>Every change to this submission — who, what and when.</DialogDescription>
+                    </DialogHeader>
+                    <ScrollArea className="max-h-[60vh]">
+                        {loadingHistory ? (
+                            <p className="text-sm text-muted-foreground py-6 text-center">Loading…</p>
+                        ) : history.length === 0 ? (
+                            <p className="text-sm text-muted-foreground py-6 text-center">No changes recorded yet — this is the original submission.</p>
+                        ) : (
+                            <div className="space-y-3 pr-3">
+                                {history.map((h) => (
+                                    <div key={h.id} className="rounded-lg border border-white/10 bg-slate-900/40 p-3">
+                                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                                            <Badge variant="outline" className="text-[10px] uppercase">{h.action}</Badge>
+                                            <span className="text-[11px] text-muted-foreground">{format(new Date(h.changed_at), "MMM d, yyyy 'at' h:mm a")}</span>
+                                        </div>
+                                        {h.changed_by_email && <p className="text-[11px] text-muted-foreground mb-1.5">by {h.changed_by_email}</p>}
+                                        {h.action === "UPDATE" && Array.isArray(h.changed_fields) ? (
+                                            <div className="space-y-1">
+                                                {h.changed_fields.filter((f: string) => f !== "updated_at").map((f: string) => (
+                                                    <div key={f} className="text-xs">
+                                                        <span className="font-semibold capitalize">{f.replace(/_/g, " ")}:</span>{" "}
+                                                        <span className="text-red-400 line-through">{String(h.old_data?.[f] ?? "—")}</span>{" "}
+                                                        <span className="text-muted-foreground">→</span>{" "}
+                                                        <span className="text-green-400">{String(h.new_data?.[f] ?? "—")}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="text-xs text-muted-foreground">{h.action === "INSERT" ? "Original submission received." : "Record removed."}</p>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </ScrollArea>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };

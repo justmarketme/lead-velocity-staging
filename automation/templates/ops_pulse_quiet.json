@@ -1,0 +1,23 @@
+{
+  "name": "ops_pulse_quiet",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Pulse {{1}}: all faculties within limits. Nothing to do today. {{2}} Full page in the console.",
+      "example": {
+        "body_text": [
+          [
+            "Thu 2 Oct",
+            "Next weekly memo Monday."
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "Lead Velocity ops"
+    }
+  ]
+}

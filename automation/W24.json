@@ -1,0 +1,1328 @@
+{
+  "id": "smc-w24",
+  "name": "W24 Compliance cleanse & calendar",
+  "nodes": [
+    {
+      "id": "w24-01",
+      "name": "Monthly 1st 06:00 SAST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 1 * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "w24-02",
+      "name": "Daily 06:00 SAST (retry + dated reminders)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        560
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "w24-03",
+      "name": "Manual run (CSV fallback / synthetic test)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        220
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "w24-04",
+      "name": "Set run context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// W24 run context. Times in Africa/Johannesburg (workflow setting). No PII here.\nconst now = $now.setZone('Africa/Johannesburg');\nconst first = $input.first().json || {};\nconst trigger = first.cleanse_missing !== undefined ? 'daily_retry' : (first.timestamp ? 'monthly' : 'manual');\nconst endpoint = Boolean($env.NCC_REGISTRY_ENDPOINT);\nlet mode = String($env.NCC_REGISTRY_MODE || 'csv').toLowerCase();\nconst notes = [];\nif (!['api', 'csv'].includes(mode)) { notes.push('NCC_REGISTRY_MODE invalid, using csv'); mode = 'csv'; }\nif (mode === 'api' && !endpoint) { notes.push('NCC_REGISTRY_ENDPOINT not set, using csv'); mode = 'csv'; }\nconst month = now.toFormat('yyyy-MM');\nreturn [{ json: {\n  run_id: 'W24-' + month,\n  run_month: month,\n  run_started_at: now.toISO(),\n  trigger,\n  mode,\n  include_legacy: String($env.W24_INCLUDE_LEGACY || 'false') === 'true',\n  test_mode: String($env.W24_TEST_MODE || 'false') === 'true',\n  evidence_dir: $env.W24_EVIDENCE_DIR || '/home/node/compliance/evidence',\n  inbox_dir: $env.W24_INBOX_DIR || '/home/node/compliance/inbox',\n  notes,\n} }];"
+      }
+    },
+    {
+      "id": "w24-05",
+      "name": "Read active leads",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        480,
+        100
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- W24 step 1: active leads = has a phone, inside retention, not opted out, not already suppressed.\n-- $1 mode ('api' returns the E.164 number; 'csv' returns hashes only: data minimisation)\n-- $2 include_legacy (brand_id null rows = legacy B2B product, NH-14), $3 test_mode (is_synthetic rows only)\nwith n as (\n  select l.id, l.broker_id, l.brand_id, regexp_replace(l.phone, '\\D', '', 'g') as d\n  from public.leads l\n  where l.phone is not null\n    and (l.brand_id is not null or $2::boolean)\n    and coalesce(l.is_synthetic, false) = $3::boolean\n    and l.opted_out_at is null\n    and (l.retention_delete_after is null or l.retention_delete_after > now())\n), h as (\n  select id, broker_id, brand_id, case when d like '00%' then substr(d, 3) when d like '0%' then '27' || substr(d, 2) else d end as e164_digits from n\n)\nselect h.id as lead_id, h.broker_id, h.brand_id,\n       case when $1 = 'api' then '+' || h.e164_digits end as phone_e164,\n       public.smc_hash_contact('+' || h.e164_digits) as mobile_hash\nfrom h\nwhere not exists (\n  select 1 from public.suppression s\n  where s.mobile_hash = public.smc_hash_contact('+' || h.e164_digits)\n);",
+        "options": {
+          "queryReplacement": "={{ [$json.mode, $json.include_legacy, $json.test_mode] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "w24-06",
+      "name": "Batch for registry",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// One item per registry call (api) or a single routing item (csv / none).\nconst ctx = $('Set run context').first().json;\nconst leads = $input.all().map(i => i.json).filter(j => j.lead_id);\nif (leads.length === 0) return [{ json: { ...ctx, route: 'none', active_count: 0 } }];\nif (ctx.mode !== 'api') return [{ json: { ...ctx, route: 'csv', active_count: leads.length } }];\nconst size = Number($env.NCC_REGISTRY_BATCH_SIZE || 1000);\nconst out = [];\nfor (let i = 0; i < leads.length; i += size) {\n  out.push({ json: { route: 'api', run_id: ctx.run_id, batch: out.length + 1,\n    numbers: leads.slice(i, i + size).map(l => l.phone_e164) } });\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "w24-07",
+      "name": "Registry mechanism",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        960,
+        100
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "r-api",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "api",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "api"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "r-csv",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "csv",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "csv"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "r-none",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "none",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "none"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w24-08",
+      "name": "NCC registry check (HTTP)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        -100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.NCC_REGISTRY_ENDPOINT }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ reference: $json.run_id + \"-b\" + $json.batch, numbers: $json.numbers }) }}",
+        "options": {
+          "timeout": 30000,
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 2000
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "NCC registry API"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput",
+      "notes": "PLACEHOLDER request/response shape. The NCC mechanism is unknown offline (needs_human NH-CQ-W24-1). Replace body + normaliser when the published mechanism is read at registration."
+    },
+    {
+      "id": "w24-09",
+      "name": "Normalise registry response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        -120
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Map registry answers back to lead hashes. Unknown shape = FAIL (never a silent \"0 matches\").\nconst leads = $('Read active leads').all().map(i => i.json).filter(j => j.lead_id);\nconst byDigits = new Map(leads.map(l => [String(l.phone_e164).replace(/\\D/g, ''), l.mobile_hash]));\nconst blocked = new Set(); let seen = 0;\nfor (const { json: r } of $input.all()) {\n  let numbers;\n  if (Array.isArray(r.blocked)) numbers = r.blocked;\n  else if (Array.isArray(r.results)) numbers = r.results.filter(x => x.blocked || x.opted_out || x.registered).map(x => x.number || x.msisdn);\n  else throw new Error('W24: unrecognised NCC registry response shape (no blocked[] or results[])');\n  seen += Array.isArray(r.results) ? r.results.length : numbers.length;\n  for (const num of numbers) {\n    let d = String(num || '').replace(/\\D/g, '');\n    if (d.startsWith('00')) d = d.slice(2); else if (d.startsWith('0')) d = '27' + d.slice(1);\n    const h = byDigits.get(d); if (h) blocked.add(h);\n  }\n}\nreturn [{ json: { mechanism: 'api:' + ($env.NCC_REGISTRY_ENDPOINT || '').replace(/^(https?:\\/\\/[^/]+).*/, '$1'), registry_entries_seen: seen, blocked_hashes: [...blocked] } }];"
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "w24-10",
+      "name": "Read registry CSV (manual fallback)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        100
+      ],
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "={{ $('Set run context').first().json.inbox_dir }}/ncc-registry-{{ $('Set run context').first().json.run_month }}.csv",
+        "options": {}
+      },
+      "onError": "continueErrorOutput",
+      "notes": "Jonathan drops the file the NCC returns (or the registry export) into compliance/inbox/ncc-registry-YYYY-MM.csv. Inbox is private and never committed. Delete after the run (W34 retention)."
+    },
+    {
+      "id": "w24-11",
+      "name": "Parse registry CSV",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1440,
+        100
+      ],
+      "parameters": {
+        "operation": "csv",
+        "options": {
+          "headerRow": true
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "w24-12",
+      "name": "Hash registry numbers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Hash every registry number with the suppression rule (E.164 digits, no \"+\", SHA-256 hex). Raw numbers are dropped here.\n// Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto (same setting as W28).\nconst crypto = require('crypto');\nconst rows = $input.all().map(i => i.json).filter(r => r && Object.keys(r).length);\nconst col = rows.length ? (['number', 'msisdn', 'mobile', 'phone', 'cell'].find(c => c in rows[0]) || Object.keys(rows[0])[0]) : null;\nconst hashes = new Set();\nfor (const r of rows) {\n  let d = String(r[col] || '').replace(/\\D/g, '');\n  if (d.startsWith('00')) d = d.slice(2); else if (d.startsWith('0')) d = '27' + d.slice(1);\n  if (d.length >= 10) hashes.add(crypto.createHash('sha256').update(d, 'utf8').digest('hex'));\n}\nreturn [{ json: { mechanism: 'csv:' + $('Set run context').first().json.run_month, registry_entries_seen: rows.length, blocked_hashes: [...hashes] } }];"
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "w24-13",
+      "name": "Intersect with active leads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Matches = active leads whose hash the registry blocks. Output carries hashes + ids only.\nconst ctx = $('Set run context').first().json;\nconst leads = $('Read active leads').all().map(i => i.json).filter(j => j.lead_id);\nconst inp = $input.all().map(i => i.json);\nconst blocked = new Set(inp.flatMap(j => j.blocked_hashes || []));\nconst matches = leads.filter(l => blocked.has(l.mobile_hash))\n  .map(({ lead_id, broker_id, brand_id, mobile_hash }) => ({ lead_id, broker_id, brand_id, mobile_hash }));\nreturn [{ json: {\n  run_id: ctx.run_id, run_month: ctx.run_month, trigger: ctx.trigger, notes: ctx.notes,\n  mechanism: inp[0]?.mechanism || 'none (no active leads)',\n  registry_entries_seen: inp.reduce((a, j) => a + (j.registry_entries_seen || 0), 0),\n  active_checked: leads.length, match_count: matches.length, matches,\n} }];"
+      }
+    },
+    {
+      "id": "w24-14",
+      "name": "Upsert registry blocks into suppression",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2160,
+        100
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- One suppression list (2.3, register C3). Idempotent: needs unique (mobile_hash, source).\nwith ins as (\n  insert into public.suppression (mobile_hash, source, brand_id, lead_id, added_at)\n  select m.mobile_hash, 'ncc_registry', m.brand_id, m.lead_id, now()\n  from jsonb_to_recordset($1::jsonb) as m(mobile_hash text, brand_id uuid, lead_id uuid)\n  on conflict (mobile_hash, source) do nothing\n  returning 1\n)\nselect count(*)::int as registry_rows_inserted from ins;",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($json.matches)] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w24-15",
+      "name": "Any registry matches?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2400,
+        100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c-matches",
+              "leftValue": "={{ $('Intersect with active leads').first().json.match_count }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w24-16",
+      "name": "Matches to items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Intersect with active leads').first().json;\nreturn ctx.matches.map(m => ({ json: {\n  lead_id: m.lead_id, broker_id: m.broker_id, brand_id: m.brand_id,\n  reason: 'ncc_registry', source_workflow: 'W24',\n  send_lead_confirmation: false, // never message a registry-blocked number\n  notify_broker: true,           // agreement 9.5: broker told within 24 h\n  idempotency_key: 'W24-' + ctx.run_month + '-' + m.lead_id,\n} }));"
+      }
+    },
+    {
+      "id": "w24-17",
+      "name": "W15 suppress lead (reason ncc_registry)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        2880,
+        0
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w15"
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "Reuse W15 (flag lead, cancel scheduled messages, notify broker). W15 must accept reason + send_lead_confirmation=false (needs_human NH-CQ-W24-3)."
+    },
+    {
+      "id": "w24-18",
+      "name": "Collapse W15 results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3120,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $input.all().map(i => i.json);\nreturn [{ json: {\n  w15_ok: r.filter(x => x.ok === true).length,\n  w15_failed: r.filter(x => x.ok !== true).length,\n  schedules_cancelled: r.reduce((a, x) => a + (Number(x.schedules_cancelled) || 0), 0),\n  brokers_notified: new Set(r.filter(x => x.broker_notified).map(x => x.broker_id)).size,\n} }];"
+      }
+    },
+    {
+      "id": "w24-19",
+      "name": "Reconcile STOP + objections",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        3360,
+        100
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Close gaps: any opted-out lead or objection whose hash is not on the list gets added.\nwith n as (\n  select l.id, l.brand_id, l.opted_out_at, regexp_replace(l.phone, '\\D', '', 'g') as d\n  from public.leads l where l.phone is not null and l.opted_out_at is not null\n), h as (\n  select id, brand_id, opted_out_at, public.smc_hash_contact('+' || case when d like '00%' then substr(d, 3) when d like '0%' then '27' || substr(d, 2) else d end) as mobile_hash from n\n), stop_gaps as (\n  insert into public.suppression (mobile_hash, source, brand_id, lead_id, added_at)\n  select h.mobile_hash, 'stop', h.brand_id, h.id, h.opted_out_at from h\n  where not exists (select 1 from public.suppression s where s.mobile_hash = h.mobile_hash)\n  on conflict (mobile_hash, source) do nothing\n  returning 1\n), objection_gaps as (\n  -- NEEDS dsr_requests.mobile_hash (not in crm-gap A4; needs_human NH-CQ-W24-4)\n  insert into public.suppression (mobile_hash, source, added_at)\n  select d.mobile_hash, 'objection', coalesce(d.verified_at, d.received_at)\n  from public.dsr_requests d\n  where d.kind = 'object' and d.mobile_hash is not null\n    and not exists (select 1 from public.suppression s where s.mobile_hash = d.mobile_hash)\n  on conflict (mobile_hash, source) do nothing\n  returning 1\n)\nselect (select count(*) from stop_gaps)::int as stop_gaps_fixed,\n       (select count(*) from objection_gaps)::int as objection_gaps_fixed;"
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w24-20",
+      "name": "Count suppression list",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        3600,
+        100
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "with ms as (select (date_trunc('month', now() at time zone 'Africa/Johannesburg') at time zone 'Africa/Johannesburg') as t),\nn as (\n  select l.id, l.opted_out_at, regexp_replace(l.phone, '\\D', '', 'g') as d from public.leads l where l.phone is not null\n), h as (select id, opted_out_at, public.smc_hash_contact('+' || case when d like '00%' then substr(d, 3) when d like '0%' then '27' || substr(d, 2) else d end) as mobile_hash from n)\nselect\n  (select count(*) from public.suppression)::int as suppression_rows,\n  (select count(distinct mobile_hash) from public.suppression)::int as suppressed_people,\n  (select coalesce(jsonb_object_agg(source, c), '{}'::jsonb) from (select source, count(*) c from public.suppression group by source) x) as by_source,\n  (select coalesce(jsonb_object_agg(source, c), '{}'::jsonb) from (select s.source, count(*) c from public.suppression s, ms where s.added_at >= ms.t group by s.source) y) as added_this_month,\n  -- Invariant: must be 0. A suppressed number with a lead still open for contact = W15 did not run.\n  (select count(*) from h join public.suppression s on s.mobile_hash = h.mobile_hash where h.opted_out_at is null)::int as blocked_but_contactable;"
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w24-21",
+      "name": "Build evidence file",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3840,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Monthly evidence (ncc-direct-marketer-pack B4). Counts only in the .md; hashes only in the .csv. No numbers, no names.\nconst ctx = $('Set run context').first().json;\nconst run = $('Intersect with active leads').first().json;\nconst rec = $('Reconcile STOP + objections').first().json;\nconst cnt = $('Count suppression list').first().json;\nlet w15 = { w15_ok: 0, w15_failed: 0, schedules_cancelled: 0, brokers_notified: 0 };\ntry { w15 = $('Collapse W15 results').first().json; } catch (e) { /* no matches this month */ }\nconst finished = $now.setZone('Africa/Johannesburg');\nconst red = cnt.blocked_but_contactable > 0 || w15.w15_failed > 0 || w15.w15_ok < run.match_count;\nconst md = [\n  '# W24 compliance cleanse evidence ' + ctx.run_month,\n  '',\n  'Lead Velocity (Pty) Ltd. Private. Generated by n8n W24. Counts only, no personal information.',\n  '',\n  '| Item | Value |', '|---|---|',\n  '| Run ID | ' + ctx.run_id + ' |',\n  '| Trigger | ' + ctx.trigger + ' |',\n  '| Started / finished (Africa/Johannesburg) | ' + ctx.run_started_at + ' / ' + finished.toISO() + ' |',\n  '| Registry mechanism used | ' + run.mechanism + ' |',\n  '| Registry entries seen | ' + run.registry_entries_seen + ' |',\n  '| Active leads checked | ' + run.active_checked + ' (legacy included: ' + ctx.include_legacy + '; synthetic run: ' + ctx.test_mode + ') |',\n  '| Registry matches (new suppressions) | ' + run.match_count + ' |',\n  '| Leads suppressed via W15 (ok / failed) | ' + w15.w15_ok + ' / ' + w15.w15_failed + ' |',\n  '| Scheduled messages cancelled | ' + w15.schedules_cancelled + ' |',\n  '| Brokers notified | ' + w15.brokers_notified + ' |',\n  '| STOP gaps closed / objection gaps closed | ' + rec.stop_gaps_fixed + ' / ' + rec.objection_gaps_fixed + ' |',\n  '| Added this month by source | ' + JSON.stringify(cnt.added_this_month) + ' |',\n  '| Suppression list total (rows / people) | ' + cnt.suppression_rows + ' / ' + cnt.suppressed_people + ' |',\n  '| By source (all time) | ' + JSON.stringify(cnt.by_source) + ' |',\n  '| Invariant: blocked but still contactable | ' + cnt.blocked_but_contactable + (cnt.blocked_but_contactable ? ' **RED**' : ' (pass)') + ' |',\n  '| Notes / errors | ' + ((ctx.notes || []).join('; ') || 'none') + ' |',\n  '| Result | ' + (red ? '**RED: fix and re-run**' : 'PASS, awaiting IO sign-off') + ' |',\n  '| IO sign-off | pending (console tap) |',\n  '',\n].join('\\n');\nconst csv = 'mobile_hash,source,run_id\\n' + run.matches.map(m => m.mobile_hash + ',ncc_registry,' + ctx.run_id).join('\\n') + '\\n';\nreturn [{ json: { md, csv, red, run_month: ctx.run_month, evidence_dir: ctx.evidence_dir,\n  evidence_url: 'compliance/evidence/' + ctx.run_month + '.md' } }];"
+      }
+    },
+    {
+      "id": "w24-22",
+      "name": "Evidence .md to file",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        4080,
+        0
+      ],
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "md",
+        "options": {
+          "fileName": "={{ $json.run_month }}.md"
+        }
+      }
+    },
+    {
+      "id": "w24-23",
+      "name": "Write evidence .md",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        4320,
+        0
+      ],
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $('Build evidence file').first().json.evidence_dir }}/{{ $('Build evidence file').first().json.run_month }}.md",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "w24-24",
+      "name": "Matches .csv to file",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        4080,
+        220
+      ],
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "csv",
+        "options": {
+          "fileName": "={{ $json.run_month }}-registry-matches.csv"
+        }
+      }
+    },
+    {
+      "id": "w24-25",
+      "name": "Write matches .csv (hashes only)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        4320,
+        220
+      ],
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $('Build evidence file').first().json.evidence_dir }}/{{ $('Build evidence file').first().json.run_month }}-registry-matches.csv",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "w24-26",
+      "name": "Close C2 in obligations register",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        4560,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- C2 (monthly cleanse) + C3 (one list). amber until the IO signs in the console; red if the invariant failed.\nupdate public.obligations\nset last_done_at = now(),\n    evidence_url = $1,\n    status = case when $2::boolean then 'red' else 'amber' end,\n    due_at = ((date_trunc('month', now() at time zone 'Africa/Johannesburg') + interval '1 month' + interval '6 hours') at time zone 'Africa/Johannesburg')\nwhere code in ('C2', 'C3')\nreturning code, status, due_at;",
+        "options": {
+          "queryReplacement": "={{ [$('Build evidence file').first().json.evidence_url, $('Build evidence file').first().json.red] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "id": "w24-27",
+      "name": "Ask IO to sign off (W22)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        4800,
+        0
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w22"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "executeOnce": true,
+      "notes": "W22 input: { kind: 'w24_evidence_ready', to: ['jonathan'], severity: red ? 'red' : 'info', deep_link: console Compliance tile }"
+    },
+    {
+      "id": "w24-28",
+      "name": "Build failure alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        -320
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Registry unavailable / unreadable / unknown shape / evidence write failed. No PII in the alert.\nconst ctx = $('Set run context').first().json;\nconst err = $input.first().json.error;\nconst msg = (err && (err.message || err)) || 'unknown error';\nreturn [{ json: { kind: 'w24_failure', workflow: 'W24', run_id: ctx.run_id, trigger: ctx.trigger, mode: ctx.mode,\n  to: ['compliance-qa'], severity: 'amber',\n  message: 'W24 cleanse failed (' + ctx.mode + '): ' + String(msg).slice(0, 300) + '. Retries daily 06:00; Jonathan alerted after 3 days.' } }];"
+      }
+    },
+    {
+      "id": "w24-29",
+      "name": "Mark C2 amber/red (failure)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2160,
+        -320
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update public.obligations\nset status = case when (now() at time zone 'Africa/Johannesburg')::date - date_trunc('month', now() at time zone 'Africa/Johannesburg')::date >= 3 then 'red' else 'amber' end\nwhere code = 'C2'\nreturning code, status;"
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "id": "w24-30",
+      "name": "Alert compliance-qa (W22)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        2400,
+        -320
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w22"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "id": "w24-31",
+      "name": "Check this month's cleanse",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        240,
+        560
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Runs daily. Retry from day 2 (day 1 belongs to the monthly trigger). No C2 row = register not seeded.\nwith ms as (select (date_trunc('month', now() at time zone 'Africa/Johannesburg') at time zone 'Africa/Johannesburg') as t),\nd as (select extract(day from now() at time zone 'Africa/Johannesburg')::int as dom)\nselect\n  coalesce((select o.last_done_at is null or o.last_done_at < ms.t from public.obligations o where o.code = 'C2'), true) as cleanse_missing,\n  exists (select 1 from public.obligations o where o.code = 'C2') as register_seeded,\n  d.dom - 1 as days_since_due\nfrom ms, d;"
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w24-32",
+      "name": "Retry today?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        480
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c-missing",
+              "leftValue": "={{ $json.cleanse_missing }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "c-day2",
+              "leftValue": "={{ $json.days_since_due }}",
+              "rightValue": 1,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w24-33",
+      "name": "Overdue 3+ days?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        680
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c-missing2",
+              "leftValue": "={{ $json.cleanse_missing }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "c-day3",
+              "leftValue": "={{ $json.days_since_due }}",
+              "rightValue": 3,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w24-34",
+      "name": "Alert Jonathan: cleanse overdue (W22)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        680
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w22"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "W22 input: { kind: 'w24_overdue', to: ['jonathan','compliance-qa'], severity: 'red' }"
+    },
+    {
+      "id": "w24-35",
+      "name": "Dated reminders due",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        240,
+        860
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- IO / PAIA / NCC renewal / breach drill. Reminders at 60, 30, 7, 1, 0 days; overdue or undated rows nag on Mondays.\nwith today as (select (now() at time zone 'Africa/Johannesburg')::date as d)\nselect o.code, o.description, o.owner, o.due_at,\n       (o.due_at at time zone 'Africa/Johannesburg')::date - today.d as days_left,\n       case when o.due_at is null then 'undated' when o.due_at < now() then 'overdue' else 'upcoming' end as state\nfrom public.obligations o, today\nwhere o.code in ('C1', 'P4', 'P5', 'P14')\n  and (\n    ((o.due_at at time zone 'Africa/Johannesburg')::date - today.d) in (60, 30, 7, 1, 0)\n    or ((o.due_at is null or o.due_at < now()) and extract(isodow from today.d) = 1)\n  );"
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w24-36",
+      "name": "Any reminders?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        860
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c-code",
+              "leftValue": "={{ $json.code }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w24-37",
+      "name": "Send renewal reminders (W22)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        860
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w22"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "W22 input: one item per obligation { kind: 'w24_reminder', to: ['jonathan','compliance-qa'], code, days_left, state }. W22 dedupes on code+days_left."
+    },
+    {
+      "id": "w24-38",
+      "name": "Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -360
+      ],
+      "parameters": {
+        "content": "## W24 Compliance cleanse & calendar\nSpec: automation/W24-compliance-cleanse.md. Owner: compliance-qa.\nTimezone: Africa/Johannesburg (workflow setting).\nCredentials by name only; endpoint + mode from .env (NCC_REGISTRY_ENDPOINT, NCC_REGISTRY_MODE).\nNCC mechanism UNKNOWN until registration: api node is a placeholder, csv is the working fallback.\nSub-calls reference W15 / W22 by id (smc-w15 / smc-w22, I-44b).",
+        "height": 220,
+        "width": 520
+      }
+    }
+  ],
+  "connections": {
+    "Monthly 1st 06:00 SAST": {
+      "main": [
+        [
+          {
+            "node": "Set run context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual run (CSV fallback / synthetic test)": {
+      "main": [
+        [
+          {
+            "node": "Set run context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set run context": {
+      "main": [
+        [
+          {
+            "node": "Read active leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read active leads": {
+      "main": [
+        [
+          {
+            "node": "Batch for registry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Batch for registry": {
+      "main": [
+        [
+          {
+            "node": "Registry mechanism",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registry mechanism": {
+      "main": [
+        [
+          {
+            "node": "NCC registry check (HTTP)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Read registry CSV (manual fallback)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Intersect with active leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "NCC registry check (HTTP)": {
+      "main": [
+        [
+          {
+            "node": "Normalise registry response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build failure alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise registry response": {
+      "main": [
+        [
+          {
+            "node": "Intersect with active leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build failure alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read registry CSV (manual fallback)": {
+      "main": [
+        [
+          {
+            "node": "Parse registry CSV",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build failure alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse registry CSV": {
+      "main": [
+        [
+          {
+            "node": "Hash registry numbers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hash registry numbers": {
+      "main": [
+        [
+          {
+            "node": "Intersect with active leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build failure alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Intersect with active leads": {
+      "main": [
+        [
+          {
+            "node": "Upsert registry blocks into suppression",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert registry blocks into suppression": {
+      "main": [
+        [
+          {
+            "node": "Any registry matches?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any registry matches?": {
+      "main": [
+        [
+          {
+            "node": "Matches to items",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reconcile STOP + objections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Matches to items": {
+      "main": [
+        [
+          {
+            "node": "W15 suppress lead (reason ncc_registry)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W15 suppress lead (reason ncc_registry)": {
+      "main": [
+        [
+          {
+            "node": "Collapse W15 results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collapse W15 results": {
+      "main": [
+        [
+          {
+            "node": "Reconcile STOP + objections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reconcile STOP + objections": {
+      "main": [
+        [
+          {
+            "node": "Count suppression list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Count suppression list": {
+      "main": [
+        [
+          {
+            "node": "Build evidence file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build evidence file": {
+      "main": [
+        [
+          {
+            "node": "Evidence .md to file",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Matches .csv to file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evidence .md to file": {
+      "main": [
+        [
+          {
+            "node": "Write evidence .md",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Matches .csv to file": {
+      "main": [
+        [
+          {
+            "node": "Write matches .csv (hashes only)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write evidence .md": {
+      "main": [
+        [
+          {
+            "node": "Close C2 in obligations register",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build failure alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write matches .csv (hashes only)": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Build failure alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Close C2 in obligations register": {
+      "main": [
+        [
+          {
+            "node": "Ask IO to sign off (W22)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build failure alert": {
+      "main": [
+        [
+          {
+            "node": "Mark C2 amber/red (failure)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark C2 amber/red (failure)": {
+      "main": [
+        [
+          {
+            "node": "Alert compliance-qa (W22)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily 06:00 SAST (retry + dated reminders)": {
+      "main": [
+        [
+          {
+            "node": "Check this month's cleanse",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Dated reminders due",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check this month's cleanse": {
+      "main": [
+        [
+          {
+            "node": "Retry today?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Overdue 3+ days?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retry today?": {
+      "main": [
+        [
+          {
+            "node": "Set run context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Overdue 3+ days?": {
+      "main": [
+        [
+          {
+            "node": "Alert Jonathan: cleanse overdue (W22)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dated reminders due": {
+      "main": [
+        [
+          {
+            "node": "Any reminders?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any reminders?": {
+      "main": [
+        [
+          {
+            "node": "Send renewal reminders (W22)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": false,
+    "saveExecutionProgress": false,
+    "errorWorkflow": "smc-w22",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "owner": "compliance-qa",
+    "spec": "automation/W24-compliance-cleanse.md"
+  },
+  "tags": [
+    {
+      "name": "SortMyCover"
+    },
+    {
+      "name": "compliance"
+    },
+    {
+      "name": "W24"
+    }
+  ]
+}

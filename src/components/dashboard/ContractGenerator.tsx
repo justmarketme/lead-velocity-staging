@@ -1,92 +1,100 @@
-import { useState, useRef, useEffect } from "react";
+// CRM Contract Generator: produces the Lead Generation Services Agreement and nothing else.
+// Wording: deliverables/contracts-drafter/lead-generation-agreement/lead-velocity-services-agreement.md
+// (via src/lib/contract/agreement.ts). Plan numbers: src/lib/pricing.ts. This screen only fills the
+// template's [PLACEHOLDERS] and picks the Plan; it never edits clause text. No commission, success fee
+// or any payment linked to a policy, premium or sale exists anywhere in the agreement (clause 8.3).
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { AlertTriangle, ArrowLeft, Printer, AudioLines, Bot, Download, FileText, Mail, Maximize, Mic, Monitor, Paperclip, Save, SendHorizonal, X, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Download, Mail, MessageCircle, Send, ZoomIn, ZoomOut, Maximize, Monitor, Save, Loader2, Mic, MicOff, Bot, Check, X, Paperclip, AudioLines, SendHorizonal, FileText } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { generateSmartPDF, blobToBase64 } from "@/utils/pdfUtils";
 import { buildContractDocx } from "@/utils/contractToDocx";
-import logo from "@/assets/lead-velocity-logo.webp";
 import { useToast } from "@/hooks/use-toast";
-import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { getContractEmailSignature } from "@/utils/emailSignature";
 import { BrokerSelector } from "./BrokerSelector";
+import { renderAgreementHtml } from "@/lib/contract/renderHtml";
+import contractLogo from "@/assets/lead-velocity-logo-contract.png";
 import { callLegalAI } from "@/utils/legalAI";
+import { ALL_PLANS, PILOT, PILOT_OFFERED, isPilot, perLead, pricingSummaryText, zar } from "@/lib/pricing";
+import {
+    AGREEMENT_TITLE,
+    PRIMARY_FIELDS,
+    TEMPLATE_VERSION,
+    defaultFields,
+    otherPlaceholderTokens,
+    resolveAgreement,
+    suggestedValue,
+    type AgreementFields,
+} from "@/lib/contract/agreement";
 
 interface ContractGeneratorProps {
     onBack: () => void;
     initialData?: any;
 }
 
-const Editable = ({
-    value,
-    onChange,
-    className = "",
-    tag: Tag = "p",
-    html = false
-}: {
-    value: string;
-    onChange: (val: string) => void;
-    className?: string;
-    tag?: any;
-    html?: boolean;
-}) => {
-    const handleBlur = (e: React.FocusEvent<HTMLElement>) => {
-        const text = html ? e.currentTarget.innerHTML : e.currentTarget.textContent;
-        if (text !== null && text !== value) {
-            onChange(text);
-        }
-    };
+const EMAIL_SUBJECT = `${AGREEMENT_TITLE} — draft for your review`;
+const OTHER_TOKENS = otherPlaceholderTokens();
+const ALL_TOKENS = new Set([...PRIMARY_FIELDS.map((f) => f.token), ...OTHER_TOKENS]);
+const tokenLabel = (t: string) => t.slice(1, -1);
 
-    return (
-        <Tag
-            contentEditable
-            suppressContentEditableWarning
-            className={`${className} hover:bg-slate-100 rounded px-1 -mx-1 transition-all outline-none focus:bg-slate-50 focus:outline focus:outline-2 focus:outline-pink-500 cursor-text`}
-            onBlur={handleBlur}
-            dangerouslySetInnerHTML={html ? { __html: value } : undefined}
-        >
-            {html ? undefined : value}
-        </Tag>
-    );
-};
+const AI_GUIDANCE =
+    `The document is Lead Velocity's attorney-drafted ${AGREEMENT_TITLE} (template ${TEMPLATE_VERSION}). Its clause wording is fixed and cannot be changed here: ` +
+    `you may only propose values for the placeholder keys (the keys in square brackets), "plan" (one of ${ALL_PLANS.map((t) => t.name).join(", ")}; never choose it from how many leads the client wants) and "client_phone". ` +
+    `Commercial model, from the pricing source:\n${pricingSummaryText()}\n` +
+    `Never propose or mention any commission, success fee, bonus, share of premium or any payment linked to a policy, application, sale or appointment outcome: ` +
+    `the fee is flat per Billing Cycle (clause 8.3; FAIS, Raspberry Academy v Oaksure). For questions about the clauses, answer in "response" and return empty "changes".`;
+
+/** content_data saved by the old Service Level Agreement screen: carry the client details over. */
+function fromLegacy(old: Record<string, any>): AgreementFields {
+    const strip = (v: unknown, prefix: RegExp, junk: string[] = []) => {
+        const s = String(v ?? "").replace(prefix, "").trim();
+        return junk.includes(s) ? "" : s;
+    };
+    const f = defaultFields();
+    const p: Record<string, string> = {};
+    const name = strip(old.clientName, /^$/, ["Valued Partner"]);
+    const company = strip(old.clientCompany, /^$/, ["Client Company (Pty) Ltd"]);
+    const email = strip(old.clientEmailLine, /^Email:\s*/i);
+    const address = strip(old.clientAddressLine, /^Address:\s*/i);
+    if (name) p["[CLIENT FULL NAME]"] = name;
+    if (company) p["[PRACTICE NAME]"] = company;
+    if (email) p["[CLIENT EMAIL]"] = email;
+    if (address) p["[CLIENT PHYSICAL ADDRESS]"] = address;
+    return { ...f, client_phone: strip(old.clientPhoneLine, /^Tel:\s*/i), placeholders: p };
+}
 
 const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
     const { toast } = useToast();
-    const reportRef = useRef<HTMLDivElement>(null);
+    const [previewHeight, setPreviewHeight] = useState(1123);
     const [zoom, setZoom] = useState(0.55);
     const [isGenerating, setIsGenerating] = useState(false);
-    const [sidebarWidth, setSidebarWidth] = useState(340);
+    const [sidebarWidth, setSidebarWidth] = useState(360);
     const isDraggingRef = useRef(false);
     const dragStartXRef = useRef(0);
     const dragStartWidthRef = useRef(0);
 
-    const handleDividerMouseDown = (e: React.MouseEvent) => {
-        isDraggingRef.current = true;
-        dragStartXRef.current = e.clientX;
-        dragStartWidthRef.current = sidebarWidth;
-        document.body.style.cursor = 'col-resize';
-        document.body.style.userSelect = 'none';
-
-        const handleMouseMove = (e: MouseEvent) => {
-            if (!isDraggingRef.current) return;
-            const delta = e.clientX - dragStartXRef.current;
-            const newWidth = Math.max(260, Math.min(600, dragStartWidthRef.current + delta));
-            setSidebarWidth(newWidth);
-        };
-
-        const handleMouseUp = () => {
-            isDraggingRef.current = false;
-            document.body.style.cursor = '';
-            document.body.style.userSelect = '';
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
-        };
-
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mouseup', handleMouseUp);
-    };
+    const [fields, setFields] = useState<AgreementFields>(defaultFields);
+    const doc = useMemo(() => resolveAgreement(fields), [fields]);
+    const [recipientEmail, setRecipientEmail] = useState("");
+    const [selectedBrokerId, setSelectedBrokerId] = useState<string | null>(null);
+    const [confirmAction, setConfirmAction] = useState<null | "save" | "email">(null);
+    const [history, setHistory] = useState<any[]>([]);
 
     const [isListening, setIsListening] = useState(false);
     const [aiInput, setAiInput] = useState("");
@@ -95,261 +103,112 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
     const [isConversational, setIsConversational] = useState(false);
     const [aiResponse, setAiResponse] = useState("");
     const [aiSuggestions, setAiSuggestions] = useState<string[]>([
-        "Make this more formal",
-        "Simplify the terms",
-        "Ensure South African legal compliance"
+        "Which details are still missing?",
+        "Explain clause 8.3 in plain words",
+        "What does the client get on this plan?",
     ]);
-    const [pendingChanges, setPendingChanges] = useState<any>(null);
+    const [pendingChanges, setPendingChanges] = useState<Record<string, string> | null>(null);
 
-    const [contractData, setContractData] = useState({
-        // Service Provider Details
-        providerName: "Lead Velocity",
-        providerCompany: "Lead Velocity (Pty) Ltd",
-        providerAddressLine: "Address: 210 Amarand Avenue, Pegasus Building 1, Menlyn Maine, Pretoria, 0184",
-        providerEmailLine: "Email: howzit@leadvelocity.co.za",
-        providerPhoneLine: "Tel: +27 10 976 5618",
-        providerRepresentativeLine: "Represented by: Authorised Representative",
-        // Client Details
-        clientName: "Valued Partner",
-        clientCompany: "Client Company (Pty) Ltd",
-        clientAddressLine: "Address:",
-        clientEmailLine: "Email:",
-        clientPhoneLine: "Tel:",
-        clientRepresentativeLine: "Represented by: Authorised Signatory",
-        effectiveDate: new Date().toLocaleDateString('en-ZA', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-        endDate: "",
-        serviceFee: "R8,500 (p/m)",
-        leadTarget: "± 17 Qualified Leads per Month",
-        commissionText: "",
-        bankName: "First National Bank",
-        accountHolder: "Lead Velocity",
-        accountNumber: "63174286724",
-        branchCode: "250655",
-        title: "Service Level Agreement",
-        subtitle: "Bronze: Growth Starter",
-        scopeText: "Lead Velocity shall provide qualified lead tokens as specified in the selected tier. Allocation is paid monthly in advance. Additional leads can be Top-Ups (min 5 tokens) at R500 each.",
-        deliverablesText: "1. Weekly delivery of qualified decision-maker contact details. 2. Brief business profile for each prospect. 3. Monthly performance report summarizing lead volume and feedback trends.",
-        termsText: "Terms and Payment: Fees are due upfront for each monthly cycle. Delivery is on a Lead Token basis. Top-Up tokens require one week's notice.",
-        breachText: "Should the Client breach material terms (non-payment or commission violations where applicable), lead delivery will be immediately suspended until the subscription is re-activated.",
-        refundText: "No refunds are provided for service fees or pre-purchased Lead Tokens in the event of premature cancellation within an active 30-day cycle, as these allocations cover the variable cost of digital inventory.",
-        confidentialityText: "Both Parties agree to maintain strict confidentiality regarding all non-public information, lead data, and proprietary campaign methodologies. This NDA remains in force for 36 months following termination.",
-        disputeText: "Disputes regarding lead qualification must be submitted in writing within 48 business hours. Valid disputes will be resolved via a replacement token within 5 business days.",
-        pilotEligibilityText: "",
-        renewalText: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment.",
-        forceMajeureText: "Lead Velocity is not liable for delays caused by national infrastructure failures (load shedding), civil unrest, or major digital platform outages (Meta/Google).",
-        liabilityText: "Maximum liability of Lead Velocity is limited to the fees paid by the Client in the month preceding the claim. We are not liable for lost profit or indirect business damages.",
-        indemnityText: "The Client indemnifies Lead Velocity against any claims arising from the Client's conduct after receiving a lead or from the Client's advice provided to prospects.",
-        jurisdictionText: "This Agreement shall be governed by the laws of the Republic of South Africa. Any disputes shall be resolved in the jurisdiction of Pretoria, Gauteng.",
-        entireAgreementText: "This document constitutes the entire agreement between the parties and supersedes all prior verbal or written understandings.",
-        recitalsText: "WHEREAS the Service Provider is in the business of providing professional lead generation and business development services; AND WHEREAS the Client wishes to engage the Service Provider to provide such services on the terms and conditions set out herein; NOW THEREFORE, in consideration of the mutual covenants hereinafter set forth and for other good and valuable consideration, the receipt and sufficiency of which are hereby acknowledged, the Parties agree as follows:",
-        definitionsText: "Qualified Business Lead: Initial business enquiry from a South African registered entity meeting the agreed minimum revenue or insurance cover threshold. Lead Tokens: Pre-purchased credits representing the delivery of a singular qualified business lead. Top-Up: Additional tokens purchased above the monthly tier allocation.",
-        intellectualPropertyText: "Lead Velocity retains ownership of all campaign assets, landing pages, and proprietary ad-copy. The Client owns all lead data for which full payment has been received.",
-        dataProtectionText: "POPIA Compliance: Lead Velocity warrants that all lead generation activities are compliant with the Protection of Personal Information Act. Both parties agree to handle prospect data securely.",
-        nonSolicitationText: "The Client shall not solicit or hire any Lead Velocity personnel or recurring contractors for 12 months following termination without written consent and a placement fee.",
-        warrantiesText: "Lead Velocity warrants that it has the legal right to provide the services. Use of services is at the Client's own risk beyond the agreed lead qualification criteria.",
-        terminationText: "Either Party may terminate or pause this Agreement at the end of any 30-day cycle. Cancellation during an active cycle is effective immediately but is subject to a strict no-refund policy. Upon termination: (i) all delivered leads remain payable; (ii) commission (where applicable) and confidentiality obligations survive for 24 months.",
-        assignmentText: "Neither Party may assign, transfer, or delegate any of its rights or obligations under this Agreement without the prior written consent of the other Party, which consent shall not be unreasonably withheld. Notwithstanding the foregoing, Lead Velocity may assign this Agreement to any affiliate or successor entity without requiring the Client's consent, provided the Client is notified in writing within 30 days of such assignment. Any purported assignment in contravention of this clause shall be null and void.",
-        noticesText: "All notices, requests, and communications under this Agreement shall be in writing and shall be deemed delivered: (a) immediately upon personal delivery; (b) upon written confirmation of receipt if sent by email; or (c) five (5) Business Days after posting if sent by registered mail. Notices shall be addressed to the contact details set out in the Parties section of this Agreement, or to such other address as a Party designates by written notice.",
-        relationshipText: "Nothing in this Agreement shall be construed as creating a partnership, joint venture, agency, franchise, or employment relationship between the Parties. Lead Velocity acts as an independent contractor and shall have sole control over the manner and means of performing the Services. Neither Party has authority to bind the other or to incur any obligation on behalf of the other without prior written consent.",
-    });
+    const placeholder = (token: string) => fields.placeholders[token] || "";
+    const setPlaceholder = (token: string, value: string) => setFields((prev) => ({ ...prev, placeholders: { ...prev.placeholders, [token]: value } }));
+    const clientLabel = placeholder("[PRACTICE NAME]") || placeholder("[CLIENT FULL NAME]") || "Client";
 
-    const [history, setHistory] = useState<any[]>([]);
+    const handleDividerMouseDown = (e: React.MouseEvent) => {
+        isDraggingRef.current = true;
+        dragStartXRef.current = e.clientX;
+        dragStartWidthRef.current = sidebarWidth;
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+        const handleMouseMove = (ev: MouseEvent) => {
+            if (!isDraggingRef.current) return;
+            setSidebarWidth(Math.max(280, Math.min(640, dragStartWidthRef.current + ev.clientX - dragStartXRef.current)));
+        };
+        const handleMouseUp = () => {
+            isDraggingRef.current = false;
+            document.body.style.cursor = "";
+            document.body.style.userSelect = "";
+            window.removeEventListener("mousemove", handleMouseMove);
+            window.removeEventListener("mouseup", handleMouseUp);
+        };
+        window.addEventListener("mousemove", handleMouseMove);
+        window.addEventListener("mouseup", handleMouseUp);
+    };
 
     const fetchHistory = async () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
         const { data, error } = await supabase
-            .from('admin_documents')
-            .select('*')
-            .eq('category', 'contracts')
-            .eq('uploaded_by', user.id)
-            .order('created_at', { ascending: false })
+            .from("admin_documents")
+            .select("*")
+            .eq("category", "contracts")
+            .eq("uploaded_by", user.id)
+            .order("created_at", { ascending: false })
             .limit(5);
         if (data && !error) setHistory(data);
     };
 
+    // Fills client details only. The Plan is never inferred from desired leads: Bronze by default, the user picks.
+    const handleBrokerSelect = (broker: any) => {
+        const phone = broker.phone_number || broker.phone || broker.whatsapp_number || "";
+        setFields((prev) => ({
+            ...prev,
+            client_phone: phone || prev.client_phone,
+            placeholders: {
+                ...prev.placeholders,
+                ...(broker.full_name ? { "[CLIENT FULL NAME]": broker.full_name } : {}),
+                ...(broker.firm_name || broker.company_name ? { "[PRACTICE NAME]": broker.firm_name || broker.company_name } : {}),
+                ...(broker.email ? { "[CLIENT EMAIL]": broker.email } : {}),
+            },
+        }));
+        if (broker.email) setRecipientEmail(broker.email);
+        if (broker.id) setSelectedBrokerId(broker.id);
+        toast({ title: "Broker details applied", description: "Name, practice, email and phone filled. Choose the plan yourself." });
+    };
+
     const [searchParams] = useSearchParams();
     const globalBrokerId = searchParams.get("brokerId");
-
     useEffect(() => {
-        if (globalBrokerId) {
-            const fetchGlobalBroker = async () => {
-                const { data, error } = await supabase
-                    .from('broker_onboarding_responses')
-                    .select('*')
-                    .eq('id', globalBrokerId)
-                    .single();
-
-                if (data && !error) {
-                    handleBrokerSelect(data);
-                }
-            };
-            fetchGlobalBroker();
-        }
+        if (!globalBrokerId) return;
+        (async () => {
+            const { data, error } = await supabase.from("broker_onboarding_responses").select("*").eq("id", globalBrokerId).single();
+            if (data && !error) handleBrokerSelect(data);
+        })();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [globalBrokerId]);
 
-    const [recipientEmail, setRecipientEmail] = useState("");
-    const [selectedBrokerId, setSelectedBrokerId] = useState<string | null>(null);
-
     useEffect(() => {
-        if (initialData) {
-            setContractData(initialData);
+        if (!initialData) return;
+        if (initialData.template_version && initialData.fields) {
+            const saved = initialData.fields as Partial<AgreementFields>;
+            setFields({ ...defaultFields(), ...saved, placeholders: { ...(saved.placeholders || {}) } });
+            if (initialData.template_version !== TEMPLATE_VERSION)
+                toast({ title: "Newer agreement wording", description: `Saved against ${initialData.template_version}; now shown on ${TEMPLATE_VERSION}. Review before sending.` });
+        } else {
+            setFields(fromLegacy(initialData));
+            toast({ title: "Old-format contract", description: `Client details carried into the ${AGREEMENT_TITLE}. The old SLA terms were not carried over.` });
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [initialData]);
 
-    const handleBrokerSelect = (broker: any) => {
-        const clientName = broker.full_name || "Valued Partner";
-        const clientCompany = broker.firm_name || broker.company_name || "Client Company (Pty) Ltd";
-        const leads = broker.desired_leads_weekly || 0;
+    useEffect(() => {
+        fetchHistory();
+    }, []);
 
-        let tierData = {
-            subtitle: "Bronze: Growth Starter",
-            fee: "R8,500 (p/m)",
-            target: "± 17 Qualified Leads per Month",
-            comm: "",
-            pilot: "",
-            breach: "Should the Client breach material terms (non-payment or commission violations where applicable), lead delivery will be immediately suspended. Service is paused until the account is settled in full.",
-            scope: "17 tokens per month. Top-Ups (min 5) at R500 each. Delivery managed on a weekly schedule. Minimum 5-token Top-Up applies.",
-            renewal: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment.",
-            termination: "Either Party may terminate or pause this Agreement at the end of any 30-day cycle. Cancellation during an active cycle is effective immediately but is subject to a strict no-refund policy. Upon termination: (i) all delivered leads remain payable; (ii) commission (where applicable) and confidentiality obligations survive for 24 months.",
-            color: "Bronze"
-        };
-
-        if (leads <= 10 && leads > 0) {
-            tierData = {
-                subtitle: "Pilot Phase: Where We Prove Consistency",
-                fee: "R6,000 (once-off)",
-                target: "± 10 Qualified Leads (Once-off)",
-                comm: "ten percent (10%)",
-                pilot: "Promotion: Once-off pilot plan for first-time clients. Not available for recurring accounts. Participants must upgrade to Bronze or higher to continue service.",
-                breach: "Once-off introductory plan. Premature cancellation before token depletion is non-refundable. Commission obligations survive termination.",
-                scope: "Once-off introductory campaign. Delivery follows a 'Lead Token' model; Top-Ups may be requested (minimum 5 tokens at R2,500).",
-                renewal: "Terminates automatically after 30 days or lead completion. Non-refundable. Standard NDA and POPIA apply.",
-                termination: "Terminates automatically after 30 days or lead completion. No refund for early exit. Commission and NDA obligations survive for 24 months.",
-                color: "Pilot"
-            };
-        } else if (leads > 32) {
-            tierData = {
-                subtitle: "Gold: Performance Partner",
-                fee: "R16,500+ (p/m)",
-                target: "33-40+ Qualified Leads per Month",
-                comm: "",
-                pilot: "",
-                breach: "Should the Client breach material terms (non-payment or commission violations where applicable), lead delivery will be suspended immediately. Service resumes once the account is settled.",
-                scope: "40+ tokens per month. Top-Ups (min 5) at R500 each. Advanced targeting and dedicated management included.",
-                renewal: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment.",
-                termination: "Either Party may terminate or pause this Agreement at the end of any 30-day cycle. Cancellation during an active cycle is effective immediately but is subject to a strict no-refund policy. Upon termination: (i) all delivered leads remain payable; (ii) commission (where applicable) and confidentiality obligations survive for 24 months.",
-                color: "Gold"
-            };
-        } else if (leads >= 20) {
-            tierData = {
-                subtitle: "Silver: Scale & Optimise",
-                fee: "R10,500 (p/m)",
-                target: "± 23-26 Qualified Leads per Month",
-                comm: "",
-                pilot: "",
-                breach: "Should the Client breach material terms (non-payment or commission violations where applicable), lead delivery will be immediately suspended until the account is settled in full.",
-                scope: "23-26 tokens per month. Top-Ups (min 5) at R500 each. Includes bi-weekly performance updates and messaging optimisation.",
-                renewal: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment.",
-                termination: "Either Party may terminate or pause this Agreement at the end of any 30-day cycle. Cancellation during an active cycle is effective immediately but is subject to a strict no-refund policy. Upon termination: (i) all delivered leads remain payable; (ii) commission (where applicable) and confidentiality obligations survive for 24 months.",
-                color: "Silver"
-            };
-        }
-
-        setContractData(prev => ({
-            ...prev,
-            clientName,
-            clientCompany,
-            subtitle: tierData.subtitle,
-            serviceFee: tierData.fee,
-            leadTarget: tierData.target,
-            scopeText: tierData.scope,
-            renewalText: tierData.renewal,
-            terminationText: tierData.termination,
-            breachText: tierData.breach,
-            pilotEligibilityText: tierData.pilot || "",
-            commissionText: tierData.comm ? `In addition to the monthly service fee, the Client agrees to pay Lead Velocity a commission of ${tierData.comm} of the gross first-year premium value of any insurance policy sold as a direct or indirect result of Lead Velocity's lead generation efforts. This commission obligation applies to: (a) all policies placed on leads delivered under this Agreement; (b) any policies placed on referrals obtained from leads sourced through Lead Velocity; and (c) any secondary sales arising from relationships initiated through Lead Velocity's efforts. This commission obligation shall survive the termination of this Agreement for a period of twenty-four (24) months following the last lead delivered.` : "",
-            clientEmailLine: `Email: ${broker.email || ""} `,
-            clientPhoneLine: `Tel: ${broker.phone_number || broker.phone || broker.whatsapp_number || ""} `,
-        }));
-
-        if (broker.email) {
-            setRecipientEmail(broker.email);
-        }
-        if (broker.id) {
-            setSelectedBrokerId(broker.id);
-        }
-
-        toast({
-            title: "Broker Data Applied",
-            description: `Auto-filled details based on ${leads} leads/wk.`,
-        });
-    };
-
-    const updateField = (field: string, value: string) => {
-        setContractData(prev => ({ ...prev, [field]: value }));
-    };
-
-    // Voice Synthesis (TTS) - Improved Voice Selection (Hand-picked for ZA)
+    // ---------------------------------------------------------------- AI assistant (placeholder values only)
     const speak = (text: string) => {
-        if (!('speechSynthesis' in window)) return;
-
+        if (!("speechSynthesis" in window)) return;
         window.speechSynthesis.cancel();
-
-        const getPreferredVoice = () => {
+        const go = () => {
             const voices = window.speechSynthesis.getVoices();
-            if (voices.length === 0) return null;
-
-            // Strict Priority: 
-            // 1. Natural Google/Microsoft ZA voices 
-            // 2. High quality English Female (Natural)
-            // 3. Any ZA voice
-            // 4. Any Female English voice
-
-            const naturalZA = voices.find(v => (v.name.toLowerCase().includes('natural') || v.name.toLowerCase().includes('google')) && v.lang === 'en-ZA');
-            if (naturalZA) return naturalZA;
-
-            const premiumFemale = voices.find(v => (v.name.toLowerCase().includes('ayanda') || v.name.toLowerCase().includes('hazel') || v.name.toLowerCase().includes('zira') || v.name.toLowerCase().includes('susan')));
-            if (premiumFemale) return premiumFemale;
-
-            const femaleZA = voices.find(v => v.lang === 'en-ZA' && v.name.toLowerCase().includes('female'));
-            if (femaleZA) return femaleZA;
-
-            const anyZA = voices.find(v => v.lang === 'en-ZA');
-            if (anyZA) return anyZA;
-
-            const genericNaturalFemale = voices.find(v => v.name.toLowerCase().includes('natural') && v.name.toLowerCase().includes('female'));
-            if (genericNaturalFemale) return genericNaturalFemale;
-
-            return voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female')) || voices[0];
+            const voice = voices.find((v) => v.lang === "en-ZA") || voices.find((v) => v.lang.startsWith("en")) || voices[0];
+            const u = new SpeechSynthesisUtterance(text);
+            if (voice) u.voice = voice;
+            u.onstart = () => setIsSpeaking(true);
+            u.onend = () => setIsSpeaking(false);
+            window.speechSynthesis.speak(u);
         };
-
-        const executeSpeak = () => {
-            const voice = getPreferredVoice();
-            const utterance = new SpeechSynthesisUtterance(text);
-
-            if (voice) {
-                utterance.voice = voice;
-                // Humanize the standard voices if not using a "Natural" one
-                if (!voice.name.toLowerCase().includes('natural') && !voice.name.toLowerCase().includes('google')) {
-                    utterance.pitch = 1.05;
-                    utterance.rate = 0.92;
-                }
-            }
-
-            utterance.onstart = () => setIsSpeaking(true);
-            utterance.onend = () => setIsSpeaking(false);
-            window.speechSynthesis.speak(utterance);
-        };
-
-        if (window.speechSynthesis.getVoices().length > 0) {
-            executeSpeak();
-        } else {
-            window.speechSynthesis.onvoiceschanged = () => {
-                executeSpeak();
-                window.speechSynthesis.onvoiceschanged = null;
-            };
-        }
+        if (window.speechSynthesis.getVoices().length > 0) go();
+        else window.speechSynthesis.onvoiceschanged = () => { go(); window.speechSynthesis.onvoiceschanged = null; };
     };
 
     const toggleListening = () => {
@@ -361,7 +220,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
             return;
         }
         const recognition = new SpeechRecognition();
-        recognition.lang = 'en-ZA';
+        recognition.lang = "en-ZA";
         recognition.onstart = () => { setIsListening(true); toast({ title: "Listening..." }); };
         recognition.onresult = (event: any) => {
             const transcript = event.results[0][0].transcript;
@@ -373,26 +232,31 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
         recognition.start();
     };
 
+    const aiState = () => {
+        const state: Record<string, string> = { plan: fields.plan, client_phone: fields.client_phone };
+        for (const t of ALL_TOKENS) state[t] = fields.placeholders[t] || "";
+        return state;
+    };
+
     const processAICommand = async (command: string) => {
         setIsThinking(true);
-        setAiResponse("Let me review the contract...");
+        setAiResponse("Let me look at the agreement...");
         try {
-            const result = await callLegalAI(command, contractData, "Contract");
-            const { response, changes, suggestions } = result;
-
+            const { response, changes, suggestions } = await callLegalAI(command, aiState(), AGREEMENT_TITLE, AI_GUIDANCE);
             setAiResponse(response || "I've reviewed the request.");
-            if (changes && Object.keys(changes).length > 0) {
-                setPendingChanges(changes);
+            // only placeholder values, plan and phone may change; clause wording never does
+            const allowed: Record<string, string> = {};
+            for (const [k, v] of Object.entries(changes || {})) {
+                if (typeof v !== "string") continue;
+                if (k === "plan" && !ALL_PLANS.some((t) => t.name === v)) continue;
+                if (k === "plan" || k === "client_phone" || ALL_TOKENS.has(k)) allowed[k] = v;
             }
-            if (suggestions && Array.isArray(suggestions) && suggestions.length > 0) {
-                setAiSuggestions(suggestions);
-            }
+            if (Object.keys(allowed).length > 0) setPendingChanges(allowed);
+            if (Array.isArray(suggestions) && suggestions.length > 0) setAiSuggestions(suggestions);
             if (response && isConversational) speak(response);
-            if (response && !isConversational) setAiResponse(response);
         } catch (error: any) {
             console.error("AI Assistant Error:", error);
-            const errorMsg = "I'm sorry, I couldn't connect to the AI. Please check your internet connection.";
-            setAiResponse(errorMsg);
+            setAiResponse("I'm sorry, I couldn't connect to the AI. Please check your internet connection.");
             toast({ title: "AI Error", description: error.message, variant: "destructive" });
         } finally {
             setIsThinking(false);
@@ -401,10 +265,18 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
 
     const applyPendingChanges = () => {
         if (!pendingChanges) return;
-        setContractData(prev => ({ ...prev, ...pendingChanges }));
+        setFields((prev) => {
+            const next = { ...prev, placeholders: { ...prev.placeholders } };
+            for (const [k, v] of Object.entries(pendingChanges)) {
+                if (k === "plan") next.plan = v;
+                else if (k === "client_phone") next.client_phone = v;
+                else next.placeholders[k] = v;
+            }
+            return next;
+        });
         setPendingChanges(null);
         setAiResponse("Changes applied.");
-        toast({ title: "Applied", description: "Contract updated." });
+        toast({ title: "Applied", description: "Agreement details updated." });
     };
 
     const handleAISubmit = (e: React.FormEvent) => {
@@ -414,215 +286,130 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
         setAiInput("");
     };
 
-    const handleGenerate = async (action: 'download' | 'save' | 'email' | 'downloadWord') => {
+    // ---------------------------------------------------------------- output
+    const safeName = () =>
+        `Lead_Generation_Services_Agreement_${clientLabel.replace(/[\s/\\:*?"<>|]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "") || "Client"}_${Date.now()}`;
+
+    const download = (blob: Blob, fileName: string) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast({ title: "Downloaded", description: fileName });
+    };
+
+    // House-style HTML (src/lib/contract/renderHtml.ts) is the single rendering of the agreement:
+    // preview iframe, Print (vector PDF via the browser) and the attached/downloaded PDF all use it.
+    const houseHtml = (f: AgreementFields) => renderAgreementHtml(resolveAgreement(f), f, { logoSrc: contractLogo });
+    const previewHtml = useMemo(() => houseHtml(fields), [fields]);
+    const clientFields = (): AgreementFields => ({ ...fields, include_notes: false }); // email + save: never internal notes
+
+    const loadInFrame = async (html: string, width = 794) => {
+        const frame = document.createElement("iframe");
+        frame.style.cssText = `position:fixed;left:-10000px;top:0;width:${width}px;height:1200px;border:0;visibility:hidden;`;
+        document.body.appendChild(frame);
+        await new Promise<void>((resolve) => { frame.onload = () => resolve(); frame.srcdoc = html; });
+        const fdoc = frame.contentDocument!;
+        await Promise.all(Array.from(fdoc.images).map((img) => (img.complete ? null : new Promise((r) => { img.onload = img.onerror = r; }))));
+        if ((fdoc as any).fonts?.ready) await (fdoc as any).fonts.ready;
+        return frame;
+    };
+
+    // Browsers cannot print to a PDF file without a dialog, so the downloadable / attachable PDF is a
+    // compressed raster of the same house HTML (about 1-2 MB). For a small vector PDF use "Print" here,
+    // or scripts/export-contract-pdf.mjs (headless Chrome, ~450 KB).
+    const renderPdf = async (f: AgreementFields) => {
+        const frame = await loadInFrame(houseHtml(f));
+        try {
+            const page = frame.contentDocument!.querySelector(".page") as HTMLElement;
+            frame.style.visibility = "visible";
+            return await generateSmartPDF(page, { scale: 1.05, quality: 0.55 });
+        } finally {
+            document.body.removeChild(frame);
+        }
+    };
+
+    const printVector = async () => {
+        const frame = await loadInFrame(previewHtml);
+        frame.contentWindow!.focus();
+        frame.contentWindow!.print();
+        setTimeout(() => frame.remove(), 60000);
+    };
+    const handleDownload = async (kind: "pdf" | "word") => {
         try {
             setIsGenerating(true);
-            const toastTitles: Record<typeof action, string> = {
-                email: "Emailing...",
-                save: "Saving...",
-                download: "Generating PDF...",
-                downloadWord: "Generating Word...",
-            };
-            toast({ title: toastTitles[action] });
+            toast({ title: kind === "pdf" ? "Generating PDF..." : "Generating Word..." });
+            const suffix = fields.include_notes ? "_INTERNAL-NOTES" : "";
+            if (kind === "word") download(await buildContractDocx(doc, { logoUrl: contractLogo }), `${safeName()}${suffix}.docx`);
+            else download((await renderPdf(fields)).output("blob"), `${safeName()}${suffix}.pdf`);
+        } catch (error: any) {
+            toast({ title: "Error", description: error.message, variant: "destructive" });
+        } finally {
+            setIsGenerating(false);
+        }
+    };
 
-            if (action === 'downloadWord') {
-                const blob = await buildContractDocx(contractData, { logoUrl: logo });
-                const safeCompany = contractData.clientCompany
-                    .replace(/[\s/\\:*?"<>|]/g, "_")
-                    .replace(/_+/g, "_")
-                    .replace(/^_|_$/g, "") || "Contract";
-                const fileName = `Contract_${safeCompany}_${Date.now()}.docx`;
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = fileName;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                toast({ title: "Downloaded", description: fileName });
-                setIsGenerating(false);
-                return;
+    const requestConfirm = (action: "save" | "email") => {
+        if (action === "email" && !recipientEmail.trim()) {
+            toast({ title: "Email required", description: "Add a recipient email under Dispatch first.", variant: "destructive" });
+            return;
+        }
+        setConfirmAction(action);
+    };
+
+    // Runs only from the confirm dialog: nothing is saved or sent without an explicit click.
+    const saveOrSend = async (action: "save" | "email") => {
+        setConfirmAction(null);
+        try {
+            setIsGenerating(true);
+            toast({ title: action === "email" ? "Preparing email..." : "Saving..." });
+            const pdfBlob = (await renderPdf(clientFields())).output("blob");
+            const fileName = `${safeName()}.pdf`;
+            const filePath = `contracts/${fileName}`;
+            const { error: uploadError } = await supabase.storage.from("admin-documents").upload(filePath, pdfBlob, { upsert: false, contentType: "application/pdf" });
+            if (uploadError) throw uploadError;
+
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                const { error: dbError } = await supabase.from("admin_documents").insert({
+                    name: fileName,
+                    description: `${AGREEMENT_TITLE} for ${clientLabel}`,
+                    file_path: filePath,
+                    file_type: "pdf",
+                    file_size: pdfBlob.size,
+                    category: "contracts",
+                    uploaded_by: user.id,
+                    content_data: { template_version: doc.templateVersion, fields: clientFields() } as any,
+                });
+                if (dbError) throw dbError;
+                fetchHistory();
             }
 
-            if (!reportRef.current) return;
-
-            const element = reportRef.current;
-            const clone = element.cloneNode(true) as HTMLElement;
-            clone.classList.remove('overflow-hidden');
-            clone.style.transform = "none";
-            clone.style.position = "fixed";
-            clone.style.top = "-9999px";
-            clone.style.left = "0";
-            clone.style.width = "210mm";
-            clone.style.minHeight = "297mm";
-            clone.style.zIndex = "-9999";
-            clone.style.backgroundColor = "#ffffff"; // Ensure solid background
-
-            // Add page-break styles only where needed — do NOT force .flex/.grid to block (breaks layout and can cause blank PDF)
-            const style = document.createElement('style');
-            style.textContent = `
-                header { page-break-after: avoid!important; break-after: avoid!important; }
-                h1, h2, h3, h4 { page-break-after: avoid!important; break-after: avoid!important; }
-                section, .document-section, .bg-slate-50, .border, .bg-red-50, .bg-amber-50, .bg-green-50, .bg-blue-50, .bg-purple-50, .bg-orange-50 {
-                    page-break-inside: avoid!important;
-                    break-inside: avoid!important;
-                    margin-bottom: 24px!important;
-                    position: relative!important;
-                }
-                tr { page-break-inside: avoid!important; break-inside: avoid!important; }
-                p { orphans: 4; widows: 4; line-height: 1.6!important; }
-                table { border-collapse: collapse!important; width: 100%!important; page-break-inside: auto!important; }
-            `;
-            clone.appendChild(style);
-
-            clone.querySelectorAll('[contenteditable]').forEach(el => {
-                el.removeAttribute('contenteditable');
-                el.className = el.className.replace(/hover:\S+/g, '').replace(/focus:\S+/g, '');
-            });
-
-            document.body.appendChild(clone);
-
-            // PDF only: spacing adjustments (preview unchanged)
-            const recitalsSection = clone.querySelector('.pdf-page-break-before')?.nextElementSibling;
-            if (recitalsSection instanceof HTMLElement) recitalsSection.style.setProperty('margin-top', '270px', 'important');
-            // Remove gap between 2. Deliverables and Commercial Terms by zeroing the margins that create it (no overlap)
-            const deliverablesSection = clone.querySelector('[data-pdf-deliverables-section]');
-            if (deliverablesSection instanceof HTMLElement) deliverablesSection.style.setProperty('margin-bottom', '0', 'important');
-            const commercialTermsSection = clone.querySelector('[data-pdf-commercial-terms]');
-            if (commercialTermsSection instanceof HTMLElement) commercialTermsSection.style.setProperty('margin-top', '16px', 'important');
-            // Pull 3. Terms & Conditions up into the white space above it (red box area)
-            const termsSection = clone.querySelector('[data-pdf-terms-section]');
-            if (termsSection instanceof HTMLElement) termsSection.style.setProperty('margin-top', '-40px', 'important');
-            // Non-pilot only: reduce space between 3. Terms & Conditions and 4. Confidentiality by 5px
-            if (!contractData.pilotEligibilityText) {
-                const confidentialitySection = clone.querySelector('[data-pdf-confidentiality-section]');
-                if (confidentialitySection instanceof HTMLElement) confidentialitySection.style.setProperty('margin-top', '-5px', 'important');
-            }
-            // Reduce gap between 11 and 12: remove space below 11 and pull 12 up slightly
-            const section11 = clone.querySelector('[data-pdf-section-11]');
-            if (section11 instanceof HTMLElement) section11.style.setProperty('margin-bottom', '0', 'important');
-            const section12 = clone.querySelector('[data-pdf-section-12]');
-            const section13 = clone.querySelector('[data-pdf-section-13]');
-            if (section12 instanceof HTMLElement) section12.style.setProperty('margin-top', '-24px', 'important');
-            if (section13 instanceof HTMLElement) section13.style.setProperty('margin-top', '0', 'important');
-            if (section12 instanceof HTMLElement) section12.style.setProperty('margin-bottom', '0', 'important');
-            const section14 = clone.querySelector('[data-pdf-section-14]');
-            if (section14 instanceof HTMLElement) section14.style.setProperty('margin-top', '80px', 'important');
-            const section17 = clone.querySelector('[data-pdf-section-17]');
-            if (section17 instanceof HTMLElement) section17.style.setProperty('margin-top', '28px', 'important');
-            const section18 = clone.querySelector('[data-pdf-section-18]');
-            const section19 = clone.querySelector('[data-pdf-section-19]');
-            if (section18 instanceof HTMLElement) section18.style.setProperty('margin-bottom', '0', 'important');
-            if (section19 instanceof HTMLElement) section19.style.setProperty('margin-top', '-80px', 'important');
-            const section19Body = clone.querySelector('[data-pdf-section-19-body]');
-            if (section19Body instanceof HTMLElement) section19Body.style.setProperty('margin-top', '28px', 'important');
-
-            // Allow layout to reflow so spacers and margins are applied before capture
-            await new Promise((r) => setTimeout(r, 100));
-
-            console.log("Contract PDF: Starting generateSmartPDF...");
-            const pdf = await generateSmartPDF(clone, { scale: 1.5, quality: 0.90 });
-            console.log("Contract PDF: generateSmartPDF complete.");
-
-            document.body.removeChild(clone);
-
-            // Safe filename: strip invalid chars and ensure .pdf
-            const safeCompany = contractData.clientCompany
-                .replace(/[\s/\\:*?"<>|]/g, "_")
-                .replace(/_+/g, "_")
-                .replace(/^_|_$/g, "") || "Contract";
-            const fileName = `Contract_${safeCompany}_${Date.now()}.pdf`;
-            console.log(`Contract PDF: Attempting to download ${fileName}`);
-
-            if (action === 'download') {
-                const blob = pdf.output('blob');
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = fileName;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                toast({ title: "Downloaded", description: fileName });
+            if (action === "email") {
+                const greeting = placeholder("[CLIENT SIGNATORY NAME]") || placeholder("[CLIENT FULL NAME]") || "Sir or Madam";
+                const emailBody =
+                    `<p>Dear ${greeting},</p>` +
+                    `<p>Please find attached the ${EMAIL_SUBJECT}.</p>` +
+                    `<p>Let us know if anything needs to change before signing.</p><br/>${getContractEmailSignature()}`;
+                const { error: fnError } = await supabase.functions.invoke("send-communication", {
+                    body: {
+                        channel: "email",
+                        recipient_contact: recipientEmail.trim(),
+                        recipient_type: selectedBrokerId ? "broker" : "lead",
+                        broker_id: selectedBrokerId || undefined,
+                        subject: EMAIL_SUBJECT,
+                        content: emailBody,
+                        attachments: [{ content: await blobToBase64(pdfBlob), filename: fileName, type: "application/pdf" }],
+                    },
+                });
+                if (fnError) throw new Error("Failed to send email. Ensure the edge function is deployed.");
+                toast({ title: "Draft sent", description: `Sent to ${recipientEmail.trim()} and saved to the library.` });
             } else {
-                // For 'save' and 'email', we upload to Supabase
-                const pdfBlob = pdf.output('blob');
-                const filePath = `contracts/${fileName}`;
-
-                // Upload to Storage
-                const { error: uploadError } = await supabase.storage
-                    .from('admin-documents')
-                    .upload(filePath, pdfBlob, {
-                        upsert: false,
-                        contentType: 'application/pdf'
-                    });
-
-                if (uploadError) throw uploadError;
-
-                // Get Public URL
-                const { data: { publicUrl } } = supabase.storage
-                    .from('admin-documents')
-                    .getPublicUrl(filePath);
-
-                // Get Current User
-                const { data: { user } } = await supabase.auth.getUser();
-                if (user) {
-                    // Save to Database
-                    const { error: dbError } = await supabase
-                        .from('admin_documents')
-                        .insert({
-                            name: fileName,
-                            description: `Contract for ${contractData.clientCompany}`,
-                            file_path: filePath,
-                            file_type: 'pdf',
-                            file_size: pdfBlob.size,
-                            category: 'contracts',
-                            uploaded_by: user.id,
-                            content_data: contractData
-                        });
-
-                    if (dbError) throw dbError;
-
-                    fetchHistory();
-                }
-
-                if (action === 'email') {
-                    if (!recipientEmail) {
-                        toast({ title: "Email Required", variant: "destructive" });
-                    } else {
-                        toast({ title: "Sending Email", description: "Attaching PDF to email..." });
-                        const base64Pdf = await blobToBase64(pdfBlob);
-
-                        const subject = `Contract: ${contractData.title} - ${contractData.clientCompany}`;
-                        const emailBody = `<p>Dear ${contractData.clientName},</p><p>Please find the Service Level Agreement for your review attached to this email.</p><p>We look forward to a successful partnership.</p><br/>${getContractEmailSignature()}`;
-
-                        const { error: fnError } = await supabase.functions.invoke('send-communication', {
-                            body: {
-                                channel: 'email',
-                                recipient_contact: recipientEmail,
-                                recipient_type: selectedBrokerId ? 'broker' : 'lead',
-                                broker_id: selectedBrokerId || undefined,
-                                subject: subject,
-                                content: emailBody,
-                                attachments: [
-                                    {
-                                        content: base64Pdf,
-                                        filename: fileName,
-                                        type: 'application/pdf'
-                                    }
-                                ]
-                            }
-                        });
-
-                        if (fnError) throw new Error("Failed to send email. Ensure the edge function is deployed.");
-
-                        toast({ title: "Email Sent!", description: "Document sent successfully with attachment." });
-                    }
-                } else {
-                    toast({ title: "Saved to Library" });
-                }
+                toast({ title: "Saved to Library" });
             }
         } catch (error: any) {
             toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -631,7 +418,31 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
         }
     };
 
-    const adjustZoom = (delta: number) => setZoom(prev => Math.max(0.3, Math.min(1.5, prev + delta)));
+    const adjustZoom = (delta: number) => setZoom((prev) => Math.max(0.3, Math.min(1.5, prev + delta)));
+    const unfilledOthers = OTHER_TOKENS.filter((t) => !placeholder(t));
+    const suggestable = unfilledOthers.filter((t) => suggestedValue(t) !== null);
+
+    const fieldInput = (f: (typeof PRIMARY_FIELDS)[number]) => {
+        const value = placeholder(f.token);
+        const missing = !value.trim();
+        const ring = missing ? "border-amber-500/40" : "border-white/10";
+        if (f.options)
+            return (
+                <Select value={value || undefined} onValueChange={(v) => setPlaceholder(f.token, v)}>
+                    <SelectTrigger className={`bg-slate-950/50 ${ring} h-9 text-sm`}><SelectValue placeholder="Choose..." /></SelectTrigger>
+                    <SelectContent>{f.options.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                </Select>
+            );
+        return (
+            <Input
+                type={f.date ? "date" : f.email ? "email" : "text"}
+                value={value}
+                placeholder={f.hint}
+                onChange={(e) => setPlaceholder(f.token, e.target.value)}
+                className={`bg-slate-950/50 ${ring} h-9 text-sm`}
+            />
+        );
+    };
 
     return (
         <div className="relative -m-4 sm:-m-6 lg:-m-8 h-[calc(100vh-64px)] flex flex-col font-sans animate-in fade-in duration-500 overflow-hidden">
@@ -639,134 +450,124 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                 <div className="flex items-center gap-4">
                     <Button variant="ghost" size="icon" onClick={onBack}><ArrowLeft className="h-5 w-5" /></Button>
                     <div>
-                        <h1 className="text-2xl font-bold text-white">Contract Generator <span className="text-slate-500 font-normal">v2.0</span></h1>
-                        <p className="text-slate-400 text-sm">AI-assisted legal drafting.</p>
+                        <h1 className="text-2xl font-bold text-white">Contract Generator</h1>
+                        <p className="text-slate-400 text-sm">{AGREEMENT_TITLE} · {doc.templateVersion}</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" className="border-pink-500/20 text-slate-300" onClick={() => handleGenerate('email')} disabled={isGenerating}><Mail className="mr-2 h-4 w-4" />Email</Button>
-                    <Button variant="outline" className="border-white/10 text-slate-300" onClick={() => handleGenerate('save')} disabled={isGenerating}><Save className="mr-2 h-4 w-4" />Save</Button>
-                    <Button onClick={() => handleGenerate('download')} disabled={isGenerating} className="bg-pink-600 hover:bg-pink-700"><Download className="mr-2 h-4 w-4" />Download PDF</Button>
-                    <Button onClick={() => handleGenerate('downloadWord')} disabled={isGenerating} className="bg-pink-600 hover:bg-pink-700"><FileText className="mr-2 h-4 w-4" />Download Word</Button>
+                    <Button variant="outline" className="border-pink-500/20 text-slate-300" onClick={() => requestConfirm("email")} disabled={isGenerating}><Mail className="mr-2 h-4 w-4" />Email draft</Button>
+                    <Button variant="outline" className="border-white/10 text-slate-300" onClick={() => requestConfirm("save")} disabled={isGenerating}><Save className="mr-2 h-4 w-4" />Save</Button>
+                    <Button variant="outline" className="border-white/10 text-slate-300" onClick={printVector} disabled={isGenerating} title="Print, or save as a small vector PDF"><Printer className="mr-2 h-4 w-4" />Print</Button>
+                    <Button onClick={() => handleDownload("pdf")} disabled={isGenerating} className="bg-pink-600 hover:bg-pink-700"><Download className="mr-2 h-4 w-4" />Download PDF</Button>
+                    <Button onClick={() => handleDownload("word")} disabled={isGenerating} className="bg-pink-600 hover:bg-pink-700"><FileText className="mr-2 h-4 w-4" />Download Word</Button>
                 </div>
             </div>
 
             <div className="flex flex-row flex-1 overflow-hidden gap-0 min-h-0">
-                {/* Sidebar Panel */}
-                <div style={{ width: sidebarWidth, minWidth: 260, maxWidth: 600, flexShrink: 0 }} className="h-full flex flex-col gap-4 overflow-hidden">
+                <div style={{ width: sidebarWidth, minWidth: 280, maxWidth: 640, flexShrink: 0 }} className="h-full flex flex-col gap-4 overflow-hidden">
                     <Card className="bg-slate-900/50 border-white/5 flex-1 overflow-y-auto custom-scrollbar">
                         <CardContent className="p-6 space-y-6">
                             <BrokerSelector onSelect={handleBrokerSelect} />
-                            <div className="space-y-4">
-                                <h3 className="font-bold text-slate-100 text-sm uppercase tracking-widest">Contract Details</h3>
-                                <div className="space-y-1">
-                                    <label className="text-[10px] text-slate-500 uppercase font-bold">Client Name</label>
-                                    <Input value={contractData.clientName} onChange={(e) => updateField('clientName', e.target.value)} className="bg-slate-950/50 border-white/10 h-9 text-sm" />
-                                </div>
-                                <div className="space-y-1">
-                                    <label className="text-[10px] text-slate-500 uppercase font-bold">Service Fee</label>
-                                    <Input value={contractData.serviceFee} onChange={(e) => updateField('serviceFee', e.target.value)} className="bg-slate-950/50 border-white/10 h-9 text-sm" />
-                                </div>
-                                <Separator className="bg-white/5" />
 
-                                {/* Tier Selection Section */}
-                                <div className="space-y-3">
-                                    <h3 className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Apply Preset Tier</h3>
-                                    <div className="grid grid-cols-1 gap-2">
-                                        {[
-                                            {
-                                                name: "Pilot Phase",
-                                                fee: "R6,000 (once-off)",
-                                                target: "± 10 Qualified Leads (Once-off)",
-                                                subtitle: "Pilot Phase: Where We Prove Consistency",
-                                                comm: "ten percent (10%)",
-                                                pilot: "Promotion: Once-off pilot plan for first-time clients. Not available for recurring accounts. Participants must upgrade to Bronze or higher to continue service.",
-                                                breach: "Once-off introductory plan. Premature cancellation before token depletion is non-refundable. Commission obligations survive termination.",
-                                                renewal: "Terminates automatically after 30 days or lead completion. No refund for early exit. Standard NDA and POPIA apply.",
-                                                termination: "Terminates automatically after 30 days. No refund for early exit. Commission and NDA obligations survive for 24 months.",
-                                                color: "border-pink-500/20 hover:bg-pink-500/10 text-pink-200"
-                                            },
-                                            {
-                                                name: "Bronze",
-                                                fee: "R8,500 (p/m)",
-                                                target: "± 17 Qualified Leads per Month",
-                                                subtitle: "Bronze: Growth Starter",
-                                                comm: "",
-                                                pilot: "",
-                                                breach: "Should the Client breach material terms (non-payment or commission violations where applicable), lead delivery will be immediately suspended. Service is paused until the account is settled in full.",
-                                                renewal: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment.",
-                                                termination: "Either Party may terminate or pause this Agreement at the end of any 30-day cycle. Cancellation during an active cycle is effective immediately but is subject to a strict no-refund policy. Upon termination: (i) all delivered leads remain payable; (ii) commission (where applicable) and confidentiality obligations survive for 24 months.",
-                                                color: "border-orange-500/20 hover:bg-orange-500/10 text-orange-200"
-                                            },
-                                            {
-                                                name: "Silver",
-                                                fee: "R10,500 (p/m)",
-                                                target: "± 23-26 Qualified Leads per Month",
-                                                subtitle: "Silver: Scale & Optimise",
-                                                comm: "",
-                                                pilot: "",
-                                                breach: "Should the Client breach material terms (non-payment or commission violations where applicable), lead delivery will be immediately suspended until the account is settled in full.",
-                                                renewal: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment.",
-                                                termination: "Either Party may terminate or pause this Agreement at the end of any 30-day cycle. Cancellation during an active cycle is effective immediately but is subject to a strict no-refund policy. Upon termination: (i) all delivered leads remain payable; (ii) commission (where applicable) and confidentiality obligations survive for 24 months.",
-                                                color: "border-slate-400/20 hover:bg-slate-400/10 text-slate-200"
-                                            },
-                                            {
-                                                name: "Gold",
-                                                fee: "R16,500+ (p/m)",
-                                                target: "33-40+ Qualified Leads per Month",
-                                                subtitle: "Gold: Performance Partner",
-                                                comm: "",
-                                                pilot: "",
-                                                breach: "Should the Client breach material terms (non-payment or commission violations where applicable), lead delivery will be suspended immediately. Service resumes once the account is settled.",
-                                                renewal: "Month-to-month subscription. As a non-binding arrangement, the Client may pause their subscription at the end of any 30-day cycle by electing not to make further payment. Service resumes automatically upon the next payment.",
-                                                termination: "Either Party may terminate or pause this Agreement at the end of any 30-day cycle. Cancellation during an active cycle is effective immediately but is subject to a strict no-refund policy. Upon termination: (i) all delivered leads remain payable; (ii) commission (where applicable) and confidentiality obligations survive for 24 months.",
-                                                color: "border-yellow-500/20 hover:bg-yellow-500/10 text-yellow-200"
-                                            }
-                                        ].map((tier) => (
-                                            <button
-                                                key={tier.name}
-                                                onClick={() => {
-                                                    setContractData(prev => ({
-                                                        ...prev,
-                                                        serviceFee: tier.fee,
-                                                        leadTarget: tier.target,
-                                                        subtitle: tier.subtitle,
-                                                        breachText: tier.breach || prev.breachText,
-                                                        pilotEligibilityText: tier.pilot || "",
-                                                        renewalText: tier.renewal || prev.renewalText,
-                                                        terminationText: tier.termination || prev.terminationText,
-                                                        commissionText: tier.comm ? `In addition to the monthly service fee, the Client agrees to pay Lead Velocity a commission of ${tier.comm} of the gross first-year premium value of any insurance policy sold as a direct or indirect result of Lead Velocity's lead generation efforts. This commission obligation applies to: (a) all policies placed on leads delivered under this Agreement; (b) any policies placed on referrals obtained from leads sourced through Lead Velocity; and (c) any secondary sales arising from relationships initiated through Lead Velocity's efforts. This commission obligation shall survive the termination of this Agreement for a period of twenty-four (24) months following the last lead delivered.` : ""
-                                                    }));
-                                                    toast({ title: `${tier.name} Applied`, description: "Contract terms updated." });
-                                                }}
-                                                className={`w-full text-left p-2.5 rounded-xl border ${tier.color} transition-all text-xs font-medium`}
-                                            >
-                                                <div className="flex justify-between items-center">
-                                                    <span>{tier.name}</span>
-                                                    <span className="opacity-60 font-normal">{tier.fee.split(' ')[0]}</span>
-                                                </div>
-                                            </button>
-                                        ))}
+                            {doc.warnings.length > 0 && (
+                                <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-200 space-y-1">
+                                    <p className="font-bold flex items-center gap-1.5"><AlertTriangle className="h-3.5 w-3.5" />Template and pricing disagree</p>
+                                    {doc.warnings.map((w) => <p key={w}>{w}</p>)}
+                                </div>
+                            )}
+
+                            <div className="space-y-3">
+                                <h3 className="font-bold text-slate-100 text-sm uppercase tracking-widest">Plan</h3>
+                                <div className="grid grid-cols-1 gap-2">
+                                    {ALL_PLANS.map((t) => (
+                                        <button
+                                            key={t.tier_code}
+                                            type="button"
+                                            onClick={() => setFields((prev) => ({ ...prev, plan: t.name }))}
+                                            className={`w-full text-left p-2.5 rounded-xl border transition-all text-xs font-medium ${fields.plan === t.name ? "border-pink-500 bg-pink-500/10 text-white" : "border-white/10 text-slate-300 hover:bg-white/5"}`}
+                                        >
+                                            <div className="flex justify-between items-center">
+                                                <span>{t.name}</span>
+                                                <span className="opacity-70 font-normal">{zar(t.price_zar)}{isPilot(t) ? " once-off" : ""} · {t.committed_leads} leads · {zar(perLead(t))}/lead</span>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                                <p className="text-[10px] text-slate-500">Flat fee per 30-day cycle, excl. VAT. Never linked to policies, premiums or sales. {PILOT_OFFERED ? `${PILOT.name} is a once-off introductory cycle for first-time clients; after it the client continues on ${PILOT.continue_on} or the agreement ends.` : "Minimum plan is Bronze."} Pick the plan yourself; it is never chosen from desired leads.</p>
+                            </div>
+
+                            <Separator className="bg-white/5" />
+
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="font-bold text-slate-100 text-sm uppercase tracking-widest">Client details</h3>
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${doc.unfilled.length ? "bg-amber-500/15 text-amber-300" : "bg-emerald-500/15 text-emerald-300"}`}>
+                                        {doc.unfilled.length ? `${doc.unfilled.length} unfilled` : "All filled"}
+                                    </span>
+                                </div>
+                                {PRIMARY_FIELDS.map((f) => (
+                                    <div key={f.token} className="space-y-1">
+                                        <label className="text-[10px] text-slate-500 uppercase font-bold">{f.label}</label>
+                                        {fieldInput(f)}
                                     </div>
-                                </div>
-
-                                <Separator className="bg-white/5" />
-                                <h3 className="font-bold text-slate-100 text-sm uppercase tracking-widest">Dispatch</h3>
+                                ))}
                                 <div className="space-y-1">
-                                    <label className="text-[10px] text-slate-500 uppercase font-bold">Recipient Email</label>
-                                    <Input value={recipientEmail} onChange={(e) => setRecipientEmail(e.target.value)} placeholder="client@company.co.za" className="bg-slate-950/50 border-white/10 h-9 text-sm" />
+                                    <label className="text-[10px] text-slate-500 uppercase font-bold">Phone <span className="normal-case font-normal">(CRM only; the agreement has no client phone line)</span></label>
+                                    <Input value={fields.client_phone} onChange={(e) => setFields((prev) => ({ ...prev, client_phone: e.target.value }))} className="bg-slate-950/50 border-white/10 h-9 text-sm" />
                                 </div>
                             </div>
-                            {/* Premium AI Assistant UI (Grok Style) */}
+
+                            <details className="group rounded-xl border border-white/5 bg-slate-950/30 p-3">
+                                <summary className="cursor-pointer text-xs font-bold text-slate-300 uppercase tracking-widest">
+                                    Other placeholders ({unfilledOthers.length} of {OTHER_TOKENS.length} unfilled)
+                                </summary>
+                                <div className="mt-3 space-y-3">
+                                    {suggestable.length > 0 && (
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            className="w-full border-white/10 text-slate-300 text-xs"
+                                            onClick={() => setFields((prev) => {
+                                                const p = { ...prev.placeholders };
+                                                for (const t of suggestable) p[t] = suggestedValue(t)!;
+                                                return { ...prev, placeholders: p };
+                                            })}
+                                        >
+                                            Accept {suggestable.length} suggested defaults ({suggestable.slice(0, 3).join(" ")}{suggestable.length > 3 ? " ..." : ""})
+                                        </Button>
+                                    )}
+                                    {OTHER_TOKENS.map((t) => (
+                                        <div key={t} className="space-y-1">
+                                            <label className="text-[10px] text-slate-500 font-bold break-words">{tokenLabel(t)}</label>
+                                            <Input value={placeholder(t)} onChange={(e) => setPlaceholder(t, e.target.value)} className={`bg-slate-950/50 h-8 text-xs ${placeholder(t) ? "border-white/10" : "border-amber-500/40"}`} />
+                                        </div>
+                                    ))}
+                                </div>
+                            </details>
+
+                            <div className="flex items-center justify-between gap-3">
+                                <div>
+                                    <p className="text-xs font-bold text-slate-300">Internal: attorney notes</p>
+                                    <p className="text-[10px] text-slate-500">[LAWYER REVIEW] notes in the preview and your own downloads only. Never in Save or Email.</p>
+                                </div>
+                                <Switch checked={fields.include_notes} onCheckedChange={(v) => setFields((prev) => ({ ...prev, include_notes: v }))} />
+                            </div>
+
+                            <Separator className="bg-white/5" />
+                            <h3 className="font-bold text-slate-100 text-sm uppercase tracking-widest">Dispatch</h3>
+                            <div className="space-y-1">
+                                <label className="text-[10px] text-slate-500 uppercase font-bold">Recipient Email</label>
+                                <Input value={recipientEmail} onChange={(e) => setRecipientEmail(e.target.value)} placeholder="client@company.co.za" className="bg-slate-950/50 border-white/10 h-9 text-sm" />
+                            </div>
+
                             <Card className="bg-[#151719]/80 backdrop-blur-xl border border-white/5 shadow-2xl overflow-hidden shrink-0 rounded-2xl">
                                 <CardContent className="p-4 space-y-4">
-                                    {/* AI Message Bubble */}
+                                    <p className="text-[10px] text-slate-500">The assistant can explain clauses and fill details. It cannot change the agreement's wording.</p>
                                     {(aiResponse || isThinking) && (
                                         <div className="animate-in slide-in-from-bottom-2 duration-300">
                                             <div className="flex gap-3">
-                                                <div className="w-6 h-6 rounded-full bg-pink-500/20 flex items-center justify-center shrink-0">
-                                                    <Bot className="h-3.5 w-3.5 text-pink-500" />
-                                                </div>
+                                                <div className="w-6 h-6 rounded-full bg-pink-500/20 flex items-center justify-center shrink-0"><Bot className="h-3.5 w-3.5 text-pink-500" /></div>
                                                 <div className="flex-1 space-y-2">
                                                     {isThinking ? (
                                                         <div className="flex gap-1 items-center py-1">
@@ -775,91 +576,42 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                                             <div className="w-1.5 h-1.5 bg-pink-500/50 rounded-full animate-bounce" />
                                                         </div>
                                                     ) : (
-                                                        <p className="text-xs text-slate-200 leading-relaxed font-medium">
-                                                            {aiResponse}
-                                                        </p>
+                                                        <p className="text-xs text-slate-200 leading-relaxed font-medium">{aiResponse}</p>
                                                     )}
                                                 </div>
                                             </div>
-
                                             {pendingChanges && (
-                                                <div className="flex gap-2 mt-4 ml-9">
-                                                    <Button size="sm" onClick={applyPendingChanges} className="flex-1 bg-pink-600 hover:bg-pink-700 h-9 text-[11px] font-bold rounded-xl shadow-lg shadow-pink-600/20 border-t border-white/10">
-                                                        Commit Changes
-                                                    </Button>
-                                                    <Button size="sm" variant="ghost" onClick={() => setPendingChanges(null)} className="h-9 w-9 p-0 rounded-xl hover:bg-white/5 text-slate-400">
-                                                        <X className="h-4 w-4" />
-                                                    </Button>
+                                                <div className="mt-3 ml-9 space-y-2">
+                                                    <ul className="text-[11px] text-slate-400 space-y-0.5">
+                                                        {Object.entries(pendingChanges).map(([k, v]) => <li key={k}><span className="text-slate-500">{k}:</span> {v}</li>)}
+                                                    </ul>
+                                                    <div className="flex gap-2">
+                                                        <Button size="sm" onClick={applyPendingChanges} className="flex-1 bg-pink-600 hover:bg-pink-700 h-9 text-[11px] font-bold rounded-xl">Apply</Button>
+                                                        <Button size="sm" variant="ghost" onClick={() => setPendingChanges(null)} className="h-9 w-9 p-0 rounded-xl hover:bg-white/5 text-slate-400"><X className="h-4 w-4" /></Button>
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
                                     )}
-
-                                    {/* Contextual Suggestions Pills */}
                                     {aiSuggestions.length > 0 && !isThinking && (
-                                        <div className="flex flex-wrap gap-2 animate-in fade-in duration-500">
-                                            {aiSuggestions.map((suggestion, idx) => (
-                                                <button
-                                                    key={idx}
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setAiInput(suggestion);
-                                                        processAICommand(suggestion);
-                                                    }}
-                                                    className="text-[10px] bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-white/5 rounded-full px-3 py-1.5 transition-all duration-200"
-                                                >
-                                                    {suggestion}
-                                                </button>
+                                        <div className="flex flex-wrap gap-2">
+                                            {aiSuggestions.map((s, idx) => (
+                                                <button key={idx} type="button" onClick={() => { setAiInput(s); processAICommand(s); }} className="text-[10px] bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-white/5 rounded-full px-3 py-1.5 transition-all duration-200">{s}</button>
                                             ))}
                                         </div>
                                     )}
-
-                                    {/* Premium Input Bar */}
-                                    <div className="relative group mt-2 bg-black/40 rounded-2xl border border-white/5 p-1.5 transition-all duration-300 focus-within:border-pink-500/30 focus-within:bg-black/60 shadow-inner">
+                                    <div className="relative mt-2 bg-black/40 rounded-2xl border border-white/5 p-1.5 focus-within:border-pink-500/30">
                                         <form onSubmit={handleAISubmit} className="flex items-center gap-1">
-                                            <div className="flex items-center gap-0.5 px-2 text-slate-500">
-                                                <Paperclip className="h-4 w-4 hover:text-slate-300 cursor-pointer transition-colors" />
-                                            </div>
-
-                                            <Input
-                                                value={aiInput}
-                                                onChange={(e) => setAiInput(e.target.value)}
-                                                placeholder="What's on your mind?"
-                                                className="bg-transparent border-none text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-9 text-slate-200 placeholder:text-slate-600 shadow-none px-1"
-                                            />
-
+                                            <div className="flex items-center gap-0.5 px-2 text-slate-500"><Paperclip className="h-4 w-4" /></div>
+                                            <Input value={aiInput} onChange={(e) => setAiInput(e.target.value)} placeholder="Ask about the agreement..." className="bg-transparent border-none text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-9 text-slate-200 placeholder:text-slate-600 shadow-none px-1" />
                                             <div className="flex items-center gap-1 pr-1">
-                                                {/* Conversational Toggle */}
-                                                <Button
-                                                    type="button"
-                                                    size="icon"
-                                                    variant="ghost"
-                                                    onClick={() => setIsConversational(!isConversational)}
-                                                    className={`h-8 w-8 rounded-xl transition-all ${isConversational ? 'bg-pink-500/20 text-pink-500 shadow-lg shadow-pink-500/10' : 'text-slate-500 hover:text-slate-200'}`}
-                                                    title="Conversational Mode"
-                                                >
-                                                    <AudioLines className={`h-4 w-4 ${isSpeaking ? 'animate-pulse scale-110' : ''}`} />
+                                                <Button type="button" size="icon" variant="ghost" onClick={() => setIsConversational(!isConversational)} className={`h-8 w-8 rounded-xl ${isConversational ? "bg-pink-500/20 text-pink-500" : "text-slate-500 hover:text-slate-200"}`} title="Conversational Mode">
+                                                    <AudioLines className={`h-4 w-4 ${isSpeaking ? "animate-pulse scale-110" : ""}`} />
                                                 </Button>
-
-                                                {/* STT Toggle */}
-                                                <Button
-                                                    type="button"
-                                                    size="icon"
-                                                    variant="ghost"
-                                                    onClick={toggleListening}
-                                                    className={`h-8 w-8 rounded-xl transition-all ${isListening ? 'bg-red-500/20 text-red-500 shadow-lg shadow-red-500/10' : 'text-slate-500 hover:text-slate-200'}`}
-                                                    title="Voice Input"
-                                                >
-                                                    <Mic className={`h-4 w-4 ${isListening ? 'animate-pulse' : ''}`} />
+                                                <Button type="button" size="icon" variant="ghost" onClick={toggleListening} className={`h-8 w-8 rounded-xl ${isListening ? "bg-red-500/20 text-red-500" : "text-slate-500 hover:text-slate-200"}`} title="Voice Input">
+                                                    <Mic className={`h-4 w-4 ${isListening ? "animate-pulse" : ""}`} />
                                                 </Button>
-
-                                                {/* Submit Button */}
-                                                <Button
-                                                    type="submit"
-                                                    size="icon"
-                                                    disabled={!aiInput.trim() || isThinking}
-                                                    className={`h-8 w-8 rounded-xl transition-all ${aiInput.trim() ? 'bg-white text-black hover:bg-white/90 scale-105 shadow-xl' : 'bg-white/5 text-slate-700'}`}
-                                                >
+                                                <Button type="submit" size="icon" disabled={!aiInput.trim() || isThinking} className={`h-8 w-8 rounded-xl ${aiInput.trim() ? "bg-white text-black hover:bg-white/90" : "bg-white/5 text-slate-700"}`}>
                                                     <SendHorizonal className="h-4 w-4" />
                                                 </Button>
                                             </div>
@@ -868,25 +620,17 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                 </CardContent>
                             </Card>
 
-                            {/* Document History */}
                             {history.length > 0 && (
-                                <div className="space-y-3 mt-6 animate-in fade-in duration-500">
-                                    <h3 className="font-bold text-slate-100 text-sm uppercase tracking-widest flex items-center gap-2">
-                                        <Save className="h-4 w-4 text-pink-400" />
-                                        Saved History
-                                    </h3>
+                                <div className="space-y-3 mt-6">
+                                    <h3 className="font-bold text-slate-100 text-sm uppercase tracking-widest flex items-center gap-2"><Save className="h-4 w-4 text-pink-400" />Saved History</h3>
                                     <div className="space-y-2">
-                                        {history.map((doc, idx) => (
+                                        {history.map((h, idx) => (
                                             <div key={idx} className="bg-slate-950/40 p-3 rounded-xl border border-white/5 flex flex-col gap-1 text-sm">
                                                 <div className="flex justify-between items-start">
-                                                    <span className="font-medium text-slate-200 truncate pr-2">{doc.name}</span>
-                                                    <a href={`${supabase.storage.from('admin-documents').getPublicUrl(doc.file_path).data.publicUrl}`} target="_blank" rel="noreferrer" className="text-pink-400 hover:text-pink-300 shrink-0 bg-pink-400/10 px-2 py-0.5 rounded cursor-pointer whitespace-nowrap text-xs">
-                                                        View PDF
-                                                    </a>
+                                                    <span className="font-medium text-slate-200 truncate pr-2">{h.name}</span>
+                                                    <a href={supabase.storage.from("admin-documents").getPublicUrl(h.file_path).data.publicUrl} target="_blank" rel="noreferrer" className="text-pink-400 hover:text-pink-300 shrink-0 bg-pink-400/10 px-2 py-0.5 rounded whitespace-nowrap text-xs">View PDF</a>
                                                 </div>
-                                                <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
-                                                    {new Date(doc.created_at).toLocaleString('en-ZA', { dateStyle: 'medium', timeStyle: 'short' })}
-                                                </span>
+                                                <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">{new Date(h.created_at).toLocaleString("en-ZA", { dateStyle: "medium", timeStyle: "short" })}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -894,25 +638,12 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                             )}
                         </CardContent>
                     </Card>
-
-
                 </div>
 
-                {/* Resizable Divider Bar */}
-                <div
-                    onMouseDown={handleDividerMouseDown}
-                    className="w-1.5 flex-shrink-0 cursor-col-resize bg-white/5 hover:bg-pink-500/40 active:bg-pink-500/60 transition-colors duration-150 relative group"
-                    title="Drag to resize"
-                >
+                <div onMouseDown={handleDividerMouseDown} className="w-1.5 flex-shrink-0 cursor-col-resize bg-white/5 hover:bg-pink-500/40 active:bg-pink-500/60 transition-colors duration-150 relative" title="Drag to resize">
                     <div className="absolute inset-y-0 -left-1 -right-1" />
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <div className="w-0.5 h-3 bg-pink-400/60 rounded-full" />
-                        <div className="w-0.5 h-3 bg-pink-400/60 rounded-full" />
-                        <div className="w-0.5 h-3 bg-pink-400/60 rounded-full" />
-                    </div>
                 </div>
 
-                {/* Document Preview Panel */}
                 <div className="flex-1 h-full min-h-0 flex flex-col bg-slate-950 rounded-xl border border-white/5 overflow-hidden relative group">
                     <div className="absolute top-4 right-4 z-50 bg-slate-900/90 backdrop-blur-md border border-white/10 rounded-full flex items-center px-4 py-1.5 shadow-2xl space-x-3 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-white" onClick={() => adjustZoom(-0.1)}><ZoomOut className="h-4 w-4" /></Button>
@@ -922,226 +653,54 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                         <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-white" onClick={() => setZoom(0.55)}><Monitor className="h-4 w-4" /></Button>
                         <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-white" onClick={() => setZoom(1.0)}><Maximize className="h-4 w-4" /></Button>
                     </div>
-
                     <div className="flex-1 overflow-auto p-12 flex justify-center items-start custom-scrollbar">
-                        <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top center', transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }} className="shrink-0 ring-1 ring-white/5 shadow-2xl">
-                            <div ref={reportRef} className="w-[210mm] font-sans bg-white text-slate-900 relative overflow-hidden flex flex-col min-h-[297mm]">
-                                <div className="h-2 w-full bg-gradient-to-r from-pink-600 via-purple-600 to-pink-600" />
-                                <div className="p-[20mm] flex-1 flex flex-col">
-                                    <header className="border-b-2 border-slate-100 pb-6 mb-8 flex justify-between items-end">
-                                            <div>
-                                                <img src={logo} alt="Lead Velocity" className="h-20 w-auto object-contain mb-4" />
-                                                <Editable tag="h1" className="text-3xl font-extrabold text-slate-900" value={contractData.title} onChange={(val) => updateField('title', val)} />
-                                                <Editable tag="p" className="text-slate-500 font-medium mt-1" value={contractData.subtitle} onChange={(val) => updateField('subtitle', val)} />
-                                            </div>
-                                            <div className="text-right">
-                                                <div className="bg-slate-50 px-4 py-2 rounded-lg border">
-                                                    <p className="text-xs uppercase tracking-widest text-slate-400 font-bold mb-1">The Client</p>
-                                                    <Editable tag="p" className="font-bold text-lg text-slate-900" value={contractData.clientName} onChange={(val) => updateField('clientName', val)} />
-                                                    <Editable tag="p" className="text-sm text-slate-500" value={contractData.clientCompany} onChange={(val) => updateField('clientCompany', val)} />
-                                                </div>
-                                            </div>
-                                        </header>
-
-                                    <main className="space-y-4 text-[14px] leading-relaxed text-slate-600 flex-1">
-                                        <section className="bg-slate-50 border rounded-xl p-5" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
-                                            <div className="flex items-center gap-3 mb-4"><div className="h-6 w-1 bg-pink-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">Parties to this Agreement</h2></div>
-                                            <p className="text-sm text-slate-500 mb-4">This Service Level Agreement ("Agreement") is entered into as of the Effective Date set out below, by and between:</p>
-
-                                            <div className="grid md:grid-cols-2 gap-6">
-                                                <div className="bg-white border border-pink-200 rounded-lg p-4">
-                                                    <p className="text-[10px] font-black text-pink-600 uppercase tracking-widest mb-3">The Service Provider</p>
-                                                    <Editable tag="p" className="font-bold text-slate-900 text-lg" value={contractData.providerCompany} onChange={(val) => updateField('providerCompany', val)} />
-                                                    <div className="mt-2 space-y-1 text-sm">
-                                                        <Editable tag="p" className="text-slate-600" value={contractData.providerAddressLine} onChange={(val) => updateField('providerAddressLine', val)} />
-                                                        <Editable tag="p" className="text-slate-600" value={contractData.providerEmailLine} onChange={(val) => updateField('providerEmailLine', val)} />
-                                                        <Editable tag="p" className="text-slate-600" value={contractData.providerPhoneLine} onChange={(val) => updateField('providerPhoneLine', val)} />
-                                                        <Editable tag="p" className="text-slate-600" value={contractData.providerRepresentativeLine} onChange={(val) => updateField('providerRepresentativeLine', val)} />
-                                                    </div>
-                                                    <p className="text-xs text-slate-400 mt-3 italic">(hereinafter referred to as "Lead Velocity" or "the Service Provider")</p>
-                                                </div>
-
-                                                <div className="bg-white border border-slate-200 rounded-lg p-4">
-                                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">The Client</p>
-                                                    <Editable tag="p" className="font-bold text-slate-900 text-lg" value={contractData.clientCompany} onChange={(val) => updateField('clientCompany', val)} />
-                                                    <div className="mt-2 space-y-1 text-sm">
-                                                        <Editable tag="p" className="text-slate-600" value={contractData.clientAddressLine} onChange={(val) => updateField('clientAddressLine', val)} />
-                                                        <Editable tag="p" className="text-slate-600" value={contractData.clientEmailLine} onChange={(val) => updateField('clientEmailLine', val)} />
-                                                        <Editable tag="p" className="text-slate-600" value={contractData.clientPhoneLine} onChange={(val) => updateField('clientPhoneLine', val)} />
-                                                        <Editable tag="p" className="text-slate-600" value={contractData.clientRepresentativeLine} onChange={(val) => updateField('clientRepresentativeLine', val)} />
-                                                    </div>
-                                                    <p className="text-xs text-slate-400 mt-3 italic">(hereinafter referred to as "the Client")</p>
-                                                </div>
-                                            </div>
-
-                                            <p className="text-sm text-slate-600 mt-4 pt-4 border-t border-slate-200">The Service Provider and the Client are collectively referred to as "the Parties" and individually as a "Party".</p>
-                                        </section>
-
-                                        <div className="pdf-page-break-before" />
-                                        <section className="bg-slate-50 border border-slate-200 rounded-xl p-5" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
-                                            <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-slate-500 rounded-full" /><h2 className="text-lg font-bold text-slate-900">Recitals</h2></div>
-                                            <Editable tag="p" className="text-slate-700 text-sm italic" value={contractData.recitalsText} onChange={(val) => updateField('recitalsText', val)} />
-                                        </section>
-
-                                        <section className="border border-pink-200 rounded-xl p-5" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
-                                            <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-pink-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">Definitions & Interpretation</h2></div>
-                                            <Editable tag="p" className="text-slate-600 text-sm" value={contractData.definitionsText} onChange={(val) => updateField('definitionsText', val)} />
-                                        </section>
-
-                                        <section>
-                                            <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-pink-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">1. Scope of Services</h2></div>
-                                            <Editable tag="p" className="pl-4" value={contractData.scopeText} onChange={(val) => updateField('scopeText', val)} />
-                                        </section>
-
-                                        <section data-pdf-deliverables-section>
-                                            <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-pink-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">2. Deliverables</h2></div>
-                                            <Editable tag="p" className="pl-4 whitespace-pre-wrap" value={contractData.deliverablesText} onChange={(val) => updateField('deliverablesText', val)} />
-                                        </section>
-
-                                        <section className="bg-slate-50 rounded-xl p-6 border" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }} data-pdf-commercial-terms>
-                                            <h3 className="text-xs font-black text-slate-400 uppercase mb-4">Commercial Terms</h3>
-                                            <div className="grid grid-cols-3 gap-8 mb-4">
-                                                <div><p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Service Fee</p><Editable className="text-pink-600 font-bold text-xl" value={contractData.serviceFee} onChange={(val) => updateField('serviceFee', val)} /></div>
-                                                <div><p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Lead Target</p><Editable className="text-slate-900 font-bold" value={contractData.leadTarget} onChange={(val) => updateField('leadTarget', val)} /></div>
-                                                <div><p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Duration</p><p className="text-slate-900 font-bold">30 Days</p></div>
-                                            </div>
-                                            {contractData.commissionText && (
-                                                <div className="pt-4 border-t border-slate-200">
-                                                    <p className="text-[10px] font-bold text-pink-600 uppercase mb-2">Commission Structure</p>
-                                                    <Editable tag="p" className="text-xs text-slate-600 leading-relaxed" value={contractData.commissionText} onChange={(val) => updateField('commissionText', val)} />
-                                                </div>
-                                            )}
-                                        </section>
-
-                                        <section data-pdf-terms-section>
-                                            <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-pink-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">3. Terms & Conditions</h2></div>
-                                            <Editable tag="p" className="pl-4" value={contractData.termsText} onChange={(val) => updateField('termsText', val)} />
-                                        </section>
-
-                                        <section data-pdf-confidentiality-section>
-                                            <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-pink-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">4. Confidentiality</h2></div>
-                                            <Editable tag="p" className="pl-4" value={contractData.confidentialityText} onChange={(val) => updateField('confidentialityText', val)} />
-                                        </section>
-
-                                        <section className="bg-red-50 border border-red-200 rounded-xl p-5" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
-                                            <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-red-600 rounded-full" /><h2 className="text-lg font-bold text-red-900">5. Breach & No-Refund Policy</h2></div>
-                                            <Editable tag="p" className="text-red-800 text-sm" value={contractData.breachText} onChange={(val) => updateField('breachText', val)} />
-                                            <div className="mt-3 pt-3 border-t border-red-200">
-                                                <Editable tag="p" className="text-red-700 text-sm" value={contractData.refundText} onChange={(val) => updateField('refundText', val)} />
-                                            </div>
-                                        </section>
-
-                                        <section>
-                                            <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-pink-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">6. Governing Law & Disputes</h2></div>
-                                            <Editable tag="p" className="pl-4" value={contractData.disputeText} onChange={(val) => updateField('disputeText', val)} />
-                                        </section>
-
-                                        {contractData.pilotEligibilityText && (
-                                            <section className="bg-amber-50 border border-amber-200 rounded-xl p-5" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
-                                                <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-amber-600 rounded-full" /><h2 className="text-lg font-bold text-amber-900">7. Pilot Eligibility</h2></div>
-                                                <Editable tag="p" className="text-amber-800 text-sm" value={contractData.pilotEligibilityText} onChange={(val) => updateField('pilotEligibilityText', val)} />
-                                            </section>
-                                        )}
-
-                                        <section className="bg-green-50 border border-green-200 rounded-xl p-5" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
-                                            <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-green-600 rounded-full" /><h2 className="text-lg font-bold text-green-900">8. Renewal & Upgrade Options</h2></div>
-                                            <Editable tag="p" className="text-green-800 text-sm" value={contractData.renewalText} onChange={(val) => updateField('renewalText', val)} />
-                                        </section>
-
-                                        <section>
-                                            <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-pink-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">9. Force Majeure</h2></div>
-                                            <Editable tag="p" className="pl-4 text-sm" value={contractData.forceMajeureText} onChange={(val) => updateField('forceMajeureText', val)} />
-                                        </section>
-
-                                        <section>
-                                            <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-pink-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">10. Limitation of Liability</h2></div>
-                                            <Editable tag="p" className="pl-4 text-sm" value={contractData.liabilityText} onChange={(val) => updateField('liabilityText', val)} />
-                                        </section>
-
-                                        <section data-pdf-section-11>
-                                            <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-pink-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">11. Indemnification</h2></div>
-                                            <Editable tag="p" className="pl-4 text-sm" value={contractData.indemnityText} onChange={(val) => updateField('indemnityText', val)} />
-                                        </section>
-
-                                        <section className="bg-slate-100 border rounded-xl p-5" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }} data-pdf-section-12>
-                                            <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-slate-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">12. General Provisions</h2></div>
-                                            <Editable tag="p" className="text-slate-700 text-sm" value={contractData.entireAgreementText} onChange={(val) => updateField('entireAgreementText', val)} />
-                                        </section>
-
-                                        <section data-pdf-section-13>
-                                            <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-pink-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">13. Intellectual Property</h2></div>
-                                            <Editable tag="p" className="pl-4 text-sm" value={contractData.intellectualPropertyText} onChange={(val) => updateField('intellectualPropertyText', val)} />
-                                        </section>
-
-                                        <section data-pdf-section-14 className="bg-blue-50 border border-blue-200 rounded-xl p-5" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
-                                            <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-blue-600 rounded-full" /><h2 className="text-lg font-bold text-blue-900">14. Data Protection & POPIA Compliance</h2></div>
-                                            <Editable tag="p" className="text-blue-800 text-sm" value={contractData.dataProtectionText} onChange={(val) => updateField('dataProtectionText', val)} />
-                                        </section>
-
-                                        <section className="bg-purple-50 border border-purple-200 rounded-xl p-5" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
-                                            <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-purple-600 rounded-full" /><h2 className="text-lg font-bold text-purple-900">15. Non-Solicitation & Protection of Methods</h2></div>
-                                            <Editable tag="p" className="text-purple-800 text-sm" value={contractData.nonSolicitationText} onChange={(val) => updateField('nonSolicitationText', val)} />
-                                        </section>
-
-                                        <section data-pdf-section-16>
-                                            <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-pink-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">16. Warranties & Representations</h2></div>
-                                            <Editable tag="p" className="pl-4 text-sm" value={contractData.warrantiesText} onChange={(val) => updateField('warrantiesText', val)} />
-                                        </section>
-
-                                        <section data-pdf-section-17 className="bg-orange-50 border border-orange-200 rounded-xl p-5" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
-                                            <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-orange-600 rounded-full" /><h2 className="text-lg font-bold text-orange-900">17. Termination</h2></div>
-                                            <Editable tag="p" className="text-orange-800 text-sm" value={contractData.terminationText} onChange={(val) => updateField('terminationText', val)} />
-                                        </section>
-
-                                        <section data-pdf-section-18>
-                                            <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-pink-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">18. Assignment</h2></div>
-                                            <Editable tag="p" className="pl-4 text-sm" value={contractData.assignmentText} onChange={(val) => updateField('assignmentText', val)} />
-                                        </section>
-
-                                        <section data-pdf-section-19>
-                                            <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-pink-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">19. Notices</h2></div>
-                                            <div data-pdf-section-19-body>
-                                                <Editable tag="p" className="pl-4 text-sm" value={contractData.noticesText} onChange={(val) => updateField('noticesText', val)} />
-                                            </div>
-                                        </section>
-
-                                        <div className="pdf-page-break-before" />
-                                        <section>
-                                            <div className="flex items-center gap-3 mb-2"><div className="h-6 w-1 bg-pink-600 rounded-full" /><h2 className="text-lg font-bold text-slate-900">20. Relationship of Parties</h2></div>
-                                            <Editable tag="p" className="pl-4 text-sm" value={contractData.relationshipText} onChange={(val) => updateField('relationshipText', val)} />
-                                        </section>
-
-                                        <section className="bg-slate-900 text-white p-6 rounded-xl">
-                                            <h3 className="font-bold mb-2">Payment Details</h3>
-                                            <div className="grid grid-cols-2 gap-4 text-sm">
-                                                <div><span className="text-slate-400">Bank:</span> <Editable tag="span" className="font-bold" value={contractData.bankName} onChange={(val) => updateField('bankName', val)} /></div>
-                                                <div><span className="text-slate-400">Account Holder:</span> <Editable tag="span" className="font-bold" value={contractData.accountHolder} onChange={(val) => updateField('accountHolder', val)} /></div>
-                                                <div><span className="text-slate-400">Account #:</span> <Editable tag="span" className="font-bold" value={contractData.accountNumber} onChange={(val) => updateField('accountNumber', val)} /></div>
-                                                <div><span className="text-slate-400">Branch Code:</span> <Editable tag="span" className="font-bold" value={contractData.branchCode} onChange={(val) => updateField('branchCode', val)} /></div>
-                                            </div>
-                                        </section>
-
-                                        <section className="grid grid-cols-2 gap-12 pt-8 mt-8 border-t-2">
-                                            <div>
-                                                <p className="text-xs text-slate-400 uppercase font-bold mb-6">For Lead Velocity</p>
-                                                <div className="border-b-2 border-slate-300 mb-2 h-12" />
-                                                <p className="text-sm text-slate-600">Authorised Signatory</p>
-                                                <Editable tag="p" className="text-sm text-slate-400" value={contractData.effectiveDate} onChange={(val) => updateField('effectiveDate', val)} />
-                                            </div>
-                                            <div>
-                                                <p className="text-xs text-slate-400 uppercase font-bold mb-6">For The Client</p>
-                                                <div className="border-b-2 border-slate-300 mb-2 h-12" />
-                                                <Editable tag="p" className="text-sm text-slate-600" value={contractData.clientName} onChange={(val) => updateField('clientName', val)} />
-                                                <p className="text-sm text-slate-400">Date: _______________</p>
-                                            </div>
-                                        </section>
-                                    </main>
-                                </div>
-                            </div>
+                        <div style={{ transform: `scale(${zoom})`, transformOrigin: "top center", transition: "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)" }} className="shrink-0 ring-1 ring-white/5 shadow-2xl">
+                            <iframe
+                                title="Agreement preview"
+                                srcDoc={previewHtml}
+                                style={{ width: "210mm", height: previewHeight, border: 0, display: "block", background: "#fff" }}
+                                onLoad={(e) => {
+                                    const d = e.currentTarget.contentDocument;
+                                    if (d) setPreviewHeight(d.documentElement.scrollHeight + 8);
+                                }}
+                            />
                         </div>
                     </div>
                 </div>
             </div>
+
+            <AlertDialog open={confirmAction !== null} onOpenChange={(o) => { if (!o) setConfirmAction(null); }}>
+                <AlertDialogContent className="max-w-lg">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{confirmAction === "email" ? "Send this draft?" : "Save this agreement?"}</AlertDialogTitle>
+                        <AlertDialogDescription asChild>
+                            <div className="space-y-3 text-sm">
+                                {confirmAction === "email" && (
+                                    <p>To <b>{recipientEmail.trim()}</b> · subject "{EMAIL_SUBJECT}". The PDF is also saved to the library.</p>
+                                )}
+                                <p>{AGREEMENT_TITLE} {doc.templateVersion} · {doc.tier.name} Plan ({zar(doc.tier.price_zar)}, {doc.tier.committed_leads} leads) · client copy (no internal notes, no drafting banner).</p>
+                                {doc.unfilled.length > 0 ? (
+                                    <div>
+                                        <p className="font-semibold text-amber-600">{doc.unfilled.length} placeholder{doc.unfilled.length === 1 ? " is" : "s are"} still unfilled and will show highlighted:</p>
+                                        <ul className="mt-1 max-h-40 overflow-y-auto text-xs list-disc pl-5">
+                                            {doc.unfilled.map((t) => <li key={t}>{t}</li>)}
+                                        </ul>
+                                    </div>
+                                ) : (
+                                    <p className="text-emerald-600 font-semibold">Every placeholder is filled.</p>
+                                )}
+                                {doc.warnings.length > 0 && <p className="text-red-600 font-semibold">{doc.warnings.length} template/pricing mismatch warning(s) are open.</p>}
+                            </div>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => confirmAction && saveOrSend(confirmAction)}>
+                            {confirmAction === "email" ? (doc.unfilled.length ? "Send draft anyway" : "Send draft") : doc.unfilled.length ? "Save anyway" : "Save"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 };

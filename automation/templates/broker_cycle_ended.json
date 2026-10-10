@@ -1,0 +1,48 @@
+{
+  "name": "broker_cycle_ended",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "Your cycle has ended"
+    },
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, your SortMyCover cycle was not renewed because {{2}}. It ended on {{3}}, so lead routing is paused for now, and the leads you already received stay yours. To start again, pay any time with reference *{{4}}*, or update your card under Manage billing. Manual EFT has no fees if you use the reference exactly. No lock-in: if you would rather stop here, there is nothing you need to do.",
+      "example": {
+        "body_text": [
+          [
+            "Mark",
+            "the card payment was declined",
+            "Fri 13 Nov",
+            "LV-1042-B-202611"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover by Lead Velocity"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Pay now",
+          "url": "https://leadvelocity.co.za/billing/checkout/?ref={{1}}",
+          "example": [
+            "https://leadvelocity.co.za/billing/checkout/?ref=LV-1042-B-202611"
+          ]
+        },
+        {
+          "type": "URL",
+          "text": "Manage billing",
+          "url": "https://leadvelocity.co.za/s/billing"
+        }
+      ]
+    }
+  ]
+}

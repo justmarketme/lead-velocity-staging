@@ -1,0 +1,43 @@
+{
+  "name": "broker_onb_nudge_24h",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "SortMyCover setup"
+    },
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, a quick reminder. Next for you: {{2}}. It takes about {{3}}. {{4}} Tap below to carry on, or reply here if you want a hand.",
+      "example": {
+        "body_text": [
+          [
+            "Mark",
+            "Connect your Outlook calendar",
+            "1 minute",
+            "One tap. It lets leads book real free times with you."
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover by Lead Velocity"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Carry on",
+          "url": "https://leadvelocity.co.za/s/{{1}}",
+          "example": [
+            "https://leadvelocity.co.za/s/calendar"
+          ]
+        }
+      ]
+    }
+  ]
+}

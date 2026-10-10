@@ -1,0 +1,41 @@
+{
+  "name": "broker_come_back",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "Start again any time"
+    },
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, a short note: your SortMyCover leads stopped when your last cycle ended, and the leads you already received stay yours. If you want to start again, there is no lock-in: pay any time with reference *{{2}}* and we start your next 30-day cycle. If not, there is nothing you need to do.",
+      "example": {
+        "body_text": [
+          [
+            "Mark",
+            "LV-1042-B-202611"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover by Lead Velocity"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Start again",
+          "url": "https://leadvelocity.co.za/billing/checkout/?ref={{1}}",
+          "example": [
+            "https://leadvelocity.co.za/billing/checkout/?ref=LV-1042-B-202611"
+          ]
+        }
+      ]
+    }
+  ]
+}

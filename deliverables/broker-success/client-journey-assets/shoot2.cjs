@@ -1,0 +1,25 @@
+const { chromium } = require('/opt/node-tools/node_modules/playwright-core');
+(async()=>{
+ const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium'});
+ const p=await b.newPage({viewport:{width:390,height:844},deviceScaleFactor:2});
+ const slots=[];['2026-10-06','2026-10-07','2026-10-08'].forEach(d=>['09:00','10:30','14:30','16:00'].forEach(t=>slots.push(d+'T'+t+':00+02:00')));
+ await p.route('**/*', r=>{const u=r.request().url();
+  if(u.startsWith('http://localhost:8765')) return r.continue();
+  if(u.includes('/webhook/smc/lead')) return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({lead_id:'demo',lead_token:'t',methods_supported:['whatsapp_call','phone','teams']})});
+  if(u.includes('/webhook/smc/slots')) return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({slots})});
+  if(u.includes('/webhook/smc/book')) return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,booking_id:'b1',slot_start:slots[2],method:'whatsapp_call'})});
+  return r.fulfill({status:204,body:''});});
+ await p.goto('http://localhost:8765/employer-gap/',{waitUntil:'load'});
+ const out=process.argv[2];
+ const pick=async(n,v)=>{await p.locator(`input[name="${n}"][value="${v}"]`).check({force:true});await p.waitForTimeout(450);};
+ await pick('age_band','35_44');await pick('bond','yes');await pick('dependants','kids');await pick('work_cover','yes');await pick('budget_band','750_1250');
+ await p.fill('#name','Lerato');await p.fill('#phone','082 000 0000');await p.check('#consent',{force:true});
+ await p.click('#send');await p.waitForTimeout(1200);
+ await p.locator('.slot').nth(2).click().catch(e=>console.log('noslot',e.message));
+ await p.locator('.method').first().click().catch(e=>console.log('nomethod'));
+ await p.evaluate(()=>document.querySelector('#quiz').scrollIntoView());await p.waitForTimeout(300);
+ await p.screenshot({path:out+'/lp-slots.png'});
+ await p.click('#book').catch(()=>{});await p.waitForTimeout(1200);
+ await p.evaluate(()=>document.querySelector('#quiz').scrollIntoView());await p.waitForTimeout(300);
+ await p.screenshot({path:out+'/lp-done.png'});
+ await b.close();})();

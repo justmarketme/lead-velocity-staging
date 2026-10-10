@@ -1,0 +1,6 @@
+unbooked_nudge_72h (UTILITY, en)
+
+Hi Lerato, this is our last message about your insurance and financial planning enquiry. On the call, Mark Smith goes through where you are now, and any next step is your choice. Tap below to pick a time, or if not, no problem, we won't message again. Reply STOP to opt out.
+[footer] SortMyCover
+[button] See open times
+[button] No thanks
