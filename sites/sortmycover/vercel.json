@@ -149,32 +149,6 @@
       }
     },
     {
-      "src": "^/(?:_c/)?employer-gap/?$",
-      "has": [
-        {
-          "type": "host",
-          "value": "sortmycover\\.co\\.za"
-        }
-      ],
-      "status": 307,
-      "headers": {
-        "Location": "https://employer-gap.sortmycover.co.za/"
-      }
-    },
-    {
-      "src": "^/(?:_c/)?extended-family/?$",
-      "has": [
-        {
-          "type": "host",
-          "value": "sortmycover\\.co\\.za"
-        }
-      ],
-      "status": 307,
-      "headers": {
-        "Location": "https://extended-family.sortmycover.co.za/"
-      }
-    },
-    {
       "src": "^/(?:_c/)?myth-bust/?$",
       "has": [
         {
@@ -262,7 +236,7 @@
       ],
       "status": 307,
       "headers": {
-        "Location": "https://c13-check-not-buy.sortmycover.co.za/"
+        "Location": "https://looking-is-not-buying.sortmycover.co.za/"
       }
     },
     {
@@ -272,7 +246,7 @@
         "X-Content-Type-Options": "nosniff",
         "Referrer-Policy": "strict-origin-when-cross-origin",
         "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
-        "Strict-Transport-Security": "max-age=31536000",
+        "Strict-Transport-Security": "max-age=86400",
         "X-Frame-Options": "DENY"
       },
       "continue": true
@@ -325,6 +299,17 @@
       "continue": true
     },
     {
+      "src": "^/sitemap\\.xml$",
+      "has": [
+        {
+          "type": "host",
+          "value": ".+\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 404,
+      "dest": "/404.html"
+    },
+    {
       "src": "^/$",
       "has": [
         {
@@ -363,46 +348,6 @@
         }
       ],
       "dest": "/_c/bond-paperwork/thanks/index.html"
-    },
-    {
-      "src": "^/$",
-      "has": [
-        {
-          "type": "host",
-          "value": "employer-gap\\.sortmycover\\.co\\.za"
-        }
-      ],
-      "dest": "/_c/employer-gap/index.html"
-    },
-    {
-      "src": "^/thanks/?$",
-      "has": [
-        {
-          "type": "host",
-          "value": "employer-gap\\.sortmycover\\.co\\.za"
-        }
-      ],
-      "dest": "/_c/employer-gap/thanks/index.html"
-    },
-    {
-      "src": "^/$",
-      "has": [
-        {
-          "type": "host",
-          "value": "extended-family\\.sortmycover\\.co\\.za"
-        }
-      ],
-      "dest": "/_c/extended-family/index.html"
-    },
-    {
-      "src": "^/thanks/?$",
-      "has": [
-        {
-          "type": "host",
-          "value": "extended-family\\.sortmycover\\.co\\.za"
-        }
-      ],
-      "dest": "/_c/extended-family/thanks/index.html"
     },
     {
       "src": "^/$",
@@ -529,7 +474,7 @@
       "has": [
         {
           "type": "host",
-          "value": "c13-check-not-buy\\.sortmycover\\.co\\.za"
+          "value": "looking-is-not-buying\\.sortmycover\\.co\\.za"
         }
       ],
       "dest": "/_c/c13-check-not-buy/index.html"
@@ -539,7 +484,7 @@
       "has": [
         {
           "type": "host",
-          "value": "c13-check-not-buy\\.sortmycover\\.co\\.za"
+          "value": "looking-is-not-buying\\.sortmycover\\.co\\.za"
         }
       ],
       "dest": "/_c/c13-check-not-buy/thanks/index.html"

@@ -6,7 +6,7 @@ Each row: the requirement, how the build implements it, and the test that proves
 
 | # | Requirement | How it is implemented | Proof |
 |---|---|---|---|
-| 1 | Full content in the initial HTML of every route | `scripts/build.mjs` renders every route with `renderToString` into `dist/<path>/index.html`; React then hydrates | dist test "renders every route (51 files) with real content" |
+| 1 | Full content in the initial HTML of every route | `scripts/build.mjs` renders every route with `renderToString` into `dist/<path>/index.html`; React then hydrates | dist test "renders every route (50 files) with real content" |
 | 2 | Folder URLs with a trailing slash, one absolute self-referencing canonical per page | `src/lib/head.tsx` `renderHead`; every route path ends in `/` | dist test "apex pages: self-referencing absolute canonical with trailing slash" |
 | 3 | 301 map for the old `.html` URLs | `src/build/redirects.ts` -> generated into `vercel.json` and `hostinger/.htaccess` | `tests/seo.test.ts` "old URL map", `tests/config.test.ts` drift guard |
 | 4 | Unique `<title>` of 60 characters or fewer, brand last; unique meta description | `pageTitle()` in `src/lib/head.tsx`; per-page strings | dist test "each page has a unique title of at most 60 characters ..." |

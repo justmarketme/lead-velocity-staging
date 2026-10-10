@@ -4,6 +4,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { BANNED } from "../src/build/wording";
+import { JSDOM } from "jsdom";
+import { ANGLES, hostLabel } from "../src/campaigns";
 
 const dist = path.resolve(__dirname, "../dist");
 const have = fs.existsSync(path.join(dist, "index.html"));
@@ -15,8 +17,8 @@ const meta = (html: string, re: RegExp) => (re.exec(html) || [])[1];
 const visible = (html: string) => html.replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<noscript[\s\S]*?<\/noscript>/g, " ").replace(/<head[\s\S]*?<\/head>/, " ").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ");
 
 describe.skipIf(!have)("pre-rendered output", () => {
-  it("renders every route (51 files) with real content", () => {
-    expect(pages.length).toBe(51);
+  it("renders every route (50 files) with real content", () => {
+    expect(pages.length).toBe(50);
     for (const p of pages) expect(visible(p.html).length, p.rel).toBeGreaterThan(300);
     expect(pages.find((p) => p.rel === "learn/how-to-check-an-adviser/index.html")!.html).toContain("FSCA");
   });
@@ -45,12 +47,12 @@ describe.skipIf(!have)("pre-rendered output", () => {
     const sitemap = fs.readFileSync(path.join(dist, "sitemap.xml"), "utf8");
     const robots = fs.readFileSync(path.join(dist, "robots.txt"), "utf8");
     const camp = pages.filter(isCampaign);
-    expect(camp.length).toBe(22);
+    expect(camp.length).toBe(20);
     for (const p of camp) {
       const slug = p.rel.split("/")[1];
       expect(p.html, p.rel).toMatch(/<meta name="robots" content="noindex/);
       const c = meta(p.html, /<link rel="canonical" href="([^"]+)"/)!;
-      expect(c, p.rel).toBe(`https://${slug}.sortmycover.co.za/` + (p.rel.includes("/thanks/") ? "thanks/" : ""));
+      expect(c, p.rel).toBe(`https://${hostLabel(ANGLES.find((a) => a.slug === slug)!)}.sortmycover.co.za/` + (p.rel.includes("/thanks/") ? "thanks/" : ""));
       expect(sitemap).not.toContain(slug);
       expect(p.html).toContain(`data-campaign="${slug}"`);
     }
@@ -140,6 +142,43 @@ describe.skipIf(!have)("pre-rendered output", () => {
   });
   it("no placeholder tokens leak into the HTML", () => {
     for (const p of pages) expect(p.html, p.rel).not.toMatch(/\[PRACTICE NAME\]|\[FSP NUMBER\]|REPLACE-|lorem ipsum|\bundefined\b|\{\{/i);
+  });
+
+  it("no reveal target sits on or inside a disclosure element, and every disclosure is present with computed opacity unaffected by inline styles (spec F.3, rule S34)", () => {
+    let disclosures = 0;
+    for (const p of pages) {
+      const doc = new JSDOM(p.html).window.document;
+      for (const d of doc.querySelectorAll("[data-disclosure]")) {
+        disclosures++;
+        expect(d.closest("[data-reveal],[data-step-item]"), p.rel + " disclosure inside a reveal target").toBeNull();
+        expect(d.querySelector("[data-reveal],[data-step-item]"), p.rel + " reveal target inside a disclosure").toBeNull();
+        expect(d.getAttribute("hidden"), p.rel).toBeNull();
+      }
+      expect(doc.querySelector("footer [data-disclosure]") || p.rel === "404.html", p.rel + " footer disclosure").toBeTruthy();
+    }
+    expect(disclosures).toBeGreaterThan(100);
+  });
+  it("built pages have no <style>, no on*= handlers and no inline scripts (strict CSP)", () => {
+    for (const p of pages) {
+      expect(p.html, p.rel).not.toMatch(/<style[s>]/);
+      expect(p.html, p.rel).not.toMatch(/son[a-z]+="/);
+    }
+  });
+  it("the footer line is FOOTER-v2 exactly as stored in config/site.json, on every page", () => {
+    const line = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../config/site.json"), "utf8")).footer_line as string;
+    expect(line.startsWith("SortMyCover is a service of Lead Velocity (Pty) Ltd. We introduce you to authorised financial services providers.")).toBe(true);
+    expect(line.endsWith("You must be 18 or older.")).toBe(true);
+    for (const p of pages) { if (p.rel === "404.html") continue; expect(visible(p.html), p.rel).toContain(line); }
+  });
+  it("no page states the fee as flat, monthly or the same (spec C.1 item 5), and none says 30-day cycle", () => {
+    for (const p of pages) expect(visible(p.html), p.rel).not.toMatch(/flat|30-day cycle|the same whether|flat monthly/i);
+  });
+  it("the home page has no sticky bar markup and the quiz shows two taps then details then consent", () => {
+    const home = pages.find((p) => p.rel === "index.html")!.html;
+    expect(home).not.toMatch(/sticky-bar/);
+    const book = visible(pages.find((p) => p.rel === "book/index.html")!.html);
+    expect(book).toContain("How old are you?");
+    expect(book).toContain("You must be 18 or older");
   });
   it("legal drafts keep their DRAFT mark and noindex", () => {
     for (const r of ["privacy", "terms", "paia"]) {

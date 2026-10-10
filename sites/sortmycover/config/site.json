@@ -19,7 +19,12 @@
     "legal_name": "Lead Velocity (Pty) Ltd",
     "trading_as": "SortMyCover",
     "registration": "2025/637858/07",
-    "address_lines": ["210 Amarand Avenue", "Pegasus Building 1", "Menlyn Maine", "Pretoria 0184"],
+    "address_lines": [
+      "210 Amarand Avenue",
+      "Pegasus Building 1",
+      "Menlyn Maine",
+      "Pretoria 0184"
+    ],
     "phone_display": "+27 10 976 5618",
     "phone_tel": "+27109765618",
     "email": "hello@sortmycover.co.za",
@@ -27,5 +32,7 @@
     "information_officer": "Jonathan West",
     "deputy_information_officer": "Kgomotso Pule"
   },
-  "robots_extra_disallow": []
+  "robots_extra_disallow": [],
+  "footer_line": "SortMyCover is a service of Lead Velocity (Pty) Ltd. We introduce you to authorised financial services providers. We are not a financial services provider. We do not give financial advice, compare products or quote premiums. You must be 18 or older.",
+  "fsca_register_url": "https://www.fsca.co.za/FSB-Search/"
 }

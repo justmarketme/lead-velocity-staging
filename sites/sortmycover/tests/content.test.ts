@@ -3,7 +3,7 @@ import { articleMetas, articleLoaders, metaFor } from "../src/content";
 import { glossary } from "../src/content/glossary";
 import { parseInline, plainText } from "../src/lib/inline";
 import evidence from "../config/evidence.json";
-import { ANGLES, HOST_LABEL, h1Plain } from "../src/campaigns";
+import { ANGLES, HOST_LABEL, LABEL_BANNED, RESERVED_LABELS, h1Plain, hostLabel, isAttached } from "../src/campaigns";
 import { SITE_FAQ, CAMPAIGN_FAQ } from "../src/content/shared";
 import { BANNED } from "../src/build/wording";
 import type { Block } from "../src/content/types";
@@ -68,7 +68,8 @@ describe("articles", () => {
 
 describe("evidence ledger", () => {
   it("every entry has the audit fields", () => {
-    for (const e of evidence as Record<string, string>[]) for (const k of ["id", "claim", "publisher", "url", "month", "status"]) expect(e[k], `${e.id}.${k}`).toBeTruthy();
+    for (const e of evidence as Record<string, string>[]) for (const k of ["id", "claim", "publisher", "month", "status"]) expect(e[k], `${e.id}.${k}`).toBeTruthy();
+    for (const e of (evidence as Record<string, string>[]).filter((x) => x.status === "usable")) expect(e.url, `${e.id}.url`).toMatch(/^https:\/\//);
   });
   it("unique ids", () => { const ids = (evidence as { id: string }[]).map((e) => e.id); expect(new Set(ids).size).toBe(ids.length); });
 });
@@ -90,8 +91,8 @@ describe("glossary", () => {
 });
 
 describe("campaign angles", () => {
-  it("are the 11 existing angles with valid host labels and unique codes", () => {
-    expect(ANGLES.map((a) => a.slug).sort()).toEqual(["bond-paperwork", "c13-check-not-buy", "employer-gap", "extended-family", "myth-bust", "new-baby", "new-bond", "self-employed", "turned-40", "virtual", "what-the-call"]);
+  it("are the 10 campaign angles (extended-family was dropped) with valid host labels and unique codes", () => {
+    expect(ANGLES.map((a) => a.slug).sort()).toEqual(["bond-paperwork", "c13-check-not-buy", "employer-gap", "myth-bust", "new-baby", "new-bond", "self-employed", "turned-40", "virtual", "what-the-call"]);
     expect(new Set(ANGLES.map((a) => a.meta_code)).size).toBe(ANGLES.length);
     for (const a of ANGLES) expect(a.slug).toMatch(HOST_LABEL);
   });
@@ -105,9 +106,21 @@ describe("campaign angles", () => {
   });
 });
 
+describe("campaign hosts (spec C.3)", () => {
+  it("labels follow the regex, avoid the S28 word list and the reserved labels", () => {
+    for (const a of ANGLES) { const l = hostLabel(a); expect(l, a.slug).toMatch(HOST_LABEL); expect(l).not.toMatch(LABEL_BANNED); expect(RESERVED_LABELS).not.toContain(l); expect(l).not.toMatch(/--/); }
+    expect(hostLabel(ANGLES.find((a) => a.slug === "c13-check-not-buy")!)).toBe("looking-is-not-buying");
+    expect(new Set(ANGLES.map(hostLabel)).size).toBe(ANGLES.length);
+  });
+  it("employer-gap is held: built, but never attached to a host", () => {
+    expect(ANGLES.find((a) => a.slug === "employer-gap")!.hold).toBe(true);
+    expect(ANGLES.filter(isAttached).map((a) => a.slug)).not.toContain("employer-gap");
+  });
+});
+
 describe("FAQ", () => {
   it("scoped commission wording and no unscoped 'free'", () => {
     for (const f of [...SITE_FAQ, ...CAMPAIGN_FAQ]) for (const [re, label] of BANNED) expect(f.a + f.q, `${f.id}: ${label}`).not.toMatch(re);
-    expect(CAMPAIGN_FAQ.find((f) => f.id === "cost")!.a).toMatch(/SortMyCover takes no commission/);
+    expect(CAMPAIGN_FAQ.find((f) => f.id === "who-pays")!.a).toMatch(/SortMyCover takes no commission/);
   });
 });

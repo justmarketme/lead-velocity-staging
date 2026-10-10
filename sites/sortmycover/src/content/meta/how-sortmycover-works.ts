@@ -4,10 +4,10 @@ export const meta: ArticleMeta = {
   slug: "how-sortmycover-works",
   title: "How does SortMyCover work, and how does it make money?",
   description:
-    "Who runs SortMyCover, how an introduction to one adviser works, and how the service makes money from a flat fee paid by advisers, not by you.",
+    "Who runs SortMyCover, how an introduction to one adviser works, and how the service is paid a fee by advisers and not by you.",
   hub: 3,
   answer:
-    "SortMyCover makes money from a flat fee that advisers pay for each 30-day cycle. The fee is the same whether or not you buy anything. We take no commission and no share of any premium. SortMyCover gives no financial advice. This is information, not advice.",
+    "SortMyCover is paid a fee by advisers for the introduction. The fee does not depend on whether you buy anything. SortMyCover takes no commission and no share of any premium, and gives no financial advice. If you later choose a product, your adviser tells you how they are paid. This is information, not advice.",
   datePublished: "2026-10-02",
   lastReviewed: "2026-10-10",
   author: { kind: "organization", name: "SortMyCover editorial team" },

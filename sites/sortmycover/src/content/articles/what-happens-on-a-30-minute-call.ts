@@ -68,7 +68,7 @@ export const body: Block[] = [
   { type: "h2", text: "Does the call cost anything?" },
   {
     type: "p",
-    text: "The call costs you nothing. SortMyCover is paid a flat fee by advisers, and the fee does not depend on whether anyone buys a product. If you later choose a product, your adviser tells you how they are paid.",
+    text: "The call costs you nothing. SortMyCover is paid a fee by advisers, and the fee does not depend on whether you buy anything. If you later choose a product, your adviser tells you how they are paid.",
   },
   { type: "h2", text: "Who decides what happens after the call?" },
   {

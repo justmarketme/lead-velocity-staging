@@ -7,8 +7,8 @@ import { BOOK_LABEL, COST_LINE } from "@/lib/site";
 const NAV: [string, string][] = [["How it works", "/how-it-works/"], ["How we make money", "/how-we-make-money/"], ["Learn", "/learn/"], ["About", "/about/"], ["Contact", "/contact/"]];
 /** Static legal pages load no Motion at all. */
 const NO_MOTION = /^\/(privacy|terms|paia)\//;
-/** Pages that already are the booking form, or confirm one: no sticky bar. */
-const NO_STICKY = /^\/(book|privacy|terms|paia)\//;
+/** Home (spec D.1: no sticky bar), the booking form, and the legal pages: no sticky bar. */
+const NO_STICKY = /^\/$|^\/(book|privacy|terms|paia)\//;
 
 function ScrollToTop() {
   const { pathname, hash } = useLocation();
@@ -24,6 +24,7 @@ function Enhance() {
   const { pathname } = useLocation();
   useEffect(() => {
     if (NO_MOTION.test(pathname)) return;
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return; // reduced motion: the Motion chunk is not even requested by the layout
     let off = () => {};
     let dead = false;
     import("@/lib/motion").then((m) => { if (!dead) off = m.springGestures(document, ".btn, .card-link"); });
@@ -41,21 +42,19 @@ function StickyCta() {
   const bar = useRef<HTMLDivElement>(null);
   const enabled = !NO_STICKY.test(pathname);
   useEffect(() => {
-    if (!enabled || !sentinel.current) return;
-    let off = () => {};
-    let dead = false;
-    import("@/lib/motion").then((m) => {
-      if (dead || !sentinel.current) return;
-      const a = m.watchPastSentinel(sentinel.current, setPast);
-      const f = document.querySelector("[data-footer]");
-      const b = f ? m.watchInView(f, setAtFooter) : () => {};
-      off = () => { a(); b(); };
-    });
-    return () => { dead = true; off(); setPast(false); setAtFooter(false); };
+    if (!enabled || !sentinel.current || typeof IntersectionObserver === "undefined") return;
+    // native IntersectionObserver: no Motion needed to decide when the bar shows
+    const watch = (el: Element, cb: (visible: boolean) => void) => { const io = new IntersectionObserver((es) => cb(es[es.length - 1].isIntersecting)); io.observe(el); return () => io.disconnect(); };
+    const a = watch(sentinel.current, (visible) => setPast(!visible && window.scrollY > 0));
+    const f = document.querySelector("[data-footer]");
+    const b = f ? watch(f, setAtFooter) : () => {};
+    return () => { a(); b(); setPast(false); setAtFooter(false); };
   }, [pathname, enabled]);
   const show = enabled && past && !atFooter;
   useEffect(() => {
-    if (show && bar.current) import("@/lib/motion").then((m) => bar.current && m.slideIn(bar.current));
+    if (!show || !bar.current) return;
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return; // shown at once, no animation
+    import("@/lib/motion").then((m) => bar.current && m.slideIn(bar.current));
   }, [show]);
   if (!enabled) return null;
   return (

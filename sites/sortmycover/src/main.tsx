@@ -7,6 +7,7 @@ import "./index.css";
 import App from "./App";
 import { allRoutes, apexRoutes, notFoundRoute } from "./routes";
 import { bootPixel } from "@/lib/pixel";
+import { startRum } from "@/lib/rum";
 
 async function start() {
   const rootEl = document.getElementById("root")!;
@@ -25,6 +26,7 @@ async function start() {
   }
   if (rootEl.hasChildNodes()) hydrateRoot(rootEl, tree);
   else createRoot(rootEl).render(tree); // dev server (no pre-rendered HTML)
+  startRum(slug || "site");
   bootPixel(); // loads Meta only if the visitor already gave the optional consent
 }
 start();

@@ -1,101 +1,124 @@
 [
   {
-    "slug": "new-bond", "meta_code": "c01", "host": true,
+    "slug": "new-bond",
+    "meta_code": "c01",
+    "host": true,
     "ad_hook": "Bond approved. Champagne open.",
     "legacy_ad_hook": "Bond approved. Champagne open. Cover checked?",
     "h1": "Bond approved. Champagne open.\n*Cover questions?*",
     "sub": "A new bond brings a lot of paperwork. You can book a 30-minute call with an authorised adviser to talk about cover.",
     "title": "Bond approved. Champagne open. | SortMyCover",
-    "description": "A 30-minute call with an authorised adviser, booked for a time that suits, by video, WhatsApp or phone. The call costs you nothing."
+    "description": "A 30-minute call with an authorised adviser, booked for a time that suits, by video, WhatsApp or phone. The call costs you nothing.",
+    "status": "after Q1 and Q5"
   },
   {
-    "slug": "bond-paperwork", "meta_code": "c02", "host": true,
+    "slug": "bond-paperwork",
+    "meta_code": "c02",
+    "host": true,
     "ad_hook": "Bond signing day is busy.",
     "legacy_ad_hook": "Bond signing day is busy.",
     "h1": "Bond signing day\n*is busy.*",
-    "sub": "Life cover paperwork is separate from the bond. You can book a 30-minute call with an authorised adviser when the day is done.",
+    "sub": "Cover is a separate job. Book a 30-minute call with an adviser from an FSCA-authorised provider, at a time you pick. The call costs you nothing.",
     "title": "Bond signing day is busy. | SortMyCover",
-    "description": "Book a 30-minute call with an authorised adviser for a time that suits. The call costs you nothing."
+    "description": "Book a 30-minute call with an authorised adviser for a time that suits. The call costs you nothing.",
+    "status": "attach first"
   },
   {
-    "slug": "employer-gap", "meta_code": "c03", "host": true,
+    "slug": "employer-gap",
+    "meta_code": "c03",
+    "host": true,
     "ad_hook": "Work life cover is tied to your job.",
     "legacy_ad_hook": "Most work life cover stops at 2–4× salary. (unsourced figure removed)",
     "h1": "Work life cover\n*is tied to your job.*",
     "sub": "Group life cover normally ends when the job does. Your benefits statement shows what yours says. You can book a 30-minute call with an authorised adviser.",
     "title": "Work life cover is tied to your job | SortMyCover",
-    "description": "Group life cover is usually tied to the employer. Book a 30-minute call with an authorised adviser. The call costs you nothing."
+    "description": "Group life cover is usually tied to the employer. Book a 30-minute call with an authorised adviser. The call costs you nothing.",
+    "hold": true,
+    "status": "HOLD: reserved, not attached (2 to 4x salary claim has no ARB-acceptable source)"
   },
   {
-    "slug": "extended-family", "meta_code": "c04", "host": true, "hold": true,
-    "ad_hook": "Many people support more than one household.",
-    "legacy_ad_hook": "Many families carry more than one household.",
-    "h1": "Many people support\n*more than one household.*",
-    "sub": "That support often runs on one income. You can book a 30-minute call with an authorised adviser. The call costs you nothing.",
-    "title": "Supporting more than one household | SortMyCover",
-    "description": "Book a 30-minute call with an authorised adviser, at a time that suits. The call costs you nothing."
-  },
-  {
-    "slug": "myth-bust", "meta_code": "c05", "host": true,
+    "slug": "myth-bust",
+    "meta_code": "c05",
+    "host": true,
     "ad_hook": "No price in this ad. On purpose.",
     "legacy_ad_hook": "No price in this ad. On purpose.",
     "h1": "No price in this ad.\n*On purpose.*",
     "sub": "Prices depend on the person, so this site shows none. Any price comes from an authorised adviser. The call costs you nothing.",
     "title": "No price in this ad. On purpose. | SortMyCover",
-    "description": "SortMyCover shows no prices. Book a 30-minute call with an authorised adviser at a time that suits. The call costs you nothing."
+    "description": "SortMyCover shows no prices. Book a 30-minute call with an authorised adviser at a time that suits. The call costs you nothing.",
+    "status": "after Q1 and Q5"
   },
   {
-    "slug": "new-baby", "meta_code": "c06", "host": true,
+    "slug": "new-baby",
+    "meta_code": "c06",
+    "host": true,
     "ad_hook": "New baby. New bond. New questions?",
     "legacy_ad_hook": "New baby. New bond. Same old cover?",
     "h1": "New baby. New bond.\n*New questions?*",
     "sub": "Big changes bring questions about cover. You can book a 30-minute call with an authorised adviser.",
     "title": "New baby. New bond. New questions? | SortMyCover",
-    "description": "Book a 30-minute call with an authorised adviser, at a time that suits. The call costs you nothing."
+    "description": "Book a 30-minute call with an authorised adviser, at a time that suits. The call costs you nothing.",
+    "status": "attach with ad"
   },
   {
-    "slug": "self-employed", "meta_code": "c07", "host": true,
+    "slug": "self-employed",
+    "meta_code": "c07",
+    "host": true,
     "ad_hook": "No boss. No payslip. No group cover.",
     "legacy_ad_hook": "No boss. No payslip. No group cover.",
     "h1": "No boss. No payslip.\n*No group cover.*",
     "sub": "Group cover comes through an employer, so it may not apply to you. You can book a 30-minute call with an authorised adviser.",
     "title": "No boss. No payslip. No group cover. | SortMyCover",
-    "description": "For people who work for themselves: a 30-minute call with an authorised adviser, booked for a time that suits. The call costs you nothing."
+    "description": "For people who work for themselves: a 30-minute call with an authorised adviser, booked for a time that suits. The call costs you nothing.",
+    "status": "attach with ad"
   },
   {
-    "slug": "turned-40", "meta_code": "c08", "host": true,
+    "slug": "turned-40",
+    "meta_code": "c08",
+    "host": true,
     "ad_hook": "Cover set up at 28. Life at 40.",
     "legacy_ad_hook": "Cover set up at 28. Life at 40.",
     "h1": "Cover set up at 28.\n*Life at 40.*",
     "sub": "Twelve years change a lot. You can book a 30-minute call with an authorised adviser. The call costs you nothing.",
     "title": "Cover set up at 28. Life at 40. | SortMyCover",
-    "description": "Book a 30-minute call with an authorised adviser, by video, WhatsApp or phone, at a time that suits."
+    "description": "Book a 30-minute call with an authorised adviser, by video, WhatsApp or phone, at a time that suits.",
+    "status": "attach with ad"
   },
   {
-    "slug": "virtual", "meta_code": "c09", "host": true,
+    "slug": "virtual",
+    "meta_code": "c09",
+    "host": true,
     "ad_hook": "No sales visit. No jargon. 30 minutes.",
     "legacy_ad_hook": "No sales visit. No jargon. 30 minutes.",
     "h1": "No sales visit. No jargon.\n*30 minutes.*",
     "sub": "An authorised adviser, on WhatsApp, video or phone. The call costs you nothing.",
     "title": "No sales visit. No jargon. 30 minutes. | SortMyCover",
-    "description": "A 30-minute call with an authorised adviser, from home, at a time you pick. The call costs you nothing."
+    "description": "A 30-minute call with an authorised adviser, from home, at a time you pick. The call costs you nothing.",
+    "status": "attach with ad"
   },
   {
-    "slug": "what-the-call", "meta_code": "c10", "host": true,
+    "slug": "what-the-call",
+    "meta_code": "c10",
+    "host": true,
     "ad_hook": "Here's exactly what happens on the call.",
     "legacy_ad_hook": "Here's exactly what happens on the call.",
     "h1": "Here's exactly what happens\n*on the call.*",
     "sub": "Answer two quick questions and pick a time. The adviser gives their name, FSP number and how they are paid. You decide after.",
     "title": "Here's exactly what happens on the call. | SortMyCover",
-    "description": "A 30-minute call with an authorised adviser, booked for a time that suits. You decide after. The call costs you nothing."
+    "description": "A 30-minute call with an authorised adviser, booked for a time that suits. You decide after. The call costs you nothing.",
+    "status": "attach with ad"
   },
   {
-    "slug": "c13-check-not-buy", "meta_code": "c13", "host": true,
+    "slug": "c13-check-not-buy",
+    "meta_code": "c13",
+    "host": true,
     "ad_hook": "Booking a call is not the same as buying.",
     "legacy_ad_hook": "Checking cover is not the same as buying.",
     "h1": "Booking a call is not\n*the same as buying.*",
     "sub": "A 30-minute talk with an authorised adviser, booked for a time that suits. Then the choice is yours. The call costs you nothing.",
     "title": "Booking a call is not the same as buying. | SortMyCover",
-    "description": "A 30-minute talk with an authorised adviser at a time that suits. Then the choice is yours."
+    "description": "A 30-minute talk with an authorised adviser at a time that suits. Then the choice is yours.",
+    "host_label": "looking-is-not-buying",
+    "status": "after Q1 and Q5"
   }
 ]

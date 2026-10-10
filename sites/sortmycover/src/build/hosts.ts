@@ -1,15 +1,15 @@
 /* Deployment config generators: vercel.json (legacy "routes" style, which is the only style that can rewrite "/" per host, D1) and the
    Hostinger .htaccess. Pure functions of site.json + angles.json + the old-URL map; scripts/gen-config.mjs writes the files and a
    test fails if the committed files drift from this output. */
-import { ANGLES, type Angle } from "../campaigns";
+import { ANGLES, hostLabel, isAttached, type Angle } from "../campaigns";
 import { OLD_URL_MAP } from "./redirects";
 import { site } from "../lib/site";
 
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const CAMPAIGN_SUFFIX = site.campaign_host_suffix; // ".sortmycover.co.za"
 const APEX_HOST = site.site_url.replace(/^https?:\/\//, "");
-const hostOf = (slug: string) => slug + CAMPAIGN_SUFFIX;
-export const campaignAngles = (): Angle[] => ANGLES.filter((a) => a.host);
+const hostOf = (a: Angle) => hostLabel(a) + CAMPAIGN_SUFFIX;
+export const campaignAngles = (): Angle[] => ANGLES.filter(isAttached);
 const N8N = site.n8n_base;
 
 /** CSP: 'self' plus exactly what the site needs (Meta Pixel domains, the n8n host, Cloudflare Turnstile). No 'unsafe-inline': no inline script or style exists. */
@@ -34,7 +34,7 @@ export const SECURITY_HEADERS: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
-  "Strict-Transport-Security": "max-age=31536000",
+  "Strict-Transport-Security": "max-age=86400",
   "X-Frame-Options": "DENY",
 };
 
@@ -49,7 +49,7 @@ export function vercelConfig() {
   for (const r of OLD_URL_MAP) routes.push({ src: "^" + esc(r.from) + "$", ...dest(r.to) });
   // 3. each page lives on exactly one host: apex /<slug>/ and /_c/<slug>/ go to the campaign host (307 first; 308 after a month, README)
   for (const a of campaignAngles()) {
-    routes.push({ src: `^/(?:_c/)?${esc(a.slug)}/?$`, has: [{ type: "host", value: esc(APEX_HOST) }], status: 307, headers: { Location: `https://${hostOf(a.slug)}/` } });
+    routes.push({ src: `^/(?:_c/)?${esc(a.slug)}/?$`, has: [{ type: "host", value: esc(APEX_HOST) }], status: 307, headers: { Location: `https://${hostOf(a)}/` } });
   }
   // 4. security headers on every response, noindex on campaign hosts and *.vercel.app, long cache for hashed assets
   routes.push({ src: "/(.*)", headers: SECURITY_HEADERS, continue: true });
@@ -58,9 +58,11 @@ export function vercelConfig() {
   routes.push({ src: "/assets/(.*)", headers: { "Cache-Control": "public, max-age=31536000, immutable" }, continue: true });
   routes.push({ src: "/fonts/(.*)", headers: { "Cache-Control": "public, max-age=31536000, immutable" }, continue: true });
   routes.push({ src: "/(.*)\\.(png|ico|svg|webmanifest)", headers: { "Cache-Control": "public, max-age=86400" }, continue: true });
+  // /sitemap.xml exists on the apex only (spec C.5): a campaign host answers 404
+  routes.push({ src: "^/sitemap\\.xml$", has: [{ type: "host", value: ".+" + esc(CAMPAIGN_SUFFIX) }], status: 404, dest: "/404.html" });
   // 5. campaign hosts: "/" and "/thanks/" are the only pages; shared files pass through; everything else goes to the apex
   for (const a of campaignAngles()) {
-    const h = [{ type: "host", value: esc(hostOf(a.slug)) }];
+    const h = [{ type: "host", value: esc(hostOf(a)) }];
     routes.push({ src: "^/$", has: h, dest: `/_c/${a.slug}/index.html` });
     routes.push({ src: "^/thanks/?$", has: h, dest: `/_c/${a.slug}/thanks/index.html` });
   }
@@ -112,15 +114,17 @@ export function htaccess(): string {
   p("# apex: campaign pages live on their own host");
   for (const a of campaignAngles()) {
     p(`RewriteCond %{HTTP_HOST} ^${esc(APEX_HOST)}$ [NC]`);
-    p(`RewriteRule ^(?:_c/)?${esc(a.slug)}/?$ https://${hostOf(a.slug)}/ [L,R=307]`);
+    p(`RewriteRule ^(?:_c/)?${esc(a.slug)}/?$ https://${hostOf(a)}/ [L,R=307]`);
   }
   p("# campaign hosts: '/' and '/thanks/' map into _c/<slug>/; everything else goes to the apex");
   for (const a of campaignAngles()) {
-    p(`RewriteCond %{HTTP_HOST} ^${esc(hostOf(a.slug))}$ [NC]`);
+    p(`RewriteCond %{HTTP_HOST} ^${esc(hostOf(a))}$ [NC]`);
     p(`RewriteRule ^$ /_c/${a.slug}/index.html [L]`);
-    p(`RewriteCond %{HTTP_HOST} ^${esc(hostOf(a.slug))}$ [NC]`);
+    p(`RewriteCond %{HTTP_HOST} ^${esc(hostOf(a))}$ [NC]`);
     p(`RewriteRule ^thanks/?$ /_c/${a.slug}/thanks/index.html [L]`);
   }
+  p(`RewriteCond %{HTTP_HOST} ^[a-z0-9-]+${esc(CAMPAIGN_SUFFIX)}$ [NC]`);
+  p("RewriteRule ^sitemap\\.xml$ - [R=404,L]");
   p(`RewriteCond %{HTTP_HOST} ^[a-z0-9-]+${esc(CAMPAIGN_SUFFIX)}$ [NC]`);
   p("RewriteCond %{REQUEST_URI} !^/(assets/|fonts/|robots\\.txt|favicon|apple-touch-icon|icon-|mask-icon|manifest|browserconfig|mstile|_c/)");
   p(`RewriteRule ^(.+)$ ${site.site_url}/$1 [L,R=307]`);

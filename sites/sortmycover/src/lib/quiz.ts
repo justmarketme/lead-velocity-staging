@@ -94,9 +94,9 @@ export function groupSlots(list: string[], maxDays = 5, perDay = 6): { day: stri
 export const NEEDS_EMAIL: Record<string, true> = { teams: true, zoom: true, google_meet: true };
 
 /** Which consent text is rendered. Named mode only when the practice and FSP number are both known. */
-export function consentText(cfg: { named: { text: string; version: string }; generic: { text: string; version: string }; age: string }, mode: string, practice: string, fsp: string) {
+export function consentText(cfg: { named: { text: string; version: string }; generic: { text: string; version: string } }, mode: string, practice: string, fsp: string) {
   const useNamed = mode === "named" && !!practice && !!fsp;
   const c = useNamed ? cfg.named : cfg.generic;
   const main = c.text.replace("{practice_name}", practice).replace("{fsp_number}", fsp);
-  return { text: `${cfg.age} ${main}`, version: c.version, mode: useNamed ? "named" : "generic" };
+  return { text: main, version: c.version, mode: useNamed ? "named" : "generic" };
 }

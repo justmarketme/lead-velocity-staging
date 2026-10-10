@@ -65,7 +65,8 @@ describe("slots", () => {
 describe("consent text", () => {
   it("generic mode starts with the 18+ statement and names no practice", () => {
     const c = consentText(consent, "generic", "", "");
-    expect(c.text.startsWith("I am 18 or older.")).toBe(true);
+    expect(c.text).toContain("I am 18 or older.");
+    expect(c.text.startsWith("I agree that SortMyCover, a service of Lead Velocity (Pty) Ltd, may message me on WhatsApp")).toBe(true);
     expect(c.mode).toBe("generic");
     expect(c.text).not.toMatch(/\{/);
   });

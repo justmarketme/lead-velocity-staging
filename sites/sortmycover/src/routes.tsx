@@ -64,6 +64,7 @@ export const apexRoutes: RouteDef[] = [
   page("/learn/glossary/", () => import("./pages/Glossary")),
   ...articleMetas.filter((a) => a.slug !== HUB1_INTRO).map((a) => articleRoute(a.slug)),
   page("/editorial-policy/", () => import("./pages/EditorialPolicy")),
+  page("/accessibility/", () => import("./pages/Accessibility")),
   // DRAFT legal pages: noindex until the compliance practitioner signs them off and the DRAFT marks are removed.
   page("/privacy/", () => import("./pages/Legal").then((m) => ({ default: m.Privacy })), { indexable: false }),
   page("/terms/", () => import("./pages/Legal").then((m) => ({ default: m.Terms })), { indexable: false }),

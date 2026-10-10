@@ -27,7 +27,7 @@ try {
   const hosts = await server.ssrLoadModule("/src/build/hosts.ts");
 
   // chunk preload: the route's own chunk starts downloading with the HTML instead of after the entry script has run
-  const PAGE = { '/': 'Home', '/book/': 'Book', '/book/thanks/': 'BookThanks', '/how-it-works/': 'HowItWorks', '/how-we-make-money/': 'HowWeMakeMoney', '/advisers/': 'Advisers', '/about/': 'About', '/contact/': 'Contact', '/complaints/': 'Complaints', '/faq/': 'Faq', '/learn/': 'Learn', '/learn/glossary/': 'Glossary', '/editorial-policy/': 'EditorialPolicy', '/privacy/': 'Legal', '/terms/': 'Legal', '/paia/': 'Legal' };
+  const PAGE = { '/': 'Home', '/book/': 'Book', '/book/thanks/': 'BookThanks', '/how-it-works/': 'HowItWorks', '/how-we-make-money/': 'HowWeMakeMoney', '/advisers/': 'Advisers', '/about/': 'About', '/contact/': 'Contact', '/complaints/': 'Complaints', '/faq/': 'Faq', '/learn/': 'Learn', '/learn/glossary/': 'Glossary', '/editorial-policy/': 'EditorialPolicy', '/accessibility/': 'Accessibility', '/privacy/': 'Legal', '/terms/': 'Legal', '/paia/': 'Legal' };
   const chunkFor = (r) => {
     let keys;
     if (r.campaign) keys = ['src/pages/Campaign.tsx'];
@@ -66,6 +66,16 @@ try {
   const bad = missingTargets(OLD_URL_MAP, apexPaths);
   if (bad.length) { failed++; console.error("Redirect targets that are not routes:", bad); }
 
+  // production guards (spec B-03, B-09): identity and measurement config must be complete
+  if (site.env === "production") {
+    const miss = [["company.registration", site.company.registration], ["pixel_id", site.pixel_id], ["domain_verification", site.domain_verification], ["n8n_base", site.n8n_base], ["whatsapp_number", site.whatsapp_number]].filter(([, v]) => !v).map(([k]) => k);
+    if (miss.length) { failed++; console.error("production build needs config/site.json: " + miss.join(", ")); }
+  }
+  // CORS allow-list for n8n (its Webhook node takes exact origins only): the apex plus every attached campaign host
+  const angles = JSON.parse(fs.readFileSync(path.join(root, "config/angles.json"), "utf8"));
+  const origins = [site.site_url, ...angles.filter((a) => a.host && !a.hold).map((a) => "https://" + (a.host_label || a.slug) + site.campaign_host_suffix)];
+  fs.mkdirSync(path.join(root, "docs"), { recursive: true });
+  fs.writeFileSync(path.join(root, "docs/N8N-CORS-ORIGINS.txt"), origins.join(",") + "\n");
   const origin = site.site_url.replace(/\/$/, "");
   fs.writeFileSync(path.join(dist, "sitemap.xml"), seo.buildSitemap(mod.allRoutes.map((r) => ({ path: r.path, lastmod: r.lastmod, indexable: r.indexable, campaign: r.kind === "campaign" })), origin));
   fs.writeFileSync(path.join(dist, "robots.txt"), seo.buildRobots(origin));
@@ -73,6 +83,8 @@ try {
   fs.mkdirSync(path.join(root, "hostinger"), { recursive: true });
   fs.writeFileSync(path.join(root, "hostinger/.htaccess"), hosts.htaccess());
   fs.copyFileSync(path.join(root, "hostinger/.htaccess"), path.join(dist, ".htaccess"));
+  const ev = JSON.parse(fs.readFileSync(path.join(root, "config/evidence.json"), "utf8")).find((x) => x.id === "fee-model");
+  if (!ev || ev.status !== "signed") console.warn("WARNING: config/evidence.json fee-model is " + (ev ? ev.status : "missing") + ": the fee sentence cites the unsigned LGSA draft (spec C.1 item 5). Fix before the first paid click.");
   console.log(`pre-rendered ${count} pages -> dist/ (${mod.allRoutes.length} routes)`);
 } finally {
   await server.close();

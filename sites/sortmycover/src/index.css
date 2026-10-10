@@ -10,18 +10,6 @@
   --amber-tint: rgba(245, 166, 35, 0.12);
   color-scheme: light;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --err: #ff9a9a;
-    --ctl: #7c8590;
-    color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --err: #ff9a9a;
-  --ctl: #7c8590;
-  color-scheme: dark;
-}
 
 @layer base {
   html {
@@ -225,3 +213,10 @@ legend { padding: 0; width: 100%; }
 }
 .steps > li { position: relative; z-index: 1; }
 .filter-input { font: inherit; padding: 10px 14px; border: 2px solid var(--ctl); border-radius: 12px; background: var(--sm-surface); color: var(--sm-text); min-height: 48px; width: 100%; max-width: 360px; }
+
+.step-label { font-size: 13px; font-weight: 800; color: var(--sm-text-muted); margin: 0 0 6px; letter-spacing: .02em; }
+.ads-choice { border: 2px solid var(--sm-border); border-radius: 12px; padding: 12px 14px; margin: 14px 0 4px; }
+.ads-choice legend { width: auto; padding: 0 6px; font-weight: 800; font-size: 14px; }
+.ads-pair { display: flex; gap: 20px; flex-wrap: wrap; }
+.ads-pair label { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-weight: 800; }
+.ads-pair input { width: 22px; height: 22px; accent-color: var(--sm-amber); }

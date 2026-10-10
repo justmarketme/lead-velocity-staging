@@ -16,7 +16,7 @@ export function organization() {
     logo: { "@type": "ImageObject", url: `${APEX}/icon-512.png` },
     email: company.email,
     telephone: company.phone_tel,
-    taxID: undefined,
+    sameAs: [] as string[], // real profiles only, once they exist (spec G.3); none are invented
     identifier: company.registration,
     address: {
       "@type": "PostalAddress",

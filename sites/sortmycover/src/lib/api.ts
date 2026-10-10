@@ -41,6 +41,11 @@ export function beacon(angle: string, ev: "view" | "step", step?: number, off: (
     try { sid = sessionStorage.getItem("smc_sid"); if (!sid) { sid = crypto.randomUUID(); sessionStorage.setItem("smc_sid", sid); } } catch { /* ignore */ }
     const body: Record<string, unknown> = { v: 1, sid: sid || crypto.randomUUID(), a: angle, e: ev };
     if (ev === "step") body.s = step;
+    if (ev === "view") {
+      // spec G.5: the referrer HOST only (no path, no query) and the utm_source VALUE only, cut to 40 characters, so n8n can bucket AI-assistant referrals
+      try { const h = document.referrer ? new URL(document.referrer).hostname : ""; if (h) body.ref_host = h.slice(0, 80); } catch { /* ignore */ }
+      try { const u = new URLSearchParams(location.search).get("utm_source"); if (u) body.utm_source = u.slice(0, 40); } catch { /* ignore */ }
+    }
     navigator.sendBeacon(API_BASE + "/beacon", new Blob([JSON.stringify(body)], { type: "text/plain;charset=UTF-8" }));
   } catch { /* never break the page */ }
 }

@@ -1,13 +1,13 @@
 import { Link } from "react-router-dom";
 import { Wordmark } from "./Brand";
-import { APEX, NOT_FSP_LINE, company } from "@/lib/site";
+import { APEX, FOOTER_LINE, NOT_FSP_LINE, company } from "@/lib/site";
 
 const phoneHref = "tel:" + company.phone_tel;
 
 /** Identity block (rule S31): on every page, including campaign hosts, which link to the apex for legal pages. */
 function IdentityBlock() {
   return (
-    <address>
+    <address data-disclosure>
       <p><strong>{company.legal_name}</strong> trading as <strong>{company.trading_as}</strong></p>
       <p>Registration number {company.registration}</p>
       <p>{company.address_lines.join(", ")}</p>
@@ -23,8 +23,9 @@ export function Footer() {
         <div className="grid gap-3 content-start">
           <Wordmark plain />
           <IdentityBlock />
-          <p>{NOT_FSP_LINE}</p>
-          <p>Advisers pay Lead Velocity a flat fee that never depends on whether anyone buys a policy. <Link to="/how-we-make-money/">How we make money</Link>.</p>
+          <p data-disclosure>{NOT_FSP_LINE}</p>
+          <p data-disclosure>{FOOTER_LINE}</p>
+          <p>Advisers pay SortMyCover a fee for the service. The fee does not depend on whether you buy anything. <Link to="/how-we-make-money/">How we make money</Link>.</p>
         </div>
         <nav aria-labelledby="f-understand"><h2 id="f-understand">Understand</h2>
           <ul>
@@ -36,7 +37,7 @@ export function Footer() {
         <nav aria-labelledby="f-trust"><h2 id="f-trust">Trust</h2>
           <ul>
             <li><Link to="/about/">About</Link></li><li><Link to="/contact/">Contact</Link></li>
-            <li><Link to="/complaints/">Complaints</Link></li><li><Link to="/editorial-policy/">Editorial policy</Link></li>
+            <li><Link to="/complaints/">Complaints</Link></li><li><Link to="/editorial-policy/">Editorial policy</Link></li><li><Link to="/accessibility/">Accessibility</Link></li>
           </ul>
         </nav>
         <nav aria-labelledby="f-legal"><h2 id="f-legal">Legal</h2>
@@ -58,8 +59,9 @@ export function CampaignFooter() {
       <div className="wrap grid gap-4">
         <Wordmark plain />
         <IdentityBlock />
-        <p>{NOT_FSP_LINE}</p>
-        <p>Advisers pay Lead Velocity a flat fee that never depends on whether anyone buys a policy.</p>
+        <p data-disclosure>{NOT_FSP_LINE}</p>
+          <p data-disclosure>{FOOTER_LINE}</p>
+        <p>Advisers pay SortMyCover a fee for the service. The fee does not depend on whether you buy anything.</p>
         <nav aria-label="Legal"><ul className="flex flex-wrap gap-x-5">{links.map(([t, p]) => <li key={p}><a href={APEX + p}>{t}</a></li>)}</ul></nav>
       </div>
     </footer>

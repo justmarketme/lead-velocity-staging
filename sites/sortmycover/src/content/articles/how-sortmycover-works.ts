@@ -36,7 +36,7 @@ export const body: Block[] = [
   { type: "h2", text: "How does SortMyCover make money?" },
   {
     type: "p",
-    text: "Advisers pay Lead Velocity (Pty) Ltd a flat fee for each 30-day cycle. The fee is the same whether or not anyone buys a policy. It does not rise if someone does, and it does not fall if no one does.",
+    text: "Advisers pay SortMyCover a fee for the service. The fee does not depend on whether you buy anything. SortMyCover takes no commission and no share of any premium.",
   },
   {
     type: "p",

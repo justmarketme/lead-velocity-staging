@@ -13,7 +13,7 @@ export default function About() {
       <h2>What we do not do</h2>
       <p>SortMyCover is not a financial services provider and gives no financial advice. We do not compare products, rank insurers, quote premiums or recommend anything. Only the adviser can talk about products, and they give their name and FSP number before the call.</p>
       <h2>How we make money</h2>
-      <p>Advisers pay us a flat fee that does not depend on whether you buy. Read <Link to="/how-we-make-money/">how we make money</Link>.</p>
+      <p>Advisers pay SortMyCover a fee for the service. The fee does not depend on whether you buy anything. Read <Link to="/how-we-make-money/">how we make money</Link>.</p>
       <h2>How we write</h2>
       <p>Our guides follow an <Link to="/editorial-policy/">editorial policy</Link>: sources, dates and a named fact-checker on every article.</p>
     </PageFrame>

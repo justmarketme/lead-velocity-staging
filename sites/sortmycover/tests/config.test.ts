@@ -3,6 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { campaignAngles, csp, htaccess, vercelConfig } from "../src/build/hosts";
 import { API_BASE } from "../src/lib/site";
+import { hostLabel } from "../src/campaigns";
 
 const root = path.resolve(__dirname, "..");
 
@@ -27,7 +28,7 @@ describe("deployment config", () => {
     const routes = vercelConfig().routes as Record<string, any>[];
     const fsIdx = routes.findIndex((r) => r.handle === "filesystem");
     for (const a of campaignAngles()) {
-      const host = `${a.slug}.sortmycover.co.za`.replace(/\./g, "\\.");
+      const host = `${hostLabel(a)}.sortmycover.co.za`.replace(/\./g, "\\.");
       const root = routes.findIndex((r) => r.src === "^/$" && r.has?.[0]?.value === host);
       const thanks = routes.findIndex((r) => r.src === "^/thanks/?$" && r.has?.[0]?.value === host);
       expect(root, a.slug).toBeGreaterThanOrEqual(0);

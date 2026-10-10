@@ -7,7 +7,7 @@ export const BANNED: [RegExp, string][] = [
   [/\bbest\b/i, "best"],
   [/\bindependent\b/i, "independent"],
   [/\b(we|SortMyCover)\s+(check|sort|review|arrange|match|find|compare|recommend|rank)\b/i, "SortMyCover as subject of check/sort/review/arrange/match"],
-  [/\byou (should|need to|must)\b/i, "you should"],
+  [/\byou (should|need to)\b|\byou must (?!be 18)/i, "you should"], // "You must be 18 or older" is part of FOOTER-v2
   [/2\s?[-–]\s?4\s?[x×]/i, "2-4x salary"],
   [/!/, "exclamation mark"],
   [/\b(regulated|approved) by\b/i, "regulated/approved by"],

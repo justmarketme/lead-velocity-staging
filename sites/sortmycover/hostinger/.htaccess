@@ -36,10 +36,6 @@ RewriteRule ^(?:_c/)?new-bond/?$ https://new-bond.sortmycover.co.za/ [L,R=307]
 RewriteCond %{HTTP_HOST} ^sortmycover\.co\.za$ [NC]
 RewriteRule ^(?:_c/)?bond-paperwork/?$ https://bond-paperwork.sortmycover.co.za/ [L,R=307]
 RewriteCond %{HTTP_HOST} ^sortmycover\.co\.za$ [NC]
-RewriteRule ^(?:_c/)?employer-gap/?$ https://employer-gap.sortmycover.co.za/ [L,R=307]
-RewriteCond %{HTTP_HOST} ^sortmycover\.co\.za$ [NC]
-RewriteRule ^(?:_c/)?extended-family/?$ https://extended-family.sortmycover.co.za/ [L,R=307]
-RewriteCond %{HTTP_HOST} ^sortmycover\.co\.za$ [NC]
 RewriteRule ^(?:_c/)?myth-bust/?$ https://myth-bust.sortmycover.co.za/ [L,R=307]
 RewriteCond %{HTTP_HOST} ^sortmycover\.co\.za$ [NC]
 RewriteRule ^(?:_c/)?new-baby/?$ https://new-baby.sortmycover.co.za/ [L,R=307]
@@ -52,7 +48,7 @@ RewriteRule ^(?:_c/)?virtual/?$ https://virtual.sortmycover.co.za/ [L,R=307]
 RewriteCond %{HTTP_HOST} ^sortmycover\.co\.za$ [NC]
 RewriteRule ^(?:_c/)?what-the-call/?$ https://what-the-call.sortmycover.co.za/ [L,R=307]
 RewriteCond %{HTTP_HOST} ^sortmycover\.co\.za$ [NC]
-RewriteRule ^(?:_c/)?c13-check-not-buy/?$ https://c13-check-not-buy.sortmycover.co.za/ [L,R=307]
+RewriteRule ^(?:_c/)?c13-check-not-buy/?$ https://looking-is-not-buying.sortmycover.co.za/ [L,R=307]
 # campaign hosts: '/' and '/thanks/' map into _c/<slug>/; everything else goes to the apex
 RewriteCond %{HTTP_HOST} ^new-bond\.sortmycover\.co\.za$ [NC]
 RewriteRule ^$ /_c/new-bond/index.html [L]
@@ -62,14 +58,6 @@ RewriteCond %{HTTP_HOST} ^bond-paperwork\.sortmycover\.co\.za$ [NC]
 RewriteRule ^$ /_c/bond-paperwork/index.html [L]
 RewriteCond %{HTTP_HOST} ^bond-paperwork\.sortmycover\.co\.za$ [NC]
 RewriteRule ^thanks/?$ /_c/bond-paperwork/thanks/index.html [L]
-RewriteCond %{HTTP_HOST} ^employer-gap\.sortmycover\.co\.za$ [NC]
-RewriteRule ^$ /_c/employer-gap/index.html [L]
-RewriteCond %{HTTP_HOST} ^employer-gap\.sortmycover\.co\.za$ [NC]
-RewriteRule ^thanks/?$ /_c/employer-gap/thanks/index.html [L]
-RewriteCond %{HTTP_HOST} ^extended-family\.sortmycover\.co\.za$ [NC]
-RewriteRule ^$ /_c/extended-family/index.html [L]
-RewriteCond %{HTTP_HOST} ^extended-family\.sortmycover\.co\.za$ [NC]
-RewriteRule ^thanks/?$ /_c/extended-family/thanks/index.html [L]
 RewriteCond %{HTTP_HOST} ^myth-bust\.sortmycover\.co\.za$ [NC]
 RewriteRule ^$ /_c/myth-bust/index.html [L]
 RewriteCond %{HTTP_HOST} ^myth-bust\.sortmycover\.co\.za$ [NC]
@@ -94,10 +82,12 @@ RewriteCond %{HTTP_HOST} ^what-the-call\.sortmycover\.co\.za$ [NC]
 RewriteRule ^$ /_c/what-the-call/index.html [L]
 RewriteCond %{HTTP_HOST} ^what-the-call\.sortmycover\.co\.za$ [NC]
 RewriteRule ^thanks/?$ /_c/what-the-call/thanks/index.html [L]
-RewriteCond %{HTTP_HOST} ^c13-check-not-buy\.sortmycover\.co\.za$ [NC]
+RewriteCond %{HTTP_HOST} ^looking-is-not-buying\.sortmycover\.co\.za$ [NC]
 RewriteRule ^$ /_c/c13-check-not-buy/index.html [L]
-RewriteCond %{HTTP_HOST} ^c13-check-not-buy\.sortmycover\.co\.za$ [NC]
+RewriteCond %{HTTP_HOST} ^looking-is-not-buying\.sortmycover\.co\.za$ [NC]
 RewriteRule ^thanks/?$ /_c/c13-check-not-buy/thanks/index.html [L]
+RewriteCond %{HTTP_HOST} ^[a-z0-9-]+\.sortmycover\.co\.za$ [NC]
+RewriteRule ^sitemap\.xml$ - [R=404,L]
 RewriteCond %{HTTP_HOST} ^[a-z0-9-]+\.sortmycover\.co\.za$ [NC]
 RewriteCond %{REQUEST_URI} !^/(assets/|fonts/|robots\.txt|favicon|apple-touch-icon|icon-|mask-icon|manifest|browserconfig|mstile|_c/)
 RewriteRule ^(.+)$ https://sortmycover.co.za/$1 [L,R=307]
@@ -108,7 +98,7 @@ Header always set Content-Security-Policy "default-src 'self'; script-src 'self'
 Header always set X-Content-Type-Options "nosniff"
 Header always set Referrer-Policy "strict-origin-when-cross-origin"
 Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
-Header always set Strict-Transport-Security "max-age=31536000"
+Header always set Strict-Transport-Security "max-age=86400"
 Header always set X-Frame-Options "DENY"
 SetEnvIfNoCase Host "\.sortmycover\.co\.za$" CAMPAIGN_HOST=1
 Header always set X-Robots-Tag "noindex, nofollow" env=CAMPAIGN_HOST

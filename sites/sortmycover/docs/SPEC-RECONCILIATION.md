@@ -1,0 +1,88 @@
+# Spec reconciliation (site-spec.md sections C to N against the built site)
+
+Written 11 Oct 2026. The spec describes a no-dependency Node build of `landing/`; this site is the React/Vite app the owner asked for in `sites/sortmycover/`. Every difference below is either fixed (section 1), a deliberate judgement call (section 2), or work that depends on other people or systems (section 3). Section 4 is the acceptance run.
+
+## 1. Deviations found and fixed (mechanical)
+
+| Spec | Was | Now |
+|---|---|---|
+| C.1 item 5 fee-statement rule: never "flat", "the same" or "30-day cycle" | Home, FAQ, footer, terms, how-we-make-money, the `how-sortmycover-works` article and its answer block all said "flat fee ... each 30-day cycle" | One sentence everywhere: "Advisers pay SortMyCover a fee for the service. The fee does not depend on whether you buy anything." plus the scoped no-commission line. Test `dist.test.ts` fails on `flat`, `30-day cycle`, `the same whether`. `config/evidence.json` has `fee-model` (status `draft`, cites the unsigned LGSA-v0.2 clauses 8.2 and 8.3); the build prints a warning until it is `signed` |
+| C.1 item 7 FOOTER-v2 exact text, stored once in `config/site.json` | Own short line | `footer_line` in `config/site.json`, rendered in every footer and in the consent step; test checks every page carries it verbatim. The owner's own required line ("SortMyCover is not a financial services provider and gives no financial advice") is kept beside it |
+| C.1 item 6 five campaign FAQ items (cost, who pays us, who is the adviser, what happens to my details, am I committed) | six different items | the five in `src/content/shared.ts` |
+| C.1 item 5 cost-and-who-we-are block, never a reveal target | absent on campaign pages | present, `data-disclosure` |
+| C.1 sticky bar: only after the quiz card has left the viewport, hidden while it is on screen | no sticky bar on campaign pages; a different sticky bar on every apex page including home | campaign pages: bar appears when the card has scrolled out upwards, hides at the footer. Home: none (D.1). Other apex content pages keep one (judgement, 2.6) |
+| C.3 host overrides and holds | all angles on a host named after the slug | `c13-check-not-buy` -> `looking-is-not-buying.sortmycover.co.za` (`host_label`); `employer-gap` is HOLD (page built, no host route, no apex redirect); label rules and reserved labels are tested. `extended-family` is dropped entirely (owner decision 11 Oct 2026) |
+| D.1 home | a different layout and headline | spec H1 ("Book a 30-minute call with an adviser from an FSCA-authorised provider."), lead, button, cost + fee line, who-is-behind with FSCA register link, human route, how it works with the scroll-drawn line, is / is not, how we make money, who your adviser is, read first, eight FAQ items, final CTA. No rating, counter or sticky bar |
+| D.2 quiz | name, mobile and consent on one step; age out-of-band only after the budget question; no step label | step 1 age (bands 18 to 34 ... 51 or older, "You must be 18 or older. This only decides if we can book a call."), out-of-band age exits at once; step 2 budget with "This is not a quote."; step 3 name and mobile with the reason line naming SortMyCover and the adviser; step 4 consent; booking widget; done. Numeric "Step n of 4" label beside the progress bar |
+| D.2 step 4 consent text and controls | one tick containing the old text; ad consent a single tick | the exact D.2 consent sentence (names SortMyCover as a service of Lead Velocity, the FSP's later contact, "I am 18 or older", STOP); ad measurement is its own fieldset with "I give" / "I do not give", neither preselected; button "Book my adviser call" |
+| D.2 neutral exit screen | "Nothing you entered has been sent or saved." with a restart button | spec wording plus the single "Read our guides" link to `https://sortmycover.co.za/learn/` |
+| D.2 step 6 thank-you | no fallback route | "If the WhatsApp message does not arrive, email hello@sortmycover.co.za." (the number and `wa.me` button wait for the WhatsApp number, section 3) |
+| E.2 light scheme only | dark-mode blocks copied from `brand/tokens.css` | removed from `src/styles/tokens.css` and `index.css` |
+| E.4 / F.3 disclosures carry `data-disclosure` and are never reveal targets; build fails if a reveal target sits on or inside one | no markers | footer identity block and lines, cost lines, consent block, ad-measurement choice, is/is-not block, campaign cost block all marked; `dist.test.ts` parses every built page and fails on any overlap with `[data-reveal]` / `[data-step-item]` |
+| F.2 failsafe: nothing hidden may stay hidden | 4 s timer; hid items measured within 85% of the viewport | below-the-first-viewport only, per item; revealed on inView, on scroll, and unconditionally after 2 s; a DOM test (`reveal.test.ts`) proves the visible-by-default behaviour, including an animation that never settles and a missing animation engine |
+| G.3 `Organization.sameAs` present (empty array until real profiles exist) | absent | `sameAs: []` |
+| G.5 beacon fields | step and view only | `view` carries `ref_host` (hostname only) and `utm_source` (value, 40 characters) |
+| H.2 `Lead` fires after server success, `Schedule` after `/book` success | `Lead` fired before the POST | `prepare('Lead')` before the POST, `fire` only on success (Schedule already did this) |
+| H.3 stop writing `_fbc`; if built by hand use the `.co.za` index | wrote a host-only `fb.1` cookie | no cookie written; the value is built in memory with index 2 (spec says likely 2, unverified H12) and only sent in the context |
+| H.4 one cookie `smc_ads=1/0`, `Domain=sortmycover.co.za`, one year | two cookies (`smc_ads_ok`, `smc_ads_off`) | `smc_ads` (1 give, 0 opted out); privacy cookie table updated |
+| C.5 HSTS `max-age=86400`, no includeSubDomains | `max-age=31536000` | 86400 |
+| C.5 `/sitemap.xml` on a campaign host answers 404 | passed through to the apex | 404 route in `vercel.json` and `.htaccess`; matrix test |
+| C.5 n8n CORS list generated per host | not produced | `docs/N8N-CORS-ORIGINS.txt` is rewritten on every build (apex plus attached hosts) |
+| B-03 address stored once; build fails on any other form | legal pages used a second spelling | single spelling everywhere ("210 Amarand Avenue, Pegasus Building 1, Menlyn Maine, Pretoria 0184"); tests check the identity block on every page |
+| B-03 `/accessibility/` | missing | added, linked in the footer (Trust group) |
+| B-03 / B-09 production guards | none | `npm run build` fails when `env` is `production` and the registration number, `pixel_id`, `domain_verification`, `n8n_base` or `whatsapp_number` is empty |
+| B-07 build check: no `<style>`, no `on*=`, no `style=`, no inline script | partly | all four asserted on every built page |
+| B-10 RUM beacon (LCP, CLS, INP, tap-to-submit, in-app flag) | none | `src/lib/rum.ts`, sent once when the page is hidden; off with Do Not Track, Global Privacy Control and the opt-out. **n8n's `SUB-visit-beacon` must be extended to accept `e: "rum"`** |
+| F.2 reduced-motion visitors fetch no Motion bytes | the layout always imported it | the layout and sticky bar no longer request the Motion chunk under reduced motion (the sticky bar uses native IntersectionObserver). Pages whose components import Motion statically (home, how it works, FAQ, quiz, campaign) still download the chunk (10 KB gzip) and then skip every effect: see 2.7 |
+| I.1 S13 "free" | FAQ question "Is it really free?" (the spec's own D.1 title) | "Does the call really cost nothing?" because rule S13 and the word scan ban "free" |
+
+## 2. Judgement calls (deviations kept on purpose)
+
+1. **"authorised adviser" versus "licensed adviser".** The spec uses "an adviser from an FSCA-authorised provider" (home H1, consent, sub lines) and never "licensed"; the owner's brief and the old copy said "licensed adviser". The site now uses the spec phrases where the spec gives text, and "authorised adviser" in short labels and chips. "Licensed" appears only inside the glossary definition. Compliance Q5 stays open.
+2. **Registration number is published** in every footer (the owner's brief requires it); the spec (D.1 item 5, H14) says not to publish it until it is verified at CIPC. Verify before launch.
+3. **Stack and paths.** React 18, Vite, Tailwind, react-router with build-time pre-rendering, as requested, instead of the spec's no-dependency Node build. Campaign output is `/_c/<slug>/` (the brief), not `/c/<slug>/`. The spec's `js-flag.js`, `fx.js` and vendored single-file Motion do not exist: Motion is a pinned npm dependency, code-split by Vite.
+4. **Motion scope.** The spec (F.3) forbids parallax and plans no spring; the coordinator widened the brief afterwards (parallax on the decorative hero art, spring hover and press, scroll-drawn line, sticky bar, SVG tick drawing, quiz transitions). All are transform/opacity only, never touch the H1, hero text or primary button, never loop, and stop under reduced motion. `animateLayout`, `animateView` and every Motion+ API remain unused. Slot-grid stagger (recipe 5) is not built; the progress bar uses Motion rather than CSS.
+5. **One CSP everywhere.** The spec (C.5) partitions a strict apex CSP from a wider campaign/quiz CSP. A single policy is simpler to prove "exactly one CSP header" for; the cost is that apex pages that run no quiz also allow the Meta and Turnstile origins. `frame-ancestors 'none'` is stricter than the spec's `'self'`; `connect-src` also lists `connect.facebook.net` (the spec flags both origins as unconfirmed pending the report-only run).
+6. **Sticky bar on apex content pages** (how it works, FAQ, learn, about ...): requested later; the spec only specifies it for campaign pages. Remove `StickyCta` in `Layout.tsx` to follow the spec strictly.
+7. **Articles ship JavaScript.** The spec says Learn articles ship none. Article HTML is complete and readable without JS (and tested that way); React still hydrates it, and the reading-progress bar needs JS. Reduced-motion and no-JS visitors lose only the effects.
+8. **No-JS quiz.** The spec's no-JS card says "WhatsApp us or email". The site renders a plain form post to `/lead` inside `<noscript>`, which needs n8n to answer with a 303 (README, contract differences). Replace with the spec text if n8n will not.
+9. **"Step n of 4"** instead of "Step 1 of 2": there are four steps (age, budget, details, consent) before booking.
+10. **Checks run in `npm test`, not inside `npm run build`.** The spec's B-05 wants the build itself to fail on missing fact-check data, banned words or unevidenced figures. Here `npm run verify` (build then test) is the gate; wire it into CI or the Vercel build command (`npm run verify`) to make it blocking.
+11. **Extra features not in the spec:** glossary filter, hub/learn card reveals, the hero diary graphic.
+12. **Extended-family angle dropped** (owner decision, 11 Oct 2026: SortMyCover is not aiming at funeral cover). Page, thanks page, host route, config entry, tests and the Wave-3 article slot (#6, supporting more than one household) are removed. The glossary terms "funeral cover" and "dependant" stay as educational definitions. Article #15 ("Life cover, funeral cover and credit life: three different things", Wave 3) is not written: owner to decide keep or drop. The two published articles mention funeral only as a benefit line that can appear on a payslip (`how-to-read-your-payslips-cover-line`) and as a different benefit from life cover (`what-is-a-life-cover-gap`); nothing markets funeral cover.
+
+## 3. Open: other people, other systems
+
+- n8n (not touched; `automation/` is read-only here): accept `consent_ads*`, the merged budget band, `angle: "generic"`, `e: "rum"` beacons; CAPI changes of B-09 (`consent_ads_at` only from the new flag, v25.0, 6.5-day age guard, `LeadSubmitted` / `QualifiedLead`, neutral `content_name`).
+- WhatsApp: number, display-name approval, templates `WA-INTRO-v2` and `WA-REMIND-v1` (D.3): Jonathan / Meta. The thank-you wording is ready for `config/site.json` `whatsapp_number`.
+- B-00A (`routes` proof on a throwaway deployment), B-14A (first production deploy), per-host launch, Q1 to Q8, CIPC check, signed fee clause, directors' names for the footer (S31), real-device LCP/INP runs, Lighthouse.
+- Content: Waves 2 and 3 (17 titles, less the dropped #6, #15 pending).
+- CONSENT-OPTIMISE: the ad-measurement text was carried over from the earlier landing config; confirm it against `consent-and-privacy.md` CP-v0.2.
+
+## 4. Acceptance criteria run locally
+
+See section 5.
+
+## 5. Acceptance run (11 Oct 2026, local)
+
+Commands: `npm run build` (50 pages), `npm test` (151 tests in 8 files, all passing), `tsc --noEmit` (clean), headless Chrome 154 scripts against `dist/` (serve.mjs). PASS means shown by a test or run; N/A means it needs a deployment, n8n or another person.
+
+| Task | Criterion | Result |
+|---|---|---|
+| B-01 | every B.1 page builds as `<page>/index.html`; no unfilled placeholders | PASS (`dist.test.ts`: 50 files, no `{{`, `[PRACTICE NAME]`, `undefined`) |
+| B-02 | every old URL 301s to the folder URL; `/about` -> `/about/`; sitemap only indexable apex URLs with `lastmod` | PASS in the route emulator (`matrix.test.ts`) and `seo.test.ts`; N/A the real curl matrix (needs a deployment) |
+| B-03 | identity block and FOOTER-v2 line on every page; build fails if the registration number is empty in production; complaints page separates SortMyCover routes (Information Regulator, NCC, ARB) from the adviser route (FAIS Ombud); address stored once | PASS (tests + production guard in `scripts/build.mjs`); directors' names missing (no source in the repo) |
+| B-04 | D.1 above-the-fold content in the server HTML; no third-party request; no rating or counter | PASS (H1, lead, button, cost line, who-is-behind, human route are in the prerendered HTML; zero third-party requests in the Chrome run); Lighthouse N/A |
+| B-05 | fails on: missing fact-check fields, empty sources, unevidenced figure, banned word, reviewer without proof, FAQPage/Product markup | PASS in `npm test` (not inside `npm run build`: see 2.10) |
+| B-06 | host needs noindex + matching canonical; generated config equals committed; labels valid, unique, not reserved | PASS (`content.test.ts`, `config.test.ts`, `dist.test.ts`) |
+| B-07 | two taps, then name, mobile, consent; out-of-band neutral exit sends nothing; numeric step label; two consent controls unticked; "I am 18 or older"; no output computed from answers; status regions; four age bands and the exit link; no `style=`, `<style>`, inline script, `on*=` | PASS (Chrome run: age out-of-band exits at once with the guides link and 0 `/lead` posts; consent error shown; 0 ad radios preselected; `/lead`, `/slots`, `/book` payloads checked). TalkBack at 360 px: N/A (manual) |
+| B-08 | recipes work; reduced motion fetches no Motion bytes; first viewport never hidden; disclosures visible | PARTIAL: first viewport never hidden at load and after 2 s in all four modes (scroll, 3 s static, reduced, 6x CPU + slow network; 13 page types, 2 widths: 0 problems); disclosures never overlap a reveal target (parsed in every built page). Reduced-motion visitors still download the 10 KB Motion chunk on pages that import it statically (home, how it works, FAQ, quiz, campaign) and then skip every effect. The spec's 3.2 KB brotli Motion budget is NOT met (10.1 KB brotli, because the widened brief uses scroll, spring, hover, press). The LCP/INP real-device comparison: N/A |
+| B-09 | opt-in Pixel; `Lead` after success; no hand-written `_fbc`; cookie `smc_ads`; H.6 steps 1 to 10 | steps 1, 2, 5 (cookie logic), 10 PASS in Chrome and tests (0 Meta requests without consent, one CSP, no violations); steps 3, 4, 6 to 9 need a Meta dataset and the n8n changes: N/A |
+| B-10 | LCP, CLS, INP, tap-to-submit, in-app flag sent as a beacon | built (`rum.ts`, in-app flag unit-tested); arrival in n8n N/A |
+| B-11 | CSP matrix: one CSP per row, noindex on campaign hosts and thank-you pages, none on the apex home; zero console CSP violations on `/book/`, thanks and a campaign host; inline check; budgets (own assets 60 KB compressed first view) | PASS in the emulator and in Chrome (no CSP violations on any audited page). Budget NOT met: the first view downloads 80 to 92 KB gzip of own JS + CSS (React and router are 66 KB). The 50-per-minute `/lead` spike test: N/A (needs staging n8n) |
+| B-12 | nine Wave-1 pieces pass B-05 and I.2 with a named human fact-check | PASS for B-05 (tests); the fact-checker is "SortMyCover editorial team": a person must replace it and sign |
+| B-13 | JSON-LD types only Organization, WebSite, Article, BreadcrumbList; Search Console / Bing / AI Bots setting | PASS for the markup (`dist.test.ts`); the rest is Jonathan's (SEO checklist section C) |
+| B-14A / B-14 / B-00A | deploy and per-host launch | N/A (not run, by instruction) |
+| I.2 reading level | Grade 7 or lower | NOT RUN (`landing/tests/reading_level.py` is not wired to this site) |
+
+Real gaps left: the 60 KB own-asset budget and the 3.2 KB Motion budget are exceeded by the stack and the widened Motion brief; reading level unchecked; manual TalkBack, Lighthouse, real-device and Meta Test Events runs not done.

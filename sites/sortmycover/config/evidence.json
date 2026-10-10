@@ -34,5 +34,14 @@
     "month": "2007-10",
     "status": "hold",
     "note": "HOLD. STALE-RISK: 19 years old (ARB 4.1.2 needs up-to-date evidence). Do not use in article text."
+  },
+  {
+    "id": "fee-model",
+    "claim": "The fee advisers pay does not depend on whether you buy anything; SortMyCover takes no commission and no share of any premium",
+    "publisher": "Lead Velocity (Pty) Ltd, Lead Generation Services Agreement LGSA-v0.2 DRAFT, clauses 8.2 and 8.3 (unsigned)",
+    "url": "",
+    "month": "2026-10",
+    "status": "draft",
+    "note": "Replace with the clause numbers of the SIGNED agreement for the first adviser before this sentence goes live (spec C.1 item 5). The build prints a warning until status is signed."
   }
 ]

@@ -6,8 +6,8 @@
  *  - Global Privacy Control / an opt-out cookie always wins over a stored consent. */
 import { site } from "./site";
 
-export const COOKIE_OK = "smc_ads_ok";
-export const COOKIE_OFF = "smc_ads_off";
+/** One first-party cookie on .sortmycover.co.za (spec H.4): smc_ads=1 means "I give", smc_ads=0 means opted out. Absent means nothing from Meta loads. */
+export const COOKIE = "smc_ads";
 const ATTR_KEY = "smc_attr";
 const UTM_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "ref", "cid", "asid", "adid"];
 export const EVENTS = ["PageView", "ViewContent", "Lead", "Schedule", "Contact"] as const;
@@ -41,8 +41,10 @@ export function cookieString(name: string, value: string, opts: { host: string; 
 export function expireString(name: string, opts: { host: string; secure: boolean; cookieDomain?: string }): string {
   return cookieString(name, "", { ...opts, days: 0 }) + "; Expires=Thu, 01 Jan 1970 00:00:00 GMT";
 }
+/** Meta fbc format fb.<subdomainIndex>.<ms>.<fbclid>. For a .co.za name the index is likely 2 (spec H.3, H12, unverified); it is only ever sent in the context, never written as a cookie. */
+export const FBC_SUBDOMAIN_INDEX = 2;
 export function buildFbc(fbclid: string, ts: number): string {
-  return `fb.1.${ts}.${fbclid}`;
+  return `fb.${FBC_SUBDOMAIN_INDEX}.${ts}.${fbclid}`;
 }
 export function stripPii(p?: Record<string, unknown>): Record<string, unknown> {
   const o: Record<string, unknown> = {};
@@ -50,8 +52,8 @@ export function stripPii(p?: Record<string, unknown>): Record<string, unknown> {
   return o;
 }
 /** Consent decision from raw inputs. Opt-out and GPC always win. */
-export function consentDecision(i: { ok: string | null; off: string | null; gpc: boolean }): boolean {
-  return i.ok === "1" && i.off !== "1" && !i.gpc;
+export function consentDecision(i: { ads: string | null; gpc: boolean }): boolean {
+  return i.ads === "1" && !i.gpc;
 }
 
 /* ---------- browser side ---------- */
@@ -77,9 +79,9 @@ export function hasConsent(): boolean {
   const win = w();
   if (!win) return false;
   const gpc = (win.navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl === true;
-  return consentDecision({ ok: readCookie(COOKIE_OK), off: readCookie(COOKIE_OFF), gpc });
+  return consentDecision({ ads: readCookie(COOKIE), gpc });
 }
-export function isOptedOut(): boolean { return readCookie(COOKIE_OFF) === "1"; }
+export function isOptedOut(): boolean { return readCookie(COOKIE) === "0"; }
 /** Used by the first-party beacon: no beacon when the visitor opted out. */
 export function beaconOff(): boolean { return isOptedOut(); }
 
@@ -134,8 +136,8 @@ function context(eventId?: string): TrackContext {
   const ok = hasConsent();
   let fbc: string | null = null;
   if (ok) {
-    fbc = readCookie("_fbc");
-    if (!fbc && a.fbclid) { fbc = buildFbc(a.fbclid, a.fbclid_ts || Date.now()); writeCookie("_fbc", fbc, 90); }
+    fbc = readCookie("_fbc"); // Meta's own pixel sets it; we never hand-write the cookie
+    if (!fbc && a.fbclid) fbc = buildFbc(a.fbclid, a.fbclid_ts || Date.now());
   }
   return {
     event_id: eventId || uuid(),
@@ -164,22 +166,19 @@ export function fire(ctx: TrackContext, params?: Record<string, unknown>) {
   if (win && ctx.event_name && init() && win.fbq) win.fbq("track", ctx.event_name, stripPii(params), { eventID: ctx.event_id });
 }
 
-/** The visitor gave the separate optional consent: remember it domain-wide for 180 days, load the Pixel, send PageView. */
+/** The visitor gave the separate optional consent: remember it domain-wide for a year, load the Pixel, send PageView. */
 export function grantAds() {
-  dropCookie(COOKIE_OFF);
-  writeCookie(COOKIE_OK, "1", 180);
+  writeCookie(COOKIE, "1", 365);
   if (init()) w()!.fbq("track", "PageView", {}, { eventID: uuid() });
 }
 /** Opt out (privacy page) or withdraw: stop the Pixel, forget the consent, remember the opt-out for a year. */
 export function adsOff() {
-  writeCookie(COOKIE_OFF, "1", 365);
-  dropCookie(COOKIE_OK);
-  try { localStorage.removeItem("smc_ads_off"); } catch { /* ignore */ }
+  writeCookie(COOKIE, "0", 365);
   const win = w();
   try { if (win && win.fbq) win.fbq("consent", "revoke"); } catch { /* ignore */ }
 }
 /** Undo an opt-out. It does NOT switch the Pixel on: that still needs the separate optional consent. */
-export function adsOn() { dropCookie(COOKIE_OFF); }
+export function adsOn() { dropCookie(COOKIE); }
 
 /** Page-load hook: if the visitor gave consent on an earlier visit, load the Pixel and send PageView. Otherwise nothing from Meta loads. */
 export function bootPixel() {

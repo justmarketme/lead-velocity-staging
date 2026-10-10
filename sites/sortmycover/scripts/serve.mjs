@@ -11,11 +11,14 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "d
 const port = Number(process.argv[2] || process.env.PORT || 4173);
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon", ".woff2": "font/woff2", ".txt": "text/plain", ".xml": "application/xml", ".webmanifest": "application/manifest+json" };
 const cfg = JSON.parse(fs.readFileSync(path.resolve(root, "..", "config/site.json"), "utf8"));
+const angles = JSON.parse(fs.readFileSync(path.resolve(root, "..", "config/angles.json"), "utf8"));
+const slugForLabel = (label) => (angles.find((a) => (a.host_label || a.slug) === label && !a.hold) || {}).slug;
 const csp = fs.readFileSync(path.resolve(root, "..", "vercel.json"), "utf8");
 const CSP = JSON.parse(csp).routes.find((r) => r.headers && r.headers["Content-Security-Policy"]).headers;
 
 function resolve(host, p) {
-  const slug = (host || "").split(":")[0].endsWith(cfg.campaign_host_suffix) || /\.localhost$/.test((host || "").split(":")[0]) ? (host || "").split(".")[0] : null;
+  const h0 = (host || "").split(":")[0];
+  const slug = h0.endsWith(cfg.campaign_host_suffix) || /\.localhost$/.test(h0) ? slugForLabel(h0.split(".")[0]) : null;
   if (slug && fs.existsSync(path.join(root, "_c", slug))) {
     if (p === "/") return { file: `_c/${slug}/index.html`, campaign: true };
     if (/^\/thanks\/?$/.test(p)) return { file: `_c/${slug}/thanks/index.html`, campaign: true };

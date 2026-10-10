@@ -1,4 +1,4 @@
-/* GENERATED from tokens.json by scripts/build-tokens.mjs. Do not edit by hand.
+/* Light scheme only at launch (spec E.2): the dark-mode blocks of brand/tokens.css are removed. GENERATED from tokens.json by scripts/build-tokens.mjs. Do not edit by hand.
    SortMyCover brand tokens v1.0.0. The only file (with tokens.json) that holds hex values. */
 @font-face{font-family:"DM Sans";font-style:normal;font-weight:500;font-display:swap;src:url("/fonts/dm-sans-latin-500-normal.woff2") format("woff2")}
 @font-face{font-family:"DM Sans";font-style:normal;font-weight:800;font-display:swap;src:url("/fonts/dm-sans-latin-800-normal.woff2") format("woff2")}
@@ -72,6 +72,4 @@
   --sm-safe-top: 250px;
   --sm-safe-bottom: 340px;
 }
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--sm-bg:var(--sm-dark-bg);--sm-text:var(--sm-dark-text);--sm-surface:var(--sm-dark-card);--sm-surface-raised:var(--sm-dark-card);--sm-text-muted:var(--sm-dark-muted)}}
-:root[data-theme="dark"]{--sm-bg:var(--sm-dark-bg);--sm-text:var(--sm-dark-text);--sm-surface:var(--sm-dark-card);--sm-surface-raised:var(--sm-dark-card);--sm-text-muted:var(--sm-dark-muted)}
 .sm-font{font-family:var(--sm-font);font-weight:var(--sm-weight-body);font-variant-numeric:tabular-nums}

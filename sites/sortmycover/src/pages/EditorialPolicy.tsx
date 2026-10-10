@@ -15,7 +15,7 @@ export default function EditorialPolicy() {
       <h2>Corrections</h2>
       <p>If you find a mistake, email <a href="mailto:hello@sortmycover.co.za">hello@sortmycover.co.za</a>. We correct the guide and change its “last reviewed” date.</p>
       <h2>Independence from the advisers</h2>
-      <p>Advisers pay a flat fee to Lead Velocity (Pty) Ltd and do not edit or approve the guides. See <Link to="/how-we-make-money/">how we make money</Link>.</p>
+      <p>Advisers pay Lead Velocity (Pty) Ltd a fee for the service and do not edit or approve the guides. See <Link to="/how-we-make-money/">how we make money</Link>.</p>
     </PageFrame>
   );
 }
