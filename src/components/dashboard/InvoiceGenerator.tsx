@@ -12,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getInvoiceEmailSignature } from "@/utils/emailSignature";
 import { BrokerSelector } from "./BrokerSelector";
 import { callLegalAI } from "@/utils/legalAI";
-import { TIERS, ALL_PLANS, isPilot, TERMS, TOPUP, zar, topupMinimumZar, LATE_PAYMENT_TEXT, type PricingTier } from "@/lib/pricing";
+import { TIERS, ALL_PLANS, PILOT, isPilot, TERMS, TOPUP, zar, topupMinimumZar, LATE_PAYMENT_TEXT, type PricingTier } from "@/lib/pricing";
 
 // Invoice line + terms built from the pricing source (3.6) - no price is typed in this file.
 // Wording never mentions policies, commission or success (FAIS, Raspberry Academy v Oaksure).
@@ -23,7 +23,9 @@ const invoiceLine = (t: PricingTier) => ({
     quantity: 1,
     price: t.price_zar,
 });
-const INVOICE_TERMS = `Payable in advance, before the billing cycle starts; delivery starts once payment has cleared. ${LATE_PAYMENT_TEXT} Month to month: either party may cancel with ${TERMS.cancel_notice_days} days' written notice before the next cycle. Fees for a cycle that has started are not refundable. Top-ups (once the cycle's leads are delivered): ${zar(TOPUP.price_per_lead_zar)} per Qualified Lead, minimum ${TOPUP.min_leads} (${zar(topupMinimumZar())}), ${TOPUP.notice_days} days' notice, paid in advance.`;
+const invoiceTerms = (t: PricingTier) => `Payable in advance, before the billing cycle starts; delivery starts once payment has cleared. ${LATE_PAYMENT_TEXT} ${isPilot(t) ? `Once-off introductory cycle: the ${t.name} is a single ${TERMS.cycle_days}-day cycle; to continue, the client pays in advance for ${PILOT.continue_on}, otherwise the agreement ends.` : `Month to month: either party may cancel with ${TERMS.cancel_notice_days} days' written notice before the next cycle.`} Fees for a cycle that has started are not refundable. Top-ups (once the cycle's leads are delivered): ${zar(TOPUP.price_per_lead_zar)} per Qualified Lead, minimum ${TOPUP.min_leads} (${zar(topupMinimumZar())}), ${TOPUP.notice_days} days' notice, paid in advance.`;
+// A preset swaps the terms only while they are still one of the generated texts, so a hand-edited note is never overwritten.
+const isGeneratedTerms = (notes: string) => ALL_PLANS.some((p) => invoiceTerms(p) === notes);
 
 interface InvoiceGeneratorProps {
     onBack: () => void;
@@ -122,7 +124,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
         clientAddress: "123 Client Street, City, Country",
         clientVat: "VAT: 4000123456",
         items: [invoiceLine(TIERS[0])],
-        notes: INVOICE_TERMS,
+        notes: invoiceTerms(TIERS[0]),
         // NH-61: no bank account details in the build. Payment is by EFT, in advance, per 30-day cycle; Jonathan adds the account details on his own invoice.
         paymentWording: `Payment by EFT or Paystack, in advance, per ${TERMS.cycle_days}-day cycle.`,
         reference: "INV-2024-001",
@@ -193,7 +195,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
             clientPhone: broker.phone_number || broker.phone || "",
             clientAddress: broker.office_address || "Address: To be updated",
             items: [invoiceLine(tier)],
-            notes: INVOICE_TERMS,
+            notes: invoiceTerms(tier),
         }));
 
         if (broker.email) {
@@ -585,7 +587,8 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
                                                     newItems[0] = invoiceLine(tier);
                                                     setInvoiceData(prev => ({
                                                         ...prev,
-                                                        items: newItems
+                                                        items: newItems,
+                                                        notes: isGeneratedTerms(prev.notes) ? invoiceTerms(tier) : prev.notes
                                                     }));
                                                     toast({ title: `${tier.name} Applied`, description: "Line item updated." });
                                                 }}

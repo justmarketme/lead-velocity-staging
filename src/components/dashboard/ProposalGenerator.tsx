@@ -12,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getProposalEmailSignature } from "@/utils/emailSignature";
 import { callLegalAI } from "@/utils/legalAI";
 import { BrokerSelector } from "./BrokerSelector";
-import { TIERS, ALL_PLANS, isPilot, TERMS, TOPUP, QUALIFIED, zar, perLead, topupMinimumZar, VAT_NOTE, SHORTFALL_TEXT, LATE_PAYMENT_TEXT, type PricingTier } from "@/lib/pricing";
+import { TIERS, ALL_PLANS, PILOT, isPilot, TERMS, TOPUP, QUALIFIED, zar, perLead, topupMinimumZar, VAT_NOTE, SHORTFALL_TEXT, LATE_PAYMENT_TEXT, type PricingTier } from "@/lib/pricing";
 
 // Plan fields for the proposal, built from the pricing source (3.6) - no price is typed in this file.
 // FAIS: nothing here may tie the fee to sales or policies, or promise outcomes (Raspberry Academy v Oaksure).
@@ -20,14 +20,15 @@ const proposalTierFields = (t: PricingTier) => ({
     subtitle: isPilot(t)
         ? `${t.name}: ${t.committed_leads} Qualified Leads in one introductory ${TERMS.cycle_days}-day cycle`
         : `${t.name} plan: ${t.committed_leads} Qualified Leads per ${TERMS.cycle_days}-day cycle`,
+    duration: isPilot(t) ? `One introductory ${TERMS.cycle_days}-day cycle` : `${TERMS.cycle_days} days, month to month`,
     investment: isPilot(t) ? `${zar(t.price_zar)} once-off (excl. VAT)` : `${zar(t.price_zar)} per month (excl. VAT)`,
-    guaranteedLeads: `${t.committed_leads} Qualified Leads per cycle`,
+    guaranteedLeads: isPilot(t) ? `${t.committed_leads} Qualified Leads in one introductory cycle` : `${t.committed_leads} Qualified Leads per cycle`,
     costPerLead: `${zar(perLead(t))} effective per lead`,
     commissionRate: "",
-    alignmentText: `Paid monthly in advance, before each cycle starts. All-inclusive of advertising media spend. Top-ups once the cycle's leads are delivered: ${zar(TOPUP.price_per_lead_zar)} per Qualified Lead, minimum ${TOPUP.min_leads} (${zar(topupMinimumZar())}), with ${TOPUP.notice_days} days' notice. ${VAT_NOTE}`,
+    alignmentText: `${isPilot(t) ? "Paid in advance, before the introductory cycle starts." : "Paid monthly in advance, before each cycle starts."} All-inclusive of advertising media spend. Top-ups once the cycle's leads are delivered: ${zar(TOPUP.price_per_lead_zar)} per Qualified Lead, minimum ${TOPUP.min_leads} (${zar(topupMinimumZar())}), with ${TOPUP.notice_days} days' notice. ${VAT_NOTE}`,
     purposeTitle: "Lead Generation & Marketing Services",
-    purposeText: `We run broker-neutral advertising, capture consumer interest and consent, pre-qualify on stated age and budget, and book an introductory appointment into your calendar with reminders. Your ${t.name} plan delivers <strong>${t.committed_leads} Qualified Leads</strong> per cycle.`,
-    purposeSubText: `${isPilot(t) ? `Once-off introductory cycle for first-time clients only, paid upfront as a flat fee; afterwards you may continue on Bronze or higher. ` : `Month to month. `}Either party may cancel with ${TERMS.cancel_notice_days} days' written notice before the next cycle. Fees for a cycle that has started are not refundable. ${SHORTFALL_TEXT(t)} ${LATE_PAYMENT_TEXT}`,
+    purposeText: `We run broker-neutral advertising, capture consumer interest and consent, pre-qualify on stated age and budget, and book an introductory appointment into your calendar with reminders. Your ${t.name} plan delivers <strong>${t.committed_leads} Qualified Leads</strong> ${isPilot(t) ? "in one introductory cycle" : "per cycle"}.`,
+    purposeSubText: `${isPilot(t) ? `Once-off introductory ${TERMS.cycle_days}-day cycle for first-time clients only, paid in advance as a flat fee; after the ${t.name} you continue on ${PILOT.continue_on} by paying in advance, otherwise the agreement ends. ` : `Month to month. `}Either party may cancel with ${TERMS.cancel_notice_days} days' written notice before the next cycle. Fees for a cycle that has started are not refundable. ${SHORTFALL_TEXT(t)} ${LATE_PAYMENT_TEXT}`,
     alignmentBoxText: "The fee pays for marketing and lead-delivery services. It is payable regardless of any appointment outcome, sale or policy, and no commission or success fee is ever payable.",
 });
 
@@ -808,7 +809,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                                             <div className="grid grid-cols-2 gap-y-4 gap-x-8">
                                                 <div>
                                                     <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Duration</p>
-                                                    <p className="text-slate-900 font-bold text-base">{TERMS.cycle_days} days, month to month</p>
+                                                    <Editable className="text-slate-900 font-bold text-base" value={formData.duration ?? `${TERMS.cycle_days} days, month to month`} onChange={(val) => updateField('duration', val)} />
                                                 </div>
                                                 <div>
                                                     <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Investment</p>

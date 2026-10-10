@@ -148,7 +148,7 @@ export function renderAgreementHtml(doc: ResolvedAgreement, fields: AgreementFie
 
   const commercial = `<section class="terms"><div class="lbl">Commercial terms</div><div class="grid">
     <div><div class="k">Service fee</div><div class="fee">${esc(zar(tier.price_zar))}</div><div class="v2">${pilot ? "once-off" : `per ${TERMS.cycle_days}-day cycle`}, excl. VAT, paid in advance. Ad spend included</div></div>
-    <div><div class="k">Lead target</div><div class="v">${tier.committed_leads} Qualified Leads per cycle</div></div>
+    <div><div class="k">Lead target</div><div class="v">${tier.committed_leads} Qualified Leads ${pilot ? "in the introductory cycle" : "per cycle"}</div></div>
     <div><div class="k">Duration</div><div class="v">${pilot ? `One introductory ${TERMS.cycle_days}-day cycle` : `Month-to-month (${TERMS.cycle_days}-day cycles)`}</div></div>
     <div><div class="k">Top-ups</div><div class="v">${esc(zar(TOPUP.price_per_lead_zar))} per lead, minimum ${TOPUP.min_leads}</div></div>
   </div></section>`;
