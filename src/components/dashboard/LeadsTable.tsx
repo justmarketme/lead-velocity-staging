@@ -400,9 +400,9 @@ const LeadsTable = () => {
           <Button
             variant={showHeld ? "default" : "outline"}
             onClick={() => setShowHeld((v) => !v)}
-            title={`Leads held because no broker takes ${LOW_BUDGET.label} leads automatically`}
+            title={`SortMyCover leads held: ${LOW_BUDGET.label} with no broker taking them automatically, or wills leads with no wills broker that has room`}
           >
-            Held — under R750
+            Held leads
             <Badge variant="secondary" className="ml-2">{held.leads.length}</Badge>
           </Button>
         )}

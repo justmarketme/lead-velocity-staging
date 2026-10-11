@@ -42,6 +42,8 @@ export const WILLS = {
   productInterest: "wills",
   /** leads.routing_reason while no wills broker has room */
   heldReason: "held_no_wills_broker",
+  /** leads.routing_reason once an admin assigns it to a wills broker (the routing trigger still requires handles_wills + room) */
+  assignedReason: "manual_wills",
   label: "Handles wills (Capital Legacy)",
 } as const;
 

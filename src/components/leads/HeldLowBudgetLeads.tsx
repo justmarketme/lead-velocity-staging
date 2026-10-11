@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useToast } from "@/hooks/use-toast";
 import { AlertTriangle, CheckCircle2, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { AGE_TEXT, ASSIGN_REFUSED_CODE, ASSIGN_REFUSED_TEXT, COUNTS_HELPER, LOW_BUDGET, REASON_TEXT, PRODUCT_INTEREST_TEXT, loadLowBudgetSwitches } from "@/lib/lowBudget";
+import { AGE_TEXT, ASSIGN_REFUSED_CODE, ASSIGN_REFUSED_TEXT, COUNTS_HELPER, LOW_BUDGET, REASON_TEXT, PRODUCT_INTEREST_TEXT, WILLS, loadLowBudgetSwitches, loadWillsSwitches } from "@/lib/lowBudget";
 
 const db = supabase as any;
 
@@ -24,12 +24,17 @@ export interface HeldLead {
   age_band: string | null;
   reasons: string[] | null;
   product_interest?: string | null;
+  routing_reason?: string | null;
   created_at: string;
 }
 
+/** Why a lead is held: under R750 (no broker with the standing yes) or a wills lead with no wills broker that has room. */
+export type HeldKind = "low" | "wills";
+export const heldKind = (l: HeldLead): HeldKind => (l.routing_reason === WILLS.heldReason ? "wills" : "low");
+
 interface BrokerOption { id: string; firm_name: string | null; contact_person: string | null; optedIn: boolean }
 
-/** Held C-tier leads. `available` is false while the backend columns don't exist. */
+/** Held SortMyCover leads: C-tier (under R750) and wills. `available` is false while the backend columns don't exist. */
 export const useHeldLowBudgetLeads = () => {
   const [available, setAvailable] = useState(false);
   const [leads, setLeads] = useState<HeldLead[]>([]);
@@ -38,14 +43,14 @@ export const useHeldLowBudgetLeads = () => {
     // portal contract (crm-nurture CONTRACTS.md, "Admin assignment of a held tier-C lead")
     const { data, error } = await db.from("leads").select("*")
       .not("brand_id", "is", null)
-      .eq("budget_band", LOW_BUDGET.band)
-      .eq("routing_reason", LOW_BUDGET.heldReason)
+      .in("routing_reason", [LOW_BUDGET.heldReason, WILLS.heldReason])
       .is("broker_id", null)
       .is("opted_out_at", null)
       .order("created_at", { ascending: true });
     if (error) { setAvailable(false); setLeads([]); return; }
     setAvailable(true);
-    setLeads((data || []) as HeldLead[]);
+    // a C-tier hold only counts while the band is still under R750 (portal contract); wills holds have no band rule
+    setLeads(((data || []) as HeldLead[]).filter((l) => l.routing_reason === WILLS.heldReason || l.budget_band === LOW_BUDGET.band));
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
@@ -56,34 +61,50 @@ const areaOf = (l: HeldLead) => l.area || l.suburb || l.city || l.province || l.
 const daysSince = (iso: string) => Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000));
 const budgetText = (b: string | null) => (b === LOW_BUDGET.band ? "Under R750" : b || "—");
 
+const KIND_TEXT: Record<HeldKind, string> = { low: "Under R750", wills: "Wills" };
+
 export const HeldLowBudgetLeads = ({ leads, onChanged }: { leads: HeldLead[]; onChanged: () => void }) => {
   const [assigning, setAssigning] = useState<HeldLead | null>(null);
+  const [kind, setKind] = useState<"all" | HeldKind>("all");
+  const count = (k: HeldKind) => leads.filter((l) => heldKind(l) === k).length;
+  const shown = kind === "all" ? leads : leads.filter((l) => heldKind(l) === kind);
 
   return (
     <div className="space-y-3">
-      <div>
-        <h2 className="text-lg font-semibold text-white">Held — {LOW_BUDGET.label}</h2>
-        <p className="text-xs text-muted-foreground">{COUNTS_HELPER}</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-white">Held leads</h2>
+          <p className="text-xs text-muted-foreground">{COUNTS_HELPER}</p>
+        </div>
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter held leads">
+          {(["all", "low", "wills"] as const).map((k) => (
+            <Button key={k} size="sm" variant={kind === k ? "default" : "outline"} aria-pressed={kind === k} onClick={() => setKind(k)}>
+              {k === "all" ? "All" : KIND_TEXT[k]}
+              <Badge variant="secondary" className="ml-2">{k === "all" ? leads.length : count(k)}</Badge>
+            </Button>
+          ))}
+        </div>
       </div>
 
       <div className="border rounded-xl overflow-hidden bg-slate-900/50 backdrop-blur-xl border-white/5 shadow-2xl">
         <Table>
           <TableHeader className="bg-slate-950/50">
             <TableRow className="hover:bg-transparent border-white/5">
-              {["Name", "Area", "Budget", "Age", "Product", "Cover interest", "Created", "Days held"].map((h) => (
+              {["Name", "Held", "Area", "Budget", "Age", "Product", "Cover interest", "Created", "Days held"].map((h) => (
                 <TableHead key={h} className="text-[11px] uppercase font-bold tracking-tight text-slate-500 whitespace-nowrap">{h}</TableHead>
               ))}
               <TableHead className="text-right" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {leads.length === 0 ? (
-              <TableRow><TableCell colSpan={9} className="text-sm text-muted-foreground text-center py-8">No leads held.</TableCell></TableRow>
-            ) : leads.map((l) => {
+            {shown.length === 0 ? (
+              <TableRow><TableCell colSpan={10} className="text-sm text-muted-foreground text-center py-8">No leads held.</TableCell></TableRow>
+            ) : shown.map((l) => {
               const days = daysSince(l.created_at);
               return (
                 <TableRow key={l.id} className="border-white/5">
                   <TableCell className="font-medium">{`${l.first_name || ""} ${l.last_name || ""}`.trim() || "—"}</TableCell>
+                  <TableCell><Badge variant="outline" className={cn("whitespace-nowrap text-[10px]", heldKind(l) === "wills" && "border-violet-400/40 text-violet-300")}>{KIND_TEXT[heldKind(l)]}</Badge></TableCell>
                   <TableCell className="text-sm">{areaOf(l)}</TableCell>
                   <TableCell><Badge variant="outline" className="whitespace-nowrap text-[10px]">{budgetText(l.budget_band)}</Badge></TableCell>
                   <TableCell className="text-sm whitespace-nowrap">{l.age_band ? AGE_TEXT[l.age_band] || l.age_band : "—"}</TableCell>
@@ -111,6 +132,8 @@ const AssignDialog = ({ lead, onClose, onAssigned }: { lead: HeldLead | null; on
   const [brokers, setBrokers] = useState<BrokerOption[]>([]);
   const [pick, setPick] = useState<BrokerOption | null>(null);
   const [saving, setSaving] = useState(false);
+  const wills = !!lead && heldKind(lead) === "wills";
+  const rule = wills ? WILLS : LOW_BUDGET;
 
   useEffect(() => {
     if (!lead) return;
@@ -118,7 +141,7 @@ const AssignDialog = ({ lead, onClose, onAssigned }: { lead: HeldLead | null; on
     (async () => {
       const [{ data }, switches] = await Promise.all([
         db.from("brokers").select("id, firm_name, contact_person, status").neq("status", "Inactive").order("firm_name"),
-        loadLowBudgetSwitches(),
+        wills ? loadWillsSwitches() : loadLowBudgetSwitches(),
       ]);
       const rows: BrokerOption[] = (data || []).map((b: any) => ({ ...b, optedIn: !!switches?.[b.id] }));
       rows.sort((a, b) => Number(b.optedIn) - Number(a.optedIn));
@@ -130,8 +153,8 @@ const AssignDialog = ({ lead, onClose, onAssigned }: { lead: HeldLead | null; on
     if (!lead || !pick) return;
     setSaving(true);
     const { data, error } = await db.from("leads")
-      .update({ broker_id: pick.id, routing_reason: LOW_BUDGET.assignedReason })
-      .eq("id", lead.id).eq("routing_reason", LOW_BUDGET.heldReason).is("broker_id", null)
+      .update({ broker_id: pick.id, routing_reason: rule.assignedReason })
+      .eq("id", lead.id).eq("routing_reason", rule.heldReason).is("broker_id", null)
       .select("id, broker_id, routing_reason");
     setSaving(false);
     if (error?.code === ASSIGN_REFUSED_CODE) {
@@ -160,7 +183,7 @@ const AssignDialog = ({ lead, onClose, onAssigned }: { lead: HeldLead | null; on
         <DialogHeader>
           <DialogTitle>Assign to broker</DialogTitle>
           <DialogDescription>
-            {lead ? `${`${lead.first_name || ""} ${lead.last_name || ""}`.trim() || "Lead"} · ${LOW_BUDGET.label}` : ""}
+            {lead ? `${`${lead.first_name || ""} ${lead.last_name || ""}`.trim() || "Lead"} · ${wills ? "Wills (held: no wills broker with room)" : LOW_BUDGET.label}` : ""}
           </DialogDescription>
         </DialogHeader>
 
@@ -169,8 +192,10 @@ const AssignDialog = ({ lead, onClose, onAssigned }: { lead: HeldLead | null; on
             <button
               key={b.id}
               onClick={() => setPick(b)}
+              // a wills lead can only go to a broker with handles_wills: the routing trigger holds it again otherwise
+              disabled={wills && !b.optedIn}
               className={cn(
-                "w-full text-left rounded-lg border p-3 flex items-center justify-between gap-2 transition-colors",
+                "w-full text-left rounded-lg border p-3 flex items-center justify-between gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
                 pick?.id === b.id ? "border-primary bg-primary/10" : "border-white/10 bg-slate-900/60 hover:border-primary/50",
               )}
             >
@@ -179,9 +204,9 @@ const AssignDialog = ({ lead, onClose, onAssigned }: { lead: HeldLead | null; on
                 {b.contact_person && <p className="text-xs text-muted-foreground truncate">{b.contact_person}</p>}
               </div>
               {b.optedIn ? (
-                <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-[10px] shrink-0"><CheckCircle2 className="h-3 w-3 mr-1" />Opted in</Badge>
+                <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-[10px] shrink-0"><CheckCircle2 className="h-3 w-3 mr-1" />{wills ? "Handles wills" : "Opted in"}</Badge>
               ) : (
-                <span className="text-[11px] text-muted-foreground shrink-0">hasn't opted in</span>
+                <span className="text-[11px] text-muted-foreground shrink-0">{wills ? "doesn't handle wills" : "hasn't opted in"}</span>
               )}
             </button>
           ))}

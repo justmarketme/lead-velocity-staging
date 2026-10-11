@@ -7,7 +7,8 @@
 #                with N8N_PUBLIC_URL=https://n8n.sortmycover.co.za, WEBHOOK_URL and N8N_EDITOR_BASE_URL = that + "/",
 #                N8N_HOST=n8n.sortmycover.co.za, N8N_PROTOCOL=https, no N8N_PATH.
 #   dc, backup.sh, /etc/cron.d/lv-n8n-backup (nightly pg_dump, 14 kept in backups/)
-# Caddy (/etc/caddy/Caddyfile) holds: n8n.sortmycover.co.za { reverse_proxy 127.0.0.1:5678 }
+# Caddy (/etc/caddy/Caddyfile) holds (the site calls n8n_base + api_prefix /webhook/smc/..., n8n serves /webhook/...):
+#   n8n.sortmycover.co.za { @smcapi path /webhook/smc/*; uri @smcapi replace /webhook/smc/ /webhook/ 1; reverse_proxy 127.0.0.1:5678 }
 set -euo pipefail
 REF="${1:-HEAD}"
 VPS="${VPS:-root@76.13.252.92}"
