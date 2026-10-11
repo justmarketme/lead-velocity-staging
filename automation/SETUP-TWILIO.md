@@ -4,7 +4,7 @@ Owner: Jonathan. Everything below is a step only Jonathan can take (an account, 
 
 How it works now: every WhatsApp message any workflow sends goes through one sub-workflow, `SUB-whatsapp-send` (`smc-whatsapp-send`). With `WHATSAPP_PROVIDER=twilio` it posts to Twilio's Messages API with a `ContentSid`; inbound messages, taps, Flow completions and delivery receipts arrive at W07 `POST /webhook/whatsapp-twilio`. The Flow screens are still served by W28 (Meta calls it directly; Twilio only carries the Flow message). Every message in and out is a `communications` row, so it shows on the lead in the CRM's communication hub.
 
-**Base URL.** `<N8N_PUBLIC_URL>` below is n8n's public base. Today (laptop n8n behind the EMMA VPS, no extra DNS record) it is `https://emmadoesit.cloud/lv-n8n`, so the inbound webhook is `https://emmadoesit.cloud/lv-n8n/webhook/whatsapp-twilio` and the Flow endpoint `https://emmadoesit.cloud/lv-n8n/webhook/flow`. After W26 it becomes `https://<API_HOST>`.
+**Base URL.** `<N8N_PUBLIC_URL>` below is n8n's public base. Today (n8n on the EMMA VPS) it is `https://n8n.sortmycover.co.za`, so the inbound webhook is `https://n8n.sortmycover.co.za/webhook/whatsapp-twilio` and the Flow endpoint `https://n8n.sortmycover.co.za/webhook/flow`. After W26 it becomes `https://<API_HOST>`.
 
 ## 1. Buy the number (Twilio Console, the CRM's existing account)
 1. Phone Numbers > Buy a number > Country **South Africa (+27)**, capability SMS (WhatsApp needs to receive the one-time code by SMS or voice). South African numbers need a **Regulatory Bundle** (business address + company documents) before Twilio releases them; create it under Phone Numbers > Regulatory Compliance if asked.
@@ -53,7 +53,7 @@ WHATSAPP_PROVIDER=twilio
 TWILIO_ACCOUNT_SID=AC…               # the CRM's account (already in the CRM edge functions)
 TWILIO_API_KEY_SID=SK…  TWILIO_API_KEY_SECRET=…   # outbound + media download (or leave empty: AccountSid + Auth Token are used)
 TWILIO_AUTH_TOKEN=…                  # REQUIRED: X-Twilio-Signature is signed with the primary Auth Token, never an API key secret
-WEBHOOK_URL=<N8N_PUBLIC_URL>/       # set by local-tick.ps1 on the laptop; the signature covers this URL + webhook/whatsapp-twilio
+WEBHOOK_URL=<N8N_PUBLIC_URL>/       # the signature covers this URL + webhook/whatsapp-twilio
 DRY_RUN_SENDS=true                   # first: nothing leaves, rows get dry: ids
 WHATSAPP_TEST_RECIPIENTS=+27…        # then: only your own phone
 ```
