@@ -1,6 +1,6 @@
 // Generates supabase/migrations/undo/<migration>.undo.sql from per-step catalog dumps taken on a LOCAL database
 // (see supabase/drift/catalog-dump.sql and object-defs.sql). One undo file per migration; each reverses ONLY what that migration added or
-// changed, assuming every LATER migration has already been undone (undo in reverse order: 23 -> 00).
+// changed, assuming every LATER migration has already been undone (undo in reverse order: last -> 00).
 //
 //   node supabase/drift/gen-undo.mjs <dir-with-base.txt-00.txt-01.txt...-and-.defs files>
 //
@@ -133,8 +133,7 @@ function undoFor(prevStep, curStep, fname) {
 }
 
 const dataNotes = {
-  '03': ["-- Rows inserted into pre-existing tables by this migration:", "DELETE FROM public.sla_thresholds WHERE channel = 'smc_first_message';"],
-  '02': ["-- Rows written by the smc_audit trigger (seeds and every later SMC write) are in the live public.audit_log; they carry actor_role, legacy fn_audit rows do not."],
+  '02': ["-- Rows written by the smc_audit trigger (the brand seed and every later SMC write) are in the live public.audit_log; they carry actor_role, legacy fn_audit rows do not."],
 };
 const preNotes = {
   '02': ["-- Remove the audit rows the smc chain wrote (the 41 legacy rows have actor_role NULL and stay). This also erases the audit history of any SMC activity since the apply.",

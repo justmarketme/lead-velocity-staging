@@ -1,4 +1,4 @@
--- LOCAL ONLY: needs the _snap.cols / _snap.fns baseline tables created by snapshot-baseline.sql (it separates "new smc objects" from the 46 live tables). On the live project use supabase/migrations/20261010240000_smc_24_security_sweep.sql (it asserts the same things) and the Supabase advisors.
+-- LOCAL ONLY: needs the _snap.cols / _snap.fns baseline tables created by snapshot-baseline.sql (it separates "new smc objects" from the 46 live tables). On the live project use supabase/migrations/20261011070000_smc_07_security_sweep.sql (it asserts the same things) and the Supabase advisors.
 -- LOCAL rehearsal (and, read-only, usable on the live project after apply): security posture of everything the smc chain added.
 -- Each section prints rows ONLY when something is wrong, so an empty result = pass.
 \echo '--- 1. tables in public/ops/facts/smc_private without RLS (excluding facts views)'

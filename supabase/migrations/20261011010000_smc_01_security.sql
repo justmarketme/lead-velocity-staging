@@ -1,5 +1,7 @@
 -- =============================================================================
--- 20261002010000_smc_01_security.sql  —  SortMyCover build, migration 1 of 5
+-- 20261011010000_smc_01_security.sql  —  CRM nurture chain, file 1 of 8 (carried over unchanged from the reviewed
+-- smc_01 of migrations-merge, incl. its 2026-10-10 SAFETY REWRITE). Every statement here changes EXISTING CRM behaviour:
+-- see supabase/migrations/CRM-NURTURE-SCHEMA.md "Behaviour changes to the live CRM".
 -- *** APPLY ONLY AFTER NH-15 YES ***  (build/tasks.json NH-15; crm-gap §E, §D.1)
 -- *** and only after NH-11 (live schema dump) has been diffed against this file ***
 --

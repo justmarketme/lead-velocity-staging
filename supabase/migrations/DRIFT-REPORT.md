@@ -1,5 +1,7 @@
 # DRIFT REPORT: live project vs this repo
 
+> Note (crm-nurture, 2026-10-11): the drift facts below still hold (live fingerprint re-checked 2026-10-11, identical). File names smc_00..smc_24 refer to the superseded chain; the crm-nurture chain is smc_00..smc_07 (20261011*), see CRM-NURTURE-SCHEMA.md. Its file 00 adds the same five brokers columns; the old collision names smc_conversations / smc_reports / v_cycle_progress are no longer created.
+
 Project `cmsylaupctrbsvzrgzwy` ("lead-velocity-staging", Postgres 17.6, free plan). Captured 2026-10-10 with **read-only SELECTs only** (Supabase MCP `execute_sql`, `list_migrations`, `list_extensions`, `get_advisors`). Nothing was applied to that project.
 
 ## 1. How the comparison was made

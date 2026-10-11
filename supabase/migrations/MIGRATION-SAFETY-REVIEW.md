@@ -1,5 +1,7 @@
 # MIGRATION SAFETY REVIEW: smc_00 .. smc_24
 
+> **Superseded on branch crm-nurture (2026-10-11).** This review covers the 25-file smc_00..smc_24 chain of migrations-merge, which is NOT to be applied. The trimmed 8-file chain (smc_00..smc_07, versions 20261011*) keeps every SAFETY REWRITE below that applies to a kept object and drops the rest of the design (cycles, billing, reports, ops, facts, ads). Read CRM-NURTURE-SCHEMA.md for the KEEP/DROP list, the behaviour changes and the new rehearsal results; APPLY-RUNBOOK.md is rewritten for the new chain. File names cited below refer to the old chain.
+
 Target: Supabase project `cmsylaupctrbsvzrgzwy` (live data: 18 brokers, 4,209 leads, 4,200 lead_order_items, 14 onboarding responses; 46 public tables). Nothing here was applied to it. Method: every statement of every file read in order (four independent read-only reviews of smc_01-03, 04-07, 08-14, 15-23, plus my own pass), then rehearsed on a local Postgres 17 that mirrors the live schema exactly (`supabase/drift/`, fingerprint-identical, see `DRIFT-REPORT.md`).
 
 ## 0. Verdict

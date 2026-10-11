@@ -1,5 +1,5 @@
--- UNDO of 20261002010000_smc_01_security.sql
--- Generated 2026-10-10 from a local catalog diff (supabase/drift/gen-undo.mjs). Run ONLY after every later migration's undo has run (reverse order).
+-- UNDO of 20261011010000_smc_01_security.sql
+-- Generated 2026-10-11 from a local catalog diff (supabase/drift/gen-undo.mjs). Run ONLY after every later migration's undo has run (reverse order).
 -- Safe while no SortMyCover data exists. Dropping tables/columns here deletes whatever was written into them since the apply: take the backup first.
 -- Review before running. Run in one transaction.
 BEGIN;
