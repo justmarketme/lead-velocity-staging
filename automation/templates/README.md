@@ -1,5 +1,7 @@
 # WhatsApp message templates: index
 
+**Twilio (2026-10-11, production provider):** the files below stay the single reviewed copy. `twilio/build-content.mjs` converts the nurture-flow set (`FLOW_TEMPLATES`) into Twilio Content API definitions in `twilio/content/` (image/video header -> `twilio/card`, FLOW button -> `whatsapp/flows`, other buttons / text header -> `whatsapp/card`, body only -> `twilio/text`), plus the generic session buttons / lists and the in-session Flow launches. Variable numbers come from `lib/wa-provider.mjs twilioVarPlan()`, the function the sender uses. Submit with `twilio/submit-twilio.mjs` (dry run by default; `--submit` is Jonathan's). See `automation/SETUP-TWILIO.md`. After editing a template here, re-run `node automation/templates/twilio/build-content.mjs`.
+
 Each `*.json` file is the exact body for `POST /{WABA_ID}/message_templates`: `name`, `language: en`, `category: UTILITY`, `components`. Variables are positional (`{{1}}`) and every file includes `example` values. **Nothing has been submitted.** Template submission is a HUMAN GATE (2.2). Jonathan runs `./submit.sh --submit --core` first, then `./submit.sh --submit`. The default is `--dry-run`.
 
 **Rules the copy follows:** 2.1.8 (money only in the third person, for example "some people like to have a recent payslip nearby"). Grade 5–7 English. No product, insurer, premium, cover amount or advice. Every lead-facing template ends with **"Reply STOP to opt out."** Templates to brokers and ops show a lead only as first name + initial ("Lerato M."), never the full name (POPIA, 4.10a). No emoji (4.11).
@@ -17,7 +19,7 @@ Each `*.json` file is the exact body for `POST /{WABA_ID}/message_templates`: `n
 |---|---|---|---|---|---|---|---|
 | 1 | `broker_intro_booked` | **CORE** | UTILITY | IMAGE (broker intro card, 4.10) | 1 first_name · 2 practice_name · 3 fsp_number · 4 adviser_name · 5 method · 6 date · 7 time | URL Add to calendar (1 = booking ref) · QR Reschedule · QR Cancel | W06 (first touch, page-booked), W05 |
 | 2 | `broker_intro_slots` | **CORE** | UTILITY | IMAGE (intro card) | 1 first_name · 2 practice_name · 3 fsp_number · 4 adviser_name · 5–7 slot labels ("Tue 7 Oct, 10:00") | QR Time 1 · Time 2 · Time 3 · Other times | W06 (not booked), W03 |
-| 3 | `booking_confirmed` | **CORE** | UTILITY | TEXT | 1 first_name · 2 adviser_name · 3 date · 4 time · 5 method | URL Add to calendar · QR Confirm · Reschedule · Cancel | W05 (booked in WhatsApp), W10 |
+| 3 | `booking_confirmed` | **CORE** | UTILITY | TEXT | 1 first_name · 2 adviser_name · 3 date · 4 time · 5 method, with the join link for an online call ("Microsoft Teams (join link: https://sortmycover.co.za/j/{booking})", `w05 confirmDetail`, 2026-10-11) | URL Add to calendar · QR Confirm · Reschedule · Cancel | W05 (booked in WhatsApp), W10 |
 | 4 | `reminder_24h` | **CORE** | UTILITY | TEXT | 1 first_name · 2 method · 3 adviser_name · 4 time | QR Confirm · Reschedule | W09 |
 | 5 | `reminder_2h` | **CORE** | UTILITY | none | 1 first_name · 2 adviser_name · 3 time · 4 method detail (join link or "Mark will call you on …") | QR Reschedule | W09 |
 | 6 | `missed_you` | **CORE** | UTILITY | none | 1 first_name · 2 adviser_name · 3–5 slot labels | QR Time 1 · Time 2 · Time 3 · Other times | W13 |
