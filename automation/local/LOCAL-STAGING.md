@@ -2,7 +2,7 @@
 
 **What exists already (the laptop session built it; do not duplicate it):**
 - `automation/docker-compose.yml`: `postgres:16-alpine` + `n8n` (pinned `2.41.6`). n8n is bound to `127.0.0.1:5678` only. Both read the repo-root `.env`.
-- `automation/local-tick.ps1`: the self-healing **keeper**, run by the Windows scheduled task **`LeadVelocity-n8n-Keeper`** at logon and every 10 min. Each tick: (1) restarts Docker Desktop if the engine is down (and clears the stale socket dirs that crash Docker Desktop 4.61), (2) `docker compose up -d`, (3) waits for n8n's local `/healthz`, then checks the **cloudflared quick tunnel** (`cloudflared tunnel --url http://localhost:5678`), (4) if the tunnel is dead or its `*.trycloudflare.com` URL changed, rewrites `N8N_PUBLIC_URL` / `WEBHOOK_URL` in `.env` and recreates n8n. State and logs are in `%LOCALAPPDATA%\lv-n8n\` (`tick.log`, `tunnel.log`, `url.txt`).
+- `automation/local-tick.ps1`: the self-healing **keeper**, run by the Windows scheduled task **`LeadVelocity-n8n-Keeper`** at logon and every 10 min. Each tick: (1) restarts Docker Desktop if the engine is down (and clears the stale socket dirs that crash Docker Desktop 4.61), (2) `docker compose up -d`, (3) waits for n8n's local `/healthz`, then keeps the **SSH reverse tunnel** to the EMMA VPS up (`ssh -R 127.0.0.1:15678:localhost:5678 root@76.13.252.92`) and health-checks the stable URL **`https://emmadoesit.cloud/lv-n8n/`**; only if that fails does it start a **cloudflared quick tunnel** (`cloudflared tunnel --url http://localhost:5678`) as a last resort, (4) if the public URL changed, rewrites `N8N_PUBLIC_URL` / `WEBHOOK_URL` / `N8N_EDITOR_BASE_URL` / `N8N_PATH` / `N8N_HOST` / `N8N_PROTOCOL` in `.env` and recreates n8n. State and logs are in `%LOCALAPPDATA%\lv-n8n\` (`tick.log`, `tunnel.log`, `url.txt`).
   The brief called this "n8n-keeper*". The file on disk is `local-tick.ps1`.
 
 ## 1. One-time setup on the laptop
@@ -61,14 +61,15 @@ W34 erases stored media twice: nightly (**Erase media files (storage)**, past-re
 - Pre-VPS: leave `W34_MEDIA_ERASE_URL` empty and `W34_DRY_RUN=true`; staging holds synthetic media only.
 
 ## 2. The tunnel and the `N8N_PUBLIC_URL` it writes
-- **Today: a cloudflared quick tunnel.** Free, no account, no domain needed. Its URL **changes whenever the tunnel restarts** (6.6 "limits of free"). The keeper writes the new URL into `.env` (`N8N_PUBLIC_URL=https://<random>.trycloudflare.com`, `WEBHOOK_URL=<same>/`) and recreates n8n, so n8n always knows its own public URL.
+- **Today: a path on the EMMA VPS domain, `https://emmadoesit.cloud/lv-n8n/`** (no new DNS record). The laptop holds `ssh -R 127.0.0.1:15678:localhost:5678` to the VPS; the VPS Caddy (`/etc/caddy/Caddyfile`, inside the `emmadoesit.cloud` block) has `redir /lv-n8n /lv-n8n/ 308` + `handle_path /lv-n8n/* { reverse_proxy 127.0.0.1:15678 }`. n8n 2.41 registers every route (`/rest`, `/webhook`, `/healthz`, assets) at the root and uses `N8N_PATH` only for the editor's own URLs, so Caddy **strips** the prefix. `.env` then holds `N8N_PUBLIC_URL=https://emmadoesit.cloud/lv-n8n`, `WEBHOOK_URL` and `N8N_EDITOR_BASE_URL` = that plus `/`, `N8N_PATH=/lv-n8n/`, `N8N_HOST=emmadoesit.cloud`, `N8N_PROTOCOL=https` (describes the public URL; without `N8N_SSL_*` n8n still listens on plain http). Webhooks: `https://emmadoesit.cloud/lv-n8n/webhook/<path>`. Because of `N8N_PATH`, the editor works only through the public URL, not at `http://localhost:5678` (local `/healthz` and `/webhook/*` still do).
+- **Last resort: a cloudflared quick tunnel**, only while the VPS path is unreachable. Its URL **changes whenever the tunnel restarts** (6.6 "limits of free"); the keeper writes it into `.env` with `N8N_PATH=/` and switches back to the stable URL as soon as that answers again.
 - **What a URL change breaks:** anything *outside* that stored the old URL.
   - The Meta app webhook subscriptions (WABA / page / instagram).
   - The Flow `endpoint_uri`.
   - The Paystack **test-mode** webhook.
   - The landing page's `/lead` endpoint config.
 
-  Re-point after each change (the keeper only rotates when the tunnel is actually dead, so this is rare):
+  Re-point once after moving to the stable URL, and again only if the keeper ever falls back to the quick tunnel:
   ```bash
   # from the repo root, with .env loaded (same calls as provision.sh step 11, aimed at the tunnel)
   set -a; . ./.env; set +a
@@ -80,8 +81,7 @@ W34 erases stored media twice: nightly (**Erase media files (storage)**, past-re
       --data-urlencode "fields=$3" -o /dev/null && echo "re-pointed $1"; done
   ```
   Paystack test webhook: dashboard → Settings → API Keys & Webhooks (Chrome agent).
-- **Optional upgrade to a stable URL, still R0:** a Cloudflare *named* tunnel (`TUNNEL_TOKEN`) needs a hostname in a Cloudflare-managed zone. `leadvelocity.co.za` is on GoDaddy DNS, so that would mean moving nameservers, which is out of scope. ngrok's free static domain is the other option. *ASSUMPTION: ngrok free-tier terms are time-sensitive; check once if the URL churn becomes a problem.* Neither is needed for synthetic testing.
-- **Exposure:** the quick tunnel publishes **the whole n8n**, editor included, at the random URL. Mitigations: owner login + MFA, synthetic data only (`DRY_RUN_SENDS=true`, `WHATSAPP_TEST_RECIPIENTS` allow-list), no live consumer data before W26. On the VPS the editor moves behind the Traefik IP allowlist and `api.` exposes only `/webhook/*` and `/healthz` (`vps/traefik/`).
+- **Exposure:** the public URL (and the quick tunnel) publishes **the whole n8n**, editor included, at the random URL. Mitigations: owner login + MFA, synthetic data only (`DRY_RUN_SENDS=true`, `WHATSAPP_TEST_RECIPIENTS` allow-list), no live consumer data before W26. On the VPS the editor moves behind the Traefik IP allowlist and `api.` exposes only `/webhook/*` and `/healthz` (`vps/traefik/`).
 
 ## 3. What the cloud session needs from the laptop
 The cloud (Claude Code on the web) session cannot reach `localhost`. It works through the tunnel and git:

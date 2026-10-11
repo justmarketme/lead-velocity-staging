@@ -1,8 +1,9 @@
 # One-pass keeper for the local n8n staging (MASTER-PROMPT 0.3 #7). Idempotent; run at logon and every 10 min.
 #   1. Docker engine up (clears stale AF_UNIX socket dirs that crash Docker Desktop 4.61 on this laptop)
 #   2. n8n + Postgres containers up
-#   3. public URL: SSH reverse tunnel to the EMMA VPS (stable n8n.leadvelocity.co.za), else a cloudflared quick
-#      tunnel as fallback; if the URL changed, rewrite N8N_PUBLIC_URL / WEBHOOK_URL in .env and recreate n8n
+#   3. public URL: SSH reverse tunnel to the EMMA VPS, served by its Caddy at https://emmadoesit.cloud/lv-n8n/
+#      (a path on an existing domain - no extra DNS record). Last resort: a cloudflared quick tunnel (rotating URL).
+#      If the public URL changed, rewrite the n8n URL settings in .env and recreate n8n.
 # ASCII only: Windows PowerShell 5.1 reads BOM-less scripts as ANSI.
 $ErrorActionPreference = 'Continue'
 $repo    = Split-Path $PSScriptRoot -Parent
@@ -48,8 +49,11 @@ function Test-Url($u) {
 # Judge the tunnel only once n8n itself answers - a 502 while n8n boots must not rotate the URL
 for ($i = 0; $i -lt 24 -and -not (Test-Url 'http://localhost:5678'); $i++) { Start-Sleep 5 }
 if (-not (Test-Url 'http://localhost:5678')) { Log 'n8n not healthy locally - leaving tunnel alone this tick'; exit 1 }
-# 3a. Stable path: SSH reverse tunnel to the EMMA VPS, where Caddy serves $stableUrl -> 127.0.0.1:15678
-$stableUrl = 'https://n8n.leadvelocity.co.za'
+# 3a. Stable path: SSH reverse tunnel to the EMMA VPS. Caddy there strips /lv-n8n and proxies to 127.0.0.1:15678
+#     (n8n's routes live at the root; N8N_PATH only tells the editor its public prefix).
+$stableUrl  = 'https://emmadoesit.cloud/lv-n8n'
+$stableHost = 'emmadoesit.cloud'
+$stablePath = '/lv-n8n/'
 $sshKey    = Join-Path $HOME '.ssh\emma_vps_ed25519'
 $sshProc = Get-CimInstance Win32_Process -Filter "Name='ssh.exe'" | Where-Object { $_.CommandLine -match '15678:localhost:5678' }
 if (-not $sshProc -or -not (Test-Url $stableUrl)) {
@@ -58,10 +62,10 @@ if (-not $sshProc -or -not (Test-Url $stableUrl)) {
     Start-Sleep 8
 }
 if (Test-Url $stableUrl) {
-    $url = $stableUrl
+    $url = $stableUrl; $n8nHost = $stableHost; $n8nPath = $stablePath
     Get-CimInstance Win32_Process -Filter "Name='cloudflared.exe'" | Where-Object { $_.CommandLine -match 'localhost:5678' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 } else {
-# 3b. Fallback until DNS for $stableUrl exists (or the VPS is unreachable): cloudflared quick tunnel
+# 3b. Last resort while the VPS path is unreachable: cloudflared quick tunnel, served at the root (no prefix)
 $tunnelProc = Get-CimInstance Win32_Process -Filter "Name='cloudflared.exe'" | Where-Object { $_.CommandLine -match 'localhost:5678' }
 $url = Get-TunnelUrl
 if (-not $tunnelProc -or -not $url -or -not (Test-Url $url)) {
@@ -73,15 +77,31 @@ if (-not $tunnelProc -or -not $url -or -not (Test-Url $url)) {
     for ($i = 0; $i -lt 30 -and -not $url; $i++) { Start-Sleep 2; $url = Get-TunnelUrl }
     if (-not $url) { Log 'tunnel gave no URL'; exit 1 }
 }
+$n8nHost = ([Uri]$url).Host; $n8nPath = '/'
 }
 
-# Keep .env in step with the live tunnel URL
-$lines = Get-Content $envFile
-$current = ($lines | Where-Object { $_ -like 'N8N_PUBLIC_URL=*' }) -replace '^N8N_PUBLIC_URL=', ''
-if ($current -ne $url) {
-    $lines = $lines | ForEach-Object { $_ -replace '^N8N_PUBLIC_URL=.*', "N8N_PUBLIC_URL=$url" -replace '^WEBHOOK_URL=.*', "WEBHOOK_URL=$url/" }
+# Keep .env in step with the live public URL. N8N_PROTOCOL=https only describes the public URL: without
+# N8N_SSL_KEY / N8N_SSL_CERT n8n still listens on plain http behind the proxy.
+$want = [ordered]@{
+    N8N_PUBLIC_URL      = $url
+    WEBHOOK_URL         = "$url/"
+    N8N_EDITOR_BASE_URL = "$url/"
+    N8N_PATH            = $n8nPath
+    N8N_HOST            = $n8nHost
+    N8N_PROTOCOL        = 'https'
+}
+$lines = @(Get-Content $envFile)
+$changed = $false
+foreach ($k in $want.Keys) {
+    $line = "$k=$($want[$k])"
+    $idx = -1
+    for ($i = 0; $i -lt $lines.Count; $i++) { if ($lines[$i] -like "$k=*") { $idx = $i; break } }
+    if ($idx -lt 0) { $lines += $line; $changed = $true }
+    elseif ($lines[$idx] -ne $line) { $lines[$idx] = $line; $changed = $true }
+}
+if ($changed) {
     [IO.File]::WriteAllLines($envFile, $lines)
     docker compose -f $compose up -d --force-recreate n8n 2>&1 | Out-Null
-    Log "tunnel URL changed -> $url (n8n recreated)"
+    Log "public URL settings changed -> $url (n8n recreated)"
 }
 Set-Content (Join-Path $state 'url.txt') $url
