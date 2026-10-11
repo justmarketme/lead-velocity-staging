@@ -13,6 +13,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Label } from "@/components/ui/label";
 import LeadConversation from "@/components/leads/LeadConversation";
+import { HeldLowBudgetLeads, useHeldLowBudgetLeads } from "@/components/leads/HeldLowBudgetLeads";
+import { LOW_BUDGET } from "@/lib/lowBudget";
 import { UnifiedCommunicationHub } from "@/components/communications/UnifiedCommunicationHub";
 import { AICallDialog } from "@/components/calls/AICallDialog";
 import { useLeadsWithUnread } from "@/hooks/use-leads-with-unread";
@@ -134,7 +136,9 @@ const LeadsTable = () => {
   const [appointmentTime, setAppointmentTime] = useState("09:00");
   const { toast } = useToast();
   const { leadsWithUnread } = useLeadsWithUnread('admin');
-  
+  const held = useHeldLowBudgetLeads();
+  const [showHeld, setShowHeld] = useState(false);
+
   const [columnWidths, setColumnWidths] = useState(() => {
     const saved = localStorage.getItem('leads-table-column-widths');
     if (saved) {
@@ -178,6 +182,7 @@ const LeadsTable = () => {
         },
         () => {
           fetchLeads();
+          held.reload();
         }
       )
       .subscribe();
@@ -391,8 +396,21 @@ const LeadsTable = () => {
             className="pl-10"
           />
         </div>
+        {held.available && (
+          <Button
+            variant={showHeld ? "default" : "outline"}
+            onClick={() => setShowHeld((v) => !v)}
+            title={`Leads held because no broker takes ${LOW_BUDGET.label} leads automatically`}
+          >
+            Held — under R750
+            <Badge variant="secondary" className="ml-2">{held.leads.length}</Badge>
+          </Button>
+        )}
       </div>
 
+      {showHeld && held.available ? (
+        <HeldLowBudgetLeads leads={held.leads} onChanged={() => { held.reload(); fetchLeads(); }} />
+      ) : (
       <div className="border rounded-xl overflow-hidden bg-slate-900/50 backdrop-blur-xl border-white/5 shadow-2xl">
         <Table className="table-fixed w-full border-collapse">
           <TableHeader className="bg-slate-950/50">
@@ -524,6 +542,7 @@ const LeadsTable = () => {
           </TableBody>
         </Table>
       </div>
+      )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">

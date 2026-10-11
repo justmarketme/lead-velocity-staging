@@ -3,6 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShieldCheck } from "lucide-react";
 import BrokerLayout from "@/components/broker/BrokerLayout";
+import OwnBroker from "@/components/broker/smc/OwnBroker";
+import IntroCardEditor from "@/components/broker/smc/IntroCardEditor";
 
 const BrokerProfile = () => {
     const [loading, setLoading] = useState(true);
@@ -14,8 +16,8 @@ const BrokerProfile = () => {
             const { data } = await supabase
                 .from("profiles")
                 .select("*")
-                .eq("id", user.id)
-                .single();
+                .eq("user_id", user.id) // profiles keys on user_id; profiles.id is its own uuid (not always the auth id)
+                .maybeSingle();
             setProfile(data);
         }
         setLoading(false);
@@ -29,8 +31,12 @@ const BrokerProfile = () => {
 
     return (
         <BrokerLayout>
-            <div className="max-w-4xl mx-auto space-y-8">
-                <h1 className="text-4xl font-bold gradient-text">Profile Settings</h1>
+            <div className="max-w-6xl mx-auto space-y-8">
+                <h1 className="text-3xl sm:text-4xl font-bold gradient-text">Profile Settings</h1>
+
+                <section id="intro-card" aria-label="Your intro card">
+                    <OwnBroker>{(b, reload) => <IntroCardEditor broker={b} reload={reload} />}</OwnBroker>
+                </section>
 
                 <div className="grid md:grid-cols-2 gap-8">
                     {/* Account Details */}

@@ -10,6 +10,8 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { LOW_BUDGET, loadLowBudgetSwitches, setLowBudgetSwitch } from "@/lib/lowBudget";
 import { useToast } from "@/hooks/use-toast";
 import {
   Briefcase, Phone, Mail, Building2, Clock, CalendarClock, CheckCircle2, PlusCircle,
@@ -334,6 +336,8 @@ const BrokerDrawer = ({
   const [coachLoading, setCoachLoading] = useState(false);
   const [coachError, setCoachError] = useState<string | null>(null);
   const [history, setHistory] = useState<any[]>([]);
+  // C-tier switch: null = column not on this DB yet, so the control stays hidden
+  const [lowBudget, setLowBudget] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (!broker) return;
@@ -346,6 +350,8 @@ const BrokerDrawer = ({
     });
     setActType("call"); setActOutcome("reached"); setActBody("");
     setFuTitle(""); setFuWhen("");
+    setLowBudget(null);
+    loadLowBudgetSwitches().then((m) => setLowBudget(m ? !!m[broker.id] : null));
     (async () => {
       setLoadingDetail(true);
       const [a, f, o] = await Promise.all([
@@ -426,6 +432,15 @@ const BrokerDrawer = ({
 
   const changeStage = async (stage: string) => {
     if (await updateBroker({ mgmt_stage: stage }, `Pipeline stage → ${stage}`)) toast({ title: `Moved to ${stage}` });
+  };
+
+  const toggleLowBudget = async (on: boolean) => {
+    const prev = lowBudget;
+    setLowBudget(on);
+    const { error } = await setLowBudgetSwitch(broker.id, on);
+    if (error) { setLowBudget(prev); toast({ title: "Update failed", description: error.message, variant: "destructive" }); return; }
+    notifyCrmChange("brokers", broker.id, `${LOW_BUDGET.label} leads ${on ? "on" : "off"} — ${broker.firm_name || "broker"}`);
+    toast({ title: on ? "Accepts leads under R750" : "No longer accepts leads under R750" });
   };
 
   const setNextFollowUp = async (val: string) => {
@@ -562,6 +577,16 @@ const BrokerDrawer = ({
                 <Input type="datetime-local" className="mt-1" defaultValue={toLocalInput(broker.next_follow_up_at)} onBlur={(e) => setNextFollowUp(e.target.value)} />
               </div>
             </div>
+
+            {lowBudget !== null && (
+              <div className="rounded-lg border border-white/10 bg-slate-900/40 p-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <Label htmlFor="accepts-low-budget" className="text-sm font-medium">Accepts leads under R750</Label>
+                  <p className="text-xs text-muted-foreground">{LOW_BUDGET.label} leads go to this broker automatically. Turn on only once they've agreed.</p>
+                </div>
+                <Switch id="accepts-low-budget" checked={lowBudget} onCheckedChange={toggleLowBudget} />
+              </div>
+            )}
 
             {/* Firm details */}
             <div>

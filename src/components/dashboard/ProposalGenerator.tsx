@@ -9,6 +9,7 @@ import logo from "@/assets/lead-velocity-logo.webp";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
+import { openAdminDocument } from "@/lib/adminDocs";
 import { getProposalEmailSignature } from "@/utils/emailSignature";
 import { callLegalAI } from "@/utils/legalAI";
 import { BrokerSelector } from "./BrokerSelector";
@@ -153,6 +154,12 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
     }, [initialData]);
 
     const [history, setHistory] = useState<any[]>([]);
+
+    // Private bucket: sign a fresh 5-minute link on every click (getPublicUrl links fail).
+    const viewPdf = async (path: string) => {
+        const r = await openAdminDocument(path);
+        if (!r.ok) toast({ title: "Could not open the PDF", description: r.error, variant: "destructive" });
+    };
 
     const fetchHistory = async () => {
         const { data: { user } } = await supabase.auth.getUser();
@@ -307,11 +314,6 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                     });
 
                 if (uploadError) throw uploadError;
-
-                // Get Public URL
-                const { data: { publicUrl } } = supabase.storage
-                    .from('admin-documents')
-                    .getPublicUrl(filePath);
 
                 // Get Current User
                 const { data: { user } } = await supabase.auth.getUser();
@@ -728,9 +730,9 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                                             <div key={idx} className="bg-slate-950/40 p-3 rounded-xl border border-white/5 flex flex-col gap-1 text-sm">
                                                 <div className="flex justify-between items-start">
                                                     <span className="font-medium text-slate-200 truncate pr-2">{doc.name}</span>
-                                                    <a href={`${supabase.storage.from('admin-documents').getPublicUrl(doc.file_path).data.publicUrl}`} target="_blank" rel="noreferrer" className="text-pink-400 hover:text-pink-300 shrink-0 bg-pink-400/10 px-2 py-0.5 rounded cursor-pointer whitespace-nowrap text-xs">
+                                                    <button type="button" onClick={() => viewPdf(doc.file_path)} className="text-pink-400 hover:text-pink-300 shrink-0 bg-pink-400/10 px-2 py-0.5 rounded cursor-pointer whitespace-nowrap text-xs">
                                                         View PDF
-                                                    </a>
+                                                    </button>
                                                 </div>
                                                 <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
                                                     {new Date(doc.created_at).toLocaleString('en-ZA', { dateStyle: 'medium', timeStyle: 'short' })}

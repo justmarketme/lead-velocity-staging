@@ -26,6 +26,7 @@ import { generateSmartPDF, blobToBase64 } from "@/utils/pdfUtils";
 import { buildContractDocx } from "@/utils/contractToDocx";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { openAdminDocument } from "@/lib/adminDocs";
 import { getContractEmailSignature } from "@/utils/emailSignature";
 import { BrokerSelector } from "./BrokerSelector";
 import { renderAgreementHtml } from "@/lib/contract/renderHtml";
@@ -132,6 +133,12 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
         };
         window.addEventListener("mousemove", handleMouseMove);
         window.addEventListener("mouseup", handleMouseUp);
+    };
+
+    // Private bucket: sign a fresh 5-minute link on every click (getPublicUrl links fail).
+    const viewPdf = async (path: string) => {
+        const r = await openAdminDocument(path);
+        if (!r.ok) toast({ title: "Could not open the PDF", description: r.error, variant: "destructive" });
     };
 
     const fetchHistory = async () => {
@@ -628,7 +635,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                             <div key={idx} className="bg-slate-950/40 p-3 rounded-xl border border-white/5 flex flex-col gap-1 text-sm">
                                                 <div className="flex justify-between items-start">
                                                     <span className="font-medium text-slate-200 truncate pr-2">{h.name}</span>
-                                                    <a href={supabase.storage.from("admin-documents").getPublicUrl(h.file_path).data.publicUrl} target="_blank" rel="noreferrer" className="text-pink-400 hover:text-pink-300 shrink-0 bg-pink-400/10 px-2 py-0.5 rounded whitespace-nowrap text-xs">View PDF</a>
+                                                    <button type="button" onClick={() => viewPdf(h.file_path)} className="text-pink-400 hover:text-pink-300 shrink-0 bg-pink-400/10 px-2 py-0.5 rounded whitespace-nowrap text-xs">View PDF</button>
                                                 </div>
                                                 <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">{new Date(h.created_at).toLocaleString("en-ZA", { dateStyle: "medium", timeStyle: "short" })}</span>
                                             </div>

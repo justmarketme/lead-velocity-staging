@@ -24,16 +24,29 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import PremiumDashboard from "@/components/broker/PremiumDashboard";
 import PremiumCalendar from "@/components/broker/PremiumCalendar";
 import PremiumDocuments from "@/components/broker/PremiumDocuments";
+import OwnBroker from "@/components/broker/smc/OwnBroker";
+import OutlookConnectCard from "@/components/broker/smc/OutlookConnectCard";
+import UpcomingSmcAppointments from "@/components/broker/smc/UpcomingSmcAppointments";
+import IntroCardEditor from "@/components/broker/smc/IntroCardEditor";
 import { useToast } from "@/hooks/use-toast";
 import logo from "@/assets/lead-velocity-logo.webp";
 import SEO from "@/components/SEO";
 import { TIERS, planByName } from "@/lib/pricing";
 
+const TABS = ["dashboard", "leads", "calendar", "intro", "documents", "settings"];
+
 const PremiumBrokerPortalPage = () => {
     const [loading, setLoading] = useState(true);
     const [brokerData, setBrokerData] = useState<any>(null);
-    const [activeTab, setActiveTab] = useState("dashboard");
-    const [sidebarOpen, setSidebarOpen] = useState(true);
+    // ?tab=calendar|intro|… opens a tab directly (Microsoft sign-in returns to ?tab=calendar via MsReturnGate).
+    const [activeTab, setActiveTabState] = useState(() => {
+        const t = new URLSearchParams(window.location.search).get("tab");
+        return t && TABS.includes(t) ? t : "dashboard";
+    });
+    // Phones: the sidebar is an off-canvas drawer (closed by default); from lg up it is the open rail as before.
+    const isDesktop = () => typeof window === "undefined" || window.matchMedia("(min-width: 1024px)").matches;
+    const [sidebarOpen, setSidebarOpen] = useState(isDesktop);
+    const setActiveTab = (t: string) => { setActiveTabState(t); if (!isDesktop()) setSidebarOpen(false); };
     const [appointments, setAppointments] = useState<any[]>([]);
     const [stats, setStats] = useState({
         totalLeads: 0,
@@ -68,6 +81,7 @@ const PremiumBrokerPortalPage = () => {
                     client:leads(first_name, last_name, phone, email)
                 `)
                 .eq("broker_id", brokerId)
+                .or("status.is.null,status.neq.pending_verification") // held slots wait for the client's email check
                 .order('appointment_date', { ascending: true });
 
             if (appts) {
@@ -226,6 +240,7 @@ const PremiumBrokerPortalPage = () => {
         { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
         { id: "leads", label: "Premium Leads", icon: Database },
         { id: "calendar", label: "Appointment Center", icon: CalendarIcon },
+        { id: "intro", label: "Your Intro Card", icon: UserCircle },
         { id: "documents", label: "Vault & Ledger", icon: FolderOpen },
         { id: "settings", label: "Elite Setup", icon: Settings },
     ];
@@ -241,7 +256,8 @@ const PremiumBrokerPortalPage = () => {
             </div>
 
             {/* Sidebar */}
-            <aside className={`fixed left-0 top-0 h-screen bg-[#020617] border-r border-white/5 transition-all duration-500 z-50 ${sidebarOpen ? 'w-80' : 'w-24'}`}>
+            {sidebarOpen && <div className="fixed inset-0 z-40 bg-black/60 lg:hidden" aria-hidden="true" onClick={() => setSidebarOpen(false)} />}
+            <aside className={`fixed left-0 top-0 h-screen overflow-y-auto bg-[#020617] border-r border-white/5 transition-all duration-500 z-50 ${sidebarOpen ? 'w-80 translate-x-0' : 'w-24 -translate-x-full lg:translate-x-0'}`}>
                 <div className="flex flex-col h-full p-8">
                     <div className="flex items-center gap-4 mb-16 px-2">
                         <div className="bg-gradient-to-br from-pink-500 to-rose-700 p-2.5 rounded-2xl shadow-2xl shadow-pink-500/20 shrink-0">
@@ -290,9 +306,9 @@ const PremiumBrokerPortalPage = () => {
             </aside>
 
             {/* Main Content Area */}
-            <main className={`transition-all duration-500 min-h-screen ${sidebarOpen ? 'pl-80' : 'pl-24'}`}>
+            <main className={`relative z-10 transition-all duration-500 min-h-screen ${sidebarOpen ? 'lg:pl-80' : 'lg:pl-24'}`}>
                 {/* Header Bar */}
-                <header className="sticky top-0 z-40 bg-[#020617]/70 backdrop-blur-xl border-b border-white/5 px-10 h-24 flex items-center justify-between">
+                <header className="sticky top-0 z-30 bg-[#020617]/70 backdrop-blur-xl border-b border-white/5 px-4 sm:px-10 h-20 sm:h-24 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-6 flex-1">
                         <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(!sidebarOpen)} className="text-slate-500 hover:text-white hover:bg-white/5 rounded-2xl">
                             <Menu size={22} />
@@ -329,12 +345,27 @@ const PremiumBrokerPortalPage = () => {
                 </header>
 
                 {/* Dynamic Content */}
-                <div className="p-10 max-w-[1600px] mx-auto space-y-10">
+                <div className="p-4 sm:p-10 max-w-[1600px] mx-auto space-y-10">
                     {activeTab === 'dashboard' && <PremiumDashboard brokerData={brokerData} stats={stats} leadsData={[]} />}
-                    {activeTab === 'calendar' && <PremiumCalendar appointments={appointments} onUpdateStatus={handleUpdateAppointment} />}
+                    {activeTab === 'calendar' && (
+                        <>
+                            <OwnBroker>
+                                {(b, reload) => (
+                                    <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                                        <OutlookConnectCard broker={b} reload={reload} tone="elite" returnTo="/broker-elite?tab=calendar" />
+                                        <UpcomingSmcAppointments brokerId={b.id} tone="elite" />
+                                    </div>
+                                )}
+                            </OwnBroker>
+                            <PremiumCalendar appointments={appointments} onUpdateStatus={handleUpdateAppointment} />
+                        </>
+                    )}
+                    {activeTab === 'intro' && (
+                        <OwnBroker>{(b, reload) => <IntroCardEditor broker={b} reload={reload} tone="elite" />}</OwnBroker>
+                    )}
                     {activeTab === 'documents' && <PremiumDocuments documents={[]} />}
                     {activeTab === 'settings' && <div className="animate-in fade-in slide-in-from-bottom duration-500">
-                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-8">
                             {/* Alerts Card */}
                             <Card className="bg-slate-900/40 backdrop-blur-3xl border-white/5 p-8 rounded-3xl">
                                 <CardHeader className="p-0 mb-6">
@@ -392,7 +423,7 @@ const PremiumBrokerPortalPage = () => {
                     </div>}
 
                     {activeTab === 'leads' && (
-                        <div className="bg-slate-900/30 border border-white/5 rounded-[40px] p-24 text-center backdrop-blur-3xl relative overflow-hidden group">
+                        <div className="bg-slate-900/30 border border-white/5 rounded-[40px] p-8 sm:p-24 text-center backdrop-blur-3xl relative overflow-hidden group">
                             <div className="absolute inset-0 bg-gradient-to-br from-pink-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
                             <Database className="w-20 h-20 text-slate-800 mx-auto mb-8 font-thin group-hover:text-pink-500/50 group-hover:scale-110 transition-all duration-700" />
                             <h2 className="text-4xl font-black text-white mb-4 tracking-tighter italic">INTEL LIBRARY</h2>
