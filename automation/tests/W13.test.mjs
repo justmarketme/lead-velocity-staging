@@ -133,6 +133,9 @@ test(`W13 [${MODE}] capacity: an APPROVED replacement adds one lead to its CRM l
   assert.deepEqual(orderCapacity(o, rows), { capacity: 21, remaining: 1, counted_toward_order: 19, open: true });
   assert.deepEqual(orderCapacity({ ...o, attached: 21 }, rows), { capacity: 21, remaining: 0, counted_toward_order: 20, open: false }, 'the paid number is delivered in full');
   assert.equal(orderCapacity({ ...o, status: 'pending', attached: 0 }, []).open, false, 'only a paid order is open');
+  // 2026-10-11 count at confirmed attendance: reserved places use room but do not count toward the order
+  assert.deepEqual(orderCapacity({ ...o, counted: 15, reserved: 5 }, []), { capacity: 20, remaining: 0, counted_toward_order: 15, open: false });
+  assert.deepEqual(orderCapacity({ ...o, counted: 15, reserved: 3 }, []), { capacity: 20, remaining: 2, counted_toward_order: 15, open: true });
 });
 
 // ============================================================================================
@@ -255,7 +258,7 @@ test('W13.json: never writes lead orders (capacity is the view); approved emits 
   for (const text of [s, readFileSync(new URL('../lib/w13.mjs', import.meta.url), 'utf8')]) assert.ok(!/guarantee/i.test(text), 'never "guaranteed" (0.1)');
   assert.match(R.alertNote('weekly_max', { lead: { first_name: 'Pieter', last_name: 'V' }, used: 3, reason_code: 'no_show' }), /3 of 3 goodwill replacement requests this Calendar Week\. Not opened; nothing is owed/);
   assert.equal(WF.nodes.find((n) => n.name === 'W09 cancel_all (lead)').parameters.workflowId.cachedResultName, 'W09 Reminder sequence');
-  assert.match(node('Send WhatsApp').parameters.url, /PHONE_NUMBER_ID/);
+  assert.equal(node('Send WhatsApp').parameters.workflowId.value, 'smc-whatsapp-send', 'one transport for both providers (2026-10-11)');
   assert.ok(WF.connections['Send WhatsApp'].main[0].some((c) => c.node === 'Touch leads.last_contact_at (lead outbound)'));
 });
 

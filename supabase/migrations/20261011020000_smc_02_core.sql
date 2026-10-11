@@ -147,6 +147,20 @@ BEGIN
       AND (verified_credentials IS NULL OR jsonb_typeof(verified_credentials) = 'array')
     );
   END IF;
+  -- 2026-10-11 (FAIS disclosure): routing can only be switched on for a broker whose intro card can be shown in full:
+  -- the FSP number, the practice name and the adviser name (broker_intro_booked {{2}}/{{3}}/{{4}} and the disclosure
+  -- line) and the approved intro card image (the template's IMAGE header). Every live row has routing_on = false, so the
+  -- constraint validates instantly. The routing trigger (file 03, smc_broker_ready) checks the same before any lead attaches.
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'brokers_smc_routing_ready' AND conrelid = 'public.brokers'::regclass) THEN
+    ALTER TABLE public.brokers ADD CONSTRAINT brokers_smc_routing_ready CHECK (
+      routing_on IS NOT TRUE OR (
+            btrim(coalesce(fsp_number, '')) ~ '^[A-Za-z0-9 /-]{1,20}$' AND fsp_number ~ '[0-9]'   -- an FSP number, not a blank
+        AND btrim(coalesce(firm_name, '')) <> ''
+        AND btrim(coalesce(contact_person, '')) <> ''
+        AND btrim(coalesce(intro_card_url, '')) ~ '^https://'
+      )
+    );
+  END IF;
 END $$;
 
 -- Widen the status CHECK (strict superset of the LIVE ('Active','Inactive','Prospect'); 'Prospect' is written by the live

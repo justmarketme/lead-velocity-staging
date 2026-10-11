@@ -105,6 +105,8 @@ export interface SmcLead {
   work_cover: boolean | null; method_pref: SmcMethod | null; call_number: string | null;
   call_number_line_type: string | null; best_time: string | null; language: string | null;
   stage: string | null; stage_entered_at: Ts | null; health_flag: boolean; created_at: Ts;
+  /** crm-nurture file 03 (2026-10-11): the lead's place on a lead order; counted = Delivered (booked + attendance confirmed). */
+  lead_order_id?: Uuid | null; order_state?: "attached" | "counted" | "released" | null; order_counted_at?: Ts | null;
 }
 
 /** View public.bookings over appointments (smc_06 §7). */
@@ -225,6 +227,10 @@ export interface SmcOrderCapacity {
   lead_order_id: Uuid; broker_id: Uuid; brand_id: Uuid; title: string | null; status: "pending" | "contract_signed" | "paid" | "delivered" | "cancelled";
   lead_count: number; paid_at: Ts | null; created_at: Ts | null; attached: number; replacements_approved: number; capacity: number;
   remaining: number; counted_toward_order: number; open: boolean; replacement_requests_this_week: number; replacement_weekly_max: number;
+  /** Delivered: booked + attendance confirmed (agreement 5.2), one lead_order_items row each. */
+  counted: number;
+  /** Routed, place reserved, not yet counted. `attached` = counted + reserved. */
+  reserved: number;
 }
 
 /** LEGACY (cycles are not part of the crm-nurture chain; kept only for pages not yet moved: Agreement.tsx, smc/Ads.tsx). */

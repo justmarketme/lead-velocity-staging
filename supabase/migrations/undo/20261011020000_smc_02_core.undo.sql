@@ -23,6 +23,7 @@ ALTER TABLE "public"."appointments" DROP CONSTRAINT IF EXISTS "appointments_smc_
 ALTER TABLE "public"."appointments" DROP CONSTRAINT IF EXISTS "appointments_smc_no_overlap";
 ALTER TABLE "public"."brokers" DROP CONSTRAINT IF EXISTS "brokers_brand_id_fkey";
 ALTER TABLE "public"."brokers" DROP CONSTRAINT IF EXISTS "brokers_smc_checks";
+ALTER TABLE "public"."brokers" DROP CONSTRAINT IF EXISTS "brokers_smc_routing_ready";
 ALTER TABLE "public"."communications" DROP CONSTRAINT IF EXISTS "communications_brand_id_fkey";
 ALTER TABLE "public"."communications" DROP CONSTRAINT IF EXISTS "communications_smc_checks";
 ALTER TABLE "public"."lead_activities" DROP CONSTRAINT IF EXISTS "lead_activities_brand_id_fkey";

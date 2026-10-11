@@ -99,11 +99,15 @@ export function withdraw(row, now) {
 }
 
 /** Capacity effect of approved replacements on one order (same rule as public.smc_order_capacity). */
+// 2026-10-11: a lead counts at booked + attendance confirmed (agreement 5.2). `counted` = lead_order_items rows, `reserved`
+// = routed leads holding a place (order_state attached); in use = counted + reserved. An order given only `attached`
+// (older callers / fixtures) is read as all counted.
 export function orderCapacity(order, rows) {
   const approved = rows.filter((r) => r.lead_order_id === order.lead_order_id && (r.status === 'approved' || r.status === 'fulfilled')).length;
   const capacity = Number(order.lead_count || 0) + approved;
-  const attached = Number(order.attached || 0);
-  return { capacity, remaining: Math.max(0, capacity - attached), counted_toward_order: Math.max(0, attached - approved), open: order.status === 'paid' && capacity > attached };
+  const counted = Number(order.counted ?? order.attached ?? 0);
+  const inUse = counted + Number(order.reserved || 0);
+  return { capacity, remaining: Math.max(0, capacity - inUse), counted_toward_order: Math.max(0, counted - approved), open: order.status === 'paid' && capacity > inUse };
 }
 
 // ---------------------------------------------------------------------------------------------------------------

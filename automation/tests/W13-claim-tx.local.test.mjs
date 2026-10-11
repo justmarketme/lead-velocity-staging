@@ -43,7 +43,9 @@ test('W13 claim SQL + routing triggers concurrently on the live-schema mirror: w
   const brand = q("SELECT id FROM public.brands WHERE code = 'SMC'")[0][0];
   const user = uuid(), broker = uuid(), order = uuid();
   q(`INSERT INTO auth.users (id, email) VALUES ('${user}', 'synthetic-claim-broker@example.test')`);
-  q(`INSERT INTO public.brokers (id, user_id, firm_name, contact_person, email, status, brand_id, routing_on) VALUES ('${broker}', '${user}', 'Synthetic FSP', 'Synthetic', 'synthetic-claim-broker@example.test', 'active', '${brand}', true)`);
+  // routing_on needs the FSP number, practice, adviser and intro card (brokers_smc_routing_ready, 2026-10-11)
+  const READY = `fsp_number, intro_card_url`; const readyVals = `'12345', 'https://media.sortmycover.co.za/intro/synthetic/card.png'`;
+  q(`INSERT INTO public.brokers (id, user_id, firm_name, contact_person, email, status, brand_id, routing_on, ${READY}) VALUES ('${broker}', '${user}', 'Synthetic FSP', 'Synthetic', 'synthetic-claim-broker@example.test', 'active', '${brand}', true, ${readyVals})`);
   q(`INSERT INTO public.lead_orders (id, broker_id, title, lead_count, status, paid_at, brand_id) VALUES ('${order}', '${broker}', 'synthetic SMC order', 30, 'paid', now(), '${brand}')`);
   let n = 0;
   const mkLead = (routed = true) => {
@@ -52,6 +54,10 @@ test('W13 claim SQL + routing triggers concurrently on the live-schema mirror: w
        VALUES ('${id}', '+27600007${String(n).padStart(3, '0')}', 'Synthetic', 'Search Lead', '${brand}', ${routed ? `'${broker}'` : 'NULL'}, now(), 'consent', 'ctwa', now())`);
     return id;
   };
+  // Delivered = booked + attendance confirmed (agreement 5.2): a confirmed appointment counts the lead on the order.
+  let slot = 0;
+  const deliver = (lead, b = broker) => { slot += 1; q(`INSERT INTO public.appointments (broker_id, client_id, appointment_date, ends_at, status, brand_id, method, confirmed_at)
+       VALUES ('${b}', '${lead}', '2026-09-01T06:00:00Z'::timestamptz + interval '${slot} hours', '2026-09-01T06:30:00Z'::timestamptz + interval '${slot} hours', 'confirmed', '${brand}', 'teams', now())`); };
   const monday = '2026-10-12T10:00:00+02:00'; // a Monday in SAST
   const claimAsync = (lead, extra = {}) => pg.query(fill(node.parameters.query,
     [lead, null, null, order, broker, brand, extra.reason || 'no_show', extra.code || 'no_show', extra.at || new Date().toISOString(), extra.missed || monday]));
@@ -64,7 +70,10 @@ test('W13 claim SQL + routing triggers concurrently on the live-schema mirror: w
 
   // ---- (1) 8 delivered leads, 8 concurrent claims for missed appointments in ONE Calendar Week: exactly 3 open
   const leads = Array.from({ length: 8 }, () => mkLead());
-  assert.equal(q(`SELECT count(*) FROM public.lead_order_items WHERE order_id = '${order}'`)[0][0], '8', 'routing attached every lead to the order');
+  assert.equal(q(`SELECT count(*) FROM public.lead_order_items WHERE order_id = '${order}'`)[0][0], '0', 'routing reserves, it does not count');
+  assert.equal(q(`SELECT count(*) FROM public.leads WHERE lead_order_id = '${order}' AND order_state = 'attached'`)[0][0], '8', 'routing reserved a place for every lead');
+  for (const l of leads) deliver(l);
+  assert.equal(q(`SELECT count(*) FROM public.lead_order_items WHERE order_id = '${order}'`)[0][0], '8', 'confirmed attendance counted every lead on the order');
   const res = await Promise.all(leads.map((l) => claimAsync(l)));
   for (const r of res) assert.equal(r.err, null, r.stderr);
   const tally = Object.fromEntries(q(`SELECT status, count(*) FROM public.replacements WHERE broker_id = '${broker}' GROUP BY 1`));
@@ -78,7 +87,7 @@ test('W13 claim SQL + routing triggers concurrently on the live-schema mirror: w
   assert.match(nextWeek.stdout, /\|due\|/);
 
   // ---- (2) the same lead claimed 5x at once in a fresh week: one live row only (one per lead)
-  const one = mkLead();
+  const one = mkLead(); deliver(one);
   const dup = await Promise.all(Array.from({ length: 5 }, () => claimAsync(one, { missed: '2026-10-26T09:00:00+02:00' })));
   for (const r of dup) assert.equal(r.err, null, r.stderr);
   assert.equal(q(`SELECT count(*) FROM public.replacements WHERE lead_id = '${one}'`)[0][0], '1', 'one row for one lead');
@@ -90,17 +99,37 @@ test('W13 claim SQL + routing triggers concurrently on the live-schema mirror: w
   assert.equal(q("SELECT count(*) FROM public.replacements WHERE missed_start_at >= '2026-11-02'")[0][0], '0', 'failed claim wrote nothing');
   assert.equal(q("SELECT count(*) FROM pg_locks WHERE locktype = 'advisory'")[0][0], '0', 'xact lock released on rollback');
 
-  // ---- (4) capacity: 10 leads routed concurrently to a broker whose order has room for 3 -> 3 attached, 7 held, never more
+  // ---- (4) capacity: 10 leads routed concurrently to a broker whose order has room for 3 -> 3 reserved, 7 held, never more;
+  //          the 3 then confirm concurrently -> exactly 3 counted
   const user2 = uuid(), broker2 = uuid(), order2 = uuid();
   q(`INSERT INTO auth.users (id, email) VALUES ('${user2}', 'synthetic-cap-broker@example.test')`);
-  q(`INSERT INTO public.brokers (id, user_id, firm_name, contact_person, email, status, brand_id, routing_on) VALUES ('${broker2}', '${user2}', 'Synthetic Two', 'Synthetic', 'synthetic-cap-broker@example.test', 'active', '${brand}', true)`);
+  q(`INSERT INTO public.brokers (id, user_id, firm_name, contact_person, email, status, brand_id, routing_on, ${READY}) VALUES ('${broker2}', '${user2}', 'Synthetic Two', 'Synthetic', 'synthetic-cap-broker@example.test', 'active', '${brand}', true, ${readyVals})`);
   q(`INSERT INTO public.lead_orders (id, broker_id, title, lead_count, status, paid_at, brand_id) VALUES ('${order2}', '${broker2}', 'synthetic small order', 3, 'paid', now(), '${brand}')`);
   const ins = await Promise.all(Array.from({ length: 10 }, (_, i) => pg.query(
     `INSERT INTO public.leads (id, phone, first_name, source, brand_id, broker_id, routed_at, consent_text, consent_source, consent_at)
      VALUES ('${uuid()}', '+27600006${String(i).padStart(3, '0')}', 'Cap', 'Search Lead', '${brand}', '${broker2}', now(), 'consent', 'ctwa', now()) RETURNING broker_id`)));
   for (const r of ins) assert.equal(r.err, null, r.stderr);
-  assert.equal(q(`SELECT count(*) FROM public.lead_order_items WHERE order_id = '${order2}'`)[0][0], '3', 'never over-delivered');
+  assert.equal(q(`SELECT count(*) FROM public.leads WHERE lead_order_id = '${order2}' AND order_state = 'attached'`)[0][0], '3', 'never over-reserved');
+  assert.equal(q(`SELECT count(*) FROM public.lead_order_items WHERE order_id = '${order2}'`)[0][0], '0', 'nothing counted at hand-over');
   assert.equal(q(`SELECT count(*) FROM public.leads WHERE phone LIKE '+27600006%' AND broker_id = '${broker2}'`)[0][0], '3');
   assert.equal(q("SELECT count(*) FROM public.leads WHERE phone LIKE '+27600006%' AND broker_id IS NULL AND routing_reason = 'held_no_open_order'")[0][0], '7', 'the rest are held, stored, not handed over');
   assert.deepEqual(q(`SELECT open, remaining FROM public.smc_order_capacity WHERE lead_order_id = '${order2}'`)[0], ['f', '0']);
+  const routed = q(`SELECT id FROM public.leads WHERE broker_id = '${broker2}' ORDER BY id`).flat();
+  const conf = await Promise.all(routed.map((l, i) => pg.query(`INSERT INTO public.appointments (broker_id, client_id, appointment_date, ends_at, status, brand_id, method, confirmed_at)
+     VALUES ('${broker2}', '${l}', '2026-09-05T06:00:00Z'::timestamptz + interval '${i * 2} hours', '2026-09-05T06:30:00Z'::timestamptz + interval '${i * 2} hours', 'confirmed', '${brand}', 'teams', now()) RETURNING id`)));
+  for (const r of conf) assert.equal(r.err, null, r.stderr);
+  assert.equal(q(`SELECT count(*) FROM public.lead_order_items WHERE order_id = '${order2}'`)[0][0], '3', 'the 3 confirmed leads are counted, never more');
+  assert.deepEqual(q(`SELECT counted, reserved, counted_toward_order FROM public.smc_order_capacity WHERE lead_order_id = '${order2}'`)[0], ['3', '0', '3']);
+
+  // ---- (5) FAIS disclosure: no broker without an FSP number gets routing on, and no lead is ever introduced to one
+  const broker3 = uuid();
+  const noFsp = await pg.query(`INSERT INTO public.brokers (id, firm_name, contact_person, email, status, brand_id, routing_on, intro_card_url)
+     VALUES ('${broker3}', 'No FSP Practice', 'Synthetic', 'synthetic-nofsp@example.test', 'active', '${brand}', true, 'https://media.sortmycover.co.za/x.png')`);
+  assert.ok(noFsp.err && /brokers_smc_routing_ready/.test(noFsp.stderr), 'routing_on refused without an FSP number');
+  q(`INSERT INTO public.brokers (id, firm_name, contact_person, email, status, brand_id, routing_on) VALUES ('${broker3}', 'No FSP Practice', 'Synthetic', 'synthetic-nofsp@example.test', 'active', '${brand}', false)`);
+  q(`INSERT INTO public.lead_orders (broker_id, title, lead_count, status, paid_at, brand_id) VALUES ('${broker3}', 'order of a broker without FSP', 5, 'paid', now(), '${brand}')`);
+  const held = uuid();
+  q(`INSERT INTO public.leads (id, phone, first_name, source, brand_id, broker_id, routed_at, consent_text, consent_source, consent_at)
+     VALUES ('${held}', '+27600005001', 'Held', 'Search Lead', '${brand}', '${broker3}', now(), 'consent', 'ctwa', now())`);
+  assert.deepEqual(q(`SELECT coalesce(broker_id::text, 'none'), routing_reason FROM public.leads WHERE id = '${held}'`)[0], ['none', 'held_broker_not_ready'], 'held, never introduced');
 });

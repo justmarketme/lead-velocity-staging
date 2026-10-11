@@ -1,14 +1,36 @@
 -- LOCAL smoke test of the crm-nurture chain on the live-schema mirror (supabase/drift/real-*.sql + the 8 chain files applied).
 -- Everything runs in ONE transaction and is rolled back, so it can run before the undo rehearsal. Every check raises on failure.
--- Covers: capacity from lead_orders (attach, hold, re-route refusal, replacement adds capacity, legacy order untouched),
+-- Covers: routing needs a ready broker (FSP number, practice, adviser, intro card: CHECK + routing trigger),
+-- capacity from lead_orders (reserve at routing, COUNT at booked + attendance confirmed (agreement 5.2), release on
+-- STOP / disqualified / unconfirmed meeting / un-route, hold, re-route refusal, replacement adds capacity, legacy order untouched),
 -- replacement RPC (window, weekly max 3 across no-show + unreachable, traversal, other broker), brokers guard, n8n_app scope,
 -- portal event RPC, anon posture.
 \set ON_ERROR_STOP on
 BEGIN;
 SELECT id AS brand FROM public.brands WHERE code = 'SMC' \gset
 -- Broker One becomes a live SortMyCover broker (admin action); Broker Two stays legacy.
-UPDATE public.brokers SET brand_id = :'brand', status = 'active', routing_on = true, fsp_number = '12345', whatsapp_number = '+27600000099'
+-- 0. routing can only be switched on for a broker whose intro card can be shown in full (FSP, practice, adviser, card)
+DO $$
+BEGIN
+  BEGIN
+    UPDATE public.brokers SET brand_id = (SELECT id FROM public.brands WHERE code = 'SMC'), status = 'active', routing_on = true
+     WHERE id = '10000000-0000-4000-8000-000000000001';
+    RAISE EXCEPTION 'smoke 0: routing_on accepted without an FSP number / intro card';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  RAISE NOTICE 'ok 0: brokers_smc_routing_ready refuses routing_on without the FSP number and intro card';
+END $$;
+UPDATE public.brokers SET brand_id = :'brand', status = 'active', routing_on = true, fsp_number = '12345', whatsapp_number = '+27600000099',
+       intro_card_url = 'https://media.sortmycover.co.za/intro/10000000-0000-4000-8000-000000000001/card.png'
  WHERE id = '10000000-0000-4000-8000-000000000001';
+DO $$
+BEGIN
+  BEGIN
+    UPDATE public.brokers SET fsp_number = NULL WHERE id = '10000000-0000-4000-8000-000000000001';
+    RAISE EXCEPTION 'smoke 0: FSP number removed while routing is on';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+END $$;
 -- A paid SortMyCover order for 2 leads, and a pending one (not eligible)
 INSERT INTO public.lead_orders (id, broker_id, title, lead_count, amount_zar, status, paid_at, brand_id)
 VALUES ('31000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', 'SMC test order', 2, 1000, 'paid', now() - interval '1 day', :'brand'),
@@ -26,10 +48,16 @@ VALUES ('61000000-0000-4000-8000-000000000003', NULL, '+27600008003', :'brand', 
 DO $$
 DECLARE n int; b uuid; r text;
 BEGIN
+  -- routed = a place RESERVED, not counted: no lead_order_items row until the booking's attendance is confirmed (5.2)
   SELECT count(*) INTO n FROM public.lead_order_items WHERE order_id = '31000000-0000-4000-8000-000000000001';
-  IF n <> 2 THEN RAISE EXCEPTION 'smoke 1: expected 2 items on the paid order, got %', n; END IF;
-  SELECT count(*) INTO n FROM public.lead_order_items WHERE order_id = '31000000-0000-4000-8000-000000000002';
+  IF n <> 0 THEN RAISE EXCEPTION 'smoke 1: routed leads were counted at hand-over (% items)', n; END IF;
+  SELECT count(*) INTO n FROM public.leads WHERE lead_order_id = '31000000-0000-4000-8000-000000000001' AND order_state = 'attached';
+  IF n <> 2 THEN RAISE EXCEPTION 'smoke 1: expected 2 reserved places on the paid order, got %', n; END IF;
+  SELECT count(*) INTO n FROM public.leads WHERE lead_order_id = '31000000-0000-4000-8000-000000000002';
   IF n <> 0 THEN RAISE EXCEPTION 'smoke 1: pending order received leads'; END IF;
+  IF (SELECT counted FROM public.smc_order_capacity WHERE lead_order_id = '31000000-0000-4000-8000-000000000001') <> 0
+     OR (SELECT reserved FROM public.smc_order_capacity WHERE lead_order_id = '31000000-0000-4000-8000-000000000001') <> 2 THEN
+    RAISE EXCEPTION 'smoke 1: view counted/reserved wrong'; END IF;
   SELECT broker_id, routing_reason INTO b, r FROM public.leads WHERE id = '61000000-0000-4000-8000-000000000003';
   IF b IS NOT NULL OR r <> 'held_no_open_order' THEN RAISE EXCEPTION 'smoke 1: third lead not held (broker %, reason %)', b, r; END IF;
   IF NOT EXISTS (SELECT 1 FROM public.lead_activities WHERE lead_id = '61000000-0000-4000-8000-000000000003' AND activity_type = 'routing_held') THEN
@@ -41,7 +69,17 @@ BEGIN
   -- the legacy Discovery-style order is untouched
   SELECT count(*) INTO n FROM public.lead_order_items WHERE order_id = '30000000-0000-4000-8000-000000000001';
   IF n <> 5 THEN RAISE EXCEPTION 'smoke 1: legacy order items changed (%)', n; END IF;
-  RAISE NOTICE 'ok 1: capacity from lead_orders (2 attached, third held, legacy order untouched)';
+  RAISE NOTICE 'ok 1: capacity from lead_orders (2 reserved, none counted at hand-over, third held, legacy order untouched)';
+END $$;
+-- 1b. a broker that is not ready (no FSP number / intro card) never receives a SortMyCover lead: it is held
+INSERT INTO public.leads (id, email, phone, brand_id, broker_id, routed_at, consent_text, consent_source, consent_at, first_name, source)
+VALUES ('61000000-0000-4000-8000-000000000008', NULL, '+27600008008', :'brand', '10000000-0000-4000-8000-000000000002', now(), 'consent text', 'ctwa', now(), 'N8', 'Search Lead');
+DO $$
+DECLARE b uuid; r text;
+BEGIN
+  SELECT broker_id, routing_reason INTO b, r FROM public.leads WHERE id = '61000000-0000-4000-8000-000000000008';
+  IF b IS NOT NULL OR r <> 'held_broker_not_ready' THEN RAISE EXCEPTION 'smoke 1b: lead introduced to a broker without an FSP number (broker %, reason %)', b, r; END IF;
+  RAISE NOTICE 'ok 1b: no lead is introduced to a broker without his FSP number (held_broker_not_ready)';
 END $$;
 
 -- 2. a routed lead cannot be re-routed to a broker without an open order; the broker sees his leads in the existing order pipeline
@@ -54,9 +92,37 @@ BEGIN
   END;
   -- un-routing takes the lead off the order (no double delivery), routing back re-attaches it
   UPDATE public.leads SET broker_id = NULL WHERE id = '61000000-0000-4000-8000-000000000002';
-  IF EXISTS (SELECT 1 FROM public.lead_order_items WHERE lead_id = '61000000-0000-4000-8000-000000000002') THEN RAISE EXCEPTION 'smoke 2: un-routed lead still on the order'; END IF;
+  IF (SELECT order_state FROM public.leads WHERE id = '61000000-0000-4000-8000-000000000002') <> 'released' THEN RAISE EXCEPTION 'smoke 2: un-routed lead kept its reservation'; END IF;
   UPDATE public.leads SET broker_id = '10000000-0000-4000-8000-000000000001' WHERE id = '61000000-0000-4000-8000-000000000002';
-  IF (SELECT count(*) FROM public.lead_order_items WHERE order_id = '31000000-0000-4000-8000-000000000001') <> 2 THEN RAISE EXCEPTION 'smoke 2: re-attach failed'; END IF;
+  IF (SELECT count(*) FROM public.leads WHERE lead_order_id = '31000000-0000-4000-8000-000000000001' AND order_state = 'attached') <> 2 THEN RAISE EXCEPTION 'smoke 2: re-attach failed'; END IF;
+  -- a disqualified / opted-out lead gives its reserved place back (sub-block rolled back on purpose)
+  BEGIN
+    UPDATE public.leads SET stage = 'disqualified' WHERE id = '61000000-0000-4000-8000-000000000002';
+    IF (SELECT order_state || ':' || order_release_reason FROM public.leads WHERE id = '61000000-0000-4000-8000-000000000002') <> 'released:disqualified' THEN
+      RAISE EXCEPTION 'smoke 2: disqualified lead kept its place'; END IF;
+    IF (SELECT remaining FROM public.smc_order_capacity WHERE lead_order_id = '31000000-0000-4000-8000-000000000001') <> 1 THEN RAISE EXCEPTION 'smoke 2: released place not free'; END IF;
+    RAISE EXCEPTION USING ERRCODE = 'P0099', MESSAGE = 'rollback';
+  EXCEPTION WHEN sqlstate 'P0099' THEN NULL;
+  END;
+  BEGIN
+    UPDATE public.leads SET opted_out_at = now() WHERE id = '61000000-0000-4000-8000-000000000002';
+    IF (SELECT order_state FROM public.leads WHERE id = '61000000-0000-4000-8000-000000000002') <> 'released' THEN RAISE EXCEPTION 'smoke 2: STOP kept the place'; END IF;
+    RAISE EXCEPTION USING ERRCODE = 'P0099', MESSAGE = 'rollback';
+  EXCEPTION WHEN sqlstate 'P0099' THEN NULL;
+  END;
+  -- a meeting that passed without the lead confirming: never Delivered, the place goes back
+  BEGIN
+    INSERT INTO public.appointments (id, broker_id, client_id, appointment_date, ends_at, status, brand_id, method)
+    VALUES ('71000000-0000-4000-8000-000000000099', '10000000-0000-4000-8000-000000000001', '61000000-0000-4000-8000-000000000002',
+            now() - interval '3 hours', now() - interval '150 minutes', 'booked', (SELECT id FROM public.brands WHERE code = 'SMC'), 'teams');
+    INSERT INTO public.outcomes (booking_id, lead_id, broker_id, brand_id, outcome)
+    VALUES ('71000000-0000-4000-8000-000000000099', '61000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000001', (SELECT id FROM public.brands WHERE code = 'SMC'), 'no_show');
+    IF (SELECT order_state || ':' || order_release_reason FROM public.leads WHERE id = '61000000-0000-4000-8000-000000000002') <> 'released:meeting_passed_unconfirmed' THEN
+      RAISE EXCEPTION 'smoke 2: unconfirmed meeting kept the place'; END IF;
+    IF EXISTS (SELECT 1 FROM public.lead_order_items WHERE lead_id = '61000000-0000-4000-8000-000000000002') THEN RAISE EXCEPTION 'smoke 2: unconfirmed lead counted'; END IF;
+    RAISE EXCEPTION USING ERRCODE = 'P0099', MESSAGE = 'rollback';
+  EXCEPTION WHEN sqlstate 'P0099' THEN NULL;
+  END;
   -- a calendar token reference may only name this broker's own Vault secret
   BEGIN
     UPDATE public.brokers SET calendar_token_ref = 'ms_refresh_10000000-0000-4000-8000-000000000002_1700000000' WHERE id = '10000000-0000-4000-8000-000000000001';
@@ -72,6 +138,27 @@ SELECT ('71000000-0000-4000-8000-' || lpad(g::text, 12, '0'))::uuid, '10000000-0
        ('61000000-0000-4000-8000-' || lpad(g::text, 12, '0'))::uuid, now() - ((11 + g) || ' minutes')::interval,
        now() - ((11 + g) || ' minutes')::interval + interval '30 seconds', 'booked', :'brand', 'teams'
   FROM generate_series(1, 2) g;
+
+-- 3a. THE DELIVERY POINT (agreement 5.2): booked + attendance confirmed counts the lead, once; booked alone does not
+DO $$
+DECLARE n int;
+BEGIN
+  IF EXISTS (SELECT 1 FROM public.lead_order_items WHERE order_id = '31000000-0000-4000-8000-000000000001') THEN RAISE EXCEPTION 'smoke 3a: a booking alone counted the lead'; END IF;
+  UPDATE public.appointments SET status = 'confirmed', confirmed_at = now() WHERE id = '71000000-0000-4000-8000-000000000001';
+  IF NOT EXISTS (SELECT 1 FROM public.lead_order_items WHERE order_id = '31000000-0000-4000-8000-000000000001' AND lead_id = '61000000-0000-4000-8000-000000000001') THEN
+    RAISE EXCEPTION 'smoke 3a: confirmed attendance did not count the lead'; END IF;
+  IF (SELECT order_state || ':' || delivered::text FROM public.leads WHERE id = '61000000-0000-4000-8000-000000000001') <> 'counted:true' THEN RAISE EXCEPTION 'smoke 3a: lead state not counted'; END IF;
+  IF EXISTS (SELECT 1 FROM public.lead_order_items WHERE lead_id = '61000000-0000-4000-8000-000000000002') THEN RAISE EXCEPTION 'smoke 3a: unconfirmed lead counted'; END IF;
+  -- a repeat confirmation counts nothing twice
+  UPDATE public.appointments SET confirmed_at = now() WHERE id = '71000000-0000-4000-8000-000000000001';
+  SELECT count(*) INTO n FROM public.lead_activities WHERE lead_id = '61000000-0000-4000-8000-000000000001' AND activity_type = 'order_counted';
+  IF n <> 1 THEN RAISE EXCEPTION 'smoke 3a: order_counted rows %', n; END IF;
+  UPDATE public.appointments SET status = 'confirmed', confirmed_at = now() WHERE id = '71000000-0000-4000-8000-000000000002';
+  IF (SELECT counted FROM public.smc_order_capacity WHERE lead_order_id = '31000000-0000-4000-8000-000000000001') <> 2
+     OR (SELECT reserved FROM public.smc_order_capacity WHERE lead_order_id = '31000000-0000-4000-8000-000000000001') <> 0 THEN
+    RAISE EXCEPTION 'smoke 3a: view after two confirmations wrong'; END IF;
+  RAISE NOTICE 'ok 3a: a lead counts toward the order at booked + attendance confirmed, exactly once';
+END $$;
 
 -- the broker's uploaded proof files (the RPC requires the object to exist in the private bucket)
 INSERT INTO storage.objects (bucket_id, name) VALUES
@@ -134,11 +221,24 @@ BEGIN
   IF c <> 3 THEN RAISE EXCEPTION 'smoke 5: capacity should be 3, got %', c; END IF;
   UPDATE public.leads SET broker_id = '10000000-0000-4000-8000-000000000001', routed_at = now(), routing_reason = 'single_broker'
    WHERE id = '61000000-0000-4000-8000-000000000003';
-  IF NOT EXISTS (SELECT 1 FROM public.lead_order_items WHERE order_id = o AND lead_id = '61000000-0000-4000-8000-000000000003') THEN
-    RAISE EXCEPTION 'smoke 5: replacement lead not attached'; END IF;
-  IF (SELECT counted_toward_order FROM public.smc_order_capacity WHERE lead_order_id = o) <> 2 THEN
-    RAISE EXCEPTION 'smoke 5: counted_toward_order should stay 2'; END IF;
-  RAISE NOTICE 'ok 5: approved replacement adds one lead of capacity; delivered count toward the order stays at lead_count';
+  IF (SELECT order_state || ':' || lead_order_id::text FROM public.leads WHERE id = '61000000-0000-4000-8000-000000000003') <> 'attached:' || o::text THEN
+    RAISE EXCEPTION 'smoke 5: replacement lead not reserved on the order'; END IF;
+  RAISE NOTICE 'ok 5: approved replacement adds one lead of capacity; the replacement lead is reserved on that order';
+END $$;
+-- 5b. W09's Confirm tap runs as n8n_app (no write on lead_order_items): the counting trigger still delivers the lead
+INSERT INTO public.appointments (id, broker_id, client_id, appointment_date, ends_at, status, brand_id, method)
+VALUES ('71000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000001', '61000000-0000-4000-8000-000000000003',
+        now() + interval '2 days', now() + interval '2 days 30 minutes', 'booked', :'brand', 'teams');
+SET LOCAL ROLE n8n_app;
+UPDATE public.appointments SET status = 'confirmed', confirmed_at = now() WHERE id = '71000000-0000-4000-8000-000000000003';
+RESET ROLE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.lead_order_items WHERE order_id = '31000000-0000-4000-8000-000000000001' AND lead_id = '61000000-0000-4000-8000-000000000003') THEN
+    RAISE EXCEPTION 'smoke 5b: confirmation by n8n_app did not count the lead'; END IF;
+  IF (SELECT counted_toward_order FROM public.smc_order_capacity WHERE lead_order_id = '31000000-0000-4000-8000-000000000001') <> 2 THEN
+    RAISE EXCEPTION 'smoke 5b: counted_toward_order should be 2 (3 delivered, 1 replaced)'; END IF;
+  RAISE NOTICE 'ok 5b: n8n_app confirmation counts through the definer trigger; delivered toward the order = lead_count';
 END $$;
 
 -- 6. brokers guard: SMC broker may edit availability but not routing / disclosure / calendar state; legacy broker cannot self-enrol

@@ -3,14 +3,23 @@
 -- meeting outcomes and goodwill replacements. Replaces the cycles / pricing / per-cycle-cap design of the original chain.
 --
 -- Capacity rule (Jonathan, 2026-10-11): a broker is eligible for SortMyCover leads only while he has a lead_orders row for
--- SortMyCover (lead_orders.brand_id = SMC) that is PAID and not yet fully delivered, counted through lead_order_items.
--- Routing attaches every delivered lead to that order (one lead_order_items row), so the order, the broker's existing
--- order pipeline (broker_get_pipeline / get_order_leads) and admin_list_orders_activity show the SortMyCover leads with no
--- new UI. The attach is enforced HERE, in the database (triggers on leads), so W01, capture v2 (tier-B accept) and a manual
--- admin routing all behave the same, and two concurrent leads can never overfill an order.
+-- SortMyCover (lead_orders.brand_id = SMC) that is PAID and not yet full.
+-- WHEN A LEAD COUNTS (Jonathan, 2026-10-11; agreement LGSA v0.3 clause 5.1(e) / 5.2 and Schedule 2 criterion 6 / S2.4): a
+-- lead is Delivered and counts toward the broker's order at the moment it has a booked appointment with him AND has
+-- confirmed it will attend (appointments.confirmed_at: the Confirm tap / reply, W09), never at hand-over. Three states on
+-- the lead (leads.order_state), all enforced HERE in triggers so every path (W01, capture v2 tier-B accept, an admin) is
+-- the same:
+--   held     : routed with no room / broker not ready -> broker_id cleared, routing_reason held_*, nothing sent
+--   attached : routed to the broker; one place on his oldest open order is RESERVED (leads.lead_order_id), not counted;
+--              the CRM pipeline does not show the lead yet (no lead_order_items row, no contact details unlocked)
+--   counted  : booked + attendance confirmed -> one lead_order_items row (pipeline stage 'New'), the broker's existing order
+--              pipeline (broker_get_pipeline / get_order_leads) and admin_list_orders_activity show it, contact details
+--              unlocked (S2.4: the lead data goes to the Client at Delivery)
+--   released : an attached lead that will not be delivered (opted out, disqualified, closed unbooked, re-routed, or its
+--              meeting passed unconfirmed): the reservation goes back; a later booking + confirmation re-attaches if room
 --   capacity  = lead_orders.lead_count + approved goodwill replacements on that order
---   delivered = lead_order_items rows of that order
---   open      = status 'paid' AND delivered < capacity
+--   in use    = counted (lead_order_items) + attached reservations
+--   open      = status 'paid' AND in use < capacity
 -- The existing order RPCs, contracts, Paystack reference, admin_mark_order_paid and invoicing are untouched.
 --
 -- Replacements (agreed rule, agreement clause 7 / Schedule 3): goodwill only, for a NO-SHOW or a lead the broker could not
@@ -26,6 +35,27 @@
 ALTER TABLE public.lead_orders ADD COLUMN IF NOT EXISTS brand_id uuid REFERENCES public.brands(id);
 CREATE INDEX IF NOT EXISTS lead_orders_smc_open_idx ON public.lead_orders (broker_id, paid_at) WHERE brand_id IS NOT NULL;
 COMMENT ON COLUMN public.lead_orders.brand_id IS 'SMC: brands.id for a SortMyCover lead order (consumer leads routed by the WhatsApp nurture flow). NULL = a CRM order as before.';
+
+-- The lead's place on an order (2026-10-11, count at confirmed attendance). Nullable, no default: catalog-only on leads.
+ALTER TABLE public.leads
+  ADD COLUMN IF NOT EXISTS lead_order_id        uuid REFERENCES public.lead_orders(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS order_state          text,
+  ADD COLUMN IF NOT EXISTS order_attached_at    timestamptz,
+  ADD COLUMN IF NOT EXISTS order_counted_at     timestamptz,
+  ADD COLUMN IF NOT EXISTS order_released_at    timestamptz,
+  ADD COLUMN IF NOT EXISTS order_release_reason text;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'leads_smc_order_state_check' AND conrelid = 'public.leads'::regclass) THEN
+    ALTER TABLE public.leads ADD CONSTRAINT leads_smc_order_state_check CHECK (
+          (order_state IS NULL OR order_state IN ('attached','counted','released'))
+      AND (order_state IS DISTINCT FROM 'attached' OR lead_order_id IS NOT NULL)
+      AND (order_state IS DISTINCT FROM 'counted'  OR (lead_order_id IS NOT NULL AND order_counted_at IS NOT NULL))
+    ) NOT VALID;   -- new columns only (all NULL on the legacy rows)
+  END IF;
+END $$;
+CREATE INDEX IF NOT EXISTS leads_smc_order_reserved_idx ON public.leads (lead_order_id) WHERE order_state = 'attached';
+COMMENT ON COLUMN public.leads.order_state IS 'SMC: attached (place reserved on lead_order_id) | counted (booked + attendance confirmed: Delivered, agreement 5.2; one lead_order_items row) | released. NULL = not routed / held / legacy.';
 
 -- -----------------------------------------------------------------------------
 -- 2. outcomes: one per booking (attended / no-show / unreachable / rescheduled / broker no-show). W12 owns it.
@@ -135,6 +165,22 @@ CREATE TRIGGER smc_replacements_cap
 -- -----------------------------------------------------------------------------
 -- 4. Capacity: which open SortMyCover order a lead attaches to (locks the order row; one lead at a time per order)
 -- -----------------------------------------------------------------------------
+-- A broker can only be handed a SortMyCover lead when his intro card can be shown in full (FAIS disclosure): the same rule
+-- as the brokers_smc_routing_ready CHECK (file 02), applied here too so an admin routing to a broker whose routing switch
+-- is off still cannot introduce a lead to a broker without an FSP number.
+CREATE OR REPLACE FUNCTION public.smc_broker_ready(p_broker_id uuid)
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT EXISTS (SELECT 1 FROM public.brokers b
+                  WHERE b.id = p_broker_id
+                    AND btrim(coalesce(b.fsp_number, '')) ~ '^[A-Za-z0-9 /-]{1,20}$' AND b.fsp_number ~ '[0-9]'
+                    AND btrim(coalesce(b.firm_name, '')) <> ''
+                    AND btrim(coalesce(b.contact_person, '')) <> ''
+                    AND btrim(coalesce(b.intro_card_url, '')) ~ '^https://')
+$$;
+COMMENT ON FUNCTION public.smc_broker_ready(uuid) IS 'SMC: the broker''s FSP number, practice name, adviser name and intro card are present (broker_intro_booked can be sent in full). Same rule as brokers_smc_routing_ready.';
+
 CREATE OR REPLACE FUNCTION public.smc_open_order_for(p_broker_id uuid, p_brand_id uuid)
 RETURNS uuid
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public
@@ -157,7 +203,10 @@ BEGIN
     -- lock first, count after the lock (each statement sees rows committed by the transaction that held the lock before us)
     PERFORM 1 FROM public.lead_orders o WHERE o.id = c.id AND o.status = 'paid' FOR UPDATE;
     IF NOT FOUND THEN CONTINUE; END IF;
-    SELECT count(*) INTO v_used FROM public.lead_order_items i WHERE i.order_id = c.id;
+    -- in use = counted (lead_order_items) + places reserved by attached, not yet counted leads
+    SELECT (SELECT count(*) FROM public.lead_order_items i WHERE i.order_id = c.id)
+         + (SELECT count(*) FROM public.leads l WHERE l.lead_order_id = c.id AND l.order_state = 'attached')
+      INTO v_used;
     SELECT coalesce(o.lead_count, 0)
            + (SELECT count(*) FROM public.replacements r WHERE r.lead_order_id = o.id AND r.status IN ('approved','fulfilled'))
       INTO v_cap FROM public.lead_orders o WHERE o.id = c.id;
@@ -168,48 +217,71 @@ BEGIN
   RETURN NULL;
 END $$;
 COMMENT ON FUNCTION public.smc_open_order_for(uuid, uuid) IS
-  'SMC: the oldest paid SortMyCover lead_orders row of this broker that still has room (lead_count + approved replacements > lead_order_items), locked FOR UPDATE; NULL = none. READ COMMITTED only. Used by the routing triggers.';
+  'SMC: the oldest paid SortMyCover lead_orders row of this broker that still has room (lead_count + approved replacements > counted items + attached reservations), locked FOR UPDATE; NULL = none. READ COMMITTED only. Used by the routing and counting triggers.';
 
 -- "Routed for SortMyCover" changes when broker_id changes, or when an admin turns a lead with a broker into a SortMyCover lead.
--- BEFORE: a SortMyCover lead may only be routed to a broker with an open order. First routing without one is HELD
--- (broker cleared, routing_reason held_no_open_order: the lead is stored, not handed over, not messaged). A re-route of an
--- already-routed lead (or turning a routed legacy lead into a SortMyCover lead) to a broker without room is refused with an
--- error (an explicit admin action).
+-- BEFORE: a SortMyCover lead may only be routed to a READY broker (smc_broker_ready: FSP number, practice, adviser, intro
+-- card) with room on an open order. Then one place is RESERVED on his oldest open order (order_state attached): the lead is
+-- not counted yet. First routing without a ready broker / room is HELD (broker cleared, routing_reason held_broker_not_ready
+-- / held_no_open_order: stored, not handed over, not messaged). A re-route of an already-routed lead to a broker without
+-- room or not ready is refused with an error (an explicit admin action). Leaving a broker releases a reservation.
+-- The order row lock is taken before counting, and a row-level BEFORE trigger sees the rows earlier rows of the same
+-- statement wrote, so neither concurrent routings nor one multi-row statement can reserve past the order's room.
 CREATE OR REPLACE FUNCTION public.smc_leads_route_check()
-RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
-AS $$
-BEGIN
-  IF NEW.brand_id IS NULL OR NEW.broker_id IS NULL THEN RETURN NEW; END IF;
-  IF TG_OP = 'UPDATE' AND NEW.broker_id IS NOT DISTINCT FROM OLD.broker_id AND NEW.brand_id IS NOT DISTINCT FROM OLD.brand_id THEN
-    RETURN NEW;
-  END IF;
-  IF TG_OP = 'UPDATE' AND EXISTS (SELECT 1 FROM public.lead_order_items i JOIN public.lead_orders o ON o.id = i.order_id
-                                   WHERE i.lead_id = NEW.id AND o.brand_id IS NOT NULL AND o.broker_id = NEW.broker_id) THEN
-    RETURN NEW;   -- already delivered on one of this broker's orders
-  END IF;
-  IF public.smc_open_order_for(NEW.broker_id, NEW.brand_id) IS NOT NULL THEN RETURN NEW; END IF;
-  IF TG_OP = 'UPDATE' AND OLD.broker_id IS NOT NULL THEN
-    RAISE EXCEPTION 'smc: broker % has no open paid SortMyCover lead order; routing refused', NEW.broker_id USING ERRCODE = '23514';
-  END IF;
-  NEW.broker_id      := NULL;
-  NEW.routed_at      := NULL;
-  NEW.routing_reason := 'held_no_open_order';
-  IF NEW.delivered IS TRUE THEN NEW.delivered := false; END IF;
-  RETURN NEW;
-END $$;
-
--- AFTER: keep lead_order_items in step with leads.broker_id for SortMyCover leads.
---   * broker changed (to another broker or to none): the lead leaves the previous broker's SortMyCover order first (no
---     double delivery, the capacity goes back, the previous broker loses the contact details through the order RPCs);
---   * routed: attach to the open order (one lead_order_items row; the CRM pipeline stage starts at 'New'), stamp the timeline;
---   * held: a routing_held timeline row.
-CREATE OR REPLACE FUNCTION public.smc_leads_attach_order()
 RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
 DECLARE
   v_order uuid;
+  v_why   text;
+BEGIN
+  IF NEW.brand_id IS NULL THEN RETURN NEW; END IF;
+  IF TG_OP = 'UPDATE' AND NEW.broker_id IS NOT DISTINCT FROM OLD.broker_id AND NEW.brand_id IS NOT DISTINCT FROM OLD.brand_id THEN
+    RETURN NEW;
+  END IF;
+  -- leaving a broker (un-route or re-route): a reservation goes back; a counted lead is detached by the AFTER trigger
+  IF TG_OP = 'UPDATE' AND OLD.broker_id IS NOT NULL AND NEW.broker_id IS DISTINCT FROM OLD.broker_id AND NEW.order_state IN ('attached','counted') THEN
+    NEW.order_state := 'released'; NEW.order_released_at := now(); NEW.order_release_reason := 'rerouted';
+  END IF;
+  IF NEW.broker_id IS NULL THEN RETURN NEW; END IF;
+  IF TG_OP = 'UPDATE' AND (
+       EXISTS (SELECT 1 FROM public.lead_order_items i JOIN public.lead_orders o ON o.id = i.order_id
+                WHERE i.lead_id = NEW.id AND o.brand_id IS NOT NULL AND o.broker_id = NEW.broker_id)
+    OR (NEW.order_state IN ('attached','counted') AND EXISTS (SELECT 1 FROM public.lead_orders o WHERE o.id = NEW.lead_order_id AND o.broker_id = NEW.broker_id))) THEN
+    RETURN NEW;   -- already reserved / delivered on one of this broker's orders
+  END IF;
+  IF NOT public.smc_broker_ready(NEW.broker_id) THEN
+    v_why := 'held_broker_not_ready';
+  ELSE
+    v_order := public.smc_open_order_for(NEW.broker_id, NEW.brand_id);
+    IF v_order IS NULL THEN v_why := 'held_no_open_order'; END IF;
+  END IF;
+  IF v_order IS NOT NULL THEN
+    NEW.lead_order_id := v_order; NEW.order_state := 'attached'; NEW.order_attached_at := now();
+    NEW.order_counted_at := NULL; NEW.order_released_at := NULL; NEW.order_release_reason := NULL;
+    RETURN NEW;
+  END IF;
+  IF TG_OP = 'UPDATE' AND OLD.broker_id IS NOT NULL THEN
+    RAISE EXCEPTION 'smc: broker % %; routing refused', NEW.broker_id,
+      CASE v_why WHEN 'held_broker_not_ready' THEN 'is not ready (FSP number, practice, adviser name and intro card are required)' ELSE 'has no open paid SortMyCover lead order' END
+      USING ERRCODE = '23514';
+  END IF;
+  NEW.broker_id      := NULL;
+  NEW.routed_at      := NULL;
+  NEW.routing_reason := v_why;
+  IF NEW.delivered IS TRUE THEN NEW.delivered := false; END IF;
+  RETURN NEW;
+END $$;
+
+-- AFTER: keep lead_order_items and the timeline in step for SortMyCover leads.
+--   * broker changed (to another broker or to none): the lead leaves the previous broker's SortMyCover order (no double
+--     delivery, the capacity goes back, the previous broker loses the contact details through the order RPCs);
+--   * routed: an order_attached timeline row (reserved, NOT counted: no lead_order_items row until attendance is confirmed);
+--   * held: a routing_held timeline row.
+CREATE OR REPLACE FUNCTION public.smc_leads_attach_order()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
 BEGIN
   IF NEW.brand_id IS NULL THEN RETURN NULL; END IF;
   IF TG_OP = 'UPDATE' AND OLD.broker_id IS NOT NULL AND NEW.broker_id IS DISTINCT FROM OLD.broker_id THEN
@@ -217,28 +289,21 @@ BEGIN
      WHERE i.order_id = o.id AND i.lead_id = NEW.id AND o.brand_id IS NOT NULL AND o.broker_id = OLD.broker_id;
   END IF;
   IF NEW.broker_id IS NULL THEN
-    IF NEW.routing_reason = 'held_no_open_order' AND (TG_OP = 'INSERT' OR OLD.routing_reason IS DISTINCT FROM NEW.routing_reason) THEN
+    IF NEW.routing_reason LIKE 'held_%' AND (TG_OP = 'INSERT' OR OLD.routing_reason IS DISTINCT FROM NEW.routing_reason) THEN
       INSERT INTO public.lead_activities (lead_id, brand_id, actor_type, activity_type, payload, occurred_at, idempotency_key)
-      VALUES (NEW.id, NEW.brand_id, 'system', 'routing_held', jsonb_build_object('reason', 'held_no_open_order'), now(),
+      VALUES (NEW.id, NEW.brand_id, 'system', 'routing_held', jsonb_build_object('reason', NEW.routing_reason), now(),
               'order:held:' || NEW.id::text || ':' || extract(epoch FROM clock_timestamp())::bigint::text)
       ON CONFLICT (idempotency_key) DO NOTHING;
     END IF;
     RETURN NULL;
   END IF;
-  IF EXISTS (SELECT 1 FROM public.lead_order_items i JOIN public.lead_orders o ON o.id = i.order_id
-              WHERE i.lead_id = NEW.id AND o.brand_id IS NOT NULL AND o.broker_id = NEW.broker_id) THEN
-    RETURN NULL;   -- already on one of this broker's SortMyCover orders
+  IF NEW.order_state = 'attached' AND (TG_OP = 'INSERT' OR OLD.lead_order_id IS DISTINCT FROM NEW.lead_order_id OR OLD.order_state IS DISTINCT FROM NEW.order_state) THEN
+    INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, actor_type, activity_type, payload, occurred_at, idempotency_key)
+    VALUES (NEW.id, NEW.brand_id, NEW.broker_id, 'system', 'order_attached',
+            jsonb_build_object('lead_order_id', NEW.lead_order_id, 'counted', false, 'counts_when', 'booked + attendance confirmed (agreement 5.2)'), now(),
+            'order:attach:' || NEW.id::text || ':' || NEW.lead_order_id::text || ':' || extract(epoch FROM clock_timestamp())::bigint::text)
+    ON CONFLICT (idempotency_key) DO NOTHING;
   END IF;
-  v_order := public.smc_open_order_for(NEW.broker_id, NEW.brand_id);
-  IF v_order IS NULL THEN
-    -- only reachable when several SortMyCover leads are routed in ONE statement past the order's room: refuse, never overfill
-    RAISE EXCEPTION 'smc: lead order of broker % filled within this statement; route leads one at a time', NEW.broker_id USING ERRCODE = '23514';
-  END IF;
-  INSERT INTO public.lead_order_items (order_id, lead_id) VALUES (v_order, NEW.id) ON CONFLICT DO NOTHING;
-  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, actor_type, activity_type, payload, occurred_at, idempotency_key)
-  VALUES (NEW.id, NEW.brand_id, NEW.broker_id, 'system', 'order_attached', jsonb_build_object('lead_order_id', v_order), now(),
-          'order:attach:' || NEW.id::text || ':' || v_order::text || ':' || extract(epoch FROM clock_timestamp())::bigint::text)
-  ON CONFLICT (idempotency_key) DO NOTHING;
   RETURN NULL;
 END $$;
 
@@ -251,23 +316,122 @@ CREATE TRIGGER smc_leads_attach_order
   AFTER INSERT OR UPDATE OF broker_id, brand_id ON public.leads
   FOR EACH ROW WHEN (NEW.brand_id IS NOT NULL) EXECUTE FUNCTION public.smc_leads_attach_order();
 
+-- A reservation that will not become a delivery is released: opt-out (STOP), disqualified, closed unbooked. (Re-routing is
+-- handled above; a meeting that passed unconfirmed is released by the outcomes trigger below.) A counted lead stays counted.
+CREATE OR REPLACE FUNCTION public.smc_leads_release_reservation()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  v_why text;
+BEGIN
+  IF NEW.order_state IS DISTINCT FROM 'attached' THEN RETURN NEW; END IF;
+  IF NEW.opted_out_at IS NOT NULL AND OLD.opted_out_at IS NULL THEN v_why := 'opted_out';
+  ELSIF NEW.stage IN ('disqualified','unbooked_closed','opted_out') AND NEW.stage IS DISTINCT FROM OLD.stage THEN v_why := NEW.stage;
+  END IF;
+  IF v_why IS NULL THEN RETURN NEW; END IF;
+  NEW.order_state := 'released'; NEW.order_released_at := now(); NEW.order_release_reason := v_why;
+  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, actor_type, activity_type, payload, occurred_at, idempotency_key)
+  VALUES (NEW.id, NEW.brand_id, NEW.broker_id, 'system', 'order_released', jsonb_build_object('lead_order_id', NEW.lead_order_id, 'reason', v_why), now(),
+          'order:released:' || NEW.id::text || ':' || extract(epoch FROM clock_timestamp())::bigint::text)
+  ON CONFLICT (idempotency_key) DO NOTHING;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS smc_leads_release_reservation ON public.leads;
+CREATE TRIGGER smc_leads_release_reservation
+  BEFORE UPDATE OF opted_out_at, stage ON public.leads
+  FOR EACH ROW WHEN (NEW.brand_id IS NOT NULL) EXECUTE FUNCTION public.smc_leads_release_reservation();
+
+-- THE DELIVERY POINT (agreement 5.1(e) / 5.2 / S2.4): a live SortMyCover booking whose attendance the lead confirmed
+-- (appointments.confirmed_at set: W09's Confirm tap or reply) counts the lead toward the broker's order, once: one
+-- lead_order_items row (the CRM pipeline and contact details), leads.order_state counted + delivered, timeline order_counted.
+-- The reserved place is used; a released lead re-attaches only if the broker still has room (else count_held_no_room).
+-- A B-tier lead is only booked after the broker's Accept (capture v2), so it counts "because the Client accepted it".
+CREATE OR REPLACE FUNCTION public.smc_count_on_confirm()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  l       public.leads%rowtype;
+  v_order uuid;
+BEGIN
+  IF NEW.brand_id IS NULL OR NEW.confirmed_at IS NULL OR NEW.status NOT IN ('booked','confirmed') THEN RETURN NULL; END IF;
+  IF TG_OP = 'UPDATE' AND OLD.confirmed_at IS NOT NULL AND OLD.status IN ('booked','confirmed') THEN RETURN NULL; END IF;
+  SELECT * INTO l FROM public.leads WHERE id = NEW.client_id FOR UPDATE;
+  IF NOT FOUND OR l.brand_id IS NULL OR l.opted_out_at IS NOT NULL OR l.order_state = 'counted' THEN RETURN NULL; END IF;
+  IF l.broker_id IS DISTINCT FROM NEW.broker_id THEN RETURN NULL; END IF;   -- a booking with someone he is no longer routed to
+  IF l.order_state = 'attached' AND l.lead_order_id IS NOT NULL THEN
+    PERFORM 1 FROM public.lead_orders o WHERE o.id = l.lead_order_id FOR UPDATE;
+    v_order := l.lead_order_id;
+  ELSE
+    v_order := public.smc_open_order_for(l.broker_id, l.brand_id);
+  END IF;
+  IF v_order IS NULL THEN
+    INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, actor_type, activity_type, payload, occurred_at, idempotency_key)
+    VALUES (l.id, l.brand_id, l.broker_id, 'system', 'count_held_no_room', jsonb_build_object('booking_id', NEW.id), now(), 'order:count_held:' || NEW.id::text)
+    ON CONFLICT (idempotency_key) DO NOTHING;
+    RETURN NULL;
+  END IF;
+  INSERT INTO public.lead_order_items (order_id, lead_id) VALUES (v_order, l.id) ON CONFLICT DO NOTHING;
+  UPDATE public.leads SET lead_order_id = v_order, order_state = 'counted', order_counted_at = now(), delivered = true,
+                          order_released_at = NULL, order_release_reason = NULL, updated_at = now()
+   WHERE id = l.id;
+  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, actor_type, activity_type, payload, occurred_at, idempotency_key)
+  VALUES (l.id, l.brand_id, l.broker_id, 'system', 'order_counted',
+          jsonb_build_object('lead_order_id', v_order, 'booking_id', NEW.id, 'confirmed_at', NEW.confirmed_at, 'rule', 'agreement 5.2: booked + attendance confirmed'), now(),
+          'order:counted:' || l.id::text)
+  ON CONFLICT (idempotency_key) DO NOTHING;
+  RETURN NULL;
+END $$;
+DROP TRIGGER IF EXISTS smc_count_on_confirm ON public.appointments;
+CREATE TRIGGER smc_count_on_confirm
+  AFTER INSERT OR UPDATE OF status, confirmed_at ON public.appointments
+  FOR EACH ROW WHEN (NEW.brand_id IS NOT NULL AND NEW.confirmed_at IS NOT NULL) EXECUTE FUNCTION public.smc_count_on_confirm();
+
+-- An outcome for a meeting the lead never confirmed: the lead was never Delivered (criterion 6 unmet), so the reserved
+-- place goes back to the order (a rebooking that is confirmed later re-attaches through smc_count_on_confirm).
+CREATE OR REPLACE FUNCTION public.smc_outcome_release_reservation()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+BEGIN
+  UPDATE public.leads l
+     SET order_state = 'released', order_released_at = now(), order_release_reason = 'meeting_passed_unconfirmed', updated_at = now()
+   WHERE l.id = NEW.lead_id AND l.order_state = 'attached'
+     AND NOT EXISTS (SELECT 1 FROM public.appointments a WHERE a.id = NEW.booking_id AND a.confirmed_at IS NOT NULL);
+  IF FOUND THEN
+    INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, actor_type, activity_type, payload, occurred_at, idempotency_key)
+    VALUES (NEW.lead_id, NEW.brand_id, NEW.broker_id, 'system', 'order_released',
+            jsonb_build_object('reason', 'meeting_passed_unconfirmed', 'booking_id', NEW.booking_id), now(), 'order:released:outcome:' || NEW.booking_id::text)
+    ON CONFLICT (idempotency_key) DO NOTHING;
+  END IF;
+  RETURN NULL;
+END $$;
+DROP TRIGGER IF EXISTS smc_outcome_release_reservation ON public.outcomes;
+CREATE TRIGGER smc_outcome_release_reservation
+  AFTER INSERT ON public.outcomes
+  FOR EACH ROW EXECUTE FUNCTION public.smc_outcome_release_reservation();
+
 -- -----------------------------------------------------------------------------
 -- 5. smc_order_capacity: one row per SortMyCover order (routing context, portal, console). RLS of the base tables applies.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE VIEW public.smc_order_capacity WITH (security_invoker = true) AS
 SELECT o.id AS lead_order_id, o.broker_id, o.brand_id, o.title, o.status, coalesce(o.lead_count, 0) AS lead_count,
        o.paid_at, o.created_at,
-       x.attached,
+       x.counted + x.reserved                                                                  AS attached,   -- places in use
        x.replacements_approved,
        coalesce(o.lead_count, 0) + x.replacements_approved                                    AS capacity,
-       greatest(0, coalesce(o.lead_count, 0) + x.replacements_approved - x.attached)          AS remaining,
-       greatest(0, x.attached - x.replacements_approved)                                      AS counted_toward_order,
-       (o.status = 'paid' AND coalesce(o.lead_count, 0) + x.replacements_approved > x.attached) AS open,
+       greatest(0, coalesce(o.lead_count, 0) + x.replacements_approved - x.counted - x.reserved) AS remaining,
+       greatest(0, x.counted - x.replacements_approved)                                       AS counted_toward_order,
+       (o.status = 'paid' AND coalesce(o.lead_count, 0) + x.replacements_approved > x.counted + x.reserved) AS open,
        x.replacement_requests_this_week,
-       3                                                                                       AS replacement_weekly_max
+       3                                                                                       AS replacement_weekly_max,
+       x.counted,    -- Delivered (booked + attendance confirmed, agreement 5.2): lead_order_items rows
+       x.reserved    -- routed, place held, not yet counted (leads.order_state = attached)
 FROM public.lead_orders o
 CROSS JOIN LATERAL (
-  SELECT (SELECT count(*) FROM public.lead_order_items i WHERE i.order_id = o.id)::int AS attached,
+  SELECT (SELECT count(*) FROM public.lead_order_items i WHERE i.order_id = o.id)::int AS counted,
+         (SELECT count(*) FROM public.leads l WHERE l.lead_order_id = o.id AND l.order_state = 'attached')::int AS reserved,
          (SELECT count(*) FROM public.replacements r WHERE r.lead_order_id = o.id AND r.status IN ('approved','fulfilled'))::int AS replacements_approved,
          (SELECT count(*) FROM public.replacements r
            WHERE r.broker_id = o.broker_id
@@ -275,7 +439,7 @@ CROSS JOIN LATERAL (
 ) x
 WHERE o.brand_id IS NOT NULL;
 COMMENT ON VIEW public.smc_order_capacity IS
-  'SMC: SortMyCover lead orders: attached (lead_order_items), capacity (lead_count + approved replacements), remaining, open, and the broker''s replacement requests this Calendar Week (max 3).';
+  'SMC: SortMyCover lead orders: counted (Delivered = booked + attendance confirmed, lead_order_items), reserved (routed, not yet counted), attached = counted + reserved, capacity (lead_count + approved replacements), remaining, open, counted_toward_order, and the broker''s replacement requests this Calendar Week (max 3).';
 
 -- -----------------------------------------------------------------------------
 -- 6. The broker's replacement request from the portal (one call = outcome + proof + request, as the signed-in broker).
@@ -403,7 +567,8 @@ BEGIN
   EXECUTE format('CREATE TRIGGER smc_audit AFTER INSERT OR UPDATE OR DELETE ON public.lead_orders FOR EACH ROW EXECUTE FUNCTION public.smc_audit(%L)', 'brand_scoped');
 END $$;
 REVOKE ALL ON FUNCTION public.smc_open_order_for(uuid, uuid), public.smc_leads_route_check(), public.smc_leads_attach_order(),
-                       public.smc_replacements_cap() FROM PUBLIC, anon, authenticated;
+                       public.smc_replacements_cap(), public.smc_broker_ready(uuid), public.smc_leads_release_reservation(),
+                       public.smc_count_on_confirm(), public.smc_outcome_release_reservation() FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.smc_request_replacement(uuid, text, text), public.smc_request_noshow_replacement(uuid, text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.smc_request_replacement(uuid, text, text), public.smc_request_noshow_replacement(uuid, text) TO authenticated;
 REVOKE ALL ON FUNCTION public.smc_week_start(timestamptz) FROM PUBLIC, anon;
