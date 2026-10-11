@@ -123,7 +123,7 @@ const PremiumBrokerPortalPage = () => {
 
             const { data: broker, error: brokerError } = await supabase
                 .from("brokers")
-                .select("*, broker_onboarding_responses(*), profiles(*)")
+                .select("*, broker_onboarding_responses(*)")
                 .eq("user_id", session.user.id)
                 .single();
 
@@ -147,8 +147,16 @@ const PremiumBrokerPortalPage = () => {
                 return;
             }
 
+            // brokers and profiles have no foreign key, so PostgREST cannot embed profiles(*); load it separately.
+            const { data: profileRow } = await supabase
+                .from("profiles")
+                .select("*")
+                .eq("user_id", session.user.id)
+                .maybeSingle();
+
             const enrichedBroker = {
                 ...broker,
+                profiles: profileRow ?? null,
                 tier: broker.tier || TIERS[0].name,
                 is_lead_loading: broker.is_lead_loading !== undefined ? broker.is_lead_loading : true,
                 leads_used: (broker as any).leads_used || 0,
@@ -362,7 +370,7 @@ const PremiumBrokerPortalPage = () => {
                                                         size="sm"
                                                         onClick={async () => {
                                                             const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-                                                            const { error } = await supabase.from("profiles").update({ discord_pairing_code: newCode }).eq("id", (brokerData as any).user_id);
+                                                            const { error } = await supabase.from("profiles").update({ discord_pairing_code: newCode }).eq("user_id", (brokerData as any).user_id);
                                                             if (!error) {
                                                                 setBrokerData({ ...brokerData, profiles: { ...(brokerData as any).profiles, discord_pairing_code: newCode } });
                                                                 toast({ title: "Signal Generated", description: "Encryption code refreshed." });
@@ -412,7 +420,7 @@ const PremiumBrokerPortalPage = () => {
                                                         size="sm"
                                                         onClick={async () => {
                                                             const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-                                                            const { error } = await supabase.from("profiles").update({ telegram_pairing_code: newCode }).eq("id", (brokerData as any).user_id);
+                                                            const { error } = await supabase.from("profiles").update({ telegram_pairing_code: newCode }).eq("user_id", (brokerData as any).user_id);
                                                             if (!error) {
                                                                 setBrokerData({ ...brokerData, profiles: { ...(brokerData as any).profiles, telegram_pairing_code: newCode } });
                                                                 toast({ title: "Frequency Tuned", description: "Telegram auth signature cycled." });
