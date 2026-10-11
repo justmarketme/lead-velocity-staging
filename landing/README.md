@@ -60,6 +60,8 @@ All JSON, CORS allowed for the page origin. The quiz itself sends nothing; out-o
   context: { event_id, event_name:"Lead", fbp, fbc, utm:{...}, fbclid, page_url, user_agent, ts } }
 -> 200 { ok:true, lead_id, broker_id, methods_supported:["teams","zoom","google_meet","whatsapp_call","phone"], duplicate?:bool, out_of_band?:bool }
 -> 422 { error:"invalid_mobile" | "out_of_band" | "consent_required" }   -> 429 rate limit
+   (2026-10-11: a budget under R750 is tier C, never out_of_band; with no adviser for it yet the answer is 200 { status:"held" }:
+    the page shows the done step with done_held_p and the lead gets one WhatsApp)
 ```
 W01 re-validates bands server-side and deletes out-of-band submissions within 24 h. For the no-JS post, respond `303` to `{page_base_url}/{angle}/thanks/` built from the validated `angle` (never from a posted URL). The routed broker is decided here (1.3) and returned as `broker_id` + `methods_supported`; the page shows only those methods. No `broker_id` returned = no booking step, page shows the not-booked thank-you.
 

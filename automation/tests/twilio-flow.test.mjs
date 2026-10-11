@@ -341,6 +341,40 @@ test('migration chain: a lead is reserved at routing and COUNTED at booked + att
   assert.ok(undo02.includes('brokers_smc_routing_ready'));
 });
 
+test('tier C (under R750): the held / closed templates are Content definitions with one body variable; a held notice maps 1:1 (mocked, no send)', async () => {
+  const W01 = await import('../lib/w01.mjs');
+  for (const name of ['lead_low_budget_held', 'lead_low_budget_closed']) {
+    assert.ok(FLOW_TEMPLATES.includes(name), name);
+    const c = JSON.parse(readFileSync(join(A, 'templates', 'twilio', 'content', `${name}.json`), 'utf8'));
+    assert.deepEqual(c._meta.var_plan, [{ n: 1, kind: 'body' }], name);
+    const body = c.content.types['whatsapp/card'].body;
+    assert.match(body, /Reply STOP to opt out\.$/, name);
+    assert.doesNotMatch(body, /\bR\d|premium|guarantee|will call you|recommend/i, `${name}: no amounts, no promise of a call, no advice`);
+  }
+  const n = W01.lowBudgetHeld({ id: '00000000-0000-4000-8000-0000000a0c09', phone: LEAD, first_name: 'Nomsa Dlamini' });
+  const wa = { messaging_product: 'whatsapp', to: n.to.slice(1), type: 'template', template: { name: n.template, language: { code: 'en' }, components: [{ type: 'body', parameters: n.variables.map((text) => ({ type: 'text', text })) }] } };
+  const r = S.twilioRequest({ provider: 'twilio', payload: wa }, { ...ENV, TWILIO_CONTENT_SIDS: JSON.stringify({ ...SIDS, lead_low_budget_held: 'HXlowheld' }) });
+  const form = new URLSearchParams(r.body);
+  assert.equal(form.get('ContentSid'), 'HXlowheld'); assert.deepEqual(JSON.parse(form.get('ContentVariables')), { 1: 'Nomsa' });
+  assert.equal(form.get('To'), `whatsapp:${LEAD}`); assert.ok(!/\+1/.test(form.get('To')));
+});
+
+test('migration chain, tier C: routed only with the standing yes or an admin (manual_low_budget), held_low_budget otherwise, accept recorded, counting unchanged', () => {
+  const m02 = readFileSync(join(ROOT, 'supabase', 'migrations', '20261011020000_smc_02_core.sql'), 'utf8');
+  const m03 = readFileSync(join(ROOT, 'supabase', 'migrations', '20261011030000_smc_03_orders_outcomes.sql'), 'utf8');
+  const m05 = readFileSync(join(ROOT, 'supabase', 'migrations', '20261011050000_smc_05_access.sql'), 'utf8');
+  assert.match(m02, /ADD COLUMN IF NOT EXISTS accepts_low_budget\s+boolean NOT NULL DEFAULT false/);
+  assert.match(m02, /lead_tier IN \('A','B','C'\)/);
+  assert.match(m05, /NEW\.accepts_low_budget\s+IS DISTINCT FROM OLD\.accepts_low_budget/, 'brokers cannot switch it on themselves');
+  const route = /FUNCTION public\.smc_leads_route_check\(\)[\s\S]*?END \$\$;/.exec(m03)[0];
+  assert.match(route, /held_low_budget/); assert.match(route, /manual_low_budget/); assert.match(route, /accepts_low_budget/);
+  assert.ok(!/disqualified/.test(route), 'tier C is never disqualified by routing');
+  assert.match(m03, /CREATE TRIGGER smc_leads_route_check\s+BEFORE INSERT OR UPDATE OF broker_id, brand_id, budget_band ON public\.leads/);
+  assert.match(m03, /INSERT INTO public\.lead_offers AS o[\s\S]*?decided_via/);
+  const undo02 = readFileSync(join(ROOT, 'supabase', 'migrations', 'undo', '20261011020000_smc_02_core.undo.sql'), 'utf8');
+  assert.ok(undo02.includes('"accepts_low_budget"'), 'undo drops the switch');
+});
+
 // ------------------------------------------------------------------ fixtures / config: SA numbers only
 test('no +1 / US number in the Twilio fixtures, content definitions or env examples', () => {
   const files = [join(A, 'tests', 'twilio-flow.test.mjs'), join(A, 'tests', 'wa-provider.test.mjs'), join(A, 'SETUP-TWILIO.md'),

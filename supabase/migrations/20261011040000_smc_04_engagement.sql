@@ -1,7 +1,7 @@
 -- =============================================================================
 -- 20261011040000_smc_04_engagement.sql  --  CRM nurture chain, file 4 of 8: the side tables the nurture flow writes
 --   wa_threads   WhatsApp qualifying-thread state per brand + mobile hash (W03 questions, W08 stall nudges), 72-h life
---   lead_offers  capture v2 tier-B offer to the routed broker (accept / decline / expiry evidence)
+--   lead_offers  agreement 5.7 offers: tier B (accept / decline / expiry) and tier C (standing yes / admin) evidence
 --   suppression  STOP / opt-out list as hashes (W03 no-consent, W08, W10, W15; every send checks it)
 --   escalations  human hand-off queue for the CRM console (W07 handoff, W10, W12 disputes, W13 replacement due)
 --   broker_media intro voice / video takes (W23); brokers.intro_* point at the approved one
@@ -31,7 +31,8 @@ CREATE INDEX IF NOT EXISTS wa_threads_expires_idx   ON public.wa_threads (expire
 COMMENT ON TABLE public.wa_threads IS 'SMC (W03/W08): WhatsApp qualifying thread per brand + mobile hash; 72-h life. n8n_app only.';
 
 -- -----------------------------------------------------------------------------
--- 2. lead_offers (capture v2 tier B: offered to the routed broker first; accept -> leads.broker_id -> attached to his order)
+-- 2. lead_offers (agreement 5.7: tier B offered to the routed broker first; tier C (under R750) accepted by a standing yes or an admin;
+--    accept -> leads.broker_id -> a place reserved on his order; it COUNTS only at booked + attendance confirmed, file 03)
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.lead_offers (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -41,13 +42,13 @@ CREATE TABLE IF NOT EXISTS public.lead_offers (
   offered_at   timestamptz NOT NULL DEFAULT now(),
   expires_at   timestamptz NOT NULL,
   decided_at   timestamptz,
-  decided_via  text CHECK (decided_via IS NULL OR decided_via IN ('whatsapp','portal','expiry')),
+  decided_via  text CHECK (decided_via IS NULL OR decided_via IN ('whatsapp','portal','expiry','standing','admin')),   -- standing = brokers.accepts_low_budget, admin = manual_low_budget (file 03)
   wamid        text,
   UNIQUE (lead_id, broker_id)                     -- never re-offered to the same broker
 );
 CREATE INDEX IF NOT EXISTS lead_offers_open_idx ON public.lead_offers (expires_at) WHERE status = 'offered';
 CREATE INDEX IF NOT EXISTS lead_offers_broker_idx ON public.lead_offers (broker_id, status);
-COMMENT ON TABLE public.lead_offers IS 'Capture v2 tier B (R750-R1,499): offered to the routed broker first; 2 working hours to accept, expiry = declined.';
+COMMENT ON TABLE public.lead_offers IS 'Agreement 5.7 offers: tier B (R750-R1,499) offered to the routed broker first (2 working hours to accept, expiry = declined); tier C (under R750) only to a broker with accepts_low_budget (accepted at once, decided_via standing) or assigned by an admin (decided_via admin). Written by capture v2 and by the file-03 routing trigger.';
 
 -- -----------------------------------------------------------------------------
 -- 3. suppression (opt-out). brand_id NULL = Lead Velocity-wide.

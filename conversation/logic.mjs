@@ -42,7 +42,9 @@ const PRE_BOOKING = new Set(['consent_pending', 'q_age', 'q_budget', 'q_budget_c
 // 4.6 step 3 order (NH-59 default): age -> budget -> bond/dependants (one question) -> method. q_dependants kept for old rows.
 const QUAL = { q_age: ['age_band', 'q_budget'], q_budget: ['budget_band', 'q_bond'], q_budget_clarify: ['budget_band', 'q_bond'], q_bond: ['bond', 'q_method'], q_dependants: ['dependants', 'q_method'], q_method: ['method', 'unbooked'] };
 
-const outOfBand = (s = {}) => s.age_band === '<35' || s.age_band === '51+' || s.budget_band === '<750';
+// Tier C (Jonathan, 2026-10-11): a budget under R750 is NOT out of band any more (recorded, the questions go on; routing
+// decides who can take it, automation/lib/w01.mjs tierOf). Only the age bands close the conversation.
+const outOfBand = (s = {}) => s.age_band === '<35' || s.age_band === '51+';
 
 function sameBooking(slots = {}, booking = {}) {
   if (!booking) return false;

@@ -6,7 +6,10 @@
 // Path: CTWA ad or landing -> consent tap (W03, unchanged) -> wa_id is channel-verified -> capture Flow (this module's
 // endpoint handler, kind 'capture' flow_token) -> tier A (R1,500+) books Teams in the Flow (W04 slots, W05 book) and gets
 // the broker_intro_booked card; tier B (R750-R1,499) is OFFERED to the routed broker (Accept/Decline) and only books after
-// acceptance; below R750 or outside 0.1 age bands -> polite close, never delivered or counted.
+// acceptance; tier C (under R750, Jonathan 2026-10-11) is the same agreement 5.7 offer, made only to a broker with the
+// standing yes (brokers.accepts_low_budget: accepted at once, books in the Flow like tier A); with no such broker the lead is
+// HELD open (routing_reason held_low_budget, one honest WhatsApp) until an admin assigns it. Outside the 0.1 age bands ->
+// polite close. Every tier counts toward the broker's order only at booked + attendance confirmed (database, file 03).
 //
 // Which of my five: HBR (consent + first Flow inside the first minute; nothing here waits on a human for tier A),
 // Chili Piper (qualify -> route -> book inside the one WhatsApp chat, no separate site), Calendly/Cal.com (slots come from
@@ -106,6 +109,9 @@ const COPY = {
   // tier B broker offer (template broker_lead_offer) + lead-side lines
   lead_matching_wa: "Thanks {first_name}. We're matching you with an authorised adviser now. We'll message you here shortly so you can pick a time.",
   lead_held_wa: "Thanks for your patience, {first_name}. All our advisers are fully booked right now. We'll message you here as soon as one is free.",
+  // tier C held (no adviser with the standing yes has room): honest, no promise of a call, no amounts, no advice
+  end_low_budget_heading: "We're checking for you",
+  end_low_budget_body: "Thanks {first_name}. We're checking which authorised adviser can help at the monthly budget you chose. This can take a few days. We'll come back to you here on WhatsApp as soon as we know, either way.",
   broker_offer_accepted: 'Accepted. {first_name} is now your lead and gets your booking card.',
   broker_offer_declined: 'Declined. {first_name} will not be sent to you and does not count.',
 };
@@ -115,7 +121,8 @@ const fill = (s, v) => String(s).replace(/\{([a-z_]+)\}/g, (m, k) => (v[k] !== u
 // ------------------------------------------------------------------------------------------------ rules
 const SCREENS = ['REASONS', 'SPEND', 'NAME', 'EMAIL', 'NUMBER', 'AGE', 'BUDGET', 'SMOKER', 'INCOME', 'DATE', 'SLOTS', 'CONFIRM', 'END'];
 const QUAL_AGE = new Set(['35_44', '45_50']); // 0.1 (same as w01.mjs / w03.js): <35 and 51+ are out of band
-const TIER_OF = { '1500_plus': 'A', '1250_1499': 'B', '750_1250': 'B' }; // lt750 -> no tier, polite close
+const TIER_OF = { '1500_plus': 'A', '1250_1499': 'B', '750_1250': 'B', lt750: 'C' }; // C = under R750: offered only to a broker with the standing yes
+const LOW_BUDGET_HELD_TEMPLATE = 'lead_low_budget_held';
 const MAX_CONTACT_ATTEMPTS = 3; // the third invalid name/email/number submit auto-disqualifies (invalid_contact)
 const VERIFY_TTL_MS = 24 * 3600 * 1000;
 const UNVERIFIED_FLAG_AFTER_MS = 24 * 3600 * 1000;
@@ -372,7 +379,7 @@ async function handle(req, deps) {
       if (!b) return reply(err('BUDGET', 'Please choose one.'));
       cap.budget_band = b;
       cap.lead_tier = TIER_OF[b] || null;
-      if (!cap.lead_tier) return disqualify('budget_band'); // below R750: never delivered, never counted
+      if (!cap.lead_tier) return disqualify('budget_band'); // unknown band only: under R750 is tier C (2026-10-11), never closed here
       return reply(ok('SMOKER', { smoker_heading: fill(COPY.smoker_heading, { broker_first_name: adviser }) }));
     }
     case 'SMOKER': {
@@ -392,9 +399,18 @@ async function handle(req, deps) {
         effects.push({ kind: 'broker_offer', lead_id: lead.id, broker_id: broker.broker_id });
         return end(COPY.end_matching_heading, fill(COPY.end_matching_body, { first_name: cap.first_name }));
       }
+      if (cap.lead_tier === 'C') {
+        // the agreement 5.7 offer: the routed broker's standing yes accepts it at once (book in the Flow); otherwise HOLD
+        const o = makeOffer({ lead: { ...lead, capture: cap }, broker, now });
+        effects.push(...o.effects);
+        if (o.offer && o.offer.status === 'accepted') { cap.offer_accepted = true; return dateScreen(); }
+        cap.held_low_budget = true;
+        return end(COPY.end_low_budget_heading, fill(COPY.end_low_budget_body, { first_name: cap.first_name }));
+      }
       return dateScreen();
     }
     case 'DATE': {
+      if (cap.held_low_budget && !cap.offer_accepted) return end(COPY.end_low_budget_heading, fill(COPY.end_low_budget_body, { first_name: cap.first_name }));
       if (cap.lead_tier !== 'A' && !cap.offer_accepted) return end(COPY.end_matching_heading, fill(COPY.end_matching_body, { first_name: cap.first_name }));
       const r = await deps.slots(broker, { fresh: false, date: d.date });
       if (r.fallback) return noSlots('calendar_unavailable');
@@ -471,10 +487,17 @@ function offerExpiry(fromMs, holidays = new Set(), minutes = OFFER_WORK_MIN) {
   return t;
 }
 
-/** Make the offer to the routed broker: template broker_lead_offer (Accept / Decline) + portal row. Lead gets the matching line. */
+/**
+ * Make the offer to the routed broker: template broker_lead_offer (Accept / Decline) + portal row. Lead gets the matching line.
+ * Tier C (under R750): offered ONLY to a broker with the standing yes (brokers.accepts_low_budget), where it is accepted at
+ * once (lead_offers decided_via 'standing', no template, no expiry); a broker without it is never offered the lead: it is
+ * HELD (broker cleared, routing_reason held_low_budget) and the lead gets lead_low_budget_held. Accepted is not counted: the
+ * database counts every tier at booked + attendance confirmed.
+ */
 function makeOffer({ lead, broker, now, holidays }) {
-  const expires = offerExpiry(now, holidays);
   const a = lead.capture || lead;
+  if ((a.lead_tier || lead.lead_tier) === 'C') return lowBudgetOffer({ lead, broker, now });
+  const expires = offerExpiry(now, holidays);
   const offer = { lead_id: lead.id, broker_id: broker.broker_id, offered_at: new Date(now).toISOString(), expires_at: new Date(expires).toISOString(), status: 'offered' };
   const vars = [firstWord(broker.adviser_name), firstWord(a.first_name || lead.first_name), BAND_LABEL.age[a.age_band] || '-', BAND_LABEL.budget[a.budget_band] || '-', (a.reasons || []).map((r) => (REASONS.find(([k]) => k === r) || [, r])[1]).join(', ') || '-', whenLabel(offer.expires_at)];
   return {
@@ -490,6 +513,25 @@ function makeOffer({ lead, broker, now, holidays }) {
 }
 const BAND_LABEL = { age: Object.fromEntries(AGE), budget: Object.fromEntries(BUDGET) };
 
+function lowBudgetOffer({ lead, broker, now }) {
+  const at = new Date(now).toISOString();
+  const a = lead.capture || lead;
+  const first = firstWord(a.first_name || lead.first_name) || 'there';
+  if (broker && broker.accepts_low_budget === true) {
+    const offer = { lead_id: lead.id, broker_id: broker.broker_id, offered_at: at, expires_at: at, decided_at: at, decided_via: 'standing', status: 'accepted' };
+    return { offer, effects: [
+      { kind: 'insert_offer', row: offer, on_conflict: 'do_nothing' },   // the routing trigger records the same accept; first writer wins
+      { kind: 'update_lead', id: lead.id, set: { lead_tier: 'C', offer_status: 'accepted', offer_broker_id: broker.broker_id, offered_at: at, offer_decided_at: at, stage: 'qualified' } },
+      { kind: 'activity', activity_type: 'low_budget_accepted', payload: { lead_id: lead.id, broker_id: broker.broker_id, via: 'standing', counted: false } },
+    ] };
+  }
+  return { offer: null, effects: [
+    { kind: 'update_lead', id: lead.id, set: { lead_tier: 'C', broker_id: null, routing_reason: 'held_low_budget', offer_status: 'held', stage: 'qualified', delivered: false } },
+    { kind: 'send_template', template: LOW_BUDGET_HELD_TEMPLATE, to: lead.phone, vars: [first], correlation: `w01:low_budget_held:${lead.id}` },
+    { kind: 'alert', signal_key: 'tier_c_held', lead_id: lead.id },
+  ] };
+}
+
 /**
  * Broker taps Accept / Decline (WhatsApp quick reply or portal), or the expiry job fires (decision 'expired').
  * deps: { offer (current row), lead, brokers (eligible, in routing order), declined_broker_ids, consent_mode, now, nextBroker(lead, excluded) -> broker|null }
@@ -503,7 +545,9 @@ function decideOffer(decision, { offer, lead, now, consent_mode = 'named', nextB
   if (decision === 'accept') {
     return { changed: true, effects: [
       { kind: 'update_offer', lead_id: lead.id, broker_id: offer.broker_id, set: { status: 'accepted', decided_at: at } },
-      { kind: 'update_lead', id: lead.id, set: { offer_status: 'accepted', offer_decided_at: at, broker_id: offer.broker_id, delivered: true } },   // broker_id -> the database attaches the lead to his open lead order
+      // broker_id -> the database RESERVES a place on his open lead order; delivered / counted only at booked + attendance
+      // confirmed (smc_count_on_confirm, agreement 5.2), never at the accept
+      { kind: 'update_lead', id: lead.id, set: { offer_status: 'accepted', offer_decided_at: at, broker_id: offer.broker_id } },
       { kind: 'send_text', to: offer.broker_whatsapp || null, body: fill(COPY.broker_offer_accepted, { first_name: first }) },
       // delivery = the existing W06 path: broker_intro_slots_v2 (disclosure + Flow button) -> W28 books Teams
       { kind: 'first_touch', lead_id: lead.id, template: 'broker_intro_slots_v2' },
@@ -516,8 +560,16 @@ function decideOffer(decision, { offer, lead, now, consent_mode = 'named', nextB
     { kind: 'update_lead', id: lead.id, set: { offer_status: decision === 'expired' ? 'expired' : 'declined', offer_decided_at: at, declined_broker_ids: declined, broker_id: null, delivered: false } },
   ];
   if (decision === 'decline') effects.push({ kind: 'send_text', to: offer.broker_whatsapp || null, body: fill(COPY.broker_offer_declined, { first_name: first }) });
-  const next = nextBroker ? nextBroker(lead, new Set(declined)) : null; // never re-offered to a broker who declined or let it expire
+  const tierC = ((lead.capture && lead.capture.lead_tier) || lead.lead_tier) === 'C';
+  let next = nextBroker ? nextBroker(lead, new Set(declined)) : null; // never re-offered to a broker who declined or let it expire
+  if (next && tierC && next.accepts_low_budget !== true) next = null;   // tier C goes only to a broker with the standing yes
   if (!next) {
+    if (tierC) {
+      effects.push({ kind: 'update_lead', id: lead.id, set: { offer_status: 'held', routing_reason: 'held_low_budget', stage: 'qualified' } });
+      effects.push({ kind: 'send_template', template: LOW_BUDGET_HELD_TEMPLATE, to: lead.phone, vars: [first || 'there'], correlation: `w01:low_budget_held:${lead.id}` });
+      effects.push({ kind: 'alert', signal_key: 'tier_c_held', lead_id: lead.id });
+      return { changed: true, effects };
+    }
     effects.push({ kind: 'update_lead', id: lead.id, set: { offer_status: 'held', stage: 'qualified' } });
     effects.push({ kind: 'send_text', to: lead.phone, body: fill(COPY.lead_held_wa, { first_name: first }) });
     effects.push({ kind: 'alert', signal_key: 'tier_b_held', lead_id: lead.id });

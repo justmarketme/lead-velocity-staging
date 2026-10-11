@@ -55,9 +55,10 @@ Same → `call_number` = the WhatsApp number, verified. Another → SA mobile fo
 > Roughly what could you put towards cover each month?
 
 `R1,500 or more` · `R1,250 to R1,499` · `R750 to R1,249` · `Under R750`
-- R1,500 or more → **tier A**: delivered and counted automatically.
+- R1,500 or more → **tier A**: books in the Flow at once.
 - R750 to R1,499 → **tier B**: offered to the broker first (see below).
-- Under R750 → polite close; never delivered, never counted, deleted within 24 h (existing out-of-band handling).
+- Under R750 → **tier C** (Jonathan, 2026-10-11): NOT closed. The lead is stored, counts as a lead and keeps answering. It is offered only to a broker with the standing yes (`brokers.accepts_low_budget`), where the offer is accepted at once and the lead books in the Flow like tier A. With no such broker the lead is held open (`routing_reason = 'held_low_budget'`) and gets one honest WhatsApp (`lead_low_budget_held`) until an admin assigns it (`manual_low_budget`) or 7 days pass (polite close `lead_low_budget_closed`, reason `low_budget_no_taker`).
+- Every tier counts toward the broker's order only at booked + attendance confirmed (database, `smc_count_on_confirm`).
 
 **8. One more thing** (optional)
 > Do you smoke? (Optional — used only to brief your adviser {broker_first_name} before the call.)
@@ -84,6 +85,7 @@ Then the existing `broker_intro_booked` card (intro image, practice, FSP number,
 
 ### Other endings (same END screen)
 - Tier B: **We're matching you with an adviser**: "Thanks {first_name}. We're matching you with an authorised adviser now. We'll message you here on WhatsApp shortly so you can pick a time."
+- Tier C held: **We're checking for you**: "Thanks {first_name}. We're checking which authorised adviser can help at the monthly budget you chose. This can take a few days. We'll come back to you here on WhatsApp as soon as we know, either way."
 - Out of band: **Thank you**: "Thanks for your time, {first_name}. Based on your answers, the advisers we work with aren't the right fit right now, so we won't pass your details on. Take care."
 - Invalid contact details (3rd bad name, email or number): "Thanks for your time. We couldn't confirm your contact details, so we can't pass your enquiry on right now. You can message us again at any time."
 - No free times / calendar down / broker has no Teams: **Almost done**: "Thanks {first_name}. We'll send you {adviser}'s next free times here on WhatsApp in a moment." (we send the 10-slot list on WhatsApp).

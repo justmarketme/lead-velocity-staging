@@ -72,6 +72,9 @@ const BOND_ROWS = [['bond_yes_dependants_yes', 'Bond and dependants'], ['bond_ye
 const METHOD_TITLES = { teams: 'Teams video call', zoom: 'Zoom video call', meet: 'Google Meet', whatsapp_call: 'WhatsApp call', phone: 'Phone call' };
 const QUAL_AGE = new Set(['35_44', '45_50']); // 0.1 bands; 45-50 qualifies, 51+ does not
 const QUAL_BUDGET = new Set(['750_1250', '1250_plus', '1250_1499', '1500_plus']); // 0.1: every band from R750 up qualifies (1250_plus = legacy pre-split)
+// Tier C (Jonathan, 2026-10-11): under R750 is NOT out of band. The answer is recorded (lt750) and the questions go on; W01
+// routes it only to a broker with the standing yes (brokers.accepts_low_budget) or holds it (held_low_budget).
+const LOW_BUDGET = new Set(['under_500', '500_750', 'lt750']);
 // fixture/quiz codes -> leads_smc_checks codes (schema uses lt35 / 51plus / lt750 / 1250plus)
 const AGE_TO_DB = { under_35: 'lt35', '35_44': '35_44', '45_50': '45_50', '51_plus': '51plus' };
 const BUDGET_TO_DB = { under_500: 'lt750', '500_750': 'lt750', '750_1250': '750_1250', '1250_plus': '1250plus', '1250_1499': '1250_1499', '1500_plus': '1500_plus' };
@@ -262,7 +265,7 @@ function qualify(t, msg, ctx, actions) {
     set = { age_band: AGE_TO_DB[val] };
   } else if (from === 'q_budget' || from === 'q_budget_clarify') {
     t.answers.budget_band = val;
-    if (!QUAL_BUDGET.has(val)) return outOfBand(t, ctx, 'budget_band', actions);
+    if (!QUAL_BUDGET.has(val) && !LOW_BUDGET.has(val)) return outOfBand(t, ctx, 'budget_band', actions);
     if (t.from_lead && t.origin === 'lead_ad') return finishLeadAd(t, ctx, actions, val);
     t.stage = 'q_bond';
     set = { budget_band: BUDGET_TO_DB[val] };
@@ -303,7 +306,8 @@ function qualify(t, msg, ctx, actions) {
  * The instant form keeps age, call_ok and bond/children; the monthly budget band is the FIRST WhatsApp step instead.
  * W01 stores the lead unrouted (routing_reason held_budget_pending, conv_state q_budget) and sends the qualify_budget
  * template (automation/lib/w01.mjs budgetQuestion, same row ids as BUDGET_ROWS) within 60 s; the tap comes back through W07 -> W03 (qualifying tap) and the SAME QUAL_BUDGET set decides:
- * in band -> qualified -> W01 routes -> W06 broker intro; out of band -> outOfBand() (no hand-over, deleted in 24 h).
+ * in band (tiers A/B, and tier C under R750 since 2026-10-11) -> qualified -> W01 routes (tier C only to a broker with the
+ * standing yes, else held_low_budget) -> W06 broker intro; out of band -> outOfBand() (no hand-over, deleted in 24 h).
  * Nothing else is asked: the instant form already covered the rest, and the method is chosen when booking.
  */
 function finishLeadAd(t, ctx, actions, val) {
@@ -338,4 +342,4 @@ function toCloudApi(to, m) {
   return { ...base, type: 'interactive', interactive: { type: 'list', body: { text: m.body }, action: { button: m.button.slice(0, 20), sections: [{ title: 'Options', rows: m.rows.map((r) => ({ id: r.id, title: r.title.slice(0, 24) })) }] } } };
 }
 
-module.exports = { BUDGET_ROWS, QUAL_BUDGET, typedTap, threadFromLead, hopNext, MAX_HOPS, Q_STAGES, NEXT_STATE, redirectFor, readOrigin, consentFor, CONSENT_NAMED_VERSION, CONSENT_GENERIC_VERSION, CONSENT_NAMED_FOOTER, WA_BUTTON_BODY_MAX, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_TEXT, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };
+module.exports = { BUDGET_ROWS, QUAL_BUDGET, LOW_BUDGET, typedTap, threadFromLead, hopNext, MAX_HOPS, Q_STAGES, NEXT_STATE, redirectFor, readOrigin, consentFor, CONSENT_NAMED_VERSION, CONSENT_GENERIC_VERSION, CONSENT_NAMED_FOOTER, WA_BUTTON_BODY_MAX, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_TEXT, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };

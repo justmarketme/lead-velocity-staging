@@ -335,3 +335,28 @@ A lead is Delivered, and counts toward the broker's CRM lead order, at the momen
 
 ## `GET /j/{booking_id}` - the Teams join link (W05, 2026-10-11)
 302 to `appointments.join_url` for a live (`booked`/`confirmed`) Teams / Zoom / Meet booking whose link is on a meeting host; anything else is one `404 not found`. LINK_HOST `/j/*` -> `/webhook/w05-join-get/j/*`. The link is in `booking_confirmed` {{5}} (`confirmDetail`: "Microsoft Teams (join link: https://sortmycover.co.za/j/<id>)") and in reminder_2h / reminder_10m (`w09 methodDetail`).
+
+## Tier C: budget under R750 (Jonathan, 2026-10-11)
+A lead whose monthly budget is under R750 (`leads.budget_band = 'lt750'`) is **not** disqualified any more. It is stored, counts as a lead in every stat and report (it is a normal `leads` row: stage `new` / `verified` / `qualified`, never `disqualified` on budget), and the qualifying conversation goes on (W03 / NLU `<750` record the band and ask the next question; capture Flow v2 continues to SMOKER / INCOME; the landing quiz shows no exit card). Tier tag: `leads.lead_tier = 'C'` (set by the routing trigger on every path and by capture v2; A / B as before).
+
+**Agreement 5.7 offer, reused (no second mechanism).** Tier C is offered only to a broker with the standing yes `brokers.accepts_low_budget = true` (admin-only switch, file 02 + file 05 guard): the offer is accepted at once (`lead_offers.status = 'accepted'`, `decided_via = 'standing'`), no Accept/Decline ask. A broker without it is never offered or routed a tier-C lead. Tiers A / B are unchanged.
+
+| Path | Behaviour |
+|---|---|
+| W01 page / lead ad (`decide`), W01 Lead core (`routeExisting`, CTWA after qualifying) | `pickBroker(..., tier 'C')` considers only routable brokers with `accepts_low_budget` (same fairness rule among them). None with room -> `routing_reason = 'held_low_budget'`, `broker_id` NULL, stage unchanged, `/lead` answers `200 { status: 'held' }`, and ONE WhatsApp `lead_low_budget_held` (correlation `w01:low_budget_held:<lead>`). |
+| capture Flow v2 (`ctwa/capture-v2.js`) | INCOME with tier C: routed broker has the standing yes -> `makeOffer` accepts at once and the lead books in the Flow like tier A; otherwise the lead is held (same columns, same template) and the END screen says "We're checking for you". `decideOffer` on a tier-C lead only passes to a next broker with the standing yes, else held. |
+| Database (`smc_leads_route_check`, file 03) | Enforces the same rule on every write of `broker_id` / `brand_id` / `budget_band`: tier C to a broker without the standing yes -> held `held_low_budget`; no room -> `held_low_budget`; a routed, not yet introduced, not counted lead whose budget moves under R750 -> held (accepted in place when his broker has the standing yes). The AFTER trigger writes the `lead_offers` accept and the timeline row `low_budget_accepted` (`lowbudget:accepted:<lead>:<broker>`). |
+| Counting | Unchanged and identical for every tier: a place is RESERVED at routing, the lead COUNTS only at booked + attendance confirmed (`smc_count_on_confirm`). An accept never sets `delivered`. |
+
+### Admin assignment of a held tier-C lead (portal contract)
+The portal does ONE update, as an admin (`smc_is_admin()`), on a lead with `budget_band = 'lt750'`:
+```sql
+UPDATE public.leads
+   SET broker_id = :broker_id, routing_reason = 'manual_low_budget'   -- routed_at optional (the trigger fills it)
+ WHERE id = :lead_id AND routing_reason = 'held_low_budget' AND broker_id IS NULL;
+```
+- `routing_reason = 'manual_low_budget'` is the admin's record that the broker said yes (agreement 5.7); it lets the lead go to a broker whose `accepts_low_budget` is off. The routing trigger reuses the normal reservation (`smc_open_order_for`): `order_state = 'attached'`, `lead_order_id` set, `offer_status = 'accepted'`, a `lead_offers` row `decided_via = 'admin'`, timeline `order_attached` + `low_budget_accepted`. Nothing is counted.
+- **Refused with an error (SQLSTATE 23514, the lead stays held)** when the broker is not ready (FSP number, practice, adviser, intro card), has no open paid SortMyCover order with room, or the lead gave NAMED consent for another practice (`consent_text` must contain `"<firm_name> (FSP <fsp_number>)"`; otherwise the lead must consent again first). Show the error text to the admin.
+- **Hand-off to the booking flow:** W01 entry 5 (every 15 min) picks `routing_reason = 'manual_low_budget' AND broker_id IS NOT NULL AND first_message_at IS NULL AND order_state = 'attached'`, waits while `conv_state.state` is still a qualifying state, claims `w01:low_budget_handoff:<lead>` once and calls W06 `{ op: 'routed', lead_id }`: the normal first touch (slots card or Flow), W05 booking, email verification and the Teams link follow exactly as for any routed lead.
+- **No taker in 7 days:** the same sweep closes a lead still `held_low_budget` 7 days after `created_at`: `stage = 'unbooked_closed'`, `routing_reason = 'low_budget_no_taker'`, `conv_state.state = 'closed_unbooked'`, timeline `low_budget_closed`, one WhatsApp `lead_low_budget_closed` (never 20:00-08:00 SAST). Not out of band: no 24-h deletion; the normal retention clock (`last_contact_at`, I-38d) applies.
+- Portal list of held tier-C leads: `WHERE brand_id IS NOT NULL AND budget_band = 'lt750' AND routing_reason = 'held_low_budget' AND broker_id IS NULL AND opted_out_at IS NULL`.

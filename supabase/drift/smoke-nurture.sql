@@ -1,6 +1,7 @@
 -- LOCAL smoke test of the crm-nurture chain on the live-schema mirror (supabase/drift/real-*.sql + the 8 chain files applied).
 -- Everything runs in ONE transaction and is rolled back, so it can run before the undo rehearsal. Every check raises on failure.
--- Covers: routing needs a ready broker (FSP number, practice, adviser, intro card: CHECK + routing trigger),
+-- Covers: routing needs a ready broker (FSP number, practice, adviser, intro card: CHECK + routing trigger), tier C (under
+-- R750: held_low_budget, standing yes, admin manual_low_budget hand-off, counted at confirmed attendance),
 -- capacity from lead_orders (reserve at routing, COUNT at booked + attendance confirmed (agreement 5.2), release on
 -- STOP / disqualified / unconfirmed meeting / un-route, hold, re-route refusal, replacement adds capacity, legacy order untouched),
 -- replacement RPC (window, weekly max 3 across no-show + unreachable, traversal, other broker), brokers guard, n8n_app scope,
@@ -80,6 +81,96 @@ BEGIN
   SELECT broker_id, routing_reason INTO b, r FROM public.leads WHERE id = '61000000-0000-4000-8000-000000000008';
   IF b IS NOT NULL OR r <> 'held_broker_not_ready' THEN RAISE EXCEPTION 'smoke 1b: lead introduced to a broker without an FSP number (broker %, reason %)', b, r; END IF;
   RAISE NOTICE 'ok 1b: no lead is introduced to a broker without his FSP number (held_broker_not_ready)';
+END $$;
+
+-- 1c. TIER C (budget under R750, Jonathan 2026-10-11): stored and kept open (never disqualified), routed only to a broker with
+--     the standing yes (brokers.accepts_low_budget) or by an admin (routing_reason manual_low_budget), the 5.7 accept recorded
+--     in lead_offers, counted only at booked + attendance confirmed. Whole block rolled back (the later tests see no change).
+DO $$
+DECLARE b uuid; r text; st text; t text; n int;
+BEGIN
+  BEGIN
+    INSERT INTO public.lead_orders (id, broker_id, title, lead_count, amount_zar, status, paid_at, brand_id)
+    VALUES ('31000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000001', 'SMC second order', 3, 1500, 'paid', now(), (SELECT id FROM public.brands WHERE code = 'SMC'));
+    -- held: Broker One has room but no standing yes
+    INSERT INTO public.leads (id, email, phone, brand_id, broker_id, routed_at, consent_text, consent_source, consent_at, consent_mode, first_name, source, budget_band, stage)
+    VALUES ('61000000-0000-4000-8000-000000000091', NULL, '+27600008091', (SELECT id FROM public.brands WHERE code = 'SMC'), '10000000-0000-4000-8000-000000000001', now(),
+            'we will share your details with Firm One (FSP 12345)', 'ctwa', now(), 'named', 'C1', 'Search Lead', 'lt750', 'qualified');
+    SELECT broker_id, routing_reason, stage, lead_tier INTO b, r, st, t FROM public.leads WHERE id = '61000000-0000-4000-8000-000000000091';
+    IF b IS NOT NULL OR r <> 'held_low_budget' OR st <> 'qualified' OR t <> 'C' THEN
+      RAISE EXCEPTION 'smoke 1c: low-budget lead not held open (broker %, reason %, stage %, tier %)', b, r, st, t; END IF;
+    IF NOT EXISTS (SELECT 1 FROM public.lead_activities WHERE lead_id = '61000000-0000-4000-8000-000000000091' AND activity_type = 'routing_held' AND payload->>'reason' = 'held_low_budget') THEN
+      RAISE EXCEPTION 'smoke 1c: no routing_held timeline row for the held low-budget lead'; END IF;
+    -- an admin assignment that cannot go through is refused: named consent for another practice
+    INSERT INTO public.leads (id, email, phone, brand_id, consent_text, consent_source, consent_at, consent_mode, first_name, source, budget_band, routing_reason)
+    VALUES ('61000000-0000-4000-8000-000000000092', NULL, '+27600008092', (SELECT id FROM public.brands WHERE code = 'SMC'),
+            'we will share your details with Other Practice (FSP 777)', 'ctwa', now(), 'named', 'C2', 'Search Lead', 'lt750', 'held_low_budget');
+    BEGIN
+      UPDATE public.leads SET broker_id = '10000000-0000-4000-8000-000000000001', routing_reason = 'manual_low_budget' WHERE id = '61000000-0000-4000-8000-000000000092';
+      RAISE EXCEPTION 'smoke 1c: admin assigned a named-consent lead to another practice';
+    EXCEPTION WHEN check_violation THEN NULL;
+    END;
+    IF (SELECT routing_reason FROM public.leads WHERE id = '61000000-0000-4000-8000-000000000092') <> 'held_low_budget' THEN RAISE EXCEPTION 'smoke 1c: refused assignment changed the lead'; END IF;
+    -- an admin assignment to a broker that is not ready is refused too
+    BEGIN
+      UPDATE public.leads SET broker_id = '10000000-0000-4000-8000-000000000002', routing_reason = 'manual_low_budget' WHERE id = '61000000-0000-4000-8000-000000000091';
+      RAISE EXCEPTION 'smoke 1c: admin assigned a low-budget lead to a broker without an FSP number';
+    EXCEPTION WHEN check_violation THEN NULL;
+    END;
+    -- the admin hand-off: broker_id + routing_reason manual_low_budget -> reserved (attached), accept recorded, NOT counted
+    UPDATE public.leads SET broker_id = '10000000-0000-4000-8000-000000000001', routed_at = now(), routing_reason = 'manual_low_budget' WHERE id = '61000000-0000-4000-8000-000000000091';
+    SELECT broker_id, order_state, offer_status INTO b, st, t FROM public.leads WHERE id = '61000000-0000-4000-8000-000000000091';
+    IF b IS NULL OR st <> 'attached' OR t <> 'accepted' THEN RAISE EXCEPTION 'smoke 1c: admin assignment not reserved (broker %, state %, offer %)', b, st, t; END IF;
+    IF (SELECT lead_order_id FROM public.leads WHERE id = '61000000-0000-4000-8000-000000000091') <> '31000000-0000-4000-8000-000000000003' THEN RAISE EXCEPTION 'smoke 1c: wrong order'; END IF;
+    IF NOT EXISTS (SELECT 1 FROM public.lead_offers WHERE lead_id = '61000000-0000-4000-8000-000000000091' AND broker_id = '10000000-0000-4000-8000-000000000001' AND status = 'accepted' AND decided_via = 'admin') THEN
+      RAISE EXCEPTION 'smoke 1c: no admin accept in lead_offers'; END IF;
+    IF NOT EXISTS (SELECT 1 FROM public.lead_activities WHERE idempotency_key = 'lowbudget:accepted:61000000-0000-4000-8000-000000000091:10000000-0000-4000-8000-000000000001') THEN
+      RAISE EXCEPTION 'smoke 1c: no low_budget_accepted hand-off row'; END IF;
+    IF EXISTS (SELECT 1 FROM public.lead_order_items WHERE lead_id = '61000000-0000-4000-8000-000000000091') THEN RAISE EXCEPTION 'smoke 1c: counted at assignment'; END IF;
+    -- counted exactly like any other lead: at booked + attendance confirmed, once
+    INSERT INTO public.appointments (id, broker_id, client_id, appointment_date, ends_at, status, brand_id, method)
+    VALUES ('71000000-0000-4000-8000-000000000091', '10000000-0000-4000-8000-000000000001', '61000000-0000-4000-8000-000000000091',
+            now() + interval '2 days', now() + interval '2 days 30 minutes', 'booked', (SELECT id FROM public.brands WHERE code = 'SMC'), 'teams');
+    IF EXISTS (SELECT 1 FROM public.lead_order_items WHERE lead_id = '61000000-0000-4000-8000-000000000091') THEN RAISE EXCEPTION 'smoke 1c: counted at booking'; END IF;
+    UPDATE public.appointments SET status = 'confirmed', confirmed_at = now() WHERE id = '71000000-0000-4000-8000-000000000091';
+    UPDATE public.appointments SET confirmed_at = now() WHERE id = '71000000-0000-4000-8000-000000000091';
+    SELECT count(*) INTO n FROM public.lead_order_items WHERE lead_id = '61000000-0000-4000-8000-000000000091' AND order_id = '31000000-0000-4000-8000-000000000003';
+    IF n <> 1 OR (SELECT order_state FROM public.leads WHERE id = '61000000-0000-4000-8000-000000000091') <> 'counted' THEN RAISE EXCEPTION 'smoke 1c: low-budget lead not counted once at confirmation (%)', n; END IF;
+    -- the standing yes: routed at once, accept recorded as standing
+    UPDATE public.brokers SET accepts_low_budget = true WHERE id = '10000000-0000-4000-8000-000000000001';
+    INSERT INTO public.leads (id, email, phone, brand_id, broker_id, routed_at, consent_text, consent_source, consent_at, first_name, source, budget_band)
+    VALUES ('61000000-0000-4000-8000-000000000093', NULL, '+27600008093', (SELECT id FROM public.brands WHERE code = 'SMC'), '10000000-0000-4000-8000-000000000001', now(), 'consent text', 'ctwa', now(), 'C3', 'Search Lead', 'lt750');
+    IF (SELECT order_state || ':' || lead_tier FROM public.leads WHERE id = '61000000-0000-4000-8000-000000000093') <> 'attached:C'
+       OR NOT EXISTS (SELECT 1 FROM public.lead_offers WHERE lead_id = '61000000-0000-4000-8000-000000000093' AND decided_via = 'standing' AND status = 'accepted') THEN
+      RAISE EXCEPTION 'smoke 1c: standing yes did not route + record the accept'; END IF;
+    -- with the standing yes, a routed lead whose budget moves under R750 stays with him: the accept is recorded, still not counted
+    UPDATE public.lead_orders SET lead_count = 5 WHERE id = '31000000-0000-4000-8000-000000000003';
+    INSERT INTO public.leads (id, email, phone, brand_id, broker_id, routed_at, consent_text, consent_source, consent_at, first_name, source, budget_band)
+    VALUES ('61000000-0000-4000-8000-000000000096', NULL, '+27600008096', (SELECT id FROM public.brands WHERE code = 'SMC'), '10000000-0000-4000-8000-000000000001', now(), 'consent text', 'ctwa', now(), 'C6', 'Search Lead', '1500_plus');
+    UPDATE public.leads SET budget_band = 'lt750' WHERE id = '61000000-0000-4000-8000-000000000096';
+    IF (SELECT order_state || ':' || lead_tier || ':' || offer_status FROM public.leads WHERE id = '61000000-0000-4000-8000-000000000096') <> 'attached:C:accepted'
+       OR NOT EXISTS (SELECT 1 FROM public.lead_offers WHERE lead_id = '61000000-0000-4000-8000-000000000096' AND decided_via = 'standing')
+       OR EXISTS (SELECT 1 FROM public.lead_order_items WHERE lead_id = '61000000-0000-4000-8000-000000000096') THEN
+      RAISE EXCEPTION 'smoke 1c: budget moved under R750 with the standing yes not accepted in place'; END IF;
+    -- a routed lead (not introduced, not counted) whose budget moves under R750 is held when the broker has no standing yes
+    UPDATE public.brokers SET accepts_low_budget = false WHERE id = '10000000-0000-4000-8000-000000000001';
+    INSERT INTO public.leads (id, email, phone, brand_id, broker_id, routed_at, consent_text, consent_source, consent_at, first_name, source, budget_band)
+    VALUES ('61000000-0000-4000-8000-000000000094', NULL, '+27600008094', (SELECT id FROM public.brands WHERE code = 'SMC'), '10000000-0000-4000-8000-000000000001', now(), 'consent text', 'ctwa', now(), 'C4', 'Search Lead', '750_1250');
+    IF (SELECT order_state FROM public.leads WHERE id = '61000000-0000-4000-8000-000000000094') <> 'attached' THEN RAISE EXCEPTION 'smoke 1c: tier-B lead not reserved'; END IF;
+    UPDATE public.leads SET budget_band = 'lt750' WHERE id = '61000000-0000-4000-8000-000000000094';
+    SELECT broker_id, routing_reason, order_state INTO b, r, st FROM public.leads WHERE id = '61000000-0000-4000-8000-000000000094';
+    IF b IS NOT NULL OR r <> 'held_low_budget' OR st <> 'released' THEN RAISE EXCEPTION 'smoke 1c: budget moved under R750 not held (broker %, reason %, state %)', b, r, st; END IF;
+    -- without room on any order, even the standing yes holds the lead as held_low_budget (not disqualified)
+    UPDATE public.brokers SET accepts_low_budget = true WHERE id = '10000000-0000-4000-8000-000000000001';
+    UPDATE public.lead_orders SET lead_count = 1 WHERE id = '31000000-0000-4000-8000-000000000003';
+    INSERT INTO public.leads (id, email, phone, brand_id, broker_id, routed_at, consent_text, consent_source, consent_at, first_name, source, budget_band)
+    VALUES ('61000000-0000-4000-8000-000000000095', NULL, '+27600008095', (SELECT id FROM public.brands WHERE code = 'SMC'), '10000000-0000-4000-8000-000000000001', now(), 'consent text', 'ctwa', now(), 'C5', 'Search Lead', 'lt750');
+    IF (SELECT coalesce(broker_id::text, 'none') || ':' || routing_reason FROM public.leads WHERE id = '61000000-0000-4000-8000-000000000095') <> 'none:held_low_budget' THEN
+      RAISE EXCEPTION 'smoke 1c: no room did not hold as held_low_budget'; END IF;
+    RAISE EXCEPTION USING ERRCODE = 'P0099', MESSAGE = 'rollback';
+  EXCEPTION WHEN sqlstate 'P0099' THEN NULL;
+  END;
+  RAISE NOTICE 'ok 1c: tier C held open (held_low_budget), routed only by the standing yes or an admin (refused when not ready / other practice), accept in lead_offers, counted only at confirmed attendance';
 END $$;
 
 -- 2. a routed lead cannot be re-routed to a broker without an open order; the broker sees his leads in the existing order pipeline
@@ -255,6 +346,11 @@ BEGIN
   BEGIN
     UPDATE public.brokers SET routing_on = false WHERE user_id = '00000000-0000-4000-8000-000000000002';
     RAISE EXCEPTION 'smoke 6: broker changed routing_on';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    UPDATE public.brokers SET accepts_low_budget = true WHERE user_id = '00000000-0000-4000-8000-000000000002';
+    RAISE EXCEPTION 'smoke 6: broker switched on the low-budget standing yes himself';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
   -- the portal event RPC writes his timeline

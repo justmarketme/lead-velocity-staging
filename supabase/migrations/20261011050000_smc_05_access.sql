@@ -196,7 +196,7 @@ BEGIN
   -- a brokers row already enrolled in SortMyCover. Legacy inserts (brand_id NULL, routing off) are unaffected.
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'brokers' AND policyname = 'smc restrict broker self-insert') THEN
     CREATE POLICY "smc restrict broker self-insert" ON public.brokers AS RESTRICTIVE FOR INSERT TO authenticated
-      WITH CHECK (public.smc_is_admin() OR (brand_id IS NULL AND routing_on IS NOT TRUE AND fsp_number IS NULL AND licence_categories IS NULL
+      WITH CHECK (public.smc_is_admin() OR (brand_id IS NULL AND routing_on IS NOT TRUE AND accepts_low_budget IS NOT TRUE AND fsp_number IS NULL AND licence_categories IS NULL
                   AND verified_credentials IS NULL AND calendar_token_ref IS NULL AND calendar_status IS NULL AND calendar_mode IS NULL
                   AND ms_tenant_id IS NULL AND intro_card_url IS NULL AND intro_voice_url IS NULL AND intro_video_url IS NULL
                   AND next_free_slot_at IS NULL AND onboarding_progress = '{}'::jsonb));
@@ -243,6 +243,7 @@ BEGIN
   -- enrols him: once routing is switched on they would reach consumers).
   IF NEW.brand_id               IS DISTINCT FROM OLD.brand_id
   OR NEW.routing_on             IS DISTINCT FROM OLD.routing_on
+  OR NEW.accepts_low_budget     IS DISTINCT FROM OLD.accepts_low_budget
   OR NEW.consent_mode           IS DISTINCT FROM OLD.consent_mode
   OR NEW.licence_categories     IS DISTINCT FROM OLD.licence_categories
   OR NEW.verified_credentials   IS DISTINCT FROM OLD.verified_credentials
@@ -260,7 +261,7 @@ BEGIN
   OR NEW.intro_voice_url        IS DISTINCT FROM OLD.intro_voice_url
   OR NEW.intro_video_url        IS DISTINCT FROM OLD.intro_video_url
   OR NEW.onboarding_progress    IS DISTINCT FROM OLD.onboarding_progress THEN
-    RAISE EXCEPTION 'smc: brokers cannot change routing, consent, licence, verification, calendar connection or approved media fields'
+    RAISE EXCEPTION 'smc: brokers cannot change routing (incl. the low-budget switch), consent, licence, verification, calendar connection or approved media fields'
       USING ERRCODE = '42501';
   END IF;
   IF OLD.brand_id IS NULL THEN

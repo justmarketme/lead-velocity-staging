@@ -436,7 +436,7 @@
     {
       "fixture_id": "L07",
       "lead_id": "lead_test_L07",
-      "branches": ["out_of_band_budget"],
+      "branches": ["low_budget_held"],
       "origin": "page",
       "lookup": { "line_type": "mobile" },
       "submission": {
@@ -458,10 +458,10 @@
         },
         "context": { "event_id": "5b0f7a2e-0007-4c1a-9a51-000000000007", "client_ip": "192.0.2.17", "client_user_agent": "SyntheticTest/1.0" },
         "honeypot": "",
-        "_note": "The real page never posts an out-of-band lead (4.5 #7: exit, no capture). This is the defence-in-depth case: a tampered or replayed request."
+        "_note": "Tier C (Jonathan, 2026-10-11): under R750 is no longer out of band. The lead is stored and counts as a lead; with no broker that has the standing yes (accepts_low_budget) and room it is held open (held_low_budget) and gets one honest WhatsApp (lead_low_budget_held)."
       },
       "expected": {
-        "W01": { "http_status": 200, "status": "not_qualified", "qualified": false, "disqualified_reason": "budget_band", "broker_id": null, "first_touch": false, "capi_lead": false, "delete_after": "2026-10-14T12:00:00+02:00" }
+        "W01": { "http_status": 200, "status": "held", "qualified": true, "routing_reason": "held_low_budget", "broker_id": null, "first_touch": false, "capi_lead": false, "low_budget_notice": true }
       }
     },
 

@@ -35,6 +35,8 @@ export const FLOW_TEMPLATES = [
   // reminders, reschedule, intro media, nurture, outcome
   'reminder_10m', 'what_to_expect', 'prep_nudge', 'reschedule_offer', 'intro_media', 'intro_media_voice',
   'unbooked_nudge_2h', 'unbooked_nudge_24h', 'unbooked_nudge_24h_text', 'unbooked_nudge_72h', 'reach_check', 'attended_thanks', 'invite_email_bounced',
+  // tier C (under R750, 2026-10-11): held open while we look for an adviser with the standing yes; polite close after 7 days
+  'lead_low_budget_held', 'lead_low_budget_closed',
   // the Flow launches (after the Flows are published in Meta)
   'broker_intro_slots_v2', 'reschedule_offer_v2',
   // broker side of the flow

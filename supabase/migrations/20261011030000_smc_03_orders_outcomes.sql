@@ -10,6 +10,7 @@
 -- the lead (leads.order_state), all enforced HERE in triggers so every path (W01, capture v2 tier-B accept, an admin) is
 -- the same:
 --   held     : routed with no room / broker not ready -> broker_id cleared, routing_reason held_*, nothing sent
+--              (tier C = budget under R750: routed only to a broker with accepts_low_budget, or by an admin; else held_low_budget)
 --   attached : routed to the broker; one place on his oldest open order is RESERVED (leads.lead_order_id), not counted;
 --              the CRM pipeline does not show the lead yet (no lead_order_items row, no contact details unlocked)
 --   counted  : booked + attendance confirmed -> one lead_order_items row (pipeline stage 'New'), the broker's existing order
@@ -227,15 +228,49 @@ COMMENT ON FUNCTION public.smc_open_order_for(uuid, uuid) IS
 -- room or not ready is refused with an error (an explicit admin action). Leaving a broker releases a reservation.
 -- The order row lock is taken before counting, and a row-level BEFORE trigger sees the rows earlier rows of the same
 -- statement wrote, so neither concurrent routings nor one multi-row statement can reserve past the order's room.
+-- TIER C (Jonathan, 2026-10-11): a lead whose budget is under R750 (budget_band lt750) is a lead like any other (stored,
+-- counted in stats, the conversation goes on), but it is routed only to a broker with the standing yes
+-- (brokers.accepts_low_budget: the agreement 5.7 offer is accepted at once) or by an admin (routing_reason
+-- manual_low_budget: the admin records the broker's yes). Anything else holds it: broker cleared, routing_reason
+-- held_low_budget, stage unchanged (not disqualified). An admin assignment that cannot go through (broker not ready, no room,
+-- named consent for another practice) is refused with an error, so the lead stays held. A routed lead that is not introduced
+-- yet (no first message) and not counted, whose budget moves under R750, is held the same way. The accept is recorded in
+-- lead_offers by the AFTER trigger; the lead COUNTS only at booked + attendance confirmed (smc_count_on_confirm), exactly
+-- like tiers A and B.
 CREATE OR REPLACE FUNCTION public.smc_leads_route_check()
 RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
 DECLARE
-  v_order uuid;
-  v_why   text;
+  v_order  uuid;
+  v_why    text;
+  v_low    boolean := NEW.budget_band IS NOT DISTINCT FROM 'lt750';
+  v_manual boolean := NEW.budget_band IS NOT DISTINCT FROM 'lt750' AND NEW.routing_reason IS NOT DISTINCT FROM 'manual_low_budget';
+  v_b      record;
 BEGIN
   IF NEW.brand_id IS NULL THEN RETURN NEW; END IF;
+  -- the tier tag follows the band for tier C on every path (A / B are tagged by capture v2)
+  IF v_low THEN NEW.lead_tier := 'C'; ELSIF NEW.lead_tier = 'C' THEN NEW.lead_tier := NULL; END IF;
+  -- tier C: the budget moved under R750 on a routed lead that is not counted. His broker has the standing yes: the offer is
+  -- accepted (recorded by the AFTER trigger). He has not and the lead is not introduced yet (no first message): hold it (the
+  -- reservation goes back) instead of handing it over. Already introduced: it stays with him (leads_smc_checks).
+  IF TG_OP = 'UPDATE' AND v_low AND NOT v_manual AND OLD.budget_band IS DISTINCT FROM 'lt750'
+     AND NEW.broker_id IS NOT NULL AND NEW.broker_id IS NOT DISTINCT FROM OLD.broker_id AND NEW.order_state IS DISTINCT FROM 'counted'
+     AND EXISTS (SELECT 1 FROM public.brokers b WHERE b.id = NEW.broker_id AND b.accepts_low_budget) THEN
+    NEW.offer_status := 'accepted'; NEW.offer_broker_id := NEW.broker_id;
+    NEW.offered_at := coalesce(NEW.offered_at, now()); NEW.offer_decided_at := now();
+    RETURN NEW;
+  END IF;
+  IF TG_OP = 'UPDATE' AND v_low AND NOT v_manual AND OLD.budget_band IS DISTINCT FROM 'lt750'
+     AND NEW.broker_id IS NOT NULL AND NEW.broker_id IS NOT DISTINCT FROM OLD.broker_id
+     AND NEW.first_message_at IS NULL AND NEW.order_state IS DISTINCT FROM 'counted' THEN
+    IF NEW.order_state = 'attached' THEN
+      NEW.order_state := 'released'; NEW.order_released_at := now(); NEW.order_release_reason := 'low_budget';
+    END IF;
+    NEW.broker_id := NULL; NEW.routed_at := NULL; NEW.routing_reason := 'held_low_budget';
+    IF NEW.delivered IS TRUE THEN NEW.delivered := false; END IF;
+    RETURN NEW;
+  END IF;
   IF TG_OP = 'UPDATE' AND NEW.broker_id IS NOT DISTINCT FROM OLD.broker_id AND NEW.brand_id IS NOT DISTINCT FROM OLD.brand_id THEN
     RETURN NEW;
   END IF;
@@ -250,20 +285,34 @@ BEGIN
     OR (NEW.order_state IN ('attached','counted') AND EXISTS (SELECT 1 FROM public.lead_orders o WHERE o.id = NEW.lead_order_id AND o.broker_id = NEW.broker_id))) THEN
     RETURN NEW;   -- already reserved / delivered on one of this broker's orders
   END IF;
+  SELECT b.accepts_low_budget, b.firm_name, b.fsp_number INTO v_b FROM public.brokers b WHERE b.id = NEW.broker_id;
   IF NOT public.smc_broker_ready(NEW.broker_id) THEN
     v_why := 'held_broker_not_ready';
+  ELSIF v_low AND NOT v_manual AND v_b.accepts_low_budget IS NOT TRUE THEN
+    v_why := 'held_low_budget';
+  ELSIF v_manual AND NEW.consent_mode IS NOT DISTINCT FROM 'named'
+        AND position(coalesce(v_b.firm_name, '') || ' (FSP ' || coalesce(v_b.fsp_number, '') || ')' IN coalesce(NEW.consent_text, '')) = 0 THEN
+    v_why := 'held_consent_names_other_practice';
   ELSE
     v_order := public.smc_open_order_for(NEW.broker_id, NEW.brand_id);
-    IF v_order IS NULL THEN v_why := 'held_no_open_order'; END IF;
+    IF v_order IS NULL THEN v_why := CASE WHEN v_low AND NOT v_manual THEN 'held_low_budget' ELSE 'held_no_open_order' END; END IF;
   END IF;
   IF v_order IS NOT NULL THEN
     NEW.lead_order_id := v_order; NEW.order_state := 'attached'; NEW.order_attached_at := now();
     NEW.order_counted_at := NULL; NEW.order_released_at := NULL; NEW.order_release_reason := NULL;
+    IF v_low THEN   -- agreement 5.7: the tier-C offer is accepted (standing yes, or the admin's record of the broker's yes)
+      NEW.offer_status := 'accepted'; NEW.offer_broker_id := NEW.broker_id;
+      NEW.offered_at := coalesce(NEW.offered_at, now()); NEW.offer_decided_at := now();
+      NEW.routed_at := coalesce(NEW.routed_at, now());   -- an admin assignment may write broker_id + routing_reason only
+    END IF;
     RETURN NEW;
   END IF;
-  IF TG_OP = 'UPDATE' AND OLD.broker_id IS NOT NULL THEN
+  IF (TG_OP = 'UPDATE' AND OLD.broker_id IS NOT NULL) OR v_manual THEN
     RAISE EXCEPTION 'smc: broker % %; routing refused', NEW.broker_id,
-      CASE v_why WHEN 'held_broker_not_ready' THEN 'is not ready (FSP number, practice, adviser name and intro card are required)' ELSE 'has no open paid SortMyCover lead order' END
+      CASE v_why WHEN 'held_broker_not_ready' THEN 'is not ready (FSP number, practice, adviser name and intro card are required)'
+                 WHEN 'held_consent_names_other_practice' THEN 'is not the practice the lead consented to (named consent); the lead must consent again first'
+                 WHEN 'held_low_budget' THEN 'does not take leads under R750 (brokers.accepts_low_budget is off)'
+                 ELSE 'has no open paid SortMyCover lead order' END
       USING ERRCODE = '23514';
   END IF;
   NEW.broker_id      := NULL;
@@ -297,6 +346,21 @@ BEGIN
     END IF;
     RETURN NULL;
   END IF;
+  -- tier C routed (standing yes or admin): the agreement 5.7 accept, recorded once per broker, and the hand-off signal the
+  -- W01 low-budget sweep turns into the normal booking flow (W06 first touch: slots / Flow, email verify, Teams link).
+  IF NEW.budget_band = 'lt750' AND NEW.order_state = 'attached'
+     AND (TG_OP = 'INSERT' OR OLD.broker_id IS DISTINCT FROM NEW.broker_id OR OLD.budget_band IS DISTINCT FROM NEW.budget_band) THEN
+    INSERT INTO public.lead_offers AS o (lead_id, broker_id, status, offered_at, expires_at, decided_at, decided_via)
+    VALUES (NEW.id, NEW.broker_id, 'accepted', now(), now(), now(), CASE WHEN NEW.routing_reason = 'manual_low_budget' THEN 'admin' ELSE 'standing' END)
+    ON CONFLICT (lead_id, broker_id) DO UPDATE SET status = 'accepted', decided_at = now(), decided_via = EXCLUDED.decided_via
+      WHERE o.status <> 'accepted';
+    INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, actor_type, activity_type, payload, occurred_at, idempotency_key)
+    VALUES (NEW.id, NEW.brand_id, NEW.broker_id, 'system', 'low_budget_accepted',
+            jsonb_build_object('lead_tier', 'C', 'via', CASE WHEN NEW.routing_reason = 'manual_low_budget' THEN 'admin' ELSE 'standing' END,
+                               'lead_order_id', NEW.lead_order_id, 'counted', false, 'counts_when', 'booked + attendance confirmed (agreement 5.2)'), now(),
+            'lowbudget:accepted:' || NEW.id::text || ':' || NEW.broker_id::text)
+    ON CONFLICT (idempotency_key) DO NOTHING;
+  END IF;
   IF NEW.order_state = 'attached' AND (TG_OP = 'INSERT' OR OLD.lead_order_id IS DISTINCT FROM NEW.lead_order_id OR OLD.order_state IS DISTINCT FROM NEW.order_state) THEN
     INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, actor_type, activity_type, payload, occurred_at, idempotency_key)
     VALUES (NEW.id, NEW.brand_id, NEW.broker_id, 'system', 'order_attached',
@@ -309,11 +373,11 @@ END $$;
 
 DROP TRIGGER IF EXISTS smc_leads_route_check ON public.leads;
 CREATE TRIGGER smc_leads_route_check
-  BEFORE INSERT OR UPDATE OF broker_id, brand_id ON public.leads
+  BEFORE INSERT OR UPDATE OF broker_id, brand_id, budget_band ON public.leads
   FOR EACH ROW WHEN (NEW.brand_id IS NOT NULL) EXECUTE FUNCTION public.smc_leads_route_check();
 DROP TRIGGER IF EXISTS smc_leads_attach_order ON public.leads;
 CREATE TRIGGER smc_leads_attach_order
-  AFTER INSERT OR UPDATE OF broker_id, brand_id ON public.leads
+  AFTER INSERT OR UPDATE OF broker_id, brand_id, budget_band ON public.leads
   FOR EACH ROW WHEN (NEW.brand_id IS NOT NULL) EXECUTE FUNCTION public.smc_leads_attach_order();
 
 -- A reservation that will not become a delivery is released: opt-out (STOP), disqualified, closed unbooked. (Re-routing is

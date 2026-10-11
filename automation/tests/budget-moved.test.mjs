@@ -38,7 +38,8 @@ test('W02 backstop (qualifyLead): no band -> qualified + budget_pending; an olde
   const r = M.qualifyLead(lead({ age_band: '45_50', call_ok: 'yes' }));
   assert.deepEqual([r.qualified, r.budget_pending], [true, true]);
   for (const b of ['750_1250', '1250plus', '1250_1499', '1500_plus']) assert.equal(M.qualifyLead(lead({ age_band: '35_44', budget_band: b, call_ok: 'yes' })).qualified, true, b);
-  for (const b of ['lt500', '500_750']) assert.deepEqual(M.qualifyLead(lead({ age_band: '35_44', budget_band: b, call_ok: 'yes' })).reasons, ['budget_band'], b);
+  for (const b of ['lt500', '500_750']) assert.equal(M.qualifyLead(lead({ age_band: '35_44', budget_band: b, call_ok: 'yes' })).qualified, true, `${b}: tier C, not out of band`);
+  assert.deepEqual(M.qualifyLead(lead({ age_band: '35_44', budget_band: 'r100', call_ok: 'yes' })).reasons, ['budget_band'], 'unknown band');
   assert.deepEqual(M.qualifyLead(lead({ age_band: '51plus', call_ok: 'yes' })).reasons, ['age_band'], 'age still decided in the form');
 });
 
@@ -60,7 +61,9 @@ test('W01: a lead-ad lead without a band is stored unrouted (q_budget) and its f
   assert.deepEqual(q.buttons.map((b) => b.quick_reply), W3.BUDGET_ROWS.map(([id]) => id), 'tap ids are W03 budget row ids');
   // an out-of-band age still never gets a message; an older form band is judged at intake as before
   assert.equal(W01.decide({ ...sub(), quiz: { ...sub().quiz, age_band: '51plus' } }, ctx).outcome, 'not_qualified');
-  assert.equal(W01.decide({ ...sub(), quiz: { ...sub().quiz, budget_band: 'lt750' } }, ctx).outcome, 'not_qualified');
+  const lo = W01.decide({ ...sub(), quiz: { ...sub().quiz, budget_band: 'lt750' } }, ctx);
+  assert.deepEqual([lo.outcome, lo.row.routing_reason, lo.row.stage, lo.row.disqualified_reason, lo.row.retention_delete_after], ['held', 'held_low_budget', 'new', null, null], 'tier C: held open, not out of band');
+  assert.equal(lo.notice.template, 'lead_low_budget_held');
   assert.equal(W01.decide({ ...sub(), quiz: { ...sub().quiz, budget_band: '1500_plus' } }, ctx).outcome !== 'budget_pending', true);
   // page leads are unchanged: a missing band is out of band there
   assert.equal(W01.decide({ ...sub(), channel: 'page' }, ctx).outcome, 'not_qualified');
@@ -81,7 +84,7 @@ test('W01.json: insert writes conv_state; first touch branches to the budget que
 test('the tap: W07 routes it to W03; same bands decide; in band -> qualified + routed + W06 intro; out -> polite close', () => {
   const d = W01.decide(sub(), ctx);
   const lead = { ...d.row, conv_state: { state: 'q_budget' } };
-  for (const [id, inBand] of [['budget_under_500', false], ['budget_500_750', false], ['budget_750_1250', true], ['budget_1250_1499', true], ['budget_1500_plus', true]]) {
+  for (const [id, inBand] of [['budget_under_500', true], ['budget_500_750', true], ['budget_750_1250', true], ['budget_1250_1499', true], ['budget_1500_plus', true]]) { // tier C included (2026-10-11)
     const msg = { from: '27600000141', type: 'button', button: { payload: id }, payload: id };
     assert.equal(W07.routeInbound(msg, { lead, broker_numbers: new Set(), ops_numbers: new Set() }).route, 'W03', id);
     const r = W3.step(null, msg, { at: AT, mobile: lead.phone, lead_id: lead.id, lead, existing_open_lead_id: lead.id, brand: { brand_id: 'smc', consent_mode: 'named' }, broker: null });

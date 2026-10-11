@@ -135,7 +135,8 @@
 
   function qualifies() {
     var ageOk = answers.age_band === '35_44' || answers.age_band === '45_50';
-    var budgetOk = answers.budget_band === '750_1250' || answers.budget_band === '1250plus' || answers.budget_band === '1250_1499' || answers.budget_band === '1500_plus';
+    /* every budget band goes on to the details step: under R750 is tier C (Jonathan, 2026-10-11), no exit card on budget */
+    var budgetOk = ['lt750', '750_1250', '750_1499', '1250plus', '1250_1499', '1500_plus'].indexOf(answers.budget_band) !== -1;
     return ageOk && budgetOk;
   }
   function advance() {
@@ -215,6 +216,7 @@
         leadToken = j.lead_token || ''; try { sessionStorage.setItem('smc_lt', leadToken); } catch (e) {}
         lead = { id: j.lead_id, methods: (j.methods_supported && j.methods_supported.length) ? j.methods_supported : ['whatsapp_call', 'phone'] };
         if (j.out_of_band) { show(9); return; }
+        if (j.status === 'held') { finish(false, { held: true }); return; } /* stored, no broker yet (e.g. tier C): WhatsApp follows */
         if (BOOKING && leadToken) startBooking(); else finish(false);
       } else if (r.status === 429) showErr('formErr', str('err_rate'));
       else if (r.status === 422 && r.json.error === 'out_of_band') show(9);
@@ -359,7 +361,7 @@
       sm.appendChild(row(str('sum_adviser'), str('sum_adviser_v')));
       try { cal.href = info.ics_url || URL.createObjectURL(makeIcs(info.start, info.method)); cal.hidden = false; } catch (e) {}
     } else {
-      $('doneH').textContent = str('done_not_h', { name: name }); $('doneP').textContent = str('done_not_p');
+      $('doneH').textContent = str('done_not_h', { name: name }); $('doneP').textContent = str(info && info.held ? 'done_held_p' : 'done_not_p');
       sm.appendChild(row(str('sum_next'), str('sum_next_v')));
     }
     show(8);

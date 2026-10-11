@@ -89,6 +89,7 @@ ALTER TABLE "public"."audit_log" DROP COLUMN IF EXISTS "diff" CASCADE;  -- data 
 ALTER TABLE "public"."audit_log" DROP COLUMN IF EXISTS "reason" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."audit_log" DROP COLUMN IF EXISTS "row_id" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."audit_log" DROP COLUMN IF EXISTS "source" CASCADE;  -- data in this column is lost
+ALTER TABLE "public"."brokers" DROP COLUMN IF EXISTS "accepts_low_budget" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."brokers" DROP COLUMN IF EXISTS "active" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."brokers" DROP COLUMN IF EXISTS "add_client_as_attendee" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."brokers" DROP COLUMN IF EXISTS "adviser_name" CASCADE;  -- data in this column is lost

@@ -119,7 +119,7 @@ async function landing(browser) {
       await tap(page, 'bond', 'no'); await page.locator('.q.on[data-step="3"]').waitFor();
       await tap(page, 'dependants', 'none'); await page.locator('.q.on[data-step="4"]').waitFor();
       await tap(page, 'work_cover', 'no'); await page.locator('.q.on[data-step="5"]').waitFor();
-      await tap(page, 'budget_band', 'lt750'); await page.locator('.q.on[data-step="9"]').waitFor();
+      await tap(page, 'budget_band', 'lt750'); await page.locator('.q.on[data-step="9"]').waitFor(); // exit by AGE (under 35); under R750 no longer exits
       record(`${slug} / not-a-fit (step 9)`, await axe(page));
       if (fs.existsSync(path.join(dist, slug, 'thanks/index.html'))) { await page.goto(`${base}/${slug}/thanks/`); record(`${slug} / thanks`, await axe(page)); }
       await ctx.close();

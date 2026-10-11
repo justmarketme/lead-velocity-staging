@@ -68,7 +68,7 @@ function buildW01() {
     'Entry 1 POST /lead (landing page): screen (origin, honeypot, fill time, E.164, consent) -> Context (per-IP + per-number counters in webhook_events, latest lead with the same digits-only hash, suppression, brokers) -> Turnstile siteverify (fail mode per TURNSTILE_FAIL_MODE) -> guard -> Twilio Lookup only when no 30-day cached line type -> decide (landline/VoIP reject, 90-day merge, bands lt35/35_44/45_50/51plus + lt750/750_1250/1250plus, named-consent check, suppression, routing) -> one INSERT (lead + timeline) -> 200 with lead_token (CONTRACTS.md) -> CAPI Send Lead (ids only, never email) -> W06 First touch (fire-and-forget, < 60 s).\n' +
     'Entry 2 POST /lead/skip (X-Lead-Token): the page\'s "I\'ll pick on WhatsApp" -> W06 op skip (slots card at once).\n' +
     'Entry 3 Execute Workflow "W01 Lead core": W02 { action: ingest, lead } (waits for { outcome, lead_id }) and W03 { kind: route_and_first_touch, lead_id } (routing written before W06 is called).\n' +
-    'Email is stored only when the chosen method needs an invite (teams/zoom/meet), purpose meeting_invite. Consent text stored verbatim with its version; registry mismatch logged (consent_audit). Out-of-band: stored with retention_delete_after = +24 h (W34 purge), never routed, never messaged.\n' +
+    'Email is stored only when the chosen method needs an invite (teams/zoom/meet), purpose meeting_invite. Consent text stored verbatim with its version; registry mismatch logged (consent_audit). Out-of-band: stored with retention_delete_after = +24 h (W34 purge), never routed, never messaged. Tier C (budget under R750, 2026-10-11) is NOT out of band: routed only to a broker with accepts_low_budget, else held (held_low_budget) with one honest WhatsApp; entry 5 hands an admin-assigned lead (manual_low_budget) to W06 and closes one nobody took in 7 days.\n' +
     'Env: BRAND_ID, PUBLIC_ALLOWED_ORIGINS, TURNSTILE_SECRET_KEY, TURNSTILE_FAIL_MODE, RATE_LIMIT_PER_IP_PER_HOUR, RATE_LIMIT_PER_NUMBER_PER_DAY, RATE_LIMIT_IP_SALT, TWILIO_LOOKUP_ENABLED, TWILIO_ACCOUNT_SID, LEAD_TOKEN_SECRET(_PREVIOUS), TEST_HOOKS_ENABLED, TEST_HOOKS_TOKEN, CONSUMER_DOMAIN. Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation.', 400));
 
   // ---- entry 1: POST /lead
@@ -115,7 +115,7 @@ SELECT br.id AS brand_uuid,
        COALESCE((SELECT jsonb_agg(jsonb_build_object(
                   'id', b.id, 'broker_id', b.id, 'brand_id', b.brand_id, 'status', b.status, 'routing_on', b.routing_on, 'active', b.active,
                   'bookings_paused', b.bookings_paused, 'practice_name', b.firm_name, 'fsp_number', b.fsp_number, 'consent_mode', b.consent_mode,
-                  'methods_supported', b.methods_supported,
+                  'methods_supported', b.methods_supported, 'accepts_low_budget', b.accepts_low_budget,
                   -- capacity = the broker's open paid SortMyCover lead_orders (lead_count + approved replacements - attached)
                   'order_capacity', COALESCE(oc.capacity, 0), 'order_attached', COALESCE(oc.attached, 0), 'order_remaining', COALESCE(oc.remaining, 0)))
                    FROM public.brokers b
@@ -209,7 +209,7 @@ RETURNING lead_id;`,
   n.push(code('Inserted? (a same-event_id race inserts nothing: answer, send nothing)', pos(13, 1),
 `const d = $('Kind?').first().json;
 const inserted = $input.all().some((i) => i.json && i.json.lead_id);
-return [{ json: { ...d, inserted, first_touch: inserted ? d.decision.first_touch : null, capi: inserted ? d.decision.capi : null } }];`));
+return [{ json: { ...d, inserted, first_touch: inserted ? d.decision.first_touch : null, capi: inserted ? d.decision.capi : null, notice: inserted ? d.decision.notice || null : null } }];`));
   n.push(ifTrue('From the page? (respond)', pos(14, 0), "$json.from === 'page'"));
   n.push(ifTrue('No-JS form post? (303 to thanks)', pos(15, 0), '!!$json.redirect'));
   n.push(node('Respond 303 (no-JS form)', 'respondToWebhook', 1.1, pos(16, -1), { respondWith: 'noData', options: { responseCode: 303, responseHeaders: { entries: [{ name: 'Location', value: '={{ $json.redirect }}' }, { name: 'Cache-Control', value: 'no-store' }] } } }));
@@ -228,6 +228,9 @@ return $input.all().map((i) => { const c = i.json.capi; return { json: { event_n
 const L = require('lv-automation').w01;
 return $input.all().map((i) => ({ json: L.budgetQuestion(i.json.decision.row) }));`));
   n.push(sub('WhatsApp Send (qualify_budget)', pos(20, 2), 'WhatsApp Send', false, 'Shared sender (SUB-whatsapp-send): suppression, DRY_RUN_SENDS, allow-list and the correlation idempotency key run inside.'));
+  n.push(ifTrue('Low-budget held notice? (tier C, no broker with the standing yes and room)', pos(17, 3), '!!$json.notice'));
+  n.push(code('Low-budget held notice (w01.lowBudgetHeld)', pos(18, 3), "return $input.all().filter((i) => i.json.notice).map((i) => ({ json: i.json.notice }));"));
+  n.push(sub('WhatsApp Send (lead_low_budget_held)', pos(19, 3), 'WhatsApp Send', false, 'Tier C held: one honest message (we are checking which adviser can help at that budget; no promise of a call). Correlation w01:low_budget_held:<lead> (once per lead, whichever path holds it).'));
   n.push(code('W06 input', pos(18, 1), "return $input.all().filter((i) => i.json.first_touch.workflow !== 'W03').map((i) => ({ json: { op: 'routed', lead_id: i.json.first_touch.lead_id, origin: i.json.first_touch.origin, not_before: i.json.first_touch.not_before } }));"));
   n.push(sub('W06 First touch (< 60 s)', pos(19, 1), 'W06 First touch', false, 'Called with { op: routed, lead_id, origin }. The lead row (broker_id, routed_at; attached to the open lead order by the database) is committed before this call. W06 holds page leads 45 s for the in-page booking.'));
 
@@ -265,14 +268,14 @@ return out;`));
 `SELECT to_jsonb(q) AS lead,
        COALESCE((SELECT jsonb_agg(jsonb_build_object('id', b.id, 'broker_id', b.id, 'brand_id', b.brand_id, 'status', b.status, 'routing_on', b.routing_on,
                   'active', b.active, 'bookings_paused', b.bookings_paused, 'practice_name', b.firm_name, 'fsp_number', b.fsp_number,
-                  'consent_mode', b.consent_mode,
+                  'consent_mode', b.consent_mode, 'accepts_low_budget', b.accepts_low_budget,
                   'order_capacity', COALESCE(oc.capacity, 0), 'order_attached', COALESCE(oc.attached, 0), 'order_remaining', COALESCE(oc.remaining, 0)))
                    FROM public.brokers b
                    LEFT JOIN LATERAL (SELECT sum(c.capacity)::int AS capacity, sum(c.attached)::int AS attached, sum(c.remaining)::int AS remaining
                                         FROM public.smc_order_capacity c WHERE c.broker_id = b.id AND c.brand_id = q.brand_id AND c.open) oc ON true
                   WHERE b.brand_id = q.brand_id), '[]'::jsonb) AS brokers
   FROM (SELECT l.id, l.brand_id, l.origin, l.broker_id, l.routed_at, l.opted_out_at, l.disqualified_reason, l.consent_text, l.consent_mode,
-               l.routing_reason, l.consent_ads_at, l.lead_event_id, l.created_at,
+               l.routing_reason, l.consent_ads_at, l.lead_event_id, l.created_at, l.budget_band, l.phone, l.first_name,
                EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone) AND (s.brand_id IS NULL OR s.brand_id = l.brand_id)) AS suppressed
           FROM public.leads l WHERE l.id = $1::uuid) q;`,
     '={{ [$json.lead_id] }}'));
@@ -303,6 +306,11 @@ RETURNING lead_id, broker_id;`,
 return $('Route (w01.routeExisting)').all().map((i) => i.json).filter((x) => x.r && x.r.capi && routed.has(String(x.lead_id)))
   .map((x) => { const c = x.r.capi; return { json: { event_name: c.event_name, event_id: c.event_id, action_source: c.action_source, lead_id: c.lead_id, brand_id: c.brand_id, event_time: c.event_time } }; });`));
   n.push(sub('CAPI Send (Lead at hand-over)', pos(7, 8), 'CAPI Send', false, 'I-49c: { event_name: Lead, event_id, ... } for a lead held at intake (no CAPI then). Consent gate inside the callee.'));
+  n.push(code('Low-budget held notice (CTWA / held at intake)', pos(6, 6),
+`// Tier C held at the hand-over (no broker with the standing yes and room): the honest "we are checking" message, once.
+const written = new Set($input.all().filter((i) => i.json && i.json.lead_id && !i.json.broker_id).map((i) => String(i.json.lead_id)));
+return $('Route (w01.routeExisting)').all().map((i) => i.json).filter((x) => x.r && x.r.notice && written.has(String(x.lead_id))).map((x) => ({ json: x.r.notice }));`));
+  n.push(sub('WhatsApp Send (lead_low_budget_held, core)', pos(7, 6), 'WhatsApp Send', false, 'Tier C held at the hand-over. Correlation w01:low_budget_held:<lead>: never twice for one lead.'));
   n.push(code('W06 input (CTWA)', pos(6, 7), "return $input.all().filter((i) => i.json.broker_id).map((i) => ({ json: { op: 'routed', lead_id: i.json.lead_id, origin: 'ctwa' } }));"));
   n.push(sub('W06 First touch (CTWA)', pos(7, 7), 'W06 First touch', false, 'Called with { op: routed, lead_id, origin: ctwa }: slots card (or Flow v2) at once.'));
   n.push(code('Unknown core call (logged, never guessed)', pos(2, 9), "return [{ json: { outcome: 'subcall_rejected', reason: 'W01 Lead core needs action=ingest or kind=route_and_first_touch', keys: Object.keys($input.first().json || {}) } }];"));
@@ -327,6 +335,9 @@ return $('Route (w01.routeExisting)').all().map((i) => i.json).filter((x) => x.r
   chain(c, 'Insert lead + timeline (one statement; broker_id written before W06 exists)', 'Inserted? (a same-event_id race inserts nothing: answer, send nothing)', 'From the page? (respond)');
   link(c, 'Inserted? (a same-event_id race inserts nothing: answer, send nothing)', 'CAPI Lead? (consent gate passed, row inserted)');
   link(c, 'Inserted? (a same-event_id race inserts nothing: answer, send nothing)', 'First touch? (routed, not suppressed)');
+  link(c, 'Inserted? (a same-event_id race inserts nothing: answer, send nothing)', 'Low-budget held notice? (tier C, no broker with the standing yes and room)');
+  link(c, 'Low-budget held notice? (tier C, no broker with the standing yes and room)', 'Low-budget held notice (w01.lowBudgetHeld)', 0);
+  chain(c, 'Low-budget held notice (w01.lowBudgetHeld)', 'WhatsApp Send (lead_low_budget_held)');
   link(c, 'From the page? (respond)', 'No-JS form post? (303 to thanks)', 0);
   link(c, 'From the page? (respond)', 'Result for the caller (W02 waits on it)', 1);
   link(c, 'No-JS form post? (303 to thanks)', 'Respond 303 (no-JS form)', 0);
@@ -349,6 +360,7 @@ return $('Route (w01.routeExisting)').all().map((i) => i.json).filter((x) => x.r
   chain(c, 'Load CTWA lead + brokers', 'Route (w01.routeExisting)', 'Routed or held? (write it)');
   link(c, 'Routed or held? (write it)', 'Write routing (only if not routed yet) + timeline', 0);
   chain(c, 'Write routing (only if not routed yet) + timeline', 'W06 input (CTWA)', 'W06 First touch (CTWA)');
+  chain(c, 'Write routing (only if not routed yet) + timeline', 'Low-budget held notice (CTWA / held at intake)', 'WhatsApp Send (lead_low_budget_held, core)');
   chain(c, 'Write routing (only if not routed yet) + timeline', 'CAPI Lead at hand-over (held -> routed)', 'CAPI Send (Lead at hand-over)');
   // ---- entry 4: the ONE qualify_budget reminder (lead-ad leads, no tap within 3 h; quiet hours 20:00-08:00 SAST)
   n.push(node('Every 15 min: budget reminder sweep', 'scheduleTrigger', 1.2, pos(0, 9), { rule: { interval: [{ field: 'minutes', minutesInterval: 15 }] } }));
@@ -376,6 +388,64 @@ RETURNING id;`, '={{ [ $json.lead_id, $json.reminded_at, $json.retention_delete_
 return $('Budget reminder (w01.budgetReminder)').all().filter((i) => marked.has(i.json.lead_id)).map((i) => ({ json: i.json.send }));`));
   n.push(sub('WhatsApp Send (qualify_budget reminder)', pos(5, 9), 'WhatsApp Send', false, 'Shared sender: suppression, DRY_RUN_SENDS, allow-list, correlation w01:ask_budget_reminder:<lead> (sent once).'));
   chain(c, 'Every 15 min: budget reminder sweep', 'Leads waiting on the budget tap (> 3 h, not reminded)', 'Budget reminder (w01.budgetReminder)', 'Mark reminded (at-most-once) + delete 24 h after', 'Reminder send input (only rows just marked)', 'WhatsApp Send (qualify_budget reminder)');
+  // ---- entry 5: tier C (under R750) sweep: an admin-assigned lead starts the normal booking flow; a lead nobody took in 7 days closes
+  n.push(node('Every 15 min: low-budget sweep (tier C)', 'scheduleTrigger', 1.2, pos(0, 11), { rule: { interval: [{ field: 'minutes', minutesInterval: 15 }] } }));
+  n.push(pg('Tier-C leads: assigned (hand off) or held 7 days (close)', pos(1, 11),
+`-- Assigned = the admin portal wrote broker_id + routing_reason 'manual_low_budget' (the routing trigger reserved the place and
+-- recorded the accept in lead_offers); not introduced yet. Held = routing_reason 'held_low_budget', no broker, open.
+SELECT l.id, l.brand_id, l.origin, l.phone, l.first_name, l.broker_id, l.routing_reason, l.order_state, l.first_message_at, l.opted_out_at,
+       l.disqualified_reason, l.stage, l.conv_state, l.created_at
+  FROM public.leads l
+ WHERE l.brand_id IS NOT NULL AND l.budget_band = 'lt750' AND l.opted_out_at IS NULL
+   AND ((l.routing_reason = 'manual_low_budget' AND l.broker_id IS NOT NULL AND l.first_message_at IS NULL AND l.order_state = 'attached')
+     OR (l.routing_reason = 'held_low_budget' AND l.broker_id IS NULL AND l.created_at <= now() - interval '7 days'
+         AND coalesce(l.stage, '') NOT IN ('unbooked_closed','opted_out','disqualified')))
+ ORDER BY l.created_at
+ LIMIT 200;`));
+  n.push(code('Plan (w01.lowBudgetHandoff / lowBudgetClose)', pos(2, 11),
+`const L = require('lv-automation').w01;
+const now = Date.now(); const out = [];
+for (const i of $input.all()) {
+  const l = i.json; if (!l || !l.id) continue;
+  const h = L.lowBudgetHandoff(l); if (h) { out.push({ json: { type: 'handoff', ...h } }); continue; }
+  const c = L.lowBudgetClose(l, now); if (c) out.push({ json: { type: 'close', ...c } });
+}
+return out;`));
+  n.push(switchOn('Hand off or close?', pos(3, 11), '={{ $json.type }}', ['handoff', 'close']));
+  n.push(pg('Claim the hand-off (once per lead)', pos(4, 10),
+`INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
+SELECT l.id, l.brand_id, l.broker_id, 'W01', 'system', 'low_budget_handoff', jsonb_build_object('broker_id', l.broker_id, 'next', 'W06 routed'), now(), $2
+  FROM public.leads l
+ WHERE l.id = $1::uuid AND l.routing_reason = 'manual_low_budget' AND l.broker_id IS NOT NULL AND l.first_message_at IS NULL AND l.opted_out_at IS NULL
+ON CONFLICT (idempotency_key) DO NOTHING
+RETURNING lead_id;`, '={{ [$json.lead_id, $json.claim_key] }}'));
+  n.push(code('W06 input (low-budget hand-off, only rows just claimed)', pos(5, 10),
+`const claimed = new Set($input.all().map((i) => i.json && i.json.lead_id).filter(Boolean).map(String));
+return $('Hand off or close?').all().filter((i) => i.json.type === 'handoff' && claimed.has(String(i.json.lead_id))).map((i) => ({ json: { op: 'routed', lead_id: i.json.lead_id, origin: i.json.origin } }));`));
+  n.push(sub('W06 First touch (low-budget hand-off)', pos(6, 10), 'W06 First touch', false, 'Called with { op: routed, lead_id, origin }: the normal booking flow for an admin-assigned tier-C lead (slots card or Flow -> W05 booking, email verification, Teams link). W06 claims w06:first:{lead_id}, so one intro card ever.'));
+  n.push(pg('Close politely (only if still held) + timeline', pos(4, 12),
+`-- unbooked_closed-style close; NOT out of band: no 24-h deletion, the normal retention clock applies (last_contact_at, I-38d).
+WITH u AS (
+  UPDATE public.leads l
+     SET stage = 'unbooked_closed', routing_reason = 'low_budget_no_taker',
+         conv_state = coalesce(l.conv_state, '{}'::jsonb) || jsonb_build_object('state', 'closed_unbooked', 'closed_reason', 'low_budget_no_taker'),
+         updated_at = now()
+   WHERE l.id = $1::uuid AND l.routing_reason = 'held_low_budget' AND l.broker_id IS NULL AND l.opted_out_at IS NULL
+  RETURNING l.id, l.brand_id)
+INSERT INTO public.lead_activities (lead_id, brand_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
+SELECT u.id, u.brand_id, 'W01', 'system', 'low_budget_closed', jsonb_build_object('reason', 'low_budget_no_taker', 'held_days', 7), now(), 'w01:low_budget_closed:' || u.id::text
+  FROM u
+ON CONFLICT (idempotency_key) DO NOTHING
+RETURNING lead_id;`, '={{ [$json.lead_id] }}'));
+  n.push(code('Close send input (only rows just closed)', pos(5, 12),
+`const closed = new Set($input.all().map((i) => i.json && i.json.lead_id).filter(Boolean).map(String));
+return $('Hand off or close?').all().filter((i) => i.json.type === 'close' && i.json.send && closed.has(String(i.json.lead_id))).map((i) => ({ json: i.json.send }));`));
+  n.push(sub('WhatsApp Send (lead_low_budget_closed)', pos(6, 12), 'WhatsApp Send', false, 'Polite close, once (correlation w01:low_budget_closed:<lead>). Never in quiet hours (lowBudgetClose defers to the 08:00 sweep).'));
+  chain(c, 'Every 15 min: low-budget sweep (tier C)', 'Tier-C leads: assigned (hand off) or held 7 days (close)', 'Plan (w01.lowBudgetHandoff / lowBudgetClose)', 'Hand off or close?');
+  link(c, 'Hand off or close?', 'Claim the hand-off (once per lead)', 0);
+  link(c, 'Hand off or close?', 'Close politely (only if still held) + timeline', 1);
+  chain(c, 'Claim the hand-off (once per lead)', 'W06 input (low-budget hand-off, only rows just claimed)', 'W06 First touch (low-budget hand-off)');
+  chain(c, 'Close politely (only if still held) + timeline', 'Close send input (only rows just closed)', 'WhatsApp Send (lead_low_budget_closed)');
   return wf('smc-w01', 'W01 Lead intake (web) (DRAFT pending GATE-TEST-W01)', n, c, ['SortMyCover', 'core-path', 'draft']);
 }
 
