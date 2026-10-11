@@ -2,6 +2,9 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import BrokerLayout from "@/components/broker/BrokerLayout";
+import OwnBroker from "@/components/broker/smc/OwnBroker";
+import OutlookConnectCard from "@/components/broker/smc/OutlookConnectCard";
+import UpcomingSmcAppointments from "@/components/broker/smc/UpcomingSmcAppointments";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -185,6 +188,15 @@ const BrokerCalendar = () => {
             </Button>
           </div>
         </div>
+
+        <OwnBroker>
+          {(b, reload) => (
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+              <OutlookConnectCard broker={b} reload={reload} />
+              <UpcomingSmcAppointments brokerId={b.id} />
+            </div>
+          )}
+        </OwnBroker>
 
         {loading ? (
           <div className="flex items-center justify-center py-12">

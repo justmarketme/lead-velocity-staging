@@ -6,6 +6,7 @@
     "src/vite-env.d.ts",
     "src/pages/portal/**/*",
     "src/pages/smc/**/*",
+    "src/components/broker/smc/**/*",
     "src/lib/smc*.ts",
     "src/lib/smc*.tsx"
   ]

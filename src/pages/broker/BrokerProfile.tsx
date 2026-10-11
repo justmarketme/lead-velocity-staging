@@ -5,6 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { MessageSquare, ShieldCheck, RefreshCw, CheckCircle2 } from "lucide-react";
 import BrokerLayout from "@/components/broker/BrokerLayout";
+import OwnBroker from "@/components/broker/smc/OwnBroker";
+import IntroCardEditor from "@/components/broker/smc/IntroCardEditor";
 
 const BrokerProfile = () => {
     const [loading, setLoading] = useState(true);
@@ -62,8 +64,12 @@ const BrokerProfile = () => {
 
     return (
         <BrokerLayout>
-            <div className="max-w-4xl mx-auto space-y-8">
-                <h1 className="text-4xl font-bold gradient-text">Profile Settings</h1>
+            <div className="max-w-6xl mx-auto space-y-8">
+                <h1 className="text-3xl sm:text-4xl font-bold gradient-text">Profile Settings</h1>
+
+                <section id="intro-card" aria-label="Your intro card">
+                    <OwnBroker>{(b, reload) => <IntroCardEditor broker={b} reload={reload} />}</OwnBroker>
+                </section>
 
                 <div className="grid md:grid-cols-2 gap-8">
                     {/* Discord Integration */}

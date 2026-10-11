@@ -21,6 +21,7 @@ import BrokerReports from "./pages/broker/BrokerReports";
 import BrokerDocuments from "./pages/broker/BrokerDocuments";
 import BrokerReferrals from "./pages/broker/BrokerReferrals";
 import BrokerCalendar from "./pages/broker/BrokerCalendar";
+import MsReturnGate from "./components/broker/smc/MsReturnGate";
 import InviteSignup from "./pages/InviteSignup";
 import BrokerSetup from "./pages/BrokerSetup";
 import BrokerForgotPassword from "./pages/auth/BrokerForgotPassword";
@@ -99,7 +100,7 @@ const App = () => {
             <Route path="/broker/upload" element={<BrokerUpload />} />
             <Route path="/broker/documents" element={<BrokerDocuments />} />
             <Route path="/broker/referrals" element={<BrokerReferrals />} />
-            <Route path="/broker/calendar" element={shared(<PortalCalendar />, <BrokerCalendar />)} />
+            <Route path="/broker/calendar" element={<MsReturnGate>{shared(<PortalCalendar />, <BrokerCalendar />)}</MsReturnGate>} />
             <Route path="/broker/reports" element={shared(<PortalReports />, <BrokerReports />)} />
             <Route path="/broker/profile" element={shared(<PortalProfile />, <BrokerProfile />)} />
             <Route path="/broker/explainer" element={<Explainer />} />
