@@ -6,12 +6,15 @@ BEGIN;
 SET LOCAL check_function_bodies = off;   -- restored function bodies may reference objects an earlier undo already dropped
 DROP TRIGGER IF EXISTS "smc_count_on_confirm" ON "public"."appointments";
 DROP TRIGGER IF EXISTS "smc_audit" ON "public"."lead_orders";
+DROP TRIGGER IF EXISTS "smc_count_on_email_verified" ON "public"."leads";
 DROP TRIGGER IF EXISTS "smc_leads_attach_order" ON "public"."leads";
 DROP TRIGGER IF EXISTS "smc_leads_release_reservation" ON "public"."leads";
 DROP TRIGGER IF EXISTS "smc_leads_route_check" ON "public"."leads";
 DROP VIEW IF EXISTS "public"."smc_order_capacity" CASCADE;
 DROP FUNCTION IF EXISTS public.smc_broker_ready(p_broker_id uuid) CASCADE;
+DROP FUNCTION IF EXISTS public.smc_count_lead(p_lead_id uuid, p_booking_id uuid) CASCADE;
 DROP FUNCTION IF EXISTS public.smc_count_on_confirm() CASCADE;
+DROP FUNCTION IF EXISTS public.smc_count_on_email_verified() CASCADE;
 DROP FUNCTION IF EXISTS public.smc_leads_attach_order() CASCADE;
 DROP FUNCTION IF EXISTS public.smc_leads_release_reservation() CASCADE;
 DROP FUNCTION IF EXISTS public.smc_leads_route_check() CASCADE;

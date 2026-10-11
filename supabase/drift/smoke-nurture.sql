@@ -2,7 +2,7 @@
 -- Everything runs in ONE transaction and is rolled back, so it can run before the undo rehearsal. Every check raises on failure.
 -- Covers: routing needs a ready broker (FSP number, practice, adviser, intro card: CHECK + routing trigger), tier C (under
 -- R750: held_low_budget, standing yes, admin manual_low_budget hand-off, counted at confirmed attendance),
--- capacity from lead_orders (reserve at routing, COUNT at booked + attendance confirmed (agreement 5.2), release on
+-- capacity from lead_orders (reserve at routing, COUNT at email verified + attendance confirmed (agreement 5.2), release on
 -- STOP / disqualified / unconfirmed meeting / un-route, hold, re-route refusal, replacement adds capacity, legacy order untouched),
 -- replacement RPC (window, weekly max 3 across no-show + unreachable, traversal, other broker), brokers guard, n8n_app scope,
 -- portal event RPC, anon posture.
@@ -132,6 +132,7 @@ BEGIN
     VALUES ('71000000-0000-4000-8000-000000000091', '10000000-0000-4000-8000-000000000001', '61000000-0000-4000-8000-000000000091',
             now() + interval '2 days', now() + interval '2 days 30 minutes', 'booked', (SELECT id FROM public.brands WHERE code = 'SMC'), 'teams');
     IF EXISTS (SELECT 1 FROM public.lead_order_items WHERE lead_id = '61000000-0000-4000-8000-000000000091') THEN RAISE EXCEPTION 'smoke 1c: counted at booking'; END IF;
+    UPDATE public.leads SET email = 'c1@example.test', email_verified = true, email_verified_at = now(), email_verified_via = 'link' WHERE id = '61000000-0000-4000-8000-000000000091';
     UPDATE public.appointments SET status = 'confirmed', confirmed_at = now() WHERE id = '71000000-0000-4000-8000-000000000091';
     UPDATE public.appointments SET confirmed_at = now() WHERE id = '71000000-0000-4000-8000-000000000091';
     SELECT count(*) INTO n FROM public.lead_order_items WHERE lead_id = '61000000-0000-4000-8000-000000000091' AND order_id = '31000000-0000-4000-8000-000000000003';
@@ -230,12 +231,19 @@ SELECT ('71000000-0000-4000-8000-' || lpad(g::text, 12, '0'))::uuid, '10000000-0
        now() - ((11 + g) || ' minutes')::interval + interval '30 seconds', 'booked', :'brand', 'teams'
   FROM generate_series(1, 2) g;
 
--- 3a. THE DELIVERY POINT (agreement 5.2): booked + attendance confirmed counts the lead, once; booked alone does not
+-- 3a. THE DELIVERY POINT (agreement 5.2, Jonathan 2026-10-11): email verified AND attendance confirmed counts the lead, once,
+--     whichever comes second; booked alone, confirmed alone or verified alone does not
 DO $$
 DECLARE n int;
 BEGIN
   IF EXISTS (SELECT 1 FROM public.lead_order_items WHERE order_id = '31000000-0000-4000-8000-000000000001') THEN RAISE EXCEPTION 'smoke 3a: a booking alone counted the lead'; END IF;
+  -- confirmed attendance, email NOT verified: not counted, the wait is on the timeline
   UPDATE public.appointments SET status = 'confirmed', confirmed_at = now() WHERE id = '71000000-0000-4000-8000-000000000001';
+  IF EXISTS (SELECT 1 FROM public.lead_order_items WHERE lead_id = '61000000-0000-4000-8000-000000000001') THEN RAISE EXCEPTION 'smoke 3a: counted without a verified email'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.lead_activities WHERE lead_id = '61000000-0000-4000-8000-000000000001' AND activity_type = 'count_waits_email_verification') THEN
+    RAISE EXCEPTION 'smoke 3a: no count_waits_email_verification row'; END IF;
+  -- the email is verified afterwards: NOW it counts (the second condition arrives on the lead row)
+  UPDATE public.leads SET email = 'n1@example.test', email_verified = true, email_verified_at = now(), email_verified_via = 'code' WHERE id = '61000000-0000-4000-8000-000000000001';
   IF NOT EXISTS (SELECT 1 FROM public.lead_order_items WHERE order_id = '31000000-0000-4000-8000-000000000001' AND lead_id = '61000000-0000-4000-8000-000000000001') THEN
     RAISE EXCEPTION 'smoke 3a: confirmed attendance did not count the lead'; END IF;
   IF (SELECT order_state || ':' || delivered::text FROM public.leads WHERE id = '61000000-0000-4000-8000-000000000001') <> 'counted:true' THEN RAISE EXCEPTION 'smoke 3a: lead state not counted'; END IF;
@@ -244,11 +252,14 @@ BEGIN
   UPDATE public.appointments SET confirmed_at = now() WHERE id = '71000000-0000-4000-8000-000000000001';
   SELECT count(*) INTO n FROM public.lead_activities WHERE lead_id = '61000000-0000-4000-8000-000000000001' AND activity_type = 'order_counted';
   IF n <> 1 THEN RAISE EXCEPTION 'smoke 3a: order_counted rows %', n; END IF;
+  -- the other order: verified first, nothing counted until the attendance is confirmed
+  UPDATE public.leads SET email = 'n2@example.test', email_verified = true, email_verified_at = now(), email_verified_via = 'link' WHERE id = '61000000-0000-4000-8000-000000000002';
+  IF EXISTS (SELECT 1 FROM public.lead_order_items WHERE lead_id = '61000000-0000-4000-8000-000000000002') THEN RAISE EXCEPTION 'smoke 3a: counted on email alone'; END IF;
   UPDATE public.appointments SET status = 'confirmed', confirmed_at = now() WHERE id = '71000000-0000-4000-8000-000000000002';
   IF (SELECT counted FROM public.smc_order_capacity WHERE lead_order_id = '31000000-0000-4000-8000-000000000001') <> 2
      OR (SELECT reserved FROM public.smc_order_capacity WHERE lead_order_id = '31000000-0000-4000-8000-000000000001') <> 0 THEN
     RAISE EXCEPTION 'smoke 3a: view after two confirmations wrong'; END IF;
-  RAISE NOTICE 'ok 3a: a lead counts toward the order at booked + attendance confirmed, exactly once';
+  RAISE NOTICE 'ok 3a: a lead counts toward the order at email verified + attendance confirmed (either order), exactly once';
 END $$;
 
 -- the broker's uploaded proof files (the RPC requires the object to exist in the private bucket)
@@ -320,6 +331,7 @@ END $$;
 INSERT INTO public.appointments (id, broker_id, client_id, appointment_date, ends_at, status, brand_id, method)
 VALUES ('71000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000001', '61000000-0000-4000-8000-000000000003',
         now() + interval '2 days', now() + interval '2 days 30 minutes', 'booked', :'brand', 'teams');
+UPDATE public.leads SET email = 'n3@example.test', email_verified = true, email_verified_at = now(), email_verified_via = 'code' WHERE id = '61000000-0000-4000-8000-000000000003';
 SET LOCAL ROLE n8n_app;
 UPDATE public.appointments SET status = 'confirmed', confirmed_at = now() WHERE id = '71000000-0000-4000-8000-000000000003';
 RESET ROLE;
@@ -398,6 +410,67 @@ BEGIN
   RAISE NOTICE 'ok 7: n8n_app scope (brand rows only, orders read-only)';
 END $$;
 RESET ROLE;
+
+-- 7b. Jonathan 2026-10-11: a booking of a lead whose email is not verified is a HELD slot (pending_verification): it blocks the
+--     time for everyone (zero double-bookings) but the broker sees neither the lead, the held booking, nor its timeline until
+--     the email is verified (RESTRICTIVE broker policies); then he sees both. Runs last (adds an order + a lead).
+INSERT INTO public.lead_orders (id, broker_id, title, lead_count, amount_zar, status, paid_at, brand_id)
+VALUES ('31000000-0000-4000-8000-000000000005', '10000000-0000-4000-8000-000000000001', 'SMC visibility order', 2, 1000, 'paid', now(), :'brand');
+INSERT INTO public.leads (id, email, phone, brand_id, broker_id, routed_at, consent_text, consent_source, consent_at, first_name, source, budget_band)
+VALUES ('61000000-0000-4000-8000-000000000071', 'v1@example.test', '+27600008071', :'brand', '10000000-0000-4000-8000-000000000001', now(), 'consent text', 'ctwa', now(), 'V1', 'Search Lead', '1500_plus');
+INSERT INTO public.appointments (id, broker_id, client_id, appointment_date, ends_at, status, verify_by, brand_id, method)
+VALUES ('71000000-0000-4000-8000-000000000071', '10000000-0000-4000-8000-000000000001', '61000000-0000-4000-8000-000000000071',
+        date_trunc('hour', now()) + interval '3 days', date_trunc('hour', now()) + interval '3 days 30 minutes', 'pending_verification', now() + interval '1 day', :'brand', 'teams');
+INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, actor_type, activity_type, payload, occurred_at, idempotency_key)
+VALUES ('61000000-0000-4000-8000-000000000071', :'brand', '10000000-0000-4000-8000-000000000001', 'system', 'booking_held', '{}'::jsonb, now(), 'smoke:7b:held');
+DO $$
+BEGIN
+  IF (SELECT order_state FROM public.leads WHERE id = '61000000-0000-4000-8000-000000000071') <> 'attached' THEN RAISE EXCEPTION 'smoke 7b: lead not reserved'; END IF;
+  -- the held slot blocks the time: another booking on it is refused (exclusion), a pending row without a deadline too
+  BEGIN
+    INSERT INTO public.appointments (broker_id, client_id, appointment_date, ends_at, status, brand_id, method)
+    VALUES ('10000000-0000-4000-8000-000000000001', '61000000-0000-4000-8000-000000000003', date_trunc('hour', now()) + interval '3 days 10 minutes',
+            date_trunc('hour', now()) + interval '3 days 40 minutes', 'booked', (SELECT id FROM public.brands WHERE code = 'SMC'), 'phone');
+    RAISE EXCEPTION 'smoke 7b: a held slot was double-booked';
+  EXCEPTION WHEN exclusion_violation OR unique_violation THEN NULL;
+  END;
+  BEGIN
+    INSERT INTO public.appointments (broker_id, client_id, appointment_date, ends_at, status, brand_id, method)
+    VALUES ('10000000-0000-4000-8000-000000000001', '61000000-0000-4000-8000-000000000003', now() + interval '9 days', now() + interval '9 days 30 minutes',
+            'pending_verification', (SELECT id FROM public.brands WHERE code = 'SMC'), 'phone');
+    RAISE EXCEPTION 'smoke 7b: a held slot without verify_by was accepted';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+END $$;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000002', true);
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM public.leads WHERE id = '61000000-0000-4000-8000-000000000071') THEN RAISE EXCEPTION 'smoke 7b: broker sees an unverified lead'; END IF;
+  IF EXISTS (SELECT 1 FROM public.appointments WHERE id = '71000000-0000-4000-8000-000000000071') THEN RAISE EXCEPTION 'smoke 7b: broker sees a held booking'; END IF;
+  IF EXISTS (SELECT 1 FROM public.bookings WHERE id = '71000000-0000-4000-8000-000000000071') THEN RAISE EXCEPTION 'smoke 7b: broker sees a held booking in the bookings view'; END IF;
+  IF EXISTS (SELECT 1 FROM public.lead_activities WHERE lead_id = '61000000-0000-4000-8000-000000000071') THEN RAISE EXCEPTION 'smoke 7b: broker sees an unverified lead''s timeline'; END IF;
+  -- his verified, counted leads stay visible (the narrowing is only for unverified ones)
+  IF NOT EXISTS (SELECT 1 FROM public.leads WHERE id = '61000000-0000-4000-8000-000000000001') THEN RAISE EXCEPTION 'smoke 7b: broker lost a verified lead'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.appointments WHERE id = '71000000-0000-4000-8000-000000000001') THEN RAISE EXCEPTION 'smoke 7b: broker lost a verified booking'; END IF;
+END $$;
+RESET ROLE;
+-- the email is verified -> W05 finalizes the hold (status booked) -> the broker sees the lead and the booking
+UPDATE public.leads SET email_verified = true, email_verified_at = now(), email_verified_via = 'link' WHERE id = '61000000-0000-4000-8000-000000000071';
+UPDATE public.appointments SET status = 'booked', verify_by = NULL WHERE id = '71000000-0000-4000-8000-000000000071' AND status = 'pending_verification';
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000002', true);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.leads WHERE id = '61000000-0000-4000-8000-000000000071') THEN RAISE EXCEPTION 'smoke 7b: verified lead still hidden'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.appointments WHERE id = '71000000-0000-4000-8000-000000000071') THEN RAISE EXCEPTION 'smoke 7b: finalized booking still hidden'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.lead_activities WHERE lead_id = '61000000-0000-4000-8000-000000000071') THEN RAISE EXCEPTION 'smoke 7b: verified timeline still hidden'; END IF;
+END $$;
+RESET ROLE;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM public.lead_order_items WHERE lead_id = '61000000-0000-4000-8000-000000000071') THEN RAISE EXCEPTION 'smoke 7b: counted before the attendance was confirmed'; END IF;
+  RAISE NOTICE 'ok 7b: held slot blocks the time; broker sees no unverified lead / held booking / timeline; sees them once verified + finalized';
+END $$;
 
 -- 8. anon: nothing on the chain objects or the locked CRM tables
 DO $$

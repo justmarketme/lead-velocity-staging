@@ -328,7 +328,7 @@ SELECT row_to_json(l) AS lead, row_to_json(b) AS broker, row_to_json(a) AS booki
        (SELECT x.payload->>'typed_hash' FROM public.lead_activities x
          WHERE x.lead_id = l.id AND x.activity_type = 'flow_email_suggested' AND x.payload->>'flow_token' = $2
          ORDER BY x.occurred_at DESC LIMIT 1) AS email_suggested_for
-  FROM (SELECT id, email, opted_out_at, brand_id, broker_id, phone FROM public.leads WHERE id = $1::uuid) l
+  FROM (SELECT id, email, email_verified, opted_out_at, brand_id, broker_id, phone FROM public.leads WHERE id = $1::uuid) l
   JOIN (SELECT id AS broker_id, adviser_name, split_part(adviser_name, ' ', 1) AS adviser_first_name, methods_supported, calendar_provider,
                meeting_hours, slot_minutes, buffer_minutes, min_notice_hours, horizon_days, max_meetings_per_day, max_meetings_per_week,
                bookings_paused, status

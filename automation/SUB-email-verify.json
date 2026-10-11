@@ -619,6 +619,140 @@
       ]
     },
     {
+      "name": "Verified by the code? (finalize the held slot)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $('Check the typed code').item.json.ok === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-email-verify-29",
+      "position": [
+        6380,
+        340
+      ]
+    },
+    {
+      "name": "Finalize item (code)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { json: { op: 'finalize', lead_id: $('Check the typed code').item.json.lead_id } };"
+      },
+      "id": "smc-email-verify-30",
+      "position": [
+        6600,
+        380
+      ]
+    },
+    {
+      "name": "Verified by the link? (finalize the held slot)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $('Check the link').item.json.ok === true && !!$('Check the link').item.json.lead_id }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-email-verify-31",
+      "position": [
+        6820,
+        300
+      ]
+    },
+    {
+      "name": "Finalize item (link)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { json: { op: 'finalize', lead_id: $('Check the link').item.json.lead_id } };"
+      },
+      "id": "smc-email-verify-32",
+      "position": [
+        7040,
+        340
+      ]
+    },
+    {
+      "name": "-> W05 finalize (code)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w05",
+          "cachedResultName": "W05 Book"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "id": "smc-email-verify-33",
+      "position": [
+        7260,
+        380
+      ]
+    },
+    {
+      "name": "-> W05 finalize (link)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w05",
+          "cachedResultName": "W05 Book"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "id": "smc-email-verify-34",
+      "position": [
+        7480,
+        300
+      ]
+    },
+    {
       "name": "Note: smc-email-verify",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
@@ -627,11 +761,11 @@
         0
       ],
       "parameters": {
-        "content": "## smc-email-verify (agreement clause 5.8(b))\n- `{ op: issue, lead_id }` (W05 after an invite booking with an email, W28 after the Flow email step): one email from `hello@sortmycover.co.za` through **Resend** (`RESEND_API_KEY`) with a one-tap link `VERIFY_BASE_URL/v/<ev1 token>` and a 6-digit code. Only `sha256(lead_id|code)` is stored. 10-minute gap per lead. `DRY_RUN_SENDS` -> nothing sent, row with a `dry:` id.\n- `{ op: code, lead_id, code, wamid, to }` (W07 route `email_code`): checks the code (5 tries, 24 h), confirms the email, one WhatsApp reply via smc-whatsapp-send; an expired code is re-issued.\n- `GET /v/:token`: the link. Traefik routes `sortmycover.co.za/v/*` to `/webhook/v/:token`. One identical page for every failure.\n- Env: `EMAIL_VERIFY_SECRET` (>= 32 chars), `RESEND_API_KEY`, optional `VERIFY_EMAIL_FROM`, `VERIFY_BASE_URL`, `VERIFY_EMAIL_REPLY_TO`.",
+        "content": "## smc-email-verify (agreement clause 5.8(b))\n- `{ op: issue, lead_id }` (W05 after an invite booking with an email, W28 after the Flow email step): one email from `hello@sortmycover.co.za` through **Resend** (`RESEND_API_KEY`) with a one-tap link `VERIFY_BASE_URL/v/<ev1 token>` and a 6-digit code. Only `sha256(lead_id|code)` is stored. 10-minute gap per lead. `DRY_RUN_SENDS` -> nothing sent, row with a `dry:` id.\n- `{ op: code, lead_id, code, wamid, to }` (W07 route `email_code`): checks the code (5 tries, 24 h), confirms the email, one WhatsApp reply via smc-whatsapp-send; an expired code is re-issued.\n- Verified (code or link) -> W05 `{ op: finalize, lead_id }`: the held slot becomes the booking (verify gate, 2026-10-11).\n- `GET /v/:token`: the link. Traefik routes `sortmycover.co.za/v/*` to `/webhook/v/:token`. One identical page for every failure.\n- Env: `EMAIL_VERIFY_SECRET` (>= 32 chars), `RESEND_API_KEY`, optional `VERIFY_EMAIL_FROM`, `VERIFY_BASE_URL`, `VERIFY_EMAIL_REPLY_TO`.",
         "width": 520,
         "height": 300
       },
-      "id": "smc-email-verify-29"
+      "id": "smc-email-verify-35"
     }
   ],
   "connections": {
@@ -822,6 +956,11 @@
             "node": "Code expired? (issue a fresh one)",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Verified by the code? (finalize the held slot)",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -908,6 +1047,55 @@
         [
           {
             "node": "Respond (HTML page)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Verified by the link? (finalize the held slot)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verified by the code? (finalize the held slot)": {
+      "main": [
+        [
+          {
+            "node": "Finalize item (code)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finalize item (code)": {
+      "main": [
+        [
+          {
+            "node": "-> W05 finalize (code)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verified by the link? (finalize the held slot)": {
+      "main": [
+        [
+          {
+            "node": "Finalize item (link)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finalize item (link)": {
+      "main": [
+        [
+          {
+            "node": "-> W05 finalize (link)",
             "type": "main",
             "index": 0
           }

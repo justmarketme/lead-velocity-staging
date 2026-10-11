@@ -368,11 +368,21 @@ ON CONFLICT (idempotency_key) DO NOTHING;`,
     "={{ [ $json.lead_id || '', JSON.stringify($json.set || {}), !!$json.ok ] }}"));
   const RL = b.add({ name: 'Respond (HTML page)', type: 'n8n-nodes-base.respondToWebhook', typeVersion: 1.1,
     parameters: { respondWith: 'text', responseBody: "={{ $('Check the link').item.json.page }}", options: { responseCode: "={{ $('Check the link').item.json.status }}", responseHeaders: { entries: [{ name: 'Content-Type', value: 'text/html; charset=utf-8' }, { name: 'Cache-Control', value: 'no-store' }, { name: 'Referrer-Policy', value: 'no-referrer' }] } } } });
+  // 2026-10-11 verify gate: a verified email turns the lead's HELD slot into the booking (W05 op finalize: Outlook event,
+  // Teams link, broker notice, intro card, reminders). No held slot -> W05 does nothing. Fire-and-forget.
+  const FC = b.add(iff('Verified by the code? (finalize the held slot)', "$('Check the typed code').item.json.ok === true"));
+  const FCI = b.add(code('Finalize item (code)', "return { json: { op: 'finalize', lead_id: $('Check the typed code').item.json.lead_id } };"));
+  const FL = b.add(iff('Verified by the link? (finalize the held slot)', "$('Check the link').item.json.ok === true && !!$('Check the link').item.json.lead_id"));
+  const FLI = b.add(code('Finalize item (link)', "return { json: { op: 'finalize', lead_id: $('Check the link').item.json.lead_id } };"));
+  const W5C = b.add({ name: '-> W05 finalize (code)', type: 'n8n-nodes-base.executeWorkflow', typeVersion: 1.1, parameters: { source: 'database', workflowId: { __rl: true, mode: 'id', value: 'smc-w05', cachedResultName: 'W05 Book' }, options: { waitForSubWorkflow: false } } });
+  const W5L = b.add({ name: '-> W05 finalize (link)', type: 'n8n-nodes-base.executeWorkflow', typeVersion: 1.1, parameters: { source: 'database', workflowId: { __rl: true, mode: 'id', value: 'smc-w05', cachedResultName: 'W05 Book' }, options: { waitForSubWorkflow: false } } });
   b.chain(T, N, V); b.link(V, LI, 0); b.link(V, VC, 1); b.link(VC, LC, 0);
   b.chain(LI, PI, SI); b.link(SI, ST, 0); b.link(SI, SK, 1); b.chain(ST, LV); b.link(LV, RS, 0); b.link(LV, DRY, 1); b.chain(RS, IR); b.chain(DRY, IR); b.chain(IR, LG);
   b.chain(LC, PC, UC, RP, WS); b.link(UC, RX); b.link(RX, RI, 0); b.chain(RI, SELF);
   b.chain(WH, TK, LL, PL, UL, RL);
-  b.add(sticky('Note: smc-email-verify', '## smc-email-verify (agreement clause 5.8(b))\n- `{ op: issue, lead_id }` (W05 after an invite booking with an email, W28 after the Flow email step): one email from `hello@sortmycover.co.za` through **Resend** (`RESEND_API_KEY`) with a one-tap link `VERIFY_BASE_URL/v/<ev1 token>` and a 6-digit code. Only `sha256(lead_id|code)` is stored. 10-minute gap per lead. `DRY_RUN_SENDS` -> nothing sent, row with a `dry:` id.\n- `{ op: code, lead_id, code, wamid, to }` (W07 route `email_code`): checks the code (5 tries, 24 h), confirms the email, one WhatsApp reply via smc-whatsapp-send; an expired code is re-issued.\n- `GET /v/:token`: the link. Traefik routes `sortmycover.co.za/v/*` to `/webhook/v/:token`. One identical page for every failure.\n- Env: `EMAIL_VERIFY_SECRET` (>= 32 chars), `RESEND_API_KEY`, optional `VERIFY_EMAIL_FROM`, `VERIFY_BASE_URL`, `VERIFY_EMAIL_REPLY_TO`.', [0, 0]));
+  b.link(UC, FC); b.link(FC, FCI, 0); b.chain(FCI, W5C);
+  b.link(UL, FL); b.link(FL, FLI, 0); b.chain(FLI, W5L);
+  b.add(sticky('Note: smc-email-verify', '## smc-email-verify (agreement clause 5.8(b))\n- `{ op: issue, lead_id }` (W05 after an invite booking with an email, W28 after the Flow email step): one email from `hello@sortmycover.co.za` through **Resend** (`RESEND_API_KEY`) with a one-tap link `VERIFY_BASE_URL/v/<ev1 token>` and a 6-digit code. Only `sha256(lead_id|code)` is stored. 10-minute gap per lead. `DRY_RUN_SENDS` -> nothing sent, row with a `dry:` id.\n- `{ op: code, lead_id, code, wamid, to }` (W07 route `email_code`): checks the code (5 tries, 24 h), confirms the email, one WhatsApp reply via smc-whatsapp-send; an expired code is re-issued.\n- Verified (code or link) -> W05 `{ op: finalize, lead_id }`: the held slot becomes the booking (verify gate, 2026-10-11).\n- `GET /v/:token`: the link. Traefik routes `sortmycover.co.za/v/*` to `/webhook/v/:token`. One identical page for every failure.\n- Env: `EMAIL_VERIFY_SECRET` (>= 32 chars), `RESEND_API_KEY`, optional `VERIFY_EMAIL_FROM`, `VERIFY_BASE_URL`, `VERIFY_EMAIL_REPLY_TO`.', [0, 0]));
   return b.done();
 }
 

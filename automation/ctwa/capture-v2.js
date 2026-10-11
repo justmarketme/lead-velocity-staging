@@ -87,6 +87,9 @@ const COPY = {
   // terminal (END) screen variants
   end_booked_heading: "You're booked",
   end_booked_body: '{adviser} from {practice} (FSP {fsp}) will meet you on Teams on {when}. We have emailed the Teams invite to {email}. Your confirmation is on its way here on WhatsApp.',
+  // verify gate (2026-10-11): the time is HELD until the email is verified; nothing reaches the adviser before that
+  end_held_heading: 'Check your email to confirm',
+  end_held_body: "We're holding {when} for your Teams call with {adviser}. To confirm it, tap the link we've just emailed to {email}, or reply here on WhatsApp with the 6-digit code. If it isn't confirmed by {deadline}, we'll release the time.",
   end_matching_heading: "We're matching you with an adviser",
   end_matching_body: "Thanks {first_name}. We're matching you with an authorised adviser now. We'll message you here on WhatsApp shortly so you can pick a time.",
   end_close_heading: 'Thank you',
@@ -432,6 +435,14 @@ async function handle(req, deps) {
       if (r && r.taken) { effects.push({ kind: 'send_list', lead_id: lead.id, reason: 'slot_taken' }); cap.slot = null; return end(COPY.end_noslots_heading, COPY.end_taken_body); }
       if (!r || !r.ok) { effects.push({ kind: 'send_list', lead_id: lead.id, reason: 'book_failed' }); return noSlots('book_failed'); }
       cap.booking_id = r.booking.id;
+      if (r.held) {
+        // verify gate: W05 stored a HELD slot (pending_verification); the intro card, Outlook event and Teams link follow
+        // the verification (W05 finalize). The lead gets the verification email now.
+        cap.held = true;
+        effects.push({ kind: 'send_email_verification', lead_id: lead.id });
+        const by = r.booking.verify_by ? whenLabel(r.booking.verify_by) : 'tomorrow';
+        return end(COPY.end_held_heading, fill(COPY.end_held_body, { when: whenLabel(cap.slot.start), adviser, email: cap.email, deadline: by }));
+      }
       effects.push({ kind: 'send_template', template: 'broker_intro_booked', to: lead.phone, vars: [cap.first_name, broker.practice_name, broker.fsp_number, broker.adviser_name, 'Microsoft Teams', whenLabel(cap.slot.start).split(' at ')[0], whenLabel(cap.slot.start).split(' at ')[1]], buttons: [{ url: `c/${r.booking.id}` }], evidence: 'disclosure' });
       effects.push({ kind: 'send_email_verification', lead_id: lead.id });
       return end(COPY.end_booked_heading, fill(COPY.end_booked_body, { adviser, practice: broker.practice_name, fsp: broker.fsp_number, when: whenLabel(cap.slot.start), email: cap.email }));

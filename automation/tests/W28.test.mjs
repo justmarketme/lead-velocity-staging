@@ -117,8 +117,8 @@ test('date_selected: that day\'s slots (<= 20), ids are ISO +02:00, identical to
   assert.match(r.response.data.date_label, /^Wednesday 14 October \(South African time\)$/);
 });
 
-test('slot_selected: call methods go straight to SUMMARY with no email; Teams asks for the invite email', async () => {
-  const { token, d } = deps();
+test('slot_selected: a VERIFIED lead\'s call booking goes straight to SUMMARY (no email); Teams asks for the invite email', async () => {
+  const { token, d } = deps({ lead: { ...LEAD_ROW, email: 'lerato@gmail.com', email_verified: true } });
   const slot = dayView(engine(MARK).slots, '2026-10-14')[0].start;
   const phone = await EP.handle({ version: '3.0', action: 'data_exchange', flow_token: token, data: { ...ids, action_type: 'slot_selected', method: 'phone', date: '2026-10-14', slot } }, d);
   assert.equal(phone.response.screen, 'SUMMARY');
@@ -127,6 +127,18 @@ test('slot_selected: call methods go straight to SUMMARY with no email; Teams as
   const teams = await EP.handle({ version: '3.0', action: 'data_exchange', flow_token: token, data: { ...ids, action_type: 'slot_selected', method: 'teams', date: '2026-10-14', slot } }, d);
   assert.equal(teams.response.screen, 'EMAIL');
   assert.equal(teams.response.data.prompt, 'Where should we send the Teams invite?');
+});
+
+test('verify gate (2026-10-11): an UNVERIFIED lead gives an email for a call booking too; the summary says the emailed link confirms it', async () => {
+  const { token, d } = deps();
+  const slot = dayView(engine(MARK).slots, '2026-10-14')[0].start;
+  const phone = await EP.handle({ version: '3.0', action: 'data_exchange', flow_token: token, data: { ...ids, action_type: 'slot_selected', method: 'phone', date: '2026-10-14', slot } }, d);
+  assert.equal(phone.response.screen, 'EMAIL');
+  assert.equal(phone.response.data.prompt, 'Where should we email the link that confirms your booking?');
+  const sum = await EP.handle({ version: '3.0', action: 'data_exchange', flow_token: token, data: { ...ids, action_type: 'email_entered', method: 'phone', date: '2026-10-14', slot, email: 'lerato@gmail.com' } }, d);
+  assert.equal(sum.response.screen, 'SUMMARY'); assert.equal(sum.response.data.email, 'lerato@gmail.com');
+  assert.match(sum.response.data.summary_text, /Mark will call your mobile\. To confirm the booking, tap the link we email to lerato@gmail\.com/);
+  assert.ok(sum.effects.some((e) => e.kind === 'store_email'));
 });
 
 test('slot_selected re-checks fresh: a slot taken since it was shown returns the next 3 with an error', async () => {

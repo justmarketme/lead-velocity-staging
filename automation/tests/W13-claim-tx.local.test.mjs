@@ -50,8 +50,9 @@ test('W13 claim SQL + routing triggers concurrently on the live-schema mirror: w
   let n = 0;
   const mkLead = (routed = true) => {
     const id = uuid(); n += 1;
-    q(`INSERT INTO public.leads (id, phone, first_name, source, brand_id, broker_id, routed_at, consent_text, consent_source, consent_at)
-       VALUES ('${id}', '+27600007${String(n).padStart(3, '0')}', 'Synthetic', 'Search Lead', '${brand}', ${routed ? `'${broker}'` : 'NULL'}, now(), 'consent', 'ctwa', now())`);
+    // email verified (2026-10-11: a lead counts at email verified + attendance confirmed; section 4 covers the unverified order)
+    q(`INSERT INTO public.leads (id, phone, first_name, source, brand_id, broker_id, routed_at, consent_text, consent_source, consent_at, email, email_verified, email_verified_at, email_verified_via)
+       VALUES ('${id}', '+27600007${String(n).padStart(3, '0')}', 'Synthetic', 'Search Lead', '${brand}', ${routed ? `'${broker}'` : 'NULL'}, now(), 'consent', 'ctwa', now(), 'synthetic${n}@example.test', true, now(), 'link')`);
     return id;
   };
   // Delivered = booked + attendance confirmed (agreement 5.2): a confirmed appointment counts the lead on the order.
@@ -118,7 +119,11 @@ test('W13 claim SQL + routing triggers concurrently on the live-schema mirror: w
   const conf = await Promise.all(routed.map((l, i) => pg.query(`INSERT INTO public.appointments (broker_id, client_id, appointment_date, ends_at, status, brand_id, method, confirmed_at)
      VALUES ('${broker2}', '${l}', '2026-09-05T06:00:00Z'::timestamptz + interval '${i * 2} hours', '2026-09-05T06:30:00Z'::timestamptz + interval '${i * 2} hours', 'confirmed', '${brand}', 'teams', now()) RETURNING id`)));
   for (const r of conf) assert.equal(r.err, null, r.stderr);
-  assert.equal(q(`SELECT count(*) FROM public.lead_order_items WHERE order_id = '${order2}'`)[0][0], '3', 'the 3 confirmed leads are counted, never more');
+  // 2026-10-11: attendance confirmed but the emails are not verified yet -> nothing counted; the 3 verifications arrive at once
+  assert.equal(q(`SELECT count(*) FROM public.lead_order_items WHERE order_id = '${order2}'`)[0][0], '0', 'confirmed attendance alone counts nothing (email not verified)');
+  const ver = await Promise.all(routed.map((l) => pg.query(`UPDATE public.leads SET email = 'cap-' || left(id::text, 8) || '@example.test', email_verified = true, email_verified_at = now(), email_verified_via = 'code' WHERE id = '${l}' RETURNING id`)));
+  for (const r of ver) assert.equal(r.err, null, r.stderr);
+  assert.equal(q(`SELECT count(*) FROM public.lead_order_items WHERE order_id = '${order2}'`)[0][0], '3', 'the 3 confirmed + verified leads are counted, never more');
   assert.deepEqual(q(`SELECT counted, reserved, counted_toward_order FROM public.smc_order_capacity WHERE lead_order_id = '${order2}'`)[0], ['3', '0', '3']);
 
   // ---- (5) FAIS disclosure: no broker without an FSP number gets routing on, and no lead is ever introduced to one

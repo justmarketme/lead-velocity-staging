@@ -243,6 +243,15 @@ test('tier A: INCOME -> DATE (CalendarPicker bounds) -> SLOTS -> CONFIRM -> book
   assert.deepEqual(card.vars, ['Lerato', 'Mark Smith Financial Services', '12345', 'Mark Smith', 'Microsoft Teams', 'Thu 8 Oct', '10:00']);
   assert.ok(r.effects.some((e) => e.kind === 'send_email_verification'));
 });
+test('verify gate: W05 answers with a HELD slot -> no intro card, the verification email, the "check your email" END screen with the deadline', async () => {
+  const h = harness({ book: async (p) => ({ ok: true, held: true, booking: { id: 'bk_h', verify_by: '2026-10-08T09:00:00+02:00' } }) });
+  const r = await through(h, 'CONFIRM');
+  assert.equal(r.response.data.heading, C.COPY.end_held_heading);
+  assert.match(r.response.data.body, /holding Thu 8 Oct at 10:00 .*lerato@example\.co\.za.*Thu 8 Oct at 09:00/);
+  assert.ok(!r.effects.some((e) => e.kind === 'send_template' && e.template === 'broker_intro_booked'), 'the intro card waits for the verification');
+  assert.ok(r.effects.some((e) => e.kind === 'send_email_verification'));
+  assert.equal(h.state.capture.held, true);
+});
 test('tier A edge cases: day full, slot taken at SLOTS, taken at CONFIRM, calendar down, broker without Teams', async () => {
   let h = harness();
   await through(h, 'INCOME');

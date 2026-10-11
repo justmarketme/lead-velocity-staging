@@ -139,21 +139,19 @@ async function handle(req, deps) {
       return { response: { screen: 'SLOTS', data: { ...common(ctx), method: d.method, date: d.date, date_label: `${dayLabel(d.date)} (South African time)`, slots: next3.map((s) => ({ id: s.start, title: shortLabel(s.start) })), show_error: true, error_message: 'That time was just taken. Here are the next free times.' } }, effects };
     }
     const base = { ...common(ctx), method: d.method, date: d.date, slot: d.slot };
-    if (INVITE_METHODS.has(d.method)) {
-      const word = d.method === 'teams' ? 'Teams' : d.method === 'zoom' ? 'Zoom' : 'Google Meet';
-      return { response: { screen: 'EMAIL', data: { ...base, prompt: `Where should we send the ${word} invite?`, init_email: ctx.lead.email || '', show_suggestion: false, suggestion_text: '', show_error: false, error_message: '' } }, effects };
+    if (needsEmail(ctx, d.method)) {
+      return { response: { screen: 'EMAIL', data: { ...base, prompt: emailPrompt(d.method), init_email: ctx.lead.email || '', show_suggestion: false, suggestion_text: '', show_error: false, error_message: '' } }, effects };
     }
-    return { response: { screen: 'SUMMARY', data: { ...base, email: '', summary_text: summary(ctx, d.method, d.slot) } }, effects }; // 0.1: never ask email for call methods
+    return { response: { screen: 'SUMMARY', data: { ...base, email: '', summary_text: summary(ctx, d.method, d.slot) } }, effects }; // a verified lead's call booking needs no email
   }
 
   if (d.action_type === 'email_entered') {
-    if (!INVITE_METHODS.has(d.method)) return { response: { screen: 'SUMMARY', data: { ...common(ctx), method: d.method, date: d.date, slot: d.slot, email: '', summary_text: summary(ctx, d.method, d.slot) } }, effects };
+    if (!needsEmail(ctx, d.method)) return { response: { screen: 'SUMMARY', data: { ...common(ctx), method: d.method, date: d.date, slot: d.slot, email: '', summary_text: summary(ctx, d.method, d.slot) } }, effects };
     const c = await checkEmail(d.email, { resolveMx: deps.resolveMx, disposable: deps.disposable, previous: d.previous_email || ctx.email_suggested_for, hash: deps.hash });
     if (c.suggestion) effects.push({ kind: 'activity', activity_type: 'flow_email_suggested', payload: { flow_token: req.flow_token, typed_domain: String(d.email).split('@')[1] || null, typed_hash: deps.hash ? deps.hash(String(d.email)) : null } });
     const base = { ...common(ctx), method: d.method, date: d.date, slot: d.slot };
     if (!c.ok) {
-      const word = d.method === 'teams' ? 'Teams' : d.method === 'zoom' ? 'Zoom' : 'Google Meet';
-      return { response: { screen: 'EMAIL', data: { ...base, prompt: `Where should we send the ${word} invite?`, init_email: c.suggestion || String(d.email || ''), show_suggestion: !!c.suggestion, suggestion_text: c.suggestion_text || '', show_error: !c.suggestion, error_message: c.error || '' } }, effects };
+      return { response: { screen: 'EMAIL', data: { ...base, prompt: emailPrompt(d.method), init_email: c.suggestion || String(d.email || ''), show_suggestion: !!c.suggestion, suggestion_text: c.suggestion_text || '', show_error: !c.suggestion, error_message: c.error || '' } }, effects };
     }
     effects.push({ kind: 'store_email', lead_id: ctx.lead.id, email: c.email, email_status: c.email_status, email_purpose: c.email_purpose });
     return { response: { screen: 'SUMMARY', data: { ...base, email: c.email, summary_text: summary(ctx, d.method, d.slot, c.email) } }, effects };
@@ -161,10 +159,19 @@ async function handle(req, deps) {
   return { response: { data: { acknowledged: true } }, effects };
 }
 
+// Verify gate (2026-10-11): a lead whose email is not verified gives an email for EVERY method (the booking reaches the
+// broker only after the emailed link / code confirms it); invite methods always need one (the invite).
+function needsEmail(ctx, method) { return INVITE_METHODS.has(method) || !(ctx.lead && ctx.lead.email_verified === true); }
+function emailPrompt(method) {
+  if (!INVITE_METHODS.has(method)) return 'Where should we email the link that confirms your booking?';
+  const word = method === 'teams' ? 'Teams' : method === 'zoom' ? 'Zoom' : 'Google Meet';
+  return `Where should we send the ${word} invite?`;
+}
 function summary(ctx, method, slot, email) {
   const a = common(ctx).adviser_name;
   const how = { teams: `Microsoft Teams video call. We’ll email the link to ${email}.`, zoom: `Zoom video call. We’ll email the link to ${email}.`, google_meet: `Google Meet video call. We’ll email the link to ${email}.`, whatsapp_call: `${a} will call you on WhatsApp.`, phone: `${a} will call your mobile.` }[method] || '';
-  return `${shortLabel(slot)} (South African time), 30 minutes with ${a}. ${how}`;
+  const verify = email && !(ctx.lead && ctx.lead.email_verified === true) ? ` To confirm the booking, tap the link we email to ${email} (or reply with the code on WhatsApp).` : '';
+  return `${shortLabel(slot)} (South African time), 30 minutes with ${a}. ${how}${verify}`;
 }
 
 

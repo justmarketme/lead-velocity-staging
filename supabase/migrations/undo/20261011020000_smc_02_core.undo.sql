@@ -45,6 +45,7 @@ ALTER TABLE "public"."communications" DROP CONSTRAINT IF EXISTS "communications_
 ALTER TABLE "public"."communications" ADD CONSTRAINT "communications_status_check" CHECK ((status = ANY (ARRAY['pending'::text, 'sent'::text, 'delivered'::text, 'failed'::text, 'received'::text])));  -- previous definition
 DROP INDEX IF EXISTS "public"."appointments_graph_event_full_uidx";
 DROP INDEX IF EXISTS "public"."appointments_idem_full_uidx";
+DROP INDEX IF EXISTS "public"."appointments_smc_hold_idx";
 DROP INDEX IF EXISTS "public"."appointments_smc_lead_idx";
 DROP INDEX IF EXISTS "public"."appointments_smc_no_double_booking";
 DROP INDEX IF EXISTS "public"."audit_log_at_idx";
@@ -82,6 +83,7 @@ ALTER TABLE "public"."appointments" DROP COLUMN IF EXISTS "method" CASCADE;  -- 
 ALTER TABLE "public"."appointments" DROP COLUMN IF EXISTS "previous_booking_id" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."appointments" DROP COLUMN IF EXISTS "reschedule_count" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."appointments" DROP COLUMN IF EXISTS "schedule_event_id" CASCADE;  -- data in this column is lost
+ALTER TABLE "public"."appointments" DROP COLUMN IF EXISTS "verify_by" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."audit_log" DROP COLUMN IF EXISTS "actor_role" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."audit_log" DROP COLUMN IF EXISTS "actor_uid" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."audit_log" DROP COLUMN IF EXISTS "at" CASCADE;  -- data in this column is lost

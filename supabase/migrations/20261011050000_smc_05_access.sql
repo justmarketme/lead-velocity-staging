@@ -94,6 +94,45 @@ BEGIN
 END $$;
 
 -- -----------------------------------------------------------------------------
+-- 2b. Broker visibility (Jonathan, 2026-10-11): a broker never sees a SortMyCover lead, its booking, timeline, messages or
+--     outcomes until the lead's email is verified (leads.email_verified). Until then the booking is a HELD slot
+--     (appointments.status pending_verification) that is not in his calendar either. RESTRICTIVE, so it narrows every live
+--     broker policy (they have no brand filter). Admins and the workflows (n8n_app) are unaffected; legacy rows untouched.
+--     The ONE predicate for the portal: leads.email_verified IS TRUE (appointments also: status <> 'pending_verification').
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.smc_lead_email_verified(p_lead_id uuid)
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$ SELECT coalesce((SELECT l.email_verified FROM public.leads l WHERE l.id = p_lead_id), false) $$;
+COMMENT ON FUNCTION public.smc_lead_email_verified(uuid) IS 'SMC: true once the lead''s email is verified. Used by the RESTRICTIVE broker visibility policies (definer: no policy recursion through leads).';
+REVOKE ALL ON FUNCTION public.smc_lead_email_verified(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.smc_lead_email_verified(uuid) TO authenticated, n8n_app;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'leads' AND policyname = 'smc broker sees verified leads only') THEN
+    CREATE POLICY "smc broker sees verified leads only" ON public.leads AS RESTRICTIVE FOR SELECT TO authenticated
+      USING (brand_id IS NULL OR public.smc_is_admin() OR email_verified IS TRUE);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'appointments' AND policyname = 'smc broker sees verified bookings only') THEN
+    CREATE POLICY "smc broker sees verified bookings only" ON public.appointments AS RESTRICTIVE FOR SELECT TO authenticated
+      USING (brand_id IS NULL OR public.smc_is_admin() OR (status <> 'pending_verification' AND public.smc_lead_email_verified(client_id)));
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'lead_activities' AND policyname = 'smc broker sees verified timelines only') THEN
+    CREATE POLICY "smc broker sees verified timelines only" ON public.lead_activities AS RESTRICTIVE FOR SELECT TO authenticated
+      USING (brand_id IS NULL OR public.smc_is_admin() OR lead_id IS NULL OR public.smc_lead_email_verified(lead_id));
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'communications' AND policyname = 'smc broker sees verified messages only') THEN
+    CREATE POLICY "smc broker sees verified messages only" ON public.communications AS RESTRICTIVE FOR SELECT TO authenticated
+      USING (brand_id IS NULL OR public.smc_is_admin() OR lead_id IS NULL OR public.smc_lead_email_verified(lead_id));
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'outcomes' AND policyname = 'smc broker sees verified outcomes only') THEN
+    CREATE POLICY "smc broker sees verified outcomes only" ON public.outcomes AS RESTRICTIVE FOR SELECT TO authenticated
+      USING (public.smc_is_admin() OR public.smc_lead_email_verified(lead_id));
+  END IF;
+END $$;
+
+-- -----------------------------------------------------------------------------
 -- 3. Broker policies on the new tables (own rows only)
 -- -----------------------------------------------------------------------------
 DO $$

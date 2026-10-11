@@ -328,9 +328,13 @@ test('migration chain: a lead is reserved at routing and COUNTED at booked + att
   assert.match(route, /smc_broker_ready\(NEW\.broker_id\)/);
   assert.match(route, /held_broker_not_ready/);
   assert.ok(!/INSERT INTO public\.lead_order_items/.test(route + attach), 'routing never counts a lead');
-  const count = /FUNCTION public\.smc_count_on_confirm\(\)[\s\S]*?END \$\$;/.exec(m03)[0];
-  assert.match(count, /NEW\.confirmed_at IS NULL/);
+  const onConfirm = /FUNCTION public\.smc_count_on_confirm\(\)[\s\S]*?END \$\$;/.exec(m03)[0];
+  assert.match(onConfirm, /NEW\.confirmed_at IS NULL/);
+  const count = /FUNCTION public\.smc_count_lead\(p_lead_id uuid, p_booking_id uuid\)[\s\S]*?END \$\$;/.exec(m03)[0];
   assert.match(count, /INSERT INTO public\.lead_order_items/);
+  // 2026-10-11: email verified AND attendance confirmed, whichever comes second
+  assert.match(count, /l\.email_verified IS NOT TRUE THEN[\s\S]*?count_waits_email_verification[\s\S]*?RETURN;/);
+  assert.match(m03, /CREATE TRIGGER smc_count_on_email_verified\s+AFTER UPDATE OF email_verified ON public\.leads/);
   assert.match(m03, /CREATE TRIGGER smc_count_on_confirm\s+AFTER INSERT OR UPDATE OF status, confirmed_at ON public\.appointments/);
   assert.match(m03, /CREATE TRIGGER smc_leads_release_reservation\s+BEFORE UPDATE OF opted_out_at, stage ON public\.leads/);
   assert.match(m03, /CREATE TRIGGER smc_outcome_release_reservation\s+AFTER INSERT ON public\.outcomes/);

@@ -764,6 +764,11 @@ bk AS (
      SET status = 'cancelled', cancelled_at = now(), reason_notes = 'lead_opted_out', updated_at = now()
    WHERE a.id IN (SELECT jsonb_array_elements_text($5::jsonb)::uuid) AND a.status IN ('booked','confirmed') AND (SELECT ok FROM claim)
   RETURNING a.id),
+held AS (   -- verify gate (2026-10-11): a held slot is released silently (the broker never saw it, so no broker notice)
+  UPDATE public.appointments a
+     SET status = 'cancelled', cancelled_at = now(), reason_notes = 'lead_opted_out', updated_at = now()
+   WHERE a.client_id IN (SELECT jsonb_array_elements_text($4::jsonb)::uuid) AND a.brand_id IS NOT NULL AND a.status = 'pending_verification' AND (SELECT ok FROM claim)
+  RETURNING a.id),
 act AS (
   INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
   SELECT (x->>'lead_id')::uuid, (x->>'brand_id')::uuid, (x->>'broker_id')::uuid, 'W15', 'lead', 'opted_out', x->'payload', now(), x->>'idempotency_key'

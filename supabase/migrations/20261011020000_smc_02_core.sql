@@ -463,14 +463,19 @@ ALTER TABLE public.appointments
   ADD COLUMN IF NOT EXISTS previous_booking_id uuid REFERENCES public.appointments(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS idempotency_key     text,
   ADD COLUMN IF NOT EXISTS intro_played_at     timestamptz,   -- W09 voice-note play
-  ADD COLUMN IF NOT EXISTS late_booking        boolean NOT NULL DEFAULT false;
+  ADD COLUMN IF NOT EXISTS late_booking        boolean NOT NULL DEFAULT false,
+  -- 2026-10-11 (Jonathan): a booking of a lead whose email is not verified is a HELD slot (status pending_verification):
+  -- reserved here so nobody else can take it, NOT written to the broker's calendar, invisible to the broker; it becomes
+  -- 'booked' (Outlook event, Teams link, broker notice) when the email is verified, or is released at verify_by.
+  ADD COLUMN IF NOT EXISTS verify_by           timestamptz;
 
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'appointments_smc_checks' AND conrelid = 'public.appointments'::regclass) THEN
     ALTER TABLE public.appointments ADD CONSTRAINT appointments_smc_checks CHECK (
       brand_id IS NULL OR (
-            status IN ('booked','confirmed','rescheduled','cancelled','attended','no_show')
+            status IN ('pending_verification','booked','confirmed','rescheduled','cancelled','attended','no_show')
+        AND (status <> 'pending_verification' OR verify_by IS NOT NULL)
         AND method IN ('teams','zoom','meet','whatsapp_call','phone')
         AND ends_at IS NOT NULL AND ends_at > appointment_date
         AND broker_id IS NOT NULL AND client_id IS NOT NULL
@@ -482,22 +487,23 @@ BEGIN
   END IF;
 END $$;
 
--- Zero double-bookings, SMC rows only so legacy data can never block the index:
+-- Zero double-bookings, SMC rows only so legacy data can never block the index. A held slot (pending_verification) counts:
 CREATE UNIQUE INDEX IF NOT EXISTS appointments_smc_no_double_booking
   ON public.appointments (broker_id, appointment_date)
-  WHERE brand_id IS NOT NULL AND status IN ('booked','confirmed');
+  WHERE brand_id IS NOT NULL AND status IN ('pending_verification','booked','confirmed');
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'appointments_smc_no_overlap' AND conrelid = 'public.appointments'::regclass) THEN
     ALTER TABLE public.appointments ADD CONSTRAINT appointments_smc_no_overlap
       EXCLUDE USING gist (broker_id WITH =, tstzrange(appointment_date, ends_at, '[)') WITH &&)
-      WHERE (brand_id IS NOT NULL AND status IN ('booked','confirmed'));
+      WHERE (brand_id IS NOT NULL AND status IN ('pending_verification','booked','confirmed'));
   END IF;
 END $$;
 -- Full unique indexes: W05/W06 use a bare ON CONFLICT on these (NULLs never conflict, so legacy rows are unaffected).
 CREATE UNIQUE INDEX IF NOT EXISTS appointments_idem_full_uidx        ON public.appointments (idempotency_key);
 CREATE UNIQUE INDEX IF NOT EXISTS appointments_graph_event_full_uidx ON public.appointments (graph_event_id);
 CREATE INDEX IF NOT EXISTS appointments_smc_lead_idx ON public.appointments (client_id) WHERE brand_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS appointments_smc_hold_idx ON public.appointments (verify_by) WHERE brand_id IS NOT NULL AND status = 'pending_verification';
 
 CREATE OR REPLACE VIEW public.bookings WITH (security_invoker = true) AS
 SELECT a.id, a.brand_id, a.broker_id, a.client_id AS lead_id,
@@ -506,7 +512,7 @@ SELECT a.id, a.brand_id, a.broker_id, a.client_id AS lead_id,
        a.join_url, a.ics_url, a.call_number, a.invite_email_status,
        a.booked_via AS source, a.booked_at, a.schedule_event_id, a.confirmed_at,
        a.cancelled_at, a.reschedule_count, a.previous_booking_id, a.created_at, a.updated_at,
-       a.intro_played_at, a.late_booking
+       a.intro_played_at, a.late_booking, a.verify_by
 FROM public.appointments a
 WHERE a.brand_id IS NOT NULL;
 COMMENT ON VIEW public.bookings IS 'SMC: SortMyCover rows of appointments (portal Leads page). Writes go to appointments. RLS of appointments applies (security_invoker).';
