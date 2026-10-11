@@ -9,7 +9,7 @@
 // Run:  node --test automation/tests/W05.test.mjs     (offline)  ·  set N8N_PUBLIC_URL for online.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { FIX, MODE, lead, broker, cycle, clone, ms, iso, at, MIN, H, online } from './_harness.mjs';
+import { FIX, MODE, lead, broker, clone, ms, iso, at, MIN, H, online } from './_harness.mjs';
 import { generateSlots, offerSlots } from './_slots.mjs';
 import * as W5 from '../lib/w05.mjs';
 import { readFileSync } from 'node:fs';
@@ -177,7 +177,7 @@ test(`W05 [${MODE}] L01 page booking, Teams: Outlook event with Teams link, clie
   assert.equal(s.invites[0].from, e.invite_from);
   assert.ok(s.invites[0].join_url, 'invite carries the join link');
   assert.equal(s.bookings[0].graph_event_id, ev.id, 'Graph event.id stored on the booking (Section 7)');
-  assert.equal(s.bookings[0].cycle_id, e.cycle_id);
+  assert.equal(s.bookings[0].cycle_id, undefined, 'no cycles: the lead order link lives in lead_order_items (database trigger)');
   assert.deepEqual(s.capi.map((c) => [c.event_name, c.event_id]), [['Schedule', e.capi_schedule_event_id]]);
 });
 
@@ -314,14 +314,14 @@ test(`W05 [${MODE}] broker is told about the booking (first name only — no sur
   assert.equal(n[0].vars[1], 'Lerato');
 });
 
-test(`W05 [${MODE}] lead row carries broker_id and cycle_id after booking (W05 "store broker_id/cycle_id on the lead")`, async () => {
+test(`W05 [${MODE}] lead row carries broker_id after booking (W05 "store broker_id on the lead"; no cycle_id in the CRM chain)`, async () => {
   const sys = fresh();
   const fx = lead('L03');
   const lid = await sys.setup(fx);
   await sys.book(reqFor(fx, lid), fx.booking_request.requested_at);
   const s = await sys.state(lid);
   assert.equal(s.lead.broker_id, broker().broker_id);
-  assert.equal(s.lead.cycle_id, cycle().cycle_id);
+  assert.equal(s.lead.cycle_id, undefined);
   assert.equal(s.lead.stage, 'booked');
 });
 
@@ -431,7 +431,7 @@ test('F8 W05.json shared calendar: empty id -> error item + alert, never an empt
   assert.equal(gate[0][0].node, 'Graph create event (howzit@ shared calendar, ASSUMPTION)');
   assert.equal(gate[1][0].node, 'After event (w05.finish)', 'missing id skips Graph and goes straight to finish');
   assert.equal(wf5.connections['Event body (shared)'].main[0][0].node, 'Shared calendar id?');
-  const row = { id: 'appt-1', broker_id: 'b1', cycle_id: null, booked_at: '2026-10-12T07:00:00.000Z', appointment_date: plan.start, ends_at: plan.end, method: 'phone', status: 'booked' };
+  const row = { id: 'appt-1', broker_id: 'b1', booked_at: '2026-10-12T07:00:00.000Z', appointment_date: plan.start, ends_at: plan.end, method: 'phone', status: 'booked' };
   const fail = (await run(wf5, 'After event (w05.finish)', { json: none, refs: { 'Decide (w05.decide + MX)': decide, 'Insert appointment (re-check overlap + buffer, idempotent)': row } }))[0].json;
   assert.equal(fail.ev.reason, 'shared_calendar_id_missing');
   assert.equal(fail.f.appointment_update.graph_event_id, null);
@@ -446,7 +446,7 @@ test('F8 W05.json shared calendar: empty id -> error item + alert, never an empt
   const ok = (await run(wf5, 'After event (w05.finish)', { json: { statusCode: 201, body: { id: 'AAMk-stub-1', iCalUId: 'ical-1' } }, refs: { 'Decide (w05.decide + MX)': det, 'Insert appointment (re-check overlap + buffer, idempotent)': row } }))[0].json;
   assert.equal(ok.f.appointment_update.graph_event_id, 'AAMk-stub-1');
   assert.equal(ok.f.alert, null);
-  const save = wf5.nodes.find((n) => n.name === 'Save event ids + lead (stage, broker, cycle, invite email)');
+  const save = wf5.nodes.find((n) => n.name === 'Save event ids + lead (stage, broker, invite email)');
   assert.match(save.parameters.query, /graph_event_id = NULLIF\(\$2, ''\)/);
   assert.match(save.parameters.options.queryReplacement, /u\.graph_event_id/);
   assert.throws(() => W5.graphEventUrl('shared', { sharedCalendarId: '' }), /shared_calendar_id_missing/);

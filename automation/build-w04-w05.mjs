@@ -41,7 +41,7 @@ const wf = (id, name, notes, nodes, connections, tags) => ({ id, name, nodes, co
 const BROKER_COLS = `b.id, b.brand_id, b.status, b.adviser_name, b.contact_person, b.practice_name, b.firm_name, b.fsp_number, b.adviser_whatsapp, b.whatsapp_number, b.email,
          b.methods_supported, b.meeting_hours, b.slot_minutes, b.buffer_minutes, b.min_notice_hours, b.horizon_days, b.max_meetings_per_day,
          b.max_meetings_per_week, b.bookings_paused, b.add_client_as_attendee, b.calendar_provider, b.calendar_status, b.calendar_mode,
-         b.calendar_email, b.ms_tenant_id, b.calendar_status_at, b.calendar_status_detail, b.current_cycle_id`;
+         b.calendar_email, b.ms_tenant_id, b.calendar_status_at, b.calendar_status_detail`;
 const HOLDS = (brokerExpr) => `COALESCE((SELECT jsonb_agg(jsonb_build_object('id', a.id, 'start', a.appointment_date, 'end', a.ends_at, 'status', a.status))
                    FROM public.appointments a
                   WHERE a.broker_id::text = ${brokerExpr} AND a.brand_id IS NOT NULL
@@ -134,7 +134,7 @@ function buildW05() {
   seq = 0; X = 0; const c = {}; const n = [];
   const LOAD = `-- lead + its broker + idempotent replay + the lead's live booking (one round trip)
 WITH ld AS (
-  SELECT l.id, l.brand_id, l.broker_id, l.cycle_id, l.first_name, l.phone, l.email, l.email_status, l.email_purpose, l.age_band, l.budget_band,
+  SELECT l.id, l.brand_id, l.broker_id, l.first_name, l.phone, l.email, l.email_status, l.email_purpose, l.age_band, l.budget_band,
          l.consent_text_version, l.consent_at, l.consent_ads_at, l.origin, l.ad_id, l.ctwa_clid, l.call_number, l.method_pref, l.language,
          l.conv_state, l.opted_out_at, l.is_synthetic
     FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL
@@ -183,15 +183,15 @@ VALUES (NULLIF($1, '')::uuid, 'W05', 'system', $3, jsonb_build_object('reason', 
   n.push(pg('Insert appointment (re-check overlap + buffer, idempotent)', `-- Zero double-bookings: the overlap+buffer re-check and the insert are ONE statement. appointments_smc_no_overlap (gist),
 -- appointments_smc_no_double_booking and appointments_smc_idem_uidx are the last line of defence: ON CONFLICT DO NOTHING
 -- turns any of them into "no row", and the re-select below decides replay (same key) or taken (next 3).
-INSERT INTO public.appointments (client_id, broker_id, brand_id, cycle_id, appointment_date, ends_at, method, status, calendar_provider, booked_via, booked_at, idempotency_key, previous_booking_id, call_number, invite_email_status, schedule_event_id)
-SELECT $1::uuid, $2::uuid, $3::uuid, NULLIF($4, '')::uuid, $5::timestamptz, $6::timestamptz, $7, 'booked', $8, $9, now(), $10, NULLIF($11, '')::uuid, NULLIF($12, ''), NULLIF($13, ''), NULLIF($14, '')
+INSERT INTO public.appointments (client_id, broker_id, brand_id, appointment_date, ends_at, method, status, calendar_provider, booked_via, booked_at, idempotency_key, previous_booking_id, call_number, invite_email_status, schedule_event_id)
+SELECT $1::uuid, $2::uuid, $3::uuid, $4::timestamptz, $5::timestamptz, $6, 'booked', $7, $8, now(), $9, NULLIF($10, '')::uuid, NULLIF($11, ''), NULLIF($12, ''), NULLIF($13, '')
  WHERE NOT EXISTS (
    SELECT 1 FROM public.appointments x
     WHERE x.broker_id = $2::uuid AND x.brand_id IS NOT NULL AND x.status IN ('booked','confirmed')
-      AND tstzrange(x.appointment_date - make_interval(mins => $15::int), x.ends_at + make_interval(mins => $15::int), '[)')
-          && tstzrange($5::timestamptz, $6::timestamptz, '[)'))
+      AND tstzrange(x.appointment_date - make_interval(mins => $14::int), x.ends_at + make_interval(mins => $14::int), '[)')
+          && tstzrange($4::timestamptz, $5::timestamptz, '[)'))
 ON CONFLICT DO NOTHING
-RETURNING id, client_id, broker_id, cycle_id, appointment_date, ends_at, method, status, booked_at, booked_via, idempotency_key;`, "={{ (() => { const r = $json.row; const b = $json.ctx.broker || {}; return [r.client_id, r.broker_id, r.brand_id, r.cycle_id || '', r.appointment_date, r.ends_at, r.method, r.calendar_provider, r.booked_via, r.idempotency_key, r.previous_booking_id || '', r.call_number || '', r.invite_email_status || '', r.schedule_event_id || '', b.buffer_minutes == null ? 15 : b.buffer_minutes]; })() }}", { onError: 'continueRegularOutput' }));
+RETURNING id, client_id, broker_id, appointment_date, ends_at, method, status, booked_at, booked_via, idempotency_key;`, "={{ (() => { const r = $json.row; const b = $json.ctx.broker || {}; return [r.client_id, r.broker_id, r.brand_id, r.appointment_date, r.ends_at, r.method, r.calendar_provider, r.booked_via, r.idempotency_key, r.previous_booking_id || '', r.call_number || '', r.invite_email_status || '', r.schedule_event_id || '', b.buffer_minutes == null ? 15 : b.buffer_minutes]; })() }}", { onError: 'continueRegularOutput' }));
   n.push(ifTrue('Inserted?', '!!$json.id'));
   n.push(pg('Re-select by idempotency key', `SELECT (SELECT to_jsonb(e) FROM (SELECT a.id, a.appointment_date, a.ends_at, a.method, a.status, a.join_url, a.ics_url FROM public.appointments a WHERE a.idempotency_key = $1 LIMIT 1) e) AS existing;`, "={{ [$('After re-check (w05.afterCheck)').first().json.row.idempotency_key] }}"));
   n.push(code('Lost the race: replay or next 3', 'w05.mjs', `const d = $('After re-check (w05.afterCheck)').first().json;\nconst ex = $input.first().json.existing;\nif (ex) return [{ json: { ...d, action: 'replay', status: 201, body: L.publicBody(ex), wa: null } }];\nconst t = L.taken(d.ctx, d.dec.plan, []);\nreturn [{ json: { ...d, action: 'taken', status: 409, body: t.body, wa: t.wa || null } }];`));
@@ -207,23 +207,23 @@ RETURNING id, client_id, broker_id, cycle_id, appointment_date, ends_at, method,
   n.push(ifTrue('Shared calendar id?', '!$json.error && !!$json.url'));
   n.push(http('Graph create event (howzit@ shared calendar, ASSUMPTION)', 'POST', '={{ $json.url }}', { cred: HOWZIT_CAL, params: { authentication: 'predefinedCredentialType', nodeCredentialType: 'microsoftOutlookOAuth2Api', sendBody: true, specifyBody: 'json', jsonBody: "={{ JSON.stringify($json.event) }}" } }));
   n.push(code('After event (w05.finish)', 'w05.mjs', `const d = $('Decide (w05.decide + MX)').first().json;\nconst row = $('Insert appointment (re-check overlap + buffer, idempotent)').first().json;\nconst ev = L.afterEvent($input.first().json);\nconst f = L.finish(d.ctx, d.dec.plan, row, ev, { site: $env.SITE_URL, ics_secret: $env.LEAD_TOKEN_SECRET });\nreturn [{ json: { ...d, booking: row, ev, f, lane: d.lane, status: f.response.status, body: f.response.body } }];`));
-  n.push(pg('Save event ids + lead (stage, broker, cycle, invite email)', `WITH a AS (
+  n.push(pg('Save event ids + lead (stage, broker, invite email)', `WITH a AS (
   UPDATE public.appointments
      SET graph_event_id = NULLIF($2, ''), ical_uid = NULLIF($3, ''), join_url = NULLIF($4, ''), ics_url = $5,
          invite_email_status = NULLIF($6, ''), schedule_event_id = NULLIF($7, ''), updated_at = now()
    WHERE id = $1::uuid
   RETURNING client_id)
 UPDATE public.leads l
-   SET stage = 'booked', stage_entered_at = now(), broker_id = $8::uuid, cycle_id = NULLIF($9, '')::uuid,
-       email = CASE WHEN $10 <> '' THEN $10 ELSE l.email END,
-       email_status = CASE WHEN $10 <> '' THEN $11 ELSE l.email_status END,
-       email_purpose = CASE WHEN $10 <> '' THEN 'meeting_invite' ELSE l.email_purpose END,
+   SET stage = 'booked', stage_entered_at = now(), broker_id = $8::uuid,
+       email = CASE WHEN $9 <> '' THEN $9 ELSE l.email END,
+       email_status = CASE WHEN $9 <> '' THEN $10 ELSE l.email_status END,
+       email_purpose = CASE WHEN $9 <> '' THEN 'meeting_invite' ELSE l.email_purpose END,
        updated_at = now()
   FROM a WHERE l.id = a.client_id
-RETURNING l.id;`, "={{ (() => { const f = $json.f; const u = f.appointment_update; const lu = f.lead_update; return [$json.booking.id, u.graph_event_id || '', u.ical_uid || '', u.join_url || '', u.ics_url, u.invite_email_status || '', u.schedule_event_id || '', lu.broker_id, lu.cycle_id || '', lu.email || '', lu.email_status || '']; })() }}"));
-  n.push(pg('Timeline: booked', `INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
-VALUES ($1::uuid, NULLIF($2, '')::uuid, $3::uuid, NULLIF($4, '')::uuid, 'W05', 'lead', 'booking_created', jsonb_build_object('booking_id', $5::text, 'start', $6::text, 'method', $7::text, 'booked_via', $8::text, 'graph_event', $9::boolean), now(), 'w05:booked:' || $5)
-ON CONFLICT (idempotency_key) DO NOTHING RETURNING id;`, "={{ (() => { const d = $('After event (w05.finish)').first().json; const p = d.dec.plan; return [p.lead_id, (d.ctx.lead || {}).brand_id || '', p.broker_id, d.booking.cycle_id || '', d.booking.id, p.start, p.method, p.booked_via, !!d.ev.ok]; })() }}"));
+RETURNING l.id;`, "={{ (() => { const f = $json.f; const u = f.appointment_update; const lu = f.lead_update; return [$json.booking.id, u.graph_event_id || '', u.ical_uid || '', u.join_url || '', u.ics_url, u.invite_email_status || '', u.schedule_event_id || '', lu.broker_id, lu.email || '', lu.email_status || '']; })() }}"));
+  n.push(pg('Timeline: booked', `INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
+VALUES ($1::uuid, NULLIF($2, '')::uuid, $3::uuid, 'W05', 'lead', 'booking_created', jsonb_build_object('booking_id', $4::text, 'start', $5::text, 'method', $6::text, 'booked_via', $7::text, 'graph_event', $8::boolean), now(), 'w05:booked:' || $4)
+ON CONFLICT (idempotency_key) DO NOTHING RETURNING id;`, "={{ (() => { const d = $('After event (w05.finish)').first().json; const p = d.dec.plan; return [p.lead_id, (d.ctx.lead || {}).brand_id || '', p.broker_id, d.booking.id, p.start, p.method, p.booked_via, !!d.ev.ok]; })() }}"));
   n.push(code('Answer', 'w05.mjs', `const j = $input.first().json;\nconst src = j.f ? j : ($('After event (w05.finish)').isExecuted ? $('After event (w05.finish)').first().json : j);\nreturn [{ json: { lane: src.lane, status: src.status || 200, body: src.body || {}, wa: src.wa || null, to: 'lead', lead_id: src.lead_id || (src.ctx && src.ctx.lead && src.ctx.lead.id) || null, f: src.f || null } }];`));
   n.push(ifTrue('HTTP lane?', "$json.lane === 'http'"));
   n.push(respond('Respond (book JSON)'));
@@ -306,7 +306,7 @@ SELECT l.id, l.email, l.phone, l.language, l.first_name, bk.method, bk.adviser_n
   chain(c, 'Event body (shared)', 'Shared calendar id?');
   link(c, 'Shared calendar id?', 'Graph create event (howzit@ shared calendar, ASSUMPTION)', 0); link(c, 'Shared calendar id?', 'After event (w05.finish)', 1);
   chain(c, 'Graph create event (howzit@ shared calendar, ASSUMPTION)', 'After event (w05.finish)');
-  chain(c, 'After event (w05.finish)', 'Save event ids + lead (stage, broker, cycle, invite email)', 'Timeline: booked', 'Answer', 'HTTP lane?');
+  chain(c, 'After event (w05.finish)', 'Save event ids + lead (stage, broker, invite email)', 'Timeline: booked', 'Answer', 'HTTP lane?');
   link(c, 'HTTP lane?', 'Respond (book JSON)', 0); link(c, 'HTTP lane?', 'Fan out effects', 1);
   chain(c, 'Respond (book JSON)', 'Fan out effects', 'Effect?');
   ['Live send?', 'Email from howzit@ (Graph sendMail)', '-> W06 First touch (booking event)', '-> W09 Reminder sequence (schedule / rebuild)', '-> W07 post-booking contact confirm', '-> CAPI Send (Schedule, no email)', '-> W28 ask_email', '-> W22 Alerts'].forEach((t, i) => link(c, 'Effect?', t, i));

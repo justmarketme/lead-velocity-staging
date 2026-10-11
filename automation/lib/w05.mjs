@@ -403,7 +403,7 @@ export function appointmentRow(ctx, p) {
   const route = p.route === 'shared' ? 'shared_lv' : (b.calendar_provider || 'outlook');
   return {
     client_id: lead.id, broker_id: b.broker_id, brand_id: lead.brand_id || b.brand_id || null,
-    cycle_id: b.current_cycle_id || lead.cycle_id || null, appointment_date: p.start, ends_at: p.end, method: p.method,
+    appointment_date: p.start, ends_at: p.end, method: p.method,
     status: 'booked', calendar_provider: route, booked_via: p.booked_via, booked_at: iso(ctx.now),
     idempotency_key: p.idempotency_key, previous_booking_id: p.previous_booking_id,
     call_number: CALL_METHODS.has(p.method) ? (lead.call_number || lead.phone) : null,
@@ -545,10 +545,10 @@ export function capiSchedule(lead = {}, p = {}) {
   return { event_name: 'Schedule', event_id: browser || `evt_${lead.id}_schedule`, action_source: p.booked_via === 'page' ? 'website' : 'system_generated', lead_id: lead.id, brand_id: lead.brand_id || null };
 }
 
-/** leads UPDATE after the insert (CONTRACTS: broker_id/cycle_id on the lead; email only for invite methods). */
+/** leads UPDATE after the insert (CONTRACTS: broker_id on the lead; email only for invite methods). */
 export function leadUpdate(ctx, p) {
   const b = brokerConfig(ctx.broker);
-  const u = { stage: 'booked', broker_id: b.broker_id, cycle_id: b.current_cycle_id || ctx.lead.cycle_id || null };
+  const u = { stage: 'booked', broker_id: b.broker_id };
   if (INVITE_METHODS.has(p.method) && p.email) Object.assign(u, { email: p.email, email_status: p.email_status || 'mx_ok', email_purpose: 'meeting_invite' });
   return u;
 }

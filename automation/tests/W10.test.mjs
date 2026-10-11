@@ -129,7 +129,7 @@ test('W10.json: physical columns only; move re-checks overlap + buffer in SQL; s
 // ---- Schedule C1A (I-37l): default pending NH-42 = options (a) + (b) ----
 const CANCELLED_AT = '2026-10-12T10:00:00+02:00';
 const vLead = (over = {}) => ({ id: L03.lead_id, verified_at: '2026-10-08T09:05:00+02:00', first_message_at: '2026-10-08T09:00:40+02:00', opted_out_at: null, conv_state: { rebook_offered: true }, ...over });
-const cBk = (over = {}) => bk({ status: 'cancelled', cancelled_at: CANCELLED_AT, brand_id: 'brand_smc', cycle_id: 'cyc_1', ...over });
+const cBk = (over = {}) => bk({ status: 'cancelled', cancelled_at: CANCELLED_AT, brand_id: 'brand_smc', ...over });
 const c1a = (over = {}) => R.c1aDecision({ lead: vLead(), booking: cBk(), cancelled_by: 'lead', rebooked: false, rebook_offered: true, inbound_after_cancel: [], already_claimed: false, now_ms: ms(CANCELLED_AT) + R.C1A_SEQUENCE_MS + MIN, ...over });
 
 test('C1A default is a+b (pending NH-42)', () => {

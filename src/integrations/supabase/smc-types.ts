@@ -101,7 +101,7 @@ export interface SmcLead {
   brand_id: Uuid | null; cycle_id: Uuid | null; tier_code: string | null; origin: string | null;
   campaign_id: string | null; adset_id: string | null; ad_id: string | null;
   verified_at: Ts | null; qualified_at: Ts | null; age_band: "lt35" | "35_44" | "45_50" | "51plus" | null;
-  budget_band: "lt750" | "750_1250" | "1250plus" | "1250_1499" | "1500_plus" | null; premium_1500?: boolean; bond: boolean | null; dependants: boolean | null;
+  budget_band: "lt750" | "750_1250" | "1250plus" | "1250_1499" | "1500_plus" | null; bond: boolean | null; dependants: boolean | null;
   work_cover: boolean | null; method_pref: SmcMethod | null; call_number: string | null;
   call_number_line_type: string | null; best_time: string | null; language: string | null;
   stage: string | null; stage_entered_at: Ts | null; health_flag: boolean; created_at: Ts;
@@ -220,6 +220,14 @@ export interface SmcReportPayload {
 }
 
 /** View public.v_cycle_progress (smc_02 §15). */
+/** View public.smc_order_capacity (crm-nurture file 03): one row per SortMyCover CRM lead order. Capacity, not cycles. */
+export interface SmcOrderCapacity {
+  lead_order_id: Uuid; broker_id: Uuid; brand_id: Uuid; title: string | null; status: "pending" | "contract_signed" | "paid" | "delivered" | "cancelled";
+  lead_count: number; paid_at: Ts | null; created_at: Ts | null; attached: number; replacements_approved: number; capacity: number;
+  remaining: number; counted_toward_order: number; open: boolean; replacement_requests_this_week: number; replacement_weekly_max: number;
+}
+
+/** LEGACY (cycles are not part of the crm-nurture chain; kept only for pages not yet moved: Agreement.tsx, smc/Ads.tsx). */
 export interface SmcCycleProgress {
   cycle_id: Uuid; broker_id: Uuid; brand_id: Uuid; tier_code: string; cycle_no: number; status: SmcCycle["status"];
   starts_at: Ts | null; ends_at: Ts | null; extended_until: Ts | null; committed: number; verified: number;

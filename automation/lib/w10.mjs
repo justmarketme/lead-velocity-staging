@@ -189,7 +189,7 @@ export function isVerified(lead) {
 
 /**
  * c1aDecision(input) -> { claim: false, why, stop_messaging? } | { claim: true, stop_messaging, w13, activity }
- * input = { lead: {id, verified_at, first_message_at, opted_out_at, conv_state}, booking: {id, brand_id, broker_id, cycle_id,
+ * input = { lead: {id, verified_at, first_message_at, opted_out_at, conv_state}, booking: {id, brand_id, broker_id,
  *           status, cancelled_at}, cancelled_by: 'lead'|'broker', rebooked: bool, rebook_offered: bool,
  *           inbound_after_cancel: [{text|content, payload}], declined: bool, already_claimed: bool, now_ms, mode }
  */
@@ -202,7 +202,7 @@ export function c1aDecision(x) {
   const declined = Boolean(x.declined || lead.conv_state?.declined_call || lead.conv_state?.declined_nurture || (x.inbound_after_cancel || []).some(isNoCall));
   if (!isVerified(lead)) return { claim: false, why: 'never_verified_never_counted', stop_messaging: declined };
   if (x.already_claimed) return { claim: false, why: 'already_claimed', stop_messaging: declined };
-  const base = { lead_id: lead.id, booking_id: booking.id, outcome_id: null, brand_id: booking.brand_id, broker_id: booking.broker_id, cycle_id: booking.cycle_id, at: new Date(now_ms).toISOString(), idempotency_key: `w10:c1a:${booking.id}`, schedule: 'C1A', c1a_mode: mode };
+  const base = { lead_id: lead.id, booking_id: booking.id, outcome_id: null, brand_id: booking.brand_id, broker_id: booking.broker_id, at: new Date(now_ms).toISOString(), idempotency_key: `w10:c1a:${booking.id}`, schedule: 'C1A', c1a_mode: mode };
   if (declined) {
     if (!modeHas(mode, 'b')) return { claim: false, why: 'no_call_not_replaced_under_option_a', stop_messaging: true };
     return { claim: true, stop_messaging: true, w13: { op: 'claim', ...base, reason: 'disqualified', code: 'nofit_criteria', reason_code: 'no_call' }, activity: 'c1a_no_call' };

@@ -229,7 +229,7 @@ test('W09.json: CONTRACTS entries (schedule, rebuild, cancel_all, pause, resume)
 
 test('W09.json: idempotent per appointment + step (job key, one done row per key), append-only cancels, DRY_RUN guard, last_contact_at after Meta accepts', () => {
   assert.match(node('Insert jobs (one row per key)').parameters.query, /ON CONFLICT \(idempotency_key\) DO NOTHING/);
-  assert.match(node('Claim send (w09done key, first tick wins)').parameters.query, /'w09done:' \|\| \$5\)\s+ON CONFLICT \(idempotency_key\) DO NOTHING\s+RETURNING id/);
+  assert.match(node('Claim send (w09done key, first tick wins)').parameters.query, /'w09done:' \|\| \$4\)\s+ON CONFLICT \(idempotency_key\) DO NOTHING\s+RETURNING id/);
   assert.match(node('Cancel all unsent jobs (booking or lead)').parameters.query, /'cancelled'/);
   assert.ok(!workflowSql(WF).some((q) => /UPDATE public\.lead_activities|DELETE FROM public\.lead_activities/i.test(q.sql)), 'the timeline stays append-only');
   assert.equal(WF.connections['Claimed? (send once)'].main[0][0].node, 'Send item (job)');
@@ -240,7 +240,7 @@ test('W09.json: idempotent per appointment + step (job key, one done row per key
 });
 
 const c09 = (over = {}) => ({ op: 'schedule', now_iso: '2026-10-12T08:14:41+02:00', ...over });
-const planRow = (fx, over = {}) => ({ booking_id: `bkg_${fx.fixture_id}`, lead_id: fx.lead_id, brand_id: 'brand_smc', broker_id: B.broker_id, cycle_id: 'cyc_1', appointment_date: fx.booking_request.slot_start, status: 'booked', booked_at: fx.booking_request.requested_at, language: 'en', opted_out_at: null, intro_video_url: B.intro_video_url, intro_voice_url: B.intro_voice_url, lineage_sent: [], ...over });
+const planRow = (fx, over = {}) => ({ booking_id: `bkg_${fx.fixture_id}`, lead_id: fx.lead_id, brand_id: 'brand_smc', broker_id: B.broker_id, appointment_date: fx.booking_request.slot_start, status: 'booked', booked_at: fx.booking_request.requested_at, language: 'en', opted_out_at: null, intro_video_url: B.intro_video_url, intro_voice_url: B.intro_voice_url, lineage_sent: [], ...over });
 
 test('W09.json "Plan" node (schedule from the booking event): the job rows are the hand-computed fixture schedules', async () => {
   for (const id of ['L01', 'L02', 'L03', 'L04', 'L10']) {
@@ -258,7 +258,7 @@ test('W09.json "Plan" node (schedule from the booking event): the job rows are t
   assert.deepEqual(gone.rows, []);
 });
 
-const dueRow = (over = {}) => ({ key: 'w09:bkg_L01:reminder_2h:2026-10-15T08:00:00+02:00', lead_id: 'lead_test_L01', brand_id: 'brand_smc', broker_id: B.broker_id, cycle_id: 'cyc_1', booking_id: 'bkg_L01', touch: 'reminder_2h', template: 'reminder_2h', at: '2026-10-15T08:00:00+02:00', start: '2026-10-15T10:00:00+02:00', booking_status: 'confirmed', appointment_date: '2026-10-15T10:00:00+02:00', method: 'teams', first_name: 'Lerato', phone: '+27600000001', language: 'en', opted_out_at: null, adviser_name: 'Mark Smith', contact_person: 'Mark Smith', broker_phone: '+27600000090', broker_whatsapp: '+27600000090', intro_video_url: B.intro_video_url, intro_voice_url: B.intro_voice_url, domain: 'sortmycover.co.za', suppressed: false, paused: false, outbound_count: 4, ...over });
+const dueRow = (over = {}) => ({ key: 'w09:bkg_L01:reminder_2h:2026-10-15T08:00:00+02:00', lead_id: 'lead_test_L01', brand_id: 'brand_smc', broker_id: B.broker_id, booking_id: 'bkg_L01', touch: 'reminder_2h', template: 'reminder_2h', at: '2026-10-15T08:00:00+02:00', start: '2026-10-15T10:00:00+02:00', booking_status: 'confirmed', appointment_date: '2026-10-15T10:00:00+02:00', method: 'teams', first_name: 'Lerato', phone: '+27600000001', language: 'en', opted_out_at: null, adviser_name: 'Mark Smith', contact_person: 'Mark Smith', broker_phone: '+27600000090', broker_whatsapp: '+27600000090', intro_video_url: B.intro_video_url, intro_voice_url: B.intro_voice_url, domain: 'sortmycover.co.za', suppressed: false, paused: false, outbound_count: 4, ...over });
 const due = async (row, now) => (await runCode(WF, 'Decide (w09.dueFromRow)', { json: row, refs: { 'Classify + validate (w09.classifyOp)': { now_iso: now } } })).json;
 
 test('W09.json "Decide" node at send time: sends the right template; stops on STOP, suppression, pause, moved or cancelled booking, meeting started', async () => {

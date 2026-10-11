@@ -297,31 +297,11 @@ test('I-40i workflow: both endpoints behind the JWT node, broker from user_id = 
   assert.ok(!JSON.stringify(W.nodes.filter((n) => /Script gate|Generate variant/.test(n.name))).match(/sk-ant|eyJ/));
 });
 
-// I-41h: every LLM-using step logs one ops.costs row; a failed insert never fails the request
-test('script-generate and script-recheck log ops.costs (kind llm, source_ref shape, credential by name, non-blocking)', () => {
-  const logs = W.nodes.filter((n) => /^Log LLM cost/.test(n.name));
-  assert.deepEqual(logs.map((n) => n.name).sort(), ['Log LLM cost (generate 1)', 'Log LLM cost (generate 2)', 'Log LLM cost (recheck)']);
-  for (const n of logs) {
-    assert.match(n.parameters.query, /insert into ops\.costs/);
-    assert.match(n.parameters.query, /'llm'/);
-    assert.match(n.parameters.query, /on conflict do nothing/);
-    assert.equal(n.credentials.postgres.name, 'LV Supabase - n8n_app (least privilege)');
-    assert.equal(n.onError, 'continueRegularOutput');
-    assert.match(n.parameters.options.queryReplacement, /\$env\.BRAND_ID/);
-    // side branch only: nothing downstream, so it cannot reach a Respond node
-    assert.equal(W.connections[n.name], undefined);
-  }
-  const calc = (n) => node(n).parameters.jsCode;
-  const gen1 = calc('Cost row (generate 1)'), gen2 = calc('Cost row (generate 2)'), rc = calc('Cost row (recheck)');
-  assert.ok(gen1.includes('`w23:script-generate:${broker}:${$execution.id}:${$json.angle}:1`'));
-  assert.ok(gen2.includes('`w23:script-generate:${broker}:${$execution.id}:${$json.angle}:2`'));
-  assert.ok(rc.includes('`w23:script-recheck:${broker}:${$execution.id}`'));
-  // run the ref expressions for real
-  const ref = (code, angle) => new Function('$json', '$execution', 'broker', 'return ' + code.match(/source_ref: (`[^`]+`)/)[1])({ angle }, { id: 'x77' }, 'b-1');
-  assert.equal(ref(gen1, 'family'), 'w23:script-generate:b-1:x77:family:1');
-  assert.equal(ref(rc), 'w23:script-recheck:b-1:x77');
-  assert.match(W.connections['Variant result (1)'].main[0].map((t) => t.node).join(), /Cost row \(generate 1\)/);
-  assert.match(W.connections['Recheck result'].main[0].map((t) => t.node).join(), /Cost row \(recheck\)/);
+// crm-nurture (2026-10-11): the ops schema (ops.costs) is not part of the CRM chain, so the LLM cost side branch is removed.
+test('W23 writes nothing to the ops schema (cost logging removed with ops.costs); script steps still respond', () => {
+  assert.equal((JSON.stringify(W).match(/\bops\.[a-z_]+/g) || []).length, 0);
+  assert.deepEqual(W.nodes.filter((n) => /^(Log LLM cost|Cost row)/.test(n.name)).map((n) => n.name), []);
+  for (const n of ['Variant result (1)', 'Recheck result']) assert.ok(node(n), n);
 });
 
 test('every W23 node name is unique and every connection source/target names an existing node (n8n rejects duplicate_node_name)', () => {

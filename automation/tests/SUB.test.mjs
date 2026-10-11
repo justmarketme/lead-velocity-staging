@@ -14,6 +14,10 @@ const load = (f) => JSON.parse(readFileSync(join(A, f), 'utf8'));
 const FILES = { 'SUB-whatsapp-send.json': 'smc-whatsapp-send', 'SUB-capi-send.json': 'smc-capi-send', 'SUB-w26-runner.json': 'smc-w26', 'SUB-ads-budget.json': 'smc-ads-budget', 'SUB-visit-beacon.json': 'smc-visit-beacon' };
 const NOW = Date.parse('2026-10-03T10:00:00Z');
 
+// crm-nurture (2026-10-11): these sub-workflows write the ops schema (go-live to-dos, ads budget proposals, page-visit counts),
+// which the CRM chain does not create (supabase/migrations/CRM-NURTURE-SCHEMA.md, DROP list). Their logic tests below still run;
+// only the "SQL matches the schema" check is not applicable until they are re-scoped or retired (Jonathan's decision D5).
+const OUTSIDE_CHAIN = new Set(['SUB-w26-runner.json', 'SUB-ads-budget.json', 'SUB-visit-beacon.json']);
 for (const [f, id] of Object.entries(FILES)) {
   test(`${f}: id ${id}, inactive, errorWorkflow smc-w22, lv-automation only, one Postgres credential, SQL matches the schema`, { skip: !existsSync(join(A, f)) && 'not built yet' }, () => {
     const wf = load(f);
@@ -21,7 +25,10 @@ for (const [f, id] of Object.entries(FILES)) {
     assert.equal(wf.active, false);
     const pgCreds = new Set(wf.nodes.filter((n) => n.type === 'n8n-nodes-base.postgres').map((n) => n.credentials?.postgres?.name));
     assert.deepEqual([...pgCreds], [PG_CRED]);
-    assert.deepEqual(checkSql(workflowSql(wf)), []);
+    const bad = checkSql(workflowSql(wf));
+    // what is missing is exactly the dropped design: the ops schema, and (W26 go-live) the onboarding-funnel column brokers.status_changed_at
+    if (OUTSIDE_CHAIN.has(f)) assert.ok(bad.length > 0 && bad.every((b) => b.table.startsWith('ops.') || (b.table === 'public.brokers' && b.column === 'status_changed_at')), `${f}: only dropped-design objects are missing: ${JSON.stringify(bad)}`);
+    else assert.deepEqual(bad, []);
     for (const n of wf.nodes.filter((x) => x.type === 'n8n-nodes-base.code' && !/W22 signal/.test(x.name))) assert.match(n.parameters.jsCode, /require\('lv-automation'\)\.(sub(WhatsappSend|CapiSend|W26|AdsBudget|VisitBeacon)|waProvider)\b/, `${n.name} loads its lib`);
     assert.ok(wf.nodes.some((n) => n.type === 'n8n-nodes-base.executeWorkflowTrigger' || n.type === 'n8n-nodes-base.webhook'), 'has an entry point');
   });

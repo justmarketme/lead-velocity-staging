@@ -113,10 +113,12 @@ SELECT br.id AS brand_uuid,
        COALESCE((SELECT jsonb_agg(jsonb_build_object(
                   'id', b.id, 'broker_id', b.id, 'brand_id', b.brand_id, 'status', b.status, 'routing_on', b.routing_on, 'active', b.active,
                   'bookings_paused', b.bookings_paused, 'practice_name', b.firm_name, 'fsp_number', b.fsp_number, 'consent_mode', b.consent_mode,
-                  'current_cycle_id', b.current_cycle_id, 'tier_code', b.tier_code, 'methods_supported', b.methods_supported,
-                  'committed_leads', cy.committed_leads,
-                  'leads_this_cycle', (SELECT count(*) FROM public.leads x WHERE x.broker_id = b.id AND x.cycle_id = b.current_cycle_id)))
-                   FROM public.brokers b LEFT JOIN public.cycles cy ON cy.id = b.current_cycle_id
+                  'methods_supported', b.methods_supported,
+                  -- capacity = the broker's open paid SortMyCover lead_orders (lead_count + approved replacements - attached)
+                  'order_capacity', COALESCE(oc.capacity, 0), 'order_attached', COALESCE(oc.attached, 0), 'order_remaining', COALESCE(oc.remaining, 0)))
+                   FROM public.brokers b
+                   LEFT JOIN LATERAL (SELECT sum(c.capacity)::int AS capacity, sum(c.attached)::int AS attached, sum(c.remaining)::int AS remaining
+                                        FROM public.smc_order_capacity c WHERE c.broker_id = b.id AND c.brand_id = br.id AND c.open) oc ON true
                   WHERE b.brand_id = br.id), '[]'::jsonb) AS brokers
   FROM public.brands br
  WHERE br.id = $6::uuid;`,
@@ -183,7 +185,7 @@ ins AS (
                             consent_text, consent_text_version, consent_mode, consent_at, consent_page_url, consent_source, consent_ads_at,
                             lead_event_id, fbclid, fbp, fbc, ad_id, adset_id, campaign_id, leadgen_id,
                             utm_source, utm_medium, utm_campaign, utm_content, utm_term, page_url, client_ip, client_user_agent,
-                            broker_id, cycle_id, tier_code, routed_at, routing_reason, stage, disqualified_reason, retention_delete_after, opted_out_at, conv_state)
+                            broker_id, routed_at, routing_reason, stage, disqualified_reason, retention_delete_after, opted_out_at, conv_state)
   SELECT (j->>'id')::uuid, (j->>'brand_id')::uuid, j->>'origin', j->>'source', COALESCE((j->>'is_synthetic')::boolean, false), (j->>'created_at')::timestamptz,
          j->>'first_name', j->>'phone', j->>'line_type', j->>'language',
          j->>'age_band', j->>'budget_band', (j->>'bond')::boolean, (j->>'dependants')::boolean, (j->>'work_cover')::boolean, j->>'method_pref', j->>'angle',
@@ -191,13 +193,13 @@ ins AS (
          j->>'consent_text', j->>'consent_text_version', j->>'consent_mode', (j->>'consent_at')::timestamptz, j->>'consent_page_url', j->>'consent_source', (j->>'consent_ads_at')::timestamptz,
          j->>'lead_event_id', j->>'fbclid', j->>'fbp', j->>'fbc', j->>'ad_id', j->>'adset_id', j->>'campaign_id', j->>'leadgen_id',
          j->>'utm_source', j->>'utm_medium', j->>'utm_campaign', j->>'utm_content', j->>'utm_term', j->>'page_url', j->>'client_ip', j->>'client_user_agent',
-         (j->>'broker_id')::uuid, (j->>'cycle_id')::uuid, j->>'tier_code', (j->>'routed_at')::timestamptz, j->>'routing_reason', j->>'stage', j->>'disqualified_reason',
+         (j->>'broker_id')::uuid, (j->>'routed_at')::timestamptz, j->>'routing_reason', j->>'stage', j->>'disqualified_reason',
          (j->>'retention_delete_after')::timestamptz, (j->>'opted_out_at')::timestamptz, j->'conv_state'
     FROM r
   ON CONFLICT DO NOTHING
-  RETURNING id, brand_id, broker_id, cycle_id)
-INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
-SELECT ins.id, ins.brand_id, ins.broker_id, ins.cycle_id, 'W01', a->>'actor_type', a->>'activity_type', a->'payload', (a->>'occurred_at')::timestamptz, a->>'idempotency_key'
+  RETURNING id, brand_id, broker_id)
+INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
+SELECT ins.id, ins.brand_id, ins.broker_id, 'W01', a->>'actor_type', a->>'activity_type', a->'payload', (a->>'occurred_at')::timestamptz, a->>'idempotency_key'
   FROM ins, jsonb_array_elements($2::jsonb) a
 ON CONFLICT (idempotency_key) DO NOTHING
 RETURNING lead_id;`,
@@ -225,7 +227,7 @@ const L = require('lv-automation').w01;
 return $input.all().map((i) => ({ json: L.budgetQuestion(i.json.decision.row) }));`));
   n.push(sub('WhatsApp Send (qualify_budget)', pos(20, 2), 'WhatsApp Send', false, 'Shared sender (SUB-whatsapp-send): suppression, DRY_RUN_SENDS, allow-list and the correlation idempotency key run inside.'));
   n.push(code('W06 input', pos(18, 1), "return $input.all().filter((i) => i.json.first_touch.workflow !== 'W03').map((i) => ({ json: { op: 'routed', lead_id: i.json.first_touch.lead_id, origin: i.json.first_touch.origin, not_before: i.json.first_touch.not_before } }));"));
-  n.push(sub('W06 First touch (< 60 s)', pos(19, 1), 'W06 First touch', false, 'Called with { op: routed, lead_id, origin }. The lead row (broker_id, cycle_id, routed_at) is committed before this call. W06 holds page leads 45 s for the in-page booking.'));
+  n.push(sub('W06 First touch (< 60 s)', pos(19, 1), 'W06 First touch', false, 'Called with { op: routed, lead_id, origin }. The lead row (broker_id, routed_at; attached to the open lead order by the database) is committed before this call. W06 holds page leads 45 s for the in-page booking.'));
 
   // ---- entry 2: POST /lead/skip
   n.push(node('POST /lead/skip (I\'ll pick on WhatsApp)', 'webhook', 2, pos(0, 4), { httpMethod: 'POST', path: 'lead/skip', responseMode: 'responseNode', options: {} }, { webhookId: 'w01-lead-skip' }));
@@ -261,8 +263,12 @@ return out;`));
 `SELECT to_jsonb(q) AS lead,
        COALESCE((SELECT jsonb_agg(jsonb_build_object('id', b.id, 'broker_id', b.id, 'brand_id', b.brand_id, 'status', b.status, 'routing_on', b.routing_on,
                   'active', b.active, 'bookings_paused', b.bookings_paused, 'practice_name', b.firm_name, 'fsp_number', b.fsp_number,
-                  'current_cycle_id', b.current_cycle_id, 'tier_code', b.tier_code, 'consent_mode', b.consent_mode))
-                   FROM public.brokers b WHERE b.brand_id = q.brand_id), '[]'::jsonb) AS brokers
+                  'consent_mode', b.consent_mode,
+                  'order_capacity', COALESCE(oc.capacity, 0), 'order_attached', COALESCE(oc.attached, 0), 'order_remaining', COALESCE(oc.remaining, 0)))
+                   FROM public.brokers b
+                   LEFT JOIN LATERAL (SELECT sum(c.capacity)::int AS capacity, sum(c.attached)::int AS attached, sum(c.remaining)::int AS remaining
+                                        FROM public.smc_order_capacity c WHERE c.broker_id = b.id AND c.brand_id = q.brand_id AND c.open) oc ON true
+                  WHERE b.brand_id = q.brand_id), '[]'::jsonb) AS brokers
   FROM (SELECT l.id, l.brand_id, l.origin, l.broker_id, l.routed_at, l.opted_out_at, l.disqualified_reason, l.consent_text, l.consent_mode,
                l.routing_reason, l.consent_ads_at, l.lead_event_id, l.created_at,
                EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone) AND (s.brand_id IS NULL OR s.brand_id = l.brand_id)) AS suppressed
@@ -279,13 +285,12 @@ return out;`));
   n.push(pg('Write routing (only if not routed yet) + timeline', pos(5, 7),
 `WITH u AS (
   UPDATE public.leads l
-     SET broker_id = COALESCE(($2::jsonb->>'broker_id')::uuid, l.broker_id), cycle_id = COALESCE(($2::jsonb->>'cycle_id')::uuid, l.cycle_id),
-         tier_code = COALESCE($2::jsonb->>'tier_code', l.tier_code), routed_at = COALESCE(($2::jsonb->>'routed_at')::timestamptz, l.routed_at),
+     SET broker_id = COALESCE(($2::jsonb->>'broker_id')::uuid, l.broker_id), routed_at = COALESCE(($2::jsonb->>'routed_at')::timestamptz, l.routed_at),
          routing_reason = $2::jsonb->>'routing_reason', updated_at = now()
    WHERE l.id = $1::uuid AND l.broker_id IS NULL AND l.opted_out_at IS NULL
-  RETURNING l.id, l.brand_id, l.broker_id, l.cycle_id)
-INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
-SELECT u.id, u.brand_id, u.broker_id, u.cycle_id, 'W01', 'system', CASE WHEN u.broker_id IS NULL THEN 'routing_held' ELSE 'routed' END, $2::jsonb, now(), 'w01:routed:' || u.id::text
+  RETURNING l.id, l.brand_id, l.broker_id, l.routing_reason)
+INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
+SELECT u.id, u.brand_id, u.broker_id, 'W01', 'system', CASE WHEN u.broker_id IS NULL THEN 'routing_held' ELSE 'routed' END, $2::jsonb, now(), 'w01:routed:' || u.id::text
   FROM u
 ON CONFLICT (idempotency_key) DO NOTHING
 RETURNING lead_id, broker_id;`,

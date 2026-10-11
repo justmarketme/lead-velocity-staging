@@ -299,7 +299,7 @@ async function handle(req, deps) {
   const d = req.data || {};
   const disqualify = (reason, body) => {
     cap.closed = true; cap.closed_reason = reason;
-    effects.push({ kind: 'disqualify', lead_id: lead.id, reason, set: { stage: 'disqualified', disqualified_reason: reason, delivered: false, counts_toward_cycle: false } });
+    effects.push({ kind: 'disqualify', lead_id: lead.id, reason, set: { stage: 'disqualified', disqualified_reason: reason, delivered: false } });
     return end(COPY.end_close_heading, body || fill(COPY.end_close_body, { first_name: cap.first_name || firstWord(lead.first_name) }));
   };
   const strike = (field, screen, message, data) => {
@@ -436,7 +436,7 @@ async function handle(req, deps) {
   }
 }
 
-/** capture_state -> leads columns (migration 20261007190000_smc_19_capture_v2.sql). */
+/** capture_state -> leads columns (migration 20261011020000_smc_02_core.sql, capture Flow v2 block). */
 function leadColumns(cap, lead, at) {
   return {
     first_name: cap.first_name ?? lead.first_name ?? null, last_name: cap.last_name ?? null,
@@ -502,7 +502,7 @@ function decideOffer(decision, { offer, lead, now, consent_mode = 'named', nextB
   if (decision === 'accept') {
     return { changed: true, effects: [
       { kind: 'update_offer', lead_id: lead.id, broker_id: offer.broker_id, set: { status: 'accepted', decided_at: at } },
-      { kind: 'update_lead', id: lead.id, set: { offer_status: 'accepted', offer_decided_at: at, broker_id: offer.broker_id, delivered: true, counts_toward_cycle: true } },
+      { kind: 'update_lead', id: lead.id, set: { offer_status: 'accepted', offer_decided_at: at, broker_id: offer.broker_id, delivered: true } },   // broker_id -> the database attaches the lead to his open lead order
       { kind: 'send_text', to: offer.broker_whatsapp || null, body: fill(COPY.broker_offer_accepted, { first_name: first }) },
       // delivery = the existing W06 path: broker_intro_slots_v2 (disclosure + Flow button) -> W28 books Teams
       { kind: 'first_touch', lead_id: lead.id, template: 'broker_intro_slots_v2' },
@@ -512,7 +512,7 @@ function decideOffer(decision, { offer, lead, now, consent_mode = 'named', nextB
   const declined = [...new Set([...(lead.declined_broker_ids || []), offer.broker_id])];
   const effects = [
     { kind: 'update_offer', lead_id: lead.id, broker_id: offer.broker_id, set: { status: decision === 'expired' ? 'expired' : 'declined', decided_at: at } },
-    { kind: 'update_lead', id: lead.id, set: { offer_status: decision === 'expired' ? 'expired' : 'declined', offer_decided_at: at, declined_broker_ids: declined, broker_id: null, delivered: false, counts_toward_cycle: false } },
+    { kind: 'update_lead', id: lead.id, set: { offer_status: decision === 'expired' ? 'expired' : 'declined', offer_decided_at: at, declined_broker_ids: declined, broker_id: null, delivered: false } },
   ];
   if (decision === 'decline') effects.push({ kind: 'send_text', to: offer.broker_whatsapp || null, body: fill(COPY.broker_offer_declined, { first_name: first }) });
   const next = nextBroker ? nextBroker(lead, new Set(declined)) : null; // never re-offered to a broker who declined or let it expire
@@ -540,7 +540,7 @@ function disputeEvidence({ lead, booking = null, messages = [], offers = [], act
   const l = strip(lead);
   const disclosure = messages.find((m) => m.wamid && m.wamid === lead.disclosure_msg_id) || messages.find((m) => /^broker_intro_/.test(m.template || '')) || null;
   const pack = {
-    generated_at: new Date(now).toISOString(), requested_by: requested_by || null, lead_id: l.id, broker_id: l.broker_id || null, cycle_id: l.cycle_id || null,
+    generated_at: new Date(now).toISOString(), requested_by: requested_by || null, lead_id: l.id, broker_id: l.broker_id || null, lead_order_id: l.lead_order_id || null,
     consent: { text: l.consent_text, version: l.consent_text_version, mode: l.consent_mode, at: l.consent_at, source: l.consent_source, page_url: l.consent_page_url || null, ads_at: l.consent_ads_at || null },
     channel_verification: { wa_id: l.wa_id || null, wa_verified: !!l.wa_verified, verified_at: l.verified_at || null, wa_delivered_at: l.wa_delivered_at || null },
     disclosure: disclosure ? { template: disclosure.template, wamid: disclosure.wamid, sent_at: disclosure.sent_at, delivered_at: disclosure.delivered_at || null, read_at: disclosure.read_at || null } : null,

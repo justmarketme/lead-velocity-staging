@@ -284,15 +284,19 @@ export function lineTypeFromLookup(resp) {
 
 // ---------------------------------------------------------------------------------------------- 4. routing (1.3)
 const practiceOf = (b) => b.practice_name || b.firm_name || '';
-const isRoutable = (b, brandId) => b && (brandId == null || b.brand_id === brandId) && b.status === 'active' && b.routing_on !== false && b.active !== false && !b.bookings_paused;
+// Capacity (CRM lead_orders, 2026-10-11): a broker is routable only while he has an open paid SortMyCover lead order
+// (order_remaining > 0, from public.smc_order_capacity). The database enforces the same rule again when the row is written
+// (smc_leads_route_check: no open order -> the lead is held, never over-delivered).
+const hasOpenOrder = (b) => Number(b.order_remaining) > 0;
+const isRoutable = (b, brandId) => b && (brandId == null || b.brand_id === brandId) && b.status === 'active' && b.routing_on !== false && b.active !== false && !b.bookings_paused && hasOpenOrder(b);
 /**
  * pickBroker(brokers, brand_id) -> broker or null. One broker today ("single_broker"); with more, the broker furthest
- * from their committed number this cycle gets the lead (ratio = leads_this_cycle / committed_leads), ties by id.
+ * from filling his open lead orders gets the lead (ratio = order_attached / order_capacity), ties by id.
  */
 export function pickBroker(brokers = [], brandId = null) {
   const ok = brokers.filter((b) => isRoutable(b, brandId));
   if (!ok.length) return null;
-  const ratio = (b) => (Number(b.leads_this_cycle) || 0) / Math.max(1, Number(b.committed_leads) || 1);
+  const ratio = (b) => (Number(b.order_attached) || 0) / Math.max(1, Number(b.order_capacity) || 1);
   const best = [...ok].sort((a, b) => ratio(a) - ratio(b) || String(a.broker_id ?? a.id).localeCompare(String(b.broker_id ?? b.id)))[0];
   return { ...best, _reason: ok.length === 1 ? 'single_broker' : 'balanced' };
 }
@@ -370,7 +374,7 @@ export function decide(sub, ctx) {
     leadgen_id: c.leadgen_id ?? null, ref: c.ref ?? null,
     utm_source: c.utm_source ?? null, utm_medium: c.utm_medium ?? null, utm_campaign: c.utm_campaign ?? null, utm_content: c.utm_content ?? null, utm_term: c.utm_term ?? null,
     page_url: c.page_url ?? null, client_ip: c.client_ip ?? null, client_user_agent: c.client_user_agent ?? null,
-    broker_id: null, cycle_id: null, tier_code: null, routed_at: null, routing_reason: null,
+    broker_id: null, routed_at: null, routing_reason: null,
     stage: 'new', disqualified_reason: null, retention_delete_after: null, opted_out_at: null,
   };
   const activities = [];
@@ -418,9 +422,9 @@ export function decide(sub, ctx) {
       response: { http_status: 200, body: { ok: true, status: 'held', lead_id: row.id } } };
   }
   const b = r.broker;
-  Object.assign(row, { broker_id: brokerIdOf(b), cycle_id: b.current_cycle_id ?? null, tier_code: b.tier_code ?? null, routed_at: at, routing_reason: b._reason });
+  Object.assign(row, { broker_id: brokerIdOf(b), routed_at: at, routing_reason: b._reason });
   activities.push({ activity_type: 'routed', actor_type: 'system', occurred_at: at, idempotency_key: `w01:routed:${ctx.lead_id}`,
-    payload: { broker_id: row.broker_id, cycle_id: row.cycle_id, reason: row.routing_reason } });
+    payload: { broker_id: row.broker_id, reason: row.routing_reason } });
   return {
     kind: 'insert', outcome: 'accepted', row, activities, capi: capiLead(row), mint_token: sub.channel === 'page',
     // routed_at is written in the same statement as the lead row; W06 is called only after that statement returns.
@@ -494,7 +498,7 @@ export function routeExisting(lead, { brokers = [], now = Date.now(), consent_mo
   const r = routingFor(lead.consent_text, lead.consent_mode || consent_mode, brokers, lead.brand_id);
   if (r.held) return { action: 'held', update: { routing_reason: r.held } };
   const b = r.broker;
-  const update = { broker_id: brokerIdOf(b), cycle_id: b.current_cycle_id ?? null, tier_code: b.tier_code ?? null, routed_at: at, routing_reason: b._reason };
+  const update = { broker_id: brokerIdOf(b), routed_at: at, routing_reason: b._reason };
   // I-49c: the CAPI Lead W01 withheld at intake (held_*) goes now, at the hand-over. CTWA leads are W03's (never here).
   const wasHeld = String(lead.routing_reason || '').startsWith('held_') && (lead.origin || 'ctwa') !== 'ctwa';
   return { action: 'routed', update, capi: wasHeld ? capiLead(lead) : null, first_touch: { workflow: 'W06', op: 'routed', lead_id: lead.id, not_before: at, origin: lead.origin || 'ctwa', deadline_s: FIRST_TOUCH_DEADLINE_S } };

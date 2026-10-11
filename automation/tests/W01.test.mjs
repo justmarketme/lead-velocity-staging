@@ -18,7 +18,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { FIX, MODE, lead, broker, cycle, clone, ms, iso, D, H, MIN, sha256, online } from './_harness.mjs';
+import { FIX, MODE, lead, broker, order, clone, ms, iso, D, H, MIN, sha256, online } from './_harness.mjs';
 import { runCode, PG_CRED, NOT_RUN, ifBranch } from './_n8ncode.mjs';
 import { checkSql, workflowSql } from './_sqlcheck.mjs';
 import * as W01 from '../lib/w01.mjs';
@@ -55,13 +55,20 @@ const N = {
 const dbBroker = (b) => ({
   id: b.broker_id, broker_id: b.broker_id, brand_id: b.brand_id, status: b.status, routing_on: b.routing_on, active: true,
   bookings_paused: b.bookings_paused, practice_name: b.practice_name, fsp_number: b.fsp_number, consent_mode: b.consent_mode,
-  current_cycle_id: b.current_cycle_id, tier_code: b.tier_code, methods_supported: b.methods_supported,
-  committed_leads: (FIX.cycles.find((c) => c.cycle_id === b.current_cycle_id) || {}).committed_leads ?? null,
+  methods_supported: b.methods_supported,
+  // capacity from the broker's open CRM lead orders (W01 Context query reads public.smc_order_capacity)
+  ...orderFields(b.broker_id, 0),
 });
+function orderFields(brokerId, attachedNow) {
+  const open = FIX.lead_orders.filter((o) => o.broker_id === brokerId && o.status === 'paid');
+  const capacity = open.reduce((n, o) => n + o.lead_count, 0);
+  const attached = open.reduce((n, o) => n + (o.attached || 0), 0) + attachedNow;
+  return { order_capacity: capacity, order_attached: attached, order_remaining: Math.max(0, capacity - attached) };
+}
 
 function offlineSystem() {
   const db = { leads: new Map(), capi: [], jobs: [], activities: [], suppression: [], messages: [], events: [] };
-  const brokersOf = (brand) => FIX.brokers.filter((b) => b.brand_id === brand).map((b) => ({ ...dbBroker(b), leads_this_cycle: [...db.leads.values()].filter((l) => l.broker_id === b.broker_id && l.cycle_id === b.current_cycle_id).length }));
+  const brokersOf = (brand) => FIX.brokers.filter((b) => b.brand_id === brand).map((b) => ({ ...dbBroker(b), ...orderFields(b.broker_id, [...db.leads.values()].filter((l) => l.broker_id === b.broker_id).length) }));
 
   /** "Context: counters, prior lead, suppression, brokers" (the SQL, in memory; counts are taken before this request). */
   function context(s, brand) {
@@ -348,13 +355,14 @@ test(`W01 [${MODE}] unticked or missing consent -> 422, nothing stored`, async (
   assert.equal((await sys.leadsByMobile('+27600000102')).length, 0);
 });
 
-test(`W01 [${MODE}] routing writes broker_id (and cycle) BEFORE the first-touch job exists`, async () => {
+test(`W01 [${MODE}] routing writes broker_id (to a broker with an open paid lead order) BEFORE the first-touch job exists`, async () => {
   const sys = fresh();
   const fx = lead('L01');
   const r = await sys.page(fx);
   const s = await sys.state(r.body.lead_id);
   assert.equal(s.lead.broker_id, broker().broker_id);
-  assert.equal(s.lead.cycle_id, cycle().cycle_id);
+  assert.equal(order().broker_id, s.lead.broker_id, 'the broker holds the open SortMyCover lead order the database attaches the lead to');
+  assert.equal(s.lead.cycle_id, undefined, 'no cycles in the CRM chain');
   assert.ok(s.lead.routed_at, 'routed_at written');
   const ft = s.jobs.find((j) => j.workflow === 'W06');
   assert.ok(ft, 'first-touch job queued');

@@ -13,6 +13,16 @@ const MIG = join(REPO, 'supabase', 'migrations');
 export function schemaColumns() {
   const cols = {};
   const add = (t, c) => { (cols[t] ||= new Set()).add(c.replace(/"/g, '').toLowerCase()); };
+  // The LIVE base schema (supabase/drift/real-public-schema-*.sql: one line per CREATE TABLE). It holds the tables that exist
+  // live but have no creating migration in the repo (lead_orders, lead_order_items, audit_log ...: DRIFT-REPORT.md).
+  const DRIFT = join(REPO, 'supabase', 'drift');
+  for (const f of readdirSync(DRIFT).filter((x) => /^real-public-schema-.*\.sql$/.test(x))) {
+    for (const m of readFileSync(join(DRIFT, f), 'utf8').matchAll(/^CREATE TABLE public\.(\w+) \((.*)\);$/gm)) {
+      const t = `public.${m[1]}`.toLowerCase();
+      cols[t] ||= new Set();
+      for (const part of splitTop(m[2])) { const w = part.trim().match(/^"?([a-z_][a-z0-9_]*)"?\s+[a-z]/i); if (w) add(t, w[1]); }
+    }
+  }
   for (const f of readdirSync(MIG).filter((x) => x.endsWith('.sql')).sort()) {
     const sql = readFileSync(join(MIG, f), 'utf8').replace(/--[^\n]*/g, '');
     for (const m of sql.matchAll(/CREATE TABLE (?:IF NOT EXISTS )?(?:(public|ops)\.)?"?(\w+)"?\s*\(([\s\S]*?)\n\s*\);/gi)) {
@@ -26,6 +36,17 @@ export function schemaColumns() {
     for (const m of sql.matchAll(/ALTER TABLE (?:ONLY )?(?:IF EXISTS )?(?:(public|ops)\.)?"?(\w+)"?([\s\S]*?);/gi)) {
       const t = `${m[1] || 'public'}.${m[2]}`.toLowerCase();
       for (const c of m[3].matchAll(/ADD COLUMN (?:IF NOT EXISTS )?"?([a-z_][a-z0-9_]*)"?/gi)) add(t, c[1]);
+    }
+    // Views (crm-nurture: bookings, smc_order_capacity): the output column names of the top-level select list.
+    for (const m of sql.matchAll(/CREATE (?:OR REPLACE )?VIEW (?:(public|ops)\.)?"?(\w+)"?[^;]*?\bAS\s+SELECT\s([\s\S]*?)\n\s*FROM\s/gi)) {
+      const t = `${m[1] || 'public'}.${m[2]}`.toLowerCase();
+      cols[t] ||= new Set();
+      for (const item of splitTop(m[3])) {
+        const e = item.trim();
+        const alias = e.match(/\bAS\s+"?([a-z_][a-z0-9_]*)"?\s*$/i);
+        const plain = e.match(/(?:^|\.)"?([a-z_][a-z0-9_]*)"?\s*$/i);
+        if (alias) add(t, alias[1]); else if (plain) add(t, plain[1]);
+      }
     }
   }
   return cols;

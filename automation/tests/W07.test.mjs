@@ -14,7 +14,7 @@ const WF = JSON.parse(readFileSync(new URL('../W07.json', import.meta.url), 'utf
 const B = broker();
 const BROKER_ROW = { id: B.broker_id, contact_person: B.adviser_name, firm_name: B.practice_name };
 const L01 = lead('L01'); const L04 = lead('L04'); const L10 = lead('L10');
-const mkLead = (fx, over = {}) => ({ id: fx.lead_id, first_name: fx.submission.first_name || fx.submission.profile_name, last_name: 'M', phone: '+2760000000' + fx.fixture_id.slice(2).replace(/^0/, ''), brand_id: 'smc', broker_id: B.broker_id, cycle_id: FIX.cycles[0].cycle_id, language: 'en', conv_state: { state: 'booked', disclosed: true }, ...over });
+const mkLead = (fx, over = {}) => ({ id: fx.lead_id, first_name: fx.submission.first_name || fx.submission.profile_name, last_name: 'M', phone: '+2760000000' + fx.fixture_id.slice(2).replace(/^0/, ''), brand_id: 'smc', broker_id: B.broker_id, language: 'en', conv_state: { state: 'booked', disclosed: true }, ...over });
 const booking = { id: 'bk_L01', date: 'Thu 15 Oct', time: '10:00', method: 'teams', method_label: 'Microsoft Teams', day: 'Thursday', appointment_date: '2026-10-15T10:00:00+02:00' };
 const wa = (m) => ({ object: 'whatsapp_business_account', entry: [{ id: 'WABA_TEST', changes: [{ field: 'messages', value: { metadata: { phone_number_id: 'TEST' }, messages: [{ id: 'wamid.T.' + Math.random().toString(36).slice(2), from: '27600000001', timestamp: String(ms('2026-10-13T12:00:00+02:00') / 1000), ...m }] } }] }] });
 const NOON = at('2026-10-13', '12:00');

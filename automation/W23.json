@@ -2695,43 +2695,6 @@
     },
     {
       "parameters": {
-        "jsCode": "const M = require('lv-automation').introScript;\nconst calls = [(() => { try { const j = $('Generate variant (Sonnet) (1)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })(), (() => { try { const j = $('Script gate LLM (Haiku, fails closed) (1)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })(), (() => { try { const j = $('Script gate re-check (Sonnet) (1)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })()];\nconst row = M.llmCostRow(calls);\nlet broker = ''; try { broker = $('Load broker + answers (generate)').first().json.broker_id; } catch (e) {}\nreturn [{ json: Object.assign({ broker_id: broker, source_ref: `w23:script-generate:${broker}:${$execution.id}:${$json.angle}:1` }, row) }];"
-      },
-      "id": "w23-y16",
-      "name": "Cost row (generate 1)",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        4360,
-        4200
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "insert into ops.costs (date, kind, brand_id, broker_id, amount_zar, source_ref, note) values (current_date, 'llm', $1::uuid, $2::uuid, $3::numeric, $4::text, $5::text) on conflict do nothing",
-        "options": {
-          "queryReplacement": "={{ [ $env.BRAND_ID, $json.broker_id, $json.amount_zar, $json.source_ref, $json.note ] }}"
-        }
-      },
-      "id": "w23-y17",
-      "name": "Log LLM cost (generate 1)",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.5,
-      "position": [
-        4580,
-        4200
-      ],
-      "alwaysOutputData": true,
-      "credentials": {
-        "postgres": {
-          "name": "LV Supabase - n8n_app (least privilege)"
-        }
-      },
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
         "conditions": {
           "options": {
             "caseSensitive": true,
@@ -3013,43 +2976,6 @@
         2380,
         4000
       ]
-    },
-    {
-      "parameters": {
-        "jsCode": "const M = require('lv-automation').introScript;\nconst calls = [(() => { try { const j = $('Generate variant (Sonnet) (2)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })(), (() => { try { const j = $('Script gate LLM (Haiku, fails closed) (2)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })(), (() => { try { const j = $('Script gate re-check (Sonnet) (2)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })()];\nconst row = M.llmCostRow(calls);\nlet broker = ''; try { broker = $('Load broker + answers (generate)').first().json.broker_id; } catch (e) {}\nreturn [{ json: Object.assign({ broker_id: broker, source_ref: `w23:script-generate:${broker}:${$execution.id}:${$json.angle}:2` }, row) }];"
-      },
-      "id": "w23-y29",
-      "name": "Cost row (generate 2)",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        8140,
-        4200
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "insert into ops.costs (date, kind, brand_id, broker_id, amount_zar, source_ref, note) values (current_date, 'llm', $1::uuid, $2::uuid, $3::numeric, $4::text, $5::text) on conflict do nothing",
-        "options": {
-          "queryReplacement": "={{ [ $env.BRAND_ID, $json.broker_id, $json.amount_zar, $json.source_ref, $json.note ] }}"
-        }
-      },
-      "id": "w23-y30",
-      "name": "Log LLM cost (generate 2)",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.5,
-      "position": [
-        8360,
-        4200
-      ],
-      "alwaysOutputData": true,
-      "credentials": {
-        "postgres": {
-          "name": "LV Supabase - n8n_app (least privilege)"
-        }
-      },
-      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -3440,43 +3366,6 @@
         4660,
         5000
       ]
-    },
-    {
-      "parameters": {
-        "jsCode": "const M = require('lv-automation').introScript;\nconst calls = [(() => { try { const j = $('Script gate LLM (Haiku, fails closed) (recheck)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })(), (() => { try { const j = $('Script gate re-check (Sonnet) (recheck)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })()];\nconst row = M.llmCostRow(calls);\nlet broker = ''; try { broker = $('Load broker facts (recheck)').first().json.broker_id; } catch (e) {}\nreturn [{ json: Object.assign({ broker_id: broker, source_ref: `w23:script-recheck:${broker}:${$execution.id}` }, row) }];"
-      },
-      "id": "w23-y46",
-      "name": "Cost row (recheck)",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        4000,
-        5200
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "insert into ops.costs (date, kind, brand_id, broker_id, amount_zar, source_ref, note) values (current_date, 'llm', $1::uuid, $2::uuid, $3::numeric, $4::text, $5::text) on conflict do nothing",
-        "options": {
-          "queryReplacement": "={{ [ $env.BRAND_ID, $json.broker_id, $json.amount_zar, $json.source_ref, $json.note ] }}"
-        }
-      },
-      "id": "w23-y47",
-      "name": "Log LLM cost (recheck)",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.5,
-      "position": [
-        4220,
-        5200
-      ],
-      "alwaysOutputData": true,
-      "credentials": {
-        "postgres": {
-          "name": "LV Supabase - n8n_app (least privilege)"
-        }
-      },
-      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -4892,23 +4781,7 @@
       "main": [
         [
           {
-            "node": "Cost row (generate 1)",
-            "type": "main",
-            "index": 0
-          },
-          {
             "node": "Needs retry? (generate)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Cost row (generate 1)": {
-      "main": [
-        [
-          {
-            "node": "Log LLM cost (generate 1)",
             "type": "main",
             "index": 0
           }
@@ -5053,17 +4926,6 @@
             "node": "Merge variants",
             "type": "main",
             "index": 1
-          }
-        ]
-      ]
-    },
-    "Cost row (generate 2)": {
-      "main": [
-        [
-          {
-            "node": "Log LLM cost (generate 2)",
-            "type": "main",
-            "index": 0
           }
         ]
       ]
@@ -5225,23 +5087,7 @@
       "main": [
         [
           {
-            "node": "Cost row (recheck)",
-            "type": "main",
-            "index": 0
-          },
-          {
             "node": "Store chosen script? (recheck)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Cost row (recheck)": {
-      "main": [
-        [
-          {
-            "node": "Log LLM cost (recheck)",
             "type": "main",
             "index": 0
           }

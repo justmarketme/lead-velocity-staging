@@ -140,7 +140,7 @@ test('NAME required and validated; three bad submits auto-disqualify (invalid_co
   assert.equal(r.response.screen, 'END');
   assert.equal(r.response.data.body, C.COPY.end_invalid_body);
   assert.equal(r.effects.find((e) => e.kind === 'disqualify').reason, 'invalid_contact');
-  assert.equal(r.effects.find((e) => e.kind === 'disqualify').set.counts_toward_cycle, false);
+  assert.equal(r.effects.find((e) => e.kind === 'disqualify').set.delivered, false);
   assert.equal(C.validName("Mary-Jane O'Neil"), "Mary-Jane O'Neil");
   assert.equal(C.validName('Zoë'), 'Zoë');
 });
@@ -196,7 +196,7 @@ test('BUDGET: tiers A/B, below R750 closes and is never counted', async () => {
   const r = await through(h, 'BUDGET', { BUDGET: { budget_band: 'lt750' } });
   assert.equal(r.response.screen, 'END');
   const d = r.effects.find((e) => e.kind === 'disqualify');
-  assert.equal(d.reason, 'budget_band'); assert.equal(d.set.counts_toward_cycle, false);
+  assert.equal(d.reason, 'budget_band'); assert.equal(d.set.delivered, false);
   // a closed capture stays closed: further screens cannot reopen it
   assert.equal((await h.send({ screen: 'SMOKER', smoker: 'no' })).response.screen, 'END');
   const a = harness();
@@ -294,7 +294,7 @@ const B2 = { broker_id: 'b0000000-0000-4000-8000-000000000002' };
 test('accept: delivered + counted, timestamped, W06 first touch with the Flow card', () => {
   const r = C.decideOffer('accept', { offer: OFFER, lead: LEAD, now: NOW, actor_broker_id: BROKER.broker_id });
   const set = r.effects.find((e) => e.kind === 'update_lead').set;
-  assert.equal(set.offer_status, 'accepted'); assert.equal(set.counts_toward_cycle, true); assert.equal(set.delivered, true);
+  assert.equal(set.offer_status, 'accepted'); assert.equal(set.delivered, true); assert.equal('counts_toward_cycle' in set, false, 'no cycles: setting broker_id attaches the lead to his open lead order (database)');
   assert.equal(set.offer_decided_at, new Date(NOW).toISOString());
   assert.equal(r.effects.find((e) => e.kind === 'first_touch').template, 'broker_intro_slots_v2');
 });
@@ -302,7 +302,7 @@ test('decline: not counted, not delivered, never re-offered to the same broker; 
   let seen;
   const r = C.decideOffer('decline', { offer: OFFER, lead: { ...LEAD, declined_broker_ids: ['old'] }, now: NOW, nextBroker: (l, ex) => { seen = ex; return B2; } });
   const set = r.effects.find((e) => e.kind === 'update_lead').set;
-  assert.equal(set.counts_toward_cycle, false); assert.equal(set.delivered, false); assert.equal(set.broker_id, null);
+  assert.equal(set.delivered, false); assert.equal(set.broker_id, null);
   assert.deepEqual(set.declined_broker_ids, ['old', BROKER.broker_id]);
   assert.ok(seen.has(BROKER.broker_id));
   assert.equal(r.effects.find((e) => e.kind === 'reconsent').broker_id, B2.broker_id);

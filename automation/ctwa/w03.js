@@ -21,7 +21,7 @@ function redirectFor(ref, waDigits, uaHeader = '') {
   return {
     status: 302,
     headers: { Location: `https://wa.me/${waDigits}?text=${encodeURIComponent(text)}`, 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' },
-    click: { ref: ok ? ref : null, ua_class: uaClass }, // ops.ctwa_clicks row: no IP, no full UA, no cookie
+    click: { ref: ok ? ref : null, ua_class: uaClass }, // counting fields only (no IP, no full UA, no cookie); not stored in the CRM chain
   };
 }
 
@@ -285,7 +285,7 @@ function qualify(t, msg, ctx, actions) {
       actions.push({ kind: 'forward_w07', lead_id: t.lead_id, reason: 'after_qualifying', hops: ctx.hops || 0 });
       return { thread: t, actions };
     }
-    // route (1.3) is W01 core's job: same routing for every intake path; it writes broker_id/cycle_id/routed_at
+    // route (1.3) is W01 core's job: same routing for every intake path; it writes broker_id/routed_at (the database attaches the lead to the broker's open lead order)
     // before W06 exists (W01 rule), then W06 sends broker_intro_slots (or _v2 with the Flow button) < 60 s.
     actions.push({ kind: 'route_and_first_touch', lead_id: t.lead_id, template_hint: 'broker_intro_slots', deadline_s: 60 });
     return { thread: t, actions };

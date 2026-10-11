@@ -9,7 +9,7 @@ import { existsSync, mkdtempSync, writeFileSync, readFileSync, rmSync, chmodSync
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, execFile } from 'node:child_process';
 import crypto from 'node:crypto';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -53,7 +53,12 @@ export function startLocalPg(backend = localPgBackend()) {
     as(join(PGBIN, 'pg_ctl'), ['-D', data, '-o', `-k ${dir} -c listen_addresses='' -p ${port}`, '-w', '-l', join(dir, 'log'), 'start']);
     const conn = ['-h', dir, '-p', port];
     const sql = (text, extra = []) => { const f = join(dir, `q${crypto.randomBytes(4).toString('hex')}.sql`); writeFileSync(f, text); chmodSync(f, 0o644); return as('psql', [...conn, ...base, ...extra, '-f', f]); };
-    return { backend, dir, sql, file: (p, extra = []) => sql(readFileSync(p, 'utf8'), extra),
+    // one simple-protocol query string per call (what n8n / pg-promise sends), asynchronous so callers can overlap
+    const query = (text) => new Promise((resolve) => {
+      const args = [...conn, ...base, '-At', '-F', '|', '-c', text];
+      execFile(isRoot ? 'runuser' : 'psql', isRoot ? ['-u', 'postgres', '--', 'psql', ...args] : args, { encoding: 'utf8' }, (err, stdout, stderr) => resolve({ err, stdout: String(stdout).trim(), stderr }));
+    });
+    return { backend, dir, sql, query, file: (p, extra = []) => sql(readFileSync(p, 'utf8'), extra),
       stop: () => { try { as(join(PGBIN, 'pg_ctl'), ['-D', data, '-m', 'immediate', 'stop']); } catch {} rmSync(dir, { recursive: true, force: true }); } };
   }
   // docker
@@ -69,17 +74,22 @@ export function startLocalPg(backend = localPgBackend()) {
     catch { if (Date.now() > until) { stop(); throw new Error('throwaway Postgres did not become ready'); } execFileSync(process.execPath, ['-e', 'setTimeout(()=>{},500)']); }
   }
   const sql = (text, extra = []) => execFileSync('docker', ['exec', '-i', name, 'psql', '-h', '127.0.0.1', ...base, ...extra, '-f', '-'], { ...opts, input: text });
-  return { backend, dir, sql, file: (p, extra = []) => sql(readFileSync(p, 'utf8'), extra), stop };
+  const query = (text) => new Promise((resolve) => {
+    execFile('docker', ['exec', name, 'psql', '-h', '127.0.0.1', ...base, '-At', '-F', '|', '-c', text], { encoding: 'utf8', maxBuffer: 1 << 26 }, (err, stdout, stderr) => resolve({ err, stdout: String(stdout).trim(), stderr }));
+  });
+  return { backend, dir, sql, query, file: (p, extra = []) => sql(readFileSync(p, 'utf8'), extra), stop };
 }
 
 /**
  * Applies pg-stub.sql + the repo migration chain exactly as S7-08-09 always has (legacy first with one retry pass, then smc_*).
- * SMC_BASE=real: instead of replaying the repo's legacy migrations (which do NOT reproduce production: 26 live migrations are
+ * Default (crm-nurture, 2026-10-11): the captured LIVE schema, because the CRM chain extends live-only tables (lead_orders,
+ * lead_order_items) that no repo migration creates. SMC_BASE=legacy: the old repo replay. SMC_BASE=real (explicit) = the default:
+ * instead of replaying the repo's legacy migrations (which do NOT reproduce production: 26 live migrations are
  * missing from the repo), start from the captured LIVE public schema (supabase/drift/real-public-schema-*.sql) + synthetic seed.
  */
 export function applyRepoMigrations(pg) {
   pg.file(join(ROOT, 'automation', 'tests', 'fixtures', 'pg-stub.sql'));
-  if (String(process.env.SMC_BASE || '').toLowerCase() === 'real') {
+  if (String(process.env.SMC_BASE || 'real').toLowerCase() !== 'legacy') {
     const D = join(ROOT, 'supabase', 'drift');
     pg.file(join(D, 'real-public-prelude.sql'));
     pg.file(join(D, readdirSync(D).find((f) => /^real-public-schema-.*\.sql$/.test(f))));
