@@ -76,7 +76,7 @@ RewriteRule ^(.+)$ https://sortmycover.co.za/$1 [L,R=307]
 </IfModule>
 
 <IfModule mod_headers.c>
-Header always set Content-Security-Policy "default-src 'self'; script-src 'self' https://connect.facebook.net https://challenges.cloudflare.com; style-src 'self'; img-src 'self' https://www.facebook.com; font-src 'self'; connect-src 'self' https://n8n.leadvelocity.co.za https://www.facebook.com https://connect.facebook.net; frame-src https://challenges.cloudflare.com; form-action 'self' https://n8n.leadvelocity.co.za; base-uri 'none'; object-src 'none'; frame-ancestors 'none'"
+Header always set Content-Security-Policy "default-src 'self'; script-src 'self' https://connect.facebook.net https://challenges.cloudflare.com; style-src 'self'; img-src 'self' https://www.facebook.com; font-src 'self'; connect-src 'self' https://emmadoesit.cloud/lv-n8n/ https://www.facebook.com https://connect.facebook.net; frame-src https://challenges.cloudflare.com; form-action 'self' https://emmadoesit.cloud/lv-n8n/; base-uri 'none'; object-src 'none'; frame-ancestors 'none'"
 Header always set X-Content-Type-Options "nosniff"
 Header always set Referrer-Policy "strict-origin-when-cross-origin"
 Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"

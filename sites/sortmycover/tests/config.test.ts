@@ -20,9 +20,11 @@ describe("deployment config", () => {
     expect(c).not.toMatch(/unsafe-/);
     expect(c).toMatch(/script-src 'self' https:\/\/connect\.facebook\.net https:\/\/challenges\.cloudflare\.com(;|$)/);
     expect(c).toMatch(/style-src 'self';/);
-    expect(c).toContain("connect-src 'self' https://n8n.leadvelocity.co.za https://www.facebook.com https://connect.facebook.net");
+    // A CSP source with a path must end in "/" or it matches only that exact path (and blocks /lv-n8n/webhook/...).
+    expect(c).toContain("connect-src 'self' https://emmadoesit.cloud/lv-n8n/ https://www.facebook.com https://connect.facebook.net");
+    expect(c).toContain("form-action 'self' https://emmadoesit.cloud/lv-n8n/;");
     expect(c).toContain("frame-ancestors 'none'");
-    expect(API_BASE.startsWith("https://n8n.leadvelocity.co.za/")).toBe(true);
+    expect(API_BASE).toBe("https://emmadoesit.cloud/lv-n8n/webhook/smc");
   });
   it("has one host root and one thanks route per campaign angle, before the filesystem handler", () => {
     const routes = vercelConfig().routes as Record<string, any>[];
@@ -42,10 +44,10 @@ describe("deployment config", () => {
     const r = routes.find((x) => x.headers?.["X-Robots-Tag"] === "noindex, nofollow")!;
     expect(r.has[0].value).toContain("sortmycover\\.co\\.za");
   });
-  it("uses a single n8n base config value (switchable between n8n.leadvelocity.co.za and n8n.sortmycover.co.za)", () => {
+  it("uses a single n8n base config value (an https base with an optional path prefix, no trailing slash)", () => {
     const site = JSON.parse(fs.readFileSync(path.join(root, "config/site.json"), "utf8"));
-    expect(site.n8n_base).toMatch(/^https:\/\/n8n\./);
+    expect(site.n8n_base).toMatch(/^https:\/\/[a-z0-9.-]+(\/[A-Za-z0-9_-]+)*$/);
     const src = ["src/lib/api.ts", "src/lib/site.ts", "src/components/Quiz.tsx", "src/components/Booking.tsx"].map((f) => fs.readFileSync(path.join(root, f), "utf8")).join("\n");
-    expect(src).not.toMatch(/https:\/\/n8n\.(leadvelocity|sortmycover)/);
+    expect(src).not.toMatch(/https:\/\/(n8n\.(leadvelocity|sortmycover)|emmadoesit\.cloud)/);
   });
 });

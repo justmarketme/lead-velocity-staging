@@ -10,7 +10,8 @@ const CAMPAIGN_SUFFIX = site.campaign_host_suffix; // ".sortmycover.co.za"
 const APEX_HOST = site.site_url.replace(/^https?:\/\//, "");
 const hostOf = (a: Angle) => hostLabel(a) + CAMPAIGN_SUFFIX;
 export const campaignAngles = (): Angle[] => ANGLES.filter(isAttached);
-const N8N = site.n8n_base;
+// A CSP source with a path matches only that exact path unless it ends in "/", so the n8n base always gets one.
+const N8N = site.n8n_base.replace(/\/+$/, "") + "/";
 
 /** CSP: 'self' plus exactly what the site needs (Meta Pixel domains, the n8n host, Cloudflare Turnstile). No 'unsafe-inline': no inline script or style exists. */
 export function csp(): string {

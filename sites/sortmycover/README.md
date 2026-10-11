@@ -37,7 +37,7 @@ n8n webhook  ->  n8n workflow  ->  Lead Velocity CRM (the leads/appointments tab
 | `POST /beacon` | `SUB-visit-beacon` (first-party page and quiz-step counters, always answers 204) |
 | `GET /c/{booking_id}` (calendar file) | W05 (served by the VPS route, not by this site) |
 
-**Switching n8n hosts**: the base URL lives in one place, `config/site.json` -> `n8n_base` (now `https://n8n.leadvelocity.co.za`; change to `https://n8n.sortmycover.co.za` when that host exists). `npm run build` regenerates the CSP (`connect-src`, `form-action`) in `vercel.json` and `hostinger/.htaccess` from the same value, and a test fails if the committed files drift. No code change is needed. n8n must send CORS for `https://sortmycover.co.za` and each campaign origin (n8n's allow-list takes exact origins, not a pattern: list the apex plus each live `https://<slug>.sortmycover.co.za`).
+**Switching n8n hosts**: the base URL lives in one place, `config/site.json` -> `n8n_base` (now `https://emmadoesit.cloud/lv-n8n`: the laptop n8n behind the EMMA VPS Caddy, no extra DNS record; a dedicated host such as `https://n8n.sortmycover.co.za` later. No trailing slash: the CSP source gets one added). `npm run build` regenerates the CSP (`connect-src`, `form-action`) in `vercel.json` and `hostinger/.htaccess` from the same value, and a test fails if the committed files drift. No code change is needed. n8n must send CORS for `https://sortmycover.co.za` and each campaign origin (n8n's allow-list takes exact origins, not a pattern: list the apex plus each live `https://<slug>.sortmycover.co.za`).
 
 ### Contract differences from the old `landing/` page (n8n needs to accept these)
 
