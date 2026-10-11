@@ -18,7 +18,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { FIX, MODE, lead, broker, cycle, clone, ms, iso, D, H, MIN, sha256, online } from './_harness.mjs';
+import { FIX, MODE, lead, broker, order, clone, ms, iso, D, H, MIN, sha256, online } from './_harness.mjs';
 import { runCode, PG_CRED, NOT_RUN, ifBranch } from './_n8ncode.mjs';
 import { checkSql, workflowSql } from './_sqlcheck.mjs';
 import * as W01 from '../lib/w01.mjs';
@@ -55,13 +55,20 @@ const N = {
 const dbBroker = (b) => ({
   id: b.broker_id, broker_id: b.broker_id, brand_id: b.brand_id, status: b.status, routing_on: b.routing_on, active: true,
   bookings_paused: b.bookings_paused, practice_name: b.practice_name, fsp_number: b.fsp_number, consent_mode: b.consent_mode,
-  current_cycle_id: b.current_cycle_id, tier_code: b.tier_code, methods_supported: b.methods_supported,
-  committed_leads: (FIX.cycles.find((c) => c.cycle_id === b.current_cycle_id) || {}).committed_leads ?? null,
+  methods_supported: b.methods_supported,
+  // capacity from the broker's open CRM lead orders (W01 Context query reads public.smc_order_capacity)
+  ...orderFields(b.broker_id, 0),
 });
+function orderFields(brokerId, attachedNow) {
+  const open = FIX.lead_orders.filter((o) => o.broker_id === brokerId && o.status === 'paid');
+  const capacity = open.reduce((n, o) => n + o.lead_count, 0);
+  const attached = open.reduce((n, o) => n + (o.attached || 0), 0) + attachedNow;
+  return { order_capacity: capacity, order_attached: attached, order_remaining: Math.max(0, capacity - attached) };
+}
 
 function offlineSystem() {
   const db = { leads: new Map(), capi: [], jobs: [], activities: [], suppression: [], messages: [], events: [] };
-  const brokersOf = (brand) => FIX.brokers.filter((b) => b.brand_id === brand).map((b) => ({ ...dbBroker(b), leads_this_cycle: [...db.leads.values()].filter((l) => l.broker_id === b.broker_id && l.cycle_id === b.current_cycle_id).length }));
+  const brokersOf = (brand) => FIX.brokers.filter((b) => b.brand_id === brand).map((b) => ({ ...dbBroker(b), ...orderFields(b.broker_id, [...db.leads.values()].filter((l) => l.broker_id === b.broker_id).length) }));
 
   /** "Context: counters, prior lead, suppression, brokers" (the SQL, in memory; counts are taken before this request). */
   function context(s, brand) {
@@ -348,13 +355,14 @@ test(`W01 [${MODE}] unticked or missing consent -> 422, nothing stored`, async (
   assert.equal((await sys.leadsByMobile('+27600000102')).length, 0);
 });
 
-test(`W01 [${MODE}] routing writes broker_id (and cycle) BEFORE the first-touch job exists`, async () => {
+test(`W01 [${MODE}] routing writes broker_id (to a broker with an open paid lead order) BEFORE the first-touch job exists`, async () => {
   const sys = fresh();
   const fx = lead('L01');
   const r = await sys.page(fx);
   const s = await sys.state(r.body.lead_id);
   assert.equal(s.lead.broker_id, broker().broker_id);
-  assert.equal(s.lead.cycle_id, cycle().cycle_id);
+  assert.equal(order().broker_id, s.lead.broker_id, 'the broker holds the open SortMyCover lead order the database attaches the lead to');
+  assert.equal(s.lead.cycle_id, undefined, 'no cycles in the CRM chain');
   assert.ok(s.lead.routed_at, 'routed_at written');
   const ft = s.jobs.find((j) => j.workflow === 'W06');
   assert.ok(ft, 'first-touch job queued');
@@ -726,4 +734,111 @@ test('I-53l: page lead with no TURNSTILE_SECRET_KEY / test hook: Guard runs with
   // The Guard code must not read the IF at all (its false branch is the common path).
   const js = RUN.nodes.find((n) => n.name === N.guard).parameters.jsCode;
   assert.doesNotMatch(js, /\$\('Turnstile check needed\?/);
+});
+
+// ============================================================================================
+// Tier C (Jonathan, 2026-10-11): under R750 is stored and kept open, routed only by the standing yes or an admin
+// ============================================================================================
+const TC_AT = '2026-10-13T12:00:00+02:00';
+const TC_NOW = Date.parse(TC_AT);
+const tcBroker = (over = {}) => ({ id: '00000000-0000-4000-8000-0000000b0c01', broker_id: '00000000-0000-4000-8000-0000000b0c01', brand_id: 'smc', status: 'active', routing_on: true,
+  practice_name: 'Synthetic Practice', fsp_number: 'TEST-00000', consent_mode: 'generic', methods_supported: ['phone'], order_capacity: 5, order_attached: 0, order_remaining: 5, ...over });
+const tcSub = (budget) => W01.normaliseSubmission({ first_name: 'Nomsa', mobile: '0600000171', consent: true, consent_text: 'synthetic consent text', consent_version: 'CONSENT-GENERIC-v1', consent_mode: 'generic',
+  age_band: '35_44', budget_band: budget, bond: 'yes', dependants: 'kids', work_cover: 'no', lang: 'en', started_at: TC_NOW - 60e3, request_id: 'req-tc-0001', context: { event_id: '5b0f7a2e-00c1-4c1a-9a51-0000000000c1' } }, {});
+const tcCtx = (brokers) => ({ now: TC_NOW, line_type: 'mobile', mobile: '+27600000171', lead_id: '00000000-0000-4000-8000-0000000a0c01', brand_id: 'smc', brokers, consent_mode: 'generic' });
+
+test('tier C: the band map, tierOf, and the React quiz band 750_1499 (was unmapped, so wrongly out of band)', () => {
+  assert.deepEqual(['lt750', '750_1250', '750_1499', '1250_1499', '1250plus', '1500_plus', null].map(W01.tierOf), ['C', 'B', 'B', 'B', 'B', 'A', null]);
+  for (const v of ['lt750', 'under_500', '500_750', '<750']) assert.equal(W01.BUDGET_TO_DB[v], 'lt750', v);
+  assert.equal(W01.BUDGET_TO_DB['750_1499'], '750_1499');
+  assert.ok(W01.KNOWN_BUDGET.has('lt750') && !W01.QUAL_BUDGET.has('lt750'));
+});
+
+test('tier C page lead, no broker with the standing yes: stored, held_low_budget (open, not disqualified, no 24-h delete), one honest WhatsApp', () => {
+  const d = W01.decide(tcSub('lt750'), tcCtx([tcBroker()]));
+  assert.equal(d.kind, 'insert'); assert.equal(d.outcome, 'held');
+  assert.deepEqual([d.row.broker_id, d.row.routing_reason, d.row.stage, d.row.disqualified_reason, d.row.retention_delete_after, d.row.budget_band], [null, 'held_low_budget', 'new', null, null, 'lt750']);
+  assert.equal(d.first_touch, null, 'no broker intro'); assert.equal(d.capi, null, 'CAPI Lead waits for the hand-over (held_* rule)');
+  assert.equal(d.response.body.status, 'held'); assert.ok(!('out_of_band' in d.response.body), 'the page shows no exit card');
+  assert.deepEqual([d.notice.template, d.notice.to, d.notice.correlation, d.notice.variables[0]], ['lead_low_budget_held', '+27600000171', `w01:low_budget_held:${d.row.id}`, 'Nomsa']);
+  assert.ok(d.activities.some((a) => a.activity_type === 'routing_held' && a.payload.reason === 'held_low_budget' && a.payload.lead_tier === 'C'));
+});
+
+test('tier C page lead, a broker with the standing yes and room: routed like any lead (W06 first touch); fairness only among standing-yes brokers', () => {
+  const yes = tcBroker({ id: '00000000-0000-4000-8000-0000000b0c02', broker_id: '00000000-0000-4000-8000-0000000b0c02', accepts_low_budget: true, order_attached: 4, order_remaining: 1 });
+  const d = W01.decide(tcSub('lt750'), tcCtx([tcBroker(), yes]));
+  assert.equal(d.outcome, 'accepted'); assert.equal(d.row.broker_id, yes.broker_id, 'the emptier broker without the standing yes is never picked');
+  assert.equal(d.first_touch.workflow, 'W06'); assert.equal(d.notice ?? null, null);
+  // no room on the standing-yes broker -> held_low_budget (not held_no_capacity), even though another broker has room
+  const full = { ...yes, order_remaining: 0 };
+  assert.equal(W01.decide(tcSub('lt750'), tcCtx([tcBroker(), full])).row.routing_reason, 'held_low_budget');
+  // tiers A/B are unchanged: any routable broker
+  assert.equal(W01.decide(tcSub('750_1250'), tcCtx([tcBroker()])).outcome, 'accepted');
+  assert.equal(W01.decide(tcSub('750_1499'), tcCtx([tcBroker()])).outcome, 'accepted', 'React quiz middle band');
+});
+
+test('tier C hand-over (W01 Lead core routeExisting): held -> held_low_budget + notice; standing yes -> routed + W06', () => {
+  const lead = { id: '00000000-0000-4000-8000-0000000a0c03', brand_id: 'smc', origin: 'ctwa', phone: '+27600000173', first_name: 'Thabo', budget_band: 'lt750', consent_mode: 'generic', consent_text: 'x' };
+  const h = W01.routeExisting(lead, { brokers: [tcBroker()], now: TC_NOW });
+  assert.deepEqual([h.action, h.update.routing_reason, h.notice.template], ['held', 'held_low_budget', 'lead_low_budget_held']);
+  const r = W01.routeExisting(lead, { brokers: [tcBroker({ accepts_low_budget: true })], now: TC_NOW });
+  assert.equal(r.action, 'routed'); assert.equal(r.first_touch.op, 'routed');
+});
+
+test('tier C sweep: an admin-assigned lead (manual_low_budget) starts the normal booking flow once qualifying is done; held 7 days closes politely', () => {
+  const base = { id: '00000000-0000-4000-8000-0000000a0c04', origin: 'page', phone: '+27600000174', first_name: 'Lindi', created_at: '2026-10-05T09:00:00+02:00', conv_state: {} };
+  const assigned = { ...base, broker_id: '00000000-0000-4000-8000-0000000b0c01', routing_reason: 'manual_low_budget', order_state: 'attached', first_message_at: null };
+  assert.deepEqual(W01.lowBudgetHandoff(assigned), { op: 'routed', lead_id: base.id, origin: 'page', claim_key: `w01:low_budget_handoff:${base.id}` });
+  for (const patch of [{ first_message_at: TC_AT }, { opted_out_at: TC_AT }, { order_state: 'released' }, { routing_reason: 'held_low_budget' }, { conv_state: { state: 'q_bond' } }, { broker_id: null }])
+    assert.equal(W01.lowBudgetHandoff({ ...assigned, ...patch }), null, JSON.stringify(patch));
+  const held = { ...base, broker_id: null, routing_reason: 'held_low_budget', stage: 'qualified' };
+  assert.equal(W01.lowBudgetClose(held, Date.parse('2026-10-12T08:59:00+02:00')), null, 'not before 7 days');
+  const c = W01.lowBudgetClose(held, Date.parse('2026-10-12T09:00:00+02:00'));
+  assert.deepEqual(c.update, { stage: 'unbooked_closed', routing_reason: 'low_budget_no_taker', conv_state_state: 'closed_unbooked', closed_reason: 'low_budget_no_taker' });
+  assert.ok(!('retention_delete_after' in c.update), 'not out of band: the normal retention clock applies');
+  assert.deepEqual([c.send.template, c.send.correlation], ['lead_low_budget_closed', `w01:low_budget_closed:${base.id}`]);
+  assert.equal(W01.lowBudgetClose(held, Date.parse('2026-10-12T21:00:00+02:00')), null, 'never in quiet hours');
+  for (const patch of [{ broker_id: 'b' }, { opted_out_at: TC_AT }, { stage: 'unbooked_closed' }, { routing_reason: 'manual_low_budget' }])
+    assert.equal(W01.lowBudgetClose({ ...held, ...patch }, Date.parse('2026-10-13T09:00:00+02:00')), null, JSON.stringify(patch));
+});
+
+test('W01.json tier C wiring: held notice on both paths via the shared sender; the 15-min sweep hands off to W06 and closes once', async () => {
+  const nd = (n) => WF.nodes.find((x) => x.name === n);
+  const to = (n) => (WF.connections[n]?.main || []).flat().map((c) => c.node);
+  assert.ok(to(N.inserted).includes('Low-budget held notice? (tier C, no broker with the standing yes and room)'));
+  assert.deepEqual(to('Low-budget held notice (w01.lowBudgetHeld)'), ['WhatsApp Send (lead_low_budget_held)']);
+  assert.ok(to('Write routing (only if not routed yet) + timeline').includes('Low-budget held notice (CTWA / held at intake)'));
+  for (const n of ['WhatsApp Send (lead_low_budget_held)', 'WhatsApp Send (lead_low_budget_held, core)', 'WhatsApp Send (lead_low_budget_closed)']) assert.equal(nd(n).parameters.workflowId.value, 'smc-whatsapp-send', n);
+  assert.equal(nd('W06 First touch (low-budget hand-off)').parameters.workflowId.value, 'smc-w06');
+  assert.match(nd(N.context).parameters.query, /accepts_low_budget/); assert.match(nd('Load CTWA lead + brokers').parameters.query, /accepts_low_budget/);
+  assert.match(nd('Tier-C leads: assigned (hand off) or held 7 days (close)').parameters.query, /manual_low_budget[\s\S]*held_low_budget[\s\S]*7 days/);
+  assert.match(nd('Close politely (only if still held) + timeline').parameters.query, /l\.routing_reason = 'held_low_budget' AND l\.broker_id IS NULL/);
+  // the Plan node runs the lib on the query rows (offline, the real Code node)
+  const out = await runCode(WF, 'Plan (w01.lowBudgetHandoff / lowBudgetClose)', { env: ENV, items: [
+    { id: '00000000-0000-4000-8000-0000000a0c05', origin: 'ctwa', broker_id: 'b1', routing_reason: 'manual_low_budget', order_state: 'attached', conv_state: { state: 'unbooked' } },
+    { id: '00000000-0000-4000-8000-0000000a0c06', phone: '+27600000176', broker_id: null, routing_reason: 'held_low_budget', stage: 'qualified', created_at: '2026-01-01T09:00:00+02:00' },
+  ] });
+  const types = out.map((i) => i.json.type);
+  assert.equal(types[0], 'handoff');
+  // the close is skipped only in quiet hours (wall clock); outside them it is planned
+  if (types.length > 1) assert.equal(out[1].json.update.routing_reason, 'low_budget_no_taker');
+});
+
+// Wills (Jonathan, 2026-10-11): the four theme-B angles route only to brokers with handles_wills
+test('wills angles: product_interest wills, routed only to a handles_wills broker, else held_no_wills_broker; life angles unchanged', () => {
+  for (const a of ['children-guardian', 'will-myth', 'will-and-cover', 'where-is-the-will']) assert.equal(W01.productOf(a), 'wills', a);
+  assert.equal(W01.productOf('new-bond'), 'life_cover');
+  const willsSub = (angle) => ({ ...tcSub('1500_plus'), angle });
+  const life = tcBroker();
+  const wills = tcBroker({ id: '00000000-0000-4000-8000-0000000b0c09', broker_id: '00000000-0000-4000-8000-0000000b0c09', handles_wills: true });
+  const held = W01.decide(willsSub('will-myth'), tcCtx([life]));
+  assert.deepEqual([held.outcome, held.row.product_interest, held.row.routing_reason, held.row.broker_id], ['held', 'wills', 'held_no_wills_broker', null]);
+  const ok = W01.decide(willsSub('children-guardian'), tcCtx([life, wills]));
+  assert.equal(ok.row.broker_id, wills.broker_id, 'only the wills broker');
+  const lifeLead = W01.decide(willsSub('new-bond'), tcCtx([life]));
+  assert.deepEqual([lifeLead.row.product_interest, lifeLead.row.broker_id], ['life_cover', life.broker_id]);
+  const rt = W01.routeExisting({ id: 'x', brand_id: 'smc', product_interest: 'wills', consent_mode: 'generic', consent_text: 'x' }, { brokers: [life], now: TC_NOW });
+  assert.deepEqual([rt.action, rt.update.routing_reason], ['held', 'held_no_wills_broker']);
+  assert.match(WF.nodes.find((n) => n.name === N.context).parameters.query, /'handles_wills', b\.handles_wills/);
+  assert.match(WF.nodes.find((n) => n.name === 'Insert lead + timeline (one statement; broker_id written before W06 exists)').parameters.query, /product_interest/);
 });

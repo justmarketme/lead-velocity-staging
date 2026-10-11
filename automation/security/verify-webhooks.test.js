@@ -153,7 +153,7 @@ test('Redaction masks emails, phones, SA IDs and secret keys', () => {
 });
 
 test('Inlined n8n Code-node bundle evaluates and verifies the same as the module', async () => {
-  const { inlineAll } = await import(path.join(__dirname, 'inline-for-n8n.mjs'));
+  const { inlineAll } = await import(require('url').pathToFileURL(path.join(__dirname, 'inline-for-n8n.mjs')).href);   // file:// URL: a bare C: path is not an ESM URL on Windows
   const code = inlineAll() + '\n;({ VW, RD });';
   const ctx = vm.createContext({ require, Buffer, URL });
   const { VW: V2, RD } = vm.runInContext(code, ctx);

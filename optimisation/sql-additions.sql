@@ -1,6 +1,6 @@
 -- optimisation/sql-additions.sql
 -- PROPOSED additive migration for platform-architect (NOT applied, NOT tested: no database in this session).
--- Why: W32/W33 (automation/W32.json, W33.json) were written against 4.15/6.8b; supabase/migrations/20261002_smc_03_ops_reporting.sql
+-- Why: W32/W33 (automation/W32.json, W33.json) were written against 4.15/6.8b; supabase/migrations/20261002030000_smc_03_ops_reporting.sql
 -- has the core ops.* tables but lacks columns the advisor needs. Nothing here drops or renames anything.
 -- Also needed (bodies owed by platform-architect; signatures and meaning in optimisation/data-contract.md):
 --   facts.pulse_daily, ops.judge_samples(date), ops.proposal_actuals(date), ops.notifications_due(), ops.alert_recipients, ops.build_state_latest.

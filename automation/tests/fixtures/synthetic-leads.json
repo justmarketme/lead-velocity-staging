@@ -39,13 +39,6 @@
     "_note": "CONSENT-NAMED-v3+CONSENT-ADS-v1 = landing/config/consent.json named text rendered for the seeded broker (supabase/seed/smc_synthetic.sql) by automation/tests/fixtures/align-fixture.mjs; never hand-edit. ctwa-generic-v3 = the 4.6 CTWA generic consent text with the v3 scope (NH-40; 2026-10-07)."
   },
 
-  "pricing": [
-    { "tier_code": "SMC_BRONZE", "committed_leads": 20, "replacement_cap_cycle": 4 },
-    { "tier_code": "SMC_SILVER", "committed_leads": 30, "replacement_cap_cycle": 6 },
-    { "tier_code": "SMC_GOLD", "committed_leads": 45, "replacement_cap_cycle": 9 }
-  ],
-  "_pricing_note": "Prices are deliberately absent (W25 diff check: no hard-coded price anywhere in the repo). Tests that need a cycle price use the synthetic value SYNTHETIC_PRICE in W13.test.mjs, which is not a tier price.",
-
   "brokers": [
     {
       "broker_id": "brk_test_mark",
@@ -79,8 +72,6 @@
       "consent_mode": "named",
       "routing_on": true,
       "status": "active",
-      "tier_code": "SMC_BRONZE",
-      "current_cycle_id": "cyc_test_001",
       "intro_card_url": "https://sortmycover.co.za/media/test/intro-card-mark.png",
       "intro_video_url": { "en": "https://sortmycover.co.za/media/test/intro-mark-en.mp4" },
       "intro_voice_url": { "en": "https://sortmycover.co.za/media/test/intro-mark-en.ogg" },
@@ -92,19 +83,19 @@
     }
   ],
 
-  "cycles": [
+  "lead_orders": [
     {
-      "cycle_id": "cyc_test_001",
+      "lead_order_id": "lo_test_001",
       "broker_id": "brk_test_mark",
-      "tier_code": "SMC_BRONZE",
-      "committed_leads": 20,
-      "replacement_cap": 4,
-      "starts_at": "2026-10-12T00:00:00+02:00",
-      "ends_at": "2026-11-11T00:00:00+02:00",
-      "status": "active",
-      "replacements_used": 0
+      "brand_id": "smc",
+      "title": "SortMyCover leads (synthetic)",
+      "lead_count": 20,
+      "status": "paid",
+      "paid_at": "2026-10-11T09:00:00+02:00",
+      "attached": 0
     }
   ],
+  "_lead_orders_note": "Capacity = the CRM's own lead_orders (crm-nurture, 2026-10-11): a broker gets SortMyCover leads only while he has a paid SortMyCover order with room (lead_count + approved replacements > attached lead_order_items). No cycles, no pricing tiers.",
 
   "leads": [
     {
@@ -167,7 +158,7 @@
       ],
       "expected": {
         "W01": { "http_status": 200, "status": "accepted", "mobile": "+27600000101", "line_type": "mobile", "broker_id": "brk_test_mark", "qualified_bands": true, "capi_lead_event_id": "5b0f7a2e-0001-4c1a-9a51-000000000001", "consent_ads": true },
-        "W05": { "http_status": 201, "slot_start": "2026-10-15T10:00:00+02:00", "slot_end": "2026-10-15T10:30:00+02:00", "event_title": "SortMyCover call – Lerato – Teams", "is_online_meeting": true, "online_meeting_provider": "teamsForBusiness", "client_is_attendee": false, "email_status": "mx_ok", "email_purpose": "meeting_invite", "invite_from": "howzit@leadvelocity.co.za", "capi_schedule_event_id": "5b0f7a2e-0001-4c1a-9a51-000000000101", "cycle_id": "cyc_test_001" },
+        "W05": { "http_status": 201, "slot_start": "2026-10-15T10:00:00+02:00", "slot_end": "2026-10-15T10:30:00+02:00", "event_title": "SortMyCover call – Lerato – Teams", "is_online_meeting": true, "online_meeting_provider": "teamsForBusiness", "client_is_attendee": false, "email_status": "mx_ok", "email_purpose": "meeting_invite", "invite_from": "howzit@leadvelocity.co.za", "capi_schedule_event_id": "5b0f7a2e-0001-4c1a-9a51-000000000101" },
         "W06": { "template": "broker_intro_booked", "trigger": "booking", "send_at": "2026-10-12T08:14:41+02:00", "deadline": "2026-10-12T08:15:05+02:00", "variables": ["Lerato", "Synthetic Test Advisory (TEST ONLY)", "TEST-00000", "Mark Smith", "Microsoft Teams", "Thu 15 Oct", "10:00"] },
         "W09": {
           "compressed": false,
@@ -445,7 +436,7 @@
     {
       "fixture_id": "L07",
       "lead_id": "lead_test_L07",
-      "branches": ["out_of_band_budget"],
+      "branches": ["low_budget_held"],
       "origin": "page",
       "lookup": { "line_type": "mobile" },
       "submission": {
@@ -467,10 +458,10 @@
         },
         "context": { "event_id": "5b0f7a2e-0007-4c1a-9a51-000000000007", "client_ip": "192.0.2.17", "client_user_agent": "SyntheticTest/1.0" },
         "honeypot": "",
-        "_note": "The real page never posts an out-of-band lead (4.5 #7: exit, no capture). This is the defence-in-depth case: a tampered or replayed request."
+        "_note": "Tier C (Jonathan, 2026-10-11): under R750 is no longer out of band. The lead is stored and counts as a lead; with no broker that has the standing yes (accepts_low_budget) and room it is held open (held_low_budget) and gets one honest WhatsApp (lead_low_budget_held)."
       },
       "expected": {
-        "W01": { "http_status": 200, "status": "not_qualified", "qualified": false, "disqualified_reason": "budget_band", "broker_id": null, "first_touch": false, "capi_lead": false, "delete_after": "2026-10-14T12:00:00+02:00" }
+        "W01": { "http_status": 200, "status": "held", "qualified": true, "routing_reason": "held_low_budget", "broker_id": null, "first_touch": false, "capi_lead": false, "low_budget_notice": true }
       }
     },
 

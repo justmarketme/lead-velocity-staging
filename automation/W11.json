@@ -152,43 +152,24 @@
     {
       "id": "n08",
       "name": "Send digest",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
       "position": [
         1540,
         0
       ],
       "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION }}/{{ $env.PHONE_NUMBER_ID }}/messages",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $env.META_SYSTEM_USER_TOKEN }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
         },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.wa) }}",
         "options": {
-          "timeout": 10000,
-          "response": {
-            "response": {
-              "neverError": true
-            }
-          }
+          "waitForSubWorkflow": true
         }
-      },
-      "retryOnFail": true,
-      "maxTries": 3,
-      "waitBetweenTries": 3000
+      }
     },
     {
       "id": "n09",
@@ -401,43 +382,24 @@
     {
       "id": "n17",
       "name": "Send pre-call brief",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
       "position": [
         0,
         400
       ],
       "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION }}/{{ $env.PHONE_NUMBER_ID }}/messages",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $env.META_SYSTEM_USER_TOKEN }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
         },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.wa) }}",
         "options": {
-          "timeout": 10000,
-          "response": {
-            "response": {
-              "neverError": true
-            }
-          }
+          "waitForSubWorkflow": true
         }
-      },
-      "retryOnFail": true,
-      "maxTries": 3,
-      "waitBetweenTries": 3000
+      }
     },
     {
       "id": "n18",
@@ -802,6 +764,34 @@
           ]
         }
       }
+    },
+    {
+      "id": "33274929-a69a-4d90-55e4-1b8369be72ea",
+      "name": "SUB input (Send digest)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1420,
+        120
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// lib/wa-route.cjs: \"Send digest\" sends through smc-whatsapp-send (WHATSAPP_PROVIDER meta | twilio). Generated: edit the\n// generator / route-wa-sends.mjs config, not this node. record:true (the sub writes the communications row).\nconst wa = $json.wa;\nconst exec = (typeof $execution !== 'undefined' && $execution && $execution.id) || 'x';\nconst idx = (typeof $itemIndex !== 'undefined') ? $itemIndex : 0;\nreturn { json: {\n  kind: 'prebuilt', wa, to: wa && wa.to,\n  record: true, caller: \"W11\", bypass_suppression: false,\n  phone_number_id: null,\n  lead_id: null, broker_id: null,\n  correlation: \"W11:Send digest:\" + exec + ':' + idx,\n} };"
+      }
+    },
+    {
+      "id": "e9f0b89b-3f54-2ad8-b8e7-d4688262ecf5",
+      "name": "SUB input (Send pre-call brief)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -120,
+        520
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// lib/wa-route.cjs: \"Send pre-call brief\" sends through smc-whatsapp-send (WHATSAPP_PROVIDER meta | twilio). Generated: edit the\n// generator / route-wa-sends.mjs config, not this node. record:true (the sub writes the communications row).\nconst wa = $json.wa;\nconst exec = (typeof $execution !== 'undefined' && $execution && $execution.id) || 'x';\nconst idx = (typeof $itemIndex !== 'undefined') ? $itemIndex : 0;\nreturn { json: {\n  kind: 'prebuilt', wa, to: wa && wa.to,\n  record: true, caller: \"W11\", bypass_suppression: false,\n  phone_number_id: null,\n  lead_id: null, broker_id: null,\n  correlation: \"W11:Send pre-call brief:\" + exec + ':' + idx,\n} };"
+      }
     }
   ],
   "connections": {
@@ -864,7 +854,7 @@
       "main": [
         [
           {
-            "node": "Send digest",
+            "node": "SUB input (Send digest)",
             "type": "main",
             "index": 0
           }
@@ -952,7 +942,7 @@
       "main": [
         [
           {
-            "node": "Send pre-call brief",
+            "node": "SUB input (Send pre-call brief)",
             "type": "main",
             "index": 0
           }
@@ -1075,6 +1065,28 @@
         [
           {
             "node": "Claim brief (idempotency)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SUB input (Send digest)": {
+      "main": [
+        [
+          {
+            "node": "Send digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SUB input (Send pre-call brief)": {
+      "main": [
+        [
+          {
+            "node": "Send pre-call brief",
             "type": "main",
             "index": 0
           }

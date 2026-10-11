@@ -18,6 +18,11 @@ import { LINES, fill } from '../../conversation/lines.mjs';
 export const H = 3600_000;
 const SAST = 2 * H;
 const ACTIVE = new Set(['booked', 'confirmed']);
+// Verify gate (2026-10-11): a HELD slot (email not verified yet, W05) can be moved too. It stays held: no Outlook event to
+// patch, no broker notice, no reminders; the deadline keeps the same rule, anchored to when the slot was first held:
+// verify_by = min(booked_at + 24 h, new start - 2 h) (moving never buys more time). Under 15 min left -> too_soon_to_verify.
+export const HELD = 'pending_verification';
+export const heldMoveDeadline = (bookedAtMs, newStartMs) => Math.min(bookedAtMs + 24 * 3600_000, newStartMs - 2 * 3600_000);
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export const slotLabel = (iso) => { const d = new Date(Date.parse(iso) + SAST); return `${DOW[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]}, ${d.toISOString().slice(11, 16)}`; };
@@ -60,6 +65,14 @@ export function offerMessage({ booking, lead, broker, brand = {}, slots = [], no
  */
 export function applyReschedule(booking, newSlot, ctx) {
   if (ctx.seen_keys && ctx.seen_keys.has(ctx.idempotency_key)) return { action: 'replay', booking_id: booking.id };
+  if (booking.status === HELD) {
+    if (!ctx.free) return { action: 'slot_taken', offer: pick3(ctx.next_slots || []) };
+    const booked = Date.parse(booking.booked_at || booking.created_at || '') || ctx.now_ms;
+    const verifyBy = heldMoveDeadline(booked, Date.parse(newSlot.start));
+    if (verifyBy - ctx.now_ms < 15 * 60_000) return { action: 'slot_taken', reason: 'too_soon_to_verify', offer: pick3(ctx.next_slots || []) };
+    return { action: 'move_held', update: { appointment_date: newSlot.start, ends_at: newSlot.end, verify_by: new Date(verifyBy).toISOString(), status: HELD },
+      graph: null, broker_notice: null, w09: null, lead_message: 'held_moved', replacement: 'none' };
+  }
   if (!ctx.after_meeting && !ACTIVE.has(booking.status)) return { action: 'reject', reason: `booking is ${booking.status}` };
   if (!ctx.free) return { action: 'slot_taken', offer: pick3(ctx.next_slots || []) };
   const start = newSlot.start; const end = newSlot.end;
@@ -189,7 +202,7 @@ export function isVerified(lead) {
 
 /**
  * c1aDecision(input) -> { claim: false, why, stop_messaging? } | { claim: true, stop_messaging, w13, activity }
- * input = { lead: {id, verified_at, first_message_at, opted_out_at, conv_state}, booking: {id, brand_id, broker_id, cycle_id,
+ * input = { lead: {id, verified_at, first_message_at, opted_out_at, conv_state}, booking: {id, brand_id, broker_id,
  *           status, cancelled_at}, cancelled_by: 'lead'|'broker', rebooked: bool, rebook_offered: bool,
  *           inbound_after_cancel: [{text|content, payload}], declined: bool, already_claimed: bool, now_ms, mode }
  */
@@ -202,7 +215,7 @@ export function c1aDecision(x) {
   const declined = Boolean(x.declined || lead.conv_state?.declined_call || lead.conv_state?.declined_nurture || (x.inbound_after_cancel || []).some(isNoCall));
   if (!isVerified(lead)) return { claim: false, why: 'never_verified_never_counted', stop_messaging: declined };
   if (x.already_claimed) return { claim: false, why: 'already_claimed', stop_messaging: declined };
-  const base = { lead_id: lead.id, booking_id: booking.id, outcome_id: null, brand_id: booking.brand_id, broker_id: booking.broker_id, cycle_id: booking.cycle_id, at: new Date(now_ms).toISOString(), idempotency_key: `w10:c1a:${booking.id}`, schedule: 'C1A', c1a_mode: mode };
+  const base = { lead_id: lead.id, booking_id: booking.id, outcome_id: null, brand_id: booking.brand_id, broker_id: booking.broker_id, at: new Date(now_ms).toISOString(), idempotency_key: `w10:c1a:${booking.id}`, schedule: 'C1A', c1a_mode: mode };
   if (declined) {
     if (!modeHas(mode, 'b')) return { claim: false, why: 'no_call_not_replaced_under_option_a', stop_messaging: true };
     return { claim: true, stop_messaging: true, w13: { op: 'claim', ...base, reason: 'disqualified', code: 'nofit_criteria', reason_code: 'no_call' }, activity: 'c1a_no_call' };

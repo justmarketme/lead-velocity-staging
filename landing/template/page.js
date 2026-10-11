@@ -135,7 +135,8 @@
 
   function qualifies() {
     var ageOk = answers.age_band === '35_44' || answers.age_band === '45_50';
-    var budgetOk = answers.budget_band === '750_1250' || answers.budget_band === '1250plus' || answers.budget_band === '1250_1499' || answers.budget_band === '1500_plus';
+    /* every budget band goes on to the details step: under R750 is tier C (Jonathan, 2026-10-11), no exit card on budget */
+    var budgetOk = ['lt750', '750_1250', '750_1499', '1250plus', '1250_1499', '1500_plus'].indexOf(answers.budget_band) !== -1;
     return ageOk && budgetOk;
   }
   function advance() {
@@ -215,6 +216,7 @@
         leadToken = j.lead_token || ''; try { sessionStorage.setItem('smc_lt', leadToken); } catch (e) {}
         lead = { id: j.lead_id, methods: (j.methods_supported && j.methods_supported.length) ? j.methods_supported : ['whatsapp_call', 'phone'] };
         if (j.out_of_band) { show(9); return; }
+        if (j.status === 'held') { finish(false, { held: true }); return; } /* stored, no broker yet (e.g. tier C): WhatsApp follows */
         if (BOOKING && leadToken) startBooking(); else finish(false);
       } else if (r.status === 429) showErr('formErr', str('err_rate'));
       else if (r.status === 422 && r.json.error === 'out_of_band') show(9);
@@ -224,7 +226,9 @@
   });
 
   /* ---------- booking ---------- */
-  var NEEDS_EMAIL = { teams: 1, zoom: 1, google_meet: 1 };
+  /* Verify gate (2026-10-11): every booking from the page needs an email (a new lead's email is never verified yet: the
+     booking reaches the adviser only after the emailed link / code confirms it). Invite methods also get the invite there. */
+  var NEEDS_EMAIL = { teams: 1, zoom: 1, google_meet: 1, whatsapp_call: 1, phone: 1 };
   function startBooking() {
     show(7);
     $('slotStatus').textContent = str('loading_slots'); $('slots').textContent = '';
@@ -276,7 +280,7 @@
   function selectMethod(m) {
     chosenMethod = m;
     Array.prototype.forEach.call($('methods').querySelectorAll('.method'), function (x) { x.setAttribute('aria-pressed', x.getAttribute('data-m') === m ? 'true' : 'false'); });
-    $('fEmail').hidden = !NEEDS_EMAIL[m]; /* email is asked ONLY for invite methods (0.1) */
+    $('fEmail').hidden = !NEEDS_EMAIL[m]; /* every method: the email confirms the booking (verify gate) */
     if (!NEEDS_EMAIL[m]) { $('email').value = ''; $('fEmail').classList.remove('bad'); $('emailFix').hidden = true; }
   }
 
@@ -321,7 +325,9 @@
     send().then(function (r) { return (r.status === 400 && r.json && r.json.error === 'try_again') ? send() : r; }).then(function (r) {
       booking = false; $('book').disabled = false; $('book').textContent = str('book');
       if (r.status === 409 || r.ok) bookRequestId = null;
-      if (r.ok && (r.json.booked !== false)) { finish(true, { start: r.json.start || chosenSlot, method: r.json.method || chosenMethod, ics_url: r.json.ics_url }); }
+      if (r.ok && r.json.held) { finish(false, { held_slot: true, start: r.json.start || chosenSlot, method: r.json.method || chosenMethod, email: body_email(), verify_by: r.json.verify_by }); }
+      else if (r.ok && (r.json.booked !== false)) { finish(true, { start: r.json.start || chosenSlot, method: r.json.method || chosenMethod, ics_url: r.json.ics_url }); }
+      else if (r.status === 409 && r.json.error_code === 'held_awaiting_email') { showErr('bookErr', str('err_held_awaiting_email')); }
       else if (r.status === 409) { /* collision: slot taken in the last second, show the next 3 */
         var nxt = normalise(r.json.slots).slice(0, 3);
         if (nxt.length) { renderSlots(nxt, false); $('slotStatus').className = 'status warn'; $('slotStatus').textContent = str('taken'); }
@@ -330,6 +336,7 @@
       else showErr('bookErr', str('err_book'));
     }, function () { booking = false; $('book').disabled = false; $('book').textContent = str('book'); showErr('bookErr', str('err_book')); });
   });
+  function body_email() { return ($('email').value || '').trim(); }
   $('skipBook').addEventListener('click', function () {
     /* I-45o: tell the server the lead skipped booking (POST /lead/skip, X-Lead-Token) so the slots card goes to WhatsApp now
        instead of after the 45-s hold. Fire-and-forget: the thank-you never waits on it and a failure changes nothing here. */
@@ -358,8 +365,13 @@
       sm.appendChild(row(str('sum_how'), (S.methods && S.methods[info.method]) || info.method));
       sm.appendChild(row(str('sum_adviser'), str('sum_adviser_v')));
       try { cal.href = info.ics_url || URL.createObjectURL(makeIcs(info.start, info.method)); cal.hidden = false; } catch (e) {}
+    } else if (info && info.held_slot) {
+      /* verify gate: the time is HELD; nothing reaches the adviser until the emailed link / code confirms it */
+      $('doneH').textContent = str('done_verify_h', { name: name }); $('doneP').textContent = str('done_verify_p', { email: info.email || '' });
+      sm.appendChild(row(str('sum_when'), dayLabel(info.start) + ', ' + info.start.slice(11, 16)));
+      if (info.verify_by) sm.appendChild(row(str('sum_confirm_by'), dayLabel(info.verify_by) + ', ' + info.verify_by.slice(11, 16)));
     } else {
-      $('doneH').textContent = str('done_not_h', { name: name }); $('doneP').textContent = str('done_not_p');
+      $('doneH').textContent = str('done_not_h', { name: name }); $('doneP').textContent = str(info && info.held ? 'done_held_p' : 'done_not_p');
       sm.appendChild(row(str('sum_next'), str('sum_next_v')));
     }
     show(8);

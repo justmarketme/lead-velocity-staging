@@ -6,27 +6,37 @@
 //   decided (I-48f) : { to, kind: template|text|interactive|media, template: 'name', variables: [..], buttons: [..],
 //                       text?, interactive?, media?, lead_id?, broker_id?, correlation }
 //   §7 (W19/W34)    : { broker_id, to, template: { name, body: [..], buttons: [..] }, idempotency_key?, reminder?: { text } }
+//   prebuilt (2026-10-11, lib/wa-route.cjs): { kind: 'prebuilt', wa: <Meta Cloud API body the caller already built>,
+//                       record: true|false, caller: 'W09', phone_number_id?, bypass_suppression?, lead_id?, broker_id?,
+//                       correlation }. Every workflow's own WhatsApp send now arrives this way, so the provider switch
+//                       (WHATSAPP_PROVIDER) is one place. record:false = the caller writes its own communications row
+//                       (keyed by the returned message id); record:true = this sub writes it (lead / broker resolved
+//                       from the recipient number when the caller has no id). The 24-h window stays the caller's rule.
 // Returns from decide(): { action: 'send'|'dry'|'skip', reason?, payload?, external_id?, ... } — never throws.
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { templateMessage, textMessage, paramCounts } from './wa.mjs';
-import { providerOf, interpretTwilio } from './wa-provider.mjs';
+import { providerOf, interpretTwilio, toTwilioRequest, twilioBasicAuth } from './wa-provider.mjs';
 
 const TEMPLATES = join(dirname(fileURLToPath(import.meta.url)), '..', 'templates');
-const KINDS = ['template', 'text', 'interactive', 'media'];
+const KINDS = ['template', 'text', 'interactive', 'media', 'prebuilt'];
+const PREBUILT_TYPES = ['text', 'template', 'interactive', 'image', 'video', 'audio', 'document', 'sticker'];
 export const WINDOW_MS = 24 * 3600 * 1000;
 
 /** Digits only (the same input smc_hash_contact() hashes): '+27 82 123 4567' -> '27821234567'. */
 export const digits = (v) => String(v == null ? '' : v).replace(/\D/g, '');
 
+const tplName_ = (tpl) => (typeof tpl === 'string' ? tpl : tpl && tpl.name);
+
 export function normalise(input = {}) {
   const i = input || {};
   const tpl = i.template;
-  const tplName = typeof tpl === 'string' ? tpl : tpl && tpl.name;
-  const kind = i.kind || (tplName ? 'template' : i.text ? 'text' : i.interactive ? 'interactive' : i.media ? 'media' : null);
+  const wa = i.wa && typeof i.wa === 'object' ? i.wa : null;
+  const kind = i.kind || (wa ? 'prebuilt' : null) || (tplName_(tpl) ? 'template' : i.text ? 'text' : i.interactive ? 'interactive' : i.media ? 'media' : null);
+  const tplName = kind === 'prebuilt' ? (wa && wa.type === 'template' && wa.template ? wa.template.name : null) : tplName_(tpl);
   const out = {
-    to: digits(i.to),
+    to: digits(i.to || (wa && wa.to)),
     kind,
     template: tplName || null,
     variables: Array.isArray(i.variables) ? i.variables : (tpl && Array.isArray(tpl.body) ? tpl.body : []),
@@ -39,12 +49,20 @@ export function normalise(input = {}) {
     lead_id: i.lead_id || null,
     broker_id: i.broker_id || null,
     correlation: String(i.correlation || i.idempotency_key || ''),
+    // prebuilt only
+    wa: kind === 'prebuilt' ? wa : null,
+    record: kind === 'prebuilt' ? i.record !== false : true,
+    caller: i.caller ? String(i.caller).slice(0, 40) : null,
+    phone_number_id: i.phone_number_id ? String(i.phone_number_id) : null,
+    bypass_suppression: kind === 'prebuilt' && i.bypass_suppression === true, // W15's one STOP confirmation only
   };
   const missing = [];
   if (!out.to || out.to.length < 9) missing.push('to');
   if (!KINDS.includes(out.kind)) missing.push('kind');
   if (!out.correlation) missing.push('correlation');
-  if (!out.lead_id && !out.broker_id) missing.push('lead_id|broker_id');
+  // prebuilt: ids are optional (record:true resolves them from the number in "Load context"; record:false never needs them)
+  if (out.kind !== 'prebuilt' && !out.lead_id && !out.broker_id) missing.push('lead_id|broker_id');
+  if (out.kind === 'prebuilt' && !(out.wa && PREBUILT_TYPES.includes(out.wa.type))) missing.push('wa');
   if (out.kind === 'template' && !out.template) missing.push('template');
   if (out.kind === 'text' && !out.text) missing.push('text');
   if (out.kind === 'interactive' && !out.interactive) missing.push('interactive');
@@ -120,15 +138,21 @@ export function allowListed(to, env = {}) {
  */
 export function decide(n, ctx = {}, env = {}, nowMs = Date.now()) {
   const provider = providerOf(env);
-  const base = { provider, to: n.to, kind: n.kind, template: n.template, lead_id: n.lead_id, broker_id: n.broker_id, brand_id: ctx.brand_id || null, correlation: n.correlation };
+  const base = { provider, to: n.to, kind: n.kind, template: n.template, lead_id: n.lead_id || ctx.resolved_lead_id || null, broker_id: n.broker_id || ctx.resolved_broker_id || null,
+    brand_id: ctx.brand_id || null, correlation: n.correlation, record: n.record !== false, caller: n.caller || null, phone_number_id: n.phone_number_id || null };
   const skip = (reason, extra = {}) => ({ ...base, action: 'skip', reason, ...extra });
   if (!n.valid) return skip('invalid_input', { missing: n.missing });
-  if (ctx.duplicate) return { ...base, action: 'duplicate', reason: 'already_sent', external_id: ctx.duplicate_external_id || null };
-  if (ctx.suppressed === true || ctx.suppressed === 't') return skip('suppressed');
+  if (ctx.duplicate && base.record) return { ...base, action: 'duplicate', reason: 'already_sent', external_id: ctx.duplicate_external_id || null };
+  if ((ctx.suppressed === true || ctx.suppressed === 't') && !n.bypass_suppression) return skip('suppressed');
   if (!allowListed(n.to, env)) return skip('not_allow_listed');
   const open = windowOpen(ctx.last_inbound_at, nowMs);
   let payload, sentAs = n.kind;
-  if (n.kind === 'template') {
+  if (n.kind === 'prebuilt') {
+    // The caller built the Cloud API body and owns the template / 24-h window choice (unchanged behaviour); only the
+    // transport, suppression, allow-list and DRY_RUN_SENDS are applied here.
+    payload = { messaging_product: 'whatsapp', recipient_type: 'individual', ...n.wa, to: n.to };
+    sentAs = n.wa.type;
+  } else if (n.kind === 'template') {
     const spec = templateSpec(n.template);
     if (!spec) return skip('unknown_template');
     // provider=twilio: approval is the Twilio Content SID (TWILIO_CONTENT_SIDS), checked when the request is built.
@@ -156,6 +180,22 @@ export function decide(n, ctx = {}, env = {}, nowMs = Date.now()) {
   return { ...base, action: 'send', sent_as: sentAs, payload };
 }
 
+/**
+ * provider=twilio: decide() output -> the "Twilio POST /Messages" input { body (form-encoded), auth } or { twilio_skip }.
+ * A template is numbered with its submitted spec (wa-provider twilioVarPlan), the same plan the Content definitions in
+ * automation/templates/twilio/ were generated from. StatusCallback = WEBHOOK_URL/webhook/whatsapp-twilio (W07).
+ */
+export function twilioRequest(d = {}, env = {}) {
+  const p = d.payload || {};
+  const spec = p.type === 'template' && p.template ? templateSpec(p.template.name) : null;
+  const cb = env.WEBHOOK_URL ? String(env.WEBHOOK_URL).replace(/\/$/, '') + '/webhook/whatsapp-twilio' : undefined;
+  const r = toTwilioRequest(p, env, { statusCallback: cb, spec });
+  if (r.skip) return { twilio_skip: r.reason, email_fallback: /content_sid_missing/.test(r.reason) };
+  const auth = twilioBasicAuth(env);
+  if (!auth || !env.TWILIO_ACCOUNT_SID) return { twilio_skip: 'twilio_credentials_missing' };
+  return { body: new URLSearchParams(r.form).toString(), auth, via: r.via || 'native' };
+}
+
 /** communications row content: never the body's personal fields (§7 (6)). */
 export const logContent = (d) => (d.sent_as === 'template' || (d.kind === 'template' && d.sent_as !== 'text') ? `template:${d.template}` : `[${d.sent_as || d.kind}]`);
 
@@ -171,11 +211,18 @@ export function interpret(res = {}) {
   return { ok: false, external_id: null, error: String(e.message || e.code || 'send_failed').slice(0, 300) };
 }
 
-/** Final { ok, external_id, error } for the caller. */
+/**
+ * Final { ok, external_id, error } for the caller. A waiting caller (prebuilt sends) also gets the Graph
+ * response shape `messages: [{ id }]` on success, so its existing "wamid" expressions ($json.messages[0].id) read the
+ * Twilio MessageSid (or the Meta wamid) without any change; on failure `messages` is absent, exactly as after a
+ * rejected Graph call.
+ */
 export function result(d = {}, r = null) {
-  if (d.action === 'dry') return { ok: true, external_id: d.external_id, error: null };
-  if (d.action === 'duplicate') return { ok: true, external_id: d.external_id || null, error: null, duplicate: true };
-  if (d.action === 'skip') return { ok: false, external_id: null, error: d.reason, ...(d.email_fallback ? { email_fallback: true } : {}) };
-  if (r) return { ok: !!r.ok, external_id: r.external_id || null, error: r.error || null };
-  return { ok: false, external_id: null, error: 'not_sent' };
+  // body.messages too: callers that read the full HTTP response ($json.body.messages, W05) keep working.
+  const out = (o) => (o.ok && o.external_id ? { ...o, messages: [{ id: o.external_id }], body: { messages: [{ id: o.external_id }] } } : o);
+  if (d.action === 'dry') return out({ ok: true, external_id: d.external_id, error: null });
+  if (d.action === 'duplicate') return out({ ok: true, external_id: d.external_id || null, error: null, duplicate: true });
+  if (d.action === 'skip') return out({ ok: false, external_id: null, error: d.reason, ...(d.email_fallback ? { email_fallback: true } : {}) });
+  if (r) return out({ ok: !!r.ok, external_id: r.external_id || null, error: r.error || null });
+  return out({ ok: false, external_id: null, error: 'not_sent' });
 }

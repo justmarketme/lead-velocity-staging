@@ -154,7 +154,7 @@ test('one-tap end to end: tap -> same payment.received event as an automated mat
 });
 
 test('one-tap SQL only uses columns and values that already exist in the migrations (no DDL needed)', () => {
-  const mig = fs.readdirSync(path.join(ROOT, 'supabase/migrations')).filter((f) => /^20261002_smc_/.test(f)).map((f) => read('supabase/migrations/' + f)).join('\n');
+  const mig = fs.readdirSync(path.join(ROOT, 'supabase/migrations')).filter((f) => /^\d{14}_smc_/.test(f)).map((f) => read('supabase/migrations/' + f)).join('\n');
   const insert = node(W16, 'Tap: write the manual bank credit (idempotent)').parameters.query;
   const cols = /insert into public\.bank_credits \(([^)]*)\)/.exec(insert)[1].split(',').map((c) => c.trim());
   const table = /CREATE TABLE IF NOT EXISTS public\.bank_credits \(([\s\S]*?)\n\);/.exec(mig)[1];

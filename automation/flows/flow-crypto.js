@@ -6,10 +6,15 @@
 //             encrypted_flow_data = AES-128-GCM ciphertext with the 16-byte tag appended; initial_vector = the IV
 //   response: AES-128-GCM with the SAME key and the IV with every bit flipped; base64(ciphertext || 16-byte tag)
 //   failure : HTTP 421 ("re-fetch the public key") on any decryption problem; never 200 with a plaintext body.
-// ASSUMPTION (4.0a lookup, see build/costs.jsonl): the one WebFetch of developers.facebook.com was blocked by the
-// egress proxy (EGRESS_BLOCKED), so this mirrors the documented algorithm from the existing W28 spec and Meta's
-// published sample as already recorded in booking-flow-endpoint.md; re-confirm against Meta's page and the Flow
-// Builder endpoint test before publish (W28 step 5). Request signature (X-Hub-Signature-256) is checked by the caller.
+// VERIFIED 2026-10-11 against Meta's "Implementing your Flow endpoint" guide (developers.facebook.com/documentation/
+// business-messaging/whatsapp/flows/guides/implementingyourflowendpoint) and the Flows error-code reference: request
+// fields encrypted_flow_data / encrypted_aes_key / initial_vector (base64); AES key = RSA/ECB/OAEPWithSHA-256AndMGF1
+// (SHA-256 for MGF1) under a 2048-bit key; payload AES-128-GCM with the 16-byte tag appended; response = same key, IV
+// with every byte XOR 0xFF, tag appended, base64, sent as text/plain; 421 = cannot decrypt (client re-fetches the key),
+// 427 = flow token no longer valid, 432 = request signature failed. Nothing here needed changing. The request signature
+// (X-Hub-Signature-256, app secret) is checked by the caller (W28 "Verify + decrypt"). Still to do once, by a person:
+// the Flow Builder endpoint health check before publish (W28 step 5) and uploading the public key per sending number.
+// The Flows are sent through Twilio (whatsapp/flows Content) but Meta still calls THIS endpoint directly.
 const crypto = require('crypto');
 
 class FlowEndpointException extends Error {

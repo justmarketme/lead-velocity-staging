@@ -81,14 +81,14 @@ async function quiz(page: any, a: Record<string, string>) {
 }
 const fbq = (page: any) => page.evaluate(() => (window as any).__fbq.map((c: any[]) => ({ cmd: c[0], name: c[1], params: c[2], opt: c[3] })).filter((c: any) => c.cmd === 'track'));
 
-test('every age x budget band: only 35-44/45-50 with R750+ qualify, others exit with no capture', async () => {
+test('every age x budget band: 35-44/45-50 go on with ANY budget (under R750 = tier C, 2026-10-11); other ages exit with no capture', async () => {
   const ages = ['lt35', '35_44', '45_50', '51plus'], budgets = ['lt750', '750_1250', '1250plus'];
   const { ctx, page, calls } = await newPage();
   await page.goto(PAGE());
   for (const age of ages) for (const budget of budgets) {
     await page.reload();
     await quiz(page, { age, budget });
-    const ok = (age === '35_44' || age === '45_50') && (budget === '750_1250' || budget === '1250plus');
+    const ok = (age === '35_44' || age === '45_50') && budgets.includes(budget);
     await page.locator(`.q.on[data-step="${ok ? 6 : 9}"]`).waitFor({ timeout: 3000 });
     if (!ok) assert.match(await page.locator('.q.on').innerText(), /not the right fit right now/);
     else assert.match(await page.locator('#h6q').innerText(), /licensed adviser/i);

@@ -1,0 +1,106 @@
+{
+  "_meta": {
+    "key": "broker_intro_booked",
+    "source": "automation/templates/broker_intro_booked.json",
+    "approval": {
+      "name": "smc_broker_intro_booked",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      },
+      {
+        "n": 4,
+        "kind": "body"
+      },
+      {
+        "n": 5,
+        "kind": "body"
+      },
+      {
+        "n": 6,
+        "kind": "body"
+      },
+      {
+        "n": 7,
+        "kind": "body"
+      },
+      {
+        "n": 8,
+        "kind": "header_media"
+      },
+      {
+        "n": 9,
+        "kind": "button",
+        "type": "url",
+        "index": 0
+      },
+      {
+        "n": 10,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 1
+      },
+      {
+        "n": 11,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 2
+      }
+    ],
+    "core": true
+  },
+  "content": {
+    "friendly_name": "smc_broker_intro_booked",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "Mark Smith Financial Services",
+      "3": "00000",
+      "4": "Mark Smith",
+      "5": "Microsoft Teams",
+      "6": "Tue 7 Oct",
+      "7": "10:00",
+      "8": "samples/intro_card_sample.png",
+      "9": "bk_8f3a2c",
+      "10": "reschedule:sample",
+      "11": "cancel:sample"
+    },
+    "types": {
+      "twilio/card": {
+        "title": "Hi {{1}}, thanks for your insurance and financial planning enquiry. Your details have been passed to *{{2}} (FSP {{3}})*, an authorised financial services provider. *{{4}}* will be your adviser for your {{5}} call on *{{6}} at {{7}}*. Our WhatsApp assistant uses AI. Reply STOP to opt out.",
+        "subtitle": "SortMyCover",
+        "media": [
+          "__TWILIO_MEDIA_BASE_URL__/{{8}}"
+        ],
+        "actions": [
+          {
+            "type": "URL",
+            "title": "Add to calendar",
+            "url": "https://sortmycover.co.za/c/{{9}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Reschedule",
+            "id": "{{10}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Cancel",
+            "id": "{{11}}"
+          }
+        ]
+      }
+    }
+  }
+}

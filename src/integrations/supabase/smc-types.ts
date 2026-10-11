@@ -1,7 +1,7 @@
 /**
  * SortMyCover (SMC) hand-written row types for the objects the console and the broker portal read.
  *
- * Source of truth (the contract): supabase/migrations/20261002_smc_02_core.sql … 20261002_smc_07_pass2_rls.sql.
+ * Source of truth (the contract): supabase/migrations/20261002020000_smc_02_core.sql … 20261002070000_smc_07_pass2_rls.sql.
  * NOT generated: the migrations are not applied yet (NH-11 / NH-15), so `supabase gen types` cannot run.
  * When they are applied, regenerate src/integrations/supabase/types.ts and replace these by the generated ones.
  * Column names here are the physical names (writes) or the view names (reads); never invent a column.
@@ -101,10 +101,12 @@ export interface SmcLead {
   brand_id: Uuid | null; cycle_id: Uuid | null; tier_code: string | null; origin: string | null;
   campaign_id: string | null; adset_id: string | null; ad_id: string | null;
   verified_at: Ts | null; qualified_at: Ts | null; age_band: "lt35" | "35_44" | "45_50" | "51plus" | null;
-  budget_band: "lt750" | "750_1250" | "1250plus" | "1250_1499" | "1500_plus" | null; premium_1500?: boolean; bond: boolean | null; dependants: boolean | null;
+  budget_band: "lt750" | "750_1250" | "1250plus" | "1250_1499" | "1500_plus" | null; bond: boolean | null; dependants: boolean | null;
   work_cover: boolean | null; method_pref: SmcMethod | null; call_number: string | null;
   call_number_line_type: string | null; best_time: string | null; language: string | null;
   stage: string | null; stage_entered_at: Ts | null; health_flag: boolean; created_at: Ts;
+  /** crm-nurture file 03 (2026-10-11): the lead's place on a lead order; counted = Delivered (booked + attendance confirmed). */
+  lead_order_id?: Uuid | null; order_state?: "attached" | "counted" | "released" | null; order_counted_at?: Ts | null;
 }
 
 /** View public.bookings over appointments (smc_06 §7). */
@@ -181,7 +183,7 @@ export interface SmcAdObject {
   last_budget_change_at: Ts | null; fetched_at: Ts;
 }
 
-/** View public.reports over report_history (smc_06 §9). payload_json = broker_report/1 (automation/W14-broker.md). */
+/** View public.smc_reports (was public.reports) over report_history (smc_06 §9). payload_json = broker_report/1 (automation/W14-broker.md). */
 export interface SmcReport {
   id: Uuid; brand_id: Uuid; broker_id: Uuid; cycle_id: Uuid | null; week: DateStr | null;
   report_kind: "broker_weekly" | "midcycle" | "cycle_end" | "lv_weekly" | null;
@@ -220,6 +222,18 @@ export interface SmcReportPayload {
 }
 
 /** View public.v_cycle_progress (smc_02 §15). */
+/** View public.smc_order_capacity (crm-nurture file 03): one row per SortMyCover CRM lead order. Capacity, not cycles. */
+export interface SmcOrderCapacity {
+  lead_order_id: Uuid; broker_id: Uuid; brand_id: Uuid; title: string | null; status: "pending" | "contract_signed" | "paid" | "delivered" | "cancelled";
+  lead_count: number; paid_at: Ts | null; created_at: Ts | null; attached: number; replacements_approved: number; capacity: number;
+  remaining: number; counted_toward_order: number; open: boolean; replacement_requests_this_week: number; replacement_weekly_max: number;
+  /** Delivered: booked + attendance confirmed (agreement 5.2), one lead_order_items row each. */
+  counted: number;
+  /** Routed, place reserved, not yet counted. `attached` = counted + reserved. */
+  reserved: number;
+}
+
+/** LEGACY (cycles are not part of the crm-nurture chain; kept only for pages not yet moved: Agreement.tsx, smc/Ads.tsx). */
 export interface SmcCycleProgress {
   cycle_id: Uuid; broker_id: Uuid; brand_id: Uuid; tier_code: string; cycle_no: number; status: SmcCycle["status"];
   starts_at: Ts | null; ends_at: Ts | null; extended_until: Ts | null; committed: number; verified: number;

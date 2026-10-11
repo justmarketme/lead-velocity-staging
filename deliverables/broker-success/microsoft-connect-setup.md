@@ -54,9 +54,9 @@ supabase secrets set MS_CLIENT_ID=<client id> MS_CLIENT_SECRET=<secret value> \
   MS_REDIRECT_URI=https://<project-ref>.supabase.co/functions/v1/ms-oauth/callback \
   MS_OAUTH_STATE_SECRET=<random 32+ chars> PORTAL_URL=https://leadvelocity.co.za \
   N8N_PUBLIC_URL=<n8n public url> INTERNAL_HMAC_SECRET=<same as n8n>
-psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -1 -f supabase/migrations/20261007_smc_18_ms_oauth_edge.sql
-                        # this one file only (needs migration 13 applied). Not `supabase db push`: it would push every
-                        # unapplied smc_* file, incl. 20261007_smc_19_capture_v2.sql, which is not approved for live yet.
+# The calendar wrappers (smc_vault_store_ms_refresh, smc_set_calendar_status, smc_ms_disconnect, service_role grants) are in
+# supabase/migrations/20261011060000_smc_06_storage_calendar.sql of the crm-nurture chain. Apply the WHOLE chain in order
+# (supabase/migrations/APPLY-RUNBOOK.md), never one file alone and never `supabase db push`.
 supabase functions deploy ms-oauth --no-verify-jwt
 ```
 

@@ -64,7 +64,7 @@ for (const key of ['weekly_close_rate', 'weekly_no_close_rate']) {
 test('(2c) portal Reports tab reads the same payload and computes no figures of its own', () => {
   for (const f of ['s2.delivered.v', 's2.delivered.committed', 's2.booked.v', 's2.attended.v', 's2.show_rate.v', 's2.replacements.used', 'p.s1_one_line']) assert.ok(TSX.includes(`{${f}}`) || TSX.includes(`${f}`), f);
   assert.doesNotMatch(TSX, /replacements\.cap|replacements\.light/, 'the Reports tab does not read a replacement cap (goodwill, not an allowance)');
-  assert.match(TSX, /smcDb\.from\("reports"\)\.select\("\*"\)/, 'one reports row feeds the page');
+  assert.match(TSX, /smcDb\.from\("smc_reports"\)\.select\("\*"\)/, 'one reports row feeds the page (view renamed smc_reports: live public.reports is the agency-CRM table)');
   assert.doesNotMatch(TSX, /\.reduce\(|\.filter\([^)]*attended|\/ *s2\.attended/, 'no recomputed rates');
   assert.ok(TSX.includes('p.s1_one_line'));
 });
@@ -87,7 +87,7 @@ test('(3b) one-ask: WhatsApp "Do it now" and email button carry the same deep li
   assert.match(TSX, /params\.get\("wk"\)/); assert.match(TSX, /params\.get\("ask"\) === "1"/);
   assert.match(TSX, /smc_report_ask_done/); assert.match(TSX, /onClick=\{doAsk\}/);
   assert.equal(String(p.week).toLowerCase().replace('-', ''), btn[0].replace('ask/rp_', ''), 'week key resolves to this report');
-  const fn = read('supabase', 'migrations', '20261002_smc_06_pass2.sql');
+  const fn = read('supabase', 'migrations', '20261002060000_smc_06_pass2.sql');
   assert.match(fn, /SET ask_done_at = coalesce\(ask_done_at, now\(\)\)[\s\S]{0,200}broker_id = public\.smc_current_broker_id\(\)/, 'only the owner can mark it, once');
 });
 

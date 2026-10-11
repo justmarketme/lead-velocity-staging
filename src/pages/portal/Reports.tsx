@@ -40,7 +40,7 @@ function Body() {
 
   useEffect(() => {
     (async () => {
-      const { data } = await smcDb.from("reports").select("*").eq("broker_id", broker.id).in("status", ["sent", "generated", "partial"]).order("week", { ascending: false }).limit(26);
+      const { data } = await smcDb.from("smc_reports").select("*").eq("broker_id", broker.id).in("status", ["sent", "generated", "partial"]).order("week", { ascending: false }).limit(26);
       setReports((data as SmcReport[]) || []);
       setLoaded(true);
     })();

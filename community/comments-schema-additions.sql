@@ -1,5 +1,5 @@
 -- SUPERSEDED. The community schema was applied by platform-architect in
--- supabase/migrations/20261002_smc_06_pass2.sql section 15 (comments queue columns + unique comment_id,
+-- supabase/migrations/20261002060000_smc_06_pass2.sql section 15 (comments queue columns + unique comment_id,
 -- comment_ad_sentiment, dm_queue, dm_threads, escalations.assigned_agent + new kinds, ads view in section 14).
 -- Do NOT apply anything from the earlier request: it altered `conversations`, which is a per-message VIEW.
 -- W30 reads/writes: comments, comment_ad_sentiment, escalations (assigned_agent), ads (view).

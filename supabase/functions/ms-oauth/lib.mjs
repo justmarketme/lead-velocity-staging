@@ -4,7 +4,7 @@
 // Flow: portal -> POST ms-oauth {action:'start'} (broker JWT) -> authorize_url -> Microsoft sign-in + Accept ->
 //       GET ms-oauth/callback?code&state -> token exchange (client secret lives only in the function secrets) ->
 //       refresh token ONLY through smc_vault_store_ms_refresh() (Supabase Vault) -> 302 back to /broker/calendar.
-// This is the same vault + status contract W20 uses (migration 20261002_smc_13), so W04/W05 read the token unchanged
+// This is the same vault + status contract W20 uses (migration 20261002130000_smc_13), so W04/W05 read the token unchanged
 // (smc_vault_ms_refresh while calendar_status = 'ok').
 //
 // PKCE without a table: code_verifier = HMAC(MS_OAUTH_STATE_SECRET, 'ms-pkce|' + nonce). The nonce travels in the signed

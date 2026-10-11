@@ -2,7 +2,7 @@
 // chain in a throwaway Postgres (_localpg.mjs; never the live project, never staging), then the three surfaces checked
 // against that one stored row, and the one-ask button exercised end to end:
 //   analytics layer (apply-analytics.sh order) -> W14 "Build payloads" (SQL: facts.w14_broker_report + w14_hold + w14_reconcile) -> "Keep or skip edition" (Code)
-//   -> "Store report" (SQL) -> public.reports view (what Reports.tsx reads) -> "Build WhatsApp template" (Code, the
+//   -> "Store report" (SQL) -> public.smc_reports view (what Reports.tsx reads) -> "Build WhatsApp template" (Code, the
 //   6-liner) + scripts/build-broker-report-email.mjs renderEmail/renderPrint (email + PDF) -> one-ask deep link ->
 //   public.smc_report_ask_done as the broker (marks once; another broker cannot).
 // Nothing is sent: the WhatsApp node only builds the Graph body; the email renderer only builds HTML.
@@ -55,8 +55,8 @@ test('S7-07 local: W14 from the synthetic cycle; WhatsApp 6-liner, Reports tab a
   assert.equal(stored.length, 1, 'one report_history row');
   const reportId = stored[0][0];
 
-  // ---- (2) the Reports tab reads public.reports.payload_json for that row (no figures of its own)
-  const viewP = JSON.parse(q(`SELECT payload_json FROM public.reports WHERE id = '${reportId}'`)[0][0]);
+  // ---- (2) the Reports tab reads public.smc_reports.payload_json for that row (no figures of its own)
+  const viewP = JSON.parse(q(`SELECT payload_json FROM public.smc_reports WHERE id = '${reportId}'`)[0][0]);
   assert.deepEqual(viewP, P, 'Reports tab payload === generated payload');
   for (const f of ['s2.delivered.v', 's2.delivered.committed', 's2.booked.v', 's2.attended.v', 's2.show_rate.v', 's2.replacements.used']) assert.ok(TSX.includes(f), `Reports.tsx renders ${f}`);
   assert.doesNotMatch(TSX, /replacements\.cap|replacements\.light/, 'Reports.tsx reads no replacement cap (goodwill, 3 requests a calendar week)');
@@ -93,10 +93,10 @@ test('S7-07 local: W14 from the synthetic cycle; WhatsApp 6-liner, Reports tab a
     q(`INSERT INTO auth.users (id, email) VALUES ('${other}', 'synthetic.other@example.com')`);
     assert.throws(() => q(`SELECT set_config('request.jwt.claim.sub', '${other}', false); SELECT public.smc_report_ask_done('${reportId}')`), /not found or not yours/);
     q(`SELECT set_config('request.jwt.claim.sub', '${BROKER_USER}', false); SELECT public.smc_report_ask_done('${reportId}')`);
-    const first = q(`SELECT ask_done_at FROM public.reports WHERE id = '${reportId}'`)[0][0];
+    const first = q(`SELECT ask_done_at FROM public.smc_reports WHERE id = '${reportId}'`)[0][0];
     assert.ok(first, 'ask marked done');
     q(`SELECT set_config('request.jwt.claim.sub', '${BROKER_USER}', false); SELECT public.smc_report_ask_done('${reportId}')`);
-    assert.equal(q(`SELECT ask_done_at FROM public.reports WHERE id = '${reportId}'`)[0][0], first, 'second tap keeps the first time');
+    assert.equal(q(`SELECT ask_done_at FROM public.smc_reports WHERE id = '${reportId}'`)[0][0], first, 'second tap keeps the first time');
   } else {
     assert.equal(wa.template, 'broker_weekly_noask');
   }

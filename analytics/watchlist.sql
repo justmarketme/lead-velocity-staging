@@ -2,7 +2,7 @@
 -- Every tile view returns the same first columns:  tile_no, tile (plain name), scope ('ALL' or broker uuid as text), value, unit, target, target_rule,
 -- status (green/amber/red/grey), n (sample behind the value), last_period (value 7 days ago), trend_28d (jsonb [{d,v}], one point per day),
 -- look_out (one sentence: what to do if it moves).  Definitions, SQL and jargon: knowledge/metrics.md.
--- Reads the REAL facts layer (supabase/migrations/20261002_smc_04_facts.sql); the column contract is analytics/tests/facts-contract.test.sql.
+-- Reads the REAL facts layer (supabase/migrations/20261002040000_smc_04_facts.sql); the column contract is analytics/tests/facts-contract.test.sql.
 -- Event dates use the real columns: leads by created_date, meetings and outcomes by slot_date, bookings by booked_date, costs and ads by date.
 -- facts has no verified_at / qualified_at timestamps, so lead-side numbers are COHORT-dated (by sign-up day), which is how 3.4 reads them anyway.
 -- Overlap with facts.v_watchlist (smc_04): that view is the console's plain value-and-target feed; these views add trend, traffic light, n and

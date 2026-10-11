@@ -123,7 +123,9 @@ test('W06 structure: Code nodes load lib/w06.mjs via lv-automation, sub-workflow
   }
   const subs = WF.nodes.filter((n) => n.type === 'n8n-nodes-base.executeWorkflow');
   for (const n of subs) assert.equal(n.parameters.workflowId.mode, 'id', n.name);
-  assert.deepEqual(subs.map((n) => n.parameters.workflowId.value).sort(), ['smc-w04', 'smc-w22']);
+  // the intro card + booking_confirmed go through smc-whatsapp-send (2026-10-11, lib/wa-route.cjs), awaited for the id
+  assert.deepEqual(subs.map((n) => n.parameters.workflowId.value).sort(), ['smc-w04', 'smc-w22', 'smc-whatsapp-send', 'smc-whatsapp-send']);
+  for (const n of subs.filter((x) => x.parameters.workflowId.value === 'smc-whatsapp-send')) assert.equal(n.parameters.options.waitForSubWorkflow, true, n.name);
   assert.equal(subs.find((n) => n.parameters.workflowId.value === 'smc-w04').parameters.options.waitForSubWorkflow, true, 'W04 slots are awaited');
 });
 

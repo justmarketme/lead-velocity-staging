@@ -9,7 +9,7 @@
 // Run:  node --test automation/tests/W05.test.mjs     (offline)  ·  set N8N_PUBLIC_URL for online.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { FIX, MODE, lead, broker, cycle, clone, ms, iso, at, MIN, H, online } from './_harness.mjs';
+import { FIX, MODE, lead, broker, clone, ms, iso, at, MIN, H, online } from './_harness.mjs';
 import { generateSlots, offerSlots } from './_slots.mjs';
 import * as W5 from '../lib/w05.mjs';
 import { readFileSync } from 'node:fs';
@@ -37,11 +37,12 @@ export function newBookState() {
 
 const asHttp = (status, body) => ({ http_status: status, body });
 
-export async function book(st, req, now) {
-  // Caller parse: the page posts with X-Lead-Token (http lane); list / chat / Flow picks arrive as a sub-call.
+export async function book(st, req, now, { sub = false } = {}) {
+  // Caller parse: the page posts with X-Lead-Token (http lane); list / chat / Flow picks arrive as a sub-call
+  // (so does op finalize: smc-email-verify -> "Finalize request" -> the same pipeline).
   const env = { LEAD_TOKEN_SECRET: OFFLINE_SECRET };
   let c;
-  if (req.booked_via === 'page') {
+  if (req.booked_via === 'page' && !sub) {
     const { token } = LT5.mintLeadToken(req.lead_id, { secret: OFFLINE_SECRET, nowMs: now });
     c = W5.parseHttp({ [LT5.HEADER]: token }, req, env, now);
     if (!c.ok) return asHttp(c.status, c.body);
@@ -58,7 +59,7 @@ export async function book(st, req, now) {
     lane: c.lane, mode: c.mode, req: c.req, now,
     lead: row0 ? { ...row0, broker_id: row0.broker_id || brokerRow.broker_id } : null, broker: brokerRow,
     existing: st.bookings.find((x) => x.idempotency_key === c.req.idempotency_key) || null,
-    live: st.bookings.find((x) => x.client_id === c.req.lead_id && W5.LIVE.has(x.status)) || null,
+    live: st.bookings.find((x) => x.client_id === c.req.lead_id && (W5.LIVE.has(x.status) || x.status === W5.HELD)) || null,
     mx: {},
   };
   const dec = W5.decide(ctx);
@@ -72,14 +73,33 @@ export async function book(st, req, now) {
   const after = W5.afterCheck(ctx, dec, free);
   if (after.action === 'taken') return asHttp(after.status, after.body);
   // "Insert appointment (re-check overlap + buffer, idempotent)": ON CONFLICT / overlap -> nothing inserted -> taken.
-  const replay = st.bookings.find((x) => x.idempotency_key === after.row.idempotency_key);
-  if (replay) return asHttp(201, W5.publicBody(replay));
-  if (W5.insertBlocked(st.bookings, after.row, W4.brokerConfig(brokerRow).buffer_minutes)) {
-    const t = W5.taken(ctx, dec.plan, w04({ op: 'list', limit: 3 }).slots);
-    return asHttp(t.status, t.body);
+  // op finalize: the same statement PROMOTES the held row (pending_verification -> booked) instead of inserting.
+  let booking;
+  if (after.row.finalize_booking_id) {
+    booking = st.bookings.find((x) => x.id === after.row.finalize_booking_id && x.status === W5.HELD && ms(x.verify_by) > now);
+    if (!booking) return asHttp(200, { finalized: false });
+    Object.assign(booking, { status: 'booked', verify_by: null, booked_at: iso(now) });
+  } else {
+    const replay = st.bookings.find((x) => x.idempotency_key === after.row.idempotency_key);
+    if (replay) return asHttp(201, W5.publicBody(replay));
+    if (W5.insertBlocked(st.bookings, after.row, W4.brokerConfig(brokerRow).buffer_minutes)) {
+      const t = W5.taken(ctx, dec.plan, w04({ op: 'list', limit: 3 }).slots);
+      return asHttp(t.status, t.body);
+    }
+    booking = { ...after.row, id: `bkg_${++st.seq}` };
+    st.bookings.push(booking);
   }
-  const booking = { ...after.row, id: `bkg_${++st.seq}` };
-  st.bookings.push(booking);
+  // Verify gate: a HELD slot -> holdPending (no Outlook event, no broker notice, no W06 / W09 / CAPI)
+  if (booking.status === W5.HELD) {
+    const h = W5.holdPending(ctx, dec.plan, booking);
+    const l = st.leads.get(row0.id);
+    if (h.lead_update.email && String(l.email || '').toLowerCase() !== h.lead_update.email.toLowerCase()) l.email_verified = false;
+    Object.assign(l, h.lead_update);
+    if (h.lead_wa) st.messages.push({ to: l.mobile, kind: 'wa', template: h.lead_wa.template.name, vars: h.lead_wa.template.components[0].parameters.map((x) => x.text) });
+    if (h.issue) (st.verify_issued = st.verify_issued || []).push(h.issue);
+    if (h.ask_email) (st.ask_email = st.ask_email || []).push(h.ask_email);
+    return asHttp(h.response.status, h.response.body);
+  }
   // Graph create (emulated response) -> afterEvent -> finish.
   const ev = W5.graphEvent(ctx, dec.plan);
   const graphId = `AAMkTEST_${st.seq}`;
@@ -119,12 +139,41 @@ function seedLead(st, fx) {
   st.leads.set(row.id, row);
   return row.id;
 }
+/** smc-email-verify confirmed the link / code: leads.email_verified, then op finalize (W05 "Load held slot" -> book). */
+export async function verifyEmail(st, leadId, now) {
+  const l = st.leads.get(leadId);
+  l.email_verified = true;
+  const hold = st.bookings.find((x) => x.client_id === leadId && x.status === W5.HELD) || null;
+  const req = W5.finalizeRequest(hold, { ...l, id: leadId }, now);
+  if (!req) return asHttp(200, { finalized: false });
+  return book(st, req, now, { sub: true });
+}
+/** W05 "Every 5 min: release unverified holds" (+ the rebook nudge). */
+export function releaseHolds(st, now) {
+  const out = [];
+  for (const b of st.bookings) if (b.status === W5.HELD && ms(b.verify_by) <= now) {
+    Object.assign(b, { status: 'cancelled', cancelled_at: iso(now) });
+    const l = st.leads.get(b.client_id);
+    const n = W5.holdReleased({ id: b.id, appointment_date: b.appointment_date, lead_id: l.id, first_name: l.first_name, phone: l.mobile });
+    st.messages.push({ to: l.mobile, kind: 'wa', template: n.template, vars: n.variables, buttons: n.buttons });
+    out.push(n);
+  }
+  return out;
+}
 function offlineSys() {
   const st = newBookState();
   return {
     st,
     setup: async (fx) => seedLead(st, fx),
-    book: async (req, now) => book(st, req, ms(now)),
+    // book() then, unless { verify: false }, the lead verifies the email at once: the result is the booking that reaches
+    // the broker (the hold + finalize path runs every time; the hold itself is tested with verify: false).
+    book: async (req, now, opts = {}) => {
+      const r = await book(st, req, ms(now));
+      if (opts.verify === false || !(r.body && r.body.held)) return r;
+      return verifyEmail(st, req.lead_id, ms(now) + 60_000);
+    },
+    verify: async (leadId, now) => verifyEmail(st, leadId, ms(now)),
+    release: async (now) => releaseHolds(st, ms(now)),
     addOutlookEvent: async (start, end) => st.broker.calendar_busy.push({ start, end }),
     state: async (leadId) => ({ lead: st.leads.get(leadId), bookings: st.bookings.filter((b) => b.client_id === leadId), events: [...st.events.values()].filter((e) => st.bookings.some((b) => b.client_id === leadId && b.graph_event_id === e.id)), capi: st.capi.filter((c) => c.lead_id === leadId), invites: st.invites.filter((i) => i.lead_id === leadId), messages: st.messages.filter((m) => m.to === st.leads.get(leadId).mobile) }),
     allBookings: async () => st.bookings,
@@ -148,7 +197,9 @@ function onlineSys() {
   };
 }
 const fresh = () => (MODE === 'online' ? onlineSys() : offlineSys());
-const reqFor = (fx, leadId, over = {}) => ({ ...clone(fx.booking_request), lead_id: leadId, broker_id: broker().broker_id, ...over });
+// Every booking of an unverified lead carries an email now (verify gate): a synthetic gmail address when the fixture has none.
+const reqFor = (fx, leadId, over = {}) => ({ ...clone(fx.booking_request), lead_id: leadId, broker_id: broker().broker_id,
+  email: 'email' in over ? over.email : (fx.booking_request.email || `synthetic.${String(fx.fixture_id).toLowerCase()}@gmail.com`), ...over });
 
 // ============================================================================================
 // Tests
@@ -177,23 +228,23 @@ test(`W05 [${MODE}] L01 page booking, Teams: Outlook event with Teams link, clie
   assert.equal(s.invites[0].from, e.invite_from);
   assert.ok(s.invites[0].join_url, 'invite carries the join link');
   assert.equal(s.bookings[0].graph_event_id, ev.id, 'Graph event.id stored on the booking (Section 7)');
-  assert.equal(s.bookings[0].cycle_id, e.cycle_id);
+  assert.equal(s.bookings[0].cycle_id, undefined, 'no cycles: the lead order link lives in lead_order_items (database trigger)');
   assert.deepEqual(s.capi.map((c) => [c.event_name, c.event_id]), [['Schedule', e.capi_schedule_event_id]]);
 });
 
-test(`W05 [${MODE}] phone and WhatsApp-call bookings: number in the event body, no email asked or stored`, async () => {
+test(`W05 [${MODE}] phone and WhatsApp-call bookings: number in the event body; the email is kept for the verification only (no invite)`, async () => {
   const sys = fresh();
   for (const id of ['L02', 'L03']) {
     const fx = lead(id);
     const lid = await sys.setup(fx);
-    const r = await sys.book(reqFor(fx, lid, { email: 'should.not.be.stored@gmail.com' }), fx.booking_request.requested_at);
+    const r = await sys.book(reqFor(fx, lid, { email: 'verify.only@gmail.com' }), fx.booking_request.requested_at);
     assert.equal(r.http_status ?? r.status, 201, id);
     const s = await sys.state(lid);
     assert.equal(s.events[0].subject, fx.expected.W05.event_title);
     assert.ok(s.events[0].body.content.includes(fx.expected.W05.body_contains), `${id} body`);
     assert.equal(s.events[0].isOnlineMeeting, false);
-    assert.equal(s.lead.email ?? null, null, `${id}: email never stored for call methods`);
-    assert.equal(s.invites.length, 0);
+    assert.equal(s.lead.email, 'verify.only@gmail.com', `${id}: kept for the verification (2026-10-11 verify gate)`);
+    assert.equal(s.invites.length, 0, 'no meeting invite for a call method');
     assert.deepEqual(s.capi.map((c) => c.event_id), [fx.expected.W05.capi_schedule_event_id]);
   }
 });
@@ -314,14 +365,14 @@ test(`W05 [${MODE}] broker is told about the booking (first name only — no sur
   assert.equal(n[0].vars[1], 'Lerato');
 });
 
-test(`W05 [${MODE}] lead row carries broker_id and cycle_id after booking (W05 "store broker_id/cycle_id on the lead")`, async () => {
+test(`W05 [${MODE}] lead row carries broker_id after booking (W05 "store broker_id on the lead"; no cycle_id in the CRM chain)`, async () => {
   const sys = fresh();
   const fx = lead('L03');
   const lid = await sys.setup(fx);
   await sys.book(reqFor(fx, lid), fx.booking_request.requested_at);
   const s = await sys.state(lid);
   assert.equal(s.lead.broker_id, broker().broker_id);
-  assert.equal(s.lead.cycle_id, cycle().cycle_id);
+  assert.equal(s.lead.cycle_id, undefined);
   assert.equal(s.lead.stage, 'booked');
 });
 
@@ -331,16 +382,117 @@ test(`W05 [${MODE}] lead row carries broker_id and cycle_id after booking (W05 "
 const WF5 = JSON.parse(readFileSync(new URL('../W05.json', import.meta.url), 'utf8'));
 const ctx5 = (over = {}) => ({ lane: 'http', mode: 'lead', lead: { id: 'lead_test_L02', broker_id: broker().broker_id, first_name: 'Sipho', phone: '+27600000002', origin: 'page', consent_ads_at: '2026-10-12T09:00:00+02:00' }, broker: broker(), now: ms('2026-10-12T11:40:00+02:00'), ...over });
 
-test('W05 lib: call methods never carry email; invite methods need one; unsupported method -> 422 with methods', () => {
+test('W05 lib: verified lead + call method needs no email; unverified lead needs one for every method; invite methods always; unsupported -> 422', () => {
   const r = W5.parseHttp({}, {}, {});
   assert.equal(r.ok, false);
-  const d = W5.decide(ctx5({ req: { slot_start: '2026-10-13T10:30:00+02:00', method: 'phone', email: null, booked_via: 'page', idempotency_key: 'k1' } }));
-  assert.equal(d.action, 'check'); assert.equal(d.plan.email, null); assert.equal(d.is_free.op, 'is_free');
+  const vlead = { ...ctx5().lead, email: 'sipho@gmail.com', email_verified: true };
+  const d = W5.decide(ctx5({ lead: vlead, req: { slot_start: '2026-10-13T10:30:00+02:00', method: 'phone', email: null, booked_via: 'page', idempotency_key: 'k1' } }));
+  assert.equal(d.action, 'check'); assert.equal(d.plan.email, null); assert.equal(d.is_free.op, 'is_free'); assert.equal(d.plan.hold, false, 'verified: books straight through');
+  assert.equal(W5.decide(ctx5({ req: { slot_start: '2026-10-13T10:30:00+02:00', method: 'phone', email: null, booked_via: 'page', idempotency_key: 'k1b' } })).body.error_code, 'email_required', 'unverified phone booking needs the email (verification)');
+  const u = W5.decide(ctx5({ req: { slot_start: '2026-10-13T10:30:00+02:00', method: 'phone', email: 'sipho@gmail.com', booked_via: 'page', idempotency_key: 'k1c' } }));
+  assert.equal(u.plan.hold, true, 'unverified: a held slot');
+  assert.equal(W5.decide(ctx5({ lead: vlead, req: { slot_start: '2026-10-13T10:30:00+02:00', method: 'phone', email: 'other@gmail.com', booked_via: 'page', idempotency_key: 'k1d' } })).plan.hold, true, 'a different email is not verified');
   assert.equal(W5.decide(ctx5({ req: { slot_start: '2026-10-13T10:30:00+02:00', method: 'teams', booked_via: 'page', idempotency_key: 'k2' } })).body.error_code, 'email_required');
   const z = W5.decide(ctx5({ req: { slot_start: '2026-10-13T10:30:00+02:00', method: 'zoom', booked_via: 'page', idempotency_key: 'k3' } }));
   assert.equal(z.status, 422); assert.deepEqual(z.body.methods, broker().methods_supported);
   const chat = W5.decide(ctx5({ lane: 'sub', req: { slot_start: '2026-10-13T10:30:00+02:00', method: 'zoom', booked_via: 'chat', idempotency_key: 'k4' } }));
   assert.equal(chat.action, 'message'); assert.match(chat.wa.interactive.body.text, /doesn't offer that way/);
+});
+
+// ============================================================================================
+// Verify gate (Jonathan, 2026-10-11): the booking reaches the broker only after the client verifies the email
+// ============================================================================================
+test(`W05 [${MODE}] unverified lead: a HELD slot (nobody else can take it), nothing to the broker, one WhatsApp + the verification email`, async (t) => {
+  if (MODE === 'online') return t.skip('offline adapter');
+  const sys = fresh();
+  const fx = lead('L01');
+  const id = await sys.setup(fx);
+  const r = await sys.book(reqFor(fx, id), fx.booking_request.requested_at, { verify: false });
+  assert.equal(r.http_status, 201); assert.equal(r.body.held, true); assert.equal(r.body.booked, false); assert.equal(r.body.verify, 'email');
+  const s = await sys.state(id);
+  assert.equal(s.bookings[0].status, 'pending_verification');
+  assert.equal(s.events.length, 0, 'no Outlook event'); assert.equal(s.invites.length, 0, 'no invite'); assert.equal(s.capi.length, 0, 'no CAPI Schedule');
+  assert.equal((await sys.notifications()).length, 0, 'the broker is told nothing'); assert.equal((sys.st.w06 || []).length, 0, 'no intro card');
+  // verify_by = min(now + 24 h, start - 2 h)
+  const now = ms(fx.booking_request.requested_at); const start = ms(fx.booking_request.slot_start);
+  assert.equal(ms(r.body.verify_by), Math.min(now + 24 * H, start - 2 * H));
+  const m = s.messages.find((x) => x.template === 'booking_held_verify_email');
+  assert.ok(m, 'one WhatsApp: held, confirm the email'); assert.equal(m.vars.length, 5);
+  assert.deepEqual(sys.st.verify_issued, [{ op: 'issue', lead_id: id }]);
+  // another lead cannot take the held time; this lead picking again is reminded to verify first
+  const other = lead('L02'); const oid = await sys.setup(other);
+  const r2 = await sys.book(reqFor(other, oid, { slot_start: fx.booking_request.slot_start, method: 'teams', idempotency_key: 'k_other' }), fx.booking_request.requested_at, { verify: false });
+  assert.equal(r2.http_status, 409);
+  const r3 = await sys.book(reqFor(fx, id, { slot_start: iso(start + 24 * H), idempotency_key: 'k_again' }), fx.booking_request.requested_at, { verify: false });
+  assert.equal(r3.body.error_code, 'held_awaiting_email');
+});
+
+test(`W05 [${MODE}] the email is verified in time: the held row becomes the booking, THEN the Outlook event, Teams link, broker notice, W06, CAPI (once)`, async (t) => {
+  if (MODE === 'online') return t.skip('offline adapter');
+  const sys = fresh();
+  const fx = lead('L01');
+  const id = await sys.setup(fx);
+  const held = await sys.book(reqFor(fx, id), fx.booking_request.requested_at, { verify: false });
+  const fin = await sys.verify(id, iso(ms(fx.booking_request.requested_at) + 30 * MIN));
+  assert.equal(fin.http_status, 201); assert.equal(fin.body.booked, true); assert.equal(fin.body.booking_id, held.body.booking_id, 'the same row, the same slot');
+  const s = await sys.state(id);
+  assert.equal(s.bookings.length, 1); assert.equal(s.bookings[0].status, 'booked'); assert.equal(s.bookings[0].verify_by, null);
+  assert.equal(s.events.length, 1); assert.ok(s.events[0].isOnlineMeeting);
+  assert.equal(s.invites.length, 1); assert.equal((await sys.notifications()).length, 1); assert.equal(s.capi.length, 1); assert.equal(sys.st.w06.length, 1);
+  // a second verification event finalizes nothing twice
+  const again = await sys.verify(id, iso(ms(fx.booking_request.requested_at) + 31 * MIN));
+  assert.equal(again.body.finalized, false); assert.equal((await sys.state(id)).events.length, 1);
+});
+
+test(`W05 [${MODE}] not verified by verify_by: the hold is released for everyone, the lead is nudged to rebook, a late verification revives nothing`, async (t) => {
+  if (MODE === 'online') return t.skip('offline adapter');
+  const sys = fresh();
+  const fx = lead('L01');
+  const id = await sys.setup(fx);
+  const held = await sys.book(reqFor(fx, id), fx.booking_request.requested_at, { verify: false });
+  assert.deepEqual(await sys.release(iso(ms(held.body.verify_by) - MIN)), [], 'not before the deadline');
+  const out = await sys.release(held.body.verify_by);
+  assert.equal(out.length, 1); assert.equal(out[0].template, 'booking_hold_released'); assert.deepEqual(out[0].buttons, [{ quick_reply: 'see_open_times' }]);
+  assert.equal(out[0].correlation, `w05:hold_released:${held.body.booking_id}`);
+  assert.equal((await sys.state(id)).bookings[0].status, 'cancelled');
+  const late = await sys.verify(id, iso(ms(held.body.verify_by) + MIN));
+  assert.equal(late.body.finalized, false, 'released holds are never revived');
+  assert.equal((await sys.state(id)).events.length, 0);
+  // the time is free again for another lead
+  const other = lead('L02'); const oid = await sys.setup(other);
+  const r = await sys.book(reqFor(other, oid, { slot_start: fx.booking_request.slot_start, method: 'teams', idempotency_key: 'k_after' }), held.body.verify_by);
+  assert.equal(r.http_status, 201);
+});
+
+test('W05 lib: verify window = min(now + 24 h, start - 2 h); under 15 minutes -> too_soon_to_verify (nothing held); finalizeRequest rules', () => {
+  const now = ms('2026-10-12T11:40:00+02:00');
+  assert.equal(W5.holdDeadline(now, now + 3 * 24 * H), now + 24 * H);
+  assert.equal(W5.holdDeadline(now, now + 10 * H), now + 8 * H);
+  const c = ctx5({ req: { slot_start: iso(now + 2 * H + 10 * MIN), method: 'phone', email: 'sipho@gmail.com', booked_via: 'page', idempotency_key: 'k9' } });
+  const d = W5.decide(c);
+  const a = W5.afterCheck(c, d, { free: true, next_slots: [] });
+  assert.equal(a.action, 'taken'); assert.equal(a.body.error_code, 'too_soon_to_verify');
+  const hold = { id: 'h1', status: 'pending_verification', appointment_date: '2026-10-15T10:00:00+02:00', method: 'teams', booked_via: 'page', idempotency_key: 'page:x:1', verify_by: iso(now + H) };
+  assert.equal(W5.finalizeRequest(hold, { id: 'x', email: 'a@gmail.com', email_verified: false }, now), null, 'not verified');
+  assert.equal(W5.finalizeRequest(hold, { id: 'x', email: 'a@gmail.com', email_verified: true }, now + 2 * H), null, 'past verify_by');
+  assert.equal(W5.finalizeRequest(hold, { id: 'x', email: 'a@gmail.com', email_verified: true }, now).finalize_booking_id, 'h1');
+  assert.deepEqual(W5.parseSub({ op: 'finalize', lead_id: 'x' }), { op: 'finalize', lead_id: 'x', booking_id: null });
+});
+
+test('W05.json verify gate wiring: insert writes the hold or promotes it; held branch skips the calendar + broker; finalize op; 5-min release sweep', () => {
+  const nd = (n) => WF5.nodes.find((x) => x.name === n);
+  const to = (n) => (WF5.connections[n]?.main || []).map((o) => o.map((c) => c.node));
+  const ins = nd('Insert appointment (re-check overlap + buffer, idempotent)').parameters.query;
+  assert.match(ins, /status = 'booked', verify_by = NULL[\s\S]*status = 'pending_verification' AND verify_by > now\(\)/);
+  assert.match(ins, /x\.status IN \('pending_verification','booked','confirmed'\)/, 'a held slot blocks the time');
+  assert.deepEqual(to('Inserted?')[0], ['Held? (email not verified: no calendar, no broker)']);
+  assert.deepEqual(to('Held? (email not verified: no calendar, no broker)'), [['Hold plan (w05.holdPending)'], ['Broker calendar (graph)?']]);
+  assert.ok(!JSON.stringify(to('Hold plan (w05.holdPending)')).includes('Graph'), 'the hold never reaches Graph');
+  assert.ok(to('Sub op?').flat().includes('Load held slot + lead (finalize)'));
+  assert.equal(nd('-> Email verify (hold: issue)').parameters.workflowId.value, 'smc-email-verify');
+  assert.match(nd('Release held slots past verify_by (+ timeline)').parameters.query, /status = 'pending_verification' AND a\.verify_by <= now\(\)/);
+  assert.deepEqual(to('Every 5 min: release unverified holds'), [['Release held slots past verify_by (+ timeline)']]);
+  assert.equal(nd('-> WhatsApp Send (booking_hold_released)').parameters.workflowId.value, 'smc-whatsapp-send');
 });
 
 test('W05 lib: taken -> 409 with next 3 under both keys; SLOT_TAKEN line in chat; Graph event + CAPI without email', () => {
@@ -400,7 +552,9 @@ test('I-45f: a first booking calls W06 op booking (W06 picks broker_intro_booked
   const st = newBookState();
   const fx = lead('L01');
   const id = seedLead(st, fx);
-  const r = await book(st, reqFor(fx, id), ms(fx.booking_request.requested_at));
+  const held = await book(st, reqFor(fx, id), ms(fx.booking_request.requested_at));
+  assert.equal(held.body.held, true); assert.equal(st.w06, undefined, 'no W06 call while the slot is only held');
+  const r = await verifyEmail(st, id, ms(fx.booking_request.requested_at) + 60_000); // the first booking reaches W06 after the verification
   assert.equal(r.http_status ?? r.status, fx.expected.W05.http_status);
   assert.equal(st.w06.length, 1);
   const call = st.w06[0];
@@ -431,7 +585,7 @@ test('F8 W05.json shared calendar: empty id -> error item + alert, never an empt
   assert.equal(gate[0][0].node, 'Graph create event (howzit@ shared calendar, ASSUMPTION)');
   assert.equal(gate[1][0].node, 'After event (w05.finish)', 'missing id skips Graph and goes straight to finish');
   assert.equal(wf5.connections['Event body (shared)'].main[0][0].node, 'Shared calendar id?');
-  const row = { id: 'appt-1', broker_id: 'b1', cycle_id: null, booked_at: '2026-10-12T07:00:00.000Z', appointment_date: plan.start, ends_at: plan.end, method: 'phone', status: 'booked' };
+  const row = { id: 'appt-1', broker_id: 'b1', booked_at: '2026-10-12T07:00:00.000Z', appointment_date: plan.start, ends_at: plan.end, method: 'phone', status: 'booked' };
   const fail = (await run(wf5, 'After event (w05.finish)', { json: none, refs: { 'Decide (w05.decide + MX)': decide, 'Insert appointment (re-check overlap + buffer, idempotent)': row } }))[0].json;
   assert.equal(fail.ev.reason, 'shared_calendar_id_missing');
   assert.equal(fail.f.appointment_update.graph_event_id, null);
@@ -446,7 +600,7 @@ test('F8 W05.json shared calendar: empty id -> error item + alert, never an empt
   const ok = (await run(wf5, 'After event (w05.finish)', { json: { statusCode: 201, body: { id: 'AAMk-stub-1', iCalUId: 'ical-1' } }, refs: { 'Decide (w05.decide + MX)': det, 'Insert appointment (re-check overlap + buffer, idempotent)': row } }))[0].json;
   assert.equal(ok.f.appointment_update.graph_event_id, 'AAMk-stub-1');
   assert.equal(ok.f.alert, null);
-  const save = wf5.nodes.find((n) => n.name === 'Save event ids + lead (stage, broker, cycle, invite email)');
+  const save = wf5.nodes.find((n) => n.name === 'Save event ids + lead (stage, broker, invite email)');
   assert.match(save.parameters.query, /graph_event_id = NULLIF\(\$2, ''\)/);
   assert.match(save.parameters.options.queryReplacement, /u\.graph_event_id/);
   assert.throws(() => W5.graphEventUrl('shared', { sharedCalendarId: '' }), /shared_calendar_id_missing/);

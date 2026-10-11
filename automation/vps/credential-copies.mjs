@@ -12,9 +12,10 @@ import { requiredCredentials } from './check-credentials.mjs';
 const PG = 'LV Supabase - n8n_app (least privilege)';
 // [secret label, .env variable(s) ("-" = none), [[type, credential name], ...]]
 export const SECRETS = [
-  ['Meta system-user token', 'META_SYSTEM_USER_TOKEN (+ WABA_ID for whatsAppApi)', [
+  // 2026-10-11: W23's n8n WhatsApp nodes (whatsAppApi) now send through smc-whatsapp-send, so that copy is gone.
+  ['Meta system-user token', 'META_SYSTEM_USER_TOKEN', [
     ['httpHeaderAuth', 'Meta system user token (Bearer)'], ['httpHeaderAuth', 'WhatsApp Cloud API (SortMyCover)'],
-    ['whatsAppApi', 'WhatsApp Cloud API (SortMyCover)'], ['httpHeaderAuth', 'WhatsApp Cloud API (system user)'],
+    ['httpHeaderAuth', 'WhatsApp Cloud API (system user)'],
     ['httpHeaderAuth', 'WhatsApp Cloud API token (SMC ops)'], ['httpHeaderAuth', 'WhatsApp Graph bearer (system user)']]],
   ['Meta Page token', 'PAGE_ACCESS_TOKEN', [['httpHeaderAuth', 'Meta Page Token']]],
   ['Anthropic API key', 'ANTHROPIC_API_KEY', [

@@ -1,0 +1,77 @@
+{
+  "_meta": {
+    "key": "intro_media_voice",
+    "source": "automation/templates/intro_media_voice.json",
+    "approval": {
+      "name": "smc_intro_media_voice",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      },
+      {
+        "n": 4,
+        "kind": "body"
+      },
+      {
+        "n": 5,
+        "kind": "header_text"
+      },
+      {
+        "n": 6,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 0
+      },
+      {
+        "n": 7,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 1
+      }
+    ],
+    "core": false
+  },
+  "content": {
+    "friendly_name": "smc_intro_media_voice",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "Mark Smith",
+      "3": "Tue 7 Oct",
+      "4": "10:00",
+      "5": "Mark Smith",
+      "6": "play_voice_note:sample",
+      "7": "reschedule:sample"
+    },
+    "types": {
+      "whatsapp/card": {
+        "body": "Hi {{1}}, {{2}} recorded a short voice note (about 25 seconds) so you know who you will be speaking to. Tap Play to hear it. Your call is on *{{3}} at {{4}}*. Reply STOP to opt out.",
+        "header_text": "A voice note from {{5}}",
+        "footer": "SortMyCover",
+        "actions": [
+          {
+            "type": "QUICK_REPLY",
+            "title": "Play voice note",
+            "id": "{{6}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Reschedule",
+            "id": "{{7}}"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "_meta": {
+    "key": "booking_held_verify_email",
+    "source": "automation/templates/booking_held_verify_email.json",
+    "approval": {
+      "name": "smc_booking_held_verify_email",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      },
+      {
+        "n": 4,
+        "kind": "body"
+      },
+      {
+        "n": 5,
+        "kind": "body"
+      }
+    ],
+    "core": false
+  },
+  "content": {
+    "friendly_name": "smc_booking_held_verify_email",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "Thu 15 Oct",
+      "3": "10:00",
+      "4": "Mark",
+      "5": "Wed 14 Oct at 09:10"
+    },
+    "types": {
+      "whatsapp/card": {
+        "body": "Hi {{1}}, we're holding {{2}} at {{3}} for your call with {{4}}. To confirm it, tap the link we emailed you, or reply here with the 6-digit code from that email. If it isn't confirmed by {{5}}, we'll release the time. Reply STOP to opt out.",
+        "footer": "SortMyCover"
+      }
+    }
+  }
+}

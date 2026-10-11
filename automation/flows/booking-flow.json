@@ -427,7 +427,7 @@
           },
           {
             "type": "TextCaption",
-            "text": "We only use this address to send your meeting invite."
+            "text": "We only use this address to confirm your booking and send your meeting details."
           },
           {
             "type": "Footer",
@@ -497,7 +497,7 @@
           },
           {
             "type": "TextCaption",
-            "text": "Tap Confirm and we will send your confirmation here on WhatsApp straight away."
+            "text": "Tap Confirm and we will message you here on WhatsApp straight away."
           },
           {
             "type": "Footer",

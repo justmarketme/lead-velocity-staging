@@ -1,6 +1,6 @@
 # SortMyCover console and broker portal (UI) — platform-architect
 
-**Date:** 2026-10-02 · **Status:** built inside the existing React/Vite CRM (0.2 reuse; INV-01, INV-P11, INV-S01–S17). Everything sits behind `VITE_SMC_ENABLED` (default off). No new npm dependencies. Nothing calls Supabase live or Meta; the migrations (`supabase/migrations/20261002_smc_02…07`) are the data contract and are **not applied** (NH-11/NH-15).
+**Date:** 2026-10-02 · **Status:** built inside the existing React/Vite CRM (0.2 reuse; INV-01, INV-P11, INV-S01–S17). Everything sits behind `VITE_SMC_ENABLED` (default off). No new npm dependencies. Nothing calls Supabase live or Meta; the migrations (`supabase/migrations/*_smc_02…07`) are the data contract and are **not applied** (NH-11/NH-15).
 
 ## Files
 | Path | What |

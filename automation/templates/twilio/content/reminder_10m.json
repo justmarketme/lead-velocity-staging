@@ -1,0 +1,40 @@
+{
+  "_meta": {
+    "key": "reminder_10m",
+    "source": "automation/templates/reminder_10m.json",
+    "approval": {
+      "name": "smc_reminder_10m",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      }
+    ],
+    "core": false
+  },
+  "content": {
+    "friendly_name": "smc_reminder_10m",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "Mark Smith",
+      "3": "Mark will call you from 082 555 0100."
+    },
+    "types": {
+      "whatsapp/card": {
+        "body": "Hi {{1}}, your call with {{2}} starts in 10 minutes. {{3}} Reply STOP to opt out.",
+        "footer": "SortMyCover"
+      }
+    }
+  }
+}

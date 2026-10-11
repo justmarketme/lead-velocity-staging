@@ -1,4 +1,4 @@
--- DEPLOYED COPY: the W14 functions in this file are folded verbatim into supabase/migrations/20261002_smc_10_pass4.sql (I-33i); change both together.
+-- DEPLOYED COPY: the W14 functions in this file are folded verbatim into supabase/migrations/20261002100000_smc_10_pass4.sql (I-33i); change both together.
 -- analytics/W14-lv.sql — the query set W14 runs Sunday 23:00 for the Lead Velocity internal weekly (4.6 W14, 4.9).
 -- Template and narrative rules: analytics/weekly-lv-report.md. W14 stores the result of facts.w14_lv_payload() in report_history
 -- (report_kind = 'lv_weekly', report_data = payload) and hands it to Sonnet for the 3 insights + 1 recommendation (the SQL only seeds them).

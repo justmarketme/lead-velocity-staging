@@ -144,8 +144,8 @@ export function recordDisposition(outcome, { code, quality, at }) {
   };
 }
 
-/** 4.12a friction rule: two unconfirmed in a cycle -> Jonathan calls the broker. */
-export const unconfirmedAlert = (outcomesInCycle) => (outcomesInCycle.filter((o) => o.unconfirmed).length >= 2 ? ['Jonathan: call broker'] : []);
+/** 4.12a friction rule: two unconfirmed outcomes for one broker within 30 days -> Jonathan calls the broker. */
+export const unconfirmedAlert = (recentOutcomes) => (recentOutcomes.filter((o) => o.unconfirmed).length >= 2 ? ['Jonathan: call broker'] : []);
 
 // ---------------------------------------------------------------------------------------------------------------
 // Entries and taps
@@ -336,7 +336,7 @@ export function followUps(r, row = {}, outcomeId, brandId = row.brand_id) {
   if (r.lead_message === 'broker_no_show_apology') out.push(sendItem(row, brokerNoShowApology(lead, broker), `w12:apology:${row.booking_id}`));
   for (const c of r.capi || []) if (c.event_name === 'Attended') out.push({ fu: 'capi', ...capiAttended(lead, brandId, row.slot_end) });
   // I-51b: a held Attended is parked (w12:capi_hold row = the release queue); a dropped one is logged with its reason.
-  const capiKeys = { lead_id: row.lead_id, brand_id: brandId, broker_id: row.broker_id, cycle_id: row.cycle_id || null, booking_id: row.booking_id, event_id: `evt_${row.lead_id}_attended`, event_time: row.slot_end || null };
+  const capiKeys = { lead_id: row.lead_id, brand_id: brandId, broker_id: row.broker_id, booking_id: row.booking_id, event_id: `evt_${row.lead_id}_attended`, event_time: row.slot_end || null };
   if ((r.capi_held || []).length) out.push({ fu: 'capi_hold', ...capiKeys, reason: r.capi_gate?.reason || 'awaiting_lead' });
   if (r.capi_dropped) out.push({ fu: 'capi_release', ...capiKeys, decision: 'drop', reason: r.capi_dropped });
   if (r.outcome === 'no_show') out.push({ fu: 'w13', ...w13NoShow(outcomeId, booking, row.lead_id, r.no_show_confirmed_at) });
@@ -368,7 +368,7 @@ export function dispositionItem(row = {}, now, brokerLastInboundMs) {
 
 /**
  * I-51b (a)(b)(c): release queue for held CAPI Attended. row = one "w12:capi_hold" activity joined to its meeting:
- * { booking_id, lead_id, brand_id, broker_id, cycle_id, slot_end, event_id, reach, disposition_code, kg_decision,
+ * { booking_id, lead_id, brand_id, broker_id, slot_end, event_id, reach, disposition_code, kg_decision,
  *   broker_mark, outcome_outcome }. Re-evaluated every tick and straight after a kg_decision. Returns [] while it still
  * holds, one { fu: 'capi_release', decision: 'send'|'drop', reason, ... } when decided (claimed once per booking in
  * the workflow), and the KG escalation when a lead "No" arrived after the outcome row was written and none is open.
@@ -386,7 +386,7 @@ export function releaseHeld(row = {}, now) {
   }
   return [{ fu: 'capi_release', ...heldKeys(row), decision: g.action, reason: g.reason }];
 }
-const heldKeys = (row) => ({ lead_id: row.lead_id, brand_id: row.brand_id, broker_id: row.broker_id, cycle_id: row.cycle_id || null, booking_id: row.booking_id, event_id: row.event_id || `evt_${row.lead_id}_attended`, event_time: row.slot_end || null });
+const heldKeys = (row) => ({ lead_id: row.lead_id, brand_id: row.brand_id, broker_id: row.broker_id, booking_id: row.booking_id, event_id: row.event_id || `evt_${row.lead_id}_attended`, event_time: row.slot_end || null });
 
 /** The release item -> the CAPI Send input (same event_id as the held event, so Meta dedupes a retry). */
 export const releaseCapi = (item) => ({ fu: 'capi', ...capiAttended({ id: item.lead_id }, item.brand_id, item.event_time) });

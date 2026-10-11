@@ -145,14 +145,15 @@ test('edge function source: token reaches only the Vault RPC; never selected, re
   assert.ok(!/decrypted_secret|smc_vault_ms_refresh\b/.test(src), 'the callback never reads a token back');
   assert.ok(!/VITE_/.test(src), 'secrets are function env, never VITE_');
 });
-test('migration: service_role can run the vault wrappers; disconnect deletes the Vault secret', () => {
-  const sql = readFileSync(join(ROOT, 'supabase/migrations/20261007_smc_18_ms_oauth_edge.sql'), 'utf8');
-  assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.smc_vault_store_ms_refresh[\s\S]*TO service_role/);
+test('migration: service_role can store / set status / disconnect but never read a token; disconnect deletes the Vault secret', () => {
+  const sql = readFileSync(join(ROOT, 'supabase/migrations/20261011060000_smc_06_storage_calendar.sql'), 'utf8');
+  assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.smc_vault_store_ms_refresh\(uuid, text, text, text\),\s+public\.smc_set_calendar_status\(uuid, text, jsonb\),\s+public\.smc_ms_disconnect\(uuid\) TO service_role/);
+  assert.match(sql, /REVOKE EXECUTE ON FUNCTION public\.smc_vault_ms_refresh\(uuid\) FROM service_role/);
   assert.match(sql, /DELETE FROM vault\.secrets/);
-  assert.match(sql, /REVOKE ALL ON FUNCTION public\.smc_ms_disconnect\(uuid\) FROM PUBLIC, anon, authenticated/);
+  assert.match(sql, /REVOKE ALL ON FUNCTION public\.smc_vault_store_ms_refresh[\s\S]*public\.smc_ms_disconnect\(uuid\) FROM PUBLIC, anon, authenticated/);
 });
 test('W04/W05 still read the stored token the edge function writes (same vault RPC and status gate)', () => {
-  const m13 = readFileSync(join(ROOT, 'supabase/migrations/20261002_smc_13_pass7.sql'), 'utf8');
+  const m13 = readFileSync(join(ROOT, 'supabase/migrations/20261011060000_smc_06_storage_calendar.sql'), 'utf8');
   assert.match(m13, /smc_vault_ms_refresh[\s\S]*calendar_status = 'ok'/);
   assert.ok(readFileSync(join(ROOT, 'automation/build-w04-w05.mjs'), 'utf8').includes('smc_vault_ms_refresh'));
 });

@@ -87,7 +87,9 @@ test('DRY_RUN_SENDS blocks a Twilio send: decide() -> dry, no payload; workflow 
 // ------------------------------------------------------------------ inbound
 const URL_ = 'https://n8n.example.test/webhook/whatsapp-twilio';
 const sign = (params, url = URL_, tok = 'tok') => createHmac('sha1', tok).update(url + Object.keys(params).sort().map((k) => k + params[k]).join('')).digest('base64');
-const run = (params, sig) => runCode(W07, 'Verify Twilio signature + normalise', { json: { headers: { 'x-twilio-signature': sig }, body: params }, env: ENV, items: [{ headers: { 'x-twilio-signature': sig }, body: params }] });
+// 2026-10-11: one ingress node for both providers ("Verify signature + normalise"); the Twilio webhook lands there.
+const TW_IN = (params, sig) => ({ headers: sig === undefined ? {} : { 'x-twilio-signature': sig }, body: params, webhookUrl: URL_ });
+const run = (params, sig) => runCode(W07, 'Verify signature + normalise', { json: TW_IN(params, sig), env: ENV, items: [TW_IN(params, sig)] });
 
 const metaBody = (m) => ({ entry: [{ changes: [{ value: { metadata: { phone_number_id: '27600000000' }, messages: [{ id: 'SM1', from: '27821234567', timestamp: '1760000000', ...m }] } }] }] });
 const twBase = { MessageSid: 'SM1', From: 'whatsapp:+27821234567', To: 'whatsapp:+27600000000', SmsStatus: 'received' };
@@ -124,15 +126,31 @@ test('W07 Twilio ingress: valid signature -> items identical in shape to the Met
   assert.equal((await run({ ...params, Body: 'tampered' }, sign(params)))[0].json.valid, false);
   assert.equal((await run(params, undefined))[0].json.valid, false);
   assert.equal((await run(params, sign(params, 'https://evil.example.test/webhook/whatsapp-twilio')))[0].json.valid, false);
-  const wrong = await runCode(W07, 'Verify Twilio signature + normalise', { json: {}, env: { ...ENV, WHATSAPP_PROVIDER: 'meta' }, items: [{ headers: { 'x-twilio-signature': sign(params) }, body: params }] });
+  const wrong = await runCode(W07, 'Verify signature + normalise', { json: {}, env: { ...ENV, WHATSAPP_PROVIDER: 'meta' }, items: [TW_IN(params, sign(params))] });
   assert.equal(wrong[0].json.reason, 'provider_not_twilio');
+  assert.ok(ok.every((i) => i.json.provider === 'twilio'), 'Twilio items say so (the Respond node answers TwiML)');
 });
 
-test('W07 Twilio ingress is wired to the shared path (same Respond + Message-or-status nodes)', () => {
-  const to = (n) => W07.connections[n].main[0].map((x) => x.node).sort();
-  assert.deepEqual(to('Verify Twilio signature + normalise'), to('Verify signature + normalise'));
+test('W07 Twilio ingress shares the Meta ingress node, so every $("Verify signature + normalise") reference works; answers empty TwiML', () => {
+  assert.deepEqual(W07.connections['WhatsApp webhook (Twilio)'].main[0].map((x) => x.node), ['Verify signature + normalise']);
+  assert.deepEqual(W07.connections['WhatsApp webhook (POST)'].main[0].map((x) => x.node), ['Verify signature + normalise']);
+  assert.ok(!W07.nodes.some((n) => n.name === 'Verify Twilio signature + normalise'));
   const hook = W07.nodes.find((n) => n.name === 'WhatsApp webhook (Twilio)');
   assert.equal(hook.parameters.path, 'whatsapp-twilio'); assert.equal(hook.parameters.httpMethod, 'POST');
+  const resp = W07.nodes.find((n) => n.name === 'Respond 200 / 401').parameters;
+  const body = new Function('$json', `return (${resp.responseBody.replace(/^=\{\{([\s\S]*)\}\}$/, '$1')});`);
+  assert.match(body({ provider: 'twilio', valid: true }), /<Response\/>/);
+  assert.equal(body({ valid: true }), 'ok');
+  const ct = new Function('$json', `return (${resp.options.responseHeaders.entries[0].value.replace(/^=\{\{([\s\S]*)\}\}$/, '$1')});`);
+  assert.equal(ct({ provider: 'twilio' }), 'text/xml'); assert.equal(ct({}), 'text/plain');
+});
+
+test('W07 Meta ingress unchanged by the shared node (Meta signature path still verifies)', async () => {
+  const body = metaBody({ type: 'text', text: { body: 'Hi' } });
+  const raw = JSON.stringify(body);
+  const sig = 'sha256=' + createHmac('sha256', 'app-secret').update(raw).digest('hex');
+  const out = await runCode(W07, 'Verify signature + normalise', { json: {}, env: { META_APP_SECRET: 'app-secret' }, items: [{ headers: { 'x-hub-signature-256': sig }, body, webhookUrl: 'https://n8n.example.test/webhook/whatsapp' }] });
+  assert.equal(out[0].json.valid, true); assert.equal(out[0].json.msg.text, 'Hi'); assert.equal(out[0].json.provider, undefined);
 });
 
 test('twilioMediaRequest: Basic-auth fetch only for api.twilio.com media', () => {

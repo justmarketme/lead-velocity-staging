@@ -246,11 +246,26 @@ test('I-47a: NLU bands map to leads_smc_checks codes (lt35/35_44/45_50/51plus; l
     const r = typedStep('q_budget', { budget_band: nlu }, { age_band: '45_50' });
     assert.deepEqual(r.actions.find((a) => a.kind === 'update_lead').set, { budget_band: db, conv_state_state: 'q_bond' });
   }
-  const lo = typedStep('q_budget', { budget_band: '<750' }).actions.find((a) => a.kind === 'update_lead').set;
-  assert.equal(lo.budget_band, 'lt750'); assert.equal(lo.disqualified_reason, 'budget_band');
+  // tier C (2026-10-11): under R750 is recorded and the questions go on (never disqualified on budget)
+  const loR = typedStep('q_budget', { budget_band: '<750' });
+  assert.deepEqual(loR.actions.find((a) => a.kind === 'update_lead').set, { budget_band: 'lt750', conv_state_state: 'q_bond' });
+  assert.equal(loR.thread.stage, 'q_bond'); assert.ok(loR.actions.some((a) => a.kind === 'send'), 'next question asked');
+  assert.ok(!loR.actions.some((a) => a.kind === 'update_lead' && a.set.disqualified_reason), 'not disqualified');
   const u1 = typedStep('q_budget', { budget_band: 'unsure' });
   assert.equal(u1.actions.find((a) => a.kind === 'update_lead').set.conv_state_state, 'q_budget_clarify');
   assert.equal(typedStep('q_budget_clarify', { budget_band: 'unsure' }).actions.find((a) => a.kind === 'update_lead').set.stage, 'disqualified');
+});
+
+test('tier C: tapped under-R750 rows continue; at the end an unrouted tier-C lead goes to W01 routing (held or standing yes), never closed', () => {
+  for (const id of ['budget_under_500', 'budget_500_750']) {
+    const r = W3.step({ stage: 'q_budget', lead_id: 'lead_q1', answers: { age_band: '45_50' } }, { type: 'interactive', interactive: { type: 'list_reply', list_reply: { id } } }, { at: '2026-10-13T10:00:00+02:00', mobile: '+27600000047', lead_id: 'unused', broker: MARK, brand: BRAND });
+    const u = r.actions.find((a) => a.kind === 'update_lead').set;
+    assert.deepEqual(u, { budget_band: 'lt750', conv_state_state: 'q_bond' }, id);
+    assert.equal(r.thread.stage, 'q_bond', id);
+  }
+  const fin = typedStep('q_method', { method: 'phone' }, { age_band: '45_50', budget_band: 'lt750', broker_id: null });
+  assert.equal(fin.actions.find((a) => a.kind === 'update_lead').set.budget_band, 'lt750');
+  assert.ok(fin.actions.some((a) => a.kind === 'route_and_first_touch'), 'W01 decides: standing-yes broker or held_low_budget');
 });
 
 test('I-47a: 4.6 order to the end; bond/dependants typed; method -> hand back after_qualifying (routed lead) or W01 route (unrouted)', () => {
@@ -306,7 +321,10 @@ test('I-48b/I-48k: W03 sends behind the shared reply claim + DRY_RUN_SENDS gate 
   const c = WF.connections;
   assert.equal(c['Build Cloud API body'].main[0][0].node, 'Reply claim (w07:reply:{wamid})');
   assert.equal(c['Reply claim (w07:reply:{wamid})'].main[0][0].node, 'Live send? (W03)');
-  assert.equal(c['Live send? (W03)'].main[0][0].node, 'WhatsApp send (session)');
+  // 2026-10-11: the send goes through smc-whatsapp-send (lib/wa-route.cjs): Live send? -> SUB input -> the waiting sub-call
+  assert.equal(c['Live send? (W03)'].main[0][0].node, 'SUB input (WhatsApp send (session))');
+  assert.equal(c['SUB input (WhatsApp send (session))'].main[0][0].node, 'WhatsApp send (session)');
+  assert.equal(WF.nodes.find((n) => n.name === 'WhatsApp send (session)').parameters.workflowId.value, 'smc-whatsapp-send');
   assert.equal(c['Live send? (W03)'].main[1][0].node, 'Store outbound (W03)');
   assert.equal(c['WhatsApp send (session)'].main[0][0].node, 'Store outbound (W03)');
   assert.match(WF.nodes.find((n) => n.name === 'Live send? (W03)').parameters.conditions.conditions[0].leftValue, /DRY_RUN_SENDS !== 'true'/);

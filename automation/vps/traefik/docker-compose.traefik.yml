@@ -104,14 +104,21 @@ services:
       # n8n puts the webhookId in front of any path with a :param, so /c/{id} and /wa/{ref} cannot map to /webhook/c|wa/... (404):
       #   /c/{booking_id}  -> /webhook/w05-ics-get/c/{booking_id}      (W05 GET c/:booking_id, I-55e / I-45j; query ?k= is kept)
       #   /wa/{ref}        -> /webhook/w03-ctwa-redirect/wa/{ref}      (W03 GET wa/:ref, I-44e / I-09)
-      #   /j/{ref}         -> /webhook/j/{ref}                         (join redirect; no webhook built yet, so it 404s until it exists)
-      # Same webhookIds as W05.json / W03.json (asserted in W26.test.mjs). Public, GET only; rate-limited and header-hardened like n8n-api.
+      #   /j/{booking_id}  -> /webhook/w05-join-get/j/{booking_id}     (W05 GET j/:booking_id: 302 to the Teams join link, 2026-10-11)
+      #   /v/{token}       -> /webhook/smc-email-verify-link/v/{token} (SUB-email-verify GET v/:token: the one-tap email check)
+      # Same webhookIds as W05.json / W03.json / SUB-email-verify.json. Public, GET only; rate-limited and header-hardened like n8n-api.
       - traefik.http.routers.n8n-link.rule=Host(`${LINK_HOST:-link.invalid}`) && PathPrefix(`/j/`)
       - traefik.http.routers.n8n-link.entrypoints=websecure
       - traefik.http.routers.n8n-link.tls.certresolver=le
       - traefik.http.routers.n8n-link.middlewares=link-rewrite,api-ratelimit,sec-headers
       - traefik.http.middlewares.link-rewrite.replacepathregex.regex=^/j/(.*)
-      - traefik.http.middlewares.link-rewrite.replacepathregex.replacement=/webhook/j/$$1
+      - traefik.http.middlewares.link-rewrite.replacepathregex.replacement=/webhook/w05-join-get/j/$$1
+      - traefik.http.routers.n8n-link-v.rule=Host(`${LINK_HOST:-link.invalid}`) && PathPrefix(`/v/`)
+      - traefik.http.routers.n8n-link-v.entrypoints=websecure
+      - traefik.http.routers.n8n-link-v.tls.certresolver=le
+      - traefik.http.routers.n8n-link-v.middlewares=link-rewrite-v,api-ratelimit,sec-headers
+      - traefik.http.middlewares.link-rewrite-v.replacepathregex.regex=^/v/(.*)
+      - traefik.http.middlewares.link-rewrite-v.replacepathregex.replacement=/webhook/smc-email-verify-link/v/$$1
       - traefik.http.routers.n8n-link-c.rule=Host(`${LINK_HOST:-link.invalid}`) && PathPrefix(`/c/`)
       - traefik.http.routers.n8n-link-c.entrypoints=websecure
       - traefik.http.routers.n8n-link-c.tls.certresolver=le

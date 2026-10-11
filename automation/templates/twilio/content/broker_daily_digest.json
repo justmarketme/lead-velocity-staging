@@ -1,0 +1,55 @@
+{
+  "_meta": {
+    "key": "broker_daily_digest",
+    "source": "automation/templates/broker_daily_digest.json",
+    "approval": {
+      "name": "smc_broker_daily_digest",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      },
+      {
+        "n": 4,
+        "kind": "button",
+        "type": "url",
+        "index": 0
+      }
+    ],
+    "core": false
+  },
+  "content": {
+    "friendly_name": "smc_broker_daily_digest",
+    "language": "en",
+    "variables": {
+      "1": "Mark",
+      "2": "3",
+      "3": "09:00 Lerato M. (Teams); 11:30 Sipho N. (phone); 15:00 Anika V. (WhatsApp call)",
+      "4": "today"
+    },
+    "types": {
+      "whatsapp/card": {
+        "body": "Good morning {{1}}. You have {{2}} SortMyCover calls today: {{3}}. You will get a short brief 15 minutes before each one.",
+        "header_text": "Your day",
+        "footer": "SortMyCover by Lead Velocity",
+        "actions": [
+          {
+            "type": "URL",
+            "title": "Open today",
+            "url": "https://leadvelocity.co.za/{{4}}"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,4 +1,4 @@
--- DEPLOYED COPY: the W14 functions in this file are folded verbatim into supabase/migrations/20261002_smc_10_pass4.sql (I-33i); change both together.
+-- DEPLOYED COPY: the W14 functions in this file are folded verbatim into supabase/migrations/20261002100000_smc_10_pass4.sql (I-33i); change both together.
 -- analytics/W14-broker-payload.sql — emits EXACTLY the JSON shape in automation/W14-broker.md (broker-success owns the words and the shape;
 -- integration-pass2 I-02). Keys such as s1_one_line, s2_progress ... s8_cycle and wa; every figure is {v, target, last}.
 -- Counts come from analytics/W14-broker.sql (facts.cycle_counts, operational tables); the console cross-check is public.v_cycle_progress.
@@ -209,7 +209,7 @@ begin
     'wa', wa);
 end $$;
 comment on function facts.w14_broker_report(uuid, date, text) is 'W14 broker report payload in the broker_report/1 shape (automation/W14-broker.md). One payload feeds WhatsApp, portal, email and PDF.';
--- I-50d: CREATE OR REPLACE resets SECURITY DEFINER / search_path; re-pin here so re-running this file never opens the function. Same statements as migration 20261002_smc_13_pass7.sql (its closing pin block), one function per file.
+-- I-50d: CREATE OR REPLACE resets SECURITY DEFINER / search_path; re-pin here so re-running this file never opens the function. Same statements as migration 20261002130000_smc_13_pass7.sql (its closing pin block), one function per file.
 ALTER FUNCTION facts.w14_broker_report(uuid, date, text) SECURITY DEFINER SET search_path = public, facts, pg_temp;
 REVOKE ALL ON FUNCTION facts.w14_broker_report(uuid, date, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION facts.w14_broker_report(uuid, date, text) TO n8n_app;

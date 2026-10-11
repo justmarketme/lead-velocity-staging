@@ -306,7 +306,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT a.id AS booking_id, a.client_id AS lead_id, a.brand_id, a.broker_id, a.cycle_id, a.appointment_date, a.status,\n       COALESCE(a.booked_at, a.created_at) AS booked_at,\n       l.language, l.opted_out_at, l.is_synthetic,\n       b.intro_video_url, b.intro_voice_url, b.intro_media_pref,\n       -- once per lead lineage: what_to_expect / intro media already sent for ANY booking of this lead\n       COALESCE((SELECT jsonb_agg(DISTINCT d.payload->>'touch') FROM public.lead_activities d\n                  WHERE d.lead_id = a.client_id AND d.activity_type = 'reminder_done' AND d.payload->>'status' = 'sent'), '[]'::jsonb) AS lineage_sent\n  FROM public.appointments a\n  JOIN public.leads l ON l.id = a.client_id\n  JOIN public.brokers b ON b.id = a.broker_id\n WHERE a.id = $1::uuid AND a.brand_id IS NOT NULL;",
+        "query": "SELECT a.id AS booking_id, a.client_id AS lead_id, a.brand_id, a.broker_id, a.appointment_date, a.status,\n       COALESCE(a.booked_at, a.created_at) AS booked_at,\n       l.language, l.opted_out_at, l.is_synthetic,\n       b.intro_video_url, b.intro_voice_url, b.intro_media_pref,\n       -- once per lead lineage: what_to_expect / intro media already sent for ANY booking of this lead\n       COALESCE((SELECT jsonb_agg(DISTINCT d.payload->>'touch') FROM public.lead_activities d\n                  WHERE d.lead_id = a.client_id AND d.activity_type = 'reminder_done' AND d.payload->>'status' = 'sent'), '[]'::jsonb) AS lineage_sent\n  FROM public.appointments a\n  JOIN public.leads l ON l.id = a.client_id\n  JOIN public.brokers b ON b.id = a.broker_id\n WHERE a.id = $1::uuid AND a.brand_id IS NOT NULL;",
         "options": {
           "queryReplacement": "={{ [$json.booking_id] }}"
         }
@@ -344,7 +344,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "-- W10 move / W05 rebook: unsent jobs planned for another start time are finished as 'cancelled' (append-only).\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT j.lead_id, j.brand_id, j.broker_id, j.cycle_id, 'W09', 'system', 'reminder_done',\n       jsonb_build_object('key', j.idempotency_key, 'touch', j.payload->>'touch', 'status', 'cancelled', 'why', 'booking_moved'), now(), 'w09done:' || j.idempotency_key\n  FROM public.lead_activities j\n WHERE j.activity_type = 'reminder_job' AND j.payload->>'booking_id' = $1::text AND j.payload->>'start' <> $2::text\n   AND NOT EXISTS (SELECT 1 FROM public.lead_activities d WHERE d.idempotency_key = 'w09done:' || j.idempotency_key)\nON CONFLICT (idempotency_key) DO NOTHING;",
+        "query": "-- W10 move / W05 rebook: unsent jobs planned for another start time are finished as 'cancelled' (append-only).\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT j.lead_id, j.brand_id, j.broker_id, 'W09', 'system', 'reminder_done',\n       jsonb_build_object('key', j.idempotency_key, 'touch', j.payload->>'touch', 'status', 'cancelled', 'why', 'booking_moved'), now(), 'w09done:' || j.idempotency_key\n  FROM public.lead_activities j\n WHERE j.activity_type = 'reminder_job' AND j.payload->>'booking_id' = $1::text AND j.payload->>'start' <> $2::text\n   AND NOT EXISTS (SELECT 1 FROM public.lead_activities d WHERE d.idempotency_key = 'w09done:' || j.idempotency_key)\nON CONFLICT (idempotency_key) DO NOTHING;",
         "options": {
           "queryReplacement": "={{ [$json.booking_id, $json.start] }}"
         }
@@ -368,9 +368,9 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT $1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W09', 'system', 'reminder_job',\n       jsonb_build_object('booking_id', $5::text, 'touch', r.touch, 'template', r.template, 'at', r.at, 'start', r.start, 'compressed', r.compressed),\n       now(), r.key\n  FROM jsonb_to_recordset($6::jsonb) AS r(key text, touch text, template text, at text, start text, compressed boolean)\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING idempotency_key;",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT $1::uuid, $2::uuid, $3::uuid, 'W09', 'system', 'reminder_job',\n       jsonb_build_object('booking_id', $4::text, 'touch', r.touch, 'template', r.template, 'at', r.at, 'start', r.start, 'compressed', r.compressed),\n       now(), r.key\n  FROM jsonb_to_recordset($5::jsonb) AS r(key text, touch text, template text, at text, start text, compressed boolean)\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING idempotency_key;",
         "options": {
-          "queryReplacement": "={{ (() => { const p = $('Plan (w09.planFromRow)').item.json; return [p.lead_id, p.brand_id, p.broker_id, p.cycle_id, p.booking_id, JSON.stringify(p.rows || [])]; })() }}"
+          "queryReplacement": "={{ (() => { const p = $('Plan (w09.planFromRow)').item.json; return [p.lead_id, p.brand_id, p.broker_id, p.booking_id, JSON.stringify(p.rows || [])]; })() }}"
         }
       },
       "credentials": {
@@ -392,7 +392,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT j.lead_id, j.brand_id, j.broker_id, j.cycle_id, 'W09', 'system', 'reminder_done',\n       jsonb_build_object('key', j.idempotency_key, 'touch', j.payload->>'touch', 'status', 'cancelled', 'why', $3::text), now(), 'w09done:' || j.idempotency_key\n  FROM public.lead_activities j\n WHERE j.activity_type = 'reminder_job'\n   AND (j.payload->>'booking_id' = $1::text OR j.lead_id = $2::uuid)\n   AND NOT EXISTS (SELECT 1 FROM public.lead_activities d WHERE d.idempotency_key = 'w09done:' || j.idempotency_key)\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING idempotency_key;",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT j.lead_id, j.brand_id, j.broker_id, 'W09', 'system', 'reminder_done',\n       jsonb_build_object('key', j.idempotency_key, 'touch', j.payload->>'touch', 'status', 'cancelled', 'why', $3::text), now(), 'w09done:' || j.idempotency_key\n  FROM public.lead_activities j\n WHERE j.activity_type = 'reminder_job'\n   AND (j.payload->>'booking_id' = $1::text OR j.lead_id = $2::uuid)\n   AND NOT EXISTS (SELECT 1 FROM public.lead_activities d WHERE d.idempotency_key = 'w09done:' || j.idempotency_key)\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING idempotency_key;",
         "options": {
           "queryReplacement": "={{ [$json.booking_id || null, $json.lead_id || null, $json.reason || $json.source || 'cancel_all'] }}"
         }
@@ -416,7 +416,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT l.id, l.brand_id, l.broker_id, l.cycle_id, 'W09', 'system', $2, jsonb_build_object('reason', $3::text, 'by', $4::text), now(), NULL\n  FROM public.leads l WHERE l.id = $1::uuid;",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT l.id, l.brand_id, l.broker_id, 'W09', 'system', $2, jsonb_build_object('reason', $3::text, 'by', $4::text), now(), NULL\n  FROM public.leads l WHERE l.id = $1::uuid;",
         "options": {
           "queryReplacement": "={{ [$json.lead_id, 'reminder_paused', $json.reason, $json.source || null] }}"
         }
@@ -440,7 +440,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT l.id, l.brand_id, l.broker_id, l.cycle_id, 'W09', 'admin', $2, jsonb_build_object('by', $3::text), now(), NULL\n  FROM public.leads l WHERE l.id = $1::uuid;",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT l.id, l.brand_id, l.broker_id, 'W09', 'admin', $2, jsonb_build_object('by', $3::text), now(), NULL\n  FROM public.leads l WHERE l.id = $1::uuid;",
         "options": {
           "queryReplacement": "={{ [$json.lead_id, 'reminder_resumed', $json.decided_by || 'console'] }}"
         }
@@ -464,7 +464,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT j.idempotency_key AS key, j.lead_id, j.brand_id, j.broker_id, j.cycle_id,\n       j.payload->>'booking_id' AS booking_id, j.payload->>'touch' AS touch, j.payload->>'template' AS template,\n       j.payload->>'at' AS at, j.payload->>'start' AS start,\n       a.status AS booking_status, a.appointment_date, a.method, a.call_number AS booking_call_number,\n       l.first_name, l.phone, l.language, l.opted_out_at, l.call_number AS lead_call_number,\n       b.adviser_name, b.contact_person, b.phone_number AS broker_phone, b.whatsapp_number AS broker_whatsapp, b.intro_video_url, b.intro_voice_url,\n       br.domain,\n       EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone)) AS suppressed,\n       COALESCE((SELECT p.activity_type = 'reminder_paused' FROM public.lead_activities p\n                  WHERE p.lead_id = j.lead_id AND p.activity_type IN ('reminder_paused','reminder_resumed')\n                  ORDER BY p.occurred_at DESC LIMIT 1), false) AS paused,\n       (SELECT count(*) FROM public.communications c WHERE c.lead_id = j.lead_id AND c.direction = 'outbound') AS outbound_count\n  FROM public.lead_activities j\n  JOIN public.appointments a ON a.id = (j.payload->>'booking_id')::uuid\n  JOIN public.leads l ON l.id = j.lead_id\n  JOIN public.brokers b ON b.id = a.broker_id\n  LEFT JOIN public.brands br ON br.id = a.brand_id\n WHERE j.activity_type = 'reminder_job'\n   AND (j.payload->>'at')::timestamptz <= $1::timestamptz\n   AND (j.payload->>'at')::timestamptz > $1::timestamptz - interval '2 days'\n   AND NOT EXISTS (SELECT 1 FROM public.lead_activities d WHERE d.idempotency_key = 'w09done:' || j.idempotency_key)\n   AND (NOT $2::boolean OR l.is_synthetic)\n ORDER BY (j.payload->>'at')::timestamptz\n LIMIT 200;",
+        "query": "SELECT j.idempotency_key AS key, j.lead_id, j.brand_id, j.broker_id,\n       j.payload->>'booking_id' AS booking_id, j.payload->>'touch' AS touch, j.payload->>'template' AS template,\n       j.payload->>'at' AS at, j.payload->>'start' AS start,\n       a.status AS booking_status, a.appointment_date, a.method, a.call_number AS booking_call_number,\n       l.first_name, l.phone, l.language, l.opted_out_at, l.call_number AS lead_call_number,\n       b.adviser_name, b.contact_person, b.phone_number AS broker_phone, b.whatsapp_number AS broker_whatsapp, b.intro_video_url, b.intro_voice_url,\n       br.domain,\n       EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone)) AS suppressed,\n       COALESCE((SELECT p.activity_type = 'reminder_paused' FROM public.lead_activities p\n                  WHERE p.lead_id = j.lead_id AND p.activity_type IN ('reminder_paused','reminder_resumed')\n                  ORDER BY p.occurred_at DESC LIMIT 1), false) AS paused,\n       (SELECT count(*) FROM public.communications c WHERE c.lead_id = j.lead_id AND c.direction = 'outbound') AS outbound_count\n  FROM public.lead_activities j\n  JOIN public.appointments a ON a.id = (j.payload->>'booking_id')::uuid\n  JOIN public.leads l ON l.id = j.lead_id\n  JOIN public.brokers b ON b.id = a.broker_id\n  LEFT JOIN public.brands br ON br.id = a.brand_id\n WHERE j.activity_type = 'reminder_job'\n   AND (j.payload->>'at')::timestamptz <= $1::timestamptz\n   AND (j.payload->>'at')::timestamptz > $1::timestamptz - interval '2 days'\n   AND NOT EXISTS (SELECT 1 FROM public.lead_activities d WHERE d.idempotency_key = 'w09done:' || j.idempotency_key)\n   AND (NOT $2::boolean OR l.is_synthetic)\n ORDER BY (j.payload->>'at')::timestamptz\n LIMIT 200;",
         "options": {
           "queryReplacement": "={{ [$json.now_iso, $json.synthetic_only] }}"
         }
@@ -488,7 +488,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const L = require('lv-automation').w09;\nconst c = $('Classify + validate (w09.classifyOp)').first().json;\nconst d = L.dueFromRow($json, Date.parse(c.now_iso));\nreturn { json: { key: $json.key, lead_id: $json.lead_id, brand_id: $json.brand_id, broker_id: $json.broker_id, cycle_id: $json.cycle_id, touch: d.job.touch, action: d.decision.action, reason: d.decision.reason || null, send: d.send } };"
+        "jsCode": "const L = require('lv-automation').w09;\nconst c = $('Classify + validate (w09.classifyOp)').first().json;\nconst d = L.dueFromRow($json, Date.parse(c.now_iso));\nreturn { json: { key: $json.key, lead_id: $json.lead_id, brand_id: $json.brand_id, broker_id: $json.broker_id, touch: d.job.touch, action: d.decision.action, reason: d.decision.reason || null, send: d.send } };"
       }
     },
     {
@@ -565,9 +565,9 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W09', 'system', 'reminder_done', jsonb_build_object('key', $5::text, 'touch', $6::text, 'status', 'sent', 'dry_run', $7::boolean), now(), 'w09done:' || $5)\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING id;",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, $3::uuid, 'W09', 'system', 'reminder_done', jsonb_build_object('key', $4::text, 'touch', $5::text, 'status', 'sent', 'dry_run', $6::boolean), now(), 'w09done:' || $4)\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING id;",
         "options": {
-          "queryReplacement": "={{ [$json.lead_id, $json.brand_id, $json.broker_id, $json.cycle_id, $json.key, $json.touch, $env.DRY_RUN_SENDS === 'true'] }}"
+          "queryReplacement": "={{ [$json.lead_id, $json.brand_id, $json.broker_id, $json.key, $json.touch, $env.DRY_RUN_SENDS === 'true'] }}"
         }
       },
       "credentials": {
@@ -589,9 +589,9 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W09', 'system', 'reminder_done', jsonb_build_object('key', $5::text, 'touch', $6::text, 'status', 'skipped', 'why', $7::text), now(), 'w09done:' || $5)\nON CONFLICT (idempotency_key) DO NOTHING;",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, $3::uuid, 'W09', 'system', 'reminder_done', jsonb_build_object('key', $4::text, 'touch', $5::text, 'status', 'skipped', 'why', $6::text), now(), 'w09done:' || $4)\nON CONFLICT (idempotency_key) DO NOTHING;",
         "options": {
-          "queryReplacement": "={{ [$json.lead_id, $json.brand_id, $json.broker_id, $json.cycle_id, $json.key, $json.touch, $json.reason] }}"
+          "queryReplacement": "={{ [$json.lead_id, $json.brand_id, $json.broker_id, $json.key, $json.touch, $json.reason] }}"
         }
       },
       "credentials": {
@@ -657,7 +657,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH c AS (\n  UPDATE public.appointments\n     SET status = 'confirmed', confirmed_at = COALESCE(confirmed_at, $2::timestamptz), updated_at = now()\n   WHERE id = $1::uuid AND status IN ('booked','confirmed')\n  RETURNING id, client_id, brand_id, broker_id, cycle_id, appointment_date),\nt AS (\n  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\n  SELECT c.client_id, c.brand_id, c.broker_id, c.cycle_id, 'W09', 'lead', 'booking_confirmed', jsonb_build_object('booking_id', c.id::text), now(), 'w09:confirm:' || c.id::text\n    FROM c\n  ON CONFLICT (idempotency_key) DO NOTHING\n  RETURNING id),\ns AS (\n  UPDATE public.leads l SET stage = 'confirmed', updated_at = now()\n    FROM c WHERE l.id = c.client_id AND l.stage = 'booked'\n  RETURNING l.id)\nSELECT c.id AS booking_id, c.client_id AS lead_id, c.brand_id, c.broker_id, c.appointment_date,\n       l.first_name, l.phone, l.language, b.adviser_name, b.contact_person,\n       (SELECT count(*) FROM t) > 0 AS first_tap\n  FROM c\n  JOIN public.leads l ON l.id = c.client_id\n  JOIN public.brokers b ON b.id = c.broker_id;",
+        "query": "WITH c AS (\n  UPDATE public.appointments\n     SET status = 'confirmed', confirmed_at = COALESCE(confirmed_at, $2::timestamptz), updated_at = now()\n   WHERE id = $1::uuid AND status IN ('booked','confirmed')\n  RETURNING id, client_id, brand_id, broker_id, appointment_date),\nt AS (\n  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\n  SELECT c.client_id, c.brand_id, c.broker_id, 'W09', 'lead', 'booking_confirmed', jsonb_build_object('booking_id', c.id::text), now(), 'w09:confirm:' || c.id::text\n    FROM c\n  ON CONFLICT (idempotency_key) DO NOTHING\n  RETURNING id),\ns AS (\n  UPDATE public.leads l SET stage = 'confirmed', updated_at = now()\n    FROM c WHERE l.id = c.client_id AND l.stage = 'booked'\n  RETURNING l.id)\nSELECT c.id AS booking_id, c.client_id AS lead_id, c.brand_id, c.broker_id, c.appointment_date,\n       l.first_name, l.phone, l.language, b.adviser_name, b.contact_person,\n       (SELECT count(*) FROM t) > 0 AS first_tap\n  FROM c\n  JOIN public.leads l ON l.id = c.client_id\n  JOIN public.brokers b ON b.id = c.broker_id;",
         "options": {
           "queryReplacement": "={{ [$json.booking_id, $json.now_iso] }}"
         }
@@ -725,7 +725,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH t AS (\n  UPDATE public.appointments SET intro_played_at = COALESCE(intro_played_at, now()), updated_at = now()\n   WHERE id = $1::uuid AND $2 = 'play_voice_note'\n  RETURNING id)\nSELECT a.id AS booking_id, a.client_id AS lead_id, a.brand_id, a.broker_id, a.cycle_id,\n       l.phone, l.language, b.intro_voice_url\n  FROM public.appointments a\n  JOIN public.leads l ON l.id = a.client_id\n  JOIN public.brokers b ON b.id = a.broker_id\n WHERE a.id = $1::uuid;",
+        "query": "WITH t AS (\n  UPDATE public.appointments SET intro_played_at = COALESCE(intro_played_at, now()), updated_at = now()\n   WHERE id = $1::uuid AND $2 = 'play_voice_note'\n  RETURNING id)\nSELECT a.id AS booking_id, a.client_id AS lead_id, a.brand_id, a.broker_id,\n       l.phone, l.language, b.intro_voice_url\n  FROM public.appointments a\n  JOIN public.leads l ON l.id = a.client_id\n  JOIN public.brokers b ON b.id = a.broker_id\n WHERE a.id = $1::uuid;",
         "options": {
           "queryReplacement": "={{ [$json.booking_id, String(($json.msg && $json.msg.payload) || '').split(':')[0]] }}"
         }
@@ -763,9 +763,9 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W09', 'lead', $5, jsonb_build_object('booking_id', $6::text), now(), NULL);",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, $3::uuid, 'W09', 'lead', $4, jsonb_build_object('booking_id', $5::text), now(), NULL);",
         "options": {
-          "queryReplacement": "={{ [$json.lead_id, $json.brand_id, $json.broker_id, $json.cycle_id, $json.activity, $json.booking_id] }}"
+          "queryReplacement": "={{ [$json.lead_id, $json.brand_id, $json.broker_id, $json.activity, $json.booking_id] }}"
         }
       },
       "credentials": {
@@ -817,7 +817,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT x.lead_id, x.brand_id, x.broker_id, NULL, 'W09', 'system', 'subcall_rejected', $3::jsonb, now(), NULL\n  FROM (SELECT COALESCE($1::uuid, a.client_id) AS lead_id, a.brand_id, a.broker_id\n          FROM (SELECT 1) one\n          LEFT JOIN public.appointments a ON a.id = $2::uuid) x\n WHERE x.lead_id IS NOT NULL OR x.broker_id IS NOT NULL;",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT x.lead_id, x.brand_id, x.broker_id, 'W09', 'system', 'subcall_rejected', $3::jsonb, now(), NULL\n  FROM (SELECT COALESCE($1::uuid, a.client_id) AS lead_id, a.brand_id, a.broker_id\n          FROM (SELECT 1) one\n          LEFT JOIN public.appointments a ON a.id = $2::uuid) x\n WHERE x.lead_id IS NOT NULL OR x.broker_id IS NOT NULL;",
         "options": {
           "queryReplacement": "={{ [$json.lead_id || null, $json.booking_id || null, JSON.stringify({ missing: $json.missing, asked_op: $json.asked_op || null, source: $json.source || null })] }}"
         }
@@ -863,38 +863,22 @@
     {
       "id": "n30",
       "name": "Send WhatsApp",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
       "position": [
         2640,
         800
       ],
       "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION }}/{{ $env.PHONE_NUMBER_ID }}/messages",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $env.META_SYSTEM_USER_TOKEN }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
         },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.send.wa) }}",
         "options": {
-          "timeout": 10000,
-          "response": {
-            "response": {
-              "neverError": true
-            }
-          }
+          "waitForSubWorkflow": true
         }
       }
     },
@@ -990,7 +974,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT $1::uuid, $2::uuid, $3::uuid, NULL, 'W09', 'system', 'send_failed', $4::jsonb, now(), 'send_failed:' || $5\n WHERE $1::uuid IS NOT NULL OR $3::uuid IS NOT NULL\nON CONFLICT (idempotency_key) DO NOTHING;",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT $1::uuid, $2::uuid, $3::uuid, 'W09', 'system', 'send_failed', $4::jsonb, now(), 'send_failed:' || $5\n WHERE $1::uuid IS NOT NULL OR $3::uuid IS NOT NULL\nON CONFLICT (idempotency_key) DO NOTHING;",
         "options": {
           "queryReplacement": "={{ (() => { const s = $('Live send?').item.json.send; return [s.lead_id, s.brand_id, s.broker_id, JSON.stringify({ key: s.key, template: s.template, error: ($json.error && ($json.error.message || $json.error.code)) || 'no wamid' }), s.key]; })() }}"
         }
@@ -1002,6 +986,20 @@
         }
       },
       "alwaysOutputData": false
+    },
+    {
+      "id": "1ad48c21-8497-3533-511f-e17d5241606d",
+      "name": "SUB input (Send WhatsApp)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2520,
+        920
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// lib/wa-route.cjs: \"Send WhatsApp\" sends through smc-whatsapp-send (WHATSAPP_PROVIDER meta | twilio). Generated: edit the\n// generator / route-wa-sends.mjs config, not this node. record:false (this workflow logs the message from the returned id).\nconst wa = $json.send.wa;\nconst exec = (typeof $execution !== 'undefined' && $execution && $execution.id) || 'x';\nconst idx = (typeof $itemIndex !== 'undefined') ? $itemIndex : 0;\nreturn { json: {\n  kind: 'prebuilt', wa, to: wa && wa.to,\n  record: false, caller: \"W09\", bypass_suppression: false,\n  phone_number_id: null,\n  lead_id: null, broker_id: null,\n  correlation: \"W09:Send WhatsApp:\" + exec + ':' + idx,\n} };"
+      }
     }
   ],
   "connections": {
@@ -1264,7 +1262,7 @@
       "main": [
         [
           {
-            "node": "Send WhatsApp",
+            "node": "SUB input (Send WhatsApp)",
             "type": "main",
             "index": 0
           }
@@ -1338,6 +1336,17 @@
         [
           {
             "node": "Live send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SUB input (Send WhatsApp)": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp",
             "type": "main",
             "index": 0
           }

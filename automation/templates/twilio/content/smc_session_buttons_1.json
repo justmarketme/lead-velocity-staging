@@ -1,0 +1,27 @@
+{
+  "_meta": {
+    "key": "smc_session_buttons_1",
+    "approval": null,
+    "session_only": true
+  },
+  "content": {
+    "friendly_name": "smc_session_buttons_1",
+    "language": "en",
+    "variables": {
+      "1": "Please choose one",
+      "2": "Option 1",
+      "3": "option_1"
+    },
+    "types": {
+      "twilio/quick-reply": {
+        "body": "{{1}}",
+        "actions": [
+          {
+            "title": "{{2}}",
+            "id": "{{3}}"
+          }
+        ]
+      }
+    }
+  }
+}
