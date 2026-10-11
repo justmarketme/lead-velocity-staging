@@ -4,6 +4,8 @@ Owner: Jonathan. Everything below is a step only Jonathan can take (an account, 
 
 How it works now: every WhatsApp message any workflow sends goes through one sub-workflow, `SUB-whatsapp-send` (`smc-whatsapp-send`). With `WHATSAPP_PROVIDER=twilio` it posts to Twilio's Messages API with a `ContentSid`; inbound messages, taps, Flow completions and delivery receipts arrive at W07 `POST /webhook/whatsapp-twilio`. The Flow screens are still served by W28 (Meta calls it directly; Twilio only carries the Flow message). Every message in and out is a `communications` row, so it shows on the lead in the CRM's communication hub.
 
+**Base URL.** `<N8N_PUBLIC_URL>` below is n8n's public base. Today (laptop n8n behind the EMMA VPS, no extra DNS record) it is `https://emmadoesit.cloud/lv-n8n`, so the inbound webhook is `https://emmadoesit.cloud/lv-n8n/webhook/whatsapp-twilio` and the Flow endpoint `https://emmadoesit.cloud/lv-n8n/webhook/flow`. After W26 it becomes `https://<API_HOST>`.
+
 ## 1. Buy the number (Twilio Console, the CRM's existing account)
 1. Phone Numbers > Buy a number > Country **South Africa (+27)**, capability SMS (WhatsApp needs to receive the one-time code by SMS or voice). South African numbers need a **Regulatory Bundle** (business address + company documents) before Twilio releases them; create it under Phone Numbers > Regulatory Compliance if asked.
    - If Twilio has no suitable +27 number, a **non-Twilio** SA mobile number that can receive the code also works as a WhatsApp sender (Twilio supports both).
@@ -13,7 +15,7 @@ How it works now: every WhatsApp message any workflow sends goes through one sub
 1. Console > Messaging > Senders > WhatsApp senders > **Create new sender**, pick the number from step 1.
 2. **Continue with Facebook**, choose the existing Meta Business Portfolio **and the same WhatsApp Business Account the account already uses** (Twilio allows one WABA per account; picking another gives errors 63102 / 63111).
 3. Verify by SMS or voice code. **Display name: `SortMyCover`** (Meta checks it against the business; sortmycover.co.za should show the name).
-4. On the sender, set **Webhook URL for incoming messages** = `https://<API_HOST>/webhook/whatsapp-twilio` (POST) and the **status callback URL** to the same URL. (Every send also sets `StatusCallback` to it.)
+4. On the sender, set **Webhook URL for incoming messages** = `<N8N_PUBLIC_URL>/webhook/whatsapp-twilio` (POST) and the **status callback URL** to the same URL. (Every send also sets `StatusCallback` to it.)
 5. Set the env and the brand row:
    ```
    TWILIO_WHATSAPP_FROM=+27…            # the new sender
@@ -26,7 +28,7 @@ How it works now: every WhatsApp message any workflow sends goes through one sub
 ## 3. Meta: create and publish the Flows on that WABA (WhatsApp Manager)
 Flows are created in Meta, then referenced by Twilio. W28 stays the endpoint.
 1. WhatsApp Manager > Flows > Create: paste `automation/flows/booking-flow.json`; a second Flow from `automation/flows/reschedule-flow.json`.
-2. Endpoint URI: `https://<API_HOST>/webhook/flow` (W28). Upload the endpoint public key for **the new number** (`POST /{phone-number-id}/whatsapp_business_encryption`, form field `business_public_key`; the matching private key is W28's `FLOW_PRIVATE_KEY`). Re-upload whenever the number is re-registered.
+2. Endpoint URI: `<N8N_PUBLIC_URL>/webhook/flow` (W28). Upload the endpoint public key for **the new number** (`POST /{phone-number-id}/whatsapp_business_encryption`, form field `business_public_key`; the matching private key is W28's `FLOW_PRIVATE_KEY`). Re-upload whenever the number is re-registered.
 3. Run Meta's endpoint health check, then **Publish**. Put the ids in the env: `BOOKING_FLOW_ID=…`, `RESCHEDULE_FLOW_ID=…`.
 4. Keep `brands.booking_ui = 'list'` until the Flow templates in step 5 are approved; then set it to `'flow'`.
 
@@ -51,7 +53,7 @@ WHATSAPP_PROVIDER=twilio
 TWILIO_ACCOUNT_SID=AC…               # the CRM's account (already in the CRM edge functions)
 TWILIO_API_KEY_SID=SK…  TWILIO_API_KEY_SECRET=…   # outbound + media download (or leave empty: AccountSid + Auth Token are used)
 TWILIO_AUTH_TOKEN=…                  # REQUIRED: X-Twilio-Signature is signed with the primary Auth Token, never an API key secret
-WEBHOOK_URL=https://<API_HOST>       # the signature covers this exact URL + /webhook/whatsapp-twilio
+WEBHOOK_URL=<N8N_PUBLIC_URL>/       # set by local-tick.ps1 on the laptop; the signature covers this URL + webhook/whatsapp-twilio
 DRY_RUN_SENDS=true                   # first: nothing leaves, rows get dry: ids
 WHATSAPP_TEST_RECIPIENTS=+27…        # then: only your own phone
 ```
