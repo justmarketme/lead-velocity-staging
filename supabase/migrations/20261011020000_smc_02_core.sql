@@ -84,6 +84,7 @@ ALTER TABLE public.brokers
   ADD COLUMN IF NOT EXISTS consent_mode           text NOT NULL DEFAULT 'named',
   ADD COLUMN IF NOT EXISTS routing_on             boolean NOT NULL DEFAULT false,   -- admin switch: route SortMyCover leads to this broker
   ADD COLUMN IF NOT EXISTS accepts_low_budget     boolean NOT NULL DEFAULT false,   -- admin switch: standing yes to tier-C leads (budget under R750)
+  ADD COLUMN IF NOT EXISTS handles_wills          boolean NOT NULL DEFAULT false,   -- admin switch: this practice takes wills / estate leads (e.g. Capital Legacy)
   ADD COLUMN IF NOT EXISTS calendar_provider      text NOT NULL DEFAULT 'outlook',
   ADD COLUMN IF NOT EXISTS ms_tenant_id           text,
   ADD COLUMN IF NOT EXISTS calendar_token_ref     text,          -- Vault secret NAME only (file 06)
@@ -126,6 +127,7 @@ ALTER TABLE public.brokers ADD COLUMN IF NOT EXISTS adviser_whatsapp text GENERA
 ALTER TABLE public.brokers ADD COLUMN IF NOT EXISTS active           boolean GENERATED ALWAYS AS (status = 'active') STORED;
 COMMENT ON COLUMN public.brokers.active IS 'SMC alias: status = ''active'' (lower case, SortMyCover lifecycle). Legacy ''Active'' rows are never routed (brand_id NULL).';
 COMMENT ON COLUMN public.brokers.routing_on IS 'SMC: admin switch. A broker gets SortMyCover leads only when routing_on AND status active AND he has an open paid SortMyCover lead_orders row (file 03).';
+COMMENT ON COLUMN public.brokers.handles_wills IS 'SMC (Jonathan, 2026-10-11): this practice handles wills and estate leads (theme B pages, leads.product_interest = wills). A wills lead is routed ONLY to such a broker (file 03; none with room -> routing_reason held_no_wills_broker). Set by Lead Velocity only (file 05 guard).';
 COMMENT ON COLUMN public.brokers.accepts_low_budget IS 'SMC (Jonathan, 2026-10-11): standing yes to tier-C leads (budget_band lt750, agreement 5.7 offer auto-accepted). Off: a tier-C lead is never routed to him (file 03 holds it, routing_reason held_low_budget) unless an admin assigns it (routing_reason manual_low_budget). Set by Lead Velocity only (file 05 guard).';
 
 DO $$
@@ -258,6 +260,7 @@ ALTER TABLE public.leads
   ADD COLUMN IF NOT EXISTS last_name                  text,
   ADD COLUMN IF NOT EXISTS reasons                    text[],
   ADD COLUMN IF NOT EXISTS spend_band                 text,
+  ADD COLUMN IF NOT EXISTS product_interest           text,          -- NULL / life_cover = the life-cover pages; wills = the wills and estate pages (theme B)
   ADD COLUMN IF NOT EXISTS lead_tier                  text,          -- A = R1,500+ (auto-deliver) / B = R750-R1,499 (offer first) / C = under R750 (offer, standing yes only)
   ADD COLUMN IF NOT EXISTS income_band                text,          -- never sent to Meta
   ADD COLUMN IF NOT EXISTS smoker                     text,          -- never sent to Meta
@@ -315,6 +318,7 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'leads_capture_v2_checks' AND conrelid = 'public.leads'::regclass) THEN
     ALTER TABLE public.leads ADD CONSTRAINT leads_capture_v2_checks CHECK (
           (lead_tier IS NULL    OR lead_tier IN ('A','B','C'))
+      AND (product_interest IS NULL OR product_interest IN ('life_cover','wills'))
       AND (spend_band IS NULL   OR spend_band IN ('lt500','500_1000','1000_1500','1500_2500','2500plus','prefer_not'))
       AND (income_band IS NULL  OR income_band IN ('lt20k','20k_40k','40k_60k','60k_100k','100kplus','prefer_not'))
       AND (smoker IS NULL       OR smoker IN ('yes','no','prefer_not'))

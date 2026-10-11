@@ -111,6 +111,7 @@ ALTER TABLE "public"."brokers" DROP COLUMN IF EXISTS "calendar_status" CASCADE; 
 ALTER TABLE "public"."brokers" DROP COLUMN IF EXISTS "calendar_token_ref" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."brokers" DROP COLUMN IF EXISTS "consent_mode" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."brokers" DROP COLUMN IF EXISTS "fsp_number" CASCADE;  -- data in this column is lost
+ALTER TABLE "public"."brokers" DROP COLUMN IF EXISTS "handles_wills" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."brokers" DROP COLUMN IF EXISTS "headshot_url" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."brokers" DROP COLUMN IF EXISTS "horizon_days" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."brokers" DROP COLUMN IF EXISTS "intro_card_url" CASCADE;  -- data in this column is lost
@@ -227,6 +228,7 @@ ALTER TABLE "public"."leads" DROP COLUMN IF EXISTS "offered_at" CASCADE;  -- dat
 ALTER TABLE "public"."leads" DROP COLUMN IF EXISTS "opted_out_at" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."leads" DROP COLUMN IF EXISTS "origin" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."leads" DROP COLUMN IF EXISTS "page_url" CASCADE;  -- data in this column is lost
+ALTER TABLE "public"."leads" DROP COLUMN IF EXISTS "product_interest" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."leads" DROP COLUMN IF EXISTS "qualified_at" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."leads" DROP COLUMN IF EXISTS "reasons" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."leads" DROP COLUMN IF EXISTS "ref" CASCADE;  -- data in this column is lost

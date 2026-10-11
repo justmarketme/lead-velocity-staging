@@ -115,7 +115,7 @@ SELECT br.id AS brand_uuid,
        COALESCE((SELECT jsonb_agg(jsonb_build_object(
                   'id', b.id, 'broker_id', b.id, 'brand_id', b.brand_id, 'status', b.status, 'routing_on', b.routing_on, 'active', b.active,
                   'bookings_paused', b.bookings_paused, 'practice_name', b.firm_name, 'fsp_number', b.fsp_number, 'consent_mode', b.consent_mode,
-                  'methods_supported', b.methods_supported, 'accepts_low_budget', b.accepts_low_budget,
+                  'methods_supported', b.methods_supported, 'accepts_low_budget', b.accepts_low_budget, 'handles_wills', b.handles_wills,
                   -- capacity = the broker's open paid SortMyCover lead_orders (lead_count + approved replacements - attached)
                   'order_capacity', COALESCE(oc.capacity, 0), 'order_attached', COALESCE(oc.attached, 0), 'order_remaining', COALESCE(oc.remaining, 0)))
                    FROM public.brokers b
@@ -183,14 +183,14 @@ RETURNING id;`,
 `WITH r AS (SELECT $1::jsonb AS j),
 ins AS (
   INSERT INTO public.leads (id, brand_id, origin, source, is_synthetic, created_at, first_name, phone, line_type, language,
-                            age_band, budget_band, bond, dependants, work_cover, method_pref, angle, email, email_purpose, email_status,
+                            age_band, budget_band, bond, dependants, work_cover, method_pref, angle, product_interest, email, email_purpose, email_status,
                             consent_text, consent_text_version, consent_mode, consent_at, consent_page_url, consent_source, consent_ads_at,
                             lead_event_id, fbclid, fbp, fbc, ad_id, adset_id, campaign_id, leadgen_id,
                             utm_source, utm_medium, utm_campaign, utm_content, utm_term, page_url, client_ip, client_user_agent,
                             broker_id, routed_at, routing_reason, stage, disqualified_reason, retention_delete_after, opted_out_at, conv_state)
   SELECT (j->>'id')::uuid, (j->>'brand_id')::uuid, j->>'origin', j->>'source', COALESCE((j->>'is_synthetic')::boolean, false), (j->>'created_at')::timestamptz,
          j->>'first_name', j->>'phone', j->>'line_type', j->>'language',
-         j->>'age_band', j->>'budget_band', (j->>'bond')::boolean, (j->>'dependants')::boolean, (j->>'work_cover')::boolean, j->>'method_pref', j->>'angle',
+         j->>'age_band', j->>'budget_band', (j->>'bond')::boolean, (j->>'dependants')::boolean, (j->>'work_cover')::boolean, j->>'method_pref', j->>'angle', j->>'product_interest',
          j->>'email', j->>'email_purpose', j->>'email_status',
          j->>'consent_text', j->>'consent_text_version', j->>'consent_mode', (j->>'consent_at')::timestamptz, j->>'consent_page_url', j->>'consent_source', (j->>'consent_ads_at')::timestamptz,
          j->>'lead_event_id', j->>'fbclid', j->>'fbp', j->>'fbc', j->>'ad_id', j->>'adset_id', j->>'campaign_id', j->>'leadgen_id',
@@ -268,14 +268,14 @@ return out;`));
 `SELECT to_jsonb(q) AS lead,
        COALESCE((SELECT jsonb_agg(jsonb_build_object('id', b.id, 'broker_id', b.id, 'brand_id', b.brand_id, 'status', b.status, 'routing_on', b.routing_on,
                   'active', b.active, 'bookings_paused', b.bookings_paused, 'practice_name', b.firm_name, 'fsp_number', b.fsp_number,
-                  'consent_mode', b.consent_mode, 'accepts_low_budget', b.accepts_low_budget,
+                  'consent_mode', b.consent_mode, 'accepts_low_budget', b.accepts_low_budget, 'handles_wills', b.handles_wills,
                   'order_capacity', COALESCE(oc.capacity, 0), 'order_attached', COALESCE(oc.attached, 0), 'order_remaining', COALESCE(oc.remaining, 0)))
                    FROM public.brokers b
                    LEFT JOIN LATERAL (SELECT sum(c.capacity)::int AS capacity, sum(c.attached)::int AS attached, sum(c.remaining)::int AS remaining
                                         FROM public.smc_order_capacity c WHERE c.broker_id = b.id AND c.brand_id = q.brand_id AND c.open) oc ON true
                   WHERE b.brand_id = q.brand_id), '[]'::jsonb) AS brokers
   FROM (SELECT l.id, l.brand_id, l.origin, l.broker_id, l.routed_at, l.opted_out_at, l.disqualified_reason, l.consent_text, l.consent_mode,
-               l.routing_reason, l.consent_ads_at, l.lead_event_id, l.created_at, l.budget_band, l.phone, l.first_name,
+               l.routing_reason, l.consent_ads_at, l.lead_event_id, l.created_at, l.budget_band, l.phone, l.first_name, l.product_interest,
                EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone) AND (s.brand_id IS NULL OR s.brand_id = l.brand_id)) AS suppressed
           FROM public.leads l WHERE l.id = $1::uuid) q;`,
     '={{ [$json.lead_id] }}'));

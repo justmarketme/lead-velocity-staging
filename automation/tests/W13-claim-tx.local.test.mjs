@@ -55,10 +55,12 @@ test('W13 claim SQL + routing triggers concurrently on the live-schema mirror: w
        VALUES ('${id}', '+27600007${String(n).padStart(3, '0')}', 'Synthetic', 'Search Lead', '${brand}', ${routed ? `'${broker}'` : 'NULL'}, now(), 'consent', 'ctwa', now(), 'synthetic${n}@example.test', true, now(), 'link')`);
     return id;
   };
-  // Delivered = booked + attendance confirmed (agreement 5.2): a confirmed appointment counts the lead on the order.
+  // Delivered = email verified + the BROKER marked the meeting attended (agreement 5.2 / 14.3(c), 2026-10-11): the portal's
+  // one-tap Attended (outcomes.outcome attended, not auto-marked) counts the lead on the order. The client's Confirm tap never does.
   let slot = 0;
-  const deliver = (lead, b = broker) => { slot += 1; q(`INSERT INTO public.appointments (broker_id, client_id, appointment_date, ends_at, status, brand_id, method, confirmed_at)
-       VALUES ('${b}', '${lead}', '2026-09-01T06:00:00Z'::timestamptz + interval '${slot} hours', '2026-09-01T06:30:00Z'::timestamptz + interval '${slot} hours', 'confirmed', '${brand}', 'teams', now())`); };
+  const deliver = (lead, b = broker) => { slot += 1; q(`WITH a AS (INSERT INTO public.appointments (broker_id, client_id, appointment_date, ends_at, status, brand_id, method, confirmed_at)
+       VALUES ('${b}', '${lead}', '2026-09-01T06:00:00Z'::timestamptz + interval '${slot} hours', '2026-09-01T06:30:00Z'::timestamptz + interval '${slot} hours', 'confirmed', '${brand}', 'teams', now()) RETURNING id, client_id, broker_id, brand_id)
+       INSERT INTO public.outcomes (booking_id, lead_id, broker_id, brand_id, outcome, marked_via) SELECT id, client_id, broker_id, brand_id, 'attended', 'portal' FROM a`); };
   const monday = '2026-10-12T10:00:00+02:00'; // a Monday in SAST
   const claimAsync = (lead, extra = {}) => pg.query(fill(node.parameters.query,
     [lead, null, null, order, broker, brand, extra.reason || 'no_show', extra.code || 'no_show', extra.at || new Date().toISOString(), extra.missed || monday]));
@@ -74,7 +76,7 @@ test('W13 claim SQL + routing triggers concurrently on the live-schema mirror: w
   assert.equal(q(`SELECT count(*) FROM public.lead_order_items WHERE order_id = '${order}'`)[0][0], '0', 'routing reserves, it does not count');
   assert.equal(q(`SELECT count(*) FROM public.leads WHERE lead_order_id = '${order}' AND order_state = 'attached'`)[0][0], '8', 'routing reserved a place for every lead');
   for (const l of leads) deliver(l);
-  assert.equal(q(`SELECT count(*) FROM public.lead_order_items WHERE order_id = '${order}'`)[0][0], '8', 'confirmed attendance counted every lead on the order');
+  assert.equal(q(`SELECT count(*) FROM public.lead_order_items WHERE order_id = '${order}'`)[0][0], '8', 'the broker\'s attended mark counted every (verified) lead on the order');
   const res = await Promise.all(leads.map((l) => claimAsync(l)));
   for (const r of res) assert.equal(r.err, null, r.stderr);
   const tally = Object.fromEntries(q(`SELECT status, count(*) FROM public.replacements WHERE broker_id = '${broker}' GROUP BY 1`));
@@ -116,14 +118,18 @@ test('W13 claim SQL + routing triggers concurrently on the live-schema mirror: w
   assert.equal(q("SELECT count(*) FROM public.leads WHERE phone LIKE '+27600006%' AND broker_id IS NULL AND routing_reason = 'held_no_open_order'")[0][0], '7', 'the rest are held, stored, not handed over');
   assert.deepEqual(q(`SELECT open, remaining FROM public.smc_order_capacity WHERE lead_order_id = '${order2}'`)[0], ['f', '0']);
   const routed = q(`SELECT id FROM public.leads WHERE broker_id = '${broker2}' ORDER BY id`).flat();
-  const conf = await Promise.all(routed.map((l, i) => pg.query(`INSERT INTO public.appointments (broker_id, client_id, appointment_date, ends_at, status, brand_id, method, confirmed_at)
-     VALUES ('${broker2}', '${l}', '2026-09-05T06:00:00Z'::timestamptz + interval '${i * 2} hours', '2026-09-05T06:30:00Z'::timestamptz + interval '${i * 2} hours', 'confirmed', '${brand}', 'teams', now()) RETURNING id`)));
+  routed.forEach((l, i) => q(`INSERT INTO public.appointments (broker_id, client_id, appointment_date, ends_at, status, brand_id, method, confirmed_at)
+     VALUES ('${broker2}', '${l}', '2026-09-05T06:00:00Z'::timestamptz + interval '${i * 2} hours', '2026-09-05T06:30:00Z'::timestamptz + interval '${i * 2} hours', 'confirmed', '${brand}', 'teams', now())`));
+  // the client's Confirm tap alone counts nothing; the broker's 3 Attended marks arrive at once
+  assert.equal(q(`SELECT count(*) FROM public.lead_order_items WHERE order_id = '${order2}'`)[0][0], '0', 'the client Confirm tap is a reminder signal only');
+  const conf = await Promise.all(routed.map((l) => pg.query(`INSERT INTO public.outcomes (booking_id, lead_id, broker_id, brand_id, outcome, marked_via)
+     SELECT a.id, a.client_id, a.broker_id, a.brand_id, 'attended', 'whatsapp' FROM public.appointments a WHERE a.client_id = '${l}' RETURNING id`)));
   for (const r of conf) assert.equal(r.err, null, r.stderr);
   // 2026-10-11: attendance confirmed but the emails are not verified yet -> nothing counted; the 3 verifications arrive at once
-  assert.equal(q(`SELECT count(*) FROM public.lead_order_items WHERE order_id = '${order2}'`)[0][0], '0', 'confirmed attendance alone counts nothing (email not verified)');
+  assert.equal(q(`SELECT count(*) FROM public.lead_order_items WHERE order_id = '${order2}'`)[0][0], '0', 'broker attended alone counts nothing (email not verified)');
   const ver = await Promise.all(routed.map((l) => pg.query(`UPDATE public.leads SET email = 'cap-' || left(id::text, 8) || '@example.test', email_verified = true, email_verified_at = now(), email_verified_via = 'code' WHERE id = '${l}' RETURNING id`)));
   for (const r of ver) assert.equal(r.err, null, r.stderr);
-  assert.equal(q(`SELECT count(*) FROM public.lead_order_items WHERE order_id = '${order2}'`)[0][0], '3', 'the 3 confirmed + verified leads are counted, never more');
+  assert.equal(q(`SELECT count(*) FROM public.lead_order_items WHERE order_id = '${order2}'`)[0][0], '3', 'the 3 attended + verified leads are counted, never more');
   assert.deepEqual(q(`SELECT counted, reserved, counted_toward_order FROM public.smc_order_capacity WHERE lead_order_id = '${order2}'`)[0], ['3', '0', '3']);
 
   // ---- (5) FAIS disclosure: no broker without an FSP number gets routing on, and no lead is ever introduced to one

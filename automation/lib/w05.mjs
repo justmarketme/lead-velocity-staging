@@ -327,7 +327,9 @@ export function decide(ctx = {}) {
   const held = ctx.live && ctx.live.status === HELD && !fin && String(ctx.live.id) !== String(req.finalize_booking_id || '') ? ctx.live : null;
   if (held) {
     if (http) return out(409, { error_code: 'held_awaiting_email', booking: { start: iso(ms(held.appointment_date ?? held.start)), method: held.method, verify_by: held.verify_by ? iso(ms(held.verify_by)) : null } });
-    return { action: 'message', kind: 'held_awaiting_email', wa: heldReminderMessage(lead, held) };
+    // chat / list / Flow pick of another time: MOVE the held slot (W10; it stays held, same deadline rule)
+    if (ms(held.appointment_date ?? held.start) === ms(req.slot_start)) return { action: 'replay', booking: held };
+    return { action: 'to_w10', w10: { source: 'W05', lead_id: lead.id, booking_id: held.id, msg: { list_id: `slot_${iso(ms(req.slot_start))}:resched:${held.id}`, wamid: req.idempotency_key }, idempotency_key: req.idempotency_key } };
   }
   const live = ctx.live && LIVE.has(ctx.live.status) && ctx.live.id !== req.previous_booking_id ? ctx.live : null;
   if (live) {

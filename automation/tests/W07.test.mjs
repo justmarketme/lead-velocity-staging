@@ -529,7 +529,8 @@ test('I-51c: Route outputs keep their targets (W28 removed, nothing else rewired
   const { W28, ...expected } = before;
   assert.deepEqual(W28, ['-> W28']);
   // 2026-10-11: one rule added at the end (before the fallback): the typed email verification code -> smc-email-verify
-  assert.deepEqual(now, { ...expected, email_code: ['Email code -> verify item'] });
+  // 2026-10-11 (verify gate): a typed email address -> save + smc-email-verify issue + one reply
+  assert.deepEqual(now, { ...expected, email_code: ['Email code -> verify item'], email_reply: ['Email reply plan (w07.emailReplyPlan + MX)'] });
   assert.ok(!WF.nodes.some((n) => n.name === '-> W28'));
   route.parameters.rules.values.forEach((v, i) => assert.equal(v.conditions.conditions[0].id, 's' + i));
 });
@@ -595,4 +596,36 @@ test('G10: broker WhatsApp "wrong lead / not mine" -> same detector, same incide
   assert.equal(alerts.length, 1, 'a re-delivered message opens nothing new and alerts nothing');
   assert.deepEqual([alerts[0].json.kind, alerts[0].json.severity, alerts[0].json.to, alerts[0].json.workflow], ['popia_breach', 'red', ['jonathan', 'kg'], 'W07']);
   assert.match(alerts[0].json.message, /by a broker on WhatsApp/);
+});
+
+test('verify gate: a typed email (lead not verified) is checked, saved unverified, smc-email-verify issued, ONE reply; never sent to the LLM', async () => {
+  const W = await import('../lib/w07.mjs');
+  const lead = { id: '00000000-0000-4000-8000-0000000a0e01', email: null, email_verified: false, conv_state: { state: 'unbooked' } };
+  const msg = (text) => ({ text, payload: null, list_id: null, from: '+27600000301', wamid: 'SMemail1' });
+  for (const t of ['lerato@gmail.com', 'My email is Lerato.M@gmail.com.', 'email: lerato@outlook.com']) assert.equal(W.routeInbound(msg(t), { lead }).route, 'email_reply', t);
+  assert.equal(W.routeInbound(msg('can you send it to lerato@gmail.com please, and when is the call?'), { lead }).route, 'nlu', 'a sentence stays with the agent');
+  assert.notEqual(W.routeInbound(msg('lerato@gmail.com'), { lead: { ...lead, email_verified: true } }).route, 'email_reply', 'a verified lead is not re-asked');
+  assert.equal(W.routeInbound(msg('STOP'), { lead }).route, 'W15');
+  const ok = W.emailReplyPlan(lead, 'My email is Lerato.M@gmail.com.');
+  assert.deepEqual([ok.action, ok.email, ok.changed, ok.issue], ['save', 'lerato.m@gmail.com', true, { op: 'issue', lead_id: lead.id }]);
+  assert.match(ok.reply, /emailed a link and a 6-digit code to lerato\.m@gmail\.com/);
+  const typo = W.emailReplyPlan(lead, 'lerato@gmial.com');
+  assert.deepEqual([typo.action, typo.reason, typo.suggestion], ['reply', 'typo', 'lerato@gmail.com']);
+  assert.equal(W.emailReplyPlan(lead, 'x@mailinator.com').action, 'reply', 'disposable refused');
+  // the workflow: Route -> plan -> (save -> issue) + reply via smc-whatsapp-send; communications stores '[email address]'
+  const to = (n) => (WF.connections[n]?.main || []).map((o) => o.map((c) => c.node));
+  assert.deepEqual(to('Email reply plan (w07.emailReplyPlan + MX)')[0].sort(), ['SUB input (email reply)', 'Save the typed email?']);
+  assert.deepEqual(to('Save the typed email?')[0], ['Save typed email (unverified) + timeline']);
+  assert.deepEqual(to('Email verify issue item (typed email)')[0], ['-> email verify (issue, typed email)']);
+  assert.equal(WF.nodes.find((n) => n.name === '-> email verify (issue, typed email)').parameters.workflowId.value, 'smc-email-verify');
+  assert.equal(WF.nodes.find((n) => n.name === 'WhatsApp reply (email)').parameters.workflowId.value, 'smc-whatsapp-send');
+  const save = WF.nodes.find((n) => n.name === 'Save typed email (unverified) + timeline').parameters.query;
+  assert.match(save, /email_verified = CASE WHEN lower\(coalesce\(l\.email, ''\)\) <> lower\(\$2\) THEN false/);
+  assert.match(save, /l\.email_verified IS NOT TRUE/, 'never overwrites a verified email');
+  assert.match(WF.nodes.find((n) => n.name === 'Route (deterministic) + prefilter').parameters.jsCode, /email_reply' \? '\[email address\]'/);
+  assert.match(WF.nodes.find((n) => n.name === 'Load context (lead, broker, live booking, window)').parameters.query, /l\.email_verified,/);
+  const plan = await runCode(WF, 'Email reply plan (w07.emailReplyPlan + MX)', { json: { lead, brand_id: 'b', msg: msg('lerato@gmail.com') } });
+  assert.equal(plan.json.action, 'save'); assert.equal(plan.json.to, '+27600000301');
+  const sub = await runCode(WF, 'SUB input (email reply)', { json: plan.json });
+  assert.equal(sub.json.kind, 'prebuilt'); assert.equal(sub.json.wa.to, '27600000301'); assert.equal(sub.json.correlation, 'w07:reply:SMemail1');
 });

@@ -95,6 +95,11 @@ export const KNOWN_BUDGET = new Set([...QUAL_BUDGET, LOW_BUDGET]);
 /** budget band (DB code) -> lead tier: A = R1,500+, B = R750-R1,499, C = under R750, null = unknown / not given. */
 export const tierOf = (band) => (band === '1500_plus' ? 'A' : QUAL_BUDGET.has(band) ? 'B' : band === LOW_BUDGET ? 'C' : null);
 export const LOW_BUDGET_HOLD_DAYS = 7;
+// WILLS (Jonathan, 2026-10-11): the four wills / estate angles of the SortMyCover site (theme B, provider Capital Legacy).
+// Their leads carry leads.product_interest = 'wills' and are routed ONLY to brokers with brokers.handles_wills (none with room
+// -> routing_reason held_no_wills_broker). Same nurture, booking, verification and counting rules otherwise.
+export const WILLS_ANGLES = new Set(['children-guardian', 'will-myth', 'will-and-cover', 'where-is-the-will']);
+export const productOf = (angle) => (WILLS_ANGLES.has(String(angle || '').toLowerCase()) ? 'wills' : 'life_cover');
 export const LOW_BUDGET_HELD_TEMPLATE = 'lead_low_budget_held';
 export const LOW_BUDGET_CLOSED_TEMPLATE = 'lead_low_budget_closed';
 // conv_state.state values while the lead is still answering (W03 owns them): the hand-off waits until the answers are in.
@@ -306,13 +311,15 @@ const hasOpenOrder = (b) => Number(b.order_remaining) > 0;
 const isRoutable = (b, brandId) => b && (brandId == null || b.brand_id === brandId) && b.status === 'active' && b.routing_on !== false && b.active !== false && !b.bookings_paused && hasOpenOrder(b);
 /** Tier C goes only to a broker with the standing yes (brokers.accepts_low_budget); tiers A/B to any routable broker. */
 export const takesTier = (b, tier) => tier !== 'C' || b.accepts_low_budget === true;
+/** A wills lead goes only to a broker that handles wills (brokers.handles_wills). */
+export const takesProduct = (b, product) => product !== 'wills' || b.handles_wills === true;
 /**
  * pickBroker(brokers, brand_id, tier?) -> broker or null. One broker today ("single_broker"); with more, the broker furthest
  * from filling his open lead orders gets the lead (ratio = order_attached / order_capacity), ties by id. Tier C: only
  * brokers with accepts_low_budget (the same fairness rule among them).
  */
-export function pickBroker(brokers = [], brandId = null, tier = null) {
-  const ok = brokers.filter((b) => isRoutable(b, brandId) && takesTier(b, tier));
+export function pickBroker(brokers = [], brandId = null, tier = null, product = null) {
+  const ok = brokers.filter((b) => isRoutable(b, brandId) && takesTier(b, tier) && takesProduct(b, product));
   if (!ok.length) return null;
   const ratio = (b) => (Number(b.order_attached) || 0) / Math.max(1, Number(b.order_capacity) || 1);
   const best = [...ok].sort((a, b) => ratio(a) - ratio(b) || String(a.broker_id ?? a.id).localeCompare(String(b.broker_id ?? b.id)))[0];
@@ -336,9 +343,9 @@ export function namesPractice(consentText, b) {
  * Named consent (0.1 default while there is one broker): the practice named in the consent text must be the broker
  * we route to, otherwise the lead is HELD (stored, not handed over, not messaged) and ops sees it in the console.
  */
-export function routingFor(consentText, consentMode, brokers, brandId, tier = null) {
-  const b = pickBroker(brokers, brandId, tier);
-  if (!b) return { held: tier === 'C' ? 'held_low_budget' : 'held_no_capacity' };
+export function routingFor(consentText, consentMode, brokers, brandId, tier = null, product = null) {
+  const b = pickBroker(brokers, brandId, tier, product);
+  if (!b) return { held: product === 'wills' ? 'held_no_wills_broker' : tier === 'C' ? 'held_low_budget' : 'held_no_capacity' };
   if (consentMode === 'named' && !namesPractice(consentText, b)) return { held: 'held_consent_names_other_practice' };
   return { broker: b };
 }
@@ -379,7 +386,7 @@ export function decide(sub, ctx) {
     id: ctx.lead_id, brand_id: brandId, origin: sub.channel, source: 'LV Campaign', is_synthetic: !!sub.is_synthetic, created_at: at,
     first_name: sub.first_name, phone: ctx.mobile, line_type: lt, language: sub.language ?? null,
     age_band: q.age_band ?? null, budget_band: q.budget_band ?? null, bond: q.bond ?? null, dependants: q.dependants ?? null, work_cover: q.work_cover ?? null,
-    method_pref: method, angle: sub.angle ?? null,
+    method_pref: method, angle: sub.angle ?? null, product_interest: productOf(sub.angle),
     // 0.1 Email: kept only when the chosen method needs an invite, purpose meeting_invite only (never marketing, never Meta)
     email: method && EMAIL_METHODS.has(method) && sub.email ? sub.email : null,
     email_purpose: method && EMAIL_METHODS.has(method) && sub.email ? 'meeting_invite' : null,
@@ -431,7 +438,7 @@ export function decide(sub, ctx) {
       response: { http_status: 200, body: { ok: true, status: 'accepted', lead_id: row.id } } };
   }
 
-  const r = routingFor(row.consent_text, consentMode, ctx.brokers || [], brandId, tier);
+  const r = routingFor(row.consent_text, consentMode, ctx.brokers || [], brandId, tier, row.product_interest);
   if (r.held) {
     row.routing_reason = r.held;
     activities.push({ activity_type: 'routing_held', actor_type: 'system', occurred_at: at, idempotency_key: `w01:held:${ctx.lead_id}`, payload: { reason: r.held, lead_tier: tier } });
@@ -516,7 +523,7 @@ export function routeExisting(lead, { brokers = [], now = Date.now(), consent_mo
   if (!lead || lead.opted_out_at || lead.disqualified_reason) return { action: 'skip', reason: !lead ? 'no_lead' : lead.opted_out_at ? 'opted_out' : 'out_of_band' };
   if (lead.broker_id && lead.routed_at) return { action: 'already_routed', first_touch: null };
   if (lead.suppressed) return { action: 'skip', reason: 'suppressed' };
-  const r = routingFor(lead.consent_text, lead.consent_mode || consent_mode, brokers, lead.brand_id, tierOf(lead.budget_band));
+  const r = routingFor(lead.consent_text, lead.consent_mode || consent_mode, brokers, lead.brand_id, tierOf(lead.budget_band), lead.product_interest || null);
   if (r.held) return { action: 'held', update: { routing_reason: r.held }, notice: r.held === 'held_low_budget' ? lowBudgetHeld(lead) : null };
   const b = r.broker;
   const update = { broker_id: brokerIdOf(b), routed_at: at, routing_reason: b._reason };

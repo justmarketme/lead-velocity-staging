@@ -294,3 +294,36 @@ test('I-45e: every W04 sub-call (list, is_free, graph_token) waits for its answe
   assert.equal(w04.length, 4);
   for (const n of w04) assert.equal(n.parameters.options.waitForSubWorkflow, true, n.name);
 });
+
+// ============================================================================================
+// Verify gate (2026-10-11): a HELD slot (pending_verification) can be moved; it stays held with the same deadline rule
+// ============================================================================================
+test('W10 held slot: move in place, stays held, verify_by = min(booked_at + 24 h, new start - 2 h); no Graph, no broker notice, no reminders', async () => {
+  const now = Date.parse('2026-10-13T09:00:00+02:00');
+  const held = { id: 'bk_h', status: 'pending_verification', appointment_date: '2026-10-15T10:00:00+02:00', ends_at: '2026-10-15T10:30:00+02:00', booked_at: '2026-10-13T08:00:00+02:00', verify_by: '2026-10-14T08:00:00+02:00', reschedule_count: 0, method: 'phone' };
+  const far = R.applyReschedule(held, { start: '2026-10-16T11:00:00+02:00', end: '2026-10-16T11:30:00+02:00' }, { now_ms: now, free: true, idempotency_key: 'k', seen_keys: new Set() });
+  assert.equal(far.action, 'move_held');
+  assert.equal(far.update.status, 'pending_verification');
+  assert.equal(far.update.verify_by, new Date(Date.parse('2026-10-14T08:00:00+02:00')).toISOString(), 'moving never buys more time');
+  assert.equal(far.graph, null); assert.equal(far.broker_notice, null); assert.equal(far.w09, null);
+  const near = R.applyReschedule(held, { start: '2026-10-13T14:00:00+02:00', end: '2026-10-13T14:30:00+02:00' }, { now_ms: now, free: true, idempotency_key: 'k', seen_keys: new Set() });
+  assert.equal(near.update.verify_by, new Date(Date.parse('2026-10-13T12:00:00+02:00')).toISOString(), 'start - 2 h when sooner');
+  const tooSoon = R.applyReschedule(held, { start: '2026-10-13T11:10:00+02:00', end: '2026-10-13T11:40:00+02:00' }, { now_ms: now, free: true, next_slots: [], idempotency_key: 'k', seen_keys: new Set() });
+  assert.deepEqual([tooSoon.action, tooSoon.reason], ['slot_taken', 'too_soon_to_verify']);
+  assert.equal(R.applyReschedule(held, { start: '2026-10-16T11:00:00+02:00', end: '2026-10-16T11:30:00+02:00' }, { now_ms: now, free: false, next_slots: [], idempotency_key: 'k', seen_keys: new Set() }).action, 'slot_taken');
+  // the workflow: Move result -> held move SQL (stays pending_verification, re-checks held slots too) -> lead-only reply
+  const nd = (n) => WF.nodes.find((x) => x.name === n);
+  const mr = nd('Move result');
+  const i = mr.parameters.rules.values.findIndex((v) => v.outputKey === 'move_held');
+  assert.deepEqual(WF.connections['Move result'].main[i].map((c) => c.node), ['Move held slot (stays held, deadline kept)']);
+  const q = nd('Move held slot (stays held, deadline kept)').parameters.query;
+  assert.match(q, /a\.status = 'pending_verification' AND a\.verify_by > now\(\)/);
+  assert.match(q, /x\.status IN \('pending_verification','booked','confirmed'\)/);
+  assert.ok(!/status = 'booked'/.test(q), 'never turns into a booking here');
+  assert.deepEqual(WF.connections['Held move reply (lead only)'].main[0].map((c) => c.node), ['Has WhatsApp payload + live?']);
+  assert.match(nd('Move booking in place (re-check overlap + buffer)').parameters.query, /x\.status IN \('pending_verification','booked','confirmed'\)/, 'a live move cannot land on a held slot');
+  assert.match(nd('Load booking, lead, broker, brand').parameters.query, /a\.booked_at, a\.verify_by/);
+  const { runCode } = await import('./_n8ncode.mjs');
+  const out = await runCode(WF, 'Held move reply (lead only)', { items: [{ lead_id: 'l1' }], refs: { 'Decide move (w10.applyReschedule)': { d: far, new_start: '2026-10-16T11:00:00+02:00', ld: { phone: '+27600000310' } } } });
+  assert.equal(out.length, 1); assert.equal(out[0].json.to, 'lead'); assert.match(out[0].json.wa.text.body, /holding .* confirm your email/);
+});

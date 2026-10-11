@@ -823,3 +823,22 @@ test('W01.json tier C wiring: held notice on both paths via the shared sender; t
   // the close is skipped only in quiet hours (wall clock); outside them it is planned
   if (types.length > 1) assert.equal(out[1].json.update.routing_reason, 'low_budget_no_taker');
 });
+
+// Wills (Jonathan, 2026-10-11): the four theme-B angles route only to brokers with handles_wills
+test('wills angles: product_interest wills, routed only to a handles_wills broker, else held_no_wills_broker; life angles unchanged', () => {
+  for (const a of ['children-guardian', 'will-myth', 'will-and-cover', 'where-is-the-will']) assert.equal(W01.productOf(a), 'wills', a);
+  assert.equal(W01.productOf('new-bond'), 'life_cover');
+  const willsSub = (angle) => ({ ...tcSub('1500_plus'), angle });
+  const life = tcBroker();
+  const wills = tcBroker({ id: '00000000-0000-4000-8000-0000000b0c09', broker_id: '00000000-0000-4000-8000-0000000b0c09', handles_wills: true });
+  const held = W01.decide(willsSub('will-myth'), tcCtx([life]));
+  assert.deepEqual([held.outcome, held.row.product_interest, held.row.routing_reason, held.row.broker_id], ['held', 'wills', 'held_no_wills_broker', null]);
+  const ok = W01.decide(willsSub('children-guardian'), tcCtx([life, wills]));
+  assert.equal(ok.row.broker_id, wills.broker_id, 'only the wills broker');
+  const lifeLead = W01.decide(willsSub('new-bond'), tcCtx([life]));
+  assert.deepEqual([lifeLead.row.product_interest, lifeLead.row.broker_id], ['life_cover', life.broker_id]);
+  const rt = W01.routeExisting({ id: 'x', brand_id: 'smc', product_interest: 'wills', consent_mode: 'generic', consent_text: 'x' }, { brokers: [life], now: TC_NOW });
+  assert.deepEqual([rt.action, rt.update.routing_reason], ['held', 'held_no_wills_broker']);
+  assert.match(WF.nodes.find((n) => n.name === N.context).parameters.query, /'handles_wills', b\.handles_wills/);
+  assert.match(WF.nodes.find((n) => n.name === 'Insert lead + timeline (one statement; broker_id written before W06 exists)').parameters.query, /product_interest/);
+});

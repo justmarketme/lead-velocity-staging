@@ -5,20 +5,20 @@
 -- Capacity rule (Jonathan, 2026-10-11): a broker is eligible for SortMyCover leads only while he has a lead_orders row for
 -- SortMyCover (lead_orders.brand_id = SMC) that is PAID and not yet full.
 -- WHEN A LEAD COUNTS (Jonathan, 2026-10-11; agreement LGSA v0.3 clause 5.1(e) / 5.2 and Schedule 2 criterion 6 / S2.4): a
--- lead is Delivered and counts toward the broker's order at the moment it has a booked appointment with him, has confirmed it
--- will attend (appointments.confirmed_at: the Confirm tap / reply, W09) AND its email is verified (leads.email_verified),
--- never at hand-over. Three states on
+-- lead is Delivered and counts toward the broker's order at the moment the BROKER has marked its meeting attended (outcomes,
+-- clause 14.3(c)) AND its email is verified (leads.email_verified), never at hand-over and never on the client's Confirm tap. Three states on
 -- the lead (leads.order_state), all enforced HERE in triggers so every path (W01, capture v2 tier-B accept, an admin) is
 -- the same:
 --   held     : routed with no room / broker not ready -> broker_id cleared, routing_reason held_*, nothing sent
+--              (wills = leads.product_interest wills: only to a broker with handles_wills; else held_no_wills_broker)
 --              (tier C = budget under R750: routed only to a broker with accepts_low_budget, or by an admin; else held_low_budget)
 --   attached : routed to the broker; one place on his oldest open order is RESERVED (leads.lead_order_id), not counted;
 --              the CRM pipeline does not show the lead yet (no lead_order_items row, no contact details unlocked)
---   counted  : booked + attendance confirmed -> one lead_order_items row (pipeline stage 'New'), the broker's existing order
+--   counted  : email verified + broker marked attended -> one lead_order_items row (pipeline stage 'New'), the broker's existing order
 --              pipeline (broker_get_pipeline / get_order_leads) and admin_list_orders_activity show it, contact details
 --              unlocked (S2.4: the lead data goes to the Client at Delivery)
 --   released : an attached lead that will not be delivered (opted out, disqualified, closed unbooked, re-routed, or its
---              meeting passed unconfirmed): the reservation goes back; a later booking + confirmation re-attaches if room
+--              meeting's outcome is not attended): the reservation goes back; a later attended + verified booking re-attaches if room
 --   capacity  = lead_orders.lead_count + approved goodwill replacements on that order
 --   in use    = counted (lead_order_items) + attached reservations
 --   open      = status 'paid' AND in use < capacity
@@ -57,7 +57,7 @@ BEGIN
   END IF;
 END $$;
 CREATE INDEX IF NOT EXISTS leads_smc_order_reserved_idx ON public.leads (lead_order_id) WHERE order_state = 'attached';
-COMMENT ON COLUMN public.leads.order_state IS 'SMC: attached (place reserved on lead_order_id) | counted (booked + attendance confirmed: Delivered, agreement 5.2; one lead_order_items row) | released. NULL = not routed / held / legacy.';
+COMMENT ON COLUMN public.leads.order_state IS 'SMC: attached (place reserved on lead_order_id) | counted (email verified + broker-marked attended: Delivered, agreement 5.2 / 14.3(c); one lead_order_items row) | released. NULL = not routed / held / legacy.';
 
 -- -----------------------------------------------------------------------------
 -- 2. outcomes: one per booking (attended / no-show / unreachable / rescheduled / broker no-show). W12 owns it.
@@ -236,7 +236,7 @@ COMMENT ON FUNCTION public.smc_open_order_for(uuid, uuid) IS
 -- held_low_budget, stage unchanged (not disqualified). An admin assignment that cannot go through (broker not ready, no room,
 -- named consent for another practice) is refused with an error, so the lead stays held. A routed lead that is not introduced
 -- yet (no first message) and not counted, whose budget moves under R750, is held the same way. The accept is recorded in
--- lead_offers by the AFTER trigger; the lead COUNTS only at booked + attendance confirmed (smc_count_on_confirm), exactly
+-- lead_offers by the AFTER trigger; the lead COUNTS only at email verified + broker-marked attended (smc_count_lead), exactly
 -- like tiers A and B.
 CREATE OR REPLACE FUNCTION public.smc_leads_route_check()
 RETURNS trigger
@@ -247,11 +247,24 @@ DECLARE
   v_why    text;
   v_low    boolean := NEW.budget_band IS NOT DISTINCT FROM 'lt750';
   v_manual boolean := NEW.budget_band IS NOT DISTINCT FROM 'lt750' AND NEW.routing_reason IS NOT DISTINCT FROM 'manual_low_budget';
+  v_wills  boolean := NEW.product_interest IS NOT DISTINCT FROM 'wills';
   v_b      record;
 BEGIN
   IF NEW.brand_id IS NULL THEN RETURN NEW; END IF;
   -- the tier tag follows the band for tier C on every path (A / B are tagged by capture v2)
   IF v_low THEN NEW.lead_tier := 'C'; ELSIF NEW.lead_tier = 'C' THEN NEW.lead_tier := NULL; END IF;
+  -- WILLS (Jonathan, 2026-10-11): a wills / estate lead goes ONLY to a broker with brokers.handles_wills. A routed lead that is
+  -- not introduced and not counted, whose interest becomes wills while its broker does not handle wills, is held.
+  IF TG_OP = 'UPDATE' AND v_wills AND OLD.product_interest IS DISTINCT FROM 'wills' AND NEW.broker_id IS NOT NULL
+     AND NEW.broker_id IS NOT DISTINCT FROM OLD.broker_id AND NEW.first_message_at IS NULL AND NEW.order_state IS DISTINCT FROM 'counted'
+     AND NOT EXISTS (SELECT 1 FROM public.brokers b WHERE b.id = NEW.broker_id AND b.handles_wills) THEN
+    IF NEW.order_state = 'attached' THEN
+      NEW.order_state := 'released'; NEW.order_released_at := now(); NEW.order_release_reason := 'wills';
+    END IF;
+    NEW.broker_id := NULL; NEW.routed_at := NULL; NEW.routing_reason := 'held_no_wills_broker';
+    IF NEW.delivered IS TRUE THEN NEW.delivered := false; END IF;
+    RETURN NEW;
+  END IF;
   -- tier C: the budget moved under R750 on a routed lead that is not counted. His broker has the standing yes: the offer is
   -- accepted (recorded by the AFTER trigger). He has not and the lead is not introduced yet (no first message): hold it (the
   -- reservation goes back) instead of handing it over. Already introduced: it stays with him (leads_smc_checks).
@@ -286,9 +299,11 @@ BEGIN
     OR (NEW.order_state IN ('attached','counted') AND EXISTS (SELECT 1 FROM public.lead_orders o WHERE o.id = NEW.lead_order_id AND o.broker_id = NEW.broker_id))) THEN
     RETURN NEW;   -- already reserved / delivered on one of this broker's orders
   END IF;
-  SELECT b.accepts_low_budget, b.firm_name, b.fsp_number INTO v_b FROM public.brokers b WHERE b.id = NEW.broker_id;
+  SELECT b.accepts_low_budget, b.handles_wills, b.firm_name, b.fsp_number INTO v_b FROM public.brokers b WHERE b.id = NEW.broker_id;
   IF NOT public.smc_broker_ready(NEW.broker_id) THEN
     v_why := 'held_broker_not_ready';
+  ELSIF v_wills AND v_b.handles_wills IS NOT TRUE THEN
+    v_why := 'held_no_wills_broker';
   ELSIF v_low AND NOT v_manual AND v_b.accepts_low_budget IS NOT TRUE THEN
     v_why := 'held_low_budget';
   ELSIF v_manual AND NEW.consent_mode IS NOT DISTINCT FROM 'named'
@@ -296,7 +311,7 @@ BEGIN
     v_why := 'held_consent_names_other_practice';
   ELSE
     v_order := public.smc_open_order_for(NEW.broker_id, NEW.brand_id);
-    IF v_order IS NULL THEN v_why := CASE WHEN v_low AND NOT v_manual THEN 'held_low_budget' ELSE 'held_no_open_order' END; END IF;
+    IF v_order IS NULL THEN v_why := CASE WHEN v_wills THEN 'held_no_wills_broker' WHEN v_low AND NOT v_manual THEN 'held_low_budget' ELSE 'held_no_open_order' END; END IF;
   END IF;
   IF v_order IS NOT NULL THEN
     NEW.lead_order_id := v_order; NEW.order_state := 'attached'; NEW.order_attached_at := now();
@@ -313,6 +328,7 @@ BEGIN
       CASE v_why WHEN 'held_broker_not_ready' THEN 'is not ready (FSP number, practice, adviser name and intro card are required)'
                  WHEN 'held_consent_names_other_practice' THEN 'is not the practice the lead consented to (named consent); the lead must consent again first'
                  WHEN 'held_low_budget' THEN 'does not take leads under R750 (brokers.accepts_low_budget is off)'
+                 WHEN 'held_no_wills_broker' THEN 'does not handle wills leads (brokers.handles_wills is off) or has no room'
                  ELSE 'has no open paid SortMyCover lead order' END
       USING ERRCODE = '23514';
   END IF;
@@ -374,11 +390,11 @@ END $$;
 
 DROP TRIGGER IF EXISTS smc_leads_route_check ON public.leads;
 CREATE TRIGGER smc_leads_route_check
-  BEFORE INSERT OR UPDATE OF broker_id, brand_id, budget_band ON public.leads
+  BEFORE INSERT OR UPDATE OF broker_id, brand_id, budget_band, product_interest ON public.leads
   FOR EACH ROW WHEN (NEW.brand_id IS NOT NULL) EXECUTE FUNCTION public.smc_leads_route_check();
 DROP TRIGGER IF EXISTS smc_leads_attach_order ON public.leads;
 CREATE TRIGGER smc_leads_attach_order
-  AFTER INSERT OR UPDATE OF broker_id, brand_id, budget_band ON public.leads
+  AFTER INSERT OR UPDATE OF broker_id, brand_id, budget_band, product_interest ON public.leads
   FOR EACH ROW WHEN (NEW.brand_id IS NOT NULL) EXECUTE FUNCTION public.smc_leads_attach_order();
 
 -- A reservation that will not become a delivery is released: opt-out (STOP), disqualified, closed unbooked. (Re-routing is
@@ -407,13 +423,16 @@ CREATE TRIGGER smc_leads_release_reservation
   BEFORE UPDATE OF opted_out_at, stage ON public.leads
   FOR EACH ROW WHEN (NEW.brand_id IS NOT NULL) EXECUTE FUNCTION public.smc_leads_release_reservation();
 
--- THE DELIVERY POINT (agreement 5.1(e) / 5.2 / S2.4; Jonathan 2026-10-11): a lead counts toward the broker's order only when
--- BOTH (a) its email is verified (leads.email_verified: the one-tap link or the code, smc-email-verify) AND (b) a live booking
--- with him has its attendance confirmed (appointments.confirmed_at: W09's Confirm tap or reply). Whichever comes second
--- triggers the count, once: one lead_order_items row (the CRM pipeline and contact details), leads.order_state counted +
--- delivered, timeline order_counted. The reserved place is used; a released lead re-attaches only if the broker still has
--- room (else count_held_no_room). Same rule for every tier (a B-tier lead is only booked after the broker's Accept; a tier-C
--- lead after the standing yes or the admin's assignment).
+-- THE DELIVERY POINT (agreement 5.1(e) / 5.2 / S2.4 / clause 14.3(c); Jonathan 2026-10-11): a lead counts toward the
+-- broker's order only when BOTH (a) its email is verified (leads.email_verified: the one-tap link or the code) AND (b) the
+-- BROKER has marked the meeting attended: an outcomes row for the booking with outcome = 'attended', auto_marked = false and
+-- unconfirmed = false (the portal's one-tap Attended / No-show, the WhatsApp broker_outcome_check tap via W12, or the
+-- console). The client's Confirm tap (appointments.confirmed_at) is a reminder signal only and never counts a lead.
+-- Whichever of (a) / (b) comes second counts it, once: one lead_order_items row (the CRM pipeline and contact details),
+-- leads.order_state counted + delivered, timeline order_counted. The reserved place is used; a released lead re-attaches only
+-- if the broker still has room (else count_held_no_room). Unmarked meetings keep the existing timing rules (W11/W12: auto
+-- 'attended' at + 24 h with auto_marked + unconfirmed, KG dispute): such a row does NOT count until the broker confirms it
+-- (the portal rewrites it with unconfirmed = false) or KG's decision turns it into no_show (then the place is released).
 CREATE OR REPLACE FUNCTION public.smc_count_lead(p_lead_id uuid, p_booking_id uuid)
 RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
@@ -421,13 +440,17 @@ AS $$
 DECLARE
   l       public.leads%rowtype;
   a       public.appointments%rowtype;
+  v_mark  public.outcomes%rowtype;
   v_order uuid;
 BEGIN
   SELECT * INTO l FROM public.leads WHERE id = p_lead_id FOR UPDATE;
   IF NOT FOUND OR l.brand_id IS NULL OR l.opted_out_at IS NOT NULL OR l.order_state = 'counted' THEN RETURN; END IF;
   SELECT * INTO a FROM public.appointments WHERE id = p_booking_id;
-  IF NOT FOUND OR a.brand_id IS NULL OR a.confirmed_at IS NULL OR a.status NOT IN ('booked','confirmed') THEN RETURN; END IF;
+  IF NOT FOUND OR a.brand_id IS NULL OR a.status NOT IN ('booked','confirmed','attended') THEN RETURN; END IF;
   IF l.broker_id IS DISTINCT FROM a.broker_id THEN RETURN; END IF;   -- a booking with someone he is no longer routed to
+  SELECT * INTO v_mark FROM public.outcomes o
+   WHERE o.booking_id = a.id AND o.outcome = 'attended' AND o.auto_marked IS FALSE AND o.unconfirmed IS FALSE;
+  IF NOT FOUND THEN RETURN; END IF;                                  -- (b) the broker has not marked the meeting attended
   IF l.email_verified IS NOT TRUE THEN                               -- (a) not met yet: counted when the email is verified
     INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, actor_type, activity_type, payload, occurred_at, idempotency_key)
     VALUES (l.id, l.brand_id, l.broker_id, 'system', 'count_waits_email_verification', jsonb_build_object('booking_id', a.id), now(), 'order:count_waits_email:' || a.id::text)
@@ -452,29 +475,43 @@ BEGIN
    WHERE id = l.id;
   INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, actor_type, activity_type, payload, occurred_at, idempotency_key)
   VALUES (l.id, l.brand_id, l.broker_id, 'system', 'order_counted',
-          jsonb_build_object('lead_order_id', v_order, 'booking_id', a.id, 'confirmed_at', a.confirmed_at, 'email_verified_at', l.email_verified_at,
-                             'rule', 'agreement 5.2: email verified + attendance confirmed'), now(),
+          jsonb_build_object('lead_order_id', v_order, 'booking_id', a.id, 'outcome_id', v_mark.id, 'attended_marked_via', v_mark.marked_via,
+                             'attended_marked_at', v_mark.marked_at, 'email_verified_at', l.email_verified_at,
+                             'rule', 'agreement 5.2 / 14.3(c): email verified + broker marked attended'), now(),
           'order:counted:' || l.id::text)
   ON CONFLICT (idempotency_key) DO NOTHING;
 END $$;
-COMMENT ON FUNCTION public.smc_count_lead(uuid, uuid) IS 'SMC: counts the lead toward the broker''s order once, when its email is verified AND the booking''s attendance is confirmed (called by smc_count_on_confirm and smc_count_on_email_verified).';
+COMMENT ON FUNCTION public.smc_count_lead(uuid, uuid) IS 'SMC: counts the lead toward the broker''s order once, when its email is verified AND the broker marked the booking attended (outcomes.outcome = attended, auto_marked = false, unconfirmed = false). Called by smc_outcome_count_or_release and smc_count_on_email_verified.';
 
-CREATE OR REPLACE FUNCTION public.smc_count_on_confirm()
+-- The broker's mark arrives (or is corrected) on outcomes: attended (broker-marked) -> count; any other outcome (no-show,
+-- unreachable, rescheduled, broker no-show, or KG turning a disputed attended into no_show) on a lead that is only reserved
+-- -> the place goes back (never Delivered; a later booking marked attended re-attaches through smc_count_lead).
+CREATE OR REPLACE FUNCTION public.smc_outcome_count_or_release()
 RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
 BEGIN
-  IF NEW.brand_id IS NULL OR NEW.confirmed_at IS NULL OR NEW.status NOT IN ('booked','confirmed') THEN RETURN NULL; END IF;
-  IF TG_OP = 'UPDATE' AND OLD.confirmed_at IS NOT NULL AND OLD.status IN ('booked','confirmed') THEN RETURN NULL; END IF;
-  PERFORM public.smc_count_lead(NEW.client_id, NEW.id);
+  IF NEW.outcome = 'attended' THEN
+    IF NEW.auto_marked IS FALSE AND NEW.unconfirmed IS FALSE THEN PERFORM public.smc_count_lead(NEW.lead_id, NEW.booking_id); END IF;
+    RETURN NULL;   -- an auto-marked (unconfirmed) attended keeps the place reserved until the broker / KG decides
+  END IF;
+  UPDATE public.leads l
+     SET order_state = 'released', order_released_at = now(), order_release_reason = 'meeting_' || NEW.outcome, updated_at = now()
+   WHERE l.id = NEW.lead_id AND l.order_state = 'attached';
+  IF FOUND THEN
+    INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, actor_type, activity_type, payload, occurred_at, idempotency_key)
+    VALUES (NEW.lead_id, NEW.brand_id, NEW.broker_id, 'system', 'order_released',
+            jsonb_build_object('reason', 'meeting_' || NEW.outcome, 'booking_id', NEW.booking_id), now(), 'order:released:outcome:' || NEW.booking_id::text)
+    ON CONFLICT (idempotency_key) DO NOTHING;
+  END IF;
   RETURN NULL;
 END $$;
-DROP TRIGGER IF EXISTS smc_count_on_confirm ON public.appointments;
-CREATE TRIGGER smc_count_on_confirm
-  AFTER INSERT OR UPDATE OF status, confirmed_at ON public.appointments
-  FOR EACH ROW WHEN (NEW.brand_id IS NOT NULL AND NEW.confirmed_at IS NOT NULL) EXECUTE FUNCTION public.smc_count_on_confirm();
+DROP TRIGGER IF EXISTS smc_outcome_count_or_release ON public.outcomes;
+CREATE TRIGGER smc_outcome_count_or_release
+  AFTER INSERT OR UPDATE OF outcome, auto_marked, unconfirmed ON public.outcomes
+  FOR EACH ROW EXECUTE FUNCTION public.smc_outcome_count_or_release();
 
--- The email verified AFTER the attendance was confirmed: the second condition arrives on the lead row.
+-- The email verified AFTER the broker marked the meeting attended: the second condition arrives on the lead row.
 CREATE OR REPLACE FUNCTION public.smc_count_on_email_verified()
 RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
@@ -482,10 +519,9 @@ AS $$
 DECLARE
   v_booking uuid;
 BEGIN
-  SELECT a.id INTO v_booking FROM public.appointments a
-   WHERE a.client_id = NEW.id AND a.brand_id IS NOT NULL AND a.broker_id = NEW.broker_id
-     AND a.status IN ('booked','confirmed') AND a.confirmed_at IS NOT NULL
-   ORDER BY a.confirmed_at DESC LIMIT 1;
+  SELECT o.booking_id INTO v_booking FROM public.outcomes o
+   WHERE o.lead_id = NEW.id AND o.broker_id = NEW.broker_id AND o.outcome = 'attended' AND o.auto_marked IS FALSE AND o.unconfirmed IS FALSE
+   ORDER BY o.marked_at DESC LIMIT 1;
   IF v_booking IS NOT NULL THEN PERFORM public.smc_count_lead(NEW.id, v_booking); END IF;
   RETURN NULL;
 END $$;
@@ -494,30 +530,6 @@ CREATE TRIGGER smc_count_on_email_verified
   AFTER UPDATE OF email_verified ON public.leads
   FOR EACH ROW WHEN (NEW.brand_id IS NOT NULL AND NEW.email_verified IS TRUE AND OLD.email_verified IS NOT TRUE)
   EXECUTE FUNCTION public.smc_count_on_email_verified();
-
--- An outcome for a meeting the lead never confirmed (or whose email was never verified): the lead was never Delivered, so the
--- reserved place goes back to the order (a rebooking that is confirmed later re-attaches through smc_count_lead).
-CREATE OR REPLACE FUNCTION public.smc_outcome_release_reservation()
-RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
-AS $$
-BEGIN
-  UPDATE public.leads l
-     SET order_state = 'released', order_released_at = now(), order_release_reason = 'meeting_passed_unconfirmed', updated_at = now()
-   WHERE l.id = NEW.lead_id AND l.order_state = 'attached'
-     AND NOT (l.email_verified IS TRUE AND EXISTS (SELECT 1 FROM public.appointments a WHERE a.id = NEW.booking_id AND a.confirmed_at IS NOT NULL));
-  IF FOUND THEN
-    INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, actor_type, activity_type, payload, occurred_at, idempotency_key)
-    VALUES (NEW.lead_id, NEW.brand_id, NEW.broker_id, 'system', 'order_released',
-            jsonb_build_object('reason', 'meeting_passed_unconfirmed', 'booking_id', NEW.booking_id), now(), 'order:released:outcome:' || NEW.booking_id::text)
-    ON CONFLICT (idempotency_key) DO NOTHING;
-  END IF;
-  RETURN NULL;
-END $$;
-DROP TRIGGER IF EXISTS smc_outcome_release_reservation ON public.outcomes;
-CREATE TRIGGER smc_outcome_release_reservation
-  AFTER INSERT ON public.outcomes
-  FOR EACH ROW EXECUTE FUNCTION public.smc_outcome_release_reservation();
 
 -- -----------------------------------------------------------------------------
 -- 5. smc_order_capacity: one row per SortMyCover order (routing context, portal, console). RLS of the base tables applies.
@@ -673,10 +685,10 @@ BEGIN
   EXECUTE 'DROP TRIGGER IF EXISTS smc_audit ON public.lead_orders';
   EXECUTE format('CREATE TRIGGER smc_audit AFTER INSERT OR UPDATE OR DELETE ON public.lead_orders FOR EACH ROW EXECUTE FUNCTION public.smc_audit(%L)', 'brand_scoped');
 END $$;
-REVOKE ALL ON FUNCTION public.smc_count_lead(uuid, uuid), public.smc_count_on_email_verified(),
+REVOKE ALL ON FUNCTION public.smc_count_lead(uuid, uuid), public.smc_count_on_email_verified(), public.smc_outcome_count_or_release(),
                        public.smc_open_order_for(uuid, uuid), public.smc_leads_route_check(), public.smc_leads_attach_order(),
-                       public.smc_replacements_cap(), public.smc_broker_ready(uuid), public.smc_leads_release_reservation(),
-                       public.smc_count_on_confirm(), public.smc_outcome_release_reservation() FROM PUBLIC, anon, authenticated;
+                       public.smc_replacements_cap(), public.smc_broker_ready(uuid), public.smc_leads_release_reservation()
+                       FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.smc_request_replacement(uuid, text, text), public.smc_request_noshow_replacement(uuid, text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.smc_request_replacement(uuid, text, text), public.smc_request_noshow_replacement(uuid, text) TO authenticated;
 REVOKE ALL ON FUNCTION public.smc_week_start(timestamptz) FROM PUBLIC, anon;

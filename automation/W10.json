@@ -55,7 +55,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT a.id, a.client_id, a.broker_id, a.brand_id, a.appointment_date, a.ends_at, a.method, a.status, a.graph_event_id, a.calendar_provider, a.reschedule_count, a.call_number,\n       l.first_name, l.last_name, l.phone, l.email, l.email_status, l.conv_state, l.opted_out_at, l.language, l.stage,\n       b.contact_person, b.whatsapp_number, b.email AS broker_email, b.methods_supported, b.calendar_email, b.calendar_status, b.calendar_mode, b.calendar_status_detail, b.buffer_minutes, b.slot_minutes,\n       br.booking_ui, br.booking_flow_id,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'inbound') AS last_inbound_at,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.broker_id = b.id AND c.lead_id IS NULL AND c.direction = 'inbound' AND c.sender_type = 'broker') AS broker_last_inbound_at\n  FROM public.appointments a\n  JOIN public.leads l ON l.id = a.client_id\n  JOIN public.brokers b ON b.id = a.broker_id\n  JOIN public.brands br ON br.id = a.brand_id\n WHERE a.brand_id IS NOT NULL\n   AND (a.id = $1::uuid OR ($1::uuid IS NULL AND a.client_id = $2::uuid))\n ORDER BY a.appointment_date DESC\n LIMIT 1;",
+        "query": "SELECT a.id, a.client_id, a.broker_id, a.brand_id, a.appointment_date, a.ends_at, a.method, a.status, a.graph_event_id, a.calendar_provider, a.reschedule_count, a.call_number, a.booked_at, a.verify_by,\n       l.first_name, l.last_name, l.phone, l.email, l.email_status, l.conv_state, l.opted_out_at, l.language, l.stage,\n       b.contact_person, b.whatsapp_number, b.email AS broker_email, b.methods_supported, b.calendar_email, b.calendar_status, b.calendar_mode, b.calendar_status_detail, b.buffer_minutes, b.slot_minutes,\n       br.booking_ui, br.booking_flow_id,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'inbound') AS last_inbound_at,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.broker_id = b.id AND c.lead_id IS NULL AND c.direction = 'inbound' AND c.sender_type = 'broker') AS broker_last_inbound_at\n  FROM public.appointments a\n  JOIN public.leads l ON l.id = a.client_id\n  JOIN public.brokers b ON b.id = a.broker_id\n  JOIN public.brands br ON br.id = a.brand_id\n WHERE a.brand_id IS NOT NULL\n   AND (a.id = $1::uuid OR ($1::uuid IS NULL AND a.client_id = $2::uuid))\n ORDER BY a.appointment_date DESC\n LIMIT 1;",
         "options": {
           "queryReplacement": "={{ [$json.booking_id, $json.lead_id] }}"
         }
@@ -82,7 +82,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const i = $('Classify op').item.json; const r = $json;\nreturn { json: { ...i, bk: { id: r.id, client_id: r.client_id, broker_id: r.broker_id, brand_id: r.brand_id, appointment_date: r.appointment_date, ends_at: r.ends_at, method: r.method, status: r.status, graph_event_id: r.graph_event_id, calendar_provider: r.calendar_provider, reschedule_count: r.reschedule_count }, ld: { id: r.client_id, first_name: r.first_name, last_name: r.last_name, phone: r.phone, email: r.email, email_status: r.email_status, conv_state: r.conv_state || {}, opted_out_at: r.opted_out_at, language: r.language, stage: r.stage }, br: { id: r.broker_id, contact_person: r.contact_person, whatsapp_number: r.whatsapp_number, email: r.broker_email, methods_supported: r.methods_supported, calendar_email: r.calendar_email, calendar_status: r.calendar_status, calendar_mode: r.calendar_mode, calendar_status_detail: r.calendar_status_detail, buffer_minutes: r.buffer_minutes || 15, slot_minutes: r.slot_minutes || 30, last_inbound_ms: r.broker_last_inbound_at ? Date.parse(r.broker_last_inbound_at) : NaN }, brand: { booking_ui: r.booking_ui || $env.BOOKING_UI_DEFAULT || 'list', booking_flow_id: r.booking_flow_id }, last_inbound_ms: r.last_inbound_at ? Date.parse(r.last_inbound_at) : NaN } };"
+        "jsCode": "const i = $('Classify op').item.json; const r = $json;\nreturn { json: { ...i, bk: { id: r.id, client_id: r.client_id, broker_id: r.broker_id, brand_id: r.brand_id, appointment_date: r.appointment_date, ends_at: r.ends_at, method: r.method, status: r.status, graph_event_id: r.graph_event_id, calendar_provider: r.calendar_provider, reschedule_count: r.reschedule_count, booked_at: r.booked_at, verify_by: r.verify_by }, ld: { id: r.client_id, first_name: r.first_name, last_name: r.last_name, phone: r.phone, email: r.email, email_status: r.email_status, conv_state: r.conv_state || {}, opted_out_at: r.opted_out_at, language: r.language, stage: r.stage }, br: { id: r.broker_id, contact_person: r.contact_person, whatsapp_number: r.whatsapp_number, email: r.broker_email, methods_supported: r.methods_supported, calendar_email: r.calendar_email, calendar_status: r.calendar_status, calendar_mode: r.calendar_mode, calendar_status_detail: r.calendar_status_detail, buffer_minutes: r.buffer_minutes || 15, slot_minutes: r.slot_minutes || 30, last_inbound_ms: r.broker_last_inbound_at ? Date.parse(r.broker_last_inbound_at) : NaN }, brand: { booking_ui: r.booking_ui || $env.BOOKING_UI_DEFAULT || 'list', booking_flow_id: r.booking_flow_id }, last_inbound_ms: r.last_inbound_at ? Date.parse(r.last_inbound_at) : NaN } };"
       }
     },
     {
@@ -480,6 +480,28 @@
                   }
                 ]
               }
+            },
+            {
+              "outputKey": "move_held",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s4",
+                    "leftValue": "={{ $json.d.action }}",
+                    "rightValue": "move_held",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
             }
           ]
         },
@@ -499,7 +521,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH chk AS (\n  SELECT NOT EXISTS (\n           SELECT 1 FROM public.appointments x\n            WHERE x.broker_id = $2::uuid AND x.brand_id IS NOT NULL AND x.status IN ('booked','confirmed') AND x.id <> $1::uuid\n              AND tstzrange(x.appointment_date - make_interval(mins => $5::int), x.ends_at + make_interval(mins => $5::int), '[)')\n                  && tstzrange($3::timestamptz, $4::timestamptz, '[)')) AS free)\nUPDATE public.appointments a\n   SET appointment_date = $3::timestamptz, ends_at = $4::timestamptz, reschedule_count = a.reschedule_count + 1,\n       status = 'booked', confirmed_at = NULL, updated_at = now()\n  FROM chk\n WHERE a.id = $1::uuid AND chk.free AND a.status IN ('booked','confirmed')\nRETURNING a.id, a.graph_event_id, a.reschedule_count;",
+        "query": "WITH chk AS (\n  SELECT NOT EXISTS (\n           SELECT 1 FROM public.appointments x\n            WHERE x.broker_id = $2::uuid AND x.brand_id IS NOT NULL AND x.status IN ('pending_verification','booked','confirmed') AND x.id <> $1::uuid\n              AND tstzrange(x.appointment_date - make_interval(mins => $5::int), x.ends_at + make_interval(mins => $5::int), '[)')\n                  && tstzrange($3::timestamptz, $4::timestamptz, '[)')) AS free)\nUPDATE public.appointments a\n   SET appointment_date = $3::timestamptz, ends_at = $4::timestamptz, reschedule_count = a.reschedule_count + 1,\n       status = 'booked', confirmed_at = NULL, updated_at = now()\n  FROM chk\n WHERE a.id = $1::uuid AND chk.free AND a.status IN ('booked','confirmed')\nRETURNING a.id, a.graph_event_id, a.reschedule_count;",
         "options": {
           "queryReplacement": "={{ [$json.bk.id, $json.bk.broker_id, $json.new_start, $json.new_end, $json.br.buffer_minutes] }}"
         }
@@ -1856,6 +1878,44 @@
         "mode": "runOnceForEachItem",
         "jsCode": "// lib/wa-route.cjs: \"Send WhatsApp\" sends through smc-whatsapp-send (WHATSAPP_PROVIDER meta | twilio). Generated: edit the\n// generator / route-wa-sends.mjs config, not this node. record:true (the sub writes the communications row).\nconst wa = $json.wa;\nconst exec = (typeof $execution !== 'undefined' && $execution && $execution.id) || 'x';\nconst idx = (typeof $itemIndex !== 'undefined') ? $itemIndex : 0;\nreturn { json: {\n  kind: 'prebuilt', wa, to: wa && wa.to,\n  record: true, caller: \"W10\", bypass_suppression: false,\n  phone_number_id: null,\n  lead_id: null, broker_id: null,\n  correlation: \"W10:Send WhatsApp:\" + exec + ':' + idx,\n} };"
       }
+    },
+    {
+      "id": "n-held-move-1",
+      "name": "Move held slot (stays held, deadline kept)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        880,
+        800
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Verify gate (2026-10-11): a HELD slot (email not verified) moves in place and STAYS held: no Outlook event to patch, no\n-- broker notice, no reminders. Same overlap + buffer re-check as a live move (held slots block time too); the deadline is\n-- min(booked_at + 24 h, new start - 2 h), computed by w10.applyReschedule (moving never buys more time).\nWITH chk AS (\n  SELECT NOT EXISTS (\n           SELECT 1 FROM public.appointments x\n            WHERE x.broker_id = $2::uuid AND x.brand_id IS NOT NULL AND x.status IN ('pending_verification','booked','confirmed') AND x.id <> $1::uuid\n              AND tstzrange(x.appointment_date - make_interval(mins => $5::int), x.ends_at + make_interval(mins => $5::int), '[)')\n                  && tstzrange($3::timestamptz, $4::timestamptz, '[)')) AS free),\nu AS (\n  UPDATE public.appointments a\n     SET appointment_date = $3::timestamptz, ends_at = $4::timestamptz, verify_by = $6::timestamptz, reschedule_count = a.reschedule_count + 1, updated_at = now()\n    FROM chk\n   WHERE a.id = $1::uuid AND chk.free AND a.status = 'pending_verification' AND a.verify_by > now()\n  RETURNING a.id, a.client_id, a.brand_id, a.verify_by)\nINSERT INTO public.lead_activities (lead_id, brand_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT u.client_id, u.brand_id, 'W10', 'lead', 'booking_held_moved', jsonb_build_object('booking_id', u.id::text, 'start', $3::text, 'verify_by', u.verify_by), now(), 'w10:held_moved:' || u.id::text || ':' || $3\n  FROM u\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING lead_id;",
+        "options": {
+          "queryReplacement": "={{ [$json.bk.id, $json.bk.broker_id, $json.new_start, $json.new_end, $json.br.buffer_minutes, $json.d.update.verify_by] }}"
+        }
+      }
+    },
+    {
+      "id": "n-held-move-2",
+      "name": "Held move reply (lead only)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// ONE line to the lead; the broker never heard of a held slot, so he gets nothing. Not moved (taken in the last second) -> nothing here\n// (the next held-slot pick goes through the same re-check).\nconst L = require('lv-automation').w10;\nconst j = $('Decide move (w10.applyReschedule)').first().json;\nconst moved = $input.all().some((i) => i.json && i.json.lead_id);\nif (!moved) return [];\nconst by = L.slotLabel(j.d.update.verify_by);\nreturn [{ json: { to: 'lead', wa: { messaging_product: 'whatsapp', to: j.ld.phone, type: 'text', text: { body: 'Done. We are now holding ' + L.slotLabel(j.new_start) + ' for you. Please confirm your email (the link or the 6-digit code we sent) by ' + by + ', or we will release the time.' } } } }];"
+      }
     }
   ],
   "connections": {
@@ -2048,6 +2108,14 @@
         [
           {
             "node": "Slot taken: next 3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [],
+        [
+          {
+            "node": "Move held slot (stays held, deadline kept)",
             "type": "main",
             "index": 0
           }
@@ -2603,6 +2671,28 @@
         [
           {
             "node": "Send WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Move held slot (stays held, deadline kept)": {
+      "main": [
+        [
+          {
+            "node": "Held move reply (lead only)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Held move reply (lead only)": {
+      "main": [
+        [
+          {
+            "node": "Has WhatsApp payload + live?",
             "type": "main",
             "index": 0
           }

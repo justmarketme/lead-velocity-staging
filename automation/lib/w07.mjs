@@ -13,6 +13,7 @@ import { prefilter, redactForLLM, redactForStorage, outputGate, classifierInput,
 import { decide, DEFER_TOPICS, FAQ_TOPICS, INTENTS, ALL_TOPICS } from '../../conversation/logic.mjs';
 import { LINES, fill, fixedLines } from '../../conversation/lines.mjs';
 import { isPulseLine } from '../../conversation/pulse.mjs';
+import { checkEmail } from './w05.mjs';
 
 export const WORKFLOW = 'W07';
 export const HOURS = { open: 8, close: 20 }; // handoff.md (6.8a): 08:00-20:00 SAST, every day until Jonathan says otherwise
@@ -61,6 +62,29 @@ const LEAD_TAPS = {
 const STOP_WORDS = /^\s*(stop|unsubscribe|opt[ -]?out|stopp?|stop all)\s*[.!]*\s*$/iu;
 /** A typed email verification code: 6 digits, spaces / dashes allowed ("482 913"). */
 export const EMAIL_CODE_RE = /^\s*\d{3}[\s-]?\d{3}\s*[.!]?\s*$/u;
+/**
+ * 2026-10-11 (verify gate): a message that IS an email address ("lerato@gmail.com", "my email is ...", "email: ...") from a
+ * lead whose email is not verified yet. W07 checks it (w05 checkEmail: syntax, typo, disposable, MX), stores it on the lead
+ * (unverified) and starts smc-email-verify; one reply. Anything longer stays with the agent.
+ */
+export const EMAIL_REPLY_RE = /^\s*(?:(?:my\s+)?e-?mail(?:\s+address)?\s*(?:is|:)?\s*|it'?s\s+|use\s+)?([^\s@<>"',;]+@[^\s@<>"',;]+\.[^\s@<>"',;.!]{2,})\s*[.!]?\s*$/iu;
+export const typedEmail = (text) => { const m = EMAIL_REPLY_RE.exec(String(text || '')); return m ? m[1] : null; };
+/**
+ * The plan for a typed email. hasMx(domain) -> bool (the Code node resolves MX with a short timeout first).
+ * { action:'save', email, email_status, changed, issue:{op:'issue', lead_id}, reply } | { action:'reply', reason, reply }
+ */
+export function emailReplyPlan(lead = {}, text = '', { hasMx } = {}) {
+  const raw = typedEmail(text);
+  if (!raw) return { action: 'reply', reason: 'syntax', reply: "That doesn't look like an email address. Please send just the address, for example name@gmail.com." };
+  const c = checkEmail(raw, { hasMx: hasMx || undefined });
+  if (!c.ok) {
+    if (c.suggestion) return { action: 'reply', reason: 'typo', suggestion: c.suggestion, reply: `Did you mean ${c.suggestion}? Please send the right address.` };
+    return { action: 'reply', reason: c.reason, reply: "That email address doesn't look right. Please check it and send it again." };
+  }
+  const changed = String(lead.email || '').trim().toLowerCase() !== c.email.toLowerCase();
+  return { action: 'save', email: c.email, email_status: c.status || 'mx_ok', changed, issue: { op: 'issue', lead_id: lead.id },
+    reply: `Thank you. We've emailed a link and a 6-digit code to ${c.email}. Tap the link, or reply here with the code, to confirm it.` };
+}
 /**
  * I-45d: a delivery receipt for a W06 intro card / booking_confirmed -> W06 { op:'status' } (disclosure evidence +
  * the once-only SMS fallback live there). row = the "Status receipt" query row { wamid, status, at, error, w06_card }.
@@ -124,6 +148,8 @@ function routeCore(msg, ctx) {
   // 2026-10-11: the 6-digit email verification code (sent by smc-email-verify from hello@sortmycover.co.za via Resend)
   // is typed here on WhatsApp. Only while a code is outstanding, so a 6-digit number never leaves the agent otherwise.
   if (ctx.lead.email_verify_pending && !msg.payload && !msg.list_id && EMAIL_CODE_RE.test(msg.text || '')) return { route: 'email_code', reason: 'email verification code' };
+  // 2026-10-11: a typed email address from a lead whose email is not verified -> save it + smc-email-verify (W07 "Email reply")
+  if (ctx.lead.email_verified !== true && !msg.payload && !msg.list_id && typedEmail(msg.text)) return { route: 'email_reply', reason: 'typed email address' };
   const state = ctx.lead.conv_state?.state || 'unbooked';
   if (QUALIFYING_TAP_STATES.includes(state) && (msg.payload || msg.list_id)) return { route: 'W03', reason: 'qualifying tap' };
   if (/^slot_.+:resched:/u.test(msg.list_id || msg.payload || '')) return { route: 'W10', reason: 'reschedule slot picked' };

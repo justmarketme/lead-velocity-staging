@@ -269,7 +269,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT p.phone AS from_phone,\n       l.id, l.first_name, l.last_name, l.phone, l.line_type, l.brand_id, l.broker_id, l.stage, l.conv_state,\n       l.opted_out_at, l.language, l.origin, l.first_message_at, l.verified_at,\n       l.age_band, l.budget_band, l.method_pref, l.email, l.call_number, l.best_time,\n       (l.email_verify_code_hash IS NOT NULL AND l.email_verified IS NOT TRUE AND l.email_verify_expires_at > now()) AS email_verify_pending,\n       b.contact_person, b.firm_name, b.whatsapp_number,\n       a.id AS booking_id, a.appointment_date, a.ends_at, a.method, a.status AS booking_status, a.graph_event_id, a.reschedule_count,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'inbound') AS last_inbound_at,\n       (SELECT bb.id FROM public.brokers bb WHERE bb.whatsapp_number = p.phone AND bb.brand_id IS NOT NULL LIMIT 1) AS from_broker_id,\n       (SELECT bb.brand_id FROM public.brokers bb WHERE bb.whatsapp_number = p.phone AND bb.brand_id IS NOT NULL LIMIT 1) AS from_broker_brand_id,\n       (SELECT bb.status FROM public.brokers bb WHERE bb.whatsapp_number = p.phone AND bb.brand_id IS NOT NULL LIMIT 1) AS from_broker_status,\n       EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(p.phone)) AS suppressed\n  FROM (SELECT $1::text AS phone) p\n  LEFT JOIN public.leads l ON l.phone = p.phone AND l.brand_id IS NOT NULL AND l.duplicate_of IS NULL\n  LEFT JOIN public.brokers b ON b.id = l.broker_id\n  LEFT JOIN LATERAL (SELECT x.id, x.appointment_date, x.ends_at, x.method, x.status, x.graph_event_id, x.reschedule_count\n                       FROM public.appointments x\n                      WHERE x.client_id = l.id AND x.brand_id IS NOT NULL AND x.status IN ('booked','confirmed')\n                      ORDER BY x.appointment_date LIMIT 1) a ON true\n ORDER BY l.created_at DESC NULLS LAST\n LIMIT 1;",
+        "query": "SELECT p.phone AS from_phone,\n       l.id, l.first_name, l.last_name, l.phone, l.line_type, l.brand_id, l.broker_id, l.stage, l.conv_state,\n       l.opted_out_at, l.language, l.origin, l.first_message_at, l.verified_at,\n       l.age_band, l.budget_band, l.method_pref, l.email, l.email_verified, l.call_number, l.best_time,\n       (l.email_verify_code_hash IS NOT NULL AND l.email_verified IS NOT TRUE AND l.email_verify_expires_at > now()) AS email_verify_pending,\n       b.contact_person, b.firm_name, b.whatsapp_number,\n       a.id AS booking_id, a.appointment_date, a.ends_at, a.method, a.status AS booking_status, a.graph_event_id, a.reschedule_count,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'inbound') AS last_inbound_at,\n       (SELECT bb.id FROM public.brokers bb WHERE bb.whatsapp_number = p.phone AND bb.brand_id IS NOT NULL LIMIT 1) AS from_broker_id,\n       (SELECT bb.brand_id FROM public.brokers bb WHERE bb.whatsapp_number = p.phone AND bb.brand_id IS NOT NULL LIMIT 1) AS from_broker_brand_id,\n       (SELECT bb.status FROM public.brokers bb WHERE bb.whatsapp_number = p.phone AND bb.brand_id IS NOT NULL LIMIT 1) AS from_broker_status,\n       EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(p.phone)) AS suppressed\n  FROM (SELECT $1::text AS phone) p\n  LEFT JOIN public.leads l ON l.phone = p.phone AND l.brand_id IS NOT NULL AND l.duplicate_of IS NULL\n  LEFT JOIN public.brokers b ON b.id = l.broker_id\n  LEFT JOIN LATERAL (SELECT x.id, x.appointment_date, x.ends_at, x.method, x.status, x.graph_event_id, x.reschedule_count\n                       FROM public.appointments x\n                      WHERE x.client_id = l.id AND x.brand_id IS NOT NULL AND x.status IN ('pending_verification','booked','confirmed')\n                      ORDER BY x.appointment_date LIMIT 1) a ON true\n ORDER BY l.created_at DESC NULLS LAST\n LIMIT 1;",
         "options": {
           "queryReplacement": "={{ [ ($json.msg && $json.msg.origin === 'w03') ? $json.msg.from : $('Verify signature + normalise').item.json.msg.from ] }}"
         }
@@ -296,7 +296,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const L = require('lv-automation').w07;\nlet msg; try { msg = $('Verify signature + normalise').item.json.msg; } catch (e) { msg = $('W03 forward: loop guard (origin w03)').item.json.msg; } // I-37e: W03 hand-back carries origin 'w03'\nconst c = $json;\nconst lead = c.id ? { id: c.id, first_name: c.first_name, last_name: c.last_name, phone: c.phone, line_type: c.line_type, brand_id: c.brand_id, broker_id: c.broker_id, stage: c.stage, conv_state: c.conv_state || {}, opted_out_at: c.opted_out_at, language: c.language, origin: c.origin, age_band: c.age_band, budget_band: c.budget_band, method_pref: c.method_pref, email: c.email, call_number: c.call_number, best_time: c.best_time, email_verify_pending: c.email_verify_pending === true || c.email_verify_pending === 't' } : null;\nconst brokerNumbers = new Set(c.from_broker_id ? [msg.from] : []);\nconst opsNumbers = new Set([$env.OPS_WHATSAPP_JONATHAN, $env.OPS_WHATSAPP_KG].filter(Boolean).map((x) => '+' + String(x).replace(/\\D/g, '')));\nconst r = L.routeInbound(msg, { lead, broker_numbers: brokerNumbers, ops_numbers: opsNumbers, broker_status: c.from_broker_status, has_live_booking: !!c.booking_id, suppressed: c.suppressed });\nconst pre = L.preStep(msg, lead || {}, { contact_person: c.contact_person });\nconst booking = c.booking_id ? { id: c.booking_id, appointment_date: c.appointment_date, method: c.method, status: c.booking_status, graph_event_id: c.graph_event_id } : null;\nreturn { json: { route: r.route, reason: r.reason, msg, lead, booking, broker: { id: c.broker_id || c.from_broker_id, contact_person: c.contact_person, firm_name: c.firm_name }, from_broker_id: c.from_broker_id, brand_id: (lead && lead.brand_id) || c.from_broker_brand_id || null, last_inbound_at: c.last_inbound_at, pre: pre.pre, text_llm: pre.text_llm, text_store: r.route === 'email_code' ? '[email verification code]' : pre.text_store, adviser_first: pre.adviser_first, skip_llm: pre.skip_llm } };"
+        "jsCode": "const L = require('lv-automation').w07;\nlet msg; try { msg = $('Verify signature + normalise').item.json.msg; } catch (e) { msg = $('W03 forward: loop guard (origin w03)').item.json.msg; } // I-37e: W03 hand-back carries origin 'w03'\nconst c = $json;\nconst lead = c.id ? { id: c.id, first_name: c.first_name, last_name: c.last_name, phone: c.phone, line_type: c.line_type, brand_id: c.brand_id, broker_id: c.broker_id, stage: c.stage, conv_state: c.conv_state || {}, opted_out_at: c.opted_out_at, language: c.language, origin: c.origin, age_band: c.age_band, budget_band: c.budget_band, method_pref: c.method_pref, email: c.email, email_verified: c.email_verified === true || c.email_verified === 't', call_number: c.call_number, best_time: c.best_time, email_verify_pending: c.email_verify_pending === true || c.email_verify_pending === 't' } : null;\nconst brokerNumbers = new Set(c.from_broker_id ? [msg.from] : []);\nconst opsNumbers = new Set([$env.OPS_WHATSAPP_JONATHAN, $env.OPS_WHATSAPP_KG].filter(Boolean).map((x) => '+' + String(x).replace(/\\D/g, '')));\nconst r = L.routeInbound(msg, { lead, broker_numbers: brokerNumbers, ops_numbers: opsNumbers, broker_status: c.from_broker_status, has_live_booking: !!c.booking_id, suppressed: c.suppressed });\nconst pre = L.preStep(msg, lead || {}, { contact_person: c.contact_person });\nconst booking = c.booking_id ? { id: c.booking_id, appointment_date: c.appointment_date, method: c.method, status: c.booking_status, graph_event_id: c.graph_event_id } : null;\nreturn { json: { route: r.route, reason: r.reason, msg, lead, booking, broker: { id: c.broker_id || c.from_broker_id, contact_person: c.contact_person, firm_name: c.firm_name }, from_broker_id: c.from_broker_id, brand_id: (lead && lead.brand_id) || c.from_broker_brand_id || null, last_inbound_at: c.last_inbound_at, pre: pre.pre, text_llm: pre.text_llm, text_store: r.route === 'email_code' ? '[email verification code]' : r.route === 'email_reply' ? '[email address]' : pre.text_store, adviser_first: pre.adviser_first, skip_llm: pre.skip_llm } };"
       }
     },
     {
@@ -770,6 +770,28 @@
                     "id": "s17",
                     "leftValue": "={{ $json.route }}",
                     "rightValue": "email_code",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "email_reply",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s18",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "email_reply",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
@@ -2553,6 +2575,151 @@
         "mode": "runOnceForEachItem",
         "jsCode": "// lib/wa-route.cjs: \"Send WhatsApp (session, in 24-h window)\" sends through smc-whatsapp-send (WHATSAPP_PROVIDER meta | twilio). Generated: edit the\n// generator / route-wa-sends.mjs config, not this node. record:false (this workflow logs the message from the returned id).\nconst wa = $json.wa;\nconst exec = (typeof $execution !== 'undefined' && $execution && $execution.id) || 'x';\nconst idx = (typeof $itemIndex !== 'undefined') ? $itemIndex : 0;\nreturn { json: {\n  kind: 'prebuilt', wa, to: wa && wa.to,\n  record: false, caller: \"W07\", bypass_suppression: false,\n  phone_number_id: null,\n  lead_id: null, broker_id: null,\n  correlation: \"W07:Send WhatsApp (session, in 24-h window):\" + exec + ':' + idx,\n} };"
       }
+    },
+    {
+      "id": "n-email-reply-1",
+      "name": "Email reply plan (w07.emailReplyPlan + MX)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        1700
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// 2026-10-11 verify gate: the lead typed an email address (not verified yet). Check it (syntax, typo, disposable, MX), then\n// save it (unverified) + smc-email-verify issue, and ONE reply. The address is never sent to an LLM; communications stores '[email address]'.\nconst L = require('lv-automation').w07;\nconst dns = require('dns').promises;\nconst r = $json;\nconst raw = L.typedEmail(r.msg && r.msg.text) || '';\nconst d = (raw.split('@')[1] || '').toLowerCase();\nlet mx = null;\nif (d) { try { const a = await Promise.race([dns.resolveMx(d), new Promise((_, rj) => setTimeout(() => rj(new Error('t')), 300))]); mx = Array.isArray(a) && a.length > 0; } catch (e) { mx = false; } }\nconst plan = L.emailReplyPlan(r.lead || {}, r.msg && r.msg.text, { hasMx: mx === true ? () => true : undefined }); // DNS yes, else the known-provider list (a DNS outage never blocks gmail)\nreturn { json: { ...plan, lead_id: r.lead && r.lead.id, brand_id: r.brand_id, to: r.msg && r.msg.from, wamid: r.msg && r.msg.wamid } };"
+      }
+    },
+    {
+      "id": "n-email-reply-2",
+      "name": "Save the typed email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        1700
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.action === 'save') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n-email-reply-3",
+      "name": "Save typed email (unverified) + timeline",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2640,
+        1700
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- A different address is a new, unverified email: the old code / link no longer apply (cleared, so the issue is not held by the 10-min gap).\nWITH u AS (\n  UPDATE public.leads l\n     SET email = $2, email_status = $3, email_purpose = 'meeting_invite',\n         email_verified = CASE WHEN lower(coalesce(l.email, '')) <> lower($2) THEN false ELSE l.email_verified END,\n         email_verify_code_hash = CASE WHEN lower(coalesce(l.email, '')) <> lower($2) THEN NULL ELSE l.email_verify_code_hash END,\n         email_verify_sent_at = CASE WHEN lower(coalesce(l.email, '')) <> lower($2) THEN NULL ELSE l.email_verify_sent_at END,\n         updated_at = now()\n   WHERE l.id = $1::uuid AND l.brand_id IS NOT NULL AND l.email_verified IS NOT TRUE\n  RETURNING l.id, l.brand_id, l.broker_id)\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT u.id, u.brand_id, u.broker_id, 'W07', 'lead', 'email_given', jsonb_build_object('via', 'whatsapp_text', 'email_status', $3::text), now(), 'w07:email:' || u.id::text || ':' || $4\n  FROM u\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING lead_id::text AS lead_id;",
+        "options": {
+          "queryReplacement": "={{ [ $json.lead_id, $json.email, $json.email_status, String($json.wamid || Date.now()) ] }}"
+        }
+      }
+    },
+    {
+      "id": "n-email-reply-4",
+      "name": "Email verify issue item (typed email)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        1700
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const p = $('Email reply plan (w07.emailReplyPlan + MX)').first().json;\nconst saved = $input.all().some((i) => i.json && i.json.lead_id);\nreturn saved && p.issue ? [{ json: p.issue }] : [];"
+      }
+    },
+    {
+      "id": "n-email-reply-5",
+      "name": "-> email verify (issue, typed email)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        3080,
+        1700
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-email-verify",
+          "cachedResultName": "Email Verify"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    },
+    {
+      "id": "n-email-reply-6",
+      "name": "SUB input (email reply)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        1900
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// ONE reply to the typed address (the lead just wrote: inside the 24-h window), through smc-whatsapp-send (record:true).\nconst p = $json;\nreturn { json: { kind: 'prebuilt', wa: { messaging_product: 'whatsapp', to: String(p.to || '').replace(/\\D/g, ''), type: 'text', text: { body: p.reply } }, record: true, caller: 'W07', lead_id: p.lead_id, correlation: 'w07:reply:' + (p.wamid || p.lead_id + ':' + Date.now()) } };"
+      }
+    },
+    {
+      "id": "n-email-reply-7",
+      "name": "WhatsApp reply (email)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        2640,
+        1900
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
     }
   ],
   "connections": {
@@ -2814,6 +2981,13 @@
         [
           {
             "node": "Email code -> verify item",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Email reply plan (w07.emailReplyPlan + MX)",
             "type": "main",
             "index": 0
           }
@@ -3505,6 +3679,67 @@
         [
           {
             "node": "Send WhatsApp (session, in 24-h window)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email reply plan (w07.emailReplyPlan + MX)": {
+      "main": [
+        [
+          {
+            "node": "Save the typed email?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SUB input (email reply)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save the typed email?": {
+      "main": [
+        [
+          {
+            "node": "Save typed email (unverified) + timeline",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Save typed email (unverified) + timeline": {
+      "main": [
+        [
+          {
+            "node": "Email verify issue item (typed email)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email verify issue item (typed email)": {
+      "main": [
+        [
+          {
+            "node": "-> email verify (issue, typed email)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SUB input (email reply)": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp reply (email)",
             "type": "main",
             "index": 0
           }
