@@ -106,6 +106,8 @@ ALTER TABLE public.brokers
   ADD COLUMN IF NOT EXISTS add_client_as_attendee boolean NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS headshot_url           text,          -- intro card photo (portal Profile upload, broker-media bucket)
   ADD COLUMN IF NOT EXISTS bio_short              text,
+  ADD COLUMN IF NOT EXISTS languages              text[] NOT NULL DEFAULT ARRAY['en']::text[],   -- intro card + portal Profile
+  ADD COLUMN IF NOT EXISTS years_advising         integer,                                        -- intro card + portal Profile
   ADD COLUMN IF NOT EXISTS intro_card_url         text,
   ADD COLUMN IF NOT EXISTS intro_voice_url        jsonb,         -- {"en": url}
   ADD COLUMN IF NOT EXISTS intro_video_url        jsonb,         -- {"en": url}; the later broker intro video (W23)
@@ -137,7 +139,10 @@ BEGIN
       AND max_meetings_per_day BETWEEN 0 AND 24 AND max_meetings_per_week BETWEEN 0 AND 100
       AND (calendar_mode   IS NULL OR calendar_mode   IN ('oauth','shared_fallback'))
       AND (calendar_status IS NULL OR calendar_status IN ('ok','needs_reconnect','blocked_admin_consent'))
-      AND (calendar_token_ref IS NULL OR calendar_token_ref ~ '^ms_refresh_[0-9a-f-]{36}_[0-9]+$')   -- Vault NAME, never a token
+      -- Vault NAME, never a token, and only this broker's own name (a row can never point at another broker's token)
+      AND (calendar_token_ref IS NULL OR (calendar_token_ref ~ '^ms_refresh_[0-9a-f-]{36}_[0-9]+$'
+                                          AND left(calendar_token_ref, 48) = 'ms_refresh_' || id::text || '_'))
+      AND (years_advising IS NULL OR years_advising BETWEEN 0 AND 70)
       AND (calendar_status_detail IS NULL OR jsonb_typeof(calendar_status_detail) = 'object')
       AND (verified_credentials IS NULL OR jsonb_typeof(verified_credentials) = 'array')
     );

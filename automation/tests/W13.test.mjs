@@ -176,10 +176,11 @@ test('ONE writer: W13.json is the only workflow that writes public.replacements;
     assert.ok(wf.nodes.some((n) => n.type === 'n8n-nodes-base.executeWorkflow' && n.parameters.workflowId.cachedResultName === 'W13 No-show & replacement' && n.parameters.workflowId.value === 'smc-w13'), f);
   }
   const q = node('Claim replacement (weekly lock, max 3, one per lead)').parameters.query;
-  assert.match(q, /pg_advisory_xact_lock\(hashtextextended\('w13:week:' \|\| \$5::text/, 'requests serialised per broker and Calendar Week');
+  assert.match(q, /pg_advisory_xact_lock\(hashtextextended\('w13:week:' \|\| \$5::uuid::text/, 'requests serialised per broker and Calendar Week (canonical uuid text = the portal key)');
+  assert.equal(node('Claim replacement (weekly lock, max 3, one per lead)').parameters.options.queryBatching, 'single', 'lock + count in one transaction, pinned');
   assert.match(q, /r\.broker_id = \$5::uuid\s+AND public\.smc_week_start\(coalesce\(r\.missed_start_at, r\.claimed_at\)\) = public\.smc_week_start/, 'counted exactly like smc_replacements_cap / smc_request_replacement');
   assert.match(q, /WHERE used\.n < 3/);
-  assert.match(q, /NOT \(x\.status = 'rejected' AND COALESCE\(x\.note, ''\) = 'withdrawn'\)/, 'one per lead; a withdrawn claim frees it');
+  assert.match(q, /x\.lead_id = \$1::uuid AND x\.status <> 'rejected'/, 'one live request per lead (same rule as replacements_one_per_lead and the portal RPC)');
   assert.match(q, /'refused', 'weekly_max'/);
   assert.ok(!/public\.cycles|public\.pricing|replacement_cap/.test(JSON.stringify(WF)), 'no cycles, no pricing caps');
   assert.deepEqual(R.COUNTED, new Set(['due', 'disputed', 'approved', 'fulfilled']));

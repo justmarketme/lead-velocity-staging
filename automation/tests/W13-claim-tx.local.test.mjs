@@ -21,10 +21,10 @@ const BACKEND = localPgBackend();
 test('W13 claim node: static shape = one query string, two statements (week lock + claim), batching single', () => {
   assert.ok(node, 'claim node exists');
   const opt = node.parameters.options || {};
-  assert.ok(opt.queryBatching === undefined || opt.queryBatching === 'single', `queryBatching must be default/single, got ${opt.queryBatching}`);
+  assert.equal(opt.queryBatching, 'single', 'pinned to single: lock and count in one transaction');
   const stmts = node.parameters.query.replace(/--[^\n]*/g, '').split(/;\s*\n/).map((s) => s.trim().replace(/;$/, '')).filter(Boolean);
   assert.equal(stmts.length, 2, 'lock + claim');
-  assert.match(stmts[0], /^SELECT pg_advisory_xact_lock\(hashtextextended\('w13:week:' \|\| \$5::text \|\| ':' \|\| to_char\(public\.smc_week_start\(COALESCE\(\$10::timestamptz, \$9::timestamptz\)\) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI'\), 0\)\)$/);
+  assert.match(stmts[0], /^SELECT pg_advisory_xact_lock\(hashtextextended\('w13:week:' \|\| \$5::uuid::text \|\| ':' \|\| to_char\(public\.smc_week_start\(COALESCE\(\$10::timestamptz, \$9::timestamptz\)\) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI'\), 0\)\)$/);
   assert.ok(!/\bCOMMIT\b|\bBEGIN\b/i.test(node.parameters.query), 'no hand-rolled txn control');
   // the portal RPC uses the very same key expression, so both paths exclude each other
   const mig = readFileSync(join(ROOT, 'supabase', 'migrations', '20261011030000_smc_03_orders_outcomes.sql'), 'utf8');

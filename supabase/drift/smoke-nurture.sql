@@ -52,7 +52,18 @@ BEGIN
     RAISE EXCEPTION 'smoke 2: re-route accepted';
   EXCEPTION WHEN check_violation THEN NULL;
   END;
-  RAISE NOTICE 'ok 2: re-route to a broker without an open order refused';
+  -- un-routing takes the lead off the order (no double delivery), routing back re-attaches it
+  UPDATE public.leads SET broker_id = NULL WHERE id = '61000000-0000-4000-8000-000000000002';
+  IF EXISTS (SELECT 1 FROM public.lead_order_items WHERE lead_id = '61000000-0000-4000-8000-000000000002') THEN RAISE EXCEPTION 'smoke 2: un-routed lead still on the order'; END IF;
+  UPDATE public.leads SET broker_id = '10000000-0000-4000-8000-000000000001' WHERE id = '61000000-0000-4000-8000-000000000002';
+  IF (SELECT count(*) FROM public.lead_order_items WHERE order_id = '31000000-0000-4000-8000-000000000001') <> 2 THEN RAISE EXCEPTION 'smoke 2: re-attach failed'; END IF;
+  -- a calendar token reference may only name this broker's own Vault secret
+  BEGIN
+    UPDATE public.brokers SET calendar_token_ref = 'ms_refresh_10000000-0000-4000-8000-000000000002_1700000000' WHERE id = '10000000-0000-4000-8000-000000000001';
+    RAISE EXCEPTION 'smoke 2: foreign calendar_token_ref accepted';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  RAISE NOTICE 'ok 2: re-route refused without an open order; un-route detaches; token reference tied to the broker';
 END $$;
 
 -- 3. bookings 12-14 minutes ago (inside the 10..30-min proof window) for the two delivered leads + one more delivered later
@@ -62,6 +73,10 @@ SELECT ('71000000-0000-4000-8000-' || lpad(g::text, 12, '0'))::uuid, '10000000-0
        now() - ((11 + g) || ' minutes')::interval + interval '30 seconds', 'booked', :'brand', 'teams'
   FROM generate_series(1, 2) g;
 
+-- the broker's uploaded proof files (the RPC requires the object to exist in the private bucket)
+INSERT INTO storage.objects (bucket_id, name) VALUES
+  ('broker-media', '10000000-0000-4000-8000-000000000001/noshow-proof/a.jpg'),
+  ('broker-media', '10000000-0000-4000-8000-000000000001/noshow-proof/b.jpg');
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000002', true);
 DO $$
@@ -70,6 +85,11 @@ BEGIN
   BEGIN
     PERFORM public.smc_request_replacement('71000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001/noshow-proof/../10000000-0000-4000-8000-000000000002/x.jpg', 'no_show');
     RAISE EXCEPTION 'smoke 3: traversal accepted';
+  EXCEPTION WHEN sqlstate '22023' THEN NULL;
+  END;
+  BEGIN
+    PERFORM public.smc_request_replacement('71000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001/noshow-proof/never-uploaded.jpg', 'no_show');
+    RAISE EXCEPTION 'smoke 3: a proof that was never uploaded was accepted';
   EXCEPTION WHEN sqlstate '22023' THEN NULL;
   END;
   j := public.smc_request_replacement('71000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001/noshow-proof/a.jpg', 'unreachable');
@@ -163,6 +183,8 @@ END $$;
 
 -- 7. n8n_app sees SortMyCover rows only; reads orders; cannot write order items; cannot read a calendar token through the API roles
 SET LOCAL ROLE n8n_app;
+-- an n8n_app session that forges the admin's uid still sees SortMyCover rows only (RESTRICTIVE n8n policies)
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000001', true);
 DO $$
 DECLARE n int;
 BEGIN

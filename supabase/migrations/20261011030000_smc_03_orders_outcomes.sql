@@ -145,6 +145,11 @@ DECLARE
   v_cap  integer;
 BEGIN
   IF p_broker_id IS NULL OR p_brand_id IS NULL THEN RETURN NULL; END IF;
+  -- lock-then-count is only exact in READ COMMITTED (each statement takes a fresh snapshot). Under REPEATABLE READ /
+  -- SERIALIZABLE the count would use the transaction snapshot and could overfill an order: refuse instead.
+  IF current_setting('transaction_isolation') <> 'read committed' THEN
+    RAISE EXCEPTION 'smc: route SortMyCover leads in READ COMMITTED (this session is %)', current_setting('transaction_isolation') USING ERRCODE = '25001';
+  END IF;
   FOR c IN SELECT o.id FROM public.lead_orders o
             WHERE o.broker_id = p_broker_id AND o.brand_id = p_brand_id AND o.status = 'paid'
             ORDER BY o.paid_at NULLS LAST, o.created_at, o.id
@@ -163,25 +168,29 @@ BEGIN
   RETURN NULL;
 END $$;
 COMMENT ON FUNCTION public.smc_open_order_for(uuid, uuid) IS
-  'SMC: the oldest paid SortMyCover lead_orders row of this broker that still has room (lead_count + approved replacements > lead_order_items), locked FOR UPDATE; NULL = none. Used by the routing triggers.';
+  'SMC: the oldest paid SortMyCover lead_orders row of this broker that still has room (lead_count + approved replacements > lead_order_items), locked FOR UPDATE; NULL = none. READ COMMITTED only. Used by the routing triggers.';
 
+-- "Routed for SortMyCover" changes when broker_id changes, or when an admin turns a lead with a broker into a SortMyCover lead.
 -- BEFORE: a SortMyCover lead may only be routed to a broker with an open order. First routing without one is HELD
 -- (broker cleared, routing_reason held_no_open_order: the lead is stored, not handed over, not messaged). A re-route of an
--- already-routed lead to a broker without room is refused with an error (an explicit admin action).
+-- already-routed lead (or turning a routed legacy lead into a SortMyCover lead) to a broker without room is refused with an
+-- error (an explicit admin action).
 CREATE OR REPLACE FUNCTION public.smc_leads_route_check()
 RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
 BEGIN
   IF NEW.brand_id IS NULL OR NEW.broker_id IS NULL THEN RETURN NEW; END IF;
-  IF TG_OP = 'UPDATE' AND NEW.broker_id IS NOT DISTINCT FROM OLD.broker_id THEN RETURN NEW; END IF;
+  IF TG_OP = 'UPDATE' AND NEW.broker_id IS NOT DISTINCT FROM OLD.broker_id AND NEW.brand_id IS NOT DISTINCT FROM OLD.brand_id THEN
+    RETURN NEW;
+  END IF;
   IF TG_OP = 'UPDATE' AND EXISTS (SELECT 1 FROM public.lead_order_items i JOIN public.lead_orders o ON o.id = i.order_id
                                    WHERE i.lead_id = NEW.id AND o.brand_id IS NOT NULL AND o.broker_id = NEW.broker_id) THEN
     RETURN NEW;   -- already delivered on one of this broker's orders
   END IF;
   IF public.smc_open_order_for(NEW.broker_id, NEW.brand_id) IS NOT NULL THEN RETURN NEW; END IF;
   IF TG_OP = 'UPDATE' AND OLD.broker_id IS NOT NULL THEN
-    RAISE EXCEPTION 'smc: broker % has no open paid SortMyCover lead order; re-route refused', NEW.broker_id USING ERRCODE = '23514';
+    RAISE EXCEPTION 'smc: broker % has no open paid SortMyCover lead order; routing refused', NEW.broker_id USING ERRCODE = '23514';
   END IF;
   NEW.broker_id      := NULL;
   NEW.routed_at      := NULL;
@@ -190,8 +199,11 @@ BEGIN
   RETURN NEW;
 END $$;
 
--- AFTER: attach the routed lead to the order (one lead_order_items row; the CRM pipeline stage starts at 'New'), move it
--- when an admin re-routes, and stamp the timeline. A held lead gets a routing_held timeline row instead.
+-- AFTER: keep lead_order_items in step with leads.broker_id for SortMyCover leads.
+--   * broker changed (to another broker or to none): the lead leaves the previous broker's SortMyCover order first (no
+--     double delivery, the capacity goes back, the previous broker loses the contact details through the order RPCs);
+--   * routed: attach to the open order (one lead_order_items row; the CRM pipeline stage starts at 'New'), stamp the timeline;
+--   * held: a routing_held timeline row.
 CREATE OR REPLACE FUNCTION public.smc_leads_attach_order()
 RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
@@ -200,6 +212,10 @@ DECLARE
   v_order uuid;
 BEGIN
   IF NEW.brand_id IS NULL THEN RETURN NULL; END IF;
+  IF TG_OP = 'UPDATE' AND OLD.broker_id IS NOT NULL AND NEW.broker_id IS DISTINCT FROM OLD.broker_id THEN
+    DELETE FROM public.lead_order_items i USING public.lead_orders o
+     WHERE i.order_id = o.id AND i.lead_id = NEW.id AND o.brand_id IS NOT NULL AND o.broker_id = OLD.broker_id;
+  END IF;
   IF NEW.broker_id IS NULL THEN
     IF NEW.routing_reason = 'held_no_open_order' AND (TG_OP = 'INSERT' OR OLD.routing_reason IS DISTINCT FROM NEW.routing_reason) THEN
       INSERT INTO public.lead_activities (lead_id, brand_id, actor_type, activity_type, payload, occurred_at, idempotency_key)
@@ -209,14 +225,9 @@ BEGIN
     END IF;
     RETURN NULL;
   END IF;
-  IF TG_OP = 'UPDATE' AND NEW.broker_id IS NOT DISTINCT FROM OLD.broker_id THEN RETURN NULL; END IF;
   IF EXISTS (SELECT 1 FROM public.lead_order_items i JOIN public.lead_orders o ON o.id = i.order_id
               WHERE i.lead_id = NEW.id AND o.brand_id IS NOT NULL AND o.broker_id = NEW.broker_id) THEN
-    RETURN NULL;
-  END IF;
-  IF TG_OP = 'UPDATE' AND OLD.broker_id IS NOT NULL THEN
-    DELETE FROM public.lead_order_items i USING public.lead_orders o
-     WHERE i.order_id = o.id AND i.lead_id = NEW.id AND o.brand_id IS NOT NULL AND o.broker_id = OLD.broker_id;
+    RETURN NULL;   -- already on one of this broker's SortMyCover orders
   END IF;
   v_order := public.smc_open_order_for(NEW.broker_id, NEW.brand_id);
   IF v_order IS NULL THEN
@@ -226,18 +237,18 @@ BEGIN
   INSERT INTO public.lead_order_items (order_id, lead_id) VALUES (v_order, NEW.id) ON CONFLICT DO NOTHING;
   INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, actor_type, activity_type, payload, occurred_at, idempotency_key)
   VALUES (NEW.id, NEW.brand_id, NEW.broker_id, 'system', 'order_attached', jsonb_build_object('lead_order_id', v_order), now(),
-          'order:attach:' || NEW.id::text || ':' || v_order::text)
+          'order:attach:' || NEW.id::text || ':' || v_order::text || ':' || extract(epoch FROM clock_timestamp())::bigint::text)
   ON CONFLICT (idempotency_key) DO NOTHING;
   RETURN NULL;
 END $$;
 
 DROP TRIGGER IF EXISTS smc_leads_route_check ON public.leads;
 CREATE TRIGGER smc_leads_route_check
-  BEFORE INSERT OR UPDATE OF broker_id ON public.leads
+  BEFORE INSERT OR UPDATE OF broker_id, brand_id ON public.leads
   FOR EACH ROW WHEN (NEW.brand_id IS NOT NULL) EXECUTE FUNCTION public.smc_leads_route_check();
 DROP TRIGGER IF EXISTS smc_leads_attach_order ON public.leads;
 CREATE TRIGGER smc_leads_attach_order
-  AFTER INSERT OR UPDATE OF broker_id ON public.leads
+  AFTER INSERT OR UPDATE OF broker_id, brand_id ON public.leads
   FOR EACH ROW WHEN (NEW.brand_id IS NOT NULL) EXECUTE FUNCTION public.smc_leads_attach_order();
 
 -- -----------------------------------------------------------------------------
@@ -295,8 +306,19 @@ BEGIN
 
   SELECT * INTO a FROM public.appointments WHERE id = p_booking_id AND broker_id = v_broker AND brand_id IS NOT NULL;
   IF NOT FOUND THEN RAISE EXCEPTION 'booking not found' USING ERRCODE = 'P0002'; END IF;
+  IF a.status NOT IN ('booked','confirmed','no_show') THEN   -- a cancelled / moved / attended meeting is never a missed one
+    RETURN jsonb_build_object('ok', false, 'reason', 'booking_not_live', 'kind', p_kind);
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.outcomes o WHERE o.booking_id = a.id AND o.dispute_status <> 'none') THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'outcome_disputed', 'kind', p_kind);
+  END IF;
   IF p_proof_path IS NULL OR p_proof_path NOT LIKE v_broker::text || '/noshow-proof/%'
      OR p_proof_path ~ '(\.\./|//|\\)' THEN   -- no path traversal
+    RAISE EXCEPTION 'proof missing' USING ERRCODE = '22023';
+  END IF;
+  -- the proof file must really be in the private bucket (uploaded by the broker under his own folder)
+  IF to_regclass('storage.objects') IS NOT NULL
+     AND NOT EXISTS (SELECT 1 FROM storage.objects so WHERE so.bucket_id = 'broker-media' AND so.name = p_proof_path) THEN
     RAISE EXCEPTION 'proof missing' USING ERRCODE = '22023';
   END IF;
   IF now() < a.appointment_date + interval '10 minutes' THEN
@@ -321,6 +343,9 @@ BEGIN
   END IF;
   SELECT i.order_id INTO v_order FROM public.lead_order_items i JOIN public.lead_orders o ON o.id = i.order_id
    WHERE i.lead_id = a.client_id AND o.brand_id IS NOT NULL AND o.broker_id = v_broker LIMIT 1;
+  IF v_order IS NULL THEN   -- the missed lead was never delivered on one of his SortMyCover orders: nothing to replace
+    RETURN jsonb_build_object('ok', false, 'reason', 'not_on_a_lead_order', 'kind', p_kind);
+  END IF;
 
   INSERT INTO public.outcomes (booking_id, lead_id, broker_id, brand_id, outcome, marked_by, marked_via, marked_at)
   VALUES (a.id, a.client_id, a.broker_id, a.brand_id, p_kind, auth.uid(), 'portal', now())

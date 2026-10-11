@@ -703,7 +703,7 @@ VALUES ($1::uuid, $2::uuid, $3::uuid, 'W13', 'system', 'replacement_not_opened',
 -- missed appointment (SAME key as smc_request_replacement, so the portal and WhatsApp paths exclude each other); the count
 -- below is taken after the lock. Every request row counts (no-shows and unreachable together). Over the maximum nothing is
 -- written: the second SELECT returns a 'refused' row so the alert node can tell Jonathan.
-SELECT pg_advisory_xact_lock(hashtextextended('w13:week:' || $5::text || ':' || to_char(public.smc_week_start(COALESCE($10::timestamptz, $9::timestamptz)) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI'), 0));
+SELECT pg_advisory_xact_lock(hashtextextended('w13:week:' || $5::uuid::text || ':' || to_char(public.smc_week_start(COALESCE($10::timestamptz, $9::timestamptz)) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI'), 0));
 WITH used AS (
   SELECT count(*) AS n FROM public.replacements r
    WHERE r.broker_id = $5::uuid
@@ -714,16 +714,18 @@ ins AS (
     FROM used
    WHERE used.n < 3
      AND NOT EXISTS (SELECT 1 FROM public.replacements x
-                      WHERE x.lead_id = $1::uuid AND NOT (x.status = 'rejected' AND COALESCE(x.note, '') = 'withdrawn'))
+                      WHERE x.lead_id = $1::uuid AND x.status <> 'rejected')
   ON CONFLICT DO NOTHING
   RETURNING id, lead_id, lead_order_id, status, note, cap_position, dispute_window_ends_at, reason_code)
 SELECT ins.id::text AS id, ins.lead_id, ins.lead_order_id, ins.status, ins.note, ins.cap_position, ins.dispute_window_ends_at, ins.reason_code, (SELECT n FROM used) + 1 AS used_after, 3 AS weekly_max FROM ins
 UNION ALL
 SELECT NULL, $1::uuid, $4::uuid, 'refused', 'weekly_max', NULL, NULL, $8, (SELECT n FROM used), 3
  WHERE (SELECT n FROM used) >= 3
-   AND NOT EXISTS (SELECT 1 FROM public.replacements x WHERE x.lead_id = $1::uuid AND NOT (x.status = 'rejected' AND COALESCE(x.note, '') = 'withdrawn'));`,
+   AND NOT EXISTS (SELECT 1 FROM public.replacements x WHERE x.lead_id = $1::uuid AND x.status <> 'rejected');`,
     '={{ [$json.lead_id, $json.outcome_id || null, $json.booking_id || null, $json.lead_order_id, $json.broker_id, $json.brand_id, $json.trig.reason, $json.trig.reason_code, $json.trig.due_at, $json.missed_start_at || null] }}');
   link(doClaim, claim, 0);
+  // the week lock and the count share ONE transaction only because both statements go in one query: pin it (n8n default 'single')
+  NODES.find((x) => x.name === claim).parameters.options.queryBatching = 'single';
   const note = code('Alert + timeline text (w13.alertNote)', [9, -1], IMPORT('w13') +
 `// The claim batch returns the pg_advisory_xact_lock row as well as the claim row, so this node runs once over all items,
 // keeps only real claim rows (status + lead_id) and finds its claim by lead_id (no .item lookup).

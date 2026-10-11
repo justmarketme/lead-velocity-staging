@@ -119,7 +119,11 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'outcomes' AND policyname = 'smc broker correct own') THEN
     CREATE POLICY "smc broker correct own" ON public.outcomes FOR UPDATE TO authenticated
       USING (broker_id = public.smc_current_broker_id() AND dispute_status = 'none')
-      WITH CHECK (broker_id = public.smc_current_broker_id() AND dispute_status = 'none');
+      WITH CHECK (broker_id = public.smc_current_broker_id() AND dispute_status = 'none'
+                  -- the row must still describe one of HIS SortMyCover bookings (no retargeting booking_id / lead_id)
+                  AND EXISTS (SELECT 1 FROM public.appointments a
+                               WHERE a.id = outcomes.booking_id AND a.broker_id = outcomes.broker_id
+                                 AND a.client_id = outcomes.lead_id AND a.brand_id IS NOT NULL));
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'broker_media' AND policyname = 'smc broker read own') THEN
     CREATE POLICY "smc broker read own" ON public.broker_media FOR SELECT TO authenticated
@@ -147,7 +151,21 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = t AND policyname = 'smc n8n_app brand rows') THEN
       EXECUTE format('CREATE POLICY "smc n8n_app brand rows" ON public.%I FOR ALL TO n8n_app USING (brand_id IS NOT NULL) WITH CHECK (brand_id IS NOT NULL)', t);
     END IF;
+    -- RESTRICTIVE twin: several live CRM policies have no TO clause (they apply to PUBLIC, so to n8n_app too) and trust
+    -- has_role(auth.uid(), ...); auth.uid() reads a session setting any role can set. Without this an n8n_app session could
+    -- claim an admin's uid and reach legacy CRM rows.
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = t AND policyname = 'smc n8n_app brand rows only') THEN
+      EXECUTE format('CREATE POLICY "smc n8n_app brand rows only" ON public.%I AS RESTRICTIVE FOR ALL TO n8n_app USING (brand_id IS NOT NULL) WITH CHECK (brand_id IS NOT NULL)', t);
+    END IF;
   END LOOP;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'lead_orders' AND policyname = 'smc n8n_app brand orders only') THEN
+    CREATE POLICY "smc n8n_app brand orders only" ON public.lead_orders AS RESTRICTIVE FOR ALL TO n8n_app USING (brand_id IS NOT NULL) WITH CHECK (brand_id IS NOT NULL);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'lead_order_items' AND policyname = 'smc n8n_app brand order items only') THEN
+    CREATE POLICY "smc n8n_app brand order items only" ON public.lead_order_items AS RESTRICTIVE FOR ALL TO n8n_app
+      USING (EXISTS (SELECT 1 FROM public.lead_orders o WHERE o.id = lead_order_items.order_id AND o.brand_id IS NOT NULL))
+      WITH CHECK (EXISTS (SELECT 1 FROM public.lead_orders o WHERE o.id = lead_order_items.order_id AND o.brand_id IS NOT NULL));
+  END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'lead_orders' AND policyname = 'smc n8n_app brand orders') THEN
     CREATE POLICY "smc n8n_app brand orders" ON public.lead_orders FOR SELECT TO n8n_app USING (brand_id IS NOT NULL);
   END IF;
@@ -178,7 +196,10 @@ BEGIN
   -- a brokers row already enrolled in SortMyCover. Legacy inserts (brand_id NULL, routing off) are unaffected.
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'brokers' AND policyname = 'smc restrict broker self-insert') THEN
     CREATE POLICY "smc restrict broker self-insert" ON public.brokers AS RESTRICTIVE FOR INSERT TO authenticated
-      WITH CHECK (public.smc_is_admin() OR (brand_id IS NULL AND routing_on IS NOT TRUE));
+      WITH CHECK (public.smc_is_admin() OR (brand_id IS NULL AND routing_on IS NOT TRUE AND fsp_number IS NULL AND licence_categories IS NULL
+                  AND verified_credentials IS NULL AND calendar_token_ref IS NULL AND calendar_status IS NULL AND calendar_mode IS NULL
+                  AND ms_tenant_id IS NULL AND intro_card_url IS NULL AND intro_voice_url IS NULL AND intro_video_url IS NULL
+                  AND next_free_slot_at IS NULL AND onboarding_progress = '{}'::jsonb));
   END IF;
   -- The LIVE policy "Agents can create their own activities" (agent_id = auth.uid()) would let a broker insert timeline rows for ANY
   -- lead carrying brand_id / broker_id / workflow. Only SECURITY DEFINER RPCs, n8n_app and admins write SortMyCover timeline rows.
@@ -212,29 +233,17 @@ BEGIN
   IF current_user NOT IN ('authenticated','anon') THEN
     RETURN NEW;
   END IF;
-  IF auth.uid() IS NULL OR public.smc_is_admin() THEN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'smc: no session' USING ERRCODE = '42501';   -- an API role without a user never edits a broker row
+  END IF;
+  IF public.smc_is_admin() THEN
     RETURN NEW;
   END IF;
-  IF OLD.brand_id IS NULL THEN
-    IF NEW.brand_id            IS DISTINCT FROM OLD.brand_id
-    OR NEW.routing_on          IS DISTINCT FROM OLD.routing_on
-    OR NEW.consent_mode        IS DISTINCT FROM OLD.consent_mode
-    OR NEW.fsp_number          IS DISTINCT FROM OLD.fsp_number
-    OR NEW.calendar_token_ref  IS DISTINCT FROM OLD.calendar_token_ref
-    OR NEW.verified_credentials IS DISTINCT FROM OLD.verified_credentials
-    OR NEW.licence_categories  IS DISTINCT FROM OLD.licence_categories THEN
-      RAISE EXCEPTION 'smc: brokers cannot set SortMyCover routing, consent, disclosure or verification fields on their own row'
-        USING ERRCODE = '42501';
-    END IF;
-    RETURN NEW;
-  END IF;
-  IF NEW.status                 IS DISTINCT FROM OLD.status
-  OR NEW.brand_id               IS DISTINCT FROM OLD.brand_id
-  OR NEW.user_id                IS DISTINCT FROM OLD.user_id
+  -- Fields only Lead Velocity (admin / workflows) sets, on EVERY row (a legacy broker cannot pre-load them before an admin
+  -- enrols him: once routing is switched on they would reach consumers).
+  IF NEW.brand_id               IS DISTINCT FROM OLD.brand_id
   OR NEW.routing_on             IS DISTINCT FROM OLD.routing_on
   OR NEW.consent_mode           IS DISTINCT FROM OLD.consent_mode
-  OR NEW.fsp_number             IS DISTINCT FROM OLD.fsp_number
-  OR NEW.firm_name              IS DISTINCT FROM OLD.firm_name        -- named in the consent text and the disclosure
   OR NEW.licence_categories     IS DISTINCT FROM OLD.licence_categories
   OR NEW.verified_credentials   IS DISTINCT FROM OLD.verified_credentials
   OR NEW.calendar_provider      IS DISTINCT FROM OLD.calendar_provider
@@ -251,7 +260,26 @@ BEGIN
   OR NEW.intro_voice_url        IS DISTINCT FROM OLD.intro_voice_url
   OR NEW.intro_video_url        IS DISTINCT FROM OLD.intro_video_url
   OR NEW.onboarding_progress    IS DISTINCT FROM OLD.onboarding_progress THEN
-    RAISE EXCEPTION 'smc: brokers cannot change status, routing, consent, disclosure (practice name / FSP), licence, calendar connection or approved media fields'
+    RAISE EXCEPTION 'smc: brokers cannot change routing, consent, licence, verification, calendar connection or approved media fields'
+      USING ERRCODE = '42501';
+  END IF;
+  IF OLD.brand_id IS NULL THEN
+    IF NEW.fsp_number IS DISTINCT FROM OLD.fsp_number THEN
+      RAISE EXCEPTION 'smc: the FSP number is set during SortMyCover onboarding' USING ERRCODE = '42501';
+    END IF;
+    RETURN NEW;   -- every legacy column stays writable exactly as today
+  END IF;
+  IF NEW.status IS DISTINCT FROM OLD.status OR NEW.user_id IS DISTINCT FROM OLD.user_id THEN
+    RAISE EXCEPTION 'smc: brokers cannot change their SortMyCover status' USING ERRCODE = '42501';
+  END IF;
+  -- The names the consent text and the WhatsApp disclosure carry ("{practice} (FSP n)", the adviser) and the number lead
+  -- notifications go to: editable during onboarding (portal Profile), frozen once Lead Velocity switches routing on.
+  IF OLD.routing_on AND (
+       NEW.firm_name       IS DISTINCT FROM OLD.firm_name
+    OR NEW.fsp_number      IS DISTINCT FROM OLD.fsp_number
+    OR NEW.contact_person  IS DISTINCT FROM OLD.contact_person
+    OR NEW.whatsapp_number IS DISTINCT FROM OLD.whatsapp_number) THEN
+    RAISE EXCEPTION 'smc: practice name, FSP number, adviser and WhatsApp number are locked while you receive leads; ask Lead Velocity to change them'
       USING ERRCODE = '42501';
   END IF;
   RETURN NEW;
@@ -275,11 +303,11 @@ BEGIN
   IF v_broker IS NULL THEN
     RAISE EXCEPTION 'smc_portal_event: not a broker' USING ERRCODE = '42501';
   END IF;
-  IF p_type NOT IN ('step.completed','step.skipped','calendar.fallback_chosen','card.approved',
+  IF p_type NOT IN ('step.completed','step.skipped','fsp.submitted','calendar.fallback_chosen','card.approved',
                     'support.message','profile.saved','availability.saved','outcome.marked') THEN
     RAISE EXCEPTION 'smc_portal_event: unknown type %', p_type USING ERRCODE = '22023';
   END IF;
-  IF p_payload IS NOT NULL AND length(p_payload::text) > 4000 THEN
+  IF (p_payload IS NOT NULL AND length(p_payload::text) > 4000) OR length(coalesce(p_step, '')) > 100 THEN
     RAISE EXCEPTION 'smc_portal_event: payload too large' USING ERRCODE = '22023';
   END IF;
   SELECT b.brand_id INTO v_brand FROM public.brokers b WHERE b.id = v_broker;

@@ -113,6 +113,7 @@ ALTER TABLE "public"."brokers" DROP COLUMN IF EXISTS "intro_card_url" CASCADE;  
 ALTER TABLE "public"."brokers" DROP COLUMN IF EXISTS "intro_media_pref" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."brokers" DROP COLUMN IF EXISTS "intro_video_url" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."brokers" DROP COLUMN IF EXISTS "intro_voice_url" CASCADE;  -- data in this column is lost
+ALTER TABLE "public"."brokers" DROP COLUMN IF EXISTS "languages" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."brokers" DROP COLUMN IF EXISTS "licence_categories" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."brokers" DROP COLUMN IF EXISTS "max_meetings_per_day" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."brokers" DROP COLUMN IF EXISTS "max_meetings_per_week" CASCADE;  -- data in this column is lost
@@ -128,6 +129,7 @@ ALTER TABLE "public"."brokers" DROP COLUMN IF EXISTS "routing_on" CASCADE;  -- d
 ALTER TABLE "public"."brokers" DROP COLUMN IF EXISTS "slot_minutes" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."brokers" DROP COLUMN IF EXISTS "timezone" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."brokers" DROP COLUMN IF EXISTS "verified_credentials" CASCADE;  -- data in this column is lost
+ALTER TABLE "public"."brokers" DROP COLUMN IF EXISTS "years_advising" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."communications" DROP COLUMN IF EXISTS "author" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."communications" DROP COLUMN IF EXISTS "brand_id" CASCADE;  -- data in this column is lost
 ALTER TABLE "public"."communications" DROP COLUMN IF EXISTS "cost_zar" CASCADE;  -- data in this column is lost

@@ -15,6 +15,8 @@ DO $mig$
 DECLARE
   b constant text := 'broker-media';
   own constant text := $p$bucket_id = 'broker-media' AND (storage.foldername(name))[1] = public.smc_current_broker_id()::text$p$;
+  -- no-show / unreachable proof is evidence for Lead Velocity's 48-h dispute window: the broker may add it, never change or remove it
+  own_mutable constant text := $p$bucket_id = 'broker-media' AND (storage.foldername(name))[1] = public.smc_current_broker_id()::text AND (storage.foldername(name))[2] IS DISTINCT FROM 'noshow-proof'$p$;
 BEGIN
   IF to_regclass('storage.objects') IS NULL OR to_regclass('storage.buckets') IS NULL THEN
     RAISE NOTICE 'smc_06: no storage schema here (plain Postgres) - skipped';
@@ -38,8 +40,8 @@ BEGIN
 
   EXECUTE format('CREATE POLICY "smc broker-media broker read own" ON storage.objects FOR SELECT TO authenticated USING (%s)', own);
   EXECUTE format('CREATE POLICY "smc broker-media broker insert own" ON storage.objects FOR INSERT TO authenticated WITH CHECK (%s)', own);
-  EXECUTE format('CREATE POLICY "smc broker-media broker update own" ON storage.objects FOR UPDATE TO authenticated USING (%s) WITH CHECK (%s)', own, own);
-  EXECUTE format('CREATE POLICY "smc broker-media broker delete own" ON storage.objects FOR DELETE TO authenticated USING (%s)', own);
+  EXECUTE format('CREATE POLICY "smc broker-media broker update own" ON storage.objects FOR UPDATE TO authenticated USING (%s) WITH CHECK (%s)', own_mutable, own_mutable);
+  EXECUTE format('CREATE POLICY "smc broker-media broker delete own" ON storage.objects FOR DELETE TO authenticated USING (%s)', own_mutable);
   EXECUTE $q$CREATE POLICY "smc broker-media admin read all" ON storage.objects FOR SELECT TO authenticated
             USING (bucket_id = 'broker-media' AND public.smc_is_admin())$q$;
 
@@ -77,6 +79,8 @@ BEGIN
   -- a new name per connect (Graph rotates refresh tokens); Disconnect removes all of this broker's
   v_name := 'ms_refresh_' || p_broker_id::text || '_' || extract(epoch FROM clock_timestamp())::bigint;
   PERFORM vault.create_secret(p_refresh_token, v_name);
+  -- the previous refresh tokens of this broker are dead once a new one is stored: forget them
+  DELETE FROM vault.secrets WHERE name LIKE 'ms_refresh\_' || p_broker_id::text || '\_%' AND name <> v_name;
   PERFORM set_config('smc.source', 'edge', true);
   PERFORM set_config('smc.reason', 'calendar connected', true);
   UPDATE public.brokers b
@@ -103,6 +107,7 @@ AS $$
     FROM public.brokers b
     JOIN vault.decrypted_secrets s ON s.name = b.calendar_token_ref
    WHERE b.id = p_broker_id AND b.brand_id IS NOT NULL AND b.calendar_status = 'ok'
+     AND left(s.name, 48) = 'ms_refresh_' || b.id::text || '_'   -- only his own token, whatever the row points at
    LIMIT 1
 $$;
 COMMENT ON FUNCTION public.smc_vault_ms_refresh(uuid) IS

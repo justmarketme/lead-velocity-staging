@@ -11,7 +11,7 @@
 // the order the missed lead was delivered on (public.smc_order_capacity), so the broker simply receives one more lead.
 //
 // ONE writer: only W13 (and the broker's own portal RPC) writes public.replacements. W10 (C1A), W29 (dispositions) and W12
-// (lead no-show) CALL W13. One replacement per lead, whoever asks first; a withdrawn claim (W29 correction) frees the lead.
+// (lead no-show) CALL W13. One live replacement per lead, whoever asks first; a rejected one (withdrawn or upheld) frees the lead.
 // No-show path: W12 confirms it -> missed_you with 3 new times (ONE offer) -> no rebook and no reply within 48 h, or a
 // second no-show -> replacement_due -> 48-h dispute window for Lead Velocity -> approved.
 import { pick3, slotLabel } from './w10.mjs';
@@ -60,8 +60,8 @@ export function replacementTrigger(ev) {
   }
 }
 
-/** A row that still blocks a new claim for its lead: anything except a withdrawn one (W29 correction). */
-export const blocksLead = (r) => !(r.status === 'rejected' && r.note === 'withdrawn');
+/** A row that still blocks a new claim for its lead: any live request (same rule as the replacements_one_per_lead index and the portal RPC; a rejected one, withdrawn or dispute-upheld, frees the lead). */
+export const blocksLead = (r) => r.status !== 'rejected';
 
 /**
  * Open the replacement row (idempotent per lead), enforcing the weekly maximum. In-memory model of W13.json's SQL.
