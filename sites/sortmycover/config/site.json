@@ -4,7 +4,7 @@
   "site_url": "https://sortmycover.co.za",
   "cookie_domain": "sortmycover.co.za",
   "campaign_host_suffix": ".sortmycover.co.za",
-  "n8n_base": "https://emmadoesit.cloud/lv-n8n",
+  "n8n_base": "https://n8n.sortmycover.co.za",
   "api_prefix": "/webhook/smc",
   "pixel_id": "",
   "domain_verification": "",
