@@ -1,5 +1,5 @@
 import angles from "../config/angles.json";
-import { campaignOrigin } from "@/lib/site";
+import { campaignOrigin, fillProvider } from "@/lib/site";
 
 /** The only proof device allowed (rules S15, S17): a dated, named, sourced fact whose evidence file is in config/evidence.json. */
 export interface Proof { text: string; source: string; month: string; url: string; evidence: string }
@@ -7,7 +7,7 @@ export interface Proof { text: string; source: string; month: string; url: strin
 export interface Angle {
   slug: string;
   meta_code: string;
-  /** A = long-term insurance (non-funeral), B = wills and estate (deliverables/website/angles-final.md). */
+  /** A = long-term insurance (non-funeral), B = wills and estate, provided by config/site.json -> will_provider (deliverables/website/angles-final.md). */
   theme?: "A" | "B";
   rank?: number;
   host: boolean;
@@ -25,9 +25,15 @@ export interface Angle {
   /** One scope sentence shown under the sub line (wills angles: what the call is and is not). */
   note?: string;
   proof?: Proof;
+  /** Evidence ids (config/evidence.json) behind every fact in the copy; theme B ids are watched by scripts/check-capital-legacy.mjs. */
+  sources?: string[];
 }
 
-export const ANGLES: Angle[] = angles as Angle[];
+/** Every string in an angle may carry {provider} (config/site.json -> will_provider), filled once here. */
+const fillDeep = <T,>(v: T): T =>
+  (typeof v === "string" ? fillProvider(v) : Array.isArray(v) ? v.map(fillDeep) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fillDeep(x)])) : v) as T;
+
+export const ANGLES: Angle[] = (angles as Angle[]).map(fillDeep);
 export const angleBySlug = (slug: string) => ANGLES.find((a) => a.slug === slug);
 /** Host label rule from the subdomain research (D10): lowercase letters, digits, hyphens; starts with a letter; ends with letter or digit; no double hyphen. */
 export const HOST_LABEL = /^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$/;

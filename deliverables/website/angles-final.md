@@ -1,6 +1,6 @@
 # SortMyCover: the final angle set (v1, 11 Oct 2026)
 
-Status: PROPOSAL for Jonathan. Not legal advice. Nothing here is published, uploaded to Meta or DNS-attached. The compliance practitioner (Q1 to Q8 in `site-spec.md` L.2) and an attorney for the wills items sign off before any ad runs.
+Status: PROPOSAL for Jonathan. Not legal advice. Nothing here is published, uploaded to Meta or DNS-attached. The compliance practitioner (Q1 to Q8 in `site-spec.md` L.2) and an attorney for the wills items sign off before any ad runs. (11 Oct 2026: the wills items now follow Capital Legacy's published content by Jonathan's decision; see Theme B.)
 
 Inputs read: `research/ad-library-angles.md` and `research/ad-library/ad-catalog.csv` (Meta Ad Library, South Africa, collected 10 Oct 2026), `research/angles-desk-research.md`, `site-spec.md` sections C and I (rules S1 to S35), `creative-strategist/angle-ranking.md` and `concepts.md`, `media-buyer/campaign-spec.md`.
 
@@ -89,11 +89,14 @@ Ranking logic: Library breadth and longevity first, then white space for the 35 
 - **Compliance flags:** green. No baby-health claims; do not imply the viewer is pregnant or a parent (Meta personal-attributes standard: keep the line third person).
 - **Replaces:** `new-baby` (re-written; the "New bond" half of the old hook is removed because it duplicated A2).
 
-### Theme B: wills and estate planning (ALL HELD: built, not hosted)
+### Theme B: wills and estate planning (Capital Legacy; released 11 Oct 2026)
 
-**Why all four are held:** four open questions (section 5) decide what the call may honestly promise. Until the practitioner and an attorney answer them, no Theme B page is hosted, no host label is created and no DNS is attached. The pages exist under `/_c/<slug>/` so they can be released by removing `hold`.
+**Update 11 Oct 2026 (Jonathan's decision):** the wills and estate offer is based on **Capital Legacy** (capitallegacy.co.za), and the content follows what Capital Legacy publishes and is updated whenever it changes. This replaces the attorney hold and answers Q-W1 (a Capital Legacy consultant) and Q-W2 (Capital Legacy drafts the will; SortMyCover does not). The four pages are hosted like theme A.
+- Live copy is in `sites/sortmycover/config/angles.json` (the provider is the token `{provider}`, named once in `config/site.json` -> `will_provider`). Every fact is a Capital Legacy statement in `config/evidence.json` (`cl-*`, status `verified`, source URL and date checked).
+- Changes from the drafts below: the "does not itself draft a will" line is gone (Capital Legacy drafts); `will-and-cover` no longer makes the nomination / s37C statement (Q-W3) and now says what Capital Legacy says, that a will gives instructions but no cash, so estate costs and debts are paid before heirs inherit; `will-myth` drops the Sanlam proof (Q-W4) for Capital Legacy's own Estate Readiness Index 2026 figure (41% of the people who died had a valid will, survey of 1,000, August 2026); `where-is-the-will` says Capital Legacy stores the wills it drafts in a fire- and water-resistant vault; every page carries the provider line, Capital Legacy's "does not charge to draft, update, store or retrieve a will" (never "free"), and that its optional estate-costs cover is paid for.
+- A weekly watcher (`automation/W36.json`, and `sites/sortmycover/scripts/check-capital-legacy.mjs` locally) emails Jonathan when a Capital Legacy page we rely on changes.
 
-Shared line used on all four pages: "The call is about how cover, a will and nominations fit together. It does not itself draft a will." (wording subject to the attorney; it makes the page match what the adviser may do).
+The subsections below are the 11 Oct research record (mechanism, Library evidence, compliance flags); their headline and hook drafts are superseded by `config/angles.json`.
 
 #### B1. `children-guardian` (b01). HELD. Amber.
 - **Mechanism:** parental protectiveness; a will can name a guardian. Longest-running emotional wills angle.
@@ -165,6 +168,8 @@ No 301s were added for retired slugs: `README.md` records that nothing was deplo
 
 ## 5. What the attorney or compliance practitioner must clear
 
+Q-W1 to Q-W4 were superseded on 11 Oct 2026 by Jonathan's Capital Legacy decision (see Theme B): the consultant is Capital Legacy's, Capital Legacy drafts, the nomination statement and the Sanlam figures are no longer used, and "a will can name a guardian" is Capital Legacy's published statement. Kept for the record.
+
 | # | Question | Blocks |
 |---|---|---|
 | Q-W1 | **Who is the adviser on a wills or estate call** (a FAIS authorised representative, an attorney, a trust company, a fiduciary firm)? The thank-you page must name the right party; the page must not imply SortMyCover or the adviser drafts. | all of Theme B |
@@ -188,7 +193,7 @@ No 301s were added for retired slugs: `README.md` records that nothing was deplo
 3. Identity: `owners-directors`
 4. Conversation: `adviser-conversation`
 
-Two executions of one concept are one concept (do not count colour pairs as a test). `cover-gap` waits for Q-G1 and the filed ASISA copy, then enters in cycle 2 as the "gap" concept. `new-baby` is the refresh pool. Theme B concepts enter only after Q-W1 to Q-W4 are answered; the first to release is `will-myth` or `children-guardian`, which replaces the weakest cycle-1 concept, never adds a fifth.
+Two executions of one concept are one concept (do not count colour pairs as a test). `cover-gap` waits for Q-G1 and the filed ASISA copy, then enters in cycle 2 as the "gap" concept. `new-baby` is the refresh pool. Theme B concepts enter only after the Capital Legacy go-live items (routing, fee arrangement, FSP number: `sites/sortmycover/README.md`, "Not done"); the first to release is `will-myth` or `children-guardian`, which replaces the weakest cycle-1 concept, never adds a fifth.
 
 **Layers of judgement:**
 - **Layer 1, attention:** hook rate (3-second plays over impressions) and outbound CTR. Judge an ad only after about 3,000 impressions and at least 30 outbound clicks.
@@ -206,8 +211,7 @@ Two executions of one concept are one concept (do not count colour pairs as a te
 
 ## 7. Slug list (host labels)
 
-Hosted (6): `adviser-conversation`, `new-bond`, `salary-stops`, `cover-gap`, `owners-directors`, `new-baby`.
-Built, unhosted (4): `children-guardian`, `will-myth`, `will-and-cover`, `where-is-the-will`.
+Hosted (10): `adviser-conversation`, `new-bond`, `salary-stops`, `cover-gap`, `owners-directors`, `new-baby`, and since 11 Oct 2026 the Capital Legacy wills pages `children-guardian`, `will-myth`, `will-and-cover`, `where-is-the-will`.
 Retired or merged (8 slugs): `bond-paperwork`, `employer-gap`, `myth-bust`, `self-employed`, `turned-40`, `virtual`, `what-the-call`, `c13-check-not-buy`. Kept and re-written: `new-bond`, `new-baby`.
 
 All ten labels pass the host-label regex and avoid the S28 word list (quote, compare, cheap, best, rates, claims, fsca, insurer, bank).

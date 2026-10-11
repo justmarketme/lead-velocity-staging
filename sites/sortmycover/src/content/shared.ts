@@ -1,5 +1,5 @@
 import type { FaqItem } from "./types";
-import { COST_LINE, FEE_LINE, NO_COMMISSION } from "@/lib/site";
+import { COST_LINE, FEE_LINE, NO_COMMISSION, NOT_FSP_LINE, PROVIDER_COST_LINE, PROVIDER_ROLE_LINE, provider, site } from "@/lib/site";
 
 export const HOW_STEPS = [
   { title: "Answer two quick questions", body: "Your age band and a monthly budget band. Then your first name and mobile number." },
@@ -14,6 +14,22 @@ export const CAMPAIGN_FAQ: FaqItem[] = [
   { id: "adviser", q: "Who is the adviser?", a: "An adviser from a financial services provider authorised by the FSCA. You get their name, practice and FSP number on WhatsApp before you speak to them, and you can check them on the FSCA register." },
   { id: "info", q: "What happens to my details?", a: "Lead Velocity (Pty) Ltd, trading as SortMyCover, looks after them under POPIA. They go to one adviser, the one you are introduced to, and are never sold. Ad measurement with Meta happens only if you give the separate optional consent. Reply STOP to any message and we stop." },
   { id: "committed", q: "Am I committed to anything?", a: "No. You do not have to buy anything, on the call or after it. You can move or cancel the call from the WhatsApp message, at no cost." },
+];
+
+/* Wills and estate (theme B) pages: the same steps and FAQ, with the will provider named (config/site.json -> will_provider).
+   No fee line here: SortMyCover's fee arrangement for theme B is not settled, so these pages make no statement about it. */
+export const WILLS_STEPS = [
+  HOW_STEPS[0],
+  { title: "Pick a time", body: `You get the name of your ${provider.name} consultant on WhatsApp, and choose a time that suits you.` },
+  { title: `Talk to the ${provider.name} consultant`, body: "By video, WhatsApp or phone, about your will. You decide afterwards. " + COST_LINE },
+];
+
+export const WILLS_FAQ: FaqItem[] = [
+  { id: "cost", q: "Does the call cost anything?", a: COST_LINE + " " + PROVIDER_COST_LINE },
+  { id: "provider", q: "Who will I speak to?", a: `A consultant from ${provider.legal_name}, ${provider.status}. You can look the firm up on the [FSCA register](${site.fsca_register_url}).` },
+  { id: "drafts", q: "Does SortMyCover draft the will?", a: PROVIDER_ROLE_LINE + " " + NOT_FSP_LINE },
+  CAMPAIGN_FAQ.find((f) => f.id === "info")!,
+  CAMPAIGN_FAQ.find((f) => f.id === "committed")!,
 ];
 
 /* Home FAQ: the eight items of spec D.1. Site FAQ: those plus the extra objections. */

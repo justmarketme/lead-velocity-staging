@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { BANNED } from "../src/build/wording";
 import { JSDOM } from "jsdom";
 import { ANGLES, hostLabel } from "../src/campaigns";
+import site from "../config/site.json";
 
 const dist = path.resolve(__dirname, "../dist");
 const have = fs.existsSync(path.join(dist, "index.html"));
@@ -118,6 +119,24 @@ describe.skipIf(!have)("pre-rendered output", () => {
       expect(v, p.rel).toContain("hello@sortmycover.co.za");
       expect(v, p.rel).toContain("SortMyCover is not a financial services provider and gives no financial advice");
       expect(p.html, p.rel).toMatch(/href="[^"]*\/privacy\/#opt-out"[^>]*>Opt out of ad measurement/);
+    }
+  });
+  it("wills and estate pages name the will provider (config/site.json) in a disclosure, make no fee statement, and theme A pages do not mention it", () => {
+    const wp = site.will_provider;
+    for (const a of ANGLES) {
+      const land = visible(pages.find((p) => p.rel === `_c/${a.slug}/index.html`)!.html);
+      const thanks = visible(pages.find((p) => p.rel === `_c/${a.slug}/thanks/index.html`)!.html);
+      if (a.theme === "B") {
+        expect(land, a.slug).toContain(`provided by ${wp.legal_name}, ${wp.status}`);
+        expect(land, a.slug).toContain(`${wp.name} consultant`);
+        expect(land, a.slug).toMatch(/SortMyCover does not draft wills and gives no advice/);
+        expect(land, a.slug).not.toMatch(/Advisers pay SortMyCover|commission/);
+        expect(thanks, a.slug).toContain(`${wp.name} consultant`);
+        expect(thanks, a.slug).not.toMatch(/FSP number/);
+      } else {
+        expect(land, a.slug).not.toContain(wp.name);
+        expect(land, a.slug).toMatch(/Advisers pay SortMyCover a fee/);
+      }
     }
   });
   it("campaign pages have no site navigation", () => {

@@ -4,7 +4,9 @@ import { glossary } from "../src/content/glossary";
 import { parseInline, plainText } from "../src/lib/inline";
 import evidence from "../config/evidence.json";
 import { ANGLES, HOST_LABEL, LABEL_BANNED, RESERVED_LABELS, h1Plain, hostLabel, isAttached } from "../src/campaigns";
-import { SITE_FAQ, CAMPAIGN_FAQ } from "../src/content/shared";
+import { SITE_FAQ, CAMPAIGN_FAQ, WILLS_FAQ } from "../src/content/shared";
+import anglesRaw from "../config/angles.json";
+import site from "../config/site.json";
 import { BANNED } from "../src/build/wording";
 import type { Block } from "../src/content/types";
 
@@ -69,7 +71,10 @@ describe("articles", () => {
 describe("evidence ledger", () => {
   it("every entry has the audit fields", () => {
     for (const e of evidence as Record<string, string>[]) for (const k of ["id", "claim", "publisher", "month", "status"]) expect(e[k], `${e.id}.${k}`).toBeTruthy();
-    for (const e of (evidence as Record<string, string>[]).filter((x) => x.status === "usable")) expect(e.url, `${e.id}.url`).toMatch(/^https:\/\//);
+    for (const e of (evidence as Record<string, string>[]).filter((x) => x.status === "usable" || x.status === "verified")) expect(e.url, `${e.id}.url`).toMatch(/^https:\/\//);
+  });
+  it("verified entries (read at the provider's own pages) carry the date they were checked", () => {
+    for (const e of (evidence as Record<string, string>[]).filter((x) => x.status === "verified")) expect(e.checked, `${e.id}.checked`).toMatch(/^\d{4}-\d\d-\d\d$/);
   });
   it("unique ids", () => { const ids = (evidence as { id: string }[]).map((e) => e.id); expect(new Set(ids).size).toBe(ids.length); });
 });
@@ -92,7 +97,7 @@ describe("glossary", () => {
 
 describe("campaign angles", () => {
   /* Final set of 10 (deliverables/website/angles-final.md, 11 Oct 2026): 6 long-term insurance angles (theme A, non-funeral) and 4 wills and
-     estate angles (theme B, all HELD). Expectation changed from the earlier ten (bond-paperwork, c13-check-not-buy, employer-gap, myth-bust,
+     estate angles (theme B). Theme B was held for an attorney until 11 Oct 2026, when Jonathan based it on the will provider in config/site.json. Expectation changed from the earlier ten (bond-paperwork, c13-check-not-buy, employer-gap, myth-bust,
      self-employed, turned-40, virtual, what-the-call retired or merged; extended-family dropped before that). */
   const FINAL = ["adviser-conversation", "cover-gap", "new-baby", "new-bond", "owners-directors", "salary-stops", "children-guardian", "will-and-cover", "will-myth", "where-is-the-will"];
   it("are the 10 final campaign angles with valid host labels and unique codes", () => {
@@ -116,7 +121,8 @@ describe("campaign angles", () => {
       expect(all, a.slug).not.toMatch(/\blicensed\b/i);
       // site-spec I.2 word scan (SortMyCover never checks, reviews, sorts, arranges or matches cover; no comparison; no guarantee)
       expect(all, a.slug).not.toMatch(/\b(check|checks|checked|review|reviews|sort|sorted|arrange|arranged|match|matched|compare|cheapest|cheap|affordable|discount|premium|premiums|guaranteed|regulated|funeral)\b/i);
-      expect(a.sub + a.description, a.slug).toMatch(/authorised adviser/);
+      // theme A introduces an authorised adviser; theme B names the will provider's consultant (config/site.json -> will_provider)
+      expect(a.sub + a.description, a.slug).toMatch(a.theme === "B" ? new RegExp(`${site.will_provider.name} consultant`) : /authorised adviser/);
       expect(a.sub, a.slug).toMatch(/The call costs you nothing\./);
     }
   });
@@ -132,17 +138,30 @@ describe("campaign angles", () => {
         expect(e!.month, a.slug + " proof month matches the evidence file").toBe(a.proof.month);
         expect(a.proof.text, a.slug).toMatch(/General information, not advice\./);
         // a hosted page may rest only on a usable evidence entry; a held page may still wait on a HOLD entry
-        if (isAttached(a)) expect(e!.status, a.slug).toBe("usable");
+        if (isAttached(a)) expect(["usable", "verified"], a.slug).toContain(e!.status);
       }
     }
   });
-  it("every theme B (wills and estate) page carries the scope note and is held", () => {
+  it("theme B (wills and estate) pages are attached, name the provider only through {provider}, and every fact is a verified evidence entry", () => {
+    const ev = evidence as { id: string; status: string }[];
+    const ok = (id: string) => { const e = ev.find((x) => x.id === id); expect(e, id).toBeTruthy(); expect(["usable", "verified"], id).toContain(e!.status); };
     for (const a of ANGLES.filter((x) => x.theme === "B")) {
-      expect(a.hold, a.slug).toBe(true);
-      expect(a.note, a.slug).toMatch(/does not itself draft a will/);
+      expect(isAttached(a), a.slug).toBe(true);
       expect(a.budget_topic, a.slug).toBe("cover and planning");
-      expect(a.status, a.slug).toMatch(/^HOLD/);
+      expect(a.sources?.length, a.slug + " sources").toBeGreaterThan(0);
+      a.sources!.forEach(ok);
+      expect(JSON.stringify(a), a.slug).not.toMatch(/\{(provider|legal_name|status)\}/);
     }
+    // the provider's name is typed once, in config/site.json: angles.json carries only the token
+    for (const a of (anglesRaw as { theme?: string }[]).filter((x) => x.theme === "B")) expect(JSON.stringify(a)).not.toContain(site.will_provider.name);
+    expect(JSON.stringify(anglesRaw)).toContain("{provider}");
+    site.will_provider.evidence.forEach(ok);
+  });
+  it("the wills FAQ names the provider, makes no fee statement and passes the wording scan", () => {
+    const all = WILLS_FAQ.map((f) => f.q + " " + f.a).join(" ");
+    expect(all).toContain(site.will_provider.legal_name);
+    expect(all).not.toMatch(/Advisers pay SortMyCover|commission/);
+    for (const f of WILLS_FAQ) for (const [re, label] of BANNED) expect(f.a + f.q, `${f.id}: ${label}`).not.toMatch(re);
   });
 });
 
@@ -155,10 +174,9 @@ describe("campaign hosts (spec C.3)", () => {
     expect(hostLabel({ slug: "x-check", host_label: "x-looking" })).toBe("x-looking");
     expect(ANGLES.filter((a) => a.host_label)).toHaveLength(0);
   });
-  it("the four wills and estate angles are held: built, but never attached to a host", () => {
-    const held = ["children-guardian", "will-and-cover", "will-myth", "where-is-the-will"];
-    for (const slug of held) expect(ANGLES.find((a) => a.slug === slug)!.hold, slug).toBe(true);
-    expect(ANGLES.filter(isAttached).map((a) => a.slug).sort()).toEqual(["adviser-conversation", "cover-gap", "new-baby", "new-bond", "owners-directors", "salary-stops"]);
+  it("all ten angles are attached to a host; none is held (the four wills and estate angles were released on 11 Oct 2026)", () => {
+    expect(ANGLES.filter((a) => a.hold)).toHaveLength(0);
+    expect(ANGLES.filter(isAttached).map((a) => a.slug).sort()).toEqual(["adviser-conversation", "children-guardian", "cover-gap", "new-baby", "new-bond", "owners-directors", "salary-stops", "where-is-the-will", "will-and-cover", "will-myth"]);
   });
 });
 

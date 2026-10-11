@@ -92,15 +92,18 @@
     "theme": "B",
     "rank": 7,
     "host": true,
-    "hold": true,
     "budget_topic": "cover and planning",
-    "ad_hook": "A will can name who looks after the children. A short call covers where to start.",
+    "ad_hook": "A will can name a guardian for minor children. A {provider} consultant can talk you through it.",
     "h1": "Who looks after\n*the children?*",
-    "sub": "A will can name a guardian. Book a 30-minute call with an authorised adviser to talk it through. The call costs you nothing.",
-    "note": "The call is about how cover, a will and nominations fit together. It does not itself draft a will.",
+    "sub": "A will can name a guardian for minor children. Book a call with a {provider} consultant about your will. The call costs you nothing.",
+    "note": "{provider} says a will can also set up a trust that holds a child's inheritance until an age the will sets.",
     "title": "Who looks after the children? | SortMyCover",
-    "description": "Book a 30-minute call with an authorised adviser about cover, a will and nominations. The call costs you nothing.",
-    "status": "HOLD: attorney (Q-W1 to Q-W3). Built, not hosted."
+    "description": "A will can name a guardian for minor children. Book a call with a {provider} consultant about your will. The call costs you nothing.",
+    "sources": [
+      "cl-will-names-guardian",
+      "cl-testamentary-trust"
+    ],
+    "status": "LIVE-READY (11 Oct 2026): Jonathan decided the wills and estate offer is based on {provider}; every fact follows {provider}'s published pages (evidence ids in sources, re-run scripts/check-capital-legacy.mjs after a change). Replaces the attorney hold (Q-W1 to Q-W4)."
   },
   {
     "slug": "will-myth",
@@ -108,22 +111,24 @@
     "theme": "B",
     "rank": 8,
     "host": true,
-    "hold": true,
     "budget_topic": "cover and planning",
-    "ad_hook": "In a Sanlam survey (September 2026), about three in four people without a will owned a significant asset.",
+    "ad_hook": "A bank account or a phone contract is part of an estate too. A will says who gets what.",
     "h1": "A will is not\n*only for the wealthy.*",
-    "sub": "Book a 30-minute call with an authorised adviser to talk about wills, nominations and cover. The call costs you nothing.",
-    "note": "The call is about how cover, a will and nominations fit together. It does not itself draft a will.",
+    "sub": "{provider} says a will matters however little or much you own. Book a call with a {provider} consultant. The call costs you nothing.",
     "proof": {
-      "text": "Sanlam Legacy survey, September 2026: an online survey of 1,200 people, not nationally representative. General information, not advice.",
-      "source": "Sanlam",
-      "month": "2026-09",
-      "url": "https://www.fanews.co.za/article/life-insurance/9/estates-wills/1001/sanlam-survey-shows-a-nation-that-cares-without-a-plan-only-28-of-south-africans-have-a-completed-will/44602",
-      "evidence": "sanlam-legacy-2026"
+      "text": "{provider} Estate Readiness Index 2026, a survey of 1,000 South Africans aged 25 to 75 who had lost a loved one in the previous five years: 41% said that person had a valid will. General information, not advice.",
+      "source": "{provider}",
+      "month": "2026-08",
+      "url": "https://capitallegacy.co.za/estate-readiness-index",
+      "evidence": "cl-eri-2026"
     },
     "title": "A will is not only for the wealthy. | SortMyCover",
-    "description": "Book a 30-minute call with an authorised adviser about wills, nominations and cover. The call costs you nothing.",
-    "status": "HOLD: attorney (Q-W1, Q-W2, Q-W4: denominator of the 76% and the primary Sanlam release). Built, not hosted."
+    "description": "A will matters however little or much you own. Book a call with a {provider} consultant about your will. The call costs you nothing.",
+    "sources": [
+      "cl-will-any-estate",
+      "cl-eri-2026"
+    ],
+    "status": "LIVE-READY (11 Oct 2026): Jonathan decided the wills and estate offer is based on {provider}; every fact follows {provider}'s published pages (evidence ids in sources, re-run scripts/check-capital-legacy.mjs after a change). Replaces the attorney hold (Q-W1 to Q-W4)."
   },
   {
     "slug": "will-and-cover",
@@ -131,15 +136,17 @@
     "theme": "B",
     "rank": 9,
     "host": true,
-    "hold": true,
     "budget_topic": "cover and planning",
-    "ad_hook": "A will says who inherits. A nomination says who an insurer pays. They are different jobs.",
-    "h1": "A will says who inherits.\n*A nomination says who an insurer pays.*",
-    "sub": "Book a 30-minute call with an authorised adviser about how a will, nominations and cover fit together. The call costs you nothing.",
-    "note": "The call is about how cover, a will and nominations fit together. It does not itself draft a will.",
-    "title": "A will, a nomination and cover | SortMyCover",
-    "description": "Book a 30-minute call with an authorised adviser about how a will, nominations and cover fit together. The call costs you nothing.",
-    "status": "HOLD: attorney (Q-W1 to Q-W3: nomination and s37C wording). Built, not hosted."
+    "ad_hook": "A will says who inherits. It does not pay the estate's costs, debts and taxes.",
+    "h1": "A will says who inherits.\n*It does not pay the costs.*",
+    "sub": "Estate costs and debts are paid before heirs inherit. Book a call with a {provider} consultant. The call costs you nothing.",
+    "note": "{provider} says a will gives instructions but no cash, and describes life cover as one way to give an estate cash when it is needed.",
+    "title": "A will, an estate and its costs | SortMyCover",
+    "description": "A will gives instructions, not cash. Book a call with a {provider} consultant about a will and estate costs. The call costs you nothing.",
+    "sources": [
+      "cl-will-no-cash"
+    ],
+    "status": "LIVE-READY (11 Oct 2026): Jonathan decided the wills and estate offer is based on {provider}; every fact follows {provider}'s published pages (evidence ids in sources, re-run scripts/check-capital-legacy.mjs after a change). Replaces the attorney hold (Q-W1 to Q-W4)."
   },
   {
     "slug": "where-is-the-will",
@@ -147,14 +154,16 @@
     "theme": "B",
     "rank": 10,
     "host": true,
-    "hold": true,
     "budget_topic": "cover and planning",
-    "ad_hook": "Having a will is one step. Who knows where it is?",
+    "ad_hook": "A signed will helps only if it can be found when it is needed.",
     "h1": "Having a will is one step.\n*Who knows where it is?*",
-    "sub": "Book a 30-minute call with an authorised adviser to talk about wills, nominations and cover. The call costs you nothing.",
-    "note": "The call is about how cover, a will and nominations fit together. It does not itself draft a will.",
+    "sub": "{provider} stores wills it drafts in a fire- and water-resistant vault. Book a call with a {provider} consultant. The call costs you nothing.",
+    "note": "{provider} says it collects the signed will by courier and gives you a copy for your records.",
     "title": "Who knows where the will is? | SortMyCover",
-    "description": "Book a 30-minute call with an authorised adviser about wills, nominations and cover. The call costs you nothing.",
-    "status": "HOLD: attorney (Q-W1, Q-W2). Built, not hosted."
+    "description": "{provider} stores wills it drafts in a vault and gives you a copy. Book a call with a {provider} consultant. The call costs you nothing.",
+    "sources": [
+      "cl-safe-custody"
+    ],
+    "status": "LIVE-READY (11 Oct 2026): Jonathan decided the wills and estate offer is based on {provider}; every fact follows {provider}'s published pages (evidence ids in sources, re-run scripts/check-capital-legacy.mjs after a change). Replaces the attorney hold (Q-W1 to Q-W4)."
   }
 ]

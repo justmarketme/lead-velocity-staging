@@ -34,5 +34,21 @@
   },
   "robots_extra_disallow": [],
   "footer_line": "SortMyCover is a service of Lead Velocity (Pty) Ltd. We introduce you to authorised financial services providers. We are not a financial services provider. We do not give financial advice, compare products or quote premiums. You must be 18 or older.",
-  "fsca_register_url": "https://www.fsca.co.za/FSB-Search/"
+  "fsca_register_url": "https://www.fsca.co.za/FSB-Search/",
+  "will_provider": {
+    "_comment": "Wills and estate (theme B) pages: the provider of the will and estate service. Change it here only: {provider} in config/angles.json renders as name, and the lines below render on every theme B page, its FAQ and thank-you page. Every line is a statement the provider publishes; the evidence ids point to config/evidence.json and the watcher (scripts/check-capital-legacy.mjs, automation/W36.json) emails when a source page changes. A new provider needs new lines and new evidence, not just a new name.",
+    "name": "Capital Legacy",
+    "legal_name": "Capital Legacy Solutions (Pty) Ltd",
+    "status": "an authorised financial services provider",
+    "url": "https://www.capitallegacy.co.za/",
+    "service_line": "The will and estate service on this page is provided by {legal_name}, {status}.",
+    "cost_line": "{provider} says it does not charge to draft, update, store or retrieve a will. It also offers optional cover for the costs of winding up an estate, at a monthly cost, and its consultant explains the terms.",
+    "role_line": "SortMyCover does not draft wills and gives no advice. It puts you in touch with a {provider} consultant.",
+    "evidence": [
+      "cl-provider-identity",
+      "cl-no-charge-will",
+      "cl-consultant-meetings",
+      "cl-lpp"
+    ]
+  }
 }

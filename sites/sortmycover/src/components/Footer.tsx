@@ -52,7 +52,8 @@ export function Footer() {
 }
 
 /** Campaign-host footer: same identity block, absolute links to the apex (each page lives on exactly one host). */
-export function CampaignFooter() {
+/** feeLine=false on the wills and estate pages: the will provider's fee arrangement with SortMyCover is not settled, so those pages make no fee statement. */
+export function CampaignFooter({ feeLine = true }: { feeLine?: boolean }) {
   const links: [string, string][] = [["Privacy", "/privacy/"], ["Terms", "/terms/"], ["How we make money", "/how-we-make-money/"], ["Complaints", "/complaints/"], ["PAIA manual", "/paia/"], ["Opt out of ad measurement", "/privacy/#opt-out"]];
   return (
     <footer className="site-footer py-8" data-footer>
@@ -60,8 +61,8 @@ export function CampaignFooter() {
         <Wordmark plain />
         <IdentityBlock />
         <p data-disclosure>{NOT_FSP_LINE}</p>
-          <p data-disclosure>{FOOTER_LINE}</p>
-        <p>Advisers pay SortMyCover a fee for the service. The fee does not depend on whether you buy anything.</p>
+        <p data-disclosure>{FOOTER_LINE}</p>
+        {feeLine && <p>Advisers pay SortMyCover a fee for the service. The fee does not depend on whether you buy anything.</p>}
         <nav aria-label="Legal"><ul className="flex flex-wrap gap-x-5">{links.map(([t, p]) => <li key={p}><a href={APEX + p}>{t}</a></li>)}</ul></nav>
       </div>
     </footer>

@@ -201,6 +201,58 @@
       }
     },
     {
+      "src": "^/(?:_c/)?children-guardian/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://children-guardian.sortmycover.co.za/"
+      }
+    },
+    {
+      "src": "^/(?:_c/)?will-myth/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://will-myth.sortmycover.co.za/"
+      }
+    },
+    {
+      "src": "^/(?:_c/)?will-and-cover/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://will-and-cover.sortmycover.co.za/"
+      }
+    },
+    {
+      "src": "^/(?:_c/)?where-is-the-will/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://where-is-the-will.sortmycover.co.za/"
+      }
+    },
+    {
       "src": "/(.*)",
       "headers": {
         "Content-Security-Policy": "default-src 'self'; script-src 'self' https://connect.facebook.net https://challenges.cloudflare.com; style-src 'self'; img-src 'self' https://www.facebook.com; font-src 'self'; connect-src 'self' https://emmadoesit.cloud/lv-n8n/ https://www.facebook.com https://connect.facebook.net; frame-src https://challenges.cloudflare.com; form-action 'self' https://emmadoesit.cloud/lv-n8n/; base-uri 'none'; object-src 'none'; frame-ancestors 'none'",
@@ -389,6 +441,86 @@
         }
       ],
       "dest": "/_c/new-baby/thanks/index.html"
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "host",
+          "value": "children-guardian\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/children-guardian/index.html"
+    },
+    {
+      "src": "^/thanks/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "children-guardian\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/children-guardian/thanks/index.html"
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "host",
+          "value": "will-myth\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/will-myth/index.html"
+    },
+    {
+      "src": "^/thanks/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "will-myth\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/will-myth/thanks/index.html"
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "host",
+          "value": "will-and-cover\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/will-and-cover/index.html"
+    },
+    {
+      "src": "^/thanks/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "will-and-cover\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/will-and-cover/thanks/index.html"
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "host",
+          "value": "where-is-the-will\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/where-is-the-will/index.html"
+    },
+    {
+      "src": "^/thanks/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "where-is-the-will\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/where-is-the-will/thanks/index.html"
     },
     {
       "src": "^/(?!assets/|fonts/|thanks(?:/|$)|robots\\.txt$|favicon|apple-touch-icon|icon-|mask-icon|manifest|browserconfig|mstile)(.+)$",
