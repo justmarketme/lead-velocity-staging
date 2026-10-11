@@ -16,8 +16,6 @@ import {
     UserCircle,
     MessageSquare,
     ShieldCheck,
-    CheckCircle2,
-    RefreshCw,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -337,103 +335,28 @@ const PremiumBrokerPortalPage = () => {
                     {activeTab === 'documents' && <PremiumDocuments documents={[]} />}
                     {activeTab === 'settings' && <div className="animate-in fade-in slide-in-from-bottom duration-500">
                         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                            {/* Discord Card */}
+                            {/* Alerts Card */}
                             <Card className="bg-slate-900/40 backdrop-blur-3xl border-white/5 p-8 rounded-3xl">
                                 <CardHeader className="p-0 mb-6">
                                     <div className="flex items-center gap-4">
-                                        <div className="p-3 bg-pink-500/10 rounded-2xl border border-pink-500/20">
-                                            <MessageSquare className="w-6 h-6 text-pink-500" />
+                                        <div className="p-3 bg-emerald-500/10 rounded-2xl border border-emerald-500/20">
+                                            <MessageSquare className="w-6 h-6 text-emerald-500" />
                                         </div>
                                         <div>
-                                            <CardTitle className="text-2xl font-black text-white italic uppercase tracking-tighter">DISCORD LINK</CardTitle>
-                                            <CardDescription className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Secure Admin Command & Control</CardDescription>
+                                            <CardTitle className="text-2xl font-black text-white italic uppercase tracking-tighter">ALERTS</CardTitle>
+                                            <CardDescription className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">New leads and bookings reach you here</CardDescription>
                                         </div>
                                     </div>
                                 </CardHeader>
-                                <CardContent className="p-0 space-y-8">
-                                    {(brokerData as any)?.profiles?.discord_enabled ? (
-                                        <div className="flex items-center gap-4 p-5 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl text-emerald-500">
-                                            <CheckCircle2 className="w-6 h-6" />
-                                            <span className="font-black uppercase tracking-widest text-xs italic">SYSTEM LINK ESTABLISHED</span>
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-6">
-                                            <div className="p-6 bg-white/[0.03] rounded-3xl border border-white/5 relative group overflow-hidden">
-                                                <div className="absolute inset-0 bg-gradient-to-br from-pink-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-4 italic">AUTHORIZATION CODE</label>
-                                                <div className="flex items-center justify-between relative z-10">
-                                                    <span className="text-4xl font-black tracking-[0.2em] text-white">
-                                                        {(brokerData as any)?.profiles?.discord_pairing_code || "------"}
-                                                    </span>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={async () => {
-                                                            const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-                                                            const { error } = await supabase.from("profiles").update({ discord_pairing_code: newCode }).eq("user_id", (brokerData as any).user_id);
-                                                            if (!error) {
-                                                                setBrokerData({ ...brokerData, profiles: { ...(brokerData as any).profiles, discord_pairing_code: newCode } });
-                                                                toast({ title: "Signal Generated", description: "Encryption code refreshed." });
-                                                            }
-                                                        }}
-                                                        className="h-12 w-12 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all"
-                                                    >
-                                                        <RefreshCw className="w-5 h-5" />
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-                                </CardContent>
-                            </Card>
-
-                            {/* Telegram Card */}
-                            <Card className="bg-slate-900/40 backdrop-blur-3xl border-white/5 p-8 rounded-3xl shadow-2xl shadow-sky-500/5">
-                                <CardHeader className="p-0 mb-6">
-                                    <div className="flex items-center gap-4">
-                                        <div className="p-3 bg-sky-500/10 rounded-2xl border border-sky-500/20">
-                                            <MessageSquare className="w-6 h-6 text-sky-500" />
-                                        </div>
-                                        <div>
-                                            <CardTitle className="text-2xl font-black text-white italic uppercase tracking-tighter">TELEGRAM LINK</CardTitle>
-                                            <CardDescription className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Instant Insight Transmissions</CardDescription>
-                                        </div>
+                                <CardContent className="p-0 space-y-6">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2 italic">WHATSAPP</label>
+                                        <div className="text-xl font-black text-white tracking-tight">{(brokerData as any)?.phone_number || "Not set"}</div>
                                     </div>
-                                </CardHeader>
-                                <CardContent className="p-0 space-y-8">
-                                    {(brokerData as any)?.profiles?.telegram_enabled ? (
-                                        <div className="flex items-center gap-4 p-5 bg-sky-500/5 border border-sky-500/10 rounded-2xl text-sky-500">
-                                            <CheckCircle2 className="w-6 h-6" />
-                                            <span className="font-black uppercase tracking-widest text-xs italic">SECURE FEED CONNECTED</span>
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-6">
-                                            <div className="p-6 bg-white/[0.03] rounded-3xl border border-white/5 relative group overflow-hidden">
-                                                <div className="absolute inset-0 bg-gradient-to-br from-sky-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-4 italic">TELEGRAM UNIQUE SIGNATURE</label>
-                                                <div className="flex items-center justify-between relative z-10">
-                                                    <span className="text-4xl font-black tracking-[0.2em] text-white">
-                                                        {(brokerData as any)?.profiles?.telegram_pairing_code || "------"}
-                                                    </span>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={async () => {
-                                                            const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-                                                            const { error } = await supabase.from("profiles").update({ telegram_pairing_code: newCode }).eq("user_id", (brokerData as any).user_id);
-                                                            if (!error) {
-                                                                setBrokerData({ ...brokerData, profiles: { ...(brokerData as any).profiles, telegram_pairing_code: newCode } });
-                                                                toast({ title: "Frequency Tuned", description: "Telegram auth signature cycled." });
-                                                            }
-                                                        }}
-                                                        className="h-12 w-12 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all"
-                                                    >
-                                                        <RefreshCw className="w-5 h-5" />
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2 italic">EMAIL</label>
+                                        <div className="text-xl font-black text-white tracking-tight break-all">{(brokerData as any)?.email || "Not set"}</div>
+                                    </div>
                                 </CardContent>
                             </Card>
 
