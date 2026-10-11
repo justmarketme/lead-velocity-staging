@@ -11,7 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { LOW_BUDGET, loadLowBudgetSwitches, setLowBudgetSwitch } from "@/lib/lowBudget";
+import { LOW_BUDGET, loadLowBudgetSwitches, setLowBudgetSwitch, WILLS, loadWillsSwitches, setWillsSwitch } from "@/lib/lowBudget";
 import { useToast } from "@/hooks/use-toast";
 import {
   Briefcase, Phone, Mail, Building2, Clock, CalendarClock, CheckCircle2, PlusCircle,
@@ -338,6 +338,8 @@ const BrokerDrawer = ({
   const [history, setHistory] = useState<any[]>([]);
   // C-tier switch: null = column not on this DB yet, so the control stays hidden
   const [lowBudget, setLowBudget] = useState<boolean | null>(null);
+  // Wills switch: same pattern (null = column not on this DB yet)
+  const [wills, setWills] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (!broker) return;
@@ -352,6 +354,8 @@ const BrokerDrawer = ({
     setFuTitle(""); setFuWhen("");
     setLowBudget(null);
     loadLowBudgetSwitches().then((m) => setLowBudget(m ? !!m[broker.id] : null));
+    setWills(null);
+    loadWillsSwitches().then((m) => setWills(m ? !!m[broker.id] : null));
     (async () => {
       setLoadingDetail(true);
       const [a, f, o] = await Promise.all([
@@ -441,6 +445,15 @@ const BrokerDrawer = ({
     if (error) { setLowBudget(prev); toast({ title: "Update failed", description: error.message, variant: "destructive" }); return; }
     notifyCrmChange("brokers", broker.id, `${LOW_BUDGET.label} leads ${on ? "on" : "off"} — ${broker.firm_name || "broker"}`);
     toast({ title: on ? "Accepts leads under R750" : "No longer accepts leads under R750" });
+  };
+
+  const toggleWills = async (on: boolean) => {
+    const prev = wills;
+    setWills(on);
+    const { error } = await setWillsSwitch(broker.id, on);
+    if (error) { setWills(prev); toast({ title: "Update failed", description: error.message, variant: "destructive" }); return; }
+    notifyCrmChange("brokers", broker.id, `Wills leads ${on ? "on" : "off"} — ${broker.firm_name || "broker"}`);
+    toast({ title: on ? "Handles wills leads" : "No longer handles wills leads" });
   };
 
   const setNextFollowUp = async (val: string) => {
@@ -585,6 +598,16 @@ const BrokerDrawer = ({
                   <p className="text-xs text-muted-foreground">{LOW_BUDGET.label} leads go to this broker automatically. Turn on only once they've agreed.</p>
                 </div>
                 <Switch id="accepts-low-budget" checked={lowBudget} onCheckedChange={toggleLowBudget} />
+              </div>
+            )}
+
+            {wills !== null && (
+              <div className="rounded-lg border border-white/10 bg-slate-900/40 p-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <Label htmlFor="handles-wills" className="text-sm font-medium">{WILLS.label}</Label>
+                  <p className="text-xs text-muted-foreground">Wills and estate leads go only to brokers with this on. Turn on only once they've agreed.</p>
+                </div>
+                <Switch id="handles-wills" checked={wills} onCheckedChange={toggleWills} />
               </div>
             )}
 

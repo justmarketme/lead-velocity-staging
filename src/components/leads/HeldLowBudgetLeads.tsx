@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useToast } from "@/hooks/use-toast";
 import { AlertTriangle, CheckCircle2, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { AGE_TEXT, ASSIGN_REFUSED_CODE, ASSIGN_REFUSED_TEXT, COUNTS_HELPER, LOW_BUDGET, REASON_TEXT, loadLowBudgetSwitches } from "@/lib/lowBudget";
+import { AGE_TEXT, ASSIGN_REFUSED_CODE, ASSIGN_REFUSED_TEXT, COUNTS_HELPER, LOW_BUDGET, REASON_TEXT, PRODUCT_INTEREST_TEXT, loadLowBudgetSwitches } from "@/lib/lowBudget";
 
 const db = supabase as any;
 
@@ -23,6 +23,7 @@ export interface HeldLead {
   budget_band: string | null;
   age_band: string | null;
   reasons: string[] | null;
+  product_interest?: string | null;
   created_at: string;
 }
 
@@ -69,7 +70,7 @@ export const HeldLowBudgetLeads = ({ leads, onChanged }: { leads: HeldLead[]; on
         <Table>
           <TableHeader className="bg-slate-950/50">
             <TableRow className="hover:bg-transparent border-white/5">
-              {["Name", "Area", "Budget", "Age", "Cover interest", "Created", "Days held"].map((h) => (
+              {["Name", "Area", "Budget", "Age", "Product", "Cover interest", "Created", "Days held"].map((h) => (
                 <TableHead key={h} className="text-[11px] uppercase font-bold tracking-tight text-slate-500 whitespace-nowrap">{h}</TableHead>
               ))}
               <TableHead className="text-right" />
@@ -77,7 +78,7 @@ export const HeldLowBudgetLeads = ({ leads, onChanged }: { leads: HeldLead[]; on
           </TableHeader>
           <TableBody>
             {leads.length === 0 ? (
-              <TableRow><TableCell colSpan={8} className="text-sm text-muted-foreground text-center py-8">No leads held.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="text-sm text-muted-foreground text-center py-8">No leads held.</TableCell></TableRow>
             ) : leads.map((l) => {
               const days = daysSince(l.created_at);
               return (
@@ -86,6 +87,7 @@ export const HeldLowBudgetLeads = ({ leads, onChanged }: { leads: HeldLead[]; on
                   <TableCell className="text-sm">{areaOf(l)}</TableCell>
                   <TableCell><Badge variant="outline" className="whitespace-nowrap text-[10px]">{budgetText(l.budget_band)}</Badge></TableCell>
                   <TableCell className="text-sm whitespace-nowrap">{l.age_band ? AGE_TEXT[l.age_band] || l.age_band : "—"}</TableCell>
+                  <TableCell className="text-xs whitespace-nowrap">{PRODUCT_INTEREST_TEXT[l.product_interest || "life_cover"] || l.product_interest}</TableCell>
                   <TableCell className="text-xs">{(l.reasons || []).map((r) => REASON_TEXT[r] || r).join(", ") || "—"}</TableCell>
                   <TableCell className="text-xs font-mono opacity-70 whitespace-nowrap">{new Date(l.created_at).toLocaleDateString("en-ZA")}</TableCell>
                   <TableCell className={cn("text-sm font-mono", days >= 3 && "text-amber-400")}>{days}</TableCell>
