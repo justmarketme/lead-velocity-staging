@@ -59,6 +59,8 @@ const LEAD_TAPS = {
   flow_complete: 'W05'
 };
 const STOP_WORDS = /^\s*(stop|unsubscribe|opt[ -]?out|stopp?|stop all)\s*[.!]*\s*$/iu;
+/** A typed email verification code: 6 digits, spaces / dashes allowed ("482 913"). */
+export const EMAIL_CODE_RE = /^\s*\d{3}[\s-]?\d{3}\s*[.!]?\s*$/u;
 /**
  * I-45d: a delivery receipt for a W06 intro card / booking_confirmed -> W06 { op:'status' } (disclosure evidence +
  * the once-only SMS fallback live there). row = the "Status receipt" query row { wamid, status, at, error, w06_card }.
@@ -119,6 +121,9 @@ function routeCore(msg, ctx) {
   if (STOP_WORDS.test(msg.text || '') || (msg.text && prefilter(msg.text).stop)) return { route: 'W15', reason: 'STOP' };
   if (!ctx.lead) return msg.referral || /check my life cover/iu.test(msg.text || '') ? { route: 'W03', reason: 'CTWA entry' } : { route: 'W03', reason: 'unknown number: W03 consent first' };
   if (ctx.lead.opted_out_at) return { route: 'ignore_opted_out', reason: 'opted out: logged only, no reply (W15 sent the one confirmation)' };
+  // 2026-10-11: the 6-digit email verification code (sent by smc-email-verify from hello@sortmycover.co.za via Resend)
+  // is typed here on WhatsApp. Only while a code is outstanding, so a 6-digit number never leaves the agent otherwise.
+  if (ctx.lead.email_verify_pending && !msg.payload && !msg.list_id && EMAIL_CODE_RE.test(msg.text || '')) return { route: 'email_code', reason: 'email verification code' };
   const state = ctx.lead.conv_state?.state || 'unbooked';
   if (QUALIFYING_TAP_STATES.includes(state) && (msg.payload || msg.list_id)) return { route: 'W03', reason: 'qualifying tap' };
   if (/^slot_.+:resched:/u.test(msg.list_id || msg.payload || '')) return { route: 'W10', reason: 'reschedule slot picked' };

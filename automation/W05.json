@@ -1034,11 +1034,47 @@
     },
     {
       "id": "n37",
+      "name": "Email verification item (invite email stored)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nconst d = $('After event (w05.finish)').first().json;\nconst lu = (d.f && d.f.lead_update) || {};\nreturn lu.email ? [{ json: { op: 'issue', lead_id: d.dec.plan.lead_id } }] : [];"
+      }
+    },
+    {
+      "id": "n38",
+      "name": "-> Email verify (smc-email-verify issue)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        800
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-email-verify",
+          "cachedResultName": "Email Verify"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    },
+    {
+      "id": "n39",
       "name": "Timeline: booked",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        960,
+        1440,
         800
       ],
       "parameters": {
@@ -1057,12 +1093,12 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n38",
+      "id": "n40",
       "name": "Answer",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1200,
+        1680,
         800
       ],
       "parameters": {
@@ -1071,13 +1107,13 @@
       }
     },
     {
-      "id": "n39",
+      "id": "n41",
       "name": "HTTP lane?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1440,
-        800
+        0,
+        1000
       ],
       "parameters": {
         "conditions": {
@@ -1102,13 +1138,13 @@
       }
     },
     {
-      "id": "n40",
+      "id": "n42",
       "name": "Respond (book JSON)",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        1680,
-        800
+        240,
+        1000
       ],
       "parameters": {
         "respondWith": "json",
@@ -1127,12 +1163,12 @@
       }
     },
     {
-      "id": "n41",
+      "id": "n43",
       "name": "Fan out effects",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        0,
+        480,
         1000
       ],
       "parameters": {
@@ -1141,12 +1177,12 @@
       }
     },
     {
-      "id": "n42",
+      "id": "n44",
       "name": "Effect?",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
       "position": [
-        240,
+        720,
         1000
       ],
       "parameters": {
@@ -1328,12 +1364,12 @@
       }
     },
     {
-      "id": "n43",
+      "id": "n45",
       "name": "Live send?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        480,
+        960,
         1000
       ],
       "parameters": {
@@ -1359,50 +1395,34 @@
       }
     },
     {
-      "id": "n44",
+      "id": "n46",
       "name": "Send WhatsApp",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
       "position": [
-        720,
+        1200,
         1000
       ],
       "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION }}/{{ $env.PHONE_NUMBER_ID }}/messages",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $env.META_SYSTEM_USER_TOKEN }}"
-            }
-          ]
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
         },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.wa) }}",
         "options": {
-          "timeout": 8000,
-          "response": {
-            "response": {
-              "fullResponse": true,
-              "neverError": true
-            }
-          }
+          "waitForSubWorkflow": true
         }
-      },
-      "retryOnFail": true,
-      "maxTries": 2,
-      "waitBetweenTries": 2000
+      }
     },
     {
-      "id": "n45",
+      "id": "n47",
       "name": "Touch leads.last_contact_at (lead sends)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        960,
+        1440,
         1000
       ],
       "parameters": {
@@ -1421,12 +1441,12 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n46",
+      "id": "n48",
       "name": "Email from howzit@ (Graph sendMail)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1200,
+        1680,
         1000
       ],
       "parameters": {
@@ -1458,13 +1478,13 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n47",
+      "id": "n49",
       "name": "-> W06 First touch (booking event)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        1440,
-        1000
+        0,
+        1200
       ],
       "parameters": {
         "source": "database",
@@ -1480,13 +1500,13 @@
       }
     },
     {
-      "id": "n48",
+      "id": "n50",
       "name": "-> W09 Reminder sequence (schedule / rebuild)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        1680,
-        1000
+        240,
+        1200
       ],
       "parameters": {
         "source": "database",
@@ -1502,12 +1522,12 @@
       }
     },
     {
-      "id": "n49",
+      "id": "n51",
       "name": "-> W07 post-booking contact confirm",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        0,
+        480,
         1200
       ],
       "parameters": {
@@ -1524,12 +1544,12 @@
       }
     },
     {
-      "id": "n50",
+      "id": "n52",
       "name": "-> CAPI Send (Schedule, no email)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        240,
+        720,
         1200
       ],
       "parameters": {
@@ -1546,12 +1566,12 @@
       }
     },
     {
-      "id": "n51",
+      "id": "n53",
       "name": "-> W28 ask_email",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        480,
+        960,
         1200
       ],
       "parameters": {
@@ -1568,12 +1588,12 @@
       }
     },
     {
-      "id": "n52",
+      "id": "n54",
       "name": "-> W22 Alerts",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        720,
+        1200,
         1200
       ],
       "parameters": {
@@ -1590,13 +1610,101 @@
       }
     },
     {
-      "id": "n53",
+      "id": "n55",
+      "name": "GET /j/:booking_id (join link)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        1200
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "j/:booking_id",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "w05-join-get"
+    },
+    {
+      "id": "n56",
+      "name": "Load booking for the join link (no lead PII)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1680,
+        1200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT (SELECT to_jsonb(k) FROM (SELECT a.id, a.method, a.status, a.join_url FROM public.appointments a\n          WHERE a.id::text = $1 AND a.brand_id IS NOT NULL) k) AS booking;",
+        "options": {
+          "queryReplacement": "={{ [String(($json.params || {}).booking_id || '')] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n57",
+      "name": "Join redirect (w05.joinRedirect)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nconst p = $('GET /j/:booking_id (join link)').first().json.params || {};\nreturn [{ json: L.joinRedirect(p, $input.first().json.booking || null) }];"
+      }
+    },
+    {
+      "id": "n58",
+      "name": "Respond (join link)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        1400
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.body }}",
+        "options": {
+          "responseCode": "={{ $json.status }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Location",
+                "value": "={{ $json.headers.Location || \"\" }}"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              },
+              {
+                "name": "Referrer-Policy",
+                "value": "no-referrer"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "n59",
       "name": "GET /c/:booking_id (.ics)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        960,
-        1200
+        480,
+        1400
       ],
       "parameters": {
         "httpMethod": "GET",
@@ -1607,13 +1715,13 @@
       "webhookId": "w05-ics-get"
     },
     {
-      "id": "n54",
+      "id": "n60",
       "name": "Verify .ics caller (w05.parseIcsRequest)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1200,
-        1200
+        720,
+        1400
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -1621,13 +1729,13 @@
       }
     },
     {
-      "id": "n55",
+      "id": "n61",
       "name": ".ics caller ok?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1440,
-        1200
+        960,
+        1400
       ],
       "parameters": {
         "conditions": {
@@ -1652,13 +1760,13 @@
       }
     },
     {
-      "id": "n56",
+      "id": "n62",
       "name": "Load booking for .ics (id only, no lead PII)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        1680,
-        1200
+        1200,
+        1400
       ],
       "parameters": {
         "operation": "executeQuery",
@@ -1676,12 +1784,12 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n57",
+      "id": "n63",
       "name": "Build .ics (w05.icsResponse)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        0,
+        1440,
         1400
       ],
       "parameters": {
@@ -1690,12 +1798,12 @@
       }
     },
     {
-      "id": "n58",
+      "id": "n64",
       "name": ".ics not found (404)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        240,
+        1680,
         1400
       ],
       "parameters": {
@@ -1704,13 +1812,13 @@
       }
     },
     {
-      "id": "n59",
+      "id": "n65",
       "name": "Respond (.ics)",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        480,
-        1400
+        0,
+        1600
       ],
       "parameters": {
         "respondWith": "text",
@@ -1737,13 +1845,13 @@
       }
     },
     {
-      "id": "n60",
+      "id": "n66",
       "name": "Load booking for method change",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        720,
-        1400
+        240,
+        1600
       ],
       "parameters": {
         "operation": "executeQuery",
@@ -1761,13 +1869,13 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n61",
+      "id": "n67",
       "name": "Plan method change (w05.planUpdateMethod)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        960,
-        1400
+        480,
+        1600
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -1775,13 +1883,13 @@
       }
     },
     {
-      "id": "n62",
+      "id": "n68",
       "name": "Method plan?",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
       "position": [
-        1200,
-        1400
+        720,
+        1600
       ],
       "parameters": {
         "rules": {
@@ -1857,13 +1965,13 @@
       }
     },
     {
-      "id": "n63",
+      "id": "n69",
       "name": "Method calendar target (w05.graphEventTarget)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1440,
-        1400
+        960,
+        1600
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -1871,13 +1979,13 @@
       }
     },
     {
-      "id": "n64",
+      "id": "n70",
       "name": "Method event calendar?",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
       "position": [
-        1680,
-        1400
+        1200,
+        1600
       ],
       "parameters": {
         "rules": {
@@ -1953,12 +2061,12 @@
       }
     },
     {
-      "id": "n65",
+      "id": "n71",
       "name": "Graph PATCH event (method, howzit@ shared calendar)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        0,
+        1440,
         1600
       ],
       "parameters": {
@@ -1990,12 +2098,12 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n66",
+      "id": "n72",
       "name": "graph_token input (method)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        240,
+        1680,
         1600
       ],
       "parameters": {
@@ -2004,13 +2112,13 @@
       }
     },
     {
-      "id": "n67",
+      "id": "n73",
       "name": "W04 graph_token (method, waits)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        480,
-        1600
+        0,
+        1800
       ],
       "parameters": {
         "source": "database",
@@ -2026,13 +2134,13 @@
       }
     },
     {
-      "id": "n68",
+      "id": "n74",
       "name": "Graph PATCH event (method, ASSUMPTION)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        720,
-        1600
+        240,
+        1800
       ],
       "parameters": {
         "method": "PATCH",
@@ -2064,13 +2172,13 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n69",
+      "id": "n75",
       "name": "Save method",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        960,
-        1600
+        480,
+        1800
       ],
       "parameters": {
         "operation": "executeQuery",
@@ -2088,13 +2196,13 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n70",
+      "id": "n76",
       "name": "Method invite?",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1200,
-        1600
+        720,
+        1800
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -2102,13 +2210,13 @@
       }
     },
     {
-      "id": "n71",
+      "id": "n77",
       "name": "ask_email input (method)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1440,
-        1600
+        960,
+        1800
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -2116,13 +2224,13 @@
       }
     },
     {
-      "id": "n72",
+      "id": "n78",
       "name": "Mark invite bounced",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        1680,
-        1600
+        1200,
+        1800
       ],
       "parameters": {
         "operation": "executeQuery",
@@ -2140,12 +2248,12 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n73",
+      "id": "n79",
       "name": "Bounce prompt (w05.bounceEffect)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        0,
+        1440,
         1800
       ],
       "parameters": {
@@ -2154,12 +2262,12 @@
       }
     },
     {
-      "id": "n74",
+      "id": "n80",
       "name": "-> WhatsApp Send (invite bounce)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        240,
+        1680,
         1800
       ],
       "parameters": {
@@ -2181,7 +2289,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1000,
+        1480,
         1000
       ],
       "parameters": {
@@ -2214,12 +2322,26 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1200,
+        1680,
         1160
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
         "jsCode": "// DRY_RUN_SENDS=true: nothing leaves the box (email). Pass the input on with a fake 2xx so downstream logging still runs.\nreturn $input.all().map((i, n) => ({ json: { ...i.json, dry_run: true, statusCode: 200, body: { messages: [{ id: 'dry:' + n }] } } }));"
+      }
+    },
+    {
+      "id": "34013a17-2668-8889-79f1-724435a035d0",
+      "name": "SUB input (Send WhatsApp)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        1120
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// lib/wa-route.cjs: \"Send WhatsApp\" sends through smc-whatsapp-send (WHATSAPP_PROVIDER meta | twilio). Generated: edit the\n// generator / route-wa-sends.mjs config, not this node. record:true (the sub writes the communications row).\nconst wa = $json.wa;\nconst exec = (typeof $execution !== 'undefined' && $execution && $execution.id) || 'x';\nconst idx = (typeof $itemIndex !== 'undefined') ? $itemIndex : 0;\nreturn { json: {\n  kind: 'prebuilt', wa, to: wa && wa.to,\n  record: true, caller: \"W05\", bypass_suppression: false,\n  phone_number_id: null,\n  lead_id: null, broker_id: null,\n  correlation: \"W05:Send WhatsApp:\" + exec + ':' + idx,\n} };"
       }
     }
   ],
@@ -2695,6 +2817,11 @@
             "node": "Timeline: booked",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Email verification item (invite email stored)",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -2715,6 +2842,17 @@
         [
           {
             "node": "HTTP lane?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email verification item (invite email stored)": {
+      "main": [
+        [
+          {
+            "node": "-> Email verify (smc-email-verify issue)",
             "type": "main",
             "index": 0
           }
@@ -2825,7 +2963,7 @@
       "main": [
         [
           {
-            "node": "Send WhatsApp",
+            "node": "SUB input (Send WhatsApp)",
             "type": "main",
             "index": 0
           }
@@ -3076,6 +3214,39 @@
         ]
       ]
     },
+    "GET /j/:booking_id (join link)": {
+      "main": [
+        [
+          {
+            "node": "Load booking for the join link (no lead PII)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load booking for the join link (no lead PII)": {
+      "main": [
+        [
+          {
+            "node": "Join redirect (w05.joinRedirect)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Join redirect (w05.joinRedirect)": {
+      "main": [
+        [
+          {
+            "node": "Respond (join link)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Mark invite bounced": {
       "main": [
         [
@@ -3119,6 +3290,17 @@
     "Dry-run stub (Email from howzit@ (Graph sendMail))": {
       "main": [
         []
+      ]
+    },
+    "SUB input (Send WhatsApp)": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   },

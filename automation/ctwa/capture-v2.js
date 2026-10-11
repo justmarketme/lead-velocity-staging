@@ -99,7 +99,8 @@ const COPY = {
   err_other_number_missing: 'Please type the other number, or choose your WhatsApp number.',
   err_other_number: 'Please use a South African mobile number.',
   err_no_day_slots: 'That day just filled up. Please pick another day.',
-  // email verification (sent from howzit@ via Graph after the Flow completes)
+  // email verification (2026-10-11: sent from hello@sortmycover.co.za through Resend by smc-email-verify,
+  // automation/lib/sub-email-verify.mjs; `mail` below is converted to the Resend body there)
   verify_subject: 'Confirm your email for your call with {adviser}',
   verify_body: 'Hi {first_name},\n\nPlease confirm this is your email address so {adviser} can send you your meeting details:\n\n{link}\n\nOr reply on WhatsApp with this code: {code}\n\nThe link and code work for 24 hours. If you did not ask for this, ignore this email.\n\nSortMyCover',
   // tier B broker offer (template broker_lead_offer) + lead-side lines

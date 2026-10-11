@@ -40,6 +40,7 @@ const MODULES = {
   // sub-workflows SUB-*.json (LOCAL-STAGING §7, I-48f)
   subWhatsappSend: './lib/sub-whatsapp-send.mjs',
   waProvider: './lib/wa-provider.mjs',
+  subEmailVerify: './lib/sub-email-verify.mjs', // 2026-10-11 email verification (Resend, clause 5.8), SUB-email-verify.json
   subCapiSend: './lib/sub-capi-send.mjs',
   subW26: './lib/sub-w26.mjs',
   subAdsBudget: './lib/sub-ads-budget.mjs',

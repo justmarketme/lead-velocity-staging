@@ -12,6 +12,7 @@ import { createRequire } from 'node:module';
 import { GRAPH_SCOPE } from './lib/w04.mjs';
 // I-54f: every sender (the howzit@ invite email) ends up behind a DRY_RUN_SENDS gate (lib/egress-gate.cjs; idempotent).
 const { gateSenders } = createRequire(import.meta.url)('./lib/egress-gate.cjs');
+const { routeWaSends } = createRequire(import.meta.url)('./lib/wa-route.cjs');
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PG = { postgres: { id: '', name: 'LV Supabase - n8n_app (least privilege)' } };
@@ -221,6 +222,10 @@ UPDATE public.leads l
        updated_at = now()
   FROM a WHERE l.id = a.client_id
 RETURNING l.id;`, "={{ (() => { const f = $json.f; const u = f.appointment_update; const lu = f.lead_update; return [$json.booking.id, u.graph_event_id || '', u.ical_uid || '', u.join_url || '', u.ics_url, u.invite_email_status || '', u.schedule_event_id || '', lu.broker_id, lu.email || '', lu.email_status || '']; })() }}"));
+  // 2026-10-11 agreement clause 5.8(b): an invite booking that stored an email starts the email verification (code + link
+  // from hello@sortmycover.co.za via Resend; smc-email-verify keeps a 10-minute gap, so a re-run sends nothing new).
+  n.push(code('Email verification item (invite email stored)', 'w05.mjs', `const d = $('After event (w05.finish)').first().json;\nconst lu = (d.f && d.f.lead_update) || {};\nreturn lu.email ? [{ json: { op: 'issue', lead_id: d.dec.plan.lead_id } }] : [];`));
+  n.push(node('-> Email verify (smc-email-verify issue)', 'executeWorkflow', 1.1, { source: 'database', workflowId: { __rl: true, mode: 'id', value: 'smc-email-verify', cachedResultName: 'Email Verify' }, options: { waitForSubWorkflow: false } }));
   n.push(pg('Timeline: booked', `INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
 VALUES ($1::uuid, NULLIF($2, '')::uuid, $3::uuid, 'W05', 'lead', 'booking_created', jsonb_build_object('booking_id', $4::text, 'start', $5::text, 'method', $6::text, 'booked_via', $7::text, 'graph_event', $8::boolean), now(), 'w05:booked:' || $4)
 ON CONFLICT (idempotency_key) DO NOTHING RETURNING id;`, "={{ (() => { const d = $('After event (w05.finish)').first().json; const p = d.dec.plan; return [p.lead_id, (d.ctx.lead || {}).brand_id || '', p.broker_id, d.booking.id, p.start, p.method, p.booked_via, !!d.ev.ok]; })() }}"));
@@ -240,6 +245,13 @@ UPDATE public.leads SET last_contact_at = now() WHERE id = $1::uuid AND $2 = 'le
   n.push(sub('-> CAPI Send (Schedule, no email)', 'CAPI Send'));
   n.push(sub('-> W28 ask_email', 'W28 Booking Flow endpoint'));
   n.push(sub('-> W22 Alerts', 'W22 Alerts'));
+  // 2026-10-11: GET /j/{booking_id} -> 302 to the Teams (Zoom / Meet) join link carried by booking_confirmed and the
+  // reminders (w09 methodDetail). Traefik routes sortmycover.co.za/j/* to /webhook/j/:booking_id (as /c/*).
+  n.push(node('GET /j/:booking_id (join link)', 'webhook', 2, { httpMethod: 'GET', path: 'j/:booking_id', responseMode: 'responseNode', options: {} }, { webhookId: 'w05-join-get' }));
+  n.push(pg('Load booking for the join link (no lead PII)', `SELECT (SELECT to_jsonb(k) FROM (SELECT a.id, a.method, a.status, a.join_url FROM public.appointments a
+          WHERE a.id::text = $1 AND a.brand_id IS NOT NULL) k) AS booking;`, "={{ [String(($json.params || {}).booking_id || '')] }}"));
+  n.push(code('Join redirect (w05.joinRedirect)', 'w05.mjs', `const p = $('GET /j/:booking_id (join link)').first().json.params || {};\nreturn [{ json: L.joinRedirect(p, $input.first().json.booking || null) }];`));
+  n.push(node('Respond (join link)', 'respondToWebhook', 1.1, { respondWith: 'text', responseBody: '={{ $json.body }}', options: { responseCode: '={{ $json.status }}', responseHeaders: { entries: [{ name: 'Location', value: '={{ $json.headers.Location || "" }}' }, { name: 'Cache-Control', value: 'no-store' }, { name: 'Referrer-Policy', value: 'no-referrer' }] } } }));
   // I-45j: GET /c/{booking_id} -> the booking's .ics. Auth = signed ?k= (the link in the invite / WhatsApp) or X-Lead-Token of the owning lead; every failure is one 404.
   n.push(node('GET /c/:booking_id (.ics)', 'webhook', 2, { httpMethod: 'GET', path: 'c/:booking_id', responseMode: 'responseNode', options: {} }, { webhookId: 'w05-ics-get' }));
   n.push(code('Verify .ics caller (w05.parseIcsRequest)', 'w05.mjs', `const j = $input.first().json;\nconst r = L.parseIcsRequest({ headers: j.headers || {}, params: j.params || {}, query: j.query || {} }, $env, Date.now());\nreturn [{ json: r }];`));
@@ -307,6 +319,7 @@ SELECT l.id, l.email, l.phone, l.language, l.first_name, bk.method, bk.adviser_n
   link(c, 'Shared calendar id?', 'Graph create event (howzit@ shared calendar, ASSUMPTION)', 0); link(c, 'Shared calendar id?', 'After event (w05.finish)', 1);
   chain(c, 'Graph create event (howzit@ shared calendar, ASSUMPTION)', 'After event (w05.finish)');
   chain(c, 'After event (w05.finish)', 'Save event ids + lead (stage, broker, invite email)', 'Timeline: booked', 'Answer', 'HTTP lane?');
+  chain(c, 'Save event ids + lead (stage, broker, invite email)', 'Email verification item (invite email stored)', '-> Email verify (smc-email-verify issue)');
   link(c, 'HTTP lane?', 'Respond (book JSON)', 0); link(c, 'HTTP lane?', 'Fan out effects', 1);
   chain(c, 'Respond (book JSON)', 'Fan out effects', 'Effect?');
   ['Live send?', 'Email from howzit@ (Graph sendMail)', '-> W06 First touch (booking event)', '-> W09 Reminder sequence (schedule / rebuild)', '-> W07 post-booking contact confirm', '-> CAPI Send (Schedule, no email)', '-> W28 ask_email', '-> W22 Alerts'].forEach((t, i) => link(c, 'Effect?', t, i));
@@ -322,10 +335,13 @@ SELECT l.id, l.email, l.phone, l.language, l.first_name, bk.method, bk.adviser_n
   link(c, '.ics caller ok?', 'Load booking for .ics (id only, no lead PII)', 0); link(c, '.ics caller ok?', '.ics not found (404)', 1);
   chain(c, 'Load booking for .ics (id only, no lead PII)', 'Build .ics (w05.icsResponse)', 'Respond (.ics)');
   chain(c, '.ics not found (404)', 'Respond (.ics)');
+  chain(c, 'GET /j/:booking_id (join link)', 'Load booking for the join link (no lead PII)', 'Join redirect (w05.joinRedirect)', 'Respond (join link)');
   chain(c, 'Mark invite bounced', 'Bounce prompt (w05.bounceEffect)', '-> WhatsApp Send (invite bounce)');
   return wf('smc-w05', 'W05 Book (DRAFT pending GATE-TEST-W05)', 'automation-engineer. W05 book; logic automation/lib/w05.mjs (+ lib/w04.mjs via the W04 sub-workflow); tests automation/tests/W05.test.mjs. Callers bind by id smc-w05 (name kept as cachedResultName only).', n, c, ['booking', 'core', 'draft']);
 }
 
 writeFileSync(join(HERE, 'W04.json'), JSON.stringify(buildW04(), null, 2) + '\n');
-writeFileSync(join(HERE, 'W05.json'), JSON.stringify(gateSenders(buildW05()), null, 2) + '\n');
+// 2026-10-11: the lead / broker sends go through smc-whatsapp-send (lib/wa-route.cjs); W05 writes no communications row
+// of its own, so the sub records it (lead or broker resolved from the recipient number).
+writeFileSync(join(HERE, 'W05.json'), JSON.stringify(routeWaSends(gateSenders(buildW05()), { caller: 'W05', nodes: { 'Send WhatsApp': { record: true } } }), null, 2) + '\n');
 console.log('wrote W04.json, W05.json');

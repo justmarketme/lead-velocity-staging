@@ -528,7 +528,8 @@ test('I-51c: Route outputs keep their targets (W28 removed, nothing else rewired
   const now = Object.fromEntries(main.map((outs, i) => [i < keys.length ? keys[i] : 'fallback', outs.map((t) => t.node)]));
   const { W28, ...expected } = before;
   assert.deepEqual(W28, ['-> W28']);
-  assert.deepEqual(now, expected);
+  // 2026-10-11: one rule added at the end (before the fallback): the typed email verification code -> smc-email-verify
+  assert.deepEqual(now, { ...expected, email_code: ['Email code -> verify item'] });
   assert.ok(!WF.nodes.some((n) => n.name === '-> W28'));
   route.parameters.rules.values.forEach((v, i) => assert.equal(v.conditions.conditions[0].id, 's' + i));
 });

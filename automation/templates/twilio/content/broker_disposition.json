@@ -1,0 +1,104 @@
+{
+  "_meta": {
+    "key": "broker_disposition",
+    "source": "automation/templates/broker_disposition.json",
+    "approval": {
+      "name": "smc_broker_disposition",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 0
+      },
+      {
+        "n": 3,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 1
+      },
+      {
+        "n": 4,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 2
+      },
+      {
+        "n": 5,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 3
+      },
+      {
+        "n": 6,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 4
+      },
+      {
+        "n": 7,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 5
+      }
+    ],
+    "core": false
+  },
+  "content": {
+    "friendly_name": "smc_broker_disposition",
+    "language": "en",
+    "variables": {
+      "1": "Lerato M.",
+      "2": "good_fit_proceeding:sample",
+      "3": "good_fit_follow_up:sample",
+      "4": "not_a_fit_budget:sample",
+      "5": "not_a_fit_well_covered:sample",
+      "6": "not_a_fit_criteria:sample",
+      "7": "unreachable_wrong_number:sample"
+    },
+    "types": {
+      "whatsapp/card": {
+        "body": "Thanks. Which best describes {{1}} after the call? Pick the closest one.",
+        "footer": "SortMyCover by Lead Velocity",
+        "actions": [
+          {
+            "type": "QUICK_REPLY",
+            "title": "Good fit – proceeding",
+            "id": "{{2}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Good fit – follow-up",
+            "id": "{{3}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Not a fit – budget",
+            "id": "{{4}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Not a fit – well covered",
+            "id": "{{5}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Not a fit – criteria",
+            "id": "{{6}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Unreachable/wrong number",
+            "id": "{{7}}"
+          }
+        ]
+      }
+    }
+  }
+}

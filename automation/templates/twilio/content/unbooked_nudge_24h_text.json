@@ -1,0 +1,67 @@
+{
+  "_meta": {
+    "key": "unbooked_nudge_24h_text",
+    "source": "automation/templates/unbooked_nudge_24h_text.json",
+    "approval": {
+      "name": "smc_unbooked_nudge_24h_text",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "header_text"
+      },
+      {
+        "n": 4,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 0
+      },
+      {
+        "n": 5,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 1
+      }
+    ],
+    "core": false
+  },
+  "content": {
+    "friendly_name": "smc_unbooked_nudge_24h_text",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "Mark has helped families in Cape Town and across South Africa for 12 years and speaks English and Afrikaans.",
+      "3": "Mark Smith",
+      "4": "see_open_times:sample",
+      "5": "not_now:sample"
+    },
+    "types": {
+      "whatsapp/card": {
+        "body": "Hi {{1}}, a little about the adviser for your enquiry: {{2}} Tap below to see open times. Reply STOP to opt out.",
+        "header_text": "Meet {{3}}",
+        "footer": "SortMyCover",
+        "actions": [
+          {
+            "type": "QUICK_REPLY",
+            "title": "See open times",
+            "id": "{{4}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Not now",
+            "id": "{{5}}"
+          }
+        ]
+      }
+    }
+  }
+}

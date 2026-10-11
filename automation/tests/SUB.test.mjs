@@ -89,7 +89,8 @@ test('whatsapp-send: DRY_RUN_SENDS short-circuits with external_id dry:<correlat
   const d = await decide(tplIn, { template_status: approved('broker_cycle_end') }, { DRY_RUN_SENDS: 'true' });
   assert.equal(d.action, 'dry'); assert.equal(d.external_id, 'dry:w19:cycle_end:c1'); assert.equal(d.payload, undefined);
   const r = (await runCode(WA, 'Result', { json: {}, refs: { [DECIDE]: d } })).json;
-  assert.deepEqual(r, { ok: true, external_id: 'dry:w19:cycle_end:c1', error: null });
+  // + the Graph response shape a waiting caller reads (messages[0].id / body.messages[0].id), 2026-10-11
+  assert.deepEqual(r, { ok: true, external_id: 'dry:w19:cycle_end:c1', error: null, messages: [{ id: 'dry:w19:cycle_end:c1' }], body: { messages: [{ id: 'dry:w19:cycle_end:c1' }] } });
 });
 
 test('whatsapp-send: template must be approved in brands.template_status; else text in window or email fallback', async () => {
@@ -120,7 +121,7 @@ test('whatsapp-send: duplicate correlation sends nothing; the row is claimed bef
   const d = await decide(tplIn, { duplicate: true, template_status: approved('broker_cycle_end') });
   assert.equal(d.action, 'duplicate');
   const rec = WA.nodes.find((n) => n.name.startsWith('Record communications row'));
-  assert.match(rec.parameters.query, /WHERE NOT EXISTS/);
+  assert.match(rec.parameters.query, /WHERE \$13::boolean\s+AND NOT EXISTS/); // $13 = record (false: the caller logs it, 2026-10-11)
   assert.doesNotMatch(rec.parameters.options.queryReplacement, /variables|payload/);
   // I-50b: legacy communications.recipient_contact is NOT NULL -> the recipient in E.164 (+ digits) as $12.
   assert.match(rec.parameters.query, /recipient_contact, lead_id[\s\S]*'system', \$1, \$12, /);

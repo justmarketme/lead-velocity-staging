@@ -1,0 +1,92 @@
+{
+  "_meta": {
+    "key": "broker_quality",
+    "source": "automation/templates/broker_quality.json",
+    "approval": {
+      "name": "smc_broker_quality",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 0
+      },
+      {
+        "n": 3,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 1
+      },
+      {
+        "n": 4,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 2
+      },
+      {
+        "n": 5,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 3
+      },
+      {
+        "n": 6,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 4
+      }
+    ],
+    "core": false
+  },
+  "content": {
+    "friendly_name": "smc_broker_quality",
+    "language": "en",
+    "variables": {
+      "1": "Lerato M.",
+      "2": "1:sample",
+      "3": "2:sample",
+      "4": "3:sample",
+      "5": "4:sample",
+      "6": "5:sample"
+    },
+    "types": {
+      "whatsapp/card": {
+        "body": "Last one: how would you rate {{1}} as a lead, from 1 (poor) to 5 (excellent)? You can also send a short voice note if there is anything we should know.",
+        "footer": "SortMyCover by Lead Velocity",
+        "actions": [
+          {
+            "type": "QUICK_REPLY",
+            "title": "1",
+            "id": "{{2}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "2",
+            "id": "{{3}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "3",
+            "id": "{{4}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "4",
+            "id": "{{5}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "5",
+            "id": "{{6}}"
+          }
+        ]
+      }
+    }
+  }
+}

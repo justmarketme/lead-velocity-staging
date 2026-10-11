@@ -1,0 +1,81 @@
+{
+  "_meta": {
+    "key": "broker_lead_offer",
+    "source": "automation/templates/broker_lead_offer.json",
+    "approval": {
+      "name": "smc_broker_lead_offer",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      },
+      {
+        "n": 4,
+        "kind": "body"
+      },
+      {
+        "n": 5,
+        "kind": "body"
+      },
+      {
+        "n": 6,
+        "kind": "body"
+      },
+      {
+        "n": 7,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 0
+      },
+      {
+        "n": 8,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 1
+      }
+    ],
+    "core": false
+  },
+  "content": {
+    "friendly_name": "smc_broker_lead_offer",
+    "language": "en",
+    "variables": {
+      "1": "Mark",
+      "2": "Lerato",
+      "3": "35 to 44",
+      "4": "R750 to R1,249",
+      "5": "Life cover, Funeral cover",
+      "6": "Wed 7 Oct at 15:30",
+      "7": "accept:sample",
+      "8": "decline:sample"
+    },
+    "types": {
+      "whatsapp/card": {
+        "body": "Hi {{1}}, a new SortMyCover enquiry is available to you: {{2}}, age {{3}}, budget {{4}} a month, interested in {{5}}. This lead is below R1,500 a month, so it only counts if you accept it. Please accept or decline by {{6}}. If you don't reply by then, it goes to another adviser.",
+        "footer": "SortMyCover",
+        "actions": [
+          {
+            "type": "QUICK_REPLY",
+            "title": "Accept",
+            "id": "{{7}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Decline",
+            "id": "{{8}}"
+          }
+        ]
+      }
+    }
+  }
+}

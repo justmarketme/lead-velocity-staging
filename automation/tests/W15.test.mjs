@@ -185,7 +185,11 @@ test('W15 structure: Code nodes load lib/w15.mjs via lv-automation, sub-workflow
   }
   const subs = WF.nodes.filter((n) => n.type === 'n8n-nodes-base.executeWorkflow');
   for (const n of subs) assert.equal(n.parameters.workflowId.mode, 'id', n.name);
-  assert.deepEqual(subs.map((n) => n.parameters.workflowId.value).sort(), ['smc-w04', 'smc-w09']);
+  // the two WhatsApp sends go through smc-whatsapp-send (2026-10-11); the STOP confirmation alone bypasses suppression
+  assert.deepEqual(subs.map((n) => n.parameters.workflowId.value).sort(), ['smc-w04', 'smc-w09', 'smc-whatsapp-send', 'smc-whatsapp-send']);
+  const adapter = (name) => WF.nodes.find((n) => n.name === `SUB input (${name})`).parameters.jsCode;
+  assert.match(adapter('Send WhatsApp (the one confirmation)'), /bypass_suppression: true/);
+  assert.match(adapter('Send WhatsApp (broker notice)'), /bypass_suppression: false/);
 });
 
 test('W15 structure: every column the SQL names exists in the migrations', () => {
@@ -374,8 +378,10 @@ test('I-54b F14 W15.json: DRY_RUN_SENDS leaves the same communications evidence 
     ['Live send? (broker email)', 'Dry run: stand-in response (broker email, dry:w15:broker_email:{lead_id})', 'Log broker email notice (communications; live or dry:)', 'Email broker from howzit@ (Graph sendMail)', 'dry:w15:broker_email:'],
     ['Live send? (confirmation)', 'Dry run: stand-in response (confirmation, dry:w15:confirm:{lead_id})', 'Log confirmation + touch leads.last_contact_at (lead outbound)', 'Send WhatsApp (the one confirmation)', 'dry:w15:confirm:'],
   ];
+  // 2026-10-11: a WhatsApp send is "SUB input (<send>)" -> <send> (the waiting smc-whatsapp-send call, lib/wa-route.cjs)
+  const via = (n) => (n.startsWith('SUB input (') ? conn(n)[0] : n);
   for (const [ifName, dryName, logName, sendName, prefix] of cases) {
-    assert.deepEqual(conn(ifName, 0), [sendName], `${ifName} true -> live send`);
+    assert.deepEqual(conn(ifName, 0).map(via), [sendName], `${ifName} true -> live send`);
     assert.deepEqual(conn(ifName, 1), [dryName], `${ifName} false (DRY_RUN_SENDS) is connected`);
     assert.deepEqual(conn(dryName), [logName], 'dry stand-in -> the same evidence node');
     assert.ok(conn(sendName).includes(logName), 'live send -> the same evidence node');

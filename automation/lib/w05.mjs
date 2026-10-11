@@ -328,6 +328,24 @@ export function publicBody(bk = {}) {
   const start = bk.appointment_date ?? bk.start;
   return { booked: true, booking_id: bk.id, start: iso(ms(start)), end: iso(ms(bk.ends_at ?? bk.end)), method: bk.method, join_url: bk.join_url ?? null, ics_url: bk.ics_url ?? icsUrl(bk.id) };
 }
+/**
+ * 2026-10-11: GET /j/{booking_id} -> 302 to the meeting's join link (Teams / Zoom / Meet), the link every reminder and
+ * booking_confirmed carry (lib/w09.mjs methodDetail). Only a live online booking with a join_url on a known meeting
+ * host redirects; everything else is one identical 404 (never says whether the booking exists). The booking id is a
+ * random uuid, and the join link is already in the lead's invite, so the redirect itself reveals nothing new.
+ */
+const JOIN_HOSTS = /^https:\/\/(teams\.microsoft\.com|teams\.live\.com|[a-z0-9-]+\.zoom\.us|zoom\.us|meet\.google\.com)\//i;
+export function joinRedirect(params = {}, a = null) {
+  const nf = { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }, body: 'not found' };
+  if (!BOOKING_ID_RE.test(String(params.booking_id || '')) || !a) return nf;
+  if (!['booked', 'confirmed'].includes(a.status) || !ONLINE_METHODS.has(a.method) || !JOIN_HOSTS.test(String(a.join_url || ''))) return nf;
+  return { status: 302, headers: { Location: a.join_url, 'Cache-Control': 'no-store', 'Content-Type': 'text/plain; charset=utf-8' }, body: '' };
+}
+const ONLINE_METHODS = new Set(['teams', 'zoom', 'meet']);
+/** booking_confirmed {{5}}: the method, plus the join link for an online meeting (Teams link in the confirmation). */
+export const confirmDetail = (method, bookingId, site = SITE) => (ONLINE_METHODS.has(method) && bookingId
+  ? `${CONFIRM_LABEL[method]} (join link: ${site}/j/${bookingId})` : CONFIRM_LABEL[method]);
+
 /** I-45j: `.../c/{booking_id}?k={sig}` when a secret is given (the link lives in an invite / a WhatsApp, so it cannot carry a header); unsigned only without a secret (tests). */
 export const icsUrl = (id, site = SITE, secret = null) => (id ? (secret ? `${site}/c/${id}?k=${icsSig(secret, id)}` : `${site}/c/${id}`) : null);
 const ICS_MIN_SECRET = 32;
@@ -605,7 +623,7 @@ export function brokerNotice(ctx, p) {
 export function bookingConfirmed(ctx, p, booking) {
   const lead = leadView(ctx.lead);
   const b = brokerConfig(ctx.broker);
-  const vars = [firstName(lead.first_name), b.adviser_name || b.contact_person, dateLabel(p.start), timeLabel(p.start), CONFIRM_LABEL[p.method]].map((v) => clean(v));
+  const vars = [firstName(lead.first_name), b.adviser_name || b.contact_person, dateLabel(p.start), timeLabel(p.start), confirmDetail(p.method, booking.id)].map((v) => clean(v));
   return templateWa(lead.phone, 'booking_confirmed', vars, [{ url: booking.id }, { quick_reply: `confirm:${booking.id}` }, { quick_reply: `reschedule:${booking.id}` }, { quick_reply: `cancel:${booking.id}` }], lead.language);
 }
 

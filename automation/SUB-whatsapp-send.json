@@ -86,7 +86,7 @@
       "alwaysOutputData": true,
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH tgt AS (\n  SELECT COALESCE((SELECT l.brand_id FROM public.leads l WHERE l.id = NULLIF($1, '')::uuid),\n                  (SELECT b.brand_id FROM public.brokers b WHERE b.id = NULLIF($2, '')::uuid)) AS brand_id\n)\nSELECT t.brand_id::text AS brand_id,\n       EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact($3)) AS suppressed,\n       (SELECT max(c.created_at) FROM public.communications c\n         WHERE c.channel = 'whatsapp' AND c.direction = 'inbound' AND c.sender_type IN ('broker', 'client')\n           AND ((NULLIF($1, '') IS NOT NULL AND c.lead_id = NULLIF($1, '')::uuid)\n             OR (NULLIF($1, '') IS NULL AND c.broker_id = NULLIF($2, '')::uuid))) AS last_inbound_at,\n       (SELECT br.template_status FROM public.brands br WHERE br.id = t.brand_id) AS template_status,\n       EXISTS (SELECT 1 FROM public.communications d\n                WHERE d.workflow = 'smc-whatsapp-send' AND d.metadata->>'correlation' = $4) AS duplicate\n  FROM tgt t;",
+        "query": "-- prebuilt sends without ids (2026-10-11): the lead (else the broker) is resolved from the recipient digits, so the\n-- communications row lands on the CRM timeline (UnifiedCommunicationHub reads communications by lead_id / broker_id).\nWITH given AS (SELECT NULLIF($1, '')::uuid AS lead_id, NULLIF($2, '')::uuid AS broker_id),\nrl AS (SELECT CASE WHEN g.lead_id IS NULL AND g.broker_id IS NULL THEN\n         (SELECT l.id FROM public.leads l WHERE l.brand_id IS NOT NULL AND regexp_replace(coalesce(l.phone, ''), '\\D', '', 'g') = $3\n           ORDER BY l.created_at DESC LIMIT 1) END AS lead_id FROM given g),\nrb AS (SELECT CASE WHEN g.lead_id IS NULL AND g.broker_id IS NULL AND (SELECT r.lead_id FROM rl r) IS NULL THEN\n         (SELECT b.id FROM public.brokers b WHERE b.brand_id IS NOT NULL AND regexp_replace(coalesce(b.whatsapp_number, ''), '\\D', '', 'g') = $3\n           LIMIT 1) END AS broker_id FROM given g),\ntgt AS (\n  SELECT COALESCE(g.lead_id, rl.lead_id) AS lead_id, COALESCE(g.broker_id, rb.broker_id) AS broker_id FROM given g, rl, rb\n)\nSELECT COALESCE((SELECT l.brand_id FROM public.leads l WHERE l.id = t.lead_id),\n                (SELECT b.brand_id FROM public.brokers b WHERE b.id = t.broker_id))::text AS brand_id,\n       CASE WHEN NULLIF($1, '') IS NULL THEN t.lead_id::text END AS resolved_lead_id,\n       CASE WHEN NULLIF($2, '') IS NULL THEN t.broker_id::text END AS resolved_broker_id,\n       EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact($3)) AS suppressed,\n       (SELECT max(c.created_at) FROM public.communications c\n         WHERE c.channel = 'whatsapp' AND c.direction = 'inbound' AND c.sender_type IN ('broker', 'client')\n           AND ((t.lead_id IS NOT NULL AND c.lead_id = t.lead_id)\n             OR (t.lead_id IS NULL AND c.broker_id = t.broker_id))) AS last_inbound_at,\n       (SELECT br.template_status FROM public.brands br\n         WHERE br.id = COALESCE((SELECT l.brand_id FROM public.leads l WHERE l.id = t.lead_id),\n                                (SELECT b.brand_id FROM public.brokers b WHERE b.id = t.broker_id))) AS template_status,\n       EXISTS (SELECT 1 FROM public.communications d\n                WHERE d.workflow = 'smc-whatsapp-send' AND d.metadata->>'correlation' = $4) AS duplicate\n  FROM tgt t;",
         "options": {
           "queryReplacement": "={{ [ $json.lead_id || '', $json.broker_id || '', $json.to, $json.correlation ] }}"
         }
@@ -154,9 +154,9 @@
       "alwaysOutputData": true,
       "parameters": {
         "operation": "executeQuery",
-        "query": "-- recipient_contact is the legacy NOT NULL column: the recipient in E.164 (+ digits), I-50b.\nINSERT INTO public.communications (channel, direction, sender_type, recipient_type, recipient_contact, lead_id, broker_id, brand_id, content, status, external_id, failed_reason, template_name, workflow, metadata)\nSELECT 'whatsapp', 'outbound', 'system', $1, $12, NULLIF($2, '')::uuid, NULLIF($3, '')::uuid, NULLIF($4, '')::uuid, $5, $6, NULLIF($7, ''), NULLIF($8, ''), NULLIF($9, ''), 'smc-whatsapp-send', $10::jsonb\n WHERE NOT EXISTS (SELECT 1 FROM public.communications d WHERE d.workflow = 'smc-whatsapp-send' AND d.metadata->>'correlation' = $11)\nRETURNING id::text AS comm_id;",
+        "query": "-- recipient_contact is the legacy NOT NULL column: the recipient in E.164 (+ digits), I-50b.\nINSERT INTO public.communications (channel, direction, sender_type, recipient_type, recipient_contact, lead_id, broker_id, brand_id, content, status, external_id, failed_reason, template_name, workflow, metadata)\nSELECT 'whatsapp', 'outbound', 'system', $1, $12, NULLIF($2, '')::uuid, NULLIF($3, '')::uuid, NULLIF($4, '')::uuid, $5, $6, NULLIF($7, ''), NULLIF($8, ''), NULLIF($9, ''), 'smc-whatsapp-send', $10::jsonb\n WHERE $13::boolean\n   AND NOT EXISTS (SELECT 1 FROM public.communications d WHERE d.workflow = 'smc-whatsapp-send' AND d.metadata->>'correlation' = $11)\nRETURNING id::text AS comm_id;",
         "options": {
-          "queryReplacement": "={{ (() => { const L = $json; return [ L.lead_id ? 'client' : 'broker', L.lead_id || '', L.broker_id || '', L.brand_id || '', L.action === 'skip' ? '[skipped]' : (L.sent_as === 'text' ? '[text]' : (L.template ? 'template:' + L.template : '[' + L.kind + ']')), L.action === 'skip' ? 'failed' : 'pending', L.action === 'dry' ? L.external_id : '', L.action === 'skip' ? L.reason : '', L.template || '', JSON.stringify({ correlation: L.correlation, kind: L.kind, sent_as: L.sent_as || null, dry_run: L.action === 'dry', skip_reason: L.action === 'skip' ? L.reason : null }), L.correlation, '+' + String(L.to || '').replace(/\\D/g, '') ]; })() }}"
+          "queryReplacement": "={{ (() => { const L = $json; return [ L.lead_id ? 'client' : 'broker', L.lead_id || '', L.broker_id || '', L.brand_id || '', L.action === 'skip' ? '[skipped]' : (L.sent_as === 'template' && L.template ? 'template:' + L.template : (L.sent_as === 'text' ? '[text]' : (L.template ? 'template:' + L.template : '[' + (L.sent_as || L.kind) + ']'))), L.action === 'skip' ? 'failed' : 'pending', L.action === 'dry' ? L.external_id : '', L.action === 'skip' ? L.reason : '', L.template || '', JSON.stringify({ correlation: L.correlation, kind: L.kind, sent_as: L.sent_as || null, dry_run: L.action === 'dry', skip_reason: L.action === 'skip' ? L.reason : null, caller: L.caller || null, provider: L.provider || null }), L.correlation, '+' + String(L.to || '').replace(/\\D/g, ''), L.record !== false ]; })() }}"
         }
       },
       "id": "smc-whatsapp-send-8",
@@ -179,7 +179,7 @@
           "conditions": [
             {
               "id": "c1",
-              "leftValue": "={{ !!$json.comm_id && $('Decide (suppression, allow-list, window, template, dry run)').item.json.action === 'send' }}",
+              "leftValue": "={{ (!!$json.comm_id || $('Decide (suppression, allow-list, window, template, dry run)').item.json.record === false) && $('Decide (suppression, allow-list, window, template, dry run)').item.json.action === 'send' }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -211,7 +211,7 @@
       "onError": "continueRegularOutput",
       "parameters": {
         "method": "POST",
-        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION || 'v21.0' }}/{{ $env.PHONE_NUMBER_ID }}/messages",
+        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION || 'v21.0' }}/{{ $('Decide (suppression, allow-list, window, template, dry run)').item.json.phone_number_id || $env.PHONE_NUMBER_ID }}/messages",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
@@ -270,7 +270,7 @@
       "typeVersion": 2,
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const P = require('lv-automation').waProvider;\nconst d = $('Decide (suppression, allow-list, window, template, dry run)').item.json;\nconst cb = $env.WEBHOOK_URL ? String($env.WEBHOOK_URL).replace(/\\/$/, '') + '/webhook/whatsapp-twilio' : undefined;\nconst r = P.toTwilioRequest(d.payload, $env, { statusCallback: cb });\nif (r.skip) return { json: { twilio_skip: r.reason, email_fallback: /content_sid_missing/.test(r.reason) } };\nconst body = new URLSearchParams(r.form).toString();\nconst auth = 'Basic ' + Buffer.from($env.TWILIO_API_KEY_SID + ':' + $env.TWILIO_API_KEY_SECRET).toString('base64');\nreturn { json: { body, auth, via: r.via || 'native' } };"
+        "jsCode": "// ContentSid + ContentVariables numbered from the submitted template spec (lib/wa-provider.mjs twilioVarPlan);\n// session buttons / lists / Flows map to the generic Content templates (automation/templates/twilio/).\n// Basic auth: TWILIO_API_KEY_SID/SECRET, else the CRM's TWILIO_ACCOUNT_SID/AUTH_TOKEN pair. No n8n credential.\nconst L = require('lv-automation').subWhatsappSend;\nconst d = $('Decide (suppression, allow-list, window, template, dry run)').item.json;\nreturn { json: L.twilioRequest(d, $env) };"
       },
       "id": "smc-whatsapp-send-12",
       "position": [
@@ -375,9 +375,9 @@
       "alwaysOutputData": true,
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH c AS (\n  UPDATE public.communications SET status = $2, external_id = NULLIF($3, ''), failed_reason = NULLIF($4, ''), updated_at = now()\n   WHERE id = $1::uuid\n  RETURNING lead_id\n)\nUPDATE public.leads SET last_contact_at = now()\n WHERE id = (SELECT lead_id FROM c) AND $3 <> '' AND $3 NOT LIKE 'dry:%'\nRETURNING id::text AS lead_id;",
+        "query": "WITH c AS (\n  UPDATE public.communications SET status = $2, external_id = NULLIF($3, ''), failed_reason = NULLIF($4, ''), updated_at = now()\n   WHERE id = NULLIF($1, '')::uuid   -- record:false sends have no row here (the caller logs them)\n  RETURNING lead_id\n)\nUPDATE public.leads SET last_contact_at = now()\n WHERE id = (SELECT lead_id FROM c) AND $3 <> '' AND $3 NOT LIKE 'dry:%'\nRETURNING id::text AS lead_id;",
         "options": {
-          "queryReplacement": "={{ [ $('Record communications row (claim before the Graph call)').item.json.comm_id, $json.ok ? 'sent' : 'failed', $json.external_id || '', $json.error || '' ] }}"
+          "queryReplacement": "={{ [ $('Record communications row (claim before the Graph call)').item.json.comm_id || '', $json.ok ? 'sent' : 'failed', $json.external_id || '', $json.error || '' ] }}"
         }
       },
       "id": "smc-whatsapp-send-16",
@@ -459,7 +459,7 @@
       "typeVersion": 2,
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// { ok, external_id, error } (callers do not wait today; kept for a waiting caller).\nconst L = require('lv-automation').subWhatsappSend;\nconst d = $('Decide (suppression, allow-list, window, template, dry run)').item.json;\nlet r = null; try { r = $('Interpret Graph response').item.json; } catch (e) { r = null; }\nreturn { json: L.result(d, r) };"
+        "jsCode": "// { ok, external_id, error } (+ messages:[{id}] on success): the LAST node on every path, so a waiting caller\n// (every prebuilt send, lib/wa-route.cjs) reads it as the Execute Workflow output.\nconst L = require('lv-automation').subWhatsappSend;\nconst d = $('Decide (suppression, allow-list, window, template, dry run)').item.json;\nlet r = null; try { r = $('Interpret Graph response').item.json; } catch (e) { r = null; }\nreturn { json: L.result(d, r) };"
       },
       "id": "smc-whatsapp-send-20",
       "position": [
@@ -707,6 +707,17 @@
         [
           {
             "node": "Alert ops (send failed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert ops (send failed)": {
+      "main": [
+        [
+          {
+            "node": "Result",
             "type": "main",
             "index": 0
           }

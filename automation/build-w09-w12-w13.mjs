@@ -11,6 +11,8 @@
 import { writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+const { routeWaSends } = createRequire(import.meta.url)('./lib/wa-route.cjs');
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const PG_CRED = 'LV Supabase - n8n_app (least privilege)';
@@ -911,7 +913,10 @@ ON CONFLICT (idempotency_key) DO NOTHING;`,
     ['replacements', 'whatsapp', 'draft']);
 }
 
-for (const [file, wf] of [['W09.json', buildW09()], ['W12.json', buildW12()], ['W13.json', buildW13()]]) {
+// 2026-10-11: the one "Send WhatsApp" of each goes through smc-whatsapp-send (lib/wa-route.cjs); "Store outbound"
+// still writes the communications row from the returned id (record:false).
+const route = (caller, wf) => routeWaSends(wf, { caller, nodes: { 'Send WhatsApp': { record: false } } });
+for (const [file, wf] of [['W09.json', route('W09', buildW09())], ['W12.json', route('W12', buildW12())], ['W13.json', route('W13', buildW13())]]) {
   writeFileSync(join(HERE, file), JSON.stringify(wf, null, 2) + '\n');
   console.log(`${file}: ${wf.nodes.length} nodes`);
 }

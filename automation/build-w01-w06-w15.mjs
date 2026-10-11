@@ -10,6 +10,8 @@
 import { writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+const { routeWaSends } = createRequire(import.meta.url)('./lib/wa-route.cjs');
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PG = { postgres: { id: '', name: 'LV Supabase - n8n_app (least privilege)' } };
@@ -820,7 +822,12 @@ ON CONFLICT (idempotency_key) DO NOTHING;`,
   return wf('smc-w15', 'W15 Opt-out (DRAFT pending GATE-TEST-W15)', n, c, ['SortMyCover', 'core-path', 'draft', 'POPIA']);
 }
 
-const out = { 'W01.json': buildW01(), 'W06.json': buildW06(), 'W15.json': buildW15() };
+// 2026-10-11: every WhatsApp send goes through smc-whatsapp-send (lib/wa-route.cjs), so WHATSAPP_PROVIDER switches it.
+// W06 and W15 write their own communications rows from the returned id (record:false). The STOP confirmation goes to a
+// number W15 has just suppressed, so only that one send bypasses the suppression check in the sub.
+const W06_ROUTE = { caller: 'W06', nodes: { 'Send WhatsApp (intro card)': { record: false }, 'Send WhatsApp (booking_confirmed)': { record: false } } };
+const W15_ROUTE = { caller: 'W15', nodes: { 'Send WhatsApp (broker notice)': { record: false }, 'Send WhatsApp (the one confirmation)': { record: false, bypass_suppression: true } } };
+const out = { 'W01.json': buildW01(), 'W06.json': routeWaSends(buildW06(), W06_ROUTE), 'W15.json': routeWaSends(buildW15(), W15_ROUTE) };
 for (const [f, w] of Object.entries(out)) {
   writeFileSync(join(HERE, f), JSON.stringify(w, null, 2) + '\n');
   console.log(`${f}: ${w.nodes.length} nodes`);

@@ -1,0 +1,63 @@
+{
+  "_meta": {
+    "key": "broker_intro_slots_v2",
+    "source": "automation/templates/broker_intro_slots_v2.json",
+    "approval": {
+      "name": "smc_broker_intro_slots_v2",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      },
+      {
+        "n": 4,
+        "kind": "body"
+      },
+      {
+        "n": 5,
+        "kind": "header_media"
+      },
+      {
+        "n": 6,
+        "kind": "button",
+        "type": "flow",
+        "index": 0
+      }
+    ],
+    "core": false
+  },
+  "content": {
+    "friendly_name": "smc_broker_intro_slots_v2",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "Mark Smith Financial Services",
+      "3": "00000",
+      "4": "Mark Smith",
+      "5": "samples/intro_card_sample.png",
+      "6": "ft1.sample"
+    },
+    "types": {
+      "whatsapp/flows": {
+        "body": "Hi {{1}}, thanks for your insurance and financial planning enquiry. Your details have been passed to *{{2}} (FSP {{3}})*, an authorised financial services provider. *{{4}}* can do a 30-minute call. Pick a time below. Our WhatsApp assistant uses AI. Reply STOP to opt out.",
+        "button_text": "Pick a time",
+        "flow_id": "__BOOKING_FLOW_ID__",
+        "flow_token": "{{6}}",
+        "flow_first_page_id": "METHOD",
+        "is_flow_first_page_endpoint": true,
+        "subtitle": "SortMyCover",
+        "media_url": "__TWILIO_MEDIA_BASE_URL__/{{5}}"
+      }
+    }
+  }
+}

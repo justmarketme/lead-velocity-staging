@@ -10,6 +10,7 @@ import { createRequire } from 'node:module';
 import { inlineModule } from './security/inline-for-n8n.mjs';
 // I-54c: every sender node ends up behind a DRY_RUN_SENDS gate (lib/egress-gate.cjs; idempotent, W03 already gated).
 const { gateSenders } = createRequire(import.meta.url)('./lib/egress-gate.cjs');
+const { routeWaSends } = createRequire(import.meta.url)('./lib/wa-route.cjs');
 import { LINES } from '../conversation/lines.mjs';
 // I-39k: the lines.mjs keys W28 uses outside the Flow screens, inlined as data (n8n Code nodes cannot import ESM).
 const LINES_W28 = `const LINES = ${JSON.stringify(Object.fromEntries(Object.entries(LINES).map(([lang, L]) => [lang, { SLOTS_INTRO: L.SLOTS_INTRO, METHOD_CHANGED: L.METHOD_CHANGED, EMAIL_Q: L.EMAIL_Q, TZ: L.TZ }])))};\n`;
@@ -316,7 +317,8 @@ const d = req.data || {};
 return [{ json: { status: 200, ping: false, req, tok, aes, iv, lead_id: tok.ok ? tok.lead_id : null, booking_id: tok.ok ? tok.booking_id : null,
   date: d.date || null, fresh: d.action_type === 'slot_selected' } }];`));
   n.push(switchOn('Status?', [440, 0], '={{ $json.status === 200 ? ($json.ping ? "ping" : "work") : "reject" }}', ['ping', 'work', 'reject']));
-  n.push(respond('Respond ping (encrypted)', [660, -160], '={{ $json.encrypted }}', 200));
+  // Meta Flows endpoint (docs re-checked 2026-10-11): the encrypted response is the base64 string, sent as text/plain.
+  n.push(respond('Respond ping (encrypted)', [660, -160], '={{ $json.encrypted }}', 200, [{ name: 'Content-Type', value: 'text/plain' }]));
   n.push(respond('Respond 421 / 432', [660, 160], '={{ "" }}', '={{ $json.status }}'));
   n.push(pg('Load token context', [660, 0],
 `-- The flow_token (HMAC) names the lead; everything else is looked up here, never taken from the payload.
@@ -357,7 +359,7 @@ const out = await EP.handle(base.req, {
 });
 return [{ json: { response: out.response, effects: out.effects, lead_id: ctx.lead ? ctx.lead.id : null, brand_id: ctx.lead ? ctx.lead.brand_id : null, broker_id: ctx.broker ? ctx.broker.broker_id : null, aes: base.aes, iv: base.iv } }];`));
   n.push(code('Encrypt response', [1320, -100], FC + "const j = $input.first().json;\nreturn [{ json: { ...j, encrypted: FC.encryptResponse(j.response, Buffer.from(j.aes, 'base64'), Buffer.from(j.iv, 'base64')) } }];"));
-  n.push(respond('Respond 200 (encrypted)', [1540, -100], '={{ $json.encrypted }}', 200));
+  n.push(respond('Respond 200 (encrypted)', [1540, -100], '={{ $json.encrypted }}', 200, [{ name: 'Content-Type', value: 'text/plain' }]));
   n.push(code('Fan out effects', [1320, 100], "return $input.all().flatMap((it) => (it.json.effects || []).map((e) => ({ json: { ...e, _lead_id: it.json.lead_id, _brand_id: it.json.brand_id, _broker_id: it.json.broker_id } })));"));
   n.push(switchOn('Effect?', [1540, 100], '={{ $json.kind }}', ['activity', 'store_email', 'send_list', 'security_event']));
   n.push(pg('Log activity (flow_opened / flow_error)', [1760, 0],
@@ -450,6 +452,9 @@ function EP_SAFE() { return W28; }
 
 // GEN_OUT_DIR: write elsewhere (automation/tests/generators.test.mjs regenerates into a temp dir and compares, I-40a).
 const OUT_DIR = process.env.GEN_OUT_DIR || HERE;
-writeFileSync(join(OUT_DIR, 'W03.json'), JSON.stringify(gateSenders(buildW03()), null, 1) + '\n');
-writeFileSync(join(OUT_DIR, 'W28.json'), JSON.stringify(gateSenders(buildW28()), null, 1) + '\n');
+// 2026-10-11: every WhatsApp send goes through smc-whatsapp-send (lib/wa-route.cjs), so WHATSAPP_PROVIDER switches it.
+const W03_ROUTE = { caller: 'W03', nodes: { 'WhatsApp send (session)': { record: false } } }; // Store outbound (W03) logs it
+const W28_ROUTE = { caller: 'W28', nodes: { 'WhatsApp send list': { record: true }, 'WhatsApp send ask_email': { record: true } } };
+writeFileSync(join(OUT_DIR, 'W03.json'), JSON.stringify(routeWaSends(gateSenders(buildW03()), W03_ROUTE), null, 1) + '\n');
+writeFileSync(join(OUT_DIR, 'W28.json'), JSON.stringify(routeWaSends(gateSenders(buildW28()), W28_ROUTE), null, 1) + '\n');
 console.log(`wrote ${OUT_DIR === HERE ? 'automation' : OUT_DIR}/W03.json, W28.json`);

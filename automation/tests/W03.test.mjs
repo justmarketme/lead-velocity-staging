@@ -306,7 +306,10 @@ test('I-48b/I-48k: W03 sends behind the shared reply claim + DRY_RUN_SENDS gate 
   const c = WF.connections;
   assert.equal(c['Build Cloud API body'].main[0][0].node, 'Reply claim (w07:reply:{wamid})');
   assert.equal(c['Reply claim (w07:reply:{wamid})'].main[0][0].node, 'Live send? (W03)');
-  assert.equal(c['Live send? (W03)'].main[0][0].node, 'WhatsApp send (session)');
+  // 2026-10-11: the send goes through smc-whatsapp-send (lib/wa-route.cjs): Live send? -> SUB input -> the waiting sub-call
+  assert.equal(c['Live send? (W03)'].main[0][0].node, 'SUB input (WhatsApp send (session))');
+  assert.equal(c['SUB input (WhatsApp send (session))'].main[0][0].node, 'WhatsApp send (session)');
+  assert.equal(WF.nodes.find((n) => n.name === 'WhatsApp send (session)').parameters.workflowId.value, 'smc-whatsapp-send');
   assert.equal(c['Live send? (W03)'].main[1][0].node, 'Store outbound (W03)');
   assert.equal(c['WhatsApp send (session)'].main[0][0].node, 'Store outbound (W03)');
   assert.match(WF.nodes.find((n) => n.name === 'Live send? (W03)').parameters.conditions.conditions[0].leftValue, /DRY_RUN_SENDS !== 'true'/);

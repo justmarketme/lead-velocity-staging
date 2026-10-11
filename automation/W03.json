@@ -441,37 +441,24 @@
   {
    "id": "n13",
    "name": "WhatsApp send (session)",
-   "type": "n8n-nodes-base.httpRequest",
-   "typeVersion": 4.2,
+   "type": "n8n-nodes-base.executeWorkflow",
+   "typeVersion": 1.1,
    "position": [
     2900,
     -200
    ],
    "parameters": {
-    "method": "POST",
-    "url": "={{ 'https://graph.facebook.com/' + $env.META_GRAPH_VERSION + '/' + $json.out.pnid + '/messages' }}",
-    "authentication": "genericCredentialType",
-    "genericAuthType": "httpHeaderAuth",
-    "sendBody": true,
-    "specifyBody": "json",
-    "jsonBody": "={{ JSON.stringify($json.out.body) }}",
+    "source": "database",
+    "workflowId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "smc-whatsapp-send",
+     "cachedResultName": "WhatsApp Send"
+    },
     "options": {
-     "timeout": 10000,
-     "retry": {
-      "maxTries": 3,
-      "waitBetweenTries": 1000
-     }
+     "waitForSubWorkflow": true
     }
-   },
-   "credentials": {
-    "httpHeaderAuth": {
-     "id": "",
-     "name": "WhatsApp Cloud API (system user)"
-    }
-   },
-   "retryOnFail": true,
-   "maxTries": 3,
-   "waitBetweenTries": 2000
+   }
   },
   {
    "id": "n14",
@@ -882,6 +869,20 @@
      }
     }
    }
+  },
+  {
+   "id": "dd64e1e4-f953-8c26-a049-5a38dc68d0b0",
+   "name": "SUB input (WhatsApp send (session))",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    2780,
+    -80
+   ],
+   "parameters": {
+    "mode": "runOnceForEachItem",
+    "jsCode": "// lib/wa-route.cjs: \"WhatsApp send (session)\" sends through smc-whatsapp-send (WHATSAPP_PROVIDER meta | twilio). Generated: edit the\n// generator / route-wa-sends.mjs config, not this node. record:false (this workflow logs the message from the returned id).\nconst wa = $json.out.body;\nconst exec = (typeof $execution !== 'undefined' && $execution && $execution.id) || 'x';\nconst idx = (typeof $itemIndex !== 'undefined') ? $itemIndex : 0;\nreturn { json: {\n  kind: 'prebuilt', wa, to: wa && wa.to,\n  record: false, caller: \"W03\", bypass_suppression: false,\n  phone_number_id: ($json.out.pnid) || null,\n  lead_id: null, broker_id: null,\n  correlation: \"W03:WhatsApp send (session):\" + exec + ':' + idx,\n} };"
+   }
   }
  ],
  "connections": {
@@ -1078,7 +1079,7 @@
    "main": [
     [
      {
-      "node": "WhatsApp send (session)",
+      "node": "SUB input (WhatsApp send (session))",
       "type": "main",
       "index": 0
      }
@@ -1152,6 +1153,17 @@
     [
      {
       "node": "Respond hub.challenge",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "SUB input (WhatsApp send (session))": {
+   "main": [
+    [
+     {
+      "node": "WhatsApp send (session)",
       "type": "main",
       "index": 0
      }
