@@ -8,3 +8,4 @@ screenshots/tmp
 !*.json
 !config/*.json
 docs/screenshots/
+.cache

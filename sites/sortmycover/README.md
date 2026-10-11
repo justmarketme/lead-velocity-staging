@@ -10,10 +10,11 @@ npm install
 npm run dev          # Vite dev server (not pre-rendered)
 npm run build        # client build + pre-render of 50 routes + sitemap/robots + vercel.json + hostinger/.htaccess -> dist/
 npm run preview      # node scripts/serve.mjs: serves dist/ like the deployment (folder URLs, 404, campaign hosts via *.localhost)
-npm test             # vitest (151 tests; the dist-output and routing-matrix tests need a build first)
+npm test             # vitest (172 tests; the dist-output and routing-matrix tests need a build first)
 npm run verify       # build, then test
 npm run typecheck
 node scripts/sizes.mjs   # raw / gzip / brotli of every asset and the JS each route downloads
+node scripts/check-capital-legacy.mjs   # have the Capital Legacy pages behind the wills pages changed? (--update records a new baseline)
 ```
 
 Campaign pages locally: `http://new-bond.localhost:4173/` (the preview server maps `<slug>.localhost` like the production host rules do).
@@ -56,7 +57,7 @@ n8n webhook  ->  n8n workflow  ->  Lead Velocity CRM (the leads/appointments tab
 ## Layout
 
 ```
-config/            site.json (n8n base, pixel id, identity), consent.json, strings.json, angles.json (10 campaign angles: 6 hosted, 4 held wills and estate), evidence.json
+config/            site.json (n8n base, pixel id, identity, will_provider), consent.json, strings.json, angles.json (10 campaign angles, all hosted), evidence.json, capital-legacy-watch.json (watched pages + baseline hashes)
 src/routes.tsx     the single route table (router, pre-render, sitemap, tests)
 src/pages/         one file per page; Campaign.tsx is the one-page-one-goal template
 src/content/       meta/<slug>.ts + articles/<slug>.ts (two files per article), glossary.ts, hubs, legal/*.html (ported privacy and terms text)
@@ -80,7 +81,7 @@ Host label = angle slug = n8n `angle` = file `/_c/<slug>/`. `config/angles.json`
 
 ## Adding things
 
-- **Angle**: add an object to `config/angles.json` (`slug`, a new `meta_code`, `theme`, `rank`, `ad_hook`, `h1` with `*emphasis*` and `\n`, `sub`, `title`, `description`), run `npm run build` (this regenerates `vercel.json` and `.htaccess`) and `npm test` (checks H1 length, banned wording, host-label rules, unique codes), then add the DNS CNAME and attach the host in Vercel. Optional fields: `budget_topic` (angle-aware wording of the quiz budget question), `note` (one scope sentence under the sub line), `proof` (a sourced fact whose `evidence` id must exist in `config/evidence.json`), `hold: true` (build the page under `/_c/<slug>/` but give it no host route).
+- **Angle**: add an object to `config/angles.json` (`slug`, a new `meta_code`, `theme`, `rank`, `ad_hook`, `h1` with `*emphasis*` and `\n`, `sub`, `title`, `description`, `sources` = the evidence ids behind its facts), run `npm run build` (this regenerates `vercel.json` and `.htaccess`) and `npm test` (checks H1 length, banned wording, host-label rules, unique codes), then add the DNS CNAME and attach the host in Vercel. Optional fields: `budget_topic` (angle-aware wording of the quiz budget question), `note` (one scope sentence under the sub line), `proof` (a sourced fact whose `evidence` id must exist in `config/evidence.json`), `hold: true` (build the page under `/_c/<slug>/` but give it no host route).
 - **Article**: create `src/content/meta/<slug>.ts` (exports `meta`) and `src/content/articles/<slug>.ts` (exports `body`), listing sources and `fact_checked_by`. The route, hub listing, sitemap entry and JSON-LD appear automatically. `npm test` enforces: answer block of 40 to 60 words ending "This is information, not advice.", non-empty sources, no reviewer block without `verified_on` and an FSCA link, every `%`, salary multiple or rand figure tied to a `usable` entry in `config/evidence.json`, and the wording scan.
 - **Glossary term**: add to `src/content/glossary.ts` (keep alphabetical; the test pins 36 until the spec changes).
 
@@ -123,12 +124,18 @@ Source of truth: `deliverables/website/angles-final.md` (ranked, with evidence, 
 | 4 | `cover-gap` (AMBER: ASISA figure) | A | `cover-gap.sortmycover.co.za` |
 | 5 | `owners-directors` | A | `owners-directors.sortmycover.co.za` |
 | 6 | `new-baby` | A | `new-baby.sortmycover.co.za` |
-| 7 | `children-guardian` | B wills and estate | HELD, no host |
-| 8 | `will-myth` | B | HELD, no host |
-| 9 | `will-and-cover` | B | HELD, no host |
-| 10 | `where-is-the-will` | B | HELD, no host |
+| 7 | `children-guardian` | B wills and estate (Capital Legacy) | `children-guardian.sortmycover.co.za` |
+| 8 | `will-myth` | B | `will-myth.sortmycover.co.za` |
+| 9 | `will-and-cover` | B | `will-and-cover.sortmycover.co.za` |
+| 10 | `where-is-the-will` | B | `where-is-the-will.sortmycover.co.za` |
 
-Held pages are built (under `/_c/<slug>/`, noindex) so they can be released by removing `hold`, but get no host route, no apex redirect and no CORS origin until the attorney answers Q-W1 to Q-W4. Retired or merged: `bond-paperwork`, `employer-gap`, `myth-bust`, `self-employed`, `turned-40`, `virtual`, `what-the-call`, `c13-check-not-buy`. None was ever live or DNS-attached, so no redirects are kept. The quiz's budget question is angle-aware (`budget_topic`); the answer bands and the n8n contract are unchanged.
+The four theme B pages were held for an attorney until 11 Oct 2026, when Jonathan decided the wills and estate offer is based on **Capital Legacy** and its content must follow what Capital Legacy publishes. They are now hosted exactly like theme A: host route, apex `/<slug>/` 307, CORS origin, `noindex`, and (like every campaign page) not in the sitemap. The `hold` flag still works for a future angle.
+
+### Wills and estate pages: the Capital Legacy rule
+
+- **One place names the provider:** `config/site.json` -> `will_provider` (`name`, `legal_name`, `status`, and the service, cost and role lines shown on every theme B page, its FAQ and thank-you page). `config/angles.json` carries only the token `{provider}`; a test fails if the name is typed there. A different provider needs new lines and new evidence, not just a new name.
+- **Every fact is Capital Legacy's own published statement**, recorded in `config/evidence.json` as `status: "verified"` with the source URL and `checked` date (ids `cl-*`) and listed in the angle's `sources`. The wording is our own (no copied text; Capital Legacy's word "free" is never used: "does not charge"). FAIS: no advice and no product recommendation; the pages say SortMyCover puts the visitor in touch with a Capital Legacy consultant and does not draft wills. No fee line appears on theme B pages (see "Not done").
+- **When Capital Legacy changes a page:** `automation/W36.json` checks the 18 watched sources weekly (Monday 07:00 SAST) and emails Jonathan the changed pages, a line diff, the facts we took from them and which of our pages are affected. Then run `node scripts/check-capital-legacy.mjs` (same report; `--show <id>` prints one live source as normalised text), bring `config/angles.json`, `will_provider` and `config/evidence.json` in line, `npm run build`, `npm test`, and `node scripts/check-capital-legacy.mjs --update` to record the new baseline. Only hashes are committed (this repo is public); the text for diffs is cached in `.cache/capital-legacy/` (git-ignored) and in W36's static data. Retired or merged: `bond-paperwork`, `employer-gap`, `myth-bust`, `self-employed`, `turned-40`, `virtual`, `what-the-call`, `c13-check-not-buy`. None was ever live or DNS-attached, so no redirects are kept. The quiz's budget question is angle-aware (`budget_topic`); the answer bands and the n8n contract are unchanged.
 - Screenshots (not committed): `sites/sortmycover/docs/screenshots/*.png`, for example `home-390.png`, `home-1280.png`, `quiz-details-390.png`, `quiz-booking-390.png`, `quiz-done-390.png`, `campaign-<slug>-390.png` for each of the 10 angles (from the 11 Oct 2026 audit), `faq-open-390.png`, `learn-how-to-check-an-adviser-390.png`, and `*-reduced.png` for the reduced-motion runs.
 
 ### Bundle sizes (gzip / brotli, from `node scripts/sizes.mjs`)
@@ -146,6 +153,7 @@ JS + CSS downloaded per route (gzip): `/` 87.9 KB, `/book/` 90.5 KB, `/how-it-wo
 
 ## Not done / needs Jonathan or the practitioner
 
+- **Theme B (Capital Legacy) go-live still needs:** (1) n8n W01 routing that sends the four wills angles to Capital Legacy instead of a life-cover adviser (not built; until then the page promise is not met); (2) the commercial arrangement with Capital Legacy, then a fee line on those pages (none is shown now); (3) Capital Legacy's FSP number from the FSCA register (its website shows none) for the WhatsApp intro, and named-consent wording if leads go to Capital Legacy by name; (4) the four DNS CNAMEs and Vercel hosts; (5) the four origins in the n8n CORS lists (`docs/N8N-CORS-ORIGINS.txt` already has them); (6) import `automation/W36.json`, set `CL_WATCH_TO`, activate it.
 - **Nothing is deployed, pushed or DNS-attached.** Lighthouse was not run (no network tool in this environment); run it against the deployed URL (`landing/lighthouse.sh` style, mobile). The bundle sizes above are the best local proxy.
 - `config/site.json` still has `env: "staging"`, empty `pixel_id`, `domain_verification`, `turnstile_sitekey`, `whatsapp_number`. The thank-you pages say "from the SortMyCover WhatsApp number" until `whatsapp_number` is set.
 - n8n: accept the contract differences above; list CORS origins; make W01 respect `consent_ads`; the no-JS 303 targets.
