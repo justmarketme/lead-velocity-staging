@@ -20,11 +20,12 @@ export const BUDGET_OPTIONS: { value: BudgetBand; label: string }[] = [
 export function ageInBand(a?: string): boolean {
   return a === "35_44" || a === "45_50";
 }
-/** Budget band the service accepts: R750 a month or more. */
+/** Budget band the service accepts: every band. Under R750 is tier C (Jonathan, 2026-10-11): stored and kept open, routed
+ *  only to an adviser who takes those budgets; it never exits the quiz. */
 export function budgetInBand(b?: string): boolean {
-  return b === "750_1499" || b === "1500_plus";
+  return b === "lt750" || b === "750_1499" || b === "1500_plus";
 }
-/** True when both answers are in band. Out of band people exit at once; nothing is sent or stored. */
+/** True when both answers are in band (in practice: the age band). Out of band people exit at once; nothing is sent or stored. */
 export function qualifies(answers: { age_band?: string; budget_band?: string }): boolean {
   return ageInBand(answers.age_band) && budgetInBand(answers.budget_band);
 }
@@ -91,7 +92,9 @@ export function groupSlots(list: string[], maxDays = 5, perDay = 6): { day: stri
 }
 
 /** Methods that need an email for the meeting invite. Email is asked ONLY for these. */
-export const NEEDS_EMAIL: Record<string, true> = { teams: true, zoom: true, google_meet: true };
+/** Verify gate (2026-10-11): every booking needs an email. A new lead's email is never verified yet, and the booking reaches
+ *  the adviser only after the emailed link / code confirms it. Teams / Zoom / Meet also get the invite there. */
+export const NEEDS_EMAIL: Record<string, true> = { teams: true, zoom: true, google_meet: true, whatsapp_call: true, phone: true };
 
 /** Which consent text is rendered. Named mode only when the practice and FSP number are both known. */
 export function consentText(cfg: { named: { text: string; version: string }; generic: { text: string; version: string } }, mode: string, practice: string, fsp: string) {

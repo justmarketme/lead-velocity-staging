@@ -70,7 +70,17 @@
     "month": "2026-10",
     "checked": "2026-10-11",
     "status": "verified",
-    "note": "Footer line on every page read, and the footer of the Conflict of Interest Policy PDF. No FSP number is shown on any page read or in that PDF: confirm the number on the FSCA register before naming one."
+    "note": "Footer line on every page read, and the footer of the Conflict of Interest Policy PDF. No FSP number is shown on any page read or in that PDF. The number is confirmed on the FSCA register: see fsca-capital-legacy-fsp."
+  },
+  {
+    "id": "fsca-capital-legacy-fsp",
+    "claim": "Capital Legacy Solutions (Pty) Ltd is an authorised financial services provider, FSP number 43826 (FSCA FAIS register, status Authorized, financial year end 31/03).",
+    "publisher": "Financial Sector Conduct Authority (FSCA)",
+    "url": "https://www2.fsca.co.za/Fais/Search_FSP.htm",
+    "month": "2026-10",
+    "checked": "2026-10-11",
+    "status": "verified",
+    "note": "FSP register name search 'Capital Legacy' on 11 Oct 2026 returned one FSP: 43826 CAPITAL LEGACY SOLUTIONS (PTY) LTD, Authorized. Use as '{legal_name} (FSP 43826)' in the will-provider disclosure and on the Capital Legacy broker row (brokers.fsp_number) that fills the WhatsApp intro card. Re-check on the register if the provider changes."
   },
   {
     "id": "cl-no-charge-will",

@@ -6,7 +6,7 @@ import { EMAIL_RE, NEEDS_EMAIL, dayLabel, groupSlots, normaliseSlots, suggestEma
 import { fire, prepare, type TrackContext } from "@/lib/pixel";
 import { strs } from "@/lib/site";
 
-export interface BookedInfo { start: string; method: string; ics_url?: string }
+export interface BookedInfo { start: string; method: string; ics_url?: string; held_slot?: boolean; email?: string; verify_by?: string; held?: boolean }
 
 interface Props {
   leadId: string;
@@ -72,7 +72,12 @@ export default function Booking({ leadId, token, methods, angle, startedAt, requ
         if (!alive.current) return;
         setBusy(false);
         if (r.status === 409 || r.ok) bookReq.current = null;
-        if (r.ok && r.json.booked !== false) {
+        if (r.ok && r.json.held) {
+          // verify gate: the time is HELD until the emailed link / code confirms it; nothing reaches the adviser before that
+          onDone(false, { held_slot: true, start: r.json.start || slotNow, method: r.json.method || methodNow, email: email.trim(), verify_by: r.json.verify_by });
+        } else if (r.status === 409 && r.json.error_code === "held_awaiting_email") {
+          setBookErr("You already have a time held. Please confirm your email first (check your inbox), then you can change it on WhatsApp.");
+        } else if (r.ok && r.json.booked !== false) {
           if (scheduleCtx.current) fire(scheduleCtx.current); // Schedule fires only on a confirmed booking
           onDone(true, { start: r.json.start || slotNow, method: r.json.method || methodNow, ics_url: r.json.ics_url });
         } else if (r.status === 409) {
@@ -119,7 +124,7 @@ export default function Booking({ leadId, token, methods, angle, startedAt, requ
       </div>
       {needsEmail && (
         <div className={"field" + (emailBad ? " bad" : "")}>
-          <label htmlFor="email">Email for the invite</label>
+          <label htmlFor="email">Email to confirm your booking</label>
           <input id="email" type="email" inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} maxLength={120} value={email} aria-invalid={emailBad || undefined} aria-describedby="eEmail tEmail"
             onChange={(e) => { setEmail(e.target.value); if (emailBad) setEmailBad(!EMAIL_RE.test(e.target.value.trim())); }}
             onBlur={() => { if (email) setEmailBad(!EMAIL_RE.test(email.trim())); }} />

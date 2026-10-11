@@ -150,7 +150,7 @@ export default function Quiz({ angle, metaCode, lang = "en-ZA", budgetTopic = "l
     }
     if (s === 2) {
       if (!a.budget_band) return;
-      if (qualifies(a)) setStep(3);
+      if (qualifies(a)) setStep(3); // every budget band goes on (under R750 = tier C, 2026-10-11)
       else setStep(7); // out of band: neutral exit, nothing is sent or stored
     }
   }
@@ -211,6 +211,7 @@ export default function Quiz({ angle, metaCode, lang = "en-ZA", budgetTopic = "l
         if (r.ok) {
           const j = r.json;
           if (j.out_of_band || j.status === "not_qualified") { setStep(7); return; }
+          if (j.status === "held") { finish(false, { start: "", method: "", held: true }); return; } // stored, no adviser yet (e.g. tier C): WhatsApp follows
           if (leadCtx.current) fire(leadCtx.current, { content_name: metaCode });
           token.current = j.lead_token || "";
           try { sessionStorage.setItem("smc_lt", token.current); } catch { /* ignore */ }
@@ -395,10 +396,17 @@ function Done({ name, booked, info, leadId }: { name: string; booked: boolean; i
   return (
     <div className="done">
       <div className="big" aria-hidden="true">✓</div>
-      <h3 tabIndex={-1} data-focus>{fmt(booked ? strs.done_booked_h : strs.done_not_h, { name })}</h3>
-      <p>{booked ? strs.done_booked_p : strs.done_not_p}</p>
+      <h3 tabIndex={-1} data-focus>{info && info.held_slot ? `Nearly done, ${name}. Check your email.` : fmt(booked ? strs.done_booked_h : strs.done_not_h, { name })}</h3>
+      <p>{info && info.held_slot ? `We’re holding this time for you. Tap the link we’ve emailed to ${info.email || "you"} (or reply on WhatsApp with the code) to confirm it.`
+        : info && info.held ? "We’re checking which authorised adviser can help with your answers. We’ll come back to you on WhatsApp, either way."
+        : booked ? strs.done_booked_p : strs.done_not_p}</p>
       <div className="summary">
-        {booked && info ? (
+        {info && info.held_slot ? (
+          <>
+            <span><b>{strs.sum_when}</b> {dayLabel(info.start) + ", " + info.start.slice(11, 16)}</span>
+            {info.verify_by && <span><b>Confirm by:</b> {dayLabel(info.verify_by) + ", " + info.verify_by.slice(11, 16)}</span>}
+          </>
+        ) : booked && info ? (
           <>
             <span><b>{strs.sum_when}</b> {dayLabel(info.start) + ", " + info.start.slice(11, 16)}</span>
             <span><b>{strs.sum_how}</b> {m}</span>

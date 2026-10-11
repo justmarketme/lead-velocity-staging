@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ageInBand, budgetInBand, consentText, dayLabel, groupSlots, normaliseSlots, prettyMobile, qualifies, suggestEmail, toE164, AGE_OPTIONS, BUDGET_OPTIONS } from "../src/lib/quiz";
+import { ageInBand, budgetInBand, NEEDS_EMAIL, consentText, dayLabel, groupSlots, normaliseSlots, prettyMobile, qualifies, suggestEmail, toE164, AGE_OPTIONS, BUDGET_OPTIONS } from "../src/lib/quiz";
 import consent from "../config/consent.json";
 
 describe("quiz bands", () => {
@@ -10,16 +10,20 @@ describe("quiz bands", () => {
     expect(ageInBand("51plus")).toBe(false);
     expect(ageInBand(undefined)).toBe(false);
   });
-  it("accepts budget from R750", () => {
-    expect(budgetInBand("lt750")).toBe(false);
+  it("accepts every budget band (under R750 is tier C, 2026-10-11)", () => {
+    expect(budgetInBand("lt750")).toBe(true);
     expect(budgetInBand("750_1499")).toBe(true);
     expect(budgetInBand("1500_plus")).toBe(true);
   });
   it("qualifies needs both", () => {
     expect(qualifies({ age_band: "35_44", budget_band: "750_1499" })).toBe(true);
-    expect(qualifies({ age_band: "35_44", budget_band: "lt750" })).toBe(false);
+    expect(qualifies({ age_band: "35_44", budget_band: "lt750" })).toBe(true);
+    expect(budgetInBand("r200")).toBe(false);
     expect(qualifies({ age_band: "lt35", budget_band: "1500_plus" })).toBe(false);
     expect(qualifies({})).toBe(false);
+  });
+  it("every booking method asks for the email (verify gate, 2026-10-11)", () => {
+    for (const m of ["teams", "zoom", "google_meet", "whatsapp_call", "phone"]) expect(NEEDS_EMAIL[m]).toBe(true);
   });
   it("options are the three budget bands and four age bands, first age band is 18+", () => {
     expect(BUDGET_OPTIONS.map((o) => o.label)).toEqual(["Under R750", "R750 to R1,499", "R1,500 or more"]);
