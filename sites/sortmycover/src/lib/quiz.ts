@@ -103,3 +103,17 @@ export function consentText(cfg: { named: { text: string; version: string }; gen
   const main = c.text.replace("{practice_name}", practice).replace("{fsp_number}", fsp);
   return { text: main, version: c.version, mode: useNamed ? "named" : "generic" };
 }
+
+/** What the visitor wants to talk about. Sent to n8n as `product_interest`; the wills and estate campaign pages send "wills",
+ *  the cover campaign pages "life_cover" (life, disability, severe illness or income cover; never funeral cover). */
+export type ProductInterest = "life_cover" | "wills";
+/** `?for=` values on /book/ (links from the home page, hubs and articles) -> product. Anything else: ask the first question. */
+export function productFromParam(v: string | null | undefined): ProductInterest | null {
+  if (v === "wills" || v === "will" || v === "estate") return "wills";
+  if (v === "cover" || v === "life_cover" || v === "life") return "life_cover";
+  return null;
+}
+/** Campaign theme -> product: theme B is wills and estate, theme A (and the generic page) is cover. */
+export const productForTheme = (theme?: "A" | "B"): ProductInterest => (theme === "B" ? "wills" : "life_cover");
+/** Progress fraction for step n of total. */
+export const progressOf = (n: number, total: number) => Math.min(1, Math.max(0, n / total));

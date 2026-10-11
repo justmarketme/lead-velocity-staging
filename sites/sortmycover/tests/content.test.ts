@@ -14,10 +14,12 @@ const words = (s: string) => plainText(s).split(/\s+/).filter(Boolean).length;
 const text = (b: Block[]) => b.flatMap((x) => (x.type === "ul" || x.type === "ol" ? x.items : [x.text])).join(" ");
 const SCOPE = "This is information, not advice.";
 describe("articles", () => {
-  it("has the 9 Wave-1 pieces (8 articles + the Hub 1 introduction)", () => {
+  it("has the 9 Wave-1 pieces, the 6 wills and estate guides and the 4 cover type pages", () => {
     expect(articleMetas.map((a) => a.slug).sort()).toEqual([
-      "how-sortmycover-works", "how-to-check-an-adviser", "how-to-complain", "how-to-read-your-payslips-cover-line", "life-events",
-      "what-happens-on-a-30-minute-call", "what-happens-to-your-details", "what-is-a-life-cover-gap", "what-to-bring-to-your-call",
+      "disability-cover", "estate-administration", "estate-costs-and-a-will", "guardians-and-childrens-trusts",
+      "how-sortmycover-works", "how-to-check-an-adviser", "how-to-complain", "how-to-read-your-payslips-cover-line", "income-protection", "life-cover", "life-events",
+      "severe-illness-cover", "the-will-appointment",
+      "what-a-will-does", "what-happens-on-a-30-minute-call", "what-happens-to-your-details", "what-is-a-life-cover-gap", "what-to-bring-to-your-call", "where-to-keep-a-will",
     ]);
   });
   for (const m of articleMetas) {
@@ -26,7 +28,7 @@ describe("articles", () => {
         expect(m.title.length).toBeGreaterThan(5);
         expect(m.description.length).toBeGreaterThanOrEqual(110);
         expect(m.description.length).toBeLessThanOrEqual(165);
-        expect([1, 2, 3, 4]).toContain(m.hub);
+        expect([1, 2, 3, 4, 5, 6]).toContain(m.hub);
         expect(m.lastReviewed).toMatch(/^\d{4}-\d\d-\d\d$/);
         expect(m.datePublished <= m.lastReviewed).toBe(true);
         expect(m.fact_checked_by.length).toBeGreaterThan(2);
@@ -54,7 +56,7 @@ describe("articles", () => {
         const hasFigure = /\d\s?%|\d(\.\d+)?\s?[x×]\s?(salary|earnings)|\bR\s?\d/.test(all);
         if (hasFigure) {
           expect(m.evidence?.length, `${m.slug} has a figure but no evidence ids`).toBeGreaterThan(0);
-          for (const id of m.evidence!) { const e = (evidence as { id: string; status: string }[]).find((x) => x.id === id); expect(e, id).toBeTruthy(); expect(e!.status).toBe("usable"); }
+          for (const id of m.evidence!) { const e = (evidence as { id: string; status: string }[]).find((x) => x.id === id); expect(e, id).toBeTruthy(); expect(["usable", "verified"]).toContain(e!.status); }
         }
         expect(a.body.filter((b) => b.type === "h2").length).toBeGreaterThanOrEqual(3);
         expect(words(text(a.body))).toBeGreaterThan(350);

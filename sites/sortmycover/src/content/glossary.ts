@@ -54,11 +54,13 @@ export const glossary: GlossaryTerm[] = [
     term: "disability cover",
     definition:
       "Cover that pays a lump sum or a regular amount if the insured person cannot work because of illness or injury. The conditions for a claim are set out in the policy or scheme rules.",
+    see: "disability-cover",
   },
   {
     term: "estate",
     definition:
       "Everything a person owns and owes at the time of death, including property, savings and debts. An estate is dealt with under the law after a person dies.",
+    see: "what-a-will-does",
   },
   {
     term: "exclusion",
@@ -114,6 +116,7 @@ export const glossary: GlossaryTerm[] = [
     term: "income protection",
     definition:
       "Cover that pays a regular amount to replace part of a person's income if they cannot work because of illness or injury. The terms set how long and how much it pays.",
+    see: "income-protection",
   },
   {
     term: "intermediary",
@@ -136,6 +139,7 @@ export const glossary: GlossaryTerm[] = [
     term: "life cover",
     definition:
       "Insurance that pays a lump sum to the named beneficiaries when the insured person dies, under the terms of the policy. It can be personal cover or group cover through an employer.",
+    see: "life-cover",
   },
   {
     term: "medical underwriting",
@@ -172,6 +176,7 @@ export const glossary: GlossaryTerm[] = [
     term: "severe illness cover",
     definition:
       "Cover that pays a lump sum if the insured person is diagnosed with a serious illness that the policy lists, such as certain cancers or a stroke. The policy defines each illness and the conditions.",
+    see: "severe-illness-cover",
   },
   {
     term: "sum assured",

@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Wordmark } from "./Brand";
 import { APEX, FOOTER_LINE, NOT_FSP_LINE, company } from "@/lib/site";
 
@@ -17,16 +17,26 @@ function IdentityBlock() {
 }
 
 export function Footer() {
+  // The wills and estate section makes no fee statement (the will provider's fee arrangement with SortMyCover is not settled).
+  const wills = useLocation().pathname.startsWith("/wills/");
   return (
     <footer className="site-footer py-8 mt-12" data-footer>
-      <div className="wrap grid gap-6 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
+      <div className="wrap grid gap-6 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr_1fr]">
         <div className="grid gap-3 content-start">
           <Wordmark plain />
           <IdentityBlock />
           <p data-disclosure>{NOT_FSP_LINE}</p>
           <p data-disclosure>{FOOTER_LINE}</p>
-          <p>Advisers pay SortMyCover a fee for the service. The fee does not depend on whether you buy anything. <Link to="/how-we-make-money/">How we make money</Link>.</p>
+          {!wills && <p>Advisers pay SortMyCover a fee for the service. The fee does not depend on whether you buy anything. <Link to="/how-we-make-money/">How we make money</Link>.</p>}
         </div>
+        <nav aria-labelledby="f-services"><h2 id="f-services">Calls</h2>
+          <ul>
+            <li><Link to="/cover/">Cover types</Link></li><li><Link to="/cover/life-cover/">Life cover</Link></li>
+            <li><Link to="/cover/disability-cover/">Disability cover</Link></li><li><Link to="/cover/severe-illness-cover/">Severe illness cover</Link></li>
+            <li><Link to="/cover/income-protection/">Income protection</Link></li><li><Link to="/wills/">Wills &amp; estate</Link></li>
+            <li><Link to="/book/">Book a call</Link></li>
+          </ul>
+        </nav>
         <nav aria-labelledby="f-understand"><h2 id="f-understand">Understand</h2>
           <ul>
             <li><Link to="/how-it-works/">How it works</Link></li><li><Link to="/how-we-make-money/">How we make money</Link></li>

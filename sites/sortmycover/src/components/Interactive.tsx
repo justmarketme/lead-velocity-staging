@@ -33,6 +33,14 @@ export function Steps({ items }: { items: { title: string; body: string }[] }) {
   );
 }
 
+/** 2. Staggered reveal of cards ([data-reveal] children). Visible in the HTML and at rest; only below-the-fold items are hidden by JS,
+    each restored on view, on scroll and by the failsafe timer (src/lib/motion.ts revealChildren). Never wrap a disclosure in it. */
+export function Reveal({ children, className }: { children: ReactNode; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => (ref.current ? revealChildren(ref.current, "[data-reveal]") : undefined), []);
+  return <div ref={ref} className={className}>{children}</div>;
+}
+
 /** 3. FAQ accordion: native <details> (answers always in the HTML), height animated by Motion. */
 export function FaqItem({ q, children }: { q: string; children: ReactNode }) {
   const d = useRef<HTMLDetailsElement>(null);

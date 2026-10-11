@@ -46,7 +46,7 @@
 .wrap-narrow { max-width: 720px; margin-inline: auto; padding-inline: 16px; }
 .site-header { position: sticky; top: 0; z-index: 40; background: var(--sm-charcoal); color: var(--sm-off-white); }
 .site-header .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 60px; }
-.nav-link { display: inline-flex; align-items: center; min-height: 44px; padding: 0 10px; font-size: 15px; font-weight: 500; color: #e6e1d8; text-decoration: none; border-radius: 8px; }
+.nav-link { display: inline-flex; align-items: center; min-height: 44px; padding: 0 9px; white-space: nowrap; font-size: 15px; font-weight: 500; color: #e6e1d8; text-decoration: none; border-radius: 8px; }
 .nav-link:hover, .nav-link[aria-current="page"] { color: #fff; text-decoration: underline; text-underline-offset: 4px; }
 .menu summary { cursor: pointer; display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; font-weight: 800; border: 2px solid rgba(255, 255, 255, 0.35); border-radius: 999px; font-size: 15px; }
 .menu[open] summary { background: rgba(255, 255, 255, 0.1); }
@@ -122,10 +122,18 @@
 /* ------------------------------------------------------------------ quiz (ported from landing/template/page.css) -------- */
 .quiz-card { background: var(--sm-surface); border: 1px solid var(--sm-border); border-radius: 16px; padding: 20px; box-shadow: 0 10px 30px rgba(31, 41, 51, 0.06); }
 .progress { position: relative; height: 6px; border-radius: 999px; background: var(--sm-border); overflow: hidden; margin-bottom: 16px; }
-.progress .fill { position: absolute; inset: 0; background: var(--sm-amber); border-radius: 999px; transform-origin: 0 50%; transform: scaleX(0.34); }
-.progress[data-step="2"] .fill { transform: scaleX(0.67); }
-.progress[data-step="3"] .fill { transform: scaleX(1); }
+.progress .fill { position: absolute; inset: 0; background: var(--sm-amber); border-radius: 999px; transform-origin: 0 50%; transform: scaleX(0.25); }
+/* resting fill = step / total (Motion animates between the same values; these hold without JS and after a reload) */
+.progress[data-step="2"] .fill { transform: scaleX(0.5); }
+.progress[data-step="3"] .fill { transform: scaleX(0.75); }
 .progress[data-step="4"] .fill, .progress[data-step="5"] .fill { transform: scaleX(1); }
+.progress[data-total="5"] .fill { transform: scaleX(0.2); }
+.progress[data-total="5"][data-step="2"] .fill { transform: scaleX(0.4); }
+.progress[data-total="5"][data-step="3"] .fill { transform: scaleX(0.6); }
+.progress[data-total="5"][data-step="4"] .fill { transform: scaleX(0.8); }
+.progress[data-total="5"][data-step="5"] .fill { transform: scaleX(1); }
+.opt-2 > span { display: grid; gap: 2px; }
+.opt-2 small { font-weight: 500; font-size: 14px; color: var(--sm-text-muted); }
 fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 legend { padding: 0; width: 100%; }
 .q h3 { font-size: 20px; letter-spacing: -0.01em; margin-bottom: 4px; }
@@ -196,6 +204,12 @@ legend { padding: 0; width: 100%; }
   .menu summary { padding: 0 10px; font-size: 14px; }
   .site-header .bar { gap: 6px; }
 }
+@media (max-width: 374px) {
+  /* 360px phones: wordmark, button and menu must fit without a horizontal scroll */
+  .site-header .logo { font-size: 16px; }
+  .site-header .btn { font-size: 12.5px; padding-inline: 9px; }
+  .menu summary { padding: 0 8px; }
+}
 
 /* sticky booking bar (fixed: no layout shift) */
 .sticky-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 35; background: var(--sm-bg); border-top: 1px solid var(--sm-border); padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px)); box-shadow: 0 -8px 24px rgba(31, 41, 51, 0.08); }
@@ -220,3 +234,20 @@ legend { padding: 0; width: 100%; }
 .ads-pair { display: flex; gap: 20px; flex-wrap: wrap; }
 .ads-pair label { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-weight: 800; }
 .ads-pair input { width: 22px; height: 22px; accent-color: var(--sm-amber); }
+
+/* ------------------------------------------------------------------ home: the two calls (hero service cards) ------------ */
+.svc-card { display: flex; flex-direction: column; gap: 10px; border-radius: 20px; padding: 22px; background: linear-gradient(160deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.03)); border: 1px solid rgba(255, 255, 255, 0.16); box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18); transition: border-color 0.2s, transform 0.2s; }
+.svc-card:hover { border-color: var(--sm-amber); transform: translateY(-2px); }
+.svc-card h2 { font-size: clamp(22px, 4.5vw, 26px); line-height: 1.15; margin: 0; color: #fff; }
+.svc-kicker { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 800; color: var(--sm-amber); margin: 0; }
+.svc-who { font-size: 15px; color: #d7d2c8; margin: 0; }
+.svc-list { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 2px; }
+.svc-list a { display: flex; align-items: center; gap: 10px; min-height: 40px; color: var(--sm-off-white); text-decoration: underline; text-decoration-color: rgba(245, 166, 35, 0.6); text-underline-offset: 4px; font-weight: 800; font-size: 16px; }
+.svc-list a::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--sm-amber); }
+.svc-list a:hover { text-decoration-color: var(--sm-amber); }
+.svc-fine { font-size: 13px; color: #c9c3b8; margin: 0; }
+.eyebrow-light { color: var(--sm-text-muted); display: inline-flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.eyebrow-light::before { content: ""; width: 18px; height: 3px; border-radius: 2px; background: var(--sm-amber); }
+.card-tall { display: flex; flex-direction: column; gap: 6px; height: 100%; }
+.card-tall b { font-size: 19px; }
+.card-tall i { font-style: normal; font-weight: 800; font-size: 14px; margin-top: auto; padding-top: 6px; color: var(--sm-text); }

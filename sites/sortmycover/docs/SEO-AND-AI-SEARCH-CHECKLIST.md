@@ -6,7 +6,7 @@ Each row: the requirement, how the build implements it, and the test that proves
 
 | # | Requirement | How it is implemented | Proof |
 |---|---|---|---|
-| 1 | Full content in the initial HTML of every route | `scripts/build.mjs` renders every route with `renderToString` into `dist/<path>/index.html`; React then hydrates | dist test "renders every route (50 files) with real content" |
+| 1 | Full content in the initial HTML of every route | `scripts/build.mjs` renders every route with `renderToString` into `dist/<path>/index.html`; React then hydrates | dist test "renders every route (62 files) with real content" |
 | 2 | Folder URLs with a trailing slash, one absolute self-referencing canonical per page | `src/lib/head.tsx` `renderHead`; every route path ends in `/` | dist test "apex pages: self-referencing absolute canonical with trailing slash" |
 | 3 | 301 map for the old `.html` URLs | `src/build/redirects.ts` -> generated into `vercel.json` and `hostinger/.htaccess` | `tests/seo.test.ts` "old URL map", `tests/config.test.ts` drift guard |
 | 4 | Unique `<title>` of 60 characters or fewer, brand last; unique meta description | `pageTitle()` in `src/lib/head.tsx`; per-page strings | dist test "each page has a unique title of at most 60 characters ..." |
@@ -17,7 +17,7 @@ Each row: the requirement, how the build implements it, and the test that proves
 | 9 | JSON-LD limited to Organization (legal name, registration, address, email), WebSite, Article, BreadcrumbList; no FAQPage/HowTo/Product/Offer/AggregateRating | `src/lib/jsonld.ts` | dist test "JSON-LD uses only ..." |
 | 10 | Article `dateModified` = visible "Last reviewed" = sitemap `lastmod` | one field (`lastReviewed`) feeds all three | dist test "every article ..." |
 | 11 | Open Graph + Twitter card, 1200x630 og-image, favicons, manifest | `renderHead`; `public/og-image.png` (existing holding-site image; see "Not done") | dist test (og tags via canonical/robots checks); manual |
-| 12 | 404 page | `dist/404.html` rendered from `NotFound`; served by the 404 route / `ErrorDocument` | dist test (file exists in the 51) |
+| 12 | 404 page | `dist/404.html` rendered from `NotFound`; served by the 404 route / `ErrorDocument` | dist test (file exists among the 62) |
 | 13 | Self-hosted fonts, `font-display: swap`, LCP font preloaded | `src/styles/tokens.css`, `index.html` preload of both woff2 files | manual (network panel): fonts come from `/fonts/` |
 | 14 | Core Web Vitals budget LCP <= 2.5 s, INP <= 200 ms, CLS <= 0.1 | no images above the fold (text LCP), CSS in one file, route chunk preloaded, only transform/opacity animated, exit animations 90 ms | dist test "the LCP element is never hidden by animation"; Lighthouse not run here (see README) |
 | 15 | Never start the H1, hero text or primary CTA at opacity 0 | no component sets initial opacity; `revealChildren` skips anything already in view and sets `opacity` only via JS below the fold, with a 4 s failsafe | dist test (no inline opacity, no `style=` at all in the HTML) |

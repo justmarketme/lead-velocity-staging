@@ -8,7 +8,7 @@ A pre-rendered React site for sortmycover.co.za, on the same stack as leadveloci
 cd sites/sortmycover
 npm install
 npm run dev          # Vite dev server (not pre-rendered)
-npm run build        # client build + pre-render of 50 routes + sitemap/robots + vercel.json + hostinger/.htaccess -> dist/
+npm run build        # client build + pre-render of 62 routes + sitemap/robots + vercel.json + hostinger/.htaccess -> dist/
 npm run preview      # node scripts/serve.mjs: serves dist/ like the deployment (folder URLs, 404, campaign hosts via *.localhost)
 npm test             # vitest (172 tests; the dist-output and routing-matrix tests need a build first)
 npm run verify       # build, then test

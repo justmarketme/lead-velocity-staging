@@ -18,6 +18,9 @@ export interface LeadBody {
   first_name: string; mobile: string; consent: true; consent_text: string; consent_version: string; consent_mode: string;
   consent_ads: boolean; consent_ads_text: string; consent_ads_version: string;
   age_band: string; budget_band: string;
+  /** "life_cover" (cover adviser call) or "wills" (will and estate call with the will provider). Additive field: n8n W01 ignores
+   *  unknown fields, so older workflows keep working; routing on it is a W01 change (see automation/CONTRACTS.md). */
+  product_interest: "life_cover" | "wills";
   angle: string; lang: string; started_at: string; request_id: string; page_url: string;
   company_website: string; turnstile_token: string; context: unknown;
 }

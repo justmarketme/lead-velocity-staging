@@ -18,8 +18,8 @@ const meta = (html: string, re: RegExp) => (re.exec(html) || [])[1];
 const visible = (html: string) => html.replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<noscript[\s\S]*?<\/noscript>/g, " ").replace(/<head[\s\S]*?<\/head>/, " ").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ");
 
 describe.skipIf(!have)("pre-rendered output", () => {
-  it("renders every route (50 files) with real content", () => {
-    expect(pages.length).toBe(50);
+  it("renders every route (62 files) with real content", () => {
+    expect(pages.length).toBe(62);
     for (const p of pages) expect(visible(p.html).length, p.rel).toBeGreaterThan(300);
     expect(pages.find((p) => p.rel === "learn/how-to-check-an-adviser/index.html")!.html).toContain("FSCA");
   });
@@ -82,8 +82,8 @@ describe.skipIf(!have)("pre-rendered output", () => {
     expect(pages.find((p) => p.rel === "index.html")!.html).toContain('"legalName":"Lead Velocity (Pty) Ltd"');
   });
   it("every article: answer block 40-60 words with the scope sentence, dateModified equals the visible last-reviewed date", () => {
-    const arts = pages.filter((p) => p.rel.startsWith("learn/") && /data-answer/.test(p.html));
-    expect(arts.length).toBe(9);
+    const arts = pages.filter((p) => /^(learn|wills|cover)\//.test(p.rel) && /data-answer/.test(p.html));
+    expect(arts.length).toBe(19);
     for (const p of arts) {
       const ans = /<div class="answer-block" data-answer[^>]*>[\s\S]*?<p>([\s\S]*?)<\/p>/.exec(p.html)![1].replace(/<[^>]+>/g, "");
       const n = ans.split(/\s+/).filter(Boolean).length;
@@ -192,11 +192,17 @@ describe.skipIf(!have)("pre-rendered output", () => {
   it("no page states the fee as flat, monthly or the same (spec C.1 item 5), and none says 30-day cycle", () => {
     for (const p of pages) expect(visible(p.html), p.rel).not.toMatch(/flat|30-day cycle|the same whether|flat monthly/i);
   });
-  it("the home page has no sticky bar markup and the quiz shows two taps then details then consent", () => {
+  it("the home page has no sticky bar markup; /book/ asks what the call is about first, then the two taps, details and consent", () => {
     const home = pages.find((p) => p.rel === "index.html")!.html;
     expect(home).not.toMatch(/sticky-bar/);
-    const book = visible(pages.find((p) => p.rel === "book/index.html")!.html);
-    expect(book).toContain("How old are you?");
+    const bookHtml = pages.find((p) => p.rel === "book/index.html")!.html;
+    const book = visible(bookHtml);
+    expect(book).toContain("What would you like the call to be about?");
+    expect(book).toContain("Step 1 of 5");
+    expect(bookHtml).toMatch(/name="product_interest"[^>]*value="life_cover"/);
+    expect(bookHtml).toMatch(/name="product_interest"[^>]*value="wills"/);
+    // the no-JS fallback keeps the whole quiz, age question and 18+ line included
+    expect(bookHtml).toMatch(/<noscript>[\s\S]*How old are you\?[\s\S]*<\/noscript>/);
     expect(book).toContain("You must be 18 or older");
   });
   it("legal drafts keep their DRAFT mark and noindex", () => {

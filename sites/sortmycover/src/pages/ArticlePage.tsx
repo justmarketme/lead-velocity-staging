@@ -4,7 +4,8 @@ import { ReadProgress } from "@/components/Interactive";
 import { Inline } from "@/lib/inline";
 import { article as articleLd } from "@/lib/jsonld";
 import { pageTitle } from "@/lib/head";
-import { articlePath, articlesForHub, hubPath, hubs, HUB1_INTRO, metaFor } from "@/content";
+import { articlePath, articlesForHub, COVER_HUB, hubPath, hubs, HUB1_INTRO, metaFor, WILLS_HUB } from "@/content";
+import { PROVIDER_ROLE_LINE, PROVIDER_SERVICE_LINE } from "@/lib/site";
 import type { Article } from "@/content/types";
 import { ArticleList } from "./Learn";
 
@@ -17,14 +18,19 @@ export default function ArticlePage({ article }: { article: Article }) {
   const path = articlePath(meta.slug);
   const hub = hubs.find((h) => h.n === meta.hub)!;
   const isHub1 = meta.slug === HUB1_INTRO;
+  const wills = meta.hub === WILLS_HUB;
+  /** Wills and cover type pages live in their own top-level sections (/wills/, /cover/), not under /learn/. */
+  const ownSection = wills || meta.hub === COVER_HUB;
   const crumbs = isHub1
     ? [{ name: "SortMyCover", path: "/" }, { name: "Learn", path: "/learn/" }, { name: hub.title, path }]
-    : [{ name: "SortMyCover", path: "/" }, { name: "Learn", path: "/learn/" }, { name: hub.title, path: hubPath(hub) }, { name: meta.title, path }];
+    : ownSection
+      ? [{ name: "SortMyCover", path: "/" }, { name: hub.title, path: hubPath(hub) }, { name: meta.title, path }]
+      : [{ name: "SortMyCover", path: "/" }, { name: "Learn", path: "/learn/" }, { name: hub.title, path: hubPath(hub) }, { name: meta.title, path }];
   const related = meta.related.map(metaFor).filter(Boolean) as NonNullable<ReturnType<typeof metaFor>>[];
   return (
     <>
       <ReadProgress />
-      <PageFrame title={pageTitle(meta.title)} description={meta.description} path={path} ogType="article" crumbs={crumbs} jsonld={[articleLd(meta, path)]}>
+      <PageFrame title={pageTitle(meta.title)} description={meta.description} path={path} ogType="article" crumbs={crumbs} jsonld={[articleLd(meta, path)]} ctaKind={wills ? "wills" : ownSection ? "cover" : "adviser"}>
         <h1>{meta.title}</h1>
         <p className="text-[15px] text-muted-foreground" data-byline>
           By {meta.author.name}. Last reviewed <time dateTime={meta.lastReviewed}>{fmtDate(meta.lastReviewed)}</time>. Fact-checked by {meta.fact_checked_by} on <time dateTime={meta.fact_checked_on}>{fmtDate(meta.fact_checked_on)}</time>. See our <Link to="/editorial-policy/">editorial policy</Link>.
@@ -32,6 +38,7 @@ export default function ArticlePage({ article }: { article: Article }) {
         {meta.reviewer && (
           <p className="text-[15px] text-muted-foreground">Reviewed by {meta.reviewer.name} on <time dateTime={meta.reviewer.verified_on}>{fmtDate(meta.reviewer.verified_on)}</time>. <a href={meta.reviewer.fsca_url} rel="noopener noreferrer">FSCA register entry</a>.</p>
         )}
+        {wills && <p className="text-[15px] text-muted-foreground" data-disclosure data-provider>{PROVIDER_SERVICE_LINE.replace("on this page", "SortMyCover books")} {PROVIDER_ROLE_LINE}</p>}
         <div className="answer-block" data-answer><span className="label">Short answer</span><p>{meta.answer}</p></div>
         {body.map((b, i) => {
           if (b.type === "h2") return <h2 key={i}>{b.text}</h2>;
@@ -50,7 +57,8 @@ export default function ArticlePage({ article }: { article: Article }) {
         <ul>
           {!isHub1 && <li><Link to={hubPath(hub)}>More in {hub.title}</Link></li>}
           {related.map((r) => <li key={r.slug}><Link to={articlePath(r.slug)}>{r.title}</Link></li>)}
-          <li><Link to="/how-we-make-money/">How SortMyCover makes money</Link></li>
+          {/* wills pages make no statement about how SortMyCover is paid (provider fee arrangement not settled) */}
+          {!wills && <li><Link to="/how-we-make-money/">How SortMyCover makes money</Link></li>}
           <li><Link to="/about/">About SortMyCover</Link></li>
         </ul>
       </PageFrame>

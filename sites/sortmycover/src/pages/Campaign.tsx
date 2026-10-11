@@ -10,6 +10,7 @@ import { Inline } from "@/lib/inline";
 import { CAMPAIGN_FAQ, HOW_STEPS, WILLS_FAQ, WILLS_STEPS } from "@/content/shared";
 import { h1Segments, hostLabel, type Angle } from "@/campaigns";
 import { slideIn, watchInView } from "@/lib/motion";
+import { productForTheme } from "@/lib/quiz";
 
 /** Sticky CTA (spec C.1): shown only after the quiz card has left the viewport upwards, hidden while the card is on screen and at the footer. */
 function CampaignSticky() {
@@ -68,7 +69,7 @@ export function CampaignLanding({ angle }: { angle: Angle }) {
           </div>
         </section>
         <section className="wrap-narrow py-6" id="quiz" aria-label="Book my adviser call">
-          <Quiz angle={angle.slug} metaCode={angle.meta_code} budgetTopic={angle.budget_topic} />
+          <Quiz angle={angle.slug} metaCode={angle.meta_code} budgetTopic={angle.budget_topic} product={productForTheme(angle.theme)} />
           <p className="fine mt-3" data-disclosure>Run by Lead Velocity (Pty) Ltd. Not a financial services provider. {COST_LINE}</p>
         </section>
         <section className="wrap-narrow py-6" aria-labelledby="h-how"><h2 id="h-how" className="text-[24px] mb-4">What happens next</h2><Steps items={wills ? WILLS_STEPS : HOW_STEPS} /></section>

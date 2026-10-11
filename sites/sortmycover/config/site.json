@@ -40,8 +40,10 @@
     "name": "Capital Legacy",
     "legal_name": "Capital Legacy Solutions (Pty) Ltd",
     "status": "an authorised financial services provider",
+    "fsp_number": "43826",
+    "fsp_evidence": "fsca-capital-legacy-fsp",
     "url": "https://www.capitallegacy.co.za/",
-    "service_line": "The will and estate service on this page is provided by {legal_name}, {status}.",
+    "service_line": "The will and estate service on this page is provided by {legal_name}, {status} (FSP {fsp}).",
     "cost_line": "{provider} says it does not charge to draft, update, store or retrieve a will. It also offers optional cover for the costs of winding up an estate, at a monthly cost, and its consultant explains the terms.",
     "role_line": "SortMyCover does not draft wills and gives no advice. It puts you in touch with a {provider} consultant.",
     "evidence": [

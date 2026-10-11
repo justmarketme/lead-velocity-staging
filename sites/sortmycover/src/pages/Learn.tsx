@@ -1,14 +1,13 @@
-import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { revealChildren } from "@/lib/motion";
 import PageFrame from "@/components/PageFrame";
+import { Reveal } from "@/components/Interactive";
 import { articlesForHub, articlePath, hubPath, hubs, type Hub } from "@/content";
 
 const CRUMB_ROOT = { name: "SortMyCover", path: "/" };
 
 export function LearnHub() {
   return (
-    <PageFrame title="Learn about life cover | SortMyCover" description="Short guides in plain words, with sources and dates. Four topics and a glossary. Information, not advice." path="/learn/" h1="Learn" lede="Short guides in plain words, with sources and dates. They are information, not advice." crumbs={[CRUMB_ROOT, { name: "Learn", path: "/learn/" }]}>
+    <PageFrame title="Learn about cover and wills | SortMyCover" description="Short guides in plain words, with sources and dates: cover types, wills and estate, life events, the call, and a glossary. Information, not advice." path="/learn/" h1="Learn" lede="Short guides in plain words, with sources and dates. They are information, not advice." crumbs={[CRUMB_ROOT, { name: "Learn", path: "/learn/" }]}>
       <Reveal className="grid gap-3 mt-6">
         {hubs.map((h) => (
           <Link key={h.slug} to={hubPath(h)} className="card-link" data-reveal><b>{h.title}</b><span>{h.intro}</span></Link>
@@ -17,12 +16,6 @@ export function LearnHub() {
       </Reveal>
     </PageFrame>
   );
-}
-
-function Reveal({ children, className }: { children: React.ReactNode; className?: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => (ref.current ? revealChildren(ref.current, "[data-reveal]") : undefined), []);
-  return <div ref={ref} className={className}>{children}</div>;
 }
 
 export function ArticleList({ items }: { items: { slug: string; title: string; description: string }[] }) {

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Seo } from "@/lib/head";
-import { APEX, BOOK_LABEL, COST_LINE } from "@/lib/site";
+import { APEX, BOOK_COVER, BOOK_LABEL, BOOK_WILLS, COST_LINE, PROVIDER_COST_LINE, WILLS_BOOK_LABEL, provider } from "@/lib/site";
 import { breadcrumbs } from "@/lib/jsonld";
 
 export interface Crumb { name: string; path: string }
@@ -19,6 +19,8 @@ interface Props {
   ogType?: "website" | "article";
   /** Show the quiet booking call to action under the content. */
   cta?: boolean;
+  /** Which call the quiet CTA books: an adviser about cover (default) or the will provider's consultant. */
+  ctaKind?: CtaKind;
   children?: ReactNode;
 }
 
@@ -32,17 +34,30 @@ export function Crumbs({ items }: { items: Crumb[] }) {
   );
 }
 
-export function Cta({ heading = "Talk to an adviser" }: { heading?: string }) {
+export type CtaKind = "adviser" | "cover" | "wills";
+
+/** Quiet call to action. "cover" and "wills" link into the quiz with the product already chosen (/book/?for=...). The wills
+    version names the will provider and makes no fee statement (the provider's fee arrangement with SortMyCover is not settled). */
+export function Cta({ heading, kind = "adviser" }: { heading?: string; kind?: CtaKind }) {
+  if (kind === "wills") {
+    return (
+      <aside className="cta-quiet" aria-label="Book a will call">
+        <h2>{heading ?? "Talk to a " + provider.name + " consultant"}</h2>
+        <p data-disclosure>A call about your will, booked for a time that suits. {COST_LINE} {PROVIDER_COST_LINE}</p>
+        <Link to={BOOK_WILLS} className="btn">{WILLS_BOOK_LABEL}</Link>
+      </aside>
+    );
+  }
   return (
     <aside className="cta-quiet" aria-label="Book a call">
-      <h2>{heading}</h2>
+      <h2>{heading ?? "Talk to an adviser"}</h2>
       <p>A 30-minute call with an authorised adviser, booked for a time that suits. {COST_LINE}</p>
-      <Link to="/book/" className="btn">{BOOK_LABEL}</Link>
+      <Link to={kind === "cover" ? BOOK_COVER : "/book/"} className="btn">{BOOK_LABEL}</Link>
     </aside>
   );
 }
 
-export default function PageFrame({ title, description, path, h1, lede, robots, crumbs, jsonld = [], ogType, cta = true, children }: Props) {
+export default function PageFrame({ title, description, path, h1, lede, robots, crumbs, jsonld = [], ogType, cta = true, ctaKind, children }: Props) {
   const ld = [...jsonld];
   if (crumbs && crumbs.length > 1) ld.push(breadcrumbs(crumbs));
   return (
@@ -54,7 +69,7 @@ export default function PageFrame({ title, description, path, h1, lede, robots, 
           {h1 && <h1>{h1}</h1>}
           {lede && <p className="lede">{lede}</p>}
           {children}
-          {cta && <Cta />}
+          {cta && <Cta kind={ctaKind} />}
         </div>
       </div>
     </>

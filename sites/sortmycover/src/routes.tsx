@@ -32,7 +32,7 @@ export interface RouteDef {
   file?: string;
 }
 
-const BUILT = "2026-10-10"; // last content change for static pages; article lastmod comes from each article's lastReviewed
+const BUILT = "2026-10-11"; // last content change for static pages; article lastmod comes from each article's lastReviewed
 const page = (path: string, load: () => Promise<{ default: ComponentType<any> }>, extra: Partial<RouteDef> = {}): RouteDef => ({
   path, Component: lazyRoute(load), kind: "apex", indexable: true, lastmod: BUILT, ...extra,
 });
@@ -58,8 +58,11 @@ export const apexRoutes: RouteDef[] = [
   page("/contact/", () => import("./pages/Contact")),
   page("/complaints/", () => import("./pages/Complaints")),
   page("/faq/", () => import("./pages/Faq")),
+  page("/cover/", () => import("./pages/Cover")),
+  page("/wills/", () => import("./pages/Wills")),
   page("/learn/", () => import("./pages/Learn").then((m) => ({ default: m.LearnHub }))),
-  ...hubs.filter((h) => h.n !== 1).map((h) => page(hubPath(h), () => import("./pages/Learn").then((m) => ({ default: () => <m.HubPage hub={h} /> })))),
+  // hubs 2 to 4 live under /learn/; the wills and cover type hubs have their own pages above
+  ...hubs.filter((h) => h.n !== 1 && !h.path).map((h) => page(hubPath(h), () => import("./pages/Learn").then((m) => ({ default: () => <m.HubPage hub={h} /> })))),
   articleRoute(HUB1_INTRO),
   page("/learn/glossary/", () => import("./pages/Glossary")),
   ...articleMetas.filter((a) => a.slug !== HUB1_INTRO).map((a) => articleRoute(a.slug)),

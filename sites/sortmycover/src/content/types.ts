@@ -32,8 +32,9 @@ export interface ArticleMeta {
   title: string;
   /** <meta description>, 120-160 characters. */
   description: string;
-  /** 1 life events, 2 reading your cover, 3 the call and trust, 4 myths and definitions. */
-  hub: 1 | 2 | 3 | 4;
+  /** 1 life events, 2 reading your cover, 3 the call and trust, 4 myths and definitions (all under /learn/);
+      5 wills and estate (under /wills/, facts only from the will provider's verified evidence); 6 cover types (under /cover/). */
+  hub: 1 | 2 | 3 | 4 | 5 | 6;
   /** 40-60 words, ends with the scope sentence "This is information, not advice." (rule: B.6 item 3). */
   answer: string;
   datePublished: string; // ISO date
@@ -44,7 +45,8 @@ export interface ArticleMeta {
   /** Only after a real review by someone who is not a broker SortMyCover routes leads to. Absent = no reviewer block. */
   reviewer?: Reviewer;
   sources: Source[];
-  /** Ids from config/evidence.json. Required when the body or answer contains any %, multiple of salary, or rand figure. */
+  /** Ids from config/evidence.json. Required when the body or answer contains any %, multiple of salary, or rand figure, and on every
+      wills (hub 5) and cover type (hub 6) page, where each id's URL is also listed under Sources (tests/content.test.ts). */
   evidence?: string[];
   /** Up to two sibling article slugs (B.6 item 6). */
   related: string[];

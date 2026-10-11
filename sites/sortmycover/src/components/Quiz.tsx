@@ -1,4 +1,6 @@
 /* The booking quiz: two taps (age band, budget band), then first name, mobile and consent, then the in-page booking widget.
+   On /book/ a first tap asks what the call is about (cover adviser, or will and estate), unless ?for= already says so; campaign
+   pages pass the product from their theme. The choice is sent as `product_interest` and changes wording only.
    Used on /book/ (angle "generic") and on every campaign page. Contracts: /lead /slots /book /lead/skip /beacon on n8n.
    Out-of-band answers exit at once and NOTHING is sent or stored (rule S21). No output is computed from answers (rule S19).
    Meta Pixel loads only after the separate optional consent (src/lib/pixel.ts). */
@@ -6,13 +8,13 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useAnimate } from "motion/react-mini";
 import Booking, { type BookedInfo } from "./Booking";
 import { postLead, beacon, type LeadBody } from "@/lib/api";
-import { AGE_OPTIONS, BUDGET_OPTIONS, ageInBand, consentText, dayLabel, prettyMobile, qualifies, toE164 } from "@/lib/quiz";
-import { BOOK_LABEL, COST_LINE, API_BASE, FOOTER_LINE, apex, company, consentCfg, site, strs } from "@/lib/site";
+import { AGE_OPTIONS, BUDGET_OPTIONS, ageInBand, consentText, dayLabel, prettyMobile, productFromParam, progressOf, qualifies, toE164, type ProductInterest } from "@/lib/quiz";
+import { BOOK_LABEL, COST_LINE, API_BASE, FOOTER_LINE, WILLS_BOOK_LABEL, apex, company, consentCfg, provider, site, strs } from "@/lib/site";
 import { beaconOff, fire, grantAds, prepare, track, uuid, type TrackContext } from "@/lib/pixel";
 import { leave, prefersReducedMotion, pulse, shake } from "@/lib/motion";
 
-type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7;
-const PROGRESS: Record<number, number> = { 1: 0.25, 2: 0.5, 3: 0.75, 4: 1, 5: 1, 6: 1, 7: 1 };
+/** 0 = what the call is about (only while the product is unknown), 1 age, 2 budget, 3 details, 4 consent, 5 booking, 6 done, 7 neutral exit. */
+type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 interface Props {
   /** n8n `angle` and beacon key: the campaign slug, or "generic" on /book/. */
@@ -24,7 +26,14 @@ interface Props {
   budgetTopic?: string;
   /** Where the no-JS fallback form redirects after the lead is accepted (informational; n8n builds it from the validated angle). */
   idPrefix?: string;
+  /** Fixed product (campaign pages). Absent on /book/: the quiz asks first, or takes ?for=cover / ?for=wills. */
+  product?: ProductInterest;
 }
+
+const PRODUCT_OPTIONS: { value: ProductInterest; label: string; hint: string }[] = [
+  { value: "life_cover", label: "Cover: life, disability, severe illness or income protection", hint: "A call with an adviser from an FSCA-authorised provider." },
+  { value: "wills", label: "My will and estate planning", hint: `A call with a ${provider.name} consultant.` },
+];
 
 const Check = () => (
   <span className="dot"><svg viewBox="0 0 24 24" fill="none" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M5 13l4 4L19 7" /></svg></span>
@@ -32,10 +41,16 @@ const Check = () => (
 
 const fmt = (s: string, vars: Record<string, string>) => Object.keys(vars).reduce((a, k) => a.replace("{" + k + "}", vars[k]), s);
 
-export default function Quiz({ angle, metaCode, lang = "en-ZA", budgetTopic = "life cover" }: Props) {
-  const budgetLegend = `Roughly what monthly budget could you set aside for ${budgetTopic}? This is not a quote.`;
+export default function Quiz({ angle, metaCode, lang = "en-ZA", budgetTopic, product: fixedProduct }: Props) {
+  const [product, setProduct] = useState<ProductInterest | null>(fixedProduct ?? null);
+  /** The first question is shown only when the page did not fix the product (the server render of /book/ always shows it). */
+  const [asks, setAsks] = useState(!fixedProduct);
+  const wills = product === "wills";
+  const topic = budgetTopic ?? (wills ? "cover and planning" : "life cover");
+  const budgetLegend = `Roughly what monthly budget could you set aside for ${topic}? This is not a quote.`;
+  const who = wills ? `${provider.name} consultant` : "adviser";
   const uid = useId();
-  const [step, setStep] = useState<Step>(1);
+  const [step, setStep] = useState<Step>(fixedProduct ? 1 : 0);
   const [answers, setAnswers] = useState<{ age_band?: string; budget_band?: string }>({});
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -58,8 +73,9 @@ export default function Quiz({ angle, metaCode, lang = "en-ZA", budgetTopic = "l
   const cardRef = useRef<HTMLDivElement>(null);
   const [panelScope, animatePanel] = useAnimate();
   const [barScope, animateBar] = useAnimate();
-  const prevStep = useRef<Step>(1);
+  const prevStep = useRef<Step>(fixedProduct ? 1 : 0);
   const firstRun = useRef(true);
+  const silent = useRef(false);
   const ts = useRef({ token: "", loaded: false, ready: false, widgets: {} as Record<string, any>, waiters: {} as Record<string, ((t: string) => void) | null> });
 
   const consentInfo = consentText(consentCfg, site.consent_mode, site.practice_name, site.fsp_number);
@@ -70,6 +86,13 @@ export default function Quiz({ angle, metaCode, lang = "en-ZA", budgetTopic = "l
     leadReq.current = uuid();
     try { token.current = sessionStorage.getItem("smc_lt") || ""; } catch { /* ignore */ }
     beacon(angle, "view", undefined, beaconOff);
+    if (!fixedProduct) {
+      // ?for=cover / ?for=wills (links from the home page, hubs and articles): the product is chosen, so the first question is skipped.
+      // Read after hydration so the server HTML (which asks the question) and the first client render match.
+      let pre: ProductInterest | null = null;
+      try { pre = productFromParam(new URLSearchParams(location.search).get("for")); } catch { /* ignore */ }
+      if (pre) { silent.current = true; setProduct(pre); setAsks(false); setStep(1); }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -77,6 +100,7 @@ export default function Quiz({ angle, metaCode, lang = "en-ZA", budgetTopic = "l
   useEffect(() => {
     if (step >= 2 && step <= 7) beacon(angle, "step", step, beaconOff);
     if (firstRun.current) { firstRun.current = false; prevStep.current = step; return; }
+    if (silent.current) { silent.current = false; prevStep.current = step; return; } // preselected from ?for=: no scroll, no focus move
     const panel = panelScope.current as HTMLElement | null;
     const reduce = prefersReducedMotion();
     if (panel) {
@@ -86,8 +110,9 @@ export default function Quiz({ angle, metaCode, lang = "en-ZA", budgetTopic = "l
       if (!reduce) animatePanel(panel, { opacity: [0, 1], transform: ["translateX(18px)", "translateX(0px)"] }, { duration: 0.24, ease: "easeOut" });
     }
     const bar = barScope.current as HTMLElement | null;
-    if (bar && !reduce && PROGRESS[prevStep.current] !== PROGRESS[step]) {
-      animateBar(bar, { transform: [`scaleX(${PROGRESS[prevStep.current]})`, `scaleX(${PROGRESS[step]})`] }, { duration: 0.38, ease: "easeOut" });
+    const from = frac(prevStep.current), to = frac(step);
+    if (bar && !reduce && from !== to) {
+      animateBar(bar, { transform: [`scaleX(${from})`, `scaleX(${to})`] }, { duration: 0.38, ease: "easeOut" });
     }
     prevStep.current = step;
     setShowNext(false);
@@ -141,7 +166,8 @@ export default function Quiz({ angle, metaCode, lang = "en-ZA", budgetTopic = "l
     loadTurnstile();
   }
 
-  function advanceFrom(s: Step, a: typeof answers) {
+  function advanceFrom(s: Step, a: typeof answers, p: ProductInterest | null = product) {
+    if (s === 0) { if (p) setStep(1); return; }
     if (s === 1) {
       if (!a.age_band) return;
       if (!ageInBand(a.age_band)) setStep(7); // out of band at once: neutral exit, no budget question, nothing sent
@@ -153,6 +179,15 @@ export default function Quiz({ angle, metaCode, lang = "en-ZA", budgetTopic = "l
       if (qualifies(a)) setStep(3); // every budget band goes on (under R750 = tier C, 2026-10-11)
       else setStep(7); // out of band: neutral exit, nothing is sent or stored
     }
+  }
+
+  function pickProduct(value: ProductInterest) {
+    startQuiz();
+    setProduct(value);
+    const picked = document.querySelector<HTMLElement>(`[data-quiz] input[name="product_interest"][value="${value}"]`)?.closest(".opt");
+    if (picked) pulse(picked);
+    if (viaPointer.current) { setTimeout(() => { const panel = panelScope.current as HTMLElement | null; if (panel) leave(panel, () => advanceFrom(0, answers, value)); else advanceFrom(0, answers, value); }, 180); setShowNext(false); }
+    else setShowNext(true);
   }
 
   function pick(field: "age_band" | "budget_band", value: string) {
@@ -200,7 +235,7 @@ export default function Quiz({ angle, metaCode, lang = "en-ZA", budgetTopic = "l
       first_name: name.trim(), mobile: e164, consent: true,
       consent_text: consentInfo.text, consent_version: consentInfo.version, consent_mode: consentInfo.mode,
       consent_ads: consentAds, consent_ads_text: consentCfg.ads.text, consent_ads_version: consentCfg.ads.version,
-      age_band: answers.age_band!, budget_band: answers.budget_band!,
+      age_band: answers.age_band!, budget_band: answers.budget_band!, product_interest: product ?? "life_cover",
       angle, lang, started_at: startedAt.current, request_id: leadReq.current, page_url: location.origin + location.pathname,
       company_website: "", turnstile_token: ts.current.token || (document.querySelector<HTMLInputElement>('[name="cf-turnstile-response"]')?.value ?? ""),
       context: leadCtx.current,
@@ -233,6 +268,11 @@ export default function Quiz({ angle, metaCode, lang = "en-ZA", budgetTopic = "l
   }
 
   const e164 = toE164(phone);
+  /* Step numbers shown to the visitor: 4 steps, or 5 when the first question is asked. */
+  const total = asks ? 5 : 4;
+  const shown = (s: Step) => (asks ? s + 1 : s);
+  function frac(s: Step) { return progressOf(Math.min(shown(s), total), total); }
+  const backFrom = (s: Step): Step | null => (s > 1 ? ((s - 1) as Step) : s === 1 && asks ? 0 : null);
   const hearOpt = (field: "age_band" | "budget_band", opts: { value: string; label: string }[], legend: string, hint: string, headId: string) => (
     <fieldset aria-labelledby={headId}>
       <legend><h3 id={headId} tabIndex={-1} data-focus>{legend}</h3></legend>
@@ -246,7 +286,7 @@ export default function Quiz({ angle, metaCode, lang = "en-ZA", budgetTopic = "l
         ))}
       </div>
       <div className="qnav">
-        {step > 1 ? <button type="button" className="link-btn" onClick={() => setStep((step - 1) as Step)}>Back</button> : <span />}
+        {backFrom(step) !== null ? <button type="button" className="link-btn" onClick={() => setStep(backFrom(step)!)}>Back</button> : <span />}
         {showNext && answers[field] && <button type="button" className="btn btn-secondary" onClick={() => advanceFrom(step, answers)}>Next</button>}
       </div>
     </fieldset>
@@ -256,21 +296,39 @@ export default function Quiz({ angle, metaCode, lang = "en-ZA", budgetTopic = "l
     <div className="quiz-card" id="card" ref={cardRef} data-quiz>
       {step <= 4 && (
         <>
-          <p className="step-label" aria-hidden="true">Step {step} of 4</p>
-          <div className="progress" role="progressbar" aria-label="Progress" aria-valuemin={1} aria-valuemax={4} aria-valuenow={step} data-step={step}>
+          <p className="step-label" aria-hidden="true">Step {shown(step)} of {total}</p>
+          <div className="progress" role="progressbar" aria-label="Progress" aria-valuemin={1} aria-valuemax={total} aria-valuenow={shown(step)} data-step={shown(step)} data-total={total}>
             <div className="fill" ref={barScope} />
           </div>
         </>
       )}
-      <p className="sr" role="status" aria-live="polite">{step <= 4 ? `Step ${step} of 4` : ""}</p>
+      <p className="sr" role="status" aria-live="polite">{step <= 4 ? `Step ${shown(step)} of ${total}` : ""}</p>
 
       <div className="q" ref={panelScope}>
+        {step === 0 && (
+          <fieldset aria-labelledby={idBase + "-h0"}>
+            <legend><h3 id={idBase + "-h0"} tabIndex={-1} data-focus>What would you like the call to be about?</h3></legend>
+            <p className="hint">Pick one. You can book the other one later.</p>
+            <div className="opts">
+              {PRODUCT_OPTIONS.map((o, i) => (
+                <label key={o.value} className="opt opt-2" onPointerDown={() => { viaPointer.current = true; }}>
+                  <input type="radio" name="product_interest" value={o.value} required={i === 0} checked={product === o.value} onChange={() => pickProduct(o.value)} onKeyDown={() => { viaPointer.current = false; }} />
+                  <span>{o.label}<small>{o.hint}</small></span><Check />
+                </label>
+              ))}
+            </div>
+            <div className="qnav">
+              <span />
+              {showNext && product && <button type="button" className="btn btn-secondary" onClick={() => advanceFrom(0, answers)}>Next</button>}
+            </div>
+          </fieldset>
+        )}
         {step === 1 && hearOpt("age_band", AGE_OPTIONS, "How old are you?", "You must be 18 or older. This only decides if we can book a call.", idBase + "-h1")}
         {step === 2 && hearOpt("budget_band", BUDGET_OPTIONS, budgetLegend, "It is never shown back to you.", idBase + "-h2")}
         {step === 3 && (
           <form onSubmit={detailsNext} noValidate autoComplete="on" aria-labelledby={idBase + "-h3"}>
-            <h3 id={idBase + "-h3"} tabIndex={-1} data-focus>Where should we send your adviser’s details?</h3>
-            <p className="hint">One call of about 30 minutes with an adviser, at a time you pick. {COST_LINE}</p>
+            <h3 id={idBase + "-h3"} tabIndex={-1} data-focus>Where should we send your {who}’s details?</h3>
+            <p className="hint">One call of about 30 minutes with {wills ? "a " + who : "an adviser"}, at a time you pick. {COST_LINE}</p>
             <div className={"field" + (bad.name ? " bad" : "")}>
               <label htmlFor={idBase + "-name"}>First name</label>
               <input id={idBase + "-name"} name="first_name" autoComplete="given-name" autoCapitalize="words" maxLength={40} required placeholder="e.g. Thabo" value={name} aria-invalid={bad.name || undefined}
@@ -282,7 +340,7 @@ export default function Quiz({ angle, metaCode, lang = "en-ZA", budgetTopic = "l
               <input id={idBase + "-phone"} name="mobile" type="tel" inputMode="tel" autoComplete="tel" maxLength={20} required placeholder="e.g. 082 123 4567" value={phone} aria-invalid={bad.phone || undefined} aria-describedby={idBase + "-why"}
                 onChange={(e) => { setPhone(e.target.value); if (bad.phone && toE164(e.target.value)) setBad((b) => ({ ...b, phone: false })); }}
                 onBlur={() => { if (phone && !e164) setBad((b) => ({ ...b, phone: true })); }} />
-              <span className="tip" id={idBase + "-why"}>SortMyCover (a service of Lead Velocity) will message this number on WhatsApp about your call. The adviser you are booked with will also have it. Reply STOP to end it.</span>
+              <span className="tip" id={idBase + "-why"}>SortMyCover (a service of Lead Velocity) will message this number on WhatsApp about your call. The {who} you are booked with will also have it. Reply STOP to end it.</span>
               <span className="err">{strs.err_mobile}</span>
               <span className="ok" aria-live="polite">{e164 ? strs.ok_mobile + " " + prettyMobile(e164) : ""}</span>
             </div>
@@ -320,12 +378,12 @@ export default function Quiz({ angle, metaCode, lang = "en-ZA", budgetTopic = "l
             {formErr && <p className="form-err" role="alert">{formErr}</p>}
             <div className="qnav">
               <button type="button" className="link-btn" onClick={() => setStep(3)}>Back</button>
-              <button type="submit" className="btn" disabled={sending}>{sending ? strs.sending : BOOK_LABEL} <span aria-hidden="true">→</span></button>
+              <button type="submit" className="btn" disabled={sending}>{sending ? strs.sending : wills ? WILLS_BOOK_LABEL : BOOK_LABEL} <span aria-hidden="true">→</span></button>
             </div>
             <p className="fine" data-disclosure>{FOOTER_LINE}</p>
             <div className="beside">
               <b>What happens next</b>
-              <span>You get a WhatsApp with your adviser’s name, practice and FSP number.</span>
+              <span>{wills ? `You get a WhatsApp with the name of your ${provider.name} consultant.` : "You get a WhatsApp with your adviser’s name, practice and FSP number."}</span>
               <span>You pick a time that suits you, and get reminders before the call.</span>
               <span>The call is about 30 minutes, by video, WhatsApp or phone. {COST_LINE} You decide afterwards.</span>
             </div>
@@ -350,7 +408,10 @@ export default function Quiz({ angle, metaCode, lang = "en-ZA", budgetTopic = "l
       {/* No-JS fallback: a plain form post to the same /lead endpoint (n8n answers with a 303 to the thank-you page). */}
       <noscript>
         <form method="post" action={API_BASE + "/lead"}>
-          <p><strong>Book my adviser call</strong></p>
+          <p><strong>{wills ? WILLS_BOOK_LABEL : BOOK_LABEL}</strong></p>
+          {asks ? (
+            <fieldset><legend>What would you like the call to be about?</legend>{PRODUCT_OPTIONS.map((o) => (<label key={o.value}><input type="radio" name="product_interest" value={o.value} required /> {o.label}</label>))}</fieldset>
+          ) : <input type="hidden" name="product_interest" value={product ?? "life_cover"} />}
           <fieldset><legend>How old are you?</legend>{AGE_OPTIONS.map((o) => (<label key={o.value}><input type="radio" name="age_band" value={o.value} required /> {o.label}</label>))}</fieldset>
           <fieldset><legend>{budgetLegend}</legend>{BUDGET_OPTIONS.map((o) => (<label key={o.value}><input type="radio" name="budget_band" value={o.value} required /> {o.label}</label>))}</fieldset>
           <p><label>First name <input name="first_name" required /></label></p>

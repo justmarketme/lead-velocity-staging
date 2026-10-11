@@ -32,7 +32,7 @@ export const WILLS_FAQ: FaqItem[] = [
   CAMPAIGN_FAQ.find((f) => f.id === "committed")!,
 ];
 
-/* Home FAQ: the eight items of spec D.1. Site FAQ: those plus the extra objections. */
+/* Home FAQ: the eight items of spec D.1, plus who drafts a will (the wills and estate service, 11 Oct 2026). Site FAQ: those plus the extra objections. */
 export const HOME_FAQ: FaqItem[] = [
   { id: "free", q: "Does the call really cost nothing?", a: COST_LINE + " If you later choose a product, your adviser tells you how they are paid." },
   { id: "money", q: "How do you make money?", a: FEE_LINE + " " + NO_COMMISSION + " The full explanation is on the [how we make money](/how-we-make-money/) page." },
@@ -42,6 +42,7 @@ export const HOME_FAQ: FaqItem[] = [
   { id: "buy", q: "Do I have to buy anything?", a: "No. The call costs you nothing, and you decide afterwards." },
   { id: "stop", q: "Can I stop?", a: "Yes. Reply STOP to any WhatsApp, or email hello@sortmycover.co.za with the word STOP. We stop at once and tell the adviser." },
   { id: "complain", q: "Who do I complain to?", a: "Start with hello@sortmycover.co.za. The [complaints page](/complaints/) lists every route in order, including the routes for a complaint about an adviser." },
+  { id: "wills", q: "Who drafts my will?", a: `A consultant from ${provider.legal_name} (FSP ${provider.fsp_number}). ` + PROVIDER_ROLE_LINE + " " + PROVIDER_COST_LINE + " The [wills and estate guides](/wills/) explain what a will does." },
 ];
 
 export const SITE_FAQ: FaqItem[] = [
