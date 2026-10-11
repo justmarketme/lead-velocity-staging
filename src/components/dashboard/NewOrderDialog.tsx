@@ -3,6 +3,8 @@
  * Lead Velocity raw leads -> brand_id NULL (uploaded / delivered as today). SortMyCover nurtured leads -> brand_id = SMC:
  * once the order is paid, the routing triggers attach each consumer lead the broker receives (lead_order_items) until
  * lead_count is reached (CRM-NURTURE-SCHEMA.md section 2). Contract, invoice and Mark Paid stay the existing flow.
+ * A SortMyCover order for a broker not yet enrolled also enrols him (brokers.brand_id = SMC, routing_on stays false),
+ * after an explicit tick, through the admin's own RLS path (no RPC needed: smc_brokers_guard returns early for admins).
  */
 import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -10,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -45,6 +48,9 @@ export default function NewOrderDialog({ open, onOpenChange, brands, onCreated }
 
   const broker = brokers.find((b) => b.id === brokerId);
   const notEnrolled = brand === "smc" && !!broker && !broker.brand_id;
+  const otherBrand = brand === "smc" && !!broker?.brand_id && !!smc && broker.brand_id !== smc.id;
+  const [enrolOk, setEnrolOk] = useState(false);
+  useEffect(() => { setEnrolOk(false); }, [brokerId, brand]);
 
   async function create() {
     setErr(null);
@@ -65,10 +71,19 @@ export default function NewOrderDialog({ open, onOpenChange, brands, onCreated }
       created_by: u.user?.id ?? null,
     };
     if (brand === "smc") row.brand_id = smc!.id;
+    if (otherBrand) return setErr("This broker is enrolled in another brand. Change that first.");
+    if (notEnrolled && !enrolOk) return setErr("Tick the enrolment line to create a SortMyCover order for this broker.");
     setBusy(true);
+    // Enrol first (admin path: RLS "Admins can manage all brokers"; smc_brokers_guard lets admins set brand_id). Only a
+    // still-unenrolled row is touched, and routing stays off until an admin switches it on. If enrolment fails, no order.
+    if (notEnrolled) {
+      const { data: enrolled, error: enrolErr } = await smcDb.from("brokers")
+        .update({ brand_id: smc!.id, routing_on: false }).eq("id", brokerId).is("brand_id", null).select("id");
+      if (enrolErr || !enrolled?.length) { setBusy(false); return setErr(`Could not enrol the broker in SortMyCover: ${enrolErr ? errText(enrolErr) : "the broker row changed; refresh and try again"}. No order was created.`); }
+    }
     const { error } = await smcDb.from("lead_orders").insert(row);
     setBusy(false);
-    if (error) return setErr(errText(error));
+    if (error) return setErr(`${notEnrolled ? "The broker is now enrolled in SortMyCover, but the order was not created: " : ""}${errText(error)}`);
     setTitle(""); setAmount(""); setBrokerId(""); setBrand("lv");
     onOpenChange(false);
     onCreated();
@@ -104,9 +119,17 @@ export default function NewOrderDialog({ open, onOpenChange, brands, onCreated }
               </SelectContent>
             </Select>
             {notEnrolled && (
-              <p className="flex gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-300">
-                <AlertTriangle className="h-4 w-4 shrink-0" />
-                This broker is not enrolled in SortMyCover yet (brokers.brand_id is empty). The order is recorded, but he can't connect his calendar or receive routed leads until he is enrolled.
+              <label className="flex gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-300 cursor-pointer">
+                <Checkbox checked={enrolOk} onCheckedChange={(v) => setEnrolOk(v === true)} className="mt-0.5" aria-label="Enrol this broker in SortMyCover" />
+                <span>
+                  <b>Also enrol {broker?.firm_name || "this broker"} in SortMyCover.</b> He can then connect his Outlook calendar and set up his intro card.
+                  Routing stays <b>off</b> (no leads reach him) until you switch it on. Once enrolled, his practice name, FSP number and WhatsApp number lock when routing goes on.
+                </span>
+              </label>
+            )}
+            {otherBrand && (
+              <p className="flex gap-2 rounded-md border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-300">
+                <AlertTriangle className="h-4 w-4 shrink-0" />This broker is enrolled in another brand.
               </p>
             )}
           </div>
@@ -122,7 +145,7 @@ export default function NewOrderDialog({ open, onOpenChange, brands, onCreated }
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>Cancel</Button>
-          <Button onClick={create} disabled={busy}>{busy ? "Creating…" : "Create order"}</Button>
+          <Button onClick={create} disabled={busy}>{busy ? "Creating…" : notEnrolled ? "Enrol and create order" : "Create order"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
