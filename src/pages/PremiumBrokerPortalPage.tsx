@@ -136,7 +136,9 @@ const PremiumBrokerPortalPage = () => {
 
             const { data: broker, error: brokerError } = await supabase
                 .from("brokers")
-                .select("*, broker_onboarding_responses(*), profiles(*)")
+                // No foreign key links brokers and profiles (both key on auth user id), so `profiles(*)` cannot be embedded:
+                // PostgREST rejects the whole select. Profiles are read separately below by profiles.user_id.
+                .select("*, broker_onboarding_responses(*)")
                 .eq("user_id", session.user.id)
                 .single();
 
@@ -160,8 +162,10 @@ const PremiumBrokerPortalPage = () => {
                 return;
             }
 
+            const { data: profileRow } = await supabase.from("profiles").select("*").eq("user_id", session.user.id).maybeSingle();
             const enrichedBroker = {
                 ...broker,
+                profiles: profileRow ?? null,
                 tier: broker.tier || TIERS[0].name,
                 is_lead_loading: broker.is_lead_loading !== undefined ? broker.is_lead_loading : true,
                 leads_used: (broker as any).leads_used || 0,
@@ -358,7 +362,7 @@ const PremiumBrokerPortalPage = () => {
                     )}
                     {activeTab === 'documents' && <PremiumDocuments documents={[]} />}
                     {activeTab === 'settings' && <div className="animate-in fade-in slide-in-from-bottom duration-500">
-                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-8">
                             {/* Discord Card */}
                             <Card className="bg-slate-900/40 backdrop-blur-3xl border-white/5 p-8 rounded-3xl">
                                 <CardHeader className="p-0 mb-6">
@@ -383,8 +387,8 @@ const PremiumBrokerPortalPage = () => {
                                             <div className="p-6 bg-white/[0.03] rounded-3xl border border-white/5 relative group overflow-hidden">
                                                 <div className="absolute inset-0 bg-gradient-to-br from-pink-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
                                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-4 italic">AUTHORIZATION CODE</label>
-                                                <div className="flex items-center justify-between relative z-10">
-                                                    <span className="text-4xl font-black tracking-[0.2em] text-white">
+                                                <div className="flex items-center justify-between gap-3 relative z-10">
+                                                    <span className="min-w-0 text-2xl sm:text-3xl font-black tracking-[0.12em] text-white">
                                                         {(brokerData as any)?.profiles?.discord_pairing_code || "------"}
                                                     </span>
                                                     <Button
@@ -392,13 +396,13 @@ const PremiumBrokerPortalPage = () => {
                                                         size="sm"
                                                         onClick={async () => {
                                                             const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-                                                            const { error } = await supabase.from("profiles").update({ discord_pairing_code: newCode }).eq("id", (brokerData as any).user_id);
+                                                            const { error } = await supabase.from("profiles").update({ discord_pairing_code: newCode }).eq("user_id", (brokerData as any).user_id);
                                                             if (!error) {
                                                                 setBrokerData({ ...brokerData, profiles: { ...(brokerData as any).profiles, discord_pairing_code: newCode } });
                                                                 toast({ title: "Signal Generated", description: "Encryption code refreshed." });
                                                             }
                                                         }}
-                                                        className="h-12 w-12 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all"
+                                                        className="h-12 w-12 shrink-0 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all"
                                                     >
                                                         <RefreshCw className="w-5 h-5" />
                                                     </Button>
@@ -433,8 +437,8 @@ const PremiumBrokerPortalPage = () => {
                                             <div className="p-6 bg-white/[0.03] rounded-3xl border border-white/5 relative group overflow-hidden">
                                                 <div className="absolute inset-0 bg-gradient-to-br from-sky-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
                                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-4 italic">TELEGRAM UNIQUE SIGNATURE</label>
-                                                <div className="flex items-center justify-between relative z-10">
-                                                    <span className="text-4xl font-black tracking-[0.2em] text-white">
+                                                <div className="flex items-center justify-between gap-3 relative z-10">
+                                                    <span className="min-w-0 text-2xl sm:text-3xl font-black tracking-[0.12em] text-white">
                                                         {(brokerData as any)?.profiles?.telegram_pairing_code || "------"}
                                                     </span>
                                                     <Button
@@ -442,13 +446,13 @@ const PremiumBrokerPortalPage = () => {
                                                         size="sm"
                                                         onClick={async () => {
                                                             const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-                                                            const { error } = await supabase.from("profiles").update({ telegram_pairing_code: newCode }).eq("id", (brokerData as any).user_id);
+                                                            const { error } = await supabase.from("profiles").update({ telegram_pairing_code: newCode }).eq("user_id", (brokerData as any).user_id);
                                                             if (!error) {
                                                                 setBrokerData({ ...brokerData, profiles: { ...(brokerData as any).profiles, telegram_pairing_code: newCode } });
                                                                 toast({ title: "Frequency Tuned", description: "Telegram auth signature cycled." });
                                                             }
                                                         }}
-                                                        className="h-12 w-12 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all"
+                                                        className="h-12 w-12 shrink-0 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all"
                                                     >
                                                         <RefreshCw className="w-5 h-5" />
                                                     </Button>

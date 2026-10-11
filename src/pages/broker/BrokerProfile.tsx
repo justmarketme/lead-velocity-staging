@@ -20,8 +20,8 @@ const BrokerProfile = () => {
             const { data } = await supabase
                 .from("profiles")
                 .select("*")
-                .eq("id", user.id)
-                .single();
+                .eq("user_id", user.id) // profiles keys on user_id; profiles.id is its own uuid (not always the auth id)
+                .maybeSingle();
             setProfile(data);
         }
         setLoading(false);
@@ -33,10 +33,11 @@ const BrokerProfile = () => {
             const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
             const column = type === 'discord' ? 'discord_pairing_code' : 'telegram_pairing_code';
 
+            if (!profile?.user_id) throw new Error("Your profile isn't set up yet. Ask Lead Velocity to finish your account.");
             const { error } = await supabase
                 .from("profiles")
                 .update({ [column]: newCode })
-                .eq("id", profile.id);
+                .eq("user_id", profile.user_id);
 
             if (error) throw error;
 
