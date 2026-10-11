@@ -1,9 +1,18 @@
 # LOCAL-STAGING.md: n8n on Jonathan's laptop until the VPS exists (0.3 #7, 6.6)
 
-**What exists already (the laptop session built it; do not duplicate it):**
-- `automation/docker-compose.yml`: `postgres:16-alpine` + `n8n` (pinned `2.41.6`). n8n is bound to `127.0.0.1:5678` only. Both read the repo-root `.env`.
-- `automation/local-tick.ps1`: the self-healing **keeper**, run by the Windows scheduled task **`LeadVelocity-n8n-Keeper`** at logon and every 10 min. Each tick: (1) restarts Docker Desktop if the engine is down (and clears the stale socket dirs that crash Docker Desktop 4.61), (2) `docker compose up -d`, (3) waits for n8n's local `/healthz`, then keeps the **SSH reverse tunnel** to the EMMA VPS up (`ssh -R 127.0.0.1:15678:localhost:5678 root@76.13.252.92`) and health-checks the stable URL **`https://emmadoesit.cloud/lv-n8n/`**; only if that fails does it start a **cloudflared quick tunnel** (`cloudflared tunnel --url http://localhost:5678`) as a last resort, (4) if the public URL changed, rewrites `N8N_PUBLIC_URL` / `WEBHOOK_URL` / `N8N_EDITOR_BASE_URL` / `N8N_PATH` / `N8N_HOST` / `N8N_PROTOCOL` in `.env` and recreates n8n. State and logs are in `%LOCALAPPDATA%\lv-n8n\` (`tick.log`, `tunnel.log`, `url.txt`).
-  The brief called this "n8n-keeper*". The file on disk is `local-tick.ps1`.
+> **11 Oct 2026: n8n moved off the laptop.** It runs on the EMMA VPS (76.13.252.92) at **`https://n8n.sortmycover.co.za`** so it keeps working when the laptop is off; see section 0. The laptop sections below are kept as the history and for offline debugging only.
+
+## 0. Where n8n runs now: the EMMA VPS
+- **Stack:** the same `automation/docker-compose.yml` (n8n `2.41.6` + `postgres:16-alpine`, n8n bound to `127.0.0.1:5678`, `restart: unless-stopped`, Postgres in a named volume) plus `automation/emma-vps/compose.override.yml` (memory caps: n8n 1.5 GB, Postgres 512 MB). Project `lv-n8n` in **`/opt/leadvelocity-n8n`**: `repo/` (runtime dirs shipped from git), `repo/.env` (root 0600, never shipped), `dc` (compose wrapper), `backup.sh`, `backups/`.
+- **Public URL:** VPS Caddy (`/etc/caddy/Caddyfile`) `n8n.sortmycover.co.za { reverse_proxy 127.0.0.1:5678 }` (Let's Encrypt; DNS A record at Hostinger -> 76.13.252.92). Webhooks: `https://n8n.sortmycover.co.za/webhook/<path>`. `.env`: `N8N_PUBLIC_URL=https://n8n.sortmycover.co.za`, `WEBHOOK_URL` / `N8N_EDITOR_BASE_URL` = that + `/`, `N8N_HOST=n8n.sortmycover.co.za`, `N8N_PROTOCOL=https` (describes the public URL; without `N8N_SSL_*` n8n listens on plain http behind Caddy), `DRY_RUN_SENDS=true` until go-live.
+- **Deploy / update code:** `automation/emma-vps/deploy.sh [git-ref]` from the laptop (ships committed files only, keeps `repo/.env`, recreates n8n). **Ops:** `ssh root@76.13.252.92 /opt/leadvelocity-n8n/dc ps | logs -f n8n | restart n8n`.
+- **Backup:** `/etc/cron.d/lv-n8n-backup` runs `backup.sh` at 01:30 SAST: `pg_dump --format=custom` into `/opt/leadvelocity-n8n/backups/`, newest 14 kept (same box; restore steps in the script header). Credentials in the dump stay encrypted with `N8N_ENCRYPTION_KEY`.
+- **Migration (done 11 Oct):** a `pg_dump` of the laptop Postgres restored before n8n's first start, so workflows, encrypted credentials, activation states and the owner login carried over unchanged (same `N8N_ENCRYPTION_KEY`).
+- **Laptop:** the scheduled task `LeadVelocity-n8n-Keeper` is **disabled** (kept), `automation/local-tick.ps1` is a no-op stub, and the local containers are stopped (volumes kept).
+
+**What existed on the laptop (history; do not re-enable without moving the URL back):**
+- `automation/docker-compose.yml`: `postgres:16-alpine` + `n8n` (pinned `2.41.6`). n8n is bound to `127.0.0.1:5678` only. Both read the repo-root `.env` (pass `--env-file .env` so the Postgres values interpolate).
+- `automation/local-tick.ps1` (now retired): the self-healing keeper run by the scheduled task `LeadVelocity-n8n-Keeper`: Docker Desktop up, `docker compose up -d`, then an SSH reverse tunnel to the VPS or a cloudflared quick tunnel, rewriting the URL settings in `.env` when the public URL changed.
 
 ## 1. One-time setup on the laptop
 1. Docker Desktop, `cloudflared` on PATH, Node 18+, Git.
@@ -49,7 +58,7 @@ The mount adds no secret exposure. The same `.env` is already the container's en
 - **Status (I-37h, 2026-10-02):** every SMC export uses `LV Supabase - n8n_app (least privilege)` for every Postgres node (226 nodes across W02, W03, W07, W08, W10, W11, W14, W16-W22, W24, W25, W27-W33, W35). The three generators (`build-w03-w28.mjs`, `billing/build-workflows.mjs`, `optimisation/build-workflows.cjs`) emit the canonical name, so regenerating keeps it. `automation/W34.json` (compliance-qa) was renamed afterwards: all 16 Postgres nodes use the canonical name. (`automation/W23.json` was renamed afterwards; `patch-w23-auth.mjs` keeps the name.) Separate HTTP Header Auth credentials `Supabase service role (W16 magic link)` (W16) and `Supabase service role (n8n, W20)` (W20) are not Postgres credentials and were not renamed; they call the Supabase Auth admin API, which needs the server-side key. No `service role` **Postgres** credential is ever created in n8n.
 
 ## 1c. CORS on the API host (I-34c)
-Browser calls to `API_HOST` (`/webhook/lead`, `/webhook/slots`, `/webhook/book`, `/webhook/billing-autorenew`) are answered by the Traefik `api-cors` headers middleware on the `n8n-cors` router (VPS overlay): origins `PUBLIC_ALLOWED_ORIGINS` or the production default `https://sortmycover.co.za, https://www.sortmycover.co.za, https://leadvelocity.co.za, https://www.leadvelocity.co.za` (I-37i: production never allows the staging subdomain; staging adds `https://sortmycover.leadvelocity.co.za`, both values in `.env.example`); methods `GET, POST, OPTIONS`; headers `Content-Type, X-Lead-Token, Authorization`; no credentials; preflight cached 600 s. Traefik answers the preflight itself and overwrites any `Access-Control-Allow-Origin` that an n8n webhook node sets. **Locally there is no Traefik:** the tunnel reaches n8n directly, so on the laptop CORS comes from the webhook node's *Allowed Origins (CORS)* option (W19 sets it). For local browser tests of `/slots` and `/book`, set that option on those webhook nodes to the same origin list. *ASSUMPTION: n8n's own preflight reply echoes the requested headers; verify once with `curl -X OPTIONS -H 'Origin: …' -H 'Access-Control-Request-Headers: x-lead-token'`.*
+Browser calls to `API_HOST` (`/webhook/lead`, `/webhook/slots`, `/webhook/book`, `/webhook/billing-autorenew`) are answered by the Traefik `api-cors` headers middleware on the `n8n-cors` router (VPS overlay): origins `PUBLIC_ALLOWED_ORIGINS` or the production default `https://sortmycover.co.za, https://www.sortmycover.co.za, https://leadvelocity.co.za, https://www.leadvelocity.co.za` (I-37i: production never allows the staging subdomain; staging adds `https://sortmycover.leadvelocity.co.za`, both values in `.env.example`); methods `GET, POST, OPTIONS`; headers `Content-Type, X-Lead-Token, Authorization`; no credentials; preflight cached 600 s. Traefik answers the preflight itself and overwrites any `Access-Control-Allow-Origin` that an n8n webhook node sets. **Without Traefik (laptop, and the EMMA VPS where Caddy only proxies) n8n answers directly, so** CORS comes from the webhook node's *Allowed Origins (CORS)* option (W19 sets it). For local browser tests of `/slots` and `/book`, set that option on those webhook nodes to the same origin list. *ASSUMPTION: n8n's own preflight reply echoes the requested headers; verify once with `curl -X OPTIONS -H 'Origin: …' -H 'Access-Control-Request-Headers: x-lead-token'`.*
 
 ## 1d. W34 media erase: `W34_MEDIA_ERASE_URL` and `W34_MEDIA_ERASE_SECRET` (I-38b, I-39j, I-40f)
 W34 erases stored media twice: nightly (**Erase media files (storage)**, past-retention files) and on a DSR erase (**Erase subject media (storage)**, step 3). Both now call the edge function `supabase/functions/w34-media-erase`, which is the only holder of the Supabase server key. n8n never holds a Storage key.
@@ -60,18 +69,17 @@ W34 erases stored media twice: nightly (**Erase media files (storage)**, past-re
 - **Least privilege:** the server key lives only in the function's environment (injected by Supabase as `SUPABASE_SERVICE_ROLE_KEY`). A leaked `W34_MEDIA_ERASE_SECRET` can delete broker-media objects only, never read or touch tables.
 - Pre-VPS: leave `W34_MEDIA_ERASE_URL` empty and `W34_DRY_RUN=true`; staging holds synthetic media only.
 
-## 2. The tunnel and the `N8N_PUBLIC_URL` it writes
-- **Today: a path on the EMMA VPS domain, `https://emmadoesit.cloud/lv-n8n/`** (no new DNS record). The laptop holds `ssh -R 127.0.0.1:15678:localhost:5678` to the VPS; the VPS Caddy (`/etc/caddy/Caddyfile`, inside the `emmadoesit.cloud` block) has `redir /lv-n8n /lv-n8n/ 308` + `handle_path /lv-n8n/* { reverse_proxy 127.0.0.1:15678 }`. n8n 2.41 registers every route (`/rest`, `/webhook`, `/healthz`, assets) at the root and uses `N8N_PATH` only for the editor's own URLs, so Caddy **strips** the prefix. `.env` then holds `N8N_PUBLIC_URL=https://emmadoesit.cloud/lv-n8n`, `WEBHOOK_URL` and `N8N_EDITOR_BASE_URL` = that plus `/`, `N8N_PATH=/lv-n8n/`, `N8N_HOST=emmadoesit.cloud`, `N8N_PROTOCOL=https` (describes the public URL; without `N8N_SSL_*` n8n still listens on plain http). Webhooks: `https://emmadoesit.cloud/lv-n8n/webhook/<path>`. Because of `N8N_PATH`, the editor works only through the public URL, not at `http://localhost:5678` (local `/healthz` and `/webhook/*` still do).
-- **Last resort: a cloudflared quick tunnel**, only while the VPS path is unreachable. Its URL **changes whenever the tunnel restarts** (6.6 "limits of free"); the keeper writes it into `.env` with `N8N_PATH=/` and switches back to the stable URL as soon as that answers again.
+## 2. The public URL, `N8N_PUBLIC_URL`
+- **`https://n8n.sortmycover.co.za`**, stable, served from the EMMA VPS (section 0). The rotating cloudflared quick-tunnel URL and the SSH reverse tunnel from the laptop are gone.
 - **What a URL change breaks:** anything *outside* that stored the old URL.
   - The Meta app webhook subscriptions (WABA / page / instagram).
   - The Flow `endpoint_uri`.
   - The Paystack **test-mode** webhook.
   - The landing page's `/lead` endpoint config.
 
-  Re-point once after moving to the stable URL, and again only if the keeper ever falls back to the quick tunnel:
+  Re-point after a URL change (once now, for anything registered against an old quick-tunnel URL):
   ```bash
-  # from the repo root, with .env loaded (same calls as provision.sh step 11, aimed at the tunnel)
+  # from the repo root, with .env loaded (same calls as provision.sh step 11, aimed at N8N_PUBLIC_URL)
   set -a; . ./.env; set +a
   for o in "whatsapp_business_account wa messages,message_template_status_update,phone_number_quality_update,account_update" \
            "page meta-page leadgen,feed,messages"; do set -- $o
@@ -81,16 +89,16 @@ W34 erases stored media twice: nightly (**Erase media files (storage)**, past-re
       --data-urlencode "fields=$3" -o /dev/null && echo "re-pointed $1"; done
   ```
   Paystack test webhook: dashboard → Settings → API Keys & Webhooks (Chrome agent).
-- **Exposure:** the public URL (and the quick tunnel) publishes **the whole n8n**, editor included, at the random URL. Mitigations: owner login + MFA, synthetic data only (`DRY_RUN_SENDS=true`, `WHATSAPP_TEST_RECIPIENTS` allow-list), no live consumer data before W26. On the VPS the editor moves behind the Traefik IP allowlist and `api.` exposes only `/webhook/*` and `/healthz` (`vps/traefik/`).
+- **Exposure:** the public URL publishes **the whole n8n**, editor included. Mitigations: owner login + MFA, synthetic data only (`DRY_RUN_SENDS=true`, `WHATSAPP_TEST_RECIPIENTS` allow-list), no live consumer data before W26. On the VPS the editor moves behind the Traefik IP allowlist and `api.` exposes only `/webhook/*` and `/healthz` (`vps/traefik/`).
 
 ## 3. What the cloud session needs from the laptop
-The cloud (Claude Code on the web) session cannot reach `localhost`. It works through the tunnel and git:
+The cloud (Claude Code on the web) session cannot reach `localhost`. It works through the public URL and git:
 
 | Need | How it gets it | Never |
 |---|---|---|
-| Current public URL | Jonathan pastes `url.txt` (`%LOCALAPPDATA%\lv-n8n\url.txt`) or `N8N_PUBLIC_URL` into the session. It is a URL, not a secret | — |
+| Current public URL | `https://n8n.sortmycover.co.za` (fixed). It is a URL, not a secret | — |
 | Run the synthetic suite online | `N8N_PUBLIC_URL=<url> node --test 'automation/tests/*.test.mjs'`. The harness switches to online mode when `N8N_PUBLIC_URL` is set | — |
-| Import/export workflow JSON | n8n public API through the tunnel with `X-N8N-API-KEY`. The key is set as an environment secret of the cloud session (or the laptop session does the import from `automation/W*.json`) | never pasted into chat; never committed |
+| Import/export workflow JSON | n8n public API at `https://n8n.sortmycover.co.za/api/v1` with `X-N8N-API-KEY`. The key is set as an environment secret of the cloud session (or the laptop session does the import from `automation/W*.json`) | never pasted into chat; never committed |
 | Credentials | Created **in the laptop n8n UI by Jonathan** from `.env` values; the workflows reference them by name + type, full list in `CREDENTIALS.md` (machine-checked) | values never leave the laptop except encrypted (n8n DB with `N8N_ENCRYPTION_KEY`; the age-encrypted backup) |
 | Webhook signature secrets for tests | The offline tests generate random secrets per run (`verify-webhooks.test.js`). The online tests read `.env` on the machine that runs them | — |
 | Logs when something fails | Jonathan shares `tick.log` lines or the n8n execution id. Executions keep **errors only**, pruned after 7 days, and alert payloads are redacted | no execution data with real numbers pasted into chat (0.3 #10) |
