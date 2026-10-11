@@ -13,7 +13,7 @@ REF="${1:-HEAD}"
 VPS="${VPS:-root@76.13.252.92}"
 KEY="${SSH_KEY:-$HOME/.ssh/emma_vps_ed25519}"
 D=/opt/leadvelocity-n8n
-SHIP=(automation conversation knowledge community billing analytics landing/config data supabase/migrations)
+SHIP=(automation conversation knowledge community billing analytics landing/config data supabase/migrations sites/sortmycover/scripts sites/sortmycover/config)
 present=(); for p in "${SHIP[@]}"; do git cat-file -e "$REF:$p" 2>/dev/null && present+=("$p"); done
 echo "shipping $(git rev-parse --short "$REF"): ${present[*]}"
 git archive "$REF" "${present[@]}" | ssh -i "$KEY" -o BatchMode=yes "$VPS" "set -e

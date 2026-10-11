@@ -17,6 +17,9 @@ const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
 
 /** Marker for refs: that node ran but its output 0 is empty (an IF that took its false branch). */
 export const NOT_RUN = Symbol('n8n-output0-empty');
+/** Marker for refs: that node returned several items; $('<name>').all() yields them all (.item / .first() = the first). */
+export const MANY = Symbol('n8n-many-items');
+export const many = (items) => ({ [MANY]: items });
 
 /**
  * Evaluates an IF node (v2, one string-equals condition as the generators emit) for one item: true -> output 0,
@@ -41,20 +44,23 @@ export const codeNode = (wf, name) => {
 };
 
 /** Returns what the node returns: one { json } (per-item mode) or an array of { json } (all-items mode). */
-export async function runCode(wf, name, { json = {}, items, env = {}, refs = {} } = {}) {
+export async function runCode(wf, name, { json = {}, items, env = {}, refs = {}, staticData } = {}) {
   const n = codeNode(wf, name);
-  const fn = new AsyncFunction('$json', '$env', '$', '$input', 'require', n.parameters.jsCode);
+  // staticData: what $getWorkflowStaticData('global') returns (the same object, so a test sees the node's writes).
+  // Without it, a test-set globalThis.$getWorkflowStaticData still applies (visit-beacon.test.mjs).
+  const fn = new AsyncFunction('$json', '$env', '$', '$input', 'require', '$getWorkflowStaticData', n.parameters.jsCode);
   const $ = (k) => {
     if (!(k in refs)) throw new Error(`$('${k}') not provided to the test`);
     const r = refs[k];
     // I-53l: an IF/Switch node whose output 0 stayed empty (it took another branch) -> n8n's $('<IF>').first() is
     // undefined and .item has no paired data. Tests pass NOT_RUN for such a node so the real failure reproduces.
+    if (r && r[MANY]) { const its = r[MANY].map((j) => ({ json: j })); return { item: its[0], first: () => its[0], itemMatching: (i) => its[i], all: () => its }; }
     if (r === NOT_RUN) return { get item() { throw new Error(`Paired item data for '${k}' unavailable (output 0 empty)`); }, first: () => undefined, itemMatching: () => undefined, all: () => [] };
     // .all(): every item of that node (refs value is the json of its single item, as for .item / .first()).
     return { item: { json: r }, first: () => ({ json: r }), itemMatching: () => ({ json: r }), all: () => [{ json: r }] };
   };
   const all = (items || [json]).map((j) => ({ json: j }));
-  return fn(json, { REPO_DIR: REPO, ...env }, $, { all: () => all, first: () => all[0] }, nodeRequire);
+  return fn(json, { REPO_DIR: REPO, ...env }, $, { all: () => all, first: () => all[0] }, nodeRequire, (k) => (staticData !== undefined ? staticData : globalThis.$getWorkflowStaticData?.(k)));
 }
 
 /** Parameter counts a submitted template expects (automation/templates/<name>.json), same shape as wa.mjs paramCounts(). */

@@ -61,6 +61,8 @@ const MODULES = {
   capi: './capi/capi.js',
   // data (JSON, repo root): SA public holidays for W04 slot generation (I-46c; was an fs read off $env.REPO_DIR)
   holidays: '../data/za-public-holidays.json',
+  // SortMyCover wills pages: Capital Legacy change watcher (W36). Lives with the site so the CLI and n8n share one copy.
+  clWatch: '../sites/sortmycover/scripts/capital-legacy-watch.mjs',
 };
 
 for (const [name, path] of Object.entries(MODULES)) {
