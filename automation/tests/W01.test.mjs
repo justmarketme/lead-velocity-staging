@@ -842,3 +842,26 @@ test('wills angles: product_interest wills, routed only to a handles_wills broke
   assert.match(WF.nodes.find((n) => n.name === N.context).parameters.query, /'handles_wills', b\.handles_wills/);
   assert.match(WF.nodes.find((n) => n.name === 'Insert lead + timeline (one statement; broker_id written before W06 exists)').parameters.query, /product_interest/);
 });
+
+// lv-site fc89d5a (2026-10-11): /book/ asks cover vs will and estate (or ?for=) and sends product_interest in the /lead body
+test('page product_interest: whitelisted life_cover | wills is stored and routes; absent or unknown -> derived from the angle; a wills angle always wins', () => {
+  const sub = (angle, product_interest) => W01.normaliseSubmission({ first_name: 'Nomsa', mobile: '0600000171', consent: true, consent_text: 'synthetic consent text',
+    consent_version: 'CONSENT-GENERIC-v1', consent_mode: 'generic', age_band: '35_44', budget_band: '1500_plus', lang: 'en', started_at: TC_NOW - 60e3,
+    request_id: 'req-pi-0001', angle, ...(product_interest === undefined ? {} : { product_interest }), context: { event_id: '5b0f7a2e-00c1-4c1a-9a51-0000000000d1' } }, {});
+  assert.equal(sub('cover', 'wills').product_interest, 'wills');
+  assert.equal(sub('cover', ' WILLS ').product_interest, 'wills', 'trimmed, case-insensitive');
+  for (const bad of ['funeral', '', 42, null, { x: 1 }]) assert.equal(sub('cover', bad).product_interest, null, String(bad));
+  assert.equal(sub('cover').product_interest, null);
+  const life = tcBroker();
+  const wills = tcBroker({ id: '00000000-0000-4000-8000-0000000b0c09', broker_id: '00000000-0000-4000-8000-0000000b0c09', handles_wills: true });
+  const row = (s, brokers = [life]) => W01.decide(s, tcCtx(brokers)).row;
+  // /book/ wills choice on a life angle: stored as wills, never given to a life-cover broker
+  assert.deepEqual([row(sub('cover', 'wills')).product_interest, row(sub('cover', 'wills')).routing_reason, row(sub('cover', 'wills')).broker_id], ['wills', 'held_no_wills_broker', null]);
+  assert.equal(row(sub('cover', 'wills'), [life, wills]).broker_id, wills.broker_id);
+  // explicit life_cover / absent / unknown on a life angle -> life_cover
+  for (const p of ['life_cover', undefined, 'funeral']) assert.equal(row(sub('new-bond', p)).product_interest, 'life_cover', String(p));
+  // a wills angle wins over a contradicting life_cover choice
+  assert.equal(row(sub('will-myth', 'life_cover')).product_interest, 'wills');
+  // the Screen Code node passes the field through unchanged (same normaliseSubmission as n8n runs)
+  assert.match(WF.nodes.find((n) => n.name.startsWith('Screen (w01')).parameters.jsCode, /normaliseSubmission\(body/);
+});

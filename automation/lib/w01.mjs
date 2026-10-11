@@ -99,7 +99,13 @@ export const LOW_BUDGET_HOLD_DAYS = 7;
 // Their leads carry leads.product_interest = 'wills' and are routed ONLY to brokers with brokers.handles_wills (none with room
 // -> routing_reason held_no_wills_broker). Same nurture, booking, verification and counting rules otherwise.
 export const WILLS_ANGLES = new Set(['children-guardian', 'will-myth', 'will-and-cover', 'where-is-the-will']);
-export const productOf = (angle) => (WILLS_ANGLES.has(String(angle || '').toLowerCase()) ? 'wills' : 'life_cover');
+export const PRODUCTS = new Set(['life_cover', 'wills']);
+/** The page's own product choice (/book/ first question or ?for=, campaign theme), whitelisted; anything else -> null. */
+export const productChoice = (v) => (typeof v === 'string' && PRODUCTS.has(v.trim().toLowerCase()) ? v.trim().toLowerCase() : null);
+/** leads.product_interest: a wills angle is always 'wills'; otherwise the page's choice (product_interest, lv-site fc89d5a),
+ *  else derived from the angle ('life_cover'). */
+export const productOf = (angle, requested = null) =>
+  (WILLS_ANGLES.has(String(angle || '').toLowerCase()) ? 'wills' : productChoice(requested) ?? 'life_cover');
 export const LOW_BUDGET_HELD_TEMPLATE = 'lead_low_budget_held';
 export const LOW_BUDGET_CLOSED_TEMPLATE = 'lead_low_budget_closed';
 // conv_state.state values while the lead is still answering (W03 owns them): the hand-off waits until the answers are in.
@@ -140,6 +146,7 @@ export function normaliseSubmission(body = {}, opts = {}) {
     mobile_raw: typeof body.mobile === 'string' ? body.mobile : null,
     language: body.language ?? body.lang ?? null,
     angle: body.angle ?? null,
+    product_interest: productChoice(body.product_interest),
     quiz: {
       age_band: AGE_TO_DB[q.age_band] ?? null, budget_band: BUDGET_TO_DB[q.budget_band] ?? null,
       bond: yes(q.has_bond ?? q.bond), dependants: dependantsOf(q.has_dependants ?? q.dependants), work_cover: yes(q.has_work_cover ?? q.work_cover),
@@ -386,7 +393,7 @@ export function decide(sub, ctx) {
     id: ctx.lead_id, brand_id: brandId, origin: sub.channel, source: 'LV Campaign', is_synthetic: !!sub.is_synthetic, created_at: at,
     first_name: sub.first_name, phone: ctx.mobile, line_type: lt, language: sub.language ?? null,
     age_band: q.age_band ?? null, budget_band: q.budget_band ?? null, bond: q.bond ?? null, dependants: q.dependants ?? null, work_cover: q.work_cover ?? null,
-    method_pref: method, angle: sub.angle ?? null, product_interest: productOf(sub.angle),
+    method_pref: method, angle: sub.angle ?? null, product_interest: productOf(sub.angle, sub.product_interest),
     // 0.1 Email: kept only when the chosen method needs an invite, purpose meeting_invite only (never marketing, never Meta)
     email: method && EMAIL_METHODS.has(method) && sub.email ? sub.email : null,
     email_purpose: method && EMAIL_METHODS.has(method) && sub.email ? 'meeting_invite' : null,
