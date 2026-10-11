@@ -1,0 +1,9 @@
+# EMMA VPS (76.13.252.92) overlay for automation/docker-compose.yml: n8n's home since 11 Oct 2026.
+# Caddy on the VPS serves https://n8n.sortmycover.co.za -> 127.0.0.1:5678 (the base file binds n8n to loopback only).
+# Use through /opt/leadvelocity-n8n/dc (automation/emma-vps/dc.sh), which also passes --env-file for interpolation.
+# Memory caps keep EMMA, Echo Trade and Caddy fed on the shared 8 GB box.
+services:
+  postgres:
+    mem_limit: 512m
+  n8n:
+    mem_limit: 1536m
