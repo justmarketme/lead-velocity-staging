@@ -83,6 +83,7 @@ const PremiumBrokerPortalPage = () => {
                     client:leads(first_name, last_name, phone, email)
                 `)
                 .eq("broker_id", brokerId)
+                .or("status.is.null,status.neq.pending_verification") // held slots wait for the client's email check
                 .order('appointment_date', { ascending: true });
 
             if (appts) {

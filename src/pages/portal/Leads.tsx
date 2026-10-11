@@ -47,9 +47,14 @@ function MarkOne({ b, l, existing, onDone }: { b: SmcBooking; l?: SmcLead; exist
       outcome, disposition_code: outcome === "attended" ? dispo : null, quality_score: outcome === "attended" ? q : null,
       marked_by: userId, marked_via: "portal", marked_at: new Date().toISOString(), unconfirmed: false, auto_marked: false,
     };
-    const res = existing
-      ? await smcDb.from("outcomes").update(row).eq("id", existing.id)
-      : await smcDb.from("outcomes").insert({ ...row, booking_id: b.id, lead_id: b.lead_id, broker_id: broker.id, brand_id: b.brand_id });
+    // One outcomes row per booking. If WhatsApp (W12) or the 24-h sweep wrote it while this page was open,
+    // the insert hits the unique booking_id: update that row instead so the tap is never lost.
+    let res = existing
+      ? await smcDb.from("outcomes").update(row).eq("id", existing.id).select("id")
+      : await smcDb.from("outcomes").insert({ ...row, booking_id: b.id, lead_id: b.lead_id, broker_id: broker.id, brand_id: b.brand_id }).select("id");
+    if (res.error?.code === "23505" || (!res.error && !res.data?.length))
+      res = await smcDb.from("outcomes").update(row).eq("booking_id", b.id).eq("broker_id", broker.id).select("id");
+    if (!res.error && !res.data?.length) { setErr("Couldn't save. Refresh and try again."); setBusy(false); return; }
     if (res.error) { setErr(errText(res.error)); setBusy(false); return; }
     await portalEvent("outcome.marked", null, { booking_id: b.id, outcome, disposition_code: row.disposition_code, quality_score: row.quality_score });
     setBusy(false);
@@ -109,7 +114,7 @@ function Body() {
     setProg(cp);
     const since = cp?.paid_at || new Date(Date.now() - 30 * 86400e3).toISOString();
     const until = new Date(Date.now() + 8 * 86400e3).toISOString();
-    const { data: bk, error: be } = await smcDb.from("bookings").select("*").eq("broker_id", broker.id).gte("starts_at", since).lte("starts_at", until).neq("status", "cancelled").order("starts_at");
+    const { data: bk, error: be } = await smcDb.from("bookings").select("*").eq("broker_id", broker.id).gte("starts_at", since).lte("starts_at", until).not("status", "in", "(cancelled,pending_verification)").order("starts_at");
     if (be) setErr(errText(be));
     const bs = (bk as SmcBooking[]) || [];
     setBookings(bs);
@@ -197,6 +202,7 @@ function Body() {
       <section className="card" id="mark">
         <h2>{groups.toMark.length ? `${groups.toMark.length} meeting${groups.toMark.length === 1 ? "" : "s"} to mark` : "Nothing to mark"}</h2>
         <p className="muted">Takes about 20 seconds each. Same buttons you get on WhatsApp.</p>
+        <p className="small">Mark attended once you've met the client — that's when it counts.</p>
         {flash && <div className="next-slot" role="status"><span style={{ fontSize: 24 }}>✓</span><div><b>{flash}</b>{groups.toMark.length ? `${groups.toMark.length} more to mark.` : ""}</div></div>}
         {groups.toMark.map((b) => <div key={b.id} {...mark(b.lead_id)}><MarkOne b={b} l={leads[b.lead_id]} existing={outcomes[b.id]} onDone={(m) => { setFlash(m); void load(); }} /></div>)}
         <p className="hint">Out of goodwill, up to {TERMS.goodwill_replacements_per_week} no-shows or leads you couldn't reach a week can be replaced, with proof, after a 48-hour check. Not marked within 24 hours? We record it as attended and flag it, so please mark in time.</p>

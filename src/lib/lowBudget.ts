@@ -15,6 +15,10 @@ export const LOW_BUDGET = {
   label: "C-tier (under R750)",
 } as const;
 
+/** SQLSTATE the routing trigger raises when it refuses an admin assignment (lead stays held). */
+export const ASSIGN_REFUSED_CODE = "23514";
+export const ASSIGN_REFUSED_TEXT = "Broker not ready, full, or the client's consent names another practice — lead stays held";
+
 export const COUNTS_HELPER = "Counts toward the broker's order only once they've seen the client (attendance confirmed).";
 
 const db = supabase as any;

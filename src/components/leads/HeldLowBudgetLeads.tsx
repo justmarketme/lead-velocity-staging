@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useToast } from "@/hooks/use-toast";
 import { AlertTriangle, CheckCircle2, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { AGE_TEXT, COUNTS_HELPER, LOW_BUDGET, REASON_TEXT, loadLowBudgetSwitches } from "@/lib/lowBudget";
+import { AGE_TEXT, ASSIGN_REFUSED_CODE, ASSIGN_REFUSED_TEXT, COUNTS_HELPER, LOW_BUDGET, REASON_TEXT, loadLowBudgetSwitches } from "@/lib/lowBudget";
 
 const db = supabase as any;
 
@@ -34,8 +34,13 @@ export const useHeldLowBudgetLeads = () => {
   const [leads, setLeads] = useState<HeldLead[]>([]);
 
   const reload = useCallback(async () => {
+    // portal contract (crm-nurture CONTRACTS.md, "Admin assignment of a held tier-C lead")
     const { data, error } = await db.from("leads").select("*")
+      .not("brand_id", "is", null)
+      .eq("budget_band", LOW_BUDGET.band)
       .eq("routing_reason", LOW_BUDGET.heldReason)
+      .is("broker_id", null)
+      .is("opted_out_at", null)
       .order("created_at", { ascending: true });
     if (error) { setAvailable(false); setLeads([]); return; }
     setAvailable(true);
@@ -124,9 +129,14 @@ const AssignDialog = ({ lead, onClose, onAssigned }: { lead: HeldLead | null; on
     setSaving(true);
     const { data, error } = await db.from("leads")
       .update({ broker_id: pick.id, routing_reason: LOW_BUDGET.assignedReason })
-      .eq("id", lead.id).eq("routing_reason", LOW_BUDGET.heldReason)
+      .eq("id", lead.id).eq("routing_reason", LOW_BUDGET.heldReason).is("broker_id", null)
       .select("id, broker_id, routing_reason");
     setSaving(false);
+    if (error?.code === ASSIGN_REFUSED_CODE) {
+      toast({ title: ASSIGN_REFUSED_TEXT, description: error.message, variant: "destructive" });
+      onAssigned();
+      return;
+    }
     if (error) { toast({ title: "Couldn't assign", description: error.message, variant: "destructive" }); return; }
     const row = (data || [])[0];
     if (!row) { toast({ title: "Not assigned", description: "This lead is no longer held." }); onAssigned(); return; }
