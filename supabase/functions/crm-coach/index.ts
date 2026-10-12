@@ -1,6 +1,8 @@
 // crm-coach: "Einstein — next move" in the admin broker drawer (mode "broker") and the lead pipeline (mode "lead_pipeline").
 // Synced from the deployed v2 source (which added lead_pipeline) on 2026-10-12, then:
-// - Gemini model updated: gemini-2.0-flash is retired; try gemini-2.5-flash, then gemini-flash-latest.
+// - Gemini: 2.0-flash and 2.5-flash are retired for this project (404 "no longer available"), so it tries gemini-3.8-flash then
+//   gemini-flash-latest, on GEMINI_API_KEY and then AYANDA_GEMINI_API_KEY (the first key's Google project answers 403
+//   "denied access" on 12 Oct 2026). Then Groq (GROQ_API_KEY), choosing a model from Groq's live model list.
 // - OpenRouter model updated to google/gemini-2.5-flash (used only when OPENROUTER_API_KEY / x-openrouter-key is set).
 // - Provider failures are logged with their HTTP status and body, and the function answers 200 {success:false, unavailable:true}
 //   so the CRM shows a calm message instead of "Edge Function returned a non-2xx status code".
@@ -29,6 +31,8 @@ You think like Alex Hormozi and Russell Brunson:
 - Brunson: meet them where they are in the value ladder. Hook, story, offer. Move them one concrete step, never ten.
 
 Be specific and commercial, never generic. Reference the actual data given. South African context: rands, POPIA, local insurance market.
+
+Hard rules (compliance, never break them): never offer or mention a guarantee, "risk-free" deal or performance promise; Lead Velocity commits to a number of Qualified Leads per cycle (say "committed", never "guaranteed"). No claims about results, conversions, sales or income (FAIS). Never invent discounts or prices: plans are fixed (Pilot, Bronze, Silver, Gold).
 
 Return STRICT JSON only, no markdown fences:
 {
@@ -90,11 +94,37 @@ ${stages}
 Where is this pipeline leaking, and what should the team do today to move more leads to won?`;
 }
 
-const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-flash-latest"];
+const GEMINI_MODELS = ["gemini-3.8-flash", "gemini-flash-latest"];
+/** Groq models are retired often: ask Groq which exist and take the first match, best first. */
+const GROQ_PREFER = [/gpt-oss-120b/, /llama-?4.*maverick/, /llama-3\.3-70b/, /qwen.*32b/, /llama.*70b/, /gpt-oss/, /llama/];
 const OPENROUTER_MODEL = "google/gemini-2.5-flash";
+
+async function callGroq(system: string, user: string, key: string, failures: string[]) {
+  try {
+    const list = await fetch("https://api.groq.com/openai/v1/models", { headers: { Authorization: `Bearer ${key}` } });
+    if (!list.ok) { failures.push(`groq models ${list.status}: ${(await list.text()).slice(0, 200)}`); return null; }
+    // deno-lint-ignore no-explicit-any
+    const ids: string[] = ((await list.json())?.data || []).filter((m: any) => m?.active !== false).map((m: any) => String(m.id));
+    const chat = ids.filter((id) => !/whisper|guard|tts|distil|playai|compound|prompt/i.test(id));
+    const model = GROQ_PREFER.map((re) => chat.find((id) => re.test(id))).find(Boolean) || chat[0];
+    if (!model) { failures.push("groq: no chat model available"); return null; }
+    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ model, messages: [{ role: "system", content: system }, { role: "user", content: user }], temperature: 0.7, response_format: { type: "json_object" } }),
+    });
+    if (!r.ok) { failures.push(`groq ${model} ${r.status}: ${(await r.text()).slice(0, 200)}`); return null; }
+    const t = (await r.json())?.choices?.[0]?.message?.content;
+    if (t) return { text: t, provider: `groq:${model}` };
+    failures.push(`groq ${model}: empty reply`);
+  } catch (e) { failures.push(`groq: ${(e as Error).message}`); }
+  return null;
+}
 
 async function callLLM(system: string, user: string, orKey?: string | null, gemKey?: string | null) {
   const failures: string[] = [];
+  const gemKeys = [gemKey, Deno.env.get("AYANDA_GEMINI_API_KEY")].filter((k, i, a): k is string => !!k && a.indexOf(k) === i);
+  const groqKey = Deno.env.get("GROQ_API_KEY");
   if (orKey) {
     try {
       const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -110,12 +140,12 @@ async function callLLM(system: string, user: string, orKey?: string | null, gemK
       } else failures.push(`openrouter ${r.status}: ${(await r.text()).slice(0, 200)}`);
     } catch (e) { failures.push(`openrouter: ${(e as Error).message}`); }
   }
-  if (gemKey) {
+  for (const [ki, key] of gemKeys.entries()) {
     for (const model of GEMINI_MODELS) {
       try {
         const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", "x-goog-api-key": gemKey },
+          headers: { "Content-Type": "application/json", "x-goog-api-key": key },
           body: JSON.stringify({
             systemInstruction: { parts: [{ text: system }] },
             contents: [{ role: "user", parts: [{ text: user }] }],
@@ -127,12 +157,19 @@ async function callLLM(system: string, user: string, orKey?: string | null, gemK
           // deno-lint-ignore no-explicit-any
           const t = (j?.candidates?.[0]?.content?.parts || []).map((p: any) => p?.text || "").join("");
           if (t) return { text: t, provider: `gemini:${model}` };
-          failures.push(`${model}: empty reply (${j?.candidates?.[0]?.finishReason || "no candidates"})`);
-        } else failures.push(`${model} ${r.status}: ${(await r.text()).slice(0, 200)}`);
-      } catch (e) { failures.push(`${model}: ${(e as Error).message}`); }
+          failures.push(`key${ki + 1} ${model}: empty reply (${j?.candidates?.[0]?.finishReason || "no candidates"})`);
+        } else {
+          failures.push(`key${ki + 1} ${model} ${r.status}: ${(await r.text()).slice(0, 200)}`);
+          if (r.status === 403) break; // this key's project is blocked: other models won't help
+        }
+      } catch (e) { failures.push(`key${ki + 1} ${model}: ${(e as Error).message}`); }
     }
   }
-  if (!orKey && !gemKey) failures.push("no OPENROUTER_API_KEY or GEMINI_API_KEY secret");
+  if (groqKey) {
+    const g = await callGroq(system, user, groqKey, failures);
+    if (g) return g;
+  }
+  if (!orKey && !gemKeys.length && !groqKey) failures.push("no LLM key secret (OPENROUTER_API_KEY / GEMINI_API_KEY / GROQ_API_KEY)");
   const err = new Error("No working LLM provider");
   (err as Error & { failures?: string[] }).failures = failures;
   throw err;
@@ -171,7 +208,8 @@ serve(async (req) => {
     } catch (e) {
       // The model being down is not the admin's problem to debug: log the detail, answer calmly.
       console.error("crm-coach: no provider answered", (e as Error & { failures?: string[] }).failures || (e as Error).message);
-      return json({ success: false, unavailable: true, error: "Einstein is unavailable right now. Try again in a minute." });
+      // Admin-only endpoint: the provider statuses go back too (the drawer logs them to the console, never shows them).
+      return json({ success: false, unavailable: true, error: "Einstein is unavailable right now. Try again in a minute.", detail: (e as Error & { failures?: string[] }).failures || [] });
     }
 
     // deno-lint-ignore no-explicit-any
