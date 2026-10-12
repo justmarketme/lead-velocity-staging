@@ -23,12 +23,25 @@
   .tags { position: absolute; top: 0; display: flex; flex-wrap: wrap; gap: 12px; }
   .tags span { display: inline-flex; align-items: center; gap: 10px; height: 46px; padding: 0 20px; border-radius: 999px; background: var(--purple-wash); border: 1px solid var(--purple-soft); color: #5b21b6; font-size: 21px; font-weight: 600; }
   .tags span::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--purple-2); }
+  .plans { position: absolute; right: 140px; top: 146px; display: flex; gap: 14px; }
+  .plan { position: relative; width: 206px; padding: 16px 20px 16px; }
+  .plan .nm { font-size: 15px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+  .plan .pr { margin-top: 6px; font-size: 38px; font-weight: 700; color: var(--navy); letter-spacing: -.02em; line-height: 1.05; font-variant-numeric: tabular-nums; }
+  .plan .ld { margin-top: 4px; font-size: 18px; color: var(--muted); font-weight: 600; }
+  .plan .ring { position: absolute; inset: -1.5px; border-radius: 22px; border: 2.5px solid var(--pink); opacity: 0; }
+  .plan .ex { position: absolute; right: 14px; top: 12px; padding: 3px 10px; border-radius: 999px; background: var(--grad); color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .06em; opacity: 0; }
   .foot { position: absolute; left: 140px; top: 838px; display: flex; align-items: center; gap: 14px; font-size: 21px; color: var(--muted); }
   .foot b { color: var(--navy); }
   .foot i { width: 4px; height: 24px; border-radius: 2px; background: var(--pink); }
 </style></head>
 <body data-scene="s04"><div class="stage">
   <div class="top"><div class="eyebrow">Step three</div><h1 class="h"><i></i>Where your money goes</h1></div>
+  <div class="plans">
+    <div class="card plan" data-cue="pilot"><div class="nm">Pilot &middot; once-off</div><div class="pr">R8,500</div><div class="ld">10 Qualified Leads</div></div>
+    <div class="card plan" data-cue="bronze"><div class="ring"></div><div class="ex">EXAMPLE</div><div class="nm">Bronze</div><div class="pr">R16,500</div><div class="ld">20 Qualified Leads</div></div>
+    <div class="card plan" data-cue="silver"><div class="nm">Silver</div><div class="pr">R24,500</div><div class="ld">30 Qualified Leads</div></div>
+    <div class="card plan" data-cue="gold"><div class="nm">Gold</div><div class="pr">R35,500</div><div class="ld">45 Qualified Leads</div></div>
+  </div>
   <div class="card panel">
     <div class="amt">
       <div><div class="lbl k">Bronze · 30-day cycle</div><div class="v"><span id="rand">R16,500</span></div></div>
@@ -43,22 +56,28 @@
       <div class="tags"><span>WhatsApp assistant</span><span>Booking and reminders</span><span>Creative</span><span>Testing</span><span>Tracking</span><span>Team</span></div>
     </div>
   </div>
-  <div class="foot"><i></i><span>Planned split for Bronze, excl. VAT. <b>Flat fee, never linked to policies.</b></span></div>
+  <div class="foot"><i></i><span>Prices excl. VAT. Planned split for Bronze. <b>Flat fee, never linked to policies.</b></span></div>
 </div>
 <script src="timings.js"></script><script src="film.js"></script>
 <script>
   const BAR = 1540, SPLIT = 8500 / 16500, GAP = 14;
-  const tPay = cue('sixteen'), tHalf = cue('half'), tEight = cue('eight'), tBig = cue('biggest'), tRest = cue('rest');
+  const tTake = cue('take'), tPay = cue('sixteen', 1, tTake), tHalf = cue('half'), tEight = cue('eight', 1, tHalf), tBig = cue('biggest'), tRest = cue('rest');
+  const plans = $$('.plan'), tPlan = plans.map(p => cue(p.dataset.cue));
   const tTags = [cue('whatsapp'), cue('booking'), cue('creative'), cue('testing'), cue('tracking'), cue('people')];
-  const tFlat = cue('flat'), tNever = cue('never');
+  const tFlat = cue('flat', 1, tRest), tNever = cue('never', 1, tRest);
   $('.tags').style.left = (BAR * SPLIT + GAP) + 'px';
   $('.tags').style.width = (BAR * (1 - SPLIT) - GAP) + 'px';
   const fmt = n => 'R' + Math.round(n).toLocaleString('en-US');
   window.update = t => {
     rv('.top .eyebrow', t, .2, { y: 16 });
     rv('.top h1', t, .3, { y: 30, blur: 6, dur: 1 });
-    rv('.panel', t, .5, { y: 40, dur: 1.1 });
-    rv('.amt .k', t, .9, { y: 12 });
+    // the four plans arrive as they are named; Bronze stays lit as the worked example
+    plans.forEach((p, i) => rv(p, t, tPlan[i] - .2, { y: 18, scale: .94, dur: .7 }));
+    const ex = P(t, tTake - .1, .6);
+    plans.forEach((p, i) => { if (i !== 1) p.style.opacity = (Number(p.style.opacity) * lerp(1, .55, ex)).toFixed(3); });
+    $('.plan .ring').style.opacity = ex.toFixed(3); $('.plan .ex').style.opacity = ex.toFixed(3);
+    rv('.panel', t, tTake - .3, { y: 40, dur: 1.1 });
+    rv('.amt .k', t, tTake, { y: 12 });
     // amount counts up as it is spoken
     const pc = P(t, tPay - .1, 1.6, E.out5);
     $('#rand').textContent = fmt(Math.round(lerp(0, 16500, pc) / 50) * 50);

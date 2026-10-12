@@ -3,6 +3,13 @@
 # ../scenes/timings.js (window.TIMINGS) + timings.json, used by the scenes and the renderer.
 import asyncio, json, os, re, subprocess, sys
 import edge_tts
+# Microsoft periodically 403s the Edge version edge-tts pins. Until edge-tts ships a fix, override it:
+#   EDGE_TTS_CHROMIUM=143.0.3650.96 python tts.py
+if os.environ.get("EDGE_TTS_CHROMIUM"):
+    import edge_tts.constants as _c, edge_tts.communicate as _cm
+    _v = os.environ["EDGE_TTS_CHROMIUM"]
+    _c.CHROMIUM_FULL_VERSION, _c.CHROMIUM_MAJOR_VERSION = _v, _v.split(".")[0]
+    _c.SEC_MS_GEC_VERSION = _cm.SEC_MS_GEC_VERSION = "1-" + _v
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -24,7 +31,17 @@ def scenes_from_script():
 def norm(s):
     return re.sub(r"[^a-z0-9]", "", s.lower())
 
-async def synth(text, mp3):
+async def synth(text, mp3, tries=6):
+    # the free Edge endpoint 403s intermittently; back off and retry
+    for k in range(tries):
+        try:
+            return await _synth(text, mp3)
+        except Exception as e:
+            if k == tries - 1: raise
+            print(f"  retry {k + 1} after {type(e).__name__}", file=sys.stderr)
+            await asyncio.sleep(5 * (k + 1))
+
+async def _synth(text, mp3):
     com = edge_tts.Communicate(text, VOICE, rate=RATE, boundary="WordBoundary")
     words, audio = [], bytearray()
     async for ch in com.stream():
@@ -105,7 +122,15 @@ async def main():
     os.makedirs(os.path.join(HERE, "audio"), exist_ok=True)
     scenes = scenes_from_script()
     result = {"lead": LEAD, "tail": TAIL, "voice": VOICE, "rate": RATE, "scenes": []}
+    # python tts.py --only s03 s04: re-voice just those scenes, keep the others' audio and timings
+    only = sys.argv[sys.argv.index("--only") + 1:] if "--only" in sys.argv else []
+    prev = {}
+    if only:
+        prev = {s["id"]: s for s in json.load(open(os.path.join(HERE, "timings.json"), encoding="utf-8"))["scenes"]}
     for i, sc in enumerate(scenes, 1):
+        if only and f"s{i:02d}" not in only and f"s{i:02d}" in prev:
+            result["scenes"].append(prev[f"s{i:02d}"])
+            continue
         toks = sc["say"].split()
         exps = []
         for tok in toks:

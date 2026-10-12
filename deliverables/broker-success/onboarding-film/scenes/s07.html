@@ -13,25 +13,24 @@
   .gw { margin-top: 10px; display: inline-flex; align-items: center; gap: 10px; padding: 6px 14px; border-radius: 999px; background: var(--paper); border: 1.5px solid #cbd5e1; font-size: 18px; font-weight: 600; color: var(--slate); }
 
   .phone { position: absolute; left: 1290px; top: 150px; width: 400px; height: 790px; border-radius: 62px; background: #0f172a; padding: 13px; box-shadow: 0 50px 80px -40px rgba(15,23,42,.55), 0 0 0 2px #1e293b inset; }
-  .screen { position: relative; width: 100%; height: 100%; border-radius: 50px; overflow: hidden; background: #efeae2; }
+  .screen { position: relative; width: 100%; height: 100%; border-radius: 50px; overflow: hidden; background: #f8fafc; }
   .notch { position: absolute; left: 50%; top: 12px; width: 112px; height: 30px; border-radius: 16px; background: #0f172a; transform: translateX(-50%); z-index: 3; }
-  .wa-hd { position: relative; height: 128px; padding: 58px 18px 0; background: #075e54; display: flex; align-items: center; gap: 12px; color: #fff; }
+  .wa-hd { position: relative; height: 128px; padding: 58px 18px 0; background: linear-gradient(135deg, #db2777, #9333ea); display: flex; align-items: center; gap: 12px; color: #fff; }
   .wa-hd svg { width: 22px; height: 22px; stroke: #fff; fill: none; stroke-width: 2.4; stroke-linecap: round; }
   .wa-hd .av { width: 44px; height: 44px; border-radius: 50%; background: #fff; display: grid; place-items: center; overflow: hidden; }
   .wa-hd .av img { width: 36px; }
   .wa-hd .nm { font-size: 19px; font-weight: 700; }
   .wa-hd .st { font-size: 14px; opacity: .8; }
-  .chat { position: absolute; left: 0; right: 0; top: 128px; bottom: 0; padding: 22px 16px; background-color: #efeae2;
-    background-image: radial-gradient(rgba(7,94,84,.06) 1.5px, transparent 1.6px); background-size: 22px 22px; }
+  .chat { position: absolute; left: 0; right: 0; top: 128px; bottom: 0; padding: 22px 16px; background-color: #f8fafc; }
   .day { margin: 0 auto 16px; width: fit-content; padding: 5px 12px; border-radius: 8px; background: #fff; font-size: 13px; color: #54656f; font-weight: 600; box-shadow: 0 1px 1px rgba(0,0,0,.06); }
   .msg { position: relative; max-width: 300px; padding: 10px 12px 8px; border-radius: 12px; font-size: 19px; line-height: 1.35; color: #111b21; box-shadow: 0 1px 1px rgba(0,0,0,.08); }
   .msg .tm { display: block; text-align: right; font-size: 12px; color: #667781; margin-top: 2px; }
   .in { background: #fff; border-top-left-radius: 4px; }
-  .out { background: #d9fdd3; border-top-right-radius: 4px; margin-left: auto; margin-top: 14px; }
-  .out .tm { color: #53bdeb; }
+  .out { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; font-weight: 700; border-top-right-radius: 4px; margin-left: auto; margin-top: 14px; }
+  .out .tm { color: #059669; text-align: left; font-weight: 600; font-size: 13px; }
   .btns { width: 300px; margin-top: 6px; display: grid; gap: 6px; }
-  .btn { position: relative; overflow: hidden; height: 50px; border-radius: 12px; background: #fff; display: grid; place-items: center; font-size: 19px; font-weight: 600; color: #008069; box-shadow: 0 1px 1px rgba(0,0,0,.08); }
-  .btn .rip { position: absolute; width: 60px; height: 60px; border-radius: 50%; background: rgba(0,128,105,.25); left: 50%; top: 50%; transform: translate(-50%,-50%) scale(0); }
+  .btn { position: relative; overflow: hidden; height: 50px; border-radius: 12px; background: #fff; display: grid; place-items: center; font-size: 19px; font-weight: 700; color: #db2777; border: 1.5px solid #fbcfe8; box-shadow: 0 1px 1px rgba(0,0,0,.08); }
+  .btn .rip { position: absolute; width: 60px; height: 60px; border-radius: 50%; background: rgba(219,39,119,.22); left: 50%; top: 50%; transform: translate(-50%,-50%) scale(0); }
   .typing { width: 74px; height: 40px; border-radius: 12px; border-top-left-radius: 4px; background: #fff; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 1px 1px rgba(0,0,0,.08); position: absolute; left: 16px; top: 66px; }
   .typing i { width: 8px; height: 8px; border-radius: 50%; background: #8696a0; }
   .finger { position: absolute; width: 56px; height: 56px; border-radius: 50%; border: 3px solid rgba(255,255,255,.95); background: rgba(219,39,119,.35); box-shadow: 0 6px 18px rgba(0,0,0,.25); z-index: 4; }
@@ -44,20 +43,21 @@
   <div class="top"><div class="eyebrow">Step six</div><h1 class="h"><i></i>Your part</h1></div>
   <div class="list">
     <div class="card it"><div class="nb">1</div><div><div class="a">Calendar current</div><div class="b">Keep your calendar up to date</div></div></div>
-    <div class="card it"><div class="nb">2</div><div><div class="a">One tap after every meeting</div><div class="b">Tell us whether they attended</div></div></div>
-    <div class="card it"><div class="nb">3</div><div><div class="a">No-show: wait 10 min, send proof right away</div>
-      <div class="gw">We may replace them as goodwill, up to 3 a week</div></div></div>
+    <div class="card it"><div class="nb">2</div><div><div class="a">One tap after every meeting</div><div class="b">Attended or No-show, in your portal</div></div></div>
+    <div class="card it"><div class="nb">3</div><div><div class="a">No-show, or couldn't reach them?</div>
+      <div class="b">Send us proof. <b>No-show:</b> wait 10 min, then send it right away.</div>
+      <div class="gw">Out of goodwill, we replace up to 3 a week</div></div></div>
   </div>
   <div class="signal"><div class="k">The signal</div><div class="v">That tap improves your leads</div>
     <svg viewBox="0 0 150 20"><path id="arrow" d="M0 10 H140 M132 3 L142 10 L132 17" fill="none" stroke="#db2777" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
   <div class="phone"><div class="screen"><div class="notch"></div>
-    <div class="wa-hd"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg><div class="av"><img src="assets/lead-velocity-logo-contract.png" alt=""></div><div><div class="nm">Lead Velocity</div><div class="st">Business account</div></div></div>
+    <div class="wa-hd"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg><div class="av"><img src="assets/lead-velocity-logo-contract.png" alt=""></div><div><div class="nm">Lead Velocity</div><div class="st">Your portal &middot; Leads</div></div></div>
     <div class="chat">
       <div class="day">TODAY</div>
       <div class="typing"><i></i><i></i><i></i></div>
-      <div class="q"><div class="msg in">Did Thandi attend?<span class="tm">15:12</span></div>
+      <div class="q"><div class="msg in"><b>Thandi M.</b> &middot; 14:00 meeting<br>Did they attend?<span class="tm">15:12</span></div>
         <div class="btns"><div class="btn bA"><div class="rip"></div>Attended</div><div class="btn bB"><div class="rip"></div>No-show</div></div></div>
-      <div class="msg out">Attended<span class="tm">15:13 ✓✓</span></div>
+      <div class="msg out">✓ Marked Attended<span class="tm">Counts as a Qualified Lead</span></div>
     </div>
     <div class="finger"></div>
   </div></div>
@@ -95,7 +95,7 @@
     const rp = P(t, tapAt, .6);
     const rip = $('.bA .rip'); rip.style.transform = `translate(-50%,-50%) scale(${(rp * 6).toFixed(3)})`; rip.style.opacity = (1 - rp).toFixed(3);
     const sel = P(t, tapAt + .05, .3);
-    $('.bA').style.background = `rgba(${Math.round(lerp(255, 217, sel))},${Math.round(lerp(255, 253, sel))},${Math.round(lerp(255, 211, sel))},1)`;
+    $('.bA').style.background = `rgba(${Math.round(lerp(255, 253, sel))},${Math.round(lerp(255, 242, sel))},${Math.round(lerp(255, 248, sel))},1)`;
     rv('.msg.out', t, tapAt + .45, { y: 14, scale: .96, dur: .55 });
     // the signal callout
     rv('.signal', t, tSignal - .2, { x: 20, y: 0, dur: .8 });
