@@ -121,7 +121,7 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
                             day_selected: "bg-gradient-to-br from-pink-500 to-rose-600 text-white hover:bg-pink-700 focus:bg-pink-600 rounded-2xl shadow-xl shadow-pink-500/20",
                             day_today: "bg-white/5 text-pink-400 font-black",
                             head_cell: "w-10 text-slate-600 font-black uppercase text-[9px] tracking-[0.2em] pb-4",
-                            nav_button: "border-white/5 hover:bg-white/5 rounded-xl transition-all",
+                            nav_button: "h-11 w-11 inline-flex items-center justify-center border-white/5 hover:bg-white/5 rounded-xl transition-all",
                             day: "h-10 w-10 p-0 font-bold aria-selected:opacity-100 rounded-2xl",
                         }}
                     />

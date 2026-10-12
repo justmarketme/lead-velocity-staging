@@ -40,7 +40,10 @@ export function ChatBot() {
 
     // Broker portal is TEXT-CHAT ONLY — no voice / conversation AI.
     // Read once at render; the portal always lives under /broker.
-    const isBrokerPortal = window.location.pathname.startsWith("/broker");
+    // The admin "Preview as broker" shows the broker's portal, so it gets the broker's chat too.
+    const isBrokerPortal = window.location.pathname.startsWith("/broker") || window.location.pathname.startsWith("/admin/preview/broker");
+    // The broker portal shell has a bottom tab bar on phones: sit above it and keep the button small.
+    const inPortalShell = /^\/(broker-elite|admin\/preview\/broker)(\/|$)/.test(location.pathname);
 
     const isExcluded = EXCLUDED_ROUTES.some((route) =>
         location.pathname === route || location.pathname.startsWith(`${route}/`)
@@ -204,7 +207,7 @@ export function ChatBot() {
     if (isExcluded) return null;
 
     return (
-        <div className="fixed bottom-6 right-6 sm:bottom-10 sm:right-10 z-[100] flex flex-col items-end pointer-events-none">
+        <div className={cn("fixed z-[100] flex flex-col items-end pointer-events-none", inPortalShell ? "bottom-[calc(env(safe-area-inset-bottom)+76px)] right-4 lg:bottom-6 lg:right-6" : "bottom-6 right-6 sm:bottom-10 sm:right-10")}>
             {/* Chat Window */}
             {isOpen && (
                 <div className={cn(
@@ -446,7 +449,11 @@ export function ChatBot() {
                         console.log("Einstein ChatBot Triggered");
                         setIsOpen(true);
                     }}
-                    className="rounded-full w-20 h-20 overflow-hidden shadow-[0_20px_60px_-15px_rgba(236,72,153,0.5)] hover:shadow-[0_25px_80px_-10px_rgba(236,72,153,0.7)] border-2 border-pink-500/50 transition-all duration-500 hover:scale-110 pointer-events-auto relative group active:scale-95"
+                    aria-label="Open chat"
+                    className={cn(
+                        inPortalShell ? "w-14 h-14" : "w-20 h-20",
+                        "rounded-full overflow-hidden shadow-[0_20px_60px_-15px_rgba(236,72,153,0.5)] hover:shadow-[0_25px_80px_-10px_rgba(236,72,153,0.7)] border-2 border-pink-500/50 transition-all duration-500 hover:scale-110 pointer-events-auto relative group active:scale-95",
+                    )}
                 >
                     <div className="absolute inset-0 bg-gradient-to-t from-pink-500/20 to-transparent pointer-events-none" />
                     <img src={einsteinAvatar} alt="Einstein" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />

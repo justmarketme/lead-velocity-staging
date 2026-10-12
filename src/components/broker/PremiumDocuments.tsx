@@ -60,7 +60,7 @@ function DocumentViewer({ doc, layoutId, onClose }: { doc: BrokerDocument; layou
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-end md:items-center justify-center md:p-8" role="dialog" aria-modal="true" aria-label={doc.name}>
+    <div className="fixed inset-0 z-[110] flex items-end md:items-center justify-center md:p-8" role="dialog" aria-modal="true" aria-label={doc.name}>
       <m.div className="absolute inset-0 bg-black/70" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
       <m.div layoutId={layoutId} className="relative w-full md:max-w-5xl h-[85vh] md:h-full flex flex-col rounded-t-[28px] md:rounded-[28px] border border-white/10 bg-[#0b1020] overflow-hidden">
         <div className="flex items-center gap-3 p-4 sm:p-5 border-b border-white/10">

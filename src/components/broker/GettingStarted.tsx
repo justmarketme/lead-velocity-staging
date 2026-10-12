@@ -147,8 +147,8 @@ export default function GettingStarted({ broker, planState, onGo }: { broker: an
               </div>
             </div>
 
-            {/* Checklist */}
-            <div className="min-w-0">
+            {/* Checklist: first on phones (it is what needs doing), right column on wide screens */}
+            <div className="min-w-0 order-first xl:order-none">
               <h3 className="text-base font-semibold text-white mb-3">What you need to do</h3>
               <m.ol className="space-y-2.5" variants={stagger} initial="hidden" animate="show">
                 {steps.map((s) => (

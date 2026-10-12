@@ -114,7 +114,7 @@ function Shell({ broker, planState, tab, onTab, onLogout, previewName, onExitPre
           </div>
         </header>
 
-        <main className="relative px-4 sm:px-8 pt-2 pb-32 lg:pb-16 max-w-6xl mx-auto">
+        <main className="relative px-4 sm:px-8 pt-2 pb-40 lg:pb-28 max-w-6xl mx-auto">
           <AnimatePresence mode="wait" initial={false}>
             <m.div key={tab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6, transition: { duration: 0.15 } }}>
               {children}
@@ -147,7 +147,7 @@ function Shell({ broker, planState, tab, onTab, onLogout, previewName, onExitPre
       {/* More: bottom sheet, drag down to close */}
       <AnimatePresence>
         {sheet && (
-          <div className="lg:hidden fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label="More">
+          <div className="lg:hidden fixed inset-0 z-[110]" role="dialog" aria-modal="true" aria-label="More">
             <m.div className="absolute inset-0 bg-black/60" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSheet(false)} />
             <m.div
               className="absolute inset-x-0 bottom-0 rounded-t-[28px] border-t border-white/10 bg-[#0b1020] px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+16px)]"
