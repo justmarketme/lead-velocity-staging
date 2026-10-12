@@ -119,7 +119,7 @@ const BrokerForgotPassword = () => {
     const handleRequestAdminReset = async () => {
         setLoading(true);
         try {
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from("broker_reset_requests")
                 .insert({ email })
                 .select()
