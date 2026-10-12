@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { useBrokerPreview } from "@/lib/brokerPreview";
 import type { SmcBroker, SmcDispositionCode, SmcMethod, SmcStepKey, SmcOnboardingProgress, OpsFaculty } from "@/integrations/supabase/smc-types";
 
 const env = import.meta.env;
@@ -186,34 +187,38 @@ export function useIsAdmin() {
 /**
  * The signed-in broker's own row (brokers.user_id = auth.uid(); RLS enforces it server-side, INV-A06).
  * Also stamps first_login_at / last_seen_at through smc_portal_touch() on load and every 60 s while visible.
+ * Inside an admin broker preview it loads the previewed broker by id instead (admin RLS) and never stamps anything.
  */
 export function useCurrentBroker(opts: { heartbeat?: boolean } = {}) {
   const [broker, setBroker] = useState<SmcBroker | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const previewId = useBrokerPreview()?.brokerId || null;
 
   const reload = useCallback(async () => {
     const { data: u } = await supabase.auth.getUser();
     const uid = u.user?.id || null;
     setUserId(uid);
     if (!uid) { setBroker(null); setLoading(false); return null; }
-    const { data, error: e } = await smcDb.from("brokers").select("*").eq("user_id", uid).maybeSingle();
+    const { data, error: e } = previewId
+      ? await smcDb.from("brokers").select("*").eq("id", previewId).maybeSingle()
+      : await smcDb.from("brokers").select("*").eq("user_id", uid).maybeSingle();
     if (e) setError(errText(e));
     setBroker((data as SmcBroker) || null);
     setLoading(false);
     return (data as SmcBroker) || null;
-  }, []);
+  }, [previewId]);
 
   useEffect(() => { void reload(); }, [reload]);
 
   useEffect(() => {
-    if (!opts.heartbeat || !broker?.brand_id) return;
+    if (previewId || !opts.heartbeat || !broker?.brand_id) return;
     const touch = () => { if (document.visibilityState === "visible") void smcDb.rpc("smc_portal_touch"); };
     touch();
     const t = window.setInterval(touch, 60_000);
     return () => window.clearInterval(t);
-  }, [opts.heartbeat, broker?.brand_id]);
+  }, [previewId, opts.heartbeat, broker?.brand_id]);
 
   return { broker, userId, loading, error, reload, setBroker };
 }

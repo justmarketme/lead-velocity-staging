@@ -16,6 +16,7 @@ import {
     UserCircle,
     MessageSquare,
     ShieldCheck,
+    Eye,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ import { useToast } from "@/hooks/use-toast";
 import logo from "@/assets/lead-velocity-logo.webp";
 import SEO from "@/components/SEO";
 import { TIERS, planByName } from "@/lib/pricing";
+import { PREVIEW_READ_ONLY, useBrokerPreview } from "@/lib/brokerPreview";
 
 const TABS = ["dashboard", "leads", "calendar", "intro", "documents", "settings"];
 
@@ -56,6 +58,8 @@ const PremiumBrokerPortalPage = () => {
     });
     const navigate = useNavigate();
     const { toast } = useToast();
+    // Admin "Preview as broker" (/admin/preview/broker/:id): load that broker by id through the admin's session, read-only.
+    const preview = useBrokerPreview();
 
     const fetchStats = async (brokerId: string) => {
         try {
@@ -101,7 +105,35 @@ const PremiumBrokerPortalPage = () => {
     };
 
     useEffect(() => {
+        const initPreview = async (brokerId: string) => {
+            const { data: broker, error: brokerError } = await supabase
+                .from("brokers")
+                .select("*, broker_onboarding_responses(*)")
+                .eq("id", brokerId)
+                .maybeSingle();
+            if (brokerError || !broker) {
+                toast({ title: "Broker not found", description: brokerError?.message || "No broker with that id.", variant: "destructive" });
+                navigate("/dashboard");
+                return;
+            }
+            const { data: profileRow } = broker.user_id
+                ? await supabase.from("profiles").select("*").eq("user_id", broker.user_id).maybeSingle()
+                : { data: null };
+            setBrokerData({
+                ...broker,
+                profiles: profileRow ?? null,
+                tier: broker.tier || TIERS[0].name,
+                is_lead_loading: broker.is_lead_loading !== undefined ? broker.is_lead_loading : true,
+                leads_used: (broker as any).leads_used || 0,
+                lead_quota: (broker as any).lead_quota || planByName(broker.tier || TIERS[0].name)?.committed_leads || TIERS[0].committed_leads
+            });
+            await fetchStats(broker.id);
+            await fetchAppointments(broker.id);
+            setLoading(false);
+        };
+
         const initPortal = async () => {
+            if (preview) { await initPreview(preview.brokerId); return; }
             const { data: sessionData } = await supabase.auth.getSession();
             const session = sessionData?.session;
             if (!session) {
@@ -194,9 +226,10 @@ const PremiumBrokerPortalPage = () => {
         };
 
         initPortal();
-    }, [navigate]);
+    }, [navigate, preview?.brokerId]);
 
     const handleUpdateAppointment = async (id: string, status: string, notes: string) => {
+        if (preview) { toast(PREVIEW_READ_ONLY); return; }
         try {
             const { error } = await supabase
                 .from("appointments")
@@ -218,6 +251,7 @@ const PremiumBrokerPortalPage = () => {
     };
 
     const handleLogout = async () => {
+        if (preview) { navigate("/dashboard"); return; }
         await supabase.auth.signOut();
         navigate("/login");
     };
@@ -248,6 +282,13 @@ const PremiumBrokerPortalPage = () => {
     return (
         <div className="min-h-screen bg-[#020617] text-slate-200 font-sans selection:bg-pink-500 selection:text-white relative overflow-hidden">
             <SEO title="Broker Elite Portal" description="Lead Velocity broker elite portal." noIndex />
+
+            {preview && (
+                <div role="status" className="fixed inset-x-0 bottom-0 z-[60] flex flex-wrap items-center justify-center gap-x-4 gap-y-1 border-t border-amber-400/40 bg-amber-400 px-4 py-2 text-sm font-semibold text-black shadow-2xl">
+                    <span className="inline-flex items-center gap-2"><Eye className="h-4 w-4 shrink-0" />Preview — this is what {brokerData?.contact_person || brokerData?.firm_name || "this broker"} sees. Read-only.</span>
+                    <button type="button" onClick={() => navigate("/dashboard")} className="rounded-md bg-black/85 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-300 hover:bg-black">Exit preview</button>
+                </div>
+            )}
 
             {/* Cyber Grid Background */}
             <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
@@ -299,14 +340,14 @@ const PremiumBrokerPortalPage = () => {
                             className="w-full flex items-center gap-5 px-5 py-4 text-rose-500/70 hover:text-rose-400 transition-all group bg-rose-500/5 rounded-2xl border border-rose-500/10"
                         >
                             <LogOut className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-                            {sidebarOpen && <span className="text-sm font-black uppercase tracking-widest">Terminate</span>}
+                            {sidebarOpen && <span className="text-sm font-black uppercase tracking-widest">{preview ? "Exit preview" : "Terminate"}</span>}
                         </button>
                     </div>
                 </div>
             </aside>
 
             {/* Main Content Area */}
-            <main className={`relative z-10 transition-all duration-500 min-h-screen ${sidebarOpen ? 'lg:pl-80' : 'lg:pl-24'}`}>
+            <main className={`relative z-10 transition-all duration-500 min-h-screen ${sidebarOpen ? 'lg:pl-80' : 'lg:pl-24'} ${preview ? 'pb-14' : ''}`}>
                 {/* Header Bar */}
                 <header className="sticky top-0 z-30 bg-[#020617]/70 backdrop-blur-xl border-b border-white/5 px-4 sm:px-10 h-20 sm:h-24 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-6 flex-1">

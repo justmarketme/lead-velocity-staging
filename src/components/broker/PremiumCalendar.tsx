@@ -33,6 +33,7 @@ import { format } from "date-fns";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { supabase } from "@/integrations/supabase/client";
+import { PREVIEW_READ_ONLY, useBrokerPreview } from "@/lib/brokerPreview";
 import { useToast } from "@/hooks/use-toast";
 
 interface PremiumCalendarProps {
@@ -47,6 +48,7 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
     const [notes, setNotes] = useState<any[]>([]);
     const [newNote, setNewNote] = useState("");
     const { toast } = useToast();
+    const preview = !!useBrokerPreview();
 
     const [tempStatus, setTempStatus] = useState<string>("");
     const [tempNote, setTempNote] = useState<string>("");
@@ -80,6 +82,7 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
     };
 
     const handleAddNote = async () => {
+        if (preview) { toast(PREVIEW_READ_ONLY); return; }
         if (!newNote.trim() || !selectedAppointment) return;
 
         const { data: { user } } = await supabase.auth.getUser();

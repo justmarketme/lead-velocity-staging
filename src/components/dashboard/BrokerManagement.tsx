@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Briefcase, Phone, Mail, Building2, Clock, CalendarClock, CheckCircle2, PlusCircle,
   AlertTriangle, ShoppingBag, Pencil, Save, X, PhoneCall, MessageSquare, StickyNote, Users, CircleDot,
-  Sparkles, RefreshCw, Copy, History as HistoryIcon,
+  Sparkles, RefreshCw, Copy, History as HistoryIcon, Eye,
 } from "lucide-react";
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -528,6 +528,13 @@ const BrokerDrawer = ({
               {broker.status === "Inactive" ? "Restore" : "Archive"}
             </button>
           </SheetDescription>
+          <div>
+            <Button asChild size="sm" variant="outline" className="h-8 text-xs">
+              <a href={`/admin/preview/broker/${broker.id}`} target="_blank" rel="noopener noreferrer" title="Opens the broker's portal with his data, read-only, in a new tab">
+                <Eye className="mr-1.5 h-3.5 w-3.5" /> Preview portal
+              </a>
+            </Button>
+          </div>
         </SheetHeader>
         <Separator />
 

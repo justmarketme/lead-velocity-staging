@@ -17,6 +17,7 @@ import { Camera, CheckCircle2, Circle, Loader2, Lock, Video } from "lucide-react
 import { INTRO_MEDIA_URL, MEDIA_BUCKET, SUPPORT_EMAIL, SUPPORT_WA, errText, fmtDay, noAdviceTrip, portalEvent, smcDb } from "@/lib/smc";
 import type { SmcBroker, SmcBrokerSelfUpdate } from "@/integrations/supabase/smc-types";
 import { Tone, toneClasses } from "./tone";
+import { useBrokerPreview } from "@/lib/brokerPreview";
 
 export const LANGS: { code: string; label: string }[] = [
   { code: "en", label: "English" }, { code: "af", label: "Afrikaans" }, { code: "isiZulu", label: "isiZulu" },
@@ -80,6 +81,7 @@ export function IntroCardPreview({ photo, adviser, practice, fsp, bio, languages
 // ------------------------------------------------------------------------------------------------ editor
 export default function IntroCardEditor({ broker, reload, tone = "theme" }: { broker: SmcBroker; reload: () => unknown; tone?: Tone }) {
   const c = toneClasses(tone);
+  const preview = !!useBrokerPreview();
   const smc = !!broker.brand_id;
   const frozen = !!broker.routing_on;
   const [practice, setPractice] = useState(broker.firm_name || "");
@@ -133,6 +135,7 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
   const toggleLang = (code: string) => setLangs((x) => (x.includes(code) ? x.filter((y) => y !== code) : [...x, code]));
 
   async function save() {
+    if (preview) { setErr("Preview only: nothing is saved."); return; }
     setErr(null); setSaved(false);
     const b = bio.trim();
     if (b.length < 40 || b.length > 220) return setErr("Two lines: 40 to 220 characters.");
@@ -212,7 +215,7 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
             <Label htmlFor="ic-photo">Headshot</Label>
             <div className="flex items-center gap-4">
               {photo ? <img src={photo} alt="Your headshot" className="h-16 w-16 rounded-full object-cover" /> : <div className={`h-16 w-16 rounded-full grid place-items-center ${c.box}`}><Camera className={`h-6 w-6 ${c.muted}`} aria-hidden="true" /></div>}
-              <Input id="ic-photo" type="file" accept={IMAGE_TYPES.join(",")} className={`max-w-xs ${c.input}`} onChange={(e) => setFile(e.target.files?.[0] || null)} />
+              <Input id="ic-photo" type="file" disabled={preview} accept={IMAGE_TYPES.join(",")} className={`max-w-xs ${c.input}`} onChange={(e) => setFile(e.target.files?.[0] || null)} />
             </div>
             <p className={`text-xs ${c.muted}`}>Plain background, looking at the camera, JPG/PNG/WebP up to 8 MB. Stored privately; only you and Lead Velocity can open it.</p>
           </div>
@@ -256,7 +259,7 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
 
           {err && <p className={`rounded-lg px-3 py-2 text-sm ${c.bad}`} role="alert">{err}</p>}
           {saved && <p className={`rounded-lg px-3 py-2 text-sm ${c.ok}`} role="status">Saved. Your card updates in a minute.</p>}
-          <Button type="button" onClick={save} disabled={busy} className={`w-full sm:w-auto ${c.primary}`}>
+          <Button type="button" onClick={save} disabled={preview || busy} className={`w-full sm:w-auto ${c.primary}`}>
             {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{busy ? "Saving…" : "Save my intro card"}
           </Button>
         </CardContent>

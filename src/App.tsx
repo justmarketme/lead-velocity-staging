@@ -30,6 +30,7 @@ import NotificationHistory from "./pages/NotificationHistory";
 import BrokerOnboarding from "./pages/BrokerOnboarding";
 import Pricing from "./pages/Pricing";
 import PremiumBrokerPortalPage from "./pages/PremiumBrokerPortalPage";
+import AdminBrokerPreview from "./pages/AdminBrokerPreview";
 import BrokerProfile from "./pages/broker/BrokerProfile";
 import Explainer from "./pages/broker/Explainer";
 
@@ -111,6 +112,7 @@ const App = () => {
             <Route path="/notifications" element={<NotificationHistory />} />
             <Route path="/onboarding" element={<BrokerOnboarding />} />
             <Route path="/broker-elite" element={<PremiumBrokerPortalPage />} />
+            <Route path="/admin/preview/broker/:brokerId" element={<AdminBrokerPreview />} />
             {SMC_ENABLED && (
               <>
                 <Route path="/console" element={smc(<SmcToday />)} />

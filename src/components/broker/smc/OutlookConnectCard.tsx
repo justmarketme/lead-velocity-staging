@@ -13,6 +13,7 @@ import { adminConsentNote, callbackNotice, grantedScopes, msUrl, outlookCardView
 import { msCall, msStartError, rememberMsReturn } from "@/lib/smcMsClient";
 import type { SmcBroker } from "@/integrations/supabase/smc-types";
 import { Tone, toneClasses } from "./tone";
+import { useBrokerPreview } from "@/lib/brokerPreview";
 
 interface Props {
   broker: SmcBroker;
@@ -24,6 +25,7 @@ interface Props {
 
 export default function OutlookConnectCard({ broker, reload, tone = "theme", returnTo }: Props) {
   const c = toneClasses(tone);
+  const preview = !!useBrokerPreview();
   const view = outlookCardView(broker);
   const [busy, setBusy] = useState<"" | "connect" | "disconnect">("");
   const [err, setErr] = useState<string | null>(null);
@@ -38,11 +40,12 @@ export default function OutlookConnectCard({ broker, reload, tone = "theme", ret
 
   // The admin-approval panel needs a link before the broker has ever tapped Connect.
   useEffect(() => {
-    if (view.state !== "admin_blocked" || detailConsent || startedConsent) return;
+    if (preview || view.state !== "admin_blocked" || detailConsent || startedConsent) return;
     void msCall("start").then((r) => setStartedConsent(msUrl(r.data?.admin_consent_url)));
-  }, [view.state, detailConsent, startedConsent]);
+  }, [preview, view.state, detailConsent, startedConsent]);
 
   async function connect() {
+    if (preview) { setErr("Preview only: connecting is switched off."); return; }
     setErr(null); setBusy("connect");
     const r = await msCall("start");
     const go = msUrl(r.data?.authorize_url);
@@ -56,6 +59,7 @@ export default function OutlookConnectCard({ broker, reload, tone = "theme", ret
   }
 
   async function disconnect() {
+    if (preview) { setErr("Preview only: disconnecting is switched off."); return; }
     if (!window.confirm("Disconnect your Outlook calendar? Clients can't book new times with you until you reconnect.")) return;
     setErr(null); setBusy("disconnect");
     const r = await msCall("disconnect");
@@ -161,7 +165,7 @@ export default function OutlookConnectCard({ broker, reload, tone = "theme", ret
         {showConnect && (
           <div className="space-y-2">
             {inApp && <p className={`rounded-lg px-3 py-2 text-sm ${c.warn}`}>Open this page in Safari or Chrome to sign in with Microsoft.</p>}
-            <Button type="button" onClick={connect} disabled={busy !== ""} aria-busy={busy === "connect"} className={`w-full sm:w-auto ${c.primary}`}>
+            <Button type="button" onClick={connect} disabled={preview || busy !== ""} aria-busy={busy === "connect"} className={`w-full sm:w-auto ${c.primary}`}>
               {busy === "connect" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CalendarCheck className="mr-2 h-4 w-4" />}
               {busy === "connect" ? "Opening Microsoft…" : view.state === "not_connected" ? "Connect my Outlook calendar" : "Reconnect my Outlook calendar"}
             </Button>
@@ -170,7 +174,7 @@ export default function OutlookConnectCard({ broker, reload, tone = "theme", ret
         )}
 
         {view.state === "connected" && (
-          <Button type="button" variant="outline" size="sm" onClick={disconnect} disabled={busy !== ""} aria-busy={busy === "disconnect"}>
+          <Button type="button" variant="outline" size="sm" onClick={disconnect} disabled={preview || busy !== ""} aria-busy={busy === "disconnect"}>
             {busy === "disconnect" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Unplug className="mr-1.5 h-4 w-4" />}
             {busy === "disconnect" ? "Disconnecting…" : "Disconnect"}
           </Button>
