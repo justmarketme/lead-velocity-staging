@@ -13,7 +13,7 @@ import { useSearchParams } from "react-router-dom";
 import PortalShell, { StepClip, usePortal } from "./PortalShell";
 import { CLIPS_BASE, MS_ADMIN_CONSENT_URL, SUPPORT_EMAIL, errText, fmtDayTime, methodLabel, portalEvent, postWebhook, smcDb } from "@/lib/smc";
 import { adminConsentNote, callbackNotice, calendarStepView, msUrl, safeJoinUrl } from "@/lib/smcMsConnect";
-import { msCall, msStartError } from "@/lib/smcMsClient";
+import { msCall, msIsBeingSetUp, msStartError } from "@/lib/smcMsClient";
 import { clientName, useUpcomingSmcAppointments } from "@/components/broker/smc/UpcomingSmcAppointments";
 import type { SmcMeetingHours, SmcMethod } from "@/integrations/supabase/smc-types";
 
@@ -93,13 +93,15 @@ function Body() {
     || (MS_ADMIN_CONSENT_URL ? `${MS_ADMIN_CONSENT_URL}${broker.ms_tenant_id ? `${MS_ADMIN_CONSENT_URL.includes("?") ? "&" : "?"}tenant=${encodeURIComponent(broker.ms_tenant_id)}` : ""}` : "");
   const [msBusy, setMsBusy] = useState<"" | "connect" | "disconnect">("");
   const [msErr, setMsErr] = useState<string | null>(null);
+  const [msCalm, setMsCalm] = useState(false); // msErr is the "being set up" note, not a failure
 
   async function connectOutlook() {
-    setMsErr(null); setMsBusy("connect");
+    setMsErr(null); setMsCalm(false); setMsBusy("connect");
     const r = await msCall("start");
     const go = msUrl(r.data?.authorize_url);
     if (r.ok && go) { window.location.assign(go); return; }
     setMsBusy("");
+    setMsCalm(msIsBeingSetUp(r));
     setMsErr(msStartError(r));
   }
 
@@ -155,7 +157,7 @@ function Body() {
   }
 
   async function useShared() { await portalEvent("calendar.fallback_chosen", "calendar"); void reload(); }
-  const mailIt = `mailto:?cc=${SUPPORT_EMAIL}&subject=${encodeURIComponent("Please approve the SortMyCover calendar app")}&body=${encodeURIComponent(adminConsentNote({ brokerName: broker.contact_person, consentUrl }))}`;
+  const mailIt = `mailto:?cc=${SUPPORT_EMAIL}&subject=${encodeURIComponent("Please approve the Lead Velocity app")}&body=${encodeURIComponent(adminConsentNote({ brokerName: broker.contact_person, consentUrl }))}`;
 
   return (
     <>
@@ -174,7 +176,7 @@ function Body() {
         {broker.calendar_status === "ok" && broker.calendar_mode !== "shared_fallback" && (
           <>
             <button className="btn ghost" type="button" onClick={disconnectOutlook} disabled={msBusy !== ""} aria-busy={msBusy === "disconnect"}>{msBusy === "disconnect" ? "Disconnecting…" : "Disconnect Outlook"}</button>
-            {msErr && <p className="err" role="alert">{msErr}</p>}
+            {msErr && <p className={msCalm ? "pill info" : "err"} role={msCalm ? "status" : "alert"}>{msErr}</p>}
           </>
         )}
         {(!connected || broker.calendar_status === "needs_reconnect") && (
@@ -184,7 +186,7 @@ function Body() {
             <button className="btn ms" type="button" onClick={connectOutlook} disabled={msBusy !== ""} aria-busy={msBusy === "connect"}>
               <span className="ms-logo" aria-hidden="true"><i /><i /><i /><i /></span>{msBusy === "connect" ? "Opening Microsoft…" : "Sign in with Microsoft"}
             </button>
-            {msErr && <p className="err" role="alert">{msErr}</p>}
+            {msErr && <p className={msCalm ? "pill info" : "err"} role={msCalm ? "status" : "alert"}>{msErr}</p>}
             <details open={blockedAdmin} style={{ marginTop: 12 }}>
               <summary>Microsoft says "Need admin approval"?</summary>
               <p className="muted">Your IT admin has switched off new apps. Two easy ways forward.</p>

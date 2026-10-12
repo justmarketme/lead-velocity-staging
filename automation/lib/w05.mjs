@@ -23,7 +23,10 @@
 //    event, Teams link, invite, broker notice, intro card, reminders or CAPI Schedule. The lead is asked to verify (link /
 //    code from smc-email-verify). Verified in time -> op 'finalize' turns the hold into 'booked' and runs the normal
 //    fan-out; not verified by verify_by -> the hold is released (cancelled) and the lead is nudged to rebook.
-//  - Client NOT an attendee by default (add_client_as_attendee per broker); the invite goes from howzit@.
+//  - Invite FROM THE BROKER'S OWN OUTLOOK (Jono, 2026-10-13): when the event goes into the broker's connected calendar
+//    (route 'graph') the client is a required attendee, so Exchange sends the meeting request (Teams link included) from
+//    the broker's mailbox; brokers.add_client_as_attendee = false is the explicit opt-out. The howzit@ email + .ics is
+//    the fallback only: shared calendar, no calendar, opt-out, or the Graph create failed (invitedByOutlook).
 //  - CAPI Schedule once per booking, never with email (capi/event-spec.md).
 import { createRequire } from 'node:module';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
@@ -498,6 +501,19 @@ export function insertBlocked(rows = [], row, bufferMinutes = 15) {
 
 // ---------------------------------------------------------------- Microsoft Graph event (modelled; ASSUMPTION)
 /**
+ * Is the client invited by the broker's own Outlook? True when the event goes into his connected calendar (plan route
+ * 'graph', or the booking's calendar_provider for an existing event), the method needs an invite (Teams / Zoom / Meet),
+ * there is an email, the broker has not opted out (add_client_as_attendee = false) and the Graph create did not fail.
+ * Then the event carries the client as attendee and no howzit@ email is sent.
+ */
+export function invitedByOutlook(ctx = {}, p = {}, booking = {}, ev = {}) {
+  const b = brokerConfig(ctx.broker || {});
+  const prov = booking && booking.calendar_provider;
+  const route = p.route || (prov ? (prov === 'shared_lv' ? 'shared' : 'graph') : calendarRoute(b));
+  return route === 'graph' && b.add_client_as_attendee !== false && !!p.email && INVITE_METHODS.has(p.method) && ev.ok !== false;
+}
+
+/**
  * Graph event body. ASSUMPTION (no web check; 4.6 names isOnlineMeeting / onlineMeetingProvider=teamsForBusiness):
  * POST /me/events (broker's delegated token) or /users/{howzit}/calendars/{shared}/events (0.3 #4 shared calendar),
  * `transactionId` makes the create idempotent on Graph's side, `categories` must exist in the mailbox's master list
@@ -530,7 +546,7 @@ export function graphEvent(ctx, p, opts = {}) {
     isReminderOn: true,
     reminderMinutesBeforeStart: 15,
     isOnlineMeeting: p.method === 'teams',
-    attendees: b.add_client_as_attendee === true && p.email ? [{ emailAddress: { address: p.email, name: first }, type: 'required' }] : [],
+    attendees: invitedByOutlook(ctx, p, ctx.booking || {}) ? [{ emailAddress: { address: p.email, name: first }, type: 'required' }] : [],
     body: { contentType: 'text', content: lines.join('\n') },
   };
   if (p.method === 'teams') ev.onlineMeetingProvider = 'teamsForBusiness';
@@ -679,6 +695,7 @@ export function icsFile({ uid, start, end, summary, description = '', url = '', 
  */
 export function inviteMail(ctx, p, booking, ev = {}) {
   if (!INVITE_METHODS.has(p.method) || !p.email) return null;
+  if (invitedByOutlook(ctx, p, booking || {}, ev)) return null; // Exchange sends it from the broker's mailbox
   const lead = leadView(ctx.lead);
   const b = brokerConfig(ctx.broker);
   const adviser = b.adviser_name || b.contact_person || 'your adviser';
@@ -763,11 +780,12 @@ export function finish(ctx, p, booking, ev = { ok: false }, opts = {}) {
   const joinUrl = INVITE_METHODS.has(p.method) ? (ev.join_url || null) : null; // I-54j: call methods never store a join link
   const bk = { ...booking, join_url: joinUrl, ics_url: icsUrl(booking.id, opts.site, opts.ics_secret) };
   const invite = inviteMail(ctx, p, bk, ev);
+  const outlookInvite = invitedByOutlook(ctx, p, bk, ev); // Exchange sent the meeting request from the broker's mailbox
   const capi = capiSchedule(lead, p);
   const rebook = !!p.previous_booking_id;
   return {
     response: { status: 201, body: publicBody(bk) },
-    appointment_update: { graph_event_id: ev.ok ? ev.graph_event_id : null, ical_uid: ev.ok ? ev.ical_uid : null, join_url: joinUrl, ics_url: bk.ics_url, invite_email_status: INVITE_METHODS.has(p.method) ? (invite ? 'sent' : null) : 'not_needed', schedule_event_id: capi ? capi.event_id : null },
+    appointment_update: { graph_event_id: ev.ok ? ev.graph_event_id : null, ical_uid: ev.ok ? ev.ical_uid : null, join_url: joinUrl, ics_url: bk.ics_url, invite_email_status: INVITE_METHODS.has(p.method) ? (invite || outlookInvite ? 'sent' : null) : 'not_needed', schedule_event_id: capi ? capi.event_id : null },
     lead_update: leadUpdate(ctx, p),
     invite,
     broker: brokerNotice(ctx, p),
@@ -810,7 +828,7 @@ export function planUpdateMethod(ctx = {}) {
   const ev = graphEvent({ ...ctx, lead }, p);
   return {
     action: 'patch',
-    graph_patch: { subject: ev.subject, body: ev.body, isOnlineMeeting: ev.isOnlineMeeting, ...(ev.onlineMeetingProvider ? { onlineMeetingProvider: ev.onlineMeetingProvider } : {}) },
+    graph_patch: { subject: ev.subject, body: ev.body, isOnlineMeeting: ev.isOnlineMeeting, ...(ev.onlineMeetingProvider ? { onlineMeetingProvider: ev.onlineMeetingProvider } : {}), ...(ev.attendees.length ? { attendees: ev.attendees } : {}) },
     appointment_update: { method: req.method, call_number: CALL_METHODS.has(req.method) ? (lead.call_number || lead.phone) : null, invite_email_status: INVITE_METHODS.has(req.method) ? 'sent' : 'not_needed' },
     lead_update: email ? { email, email_status: status, email_purpose: 'meeting_invite' } : {},
     plan: p,

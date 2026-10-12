@@ -18,6 +18,7 @@ import { format } from "date-fns";
 import ProposalGenerator from "./ProposalGenerator";
 import InvoiceGenerator from "./InvoiceGenerator";
 import ContractGenerator from "./ContractGenerator";
+import { CLIENT_STATUSES } from "@/lib/brokerCampaign";
 
 interface Document {
   id: string;
@@ -94,7 +95,7 @@ const AdminDocuments = () => {
     const { data } = await supabase
       .from("brokers")
       .select("id, firm_name, contact_person, email")
-      .eq("status", "Active")
+      .in("status", CLIENT_STATUSES)
       .order("firm_name");
     if (data) setBrokers(data);
     const { data: all } = await supabase.from("brokers").select("id, firm_name, contact_person");

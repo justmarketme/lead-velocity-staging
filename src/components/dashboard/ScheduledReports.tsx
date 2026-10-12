@@ -1,3 +1,4 @@
+import { CLIENT_STATUSES } from "@/lib/brokerCampaign";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -97,7 +98,7 @@ export function ScheduledReports() {
     try {
       const [reportsRes, brokersRes, historyRes] = await Promise.all([
         supabase.from('scheduled_reports').select('*').order('created_at', { ascending: false }),
-        supabase.from('brokers').select('id, firm_name, contact_person, email').eq('status', 'Active'),
+        supabase.from('brokers').select('id, firm_name, contact_person, email').in('status', CLIENT_STATUSES),
         supabase.from('report_history').select('*').order('sent_at', { ascending: false }).limit(20),
       ]);
 

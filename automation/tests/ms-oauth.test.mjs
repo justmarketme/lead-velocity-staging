@@ -190,3 +190,28 @@ test('callback banners and the IT-admin note', () => {
   assert.equal(H.msUrl('https://evil.example/https://login.microsoftonline.com/'), '');
   assert.ok(H.msUrl('https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize?x=1'));
 });
+
+// ---------------------------------------------------------------- connected mailbox (brokers.calendar_email)
+test('mailbox: Graph /me mail wins, UPN only when mail is empty, guest #EXT# UPNs and errors are refused', () => {
+  assert.equal(L.ME_URL, 'https://graph.microsoft.com/v1.0/me?$select=mail,userPrincipalName');
+  assert.equal(L.mailboxFromMe({ statusCode: 200, body: { mail: 'Mark@Oracle.co.za', userPrincipalName: 'mark.w@oracle.onmicrosoft.com' } }), 'mark@oracle.co.za');
+  assert.equal(L.mailboxFromMe({ statusCode: 200, body: { mail: null, userPrincipalName: 'mark@oracle.co.za' } }), 'mark@oracle.co.za');
+  assert.equal(L.mailboxFromMe({ statusCode: 200, body: { mail: '', userPrincipalName: 'mark_gmail.com#EXT#@tenant.onmicrosoft.com' } }), null);
+  assert.equal(L.mailboxFromMe({ statusCode: 401, body: { error: { code: 'InvalidAuthenticationToken' } } }), null);
+  assert.equal(L.mailboxFromMe(null), null);
+});
+test('mailbox: falls back to the signed-in account from the id_token, never to anything else', () => {
+  assert.deepEqual(L.chooseMailbox({ statusCode: 200, body: { mail: 'm@x.co.za' } }, { account: 'other@x.co.za' }), { email: 'm@x.co.za', source: 'graph_me' });
+  assert.deepEqual(L.chooseMailbox({ statusCode: 500, body: {} }, { account: 'Signed@X.co.za' }), { email: 'signed@x.co.za', source: 'id_token' });
+  assert.equal(L.chooseMailbox(null, { account: null }), null);
+  assert.equal(L.chooseMailbox(null, { account: 'not-an-email' }), null);
+});
+test('edge function source: stores the /me mailbox through smc_set_calendar_mailbox and never logs the access token', () => {
+  const src = readFileSync(join(ROOT, 'supabase/functions/ms-oauth/index.ts'), 'utf8');
+  assert.ok(src.includes('fetch(ME_URL'), 'calls Graph /me');
+  assert.ok(src.includes('smc_set_calendar_mailbox'), 'stores calendar_email through the RPC');
+  assert.ok(!/console\.\w+\([^)]*access/.test(src), 'never logs the access token');
+  const sql = readFileSync(join(ROOT, 'supabase/migrations/20261013090000_broker_go_live.sql'), 'utf8');
+  assert.match(sql, /REVOKE ALL ON FUNCTION public\.smc_set_calendar_mailbox\(uuid, text\) FROM PUBLIC, anon, authenticated/);
+  assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.smc_set_calendar_mailbox\(uuid, text\) TO service_role/);
+});

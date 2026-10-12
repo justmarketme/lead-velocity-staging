@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, User, Phone, Loader2, Building2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, User, Phone, Loader2, Building2, Video } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   format,
@@ -22,7 +23,7 @@ import {
   parseISO,
 } from "date-fns";
 
-interface Appointment {
+interface ReferralRow {
   id: string;
   first_name: string;
   phone_number: string;
@@ -32,12 +33,41 @@ interface Appointment {
   lead?: {
     first_name: string | null;
     last_name: string | null;
+    broker_id?: string | null;
     brokers?: {
       firm_name: string;
       contact_person: string;
     } | null;
   } | null;
 }
+
+/** SortMyCover booking (appointments.brand_id not null, written by W05). Admins read it through "smc_sec admins manage appointments". */
+interface SmcRow {
+  id: string;
+  broker_id: string;
+  appointment_date: string;
+  method: string | null;
+  status: string;
+  lead: { first_name: string | null } | null;
+  broker: { firm_name: string | null; contact_person: string | null } | null;
+}
+
+/** One calendar entry: a will referral (legacy) or a SortMyCover booking. */
+interface Appointment {
+  id: string;
+  kind: "referral" | "smc";
+  appointment_date: string;
+  first_name: string;
+  phone_number: string | null;
+  broker_id: string | null;
+  broker_name: string | null;
+  status: string;
+  method: string | null;
+  from: string | null;
+}
+
+const METHOD_LABEL: Record<string, string> = { teams: "Teams", zoom: "Zoom", meet: "Google Meet", whatsapp_call: "WhatsApp call", phone: "Phone" };
+const ALL = "all";
 
 type ViewMode = "month" | "week";
 
@@ -48,36 +78,62 @@ const AdminCalendar = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("month");
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [brokerFilter, setBrokerFilter] = useState<string>(ALL);
 
   useEffect(() => {
     fetchAppointments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchAppointments = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("referrals")
-        .select(`
-          id,
-          first_name,
-          phone_number,
-          appointment_date,
-          will_status,
-          parent_lead_id,
-          lead:leads!parent_lead_id(
+      const [ref, smc] = await Promise.all([
+        supabase
+          .from("referrals")
+          .select(`
+            id,
             first_name,
-            last_name,
-            brokers(firm_name, contact_person)
-          )
-        `)
-        .eq("broker_appointment_scheduled", true)
-        .not("appointment_date", "is", null)
-        .order("appointment_date", { ascending: true });
+            phone_number,
+            appointment_date,
+            will_status,
+            parent_lead_id,
+            lead:leads!parent_lead_id(
+              first_name,
+              last_name,
+              broker_id,
+              brokers(firm_name, contact_person)
+            )
+          `)
+          .eq("broker_appointment_scheduled", true)
+          .not("appointment_date", "is", null)
+          .order("appointment_date", { ascending: true }),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any)
+          .from("appointments")
+          .select("id, broker_id, appointment_date, method, status, lead:leads!client_id(first_name), broker:brokers!broker_id(firm_name, contact_person)")
+          .not("brand_id", "is", null)
+          .order("appointment_date", { ascending: true }),
+      ]);
 
-      if (error) throw error;
+      if (ref.error) throw ref.error;
+      if (smc.error) {
+        console.error("SortMyCover appointments:", smc.error);
+        toast({ title: "SortMyCover bookings not loaded", description: smc.error.message, variant: "destructive" });
+      }
 
-      setAppointments(data || []);
+      const referrals: Appointment[] = ((ref.data || []) as unknown as ReferralRow[]).map((r) => ({
+        id: `ref-${r.id}`, kind: "referral", appointment_date: r.appointment_date, first_name: r.first_name,
+        phone_number: r.phone_number, broker_id: r.lead?.broker_id ?? null, broker_name: r.lead?.brokers?.firm_name ?? null,
+        status: r.will_status || "Pending", method: null,
+        from: r.lead ? [r.lead.first_name, r.lead.last_name].filter(Boolean).join(" ") || null : null,
+      }));
+      const bookings: Appointment[] = ((smc.data || []) as SmcRow[]).map((a) => ({
+        id: `smc-${a.id}`, kind: "smc", appointment_date: a.appointment_date, first_name: a.lead?.first_name || "Client",
+        phone_number: null, broker_id: a.broker_id, broker_name: a.broker?.firm_name || a.broker?.contact_person || null,
+        status: a.status, method: a.method, from: null,
+      }));
+      setAppointments([...referrals, ...bookings].sort((x, y) => x.appointment_date.localeCompare(y.appointment_date)));
     } catch (error: any) {
       console.error("Error fetching appointments:", error);
       toast({
@@ -89,6 +145,11 @@ const AdminCalendar = () => {
       setLoading(false);
     }
   };
+
+  const brokerOptions = Object.entries(
+    appointments.reduce<Record<string, string>>((m, a) => { if (a.broker_id) m[a.broker_id] = a.broker_name || "Unnamed broker"; return m; }, {}),
+  ).sort((a, b) => a[1].localeCompare(b[1]));
+  const shown = brokerFilter === ALL ? appointments : appointments.filter((a) => a.broker_id === brokerFilter);
 
   const getCalendarDays = () => {
     if (viewMode === "month") {
@@ -105,7 +166,7 @@ const AdminCalendar = () => {
   };
 
   const getAppointmentsForDay = (day: Date) => {
-    return appointments.filter((apt) =>
+    return shown.filter((apt) =>
       isSameDay(parseISO(apt.appointment_date), day)
     );
   };
@@ -137,14 +198,14 @@ const AdminCalendar = () => {
     ? getAppointmentsForDay(selectedDate)
     : [];
 
-  const upcomingAppointments = appointments
+  const upcomingAppointments = shown
     .filter((apt) => new Date(apt.appointment_date) >= new Date())
     .slice(0, 5);
 
   const stats = {
-    total: appointments.length,
-    upcoming: appointments.filter((apt) => new Date(apt.appointment_date) >= new Date()).length,
-    today: appointments.filter((apt) => isSameDay(parseISO(apt.appointment_date), new Date())).length,
+    total: shown.length,
+    upcoming: shown.filter((apt) => new Date(apt.appointment_date) >= new Date()).length,
+    today: shown.filter((apt) => isSameDay(parseISO(apt.appointment_date), new Date())).length,
   };
 
   return (
@@ -153,10 +214,17 @@ const AdminCalendar = () => {
         <div>
           <h1 className="text-3xl font-bold gradient-text">Appointments Calendar</h1>
           <p className="text-muted-foreground">
-            View all scheduled referral appointments across all brokers
+            Will referrals and SortMyCover bookings across all brokers
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={brokerFilter} onValueChange={setBrokerFilter}>
+            <SelectTrigger className="h-9 w-56" aria-label="Filter by broker"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>All brokers</SelectItem>
+              {brokerOptions.map(([id, name]) => <SelectItem key={id} value={id}>{name}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <Button
             variant={viewMode === "month" ? "default" : "outline"}
             size="sm"
@@ -283,7 +351,7 @@ const AdminCalendar = () => {
                         {dayAppointments.slice(0, 2).map((apt) => (
                           <div
                             key={apt.id}
-                            className="text-xs bg-primary/10 text-primary rounded px-1 py-0.5 truncate"
+                            className={`text-xs rounded px-1 py-0.5 truncate ${apt.kind === "smc" ? "bg-emerald-500/15 text-emerald-400" : "bg-primary/10 text-primary"}`}
                           >
                             {format(parseISO(apt.appointment_date), "h:mm a")} - {apt.first_name}
                           </div>
@@ -339,24 +407,33 @@ const AdminCalendar = () => {
                           <User className="h-4 w-4 text-muted-foreground" />
                           <span>{apt.first_name}</span>
                         </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Phone className="h-4 w-4" />
-                          <span>{apt.phone_number}</span>
-                        </div>
-                        {apt.lead && (
-                          <div className="text-xs text-muted-foreground">
-                            From: {apt.lead.first_name} {apt.lead.last_name}
+                        {apt.phone_number && (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Phone className="h-4 w-4" />
+                            <span>{apt.phone_number}</span>
                           </div>
                         )}
-                        {apt.lead?.brokers && (
+                        {apt.method && (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Video className="h-4 w-4" />
+                            <span>{METHOD_LABEL[apt.method] || apt.method}</span>
+                          </div>
+                        )}
+                        {apt.from && (
+                          <div className="text-xs text-muted-foreground">
+                            From: {apt.from}
+                          </div>
+                        )}
+                        {apt.broker_name && (
                           <div className="flex items-center gap-1 text-xs text-muted-foreground">
                             <Building2 className="h-3 w-3" />
-                            {apt.lead.brokers.firm_name}
+                            {apt.broker_name}
                           </div>
                         )}
-                        <Badge variant="outline" className="text-xs">
-                          {apt.will_status || "Pending"}
-                        </Badge>
+                        <div className="flex flex-wrap gap-1">
+                          <Badge variant="outline" className="text-xs">{apt.kind === "smc" ? "SortMyCover" : "Will referral"}</Badge>
+                          <Badge variant="outline" className="text-xs capitalize">{apt.status.replace(/_/g, " ")}</Badge>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -390,7 +467,8 @@ const AdminCalendar = () => {
                         </div>
                         <div className="text-xs text-muted-foreground mt-1">
                           {format(parseISO(apt.appointment_date), "h:mm a")}
-                          {apt.lead?.brokers && ` • ${apt.lead.brokers.firm_name}`}
+                          {apt.kind === "smc" && " • SortMyCover"}
+                          {apt.broker_name && ` • ${apt.broker_name}`}
                         </div>
                       </button>
                     ))}

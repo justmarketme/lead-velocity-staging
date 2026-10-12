@@ -32,11 +32,16 @@ export async function msCall(action: "start" | "disconnect"): Promise<{ ok: bool
   }
 }
 
+/** ms-oauth answers 503 not_configured until the Microsoft app secrets are set: a calm "being set up", not an error. */
+export const MS_SETUP_TEXT = "Calendar connection is being set up. We'll message you on WhatsApp as soon as you can connect.";
+export const msIsBeingSetUp = (r: { status: number; data: MsResp | null }): boolean => r.status === 503 || r.data?.error === "not_configured";
+
 /** One sentence for a failed start, by HTTP status / error code. */
 export function msStartError(r: { status: number; data: MsResp | null }): string {
   if (r.status === 401) return "Your sign-in has expired. Sign in to the portal again, then tap Connect.";
   if (r.status === 403 || r.data?.error === "not_a_broker") return "Calendar connection opens once your SortMyCover order is set up. Ask Lead Velocity to set it up.";
-  if (r.status === 503 || r.status === 0 || r.data?.error === "not_configured") return "Microsoft sign-in isn't switched on yet. We'll let you know on WhatsApp.";
+  if (msIsBeingSetUp(r)) return MS_SETUP_TEXT;
+  if (r.status === 0) return "We couldn't reach Microsoft sign-in. Check your connection and try again.";
   return `We couldn't start Microsoft sign-in (${r.data?.error || `HTTP ${r.status}`}). Try again.`;
 }
 

@@ -3,7 +3,7 @@
 // offline_access, User.Read. Logic: ./lib.mjs (tested in automation/tests/ms-oauth.test.mjs).
 //
 //   POST  {action:'start'}       broker JWT -> {ok, authorize_url}
-//   GET   /callback?code&state   Microsoft redirect -> token exchange -> Vault -> 302 to {PORTAL_URL}/broker/calendar
+//   GET   /callback?code&state   Microsoft redirect -> token exchange -> Graph /me (mailbox) -> Vault -> 302 to {PORTAL_URL}/broker/calendar
 //   POST  {action:'disconnect'}  broker JWT -> removes the stored token, status needs_reconnect
 //
 // Secrets (supabase secrets set ...): MS_CLIENT_ID, MS_CLIENT_SECRET, MS_REDIRECT_URI, MS_OAUTH_STATE_SECRET,
@@ -12,7 +12,7 @@
 // browser, never put in a table column, and never logged.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { adminConsentUrl, authorizeUrl, connectedEvent, mintState, planCallback, publicPlan, tokenForm, tokenUrl, verifyState } from "./lib.mjs";
+import { ME_URL, adminConsentUrl, authorizeUrl, chooseMailbox, connectedEvent, mintState, planCallback, publicPlan, tokenForm, tokenUrl, verifyState } from "./lib.mjs";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -105,8 +105,23 @@ async function callback(url: URL) {
       if (currentStatus !== "ok") await db.rpc("smc_set_calendar_status", { p_broker_id: brokerId, p_status: "error", p_detail: { reason: "vault_store_failed", at: new Date(nowMs).toISOString() } });
       return redirect(`${cfg.portalUrl.replace(/\/+$/, "")}/broker/calendar?error=calendar&reason=vault_store_failed`);
     }
+    // The mailbox W04/W05 book into: Graph /me with this access token (User.Read), stored as brokers.calendar_email.
+    let me: { statusCode: number; body: Record<string, unknown> } | null = null;
+    const access = token?.body?.access_token;
+    if (typeof access === "string" && access) {
+      try {
+        const r = await fetch(ME_URL, { headers: { Authorization: `Bearer ${access}` } });
+        me = { statusCode: r.status, body: await r.json().catch(() => ({})) };
+      } catch { me = null; }
+    }
+    const mailbox = chooseMailbox(me, plan);
+    if (mailbox) {
+      const { error: mbErr } = await db.rpc("smc_set_calendar_mailbox", { p_broker_id: brokerId, p_email: mailbox.email });
+      if (mbErr) console.error("ms-oauth: calendar mailbox not stored:", mbErr.code);
+    } else console.error("ms-oauth: no mailbox from Graph /me or the id_token (calendar_email unchanged)", me?.statusCode ?? "no_response");
     // "Connected as name@domain": status 'ok' again, now with the account in calendar_status_detail (no secret in it).
-    await db.rpc("smc_set_calendar_status", { p_broker_id: brokerId, p_status: "connected", p_detail: plan.detail });
+    const detail = { ...(plan.detail || {}), ...(mailbox ? { account: mailbox.email, mailbox_source: mailbox.source } : {}) };
+    await db.rpc("smc_set_calendar_status", { p_broker_id: brokerId, p_status: "connected", p_detail: detail });
     // Calendar step: W20 verifies a real free slot, then marks the step done and sends the WhatsApp. Best effort.
     const n8n = env("N8N_PUBLIC_URL"), hmac = env("INTERNAL_HMAC_SECRET");
     if (n8n && hmac) {

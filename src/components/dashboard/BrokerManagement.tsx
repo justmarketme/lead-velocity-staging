@@ -15,10 +15,11 @@ import { LOW_BUDGET, loadLowBudgetSwitches, setLowBudgetSwitch, WILLS, loadWills
 import { useToast } from "@/hooks/use-toast";
 import BrokerDocumentsSection from "./BrokerDocumentsSection";
 import BrokerProfileSection from "./BrokerProfileSection";
+import BrokerGoLivePanel from "./BrokerGoLivePanel";
 import {
   Briefcase, Phone, Mail, Building2, Clock, CalendarClock, CheckCircle2, PlusCircle,
   AlertTriangle, ShoppingBag, Pencil, Save, X, PhoneCall, MessageSquare, StickyNote, Users, CircleDot,
-  Sparkles, RefreshCw, Copy, History as HistoryIcon, Eye,
+  Sparkles, RefreshCw, Copy, History as HistoryIcon, Eye, CalendarCheck,
 } from "lucide-react";
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -35,6 +36,8 @@ interface Broker {
   mgmt_stage: string | null;
   next_follow_up_at: string | null;
   created_at: string | null;
+  /** Outlook connection (ms-oauth): ok | needs_reconnect | blocked_admin_consent | null. */
+  calendar_status?: string | null;
 }
 interface Activity {
   id: string;
@@ -106,7 +109,7 @@ const BrokerManagement = () => {
 
   const loadBrokers = useCallback(async () => {
     const [{ data: bRows, error: bErr }, { data: fRows }] = await Promise.all([
-      supabase.from("brokers").select("id, user_id, firm_name, contact_person, email, phone_number, status, tier, mgmt_stage, next_follow_up_at, created_at").order("created_at", { ascending: false }),
+      (supabase as any).from("brokers").select("id, user_id, firm_name, contact_person, email, phone_number, status, tier, mgmt_stage, next_follow_up_at, created_at, calendar_status").order("created_at", { ascending: false }),
       (supabase as any).from("broker_followups").select("*").eq("status", "open"),
     ]);
     if (bErr) {
@@ -272,6 +275,12 @@ const BrokerManagement = () => {
                           <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-[10px]">Client</Badge>
                         )}
                         {b.tier && <Badge variant="outline" className="text-[10px]">{b.tier}</Badge>}
+                        {b.calendar_status && (
+                          <span title={b.calendar_status === "ok" ? "Outlook calendar connected" : b.calendar_status === "blocked_admin_consent" ? "Calendar: needs IT admin approval" : "Calendar: needs reconnect"}
+                            className={`inline-flex ${b.calendar_status === "ok" ? "text-emerald-400" : "text-amber-300"}`}>
+                            <CalendarCheck className="h-3.5 w-3.5" aria-label={b.calendar_status === "ok" ? "Calendar connected" : "Calendar needs attention"} />
+                          </span>
+                        )}
                         {fu?.total ? (
                           <span className={`text-[10px] inline-flex items-center gap-1 ${fu.overdue ? "text-red-400" : "text-muted-foreground"}`}>
                             <CalendarClock className="h-3 w-3" />{fu.total} follow-up{fu.total > 1 ? "s" : ""}
@@ -658,6 +667,17 @@ const BrokerDrawer = ({
 
             {/* What the broker entered in his portal (FSP, WhatsApp, intro card) */}
             <BrokerProfileSection brokerId={broker.id} />
+
+            {/* Campaigns, calendar and go-live checklist (rules evaluated in the database) */}
+            <BrokerGoLivePanel
+              brokerId={broker.id}
+              brokerLabel={broker.contact_person || broker.firm_name || "The broker"}
+              onChanged={async () => {
+                const o = await (supabase as any).from("lead_orders").select("id, title, lead_count, amount_zar, status").eq("broker_id", broker.id).order("created_at", { ascending: false });
+                setOrders((o.data || []) as OrderLite[]);
+                onFollowupsChanged();
+              }}
+            />
 
             {/* Attached leads / orders */}
             <div>

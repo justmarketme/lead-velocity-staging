@@ -258,7 +258,9 @@ export function planToken(res, nowMs = Date.now()) {
  * Prefer: outlook.timezone="Africa/Johannesburg" so scheduleItems come back in SAST.
  */
 export function getScheduleRequest(b, now, { fresh = false } = {}) {
-  const mailbox = b.calendar_email || b.email || null;
+  // Only the mailbox the broker connected (ms-oauth stores it from Graph /me). Never the login email: that can be a
+  // different mailbox, and an empty schedules list fails closed in parseGetSchedule (no slots offered from a wrong calendar).
+  const mailbox = b.calendar_email || null;
   const start = at(sast(now).date, '00:00');
   const end = start + (Number(b.horizon_days || 14) + 1) * D;
   return {

@@ -12,6 +12,7 @@ import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2 } from "lu
 import { z } from "zod";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
+import { CLIENT_STATUSES } from "@/lib/brokerCampaign";
 
 const leadSchema = z.object({
   first_name: z.string().trim().min(1, "First name is required").max(50, "First name must be less than 50 characters"),
@@ -93,7 +94,7 @@ const LeadUploadForm = () => {
     const { data, error } = await supabase
       .from("brokers")
       .select("id, firm_name, contact_person")
-      .eq("status", "Active")
+      .in("status", CLIENT_STATUSES)
       .order("firm_name");
 
     if (!error && data) {

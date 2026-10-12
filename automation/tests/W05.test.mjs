@@ -204,7 +204,7 @@ const reqFor = (fx, leadId, over = {}) => ({ ...clone(fx.booking_request), lead_
 // ============================================================================================
 // Tests
 // ============================================================================================
-test(`W05 [${MODE}] L01 page booking, Teams: Outlook event with Teams link, client not an attendee, invite from howzit@`, async () => {
+test(`W05 [${MODE}] L01 page booking, Teams, broker opted out of attendee invites: Outlook event with Teams link, invite from howzit@`, async () => {
   const sys = fresh();
   const fx = lead('L01');
   const id = await sys.setup(fx);
@@ -218,7 +218,7 @@ test(`W05 [${MODE}] L01 page booking, Teams: Outlook event with Teams link, clie
   assert.equal(ev.subject, e.event_title);
   assert.equal(ev.isOnlineMeeting, e.is_online_meeting);
   assert.equal(ev.onlineMeetingProvider, e.online_meeting_provider);
-  assert.equal(ev.attendees.length, 0, 'client NOT added as attendee by default (keeps broker mailbox private)');
+  assert.equal(ev.attendees.length, 0, 'fixture broker opted out (add_client_as_attendee=false): no attendee, the howzit@ email is the invite');
   assert.deepEqual(ev.categories, ['SortMyCover']);
   assert.equal(ev.start.timeZone, 'Africa/Johannesburg');
   for (const needle of ['35_44', '750_1250', 'Teams', 'Consent ref', 'Pre-call brief']) assert.ok(ev.body.content.includes(needle), needle);
@@ -758,4 +758,38 @@ test('I-45h: W05.json wires the guard before any lookup/insert on the /book path
   assert.deepEqual(nxt('Guard passed?', 1), ['Answer']);
   assert.ok(!Object.values(WF5.connections['Called by W07/W10/W17/W28'].main).flat().some((x) => /Guard/.test(x.node))); // sub-calls skip it
   assert.match(JSON.stringify(WF5.nodes.find((n) => n.name === 'Turnstile siteverify (book)')), /siteverify/);
+});
+
+// Jono 2026-10-13: the client's invite comes FROM the broker's own Outlook (Exchange meeting request with the Teams link)
+// whenever the event goes into his connected calendar; howzit@ only as the fallback.
+test('W05 lib: Outlook-connected broker -> client is a required attendee and no howzit@ email; opt-out, shared, failed create -> howzit@', () => {
+  const p = { start: '2026-10-13T10:30:00+02:00', end: '2026-10-13T11:00:00+02:00', method: 'teams', email: 'client@gmail.com', idempotency_key: 'k-att', booked_via: 'page', context: {}, route: 'graph' };
+  const own = { ...broker(), calendar_status: 'ok', calendar_mode: 'oauth', add_client_as_attendee: null };
+  const c = ctx5({ broker: own });
+  const ev = W5.graphEvent(c, p);
+  assert.deepEqual(ev.attendees, [{ emailAddress: { address: 'client@gmail.com', name: 'Sipho' }, type: 'required' }], 'default (null) = attendee');
+  assert.equal(W5.inviteMail(c, p, { id: 'b1' }, { ok: true }), null, 'Exchange sends the invite: no howzit@ email');
+  const bk = (id) => ({ id, broker_id: own.broker_id, appointment_date: p.start, ends_at: p.end, method: 'teams', status: 'booked' });
+  const f = W5.finish(c, p, bk('b1'), { ok: true, graph_event_id: 'AAMk1', join_url: 'https://teams.microsoft.com/l/meetup-join/x' });
+  assert.equal(f.invite, null); assert.equal(f.appointment_update.invite_email_status, 'sent');
+  // fallback 1: the Graph create failed -> the client still gets the howzit@ email
+  assert.ok(W5.finish(c, p, bk('b2'), { ok: false, reason: 'http_500' }).invite, 'failed create -> howzit@ email');
+  // fallback 2: explicit opt-out
+  const out = ctx5({ broker: { ...own, add_client_as_attendee: false } });
+  assert.equal(W5.graphEvent(out, p).attendees.length, 0); assert.ok(W5.inviteMail(out, p, { id: 'b3' }, { ok: true }));
+  // fallback 3: shared Lead Velocity calendar (not connected / admin consent pending)
+  const sh = ctx5({ broker: { ...own, calendar_status: 'blocked_admin_consent' } });
+  const ps = { ...p, route: 'shared' };
+  assert.equal(W5.graphEvent(sh, ps).attendees.length, 0); assert.ok(W5.inviteMail(sh, ps, { id: 'b4' }, { ok: true }));
+  // call methods never use the (verification-only) email for an invite
+  assert.equal(W5.graphEvent(c, { ...p, method: 'phone' }).attendees.length, 0);
+});
+test('W05 lib: method change to Teams on the broker calendar PATCHes the client in as attendee instead of a howzit@ email', () => {
+  const own = { ...broker(), calendar_status: 'ok', calendar_mode: 'oauth', add_client_as_attendee: true, methods_supported: ['teams', 'phone'] };
+  const booking = { id: 'bk1', status: 'booked', appointment_date: '2026-10-14T10:00:00+02:00', ends_at: '2026-10-14T10:30:00+02:00', calendar_provider: 'outlook', idempotency_key: 'k', booked_via: 'page', method: 'phone' };
+  const lead = { ...ctx5().lead, email: 'client@gmail.com', email_purpose: 'meeting_invite', email_status: 'valid' };
+  const r = W5.planUpdateMethod({ req: { method: 'teams', email: 'client@gmail.com', email_confirmed: true }, booking, lead, broker: own, mx: { has_mx: true } });
+  assert.equal(r.action, 'patch');
+  assert.deepEqual(r.graph_patch.attendees, [{ emailAddress: { address: 'client@gmail.com', name: 'Sipho' }, type: 'required' }]);
+  assert.equal(W5.inviteMail({ lead, broker: own }, r.plan, booking, {}), null);
 });

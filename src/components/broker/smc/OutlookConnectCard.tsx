@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { CalendarCheck, CheckCircle2, Circle, Loader2, Mail, Copy, Unplug, AlertTriangle, Info } from "lucide-react";
 import { MS_ADMIN_CONSENT_URL, SUPPORT_EMAIL, fmtDayTime } from "@/lib/smc";
 import { adminConsentNote, callbackNotice, grantedScopes, msUrl, outlookCardView, permissionRows, CALENDAR_PERMISSIONS } from "@/lib/smcMsConnect";
-import { msCall, msStartError, rememberMsReturn } from "@/lib/smcMsClient";
+import { msCall, msIsBeingSetUp, msStartError, rememberMsReturn } from "@/lib/smcMsClient";
 import type { SmcBroker } from "@/integrations/supabase/smc-types";
 import { Tone, toneClasses } from "./tone";
 import { useBrokerPreview } from "@/lib/brokerPreview";
@@ -29,6 +29,7 @@ export default function OutlookConnectCard({ broker, reload, tone = "theme", ret
   const view = outlookCardView(broker);
   const [busy, setBusy] = useState<"" | "connect" | "disconnect">("");
   const [err, setErr] = useState<string | null>(null);
+  const [calm, setCalm] = useState(false); // err is the "being set up" note, not a failure
   const [copied, setCopied] = useState(false);
   const [startedConsent, setStartedConsent] = useState("");
   const notice = callbackNotice(typeof window === "undefined" ? "" : window.location.search);
@@ -55,13 +56,14 @@ export default function OutlookConnectCard({ broker, reload, tone = "theme", ret
       return;
     }
     setBusy("");
+    setCalm(msIsBeingSetUp(r));
     setErr(msStartError(r));
   }
 
   async function disconnect() {
     if (preview) { setErr("Preview only: disconnecting is switched off."); return; }
     if (!window.confirm("Disconnect your Outlook calendar? Clients can't book new times with you until you reconnect.")) return;
-    setErr(null); setBusy("disconnect");
+    setErr(null); setCalm(false); setBusy("disconnect");
     const r = await msCall("disconnect");
     setBusy("");
     if (!r.ok) { setErr(`We couldn't disconnect (${r.data?.error || `HTTP ${r.status}`}). Try again.`); return; }
@@ -71,7 +73,7 @@ export default function OutlookConnectCard({ broker, reload, tone = "theme", ret
   const scopes = grantedScopes(broker);
   const rows = view.state === "connected" ? permissionRows(scopes) : CALENDAR_PERMISSIONS.map((p) => ({ key: p.key, label: p.label, granted: false }));
   const missingGrant = view.state === "connected" && rows.some((r) => !r.granted) && scopes.length > 0;
-  const mailIt = `mailto:?cc=${SUPPORT_EMAIL}&subject=${encodeURIComponent("Please approve the SortMyCover calendar app")}&body=${encodeURIComponent(adminConsentNote({ brokerName: broker.contact_person, consentUrl }))}`;
+  const mailIt = `mailto:?cc=${SUPPORT_EMAIL}&subject=${encodeURIComponent("Please approve the Lead Velocity app")}&body=${encodeURIComponent(adminConsentNote({ brokerName: broker.contact_person, consentUrl }))}`;
 
   const status = (() => {
     switch (view.state) {
@@ -151,7 +153,7 @@ export default function OutlookConnectCard({ broker, reload, tone = "theme", ret
         {view.state === "admin_blocked" && (
           <div className={`p-4 text-sm space-y-3 ${c.box}`}>
             <p className="font-semibold">Microsoft says your organisation needs admin approval.</p>
-            <p className={c.muted}>Your IT admin has switched off new apps for staff. They approve SortMyCover once (about 2 minutes), then you tap Connect again. Email them this note:</p>
+            <p className={c.muted}>Your IT admin has switched off new apps for staff. They approve the Lead Velocity app once (about 2 minutes), then you tap Connect again. Email them this note:</p>
             <p className={`text-xs whitespace-pre-wrap [overflow-wrap:anywhere] ${c.muted}`}>{adminConsentNote({ brokerName: broker.contact_person, consentUrl: consentUrl || "(approval link loading)" })}</p>
             <div className="flex flex-wrap gap-2">
               <Button asChild size="sm" className={c.primary}><a href={mailIt}><Mail className="mr-1.5 h-4 w-4" />Email my IT admin</a></Button>
@@ -179,7 +181,7 @@ export default function OutlookConnectCard({ broker, reload, tone = "theme", ret
             {busy === "disconnect" ? "Disconnecting…" : "Disconnect"}
           </Button>
         )}
-        {err && <p className={`rounded-lg px-3 py-2 text-sm ${c.bad}`} role="alert">{err}</p>}
+        {err && <p className={`rounded-lg px-3 py-2 text-sm ${calm ? c.info : c.bad}`} role={calm ? "status" : "alert"}>{err}</p>}
       </CardContent>
     </Card>
   );
