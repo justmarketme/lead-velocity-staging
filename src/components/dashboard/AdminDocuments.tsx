@@ -29,6 +29,11 @@ interface Document {
   category: string;
   created_at: string;
   content_data?: any;
+  /** migration 20261012120000: per-broker documents */
+  kind?: string | null;
+  broker_id?: string | null;
+  signed_at?: string | null;
+  signed_by?: string | null;
 }
 
 interface Broker {
@@ -50,9 +55,14 @@ const CATEGORIES = [
   { value: "general", label: "General" },
 ];
 
+/** Library filter (not an upload category): rows with kind = 'signed_agreement'. Upload those from the broker's drawer. */
+const SIGNED_CONTRACTS = "signed_contracts";
+
 const AdminDocuments = () => {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [brokers, setBrokers] = useState<Broker[]>([]);
+  // every broker (any status) by id, to label per-broker documents
+  const [brokerNames, setBrokerNames] = useState<Record<string, string>>({});
   const [documentShares, setDocumentShares] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -87,6 +97,8 @@ const AdminDocuments = () => {
       .eq("status", "Active")
       .order("firm_name");
     if (data) setBrokers(data);
+    const { data: all } = await supabase.from("brokers").select("id, firm_name, contact_person");
+    if (all) setBrokerNames(Object.fromEntries(all.map((b) => [b.id, [b.contact_person, b.firm_name].filter(Boolean).join(", ")])));
   };
 
   const fetchAllShares = async () => {
@@ -355,7 +367,9 @@ const AdminDocuments = () => {
       const url = URL.createObjectURL(data);
       const a = document.createElement("a");
       a.href = url;
-      a.download = doc.name;
+      // keep the file's extension (doc.name usually has none, so the save had no .pdf)
+      const ext = doc.file_path.match(/\.[A-Za-z0-9]{2,5}$/)?.[0] || "";
+      a.download = ext && !doc.name.toLowerCase().endsWith(ext.toLowerCase()) ? `${doc.name}${ext}` : doc.name;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -434,7 +448,9 @@ const AdminDocuments = () => {
 
   const filteredDocuments = selectedCategory === "all"
     ? documents
-    : documents.filter((doc) => doc.category === selectedCategory);
+    : selectedCategory === SIGNED_CONTRACTS
+      ? documents.filter((doc) => doc.kind === "signed_agreement")
+      : documents.filter((doc) => doc.category === selectedCategory);
 
   const formatFileSize = (bytes: number | null) => {
     if (!bytes) return "N/A";
@@ -639,6 +655,7 @@ const AdminDocuments = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
+                <SelectItem value={SIGNED_CONTRACTS}>Signed contracts</SelectItem>
                 {CATEGORIES.map((cat) => (
                   <SelectItem key={cat.value} value={cat.value}>
                     {cat.label}
@@ -687,7 +704,12 @@ const AdminDocuments = () => {
                     </TableCell>
                     <TableCell>{formatFileSize(doc.file_size)}</TableCell>
                     <TableCell>
-                      {(documentShares[doc.id]?.length || 0) > 0 ? (
+                      {doc.broker_id ? (
+                        <div className="space-y-1">
+                          <Badge variant="secondary" className="gap-1"><Users className="h-3 w-3" />{brokerNames[doc.broker_id] || "Broker"}</Badge>
+                          {doc.kind === "signed_agreement" && <p className="text-xs text-muted-foreground">Signed{doc.signed_at ? ` ${format(new Date(doc.signed_at), "d MMM yyyy")}` : ""}{doc.signed_by ? ` · ${doc.signed_by}` : ""}</p>}
+                        </div>
+                      ) : (documentShares[doc.id]?.length || 0) > 0 ? (
                         <Badge variant="secondary" className="gap-1">
                           <Users className="h-3 w-3" />
                           {documentShares[doc.id].length} broker{documentShares[doc.id].length > 1 ? 's' : ''}

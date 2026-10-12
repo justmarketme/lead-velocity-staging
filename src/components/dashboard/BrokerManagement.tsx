@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { LOW_BUDGET, loadLowBudgetSwitches, setLowBudgetSwitch, WILLS, loadWillsSwitches, setWillsSwitch } from "@/lib/lowBudget";
 import { useToast } from "@/hooks/use-toast";
+import BrokerDocumentsSection from "./BrokerDocumentsSection";
 import {
   Briefcase, Phone, Mail, Building2, Clock, CalendarClock, CheckCircle2, PlusCircle,
   AlertTriangle, ShoppingBag, Pencil, Save, X, PhoneCall, MessageSquare, StickyNote, Users, CircleDot,
@@ -666,6 +667,9 @@ const BrokerDrawer = ({
                 </div>
               )}
             </div>
+
+            {/* Documents (signed contracts first) — the broker sees the same list in his portal */}
+            <BrokerDocumentsSection brokerId={broker.id} brokerLabel={broker.contact_person || broker.firm_name || "The broker"} />
 
             {/* Follow-ups */}
             <div>

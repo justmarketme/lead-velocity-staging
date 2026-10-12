@@ -24,7 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import PremiumDashboard from "@/components/broker/PremiumDashboard";
 import PremiumCalendar from "@/components/broker/PremiumCalendar";
-import PremiumDocuments from "@/components/broker/PremiumDocuments";
+import PremiumDocuments, { SignedAgreementCard } from "@/components/broker/PremiumDocuments";
 import OwnBroker from "@/components/broker/smc/OwnBroker";
 import OutlookConnectCard from "@/components/broker/smc/OutlookConnectCard";
 import UpcomingSmcAppointments from "@/components/broker/smc/UpcomingSmcAppointments";
@@ -387,7 +387,12 @@ const PremiumBrokerPortalPage = () => {
 
                 {/* Dynamic Content */}
                 <div className="p-4 sm:p-10 max-w-[1600px] mx-auto space-y-10">
-                    {activeTab === 'dashboard' && <PremiumDashboard brokerData={brokerData} stats={stats} leadsData={[]} />}
+                    {activeTab === 'dashboard' && (
+                        <>
+                            <SignedAgreementCard brokerId={brokerData?.id} hideWhenEmpty />
+                            <PremiumDashboard brokerData={brokerData} stats={stats} leadsData={[]} />
+                        </>
+                    )}
                     {activeTab === 'calendar' && (
                         <>
                             <OwnBroker>
@@ -404,7 +409,7 @@ const PremiumBrokerPortalPage = () => {
                     {activeTab === 'intro' && (
                         <OwnBroker>{(b, reload) => <IntroCardEditor broker={b} reload={reload} tone="elite" />}</OwnBroker>
                     )}
-                    {activeTab === 'documents' && <PremiumDocuments documents={[]} />}
+                    {activeTab === 'documents' && <PremiumDocuments brokerId={brokerData?.id} />}
                     {activeTab === 'settings' && <div className="animate-in fade-in slide-in-from-bottom duration-500">
                         <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-8">
                             {/* Alerts Card */}

@@ -10,6 +10,7 @@ import PortalShell, { StepClip, usePortal } from "./PortalShell";
 import { CHECKOUT_URL, CLIPS_BASE, PAYSTACK_ENABLED, errText, fmtDay, fmtDayTime, fmtZar, portalEvent, postWebhook, sha256Hex, smcDb } from "@/lib/smc";
 import { PILOT, TERMS } from "@/lib/pricing";
 import { AGREEMENT_STRUCTURE } from "@/lib/contract/agreement";
+import { downloadAdminDocument } from "@/lib/adminDocs";
 import type { SmcAdminDocument, SmcAgreementAcceptances, SmcCycle, SmcInvoice, SmcPricing, SmcSignDocumentArgs } from "@/integrations/supabase/smc-types";
 
 const DOC_BUCKET = "admin-documents"; // INV-08; must be private (NH-15 S3)
@@ -53,7 +54,7 @@ function Body() {
   useEffect(() => {
     (async () => {
       const [d, c, p, i] = await Promise.all([
-        smcDb.from("admin_documents").select("*").eq("broker_id", broker.id).in("kind", ["agreement", "authorisation_letter"]).order("created_at", { ascending: false }),
+        smcDb.from("admin_documents").select("*").eq("broker_id", broker.id).in("kind", ["agreement", "signed_agreement", "authorisation_letter"]).order("created_at", { ascending: false }),
         smcDb.from("cycles").select("*").eq("broker_id", broker.id).order("cycle_no", { ascending: false }).limit(3),
         smcDb.from("pricing").select("*").is("active_to", null).order("sort_order"),
         smcDb.from("invoices_smc").select("*").eq("broker_id", broker.id).order("issued_at", { ascending: false }).limit(12),
@@ -65,6 +66,8 @@ function Body() {
     })();
   }, [broker.id]);
 
+  // A fully signed PDF uploaded by Lead Velocity (kind signed_agreement) replaces the e-sign flow.
+  const signedDoc = docs.find((d) => d.kind === "signed_agreement") || null;
   const agreement = docs.find((d) => d.kind === "agreement") || null;
   const signed = !!agreement?.signed_at;
   const canSign = read && name.trim().length >= 3 && !!agreement && !signed;
@@ -119,6 +122,19 @@ function Body() {
 
   return (
     <>
+      {signedDoc && (
+        <section className="card">
+          <h2>Your signed agreement</h2>
+          <div className="next-slot" role="status"><span style={{ fontSize: 26 }}>✓</span><div><b>{signedDoc.name}</b>Signed{signedDoc.signed_at ? ` ${fmtDay(signedDoc.signed_at)}` : ""}{signedDoc.signed_by ? ` by ${signedDoc.signed_by}` : ""}.</div></div>
+          {signedDoc.file_path && (
+            <p style={{ margin: "10px 0 0", display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button className="tap g" type="button" onClick={() => openDoc(signedDoc.file_path)}>View (PDF)</button>
+              <button className="tap" type="button" onClick={() => { const p = signedDoc.file_path as string; void downloadAdminDocument(p, p.split("/").pop() || "agreement.pdf"); }}>Download</button>
+            </p>
+          )}
+        </section>
+      )}
+      {!signedDoc && (
       <section className="card">
         <h2>Sign your agreement</h2>
         <p className="muted">It is written in plain words. {onPilot ? `A flat once-off price for one introductory ${TERMS.cycle_days}-day cycle.` : `Flat price per ${TERMS.cycle_days}-day cycle, month to month, no lock-in.`} Read it, tick the boxes, type your name. Done.</p>
@@ -140,7 +156,7 @@ function Body() {
           </>
         )}
         {agreement && (signed || done) ? (
-          <div className="next-slot" role="status" style={{ marginTop: 12 }}><span style={{ fontSize: 26 }}>✓</span><div><b>Signed{agreement.signed_at ? ` ${fmtDayTime(agreement.signed_at)}` : ""}{agreement.signed_by_name ? ` by ${agreement.signed_by_name}` : ""}.</b>A copy is on its way to your email and to howzit@leadvelocity.co.za. Document fingerprint (SHA-256) {(done || agreement.doc_sha256 || "").slice(0, 12)}… saved.</div></div>
+          <div className="next-slot" role="status" style={{ marginTop: 12 }}><span style={{ fontSize: 26 }}>✓</span><div><b>Signed{agreement.signed_at ? ` ${fmtDayTime(agreement.signed_at)}` : ""}{agreement.signed_by ? ` by ${agreement.signed_by}` : ""}.</b>A copy is on its way to your email and to howzit@leadvelocity.co.za. Document fingerprint (SHA-256) {(done || agreement.doc_sha256 || "").slice(0, 12)}… saved.</div></div>
         ) : agreement && (
           <div className="sig" style={{ marginTop: 12 }}>
             <label className="chip" style={{ display: "flex" }}><input type="checkbox" checked={read} onChange={(e) => setRead(e.target.checked)} /> I have read and agree to clauses 1 to {AGREEMENT_STRUCTURE.lastClause} and Schedules 1 to {AGREEMENT_STRUCTURE.schedules}, including clause {AGREEMENT_STRUCTURE.clientMaterialsClause}: you may use my name, photograph, practice name, FSP number and short biography in the Intro Card and WhatsApp messages to consumers you introduce to me (never in ads).</label>
@@ -155,6 +171,7 @@ function Body() {
           </div>
         )}
       </section>
+      )}
       <StepClip title="signing and paying" length="0:35" file={`${CLIPS_BASE}/agreement.mp4`} />
 
       <section className="card" id="billing">
