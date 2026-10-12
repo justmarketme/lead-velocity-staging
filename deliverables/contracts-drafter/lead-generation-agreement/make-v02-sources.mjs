@@ -48,7 +48,7 @@ for (const [name, text] of [['canonical', canonical], ['marked', marked]]) {
   if (name === 'canonical' && /\[(CHANGED|NEW) v0\.2/.test(text)) throw new Error('canonical still has markers');
   if (leftover && name === 'marked' && leftover.some((x) => x.startsWith('['))) throw new Error('marked has coded markers: ' + leftover.slice(0, 3));
 }
-if (/Jonathan West's final decisions|coordinator message/.test(canonical + marked)) throw new Error('internal wording leaked');
+if (/Jono's final decisions|coordinator message/.test(canonical + marked)) throw new Error('internal wording leaked');
 
 writeFileSync(CANON, canonical);
 writeFileSync(MARKED, marked);

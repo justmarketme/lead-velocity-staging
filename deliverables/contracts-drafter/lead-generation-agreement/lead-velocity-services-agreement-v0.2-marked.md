@@ -758,7 +758,7 @@ S4.7 **Client's retention.** The Client keeps Lead Data in line with its own obl
 
 S4.8 **Opt-outs.** Each Party notifies the other of an opt-out, objection or deletion request within 2 Business Days (clause 13.4). Lead Velocity keeps a suppression list so that it never contacts an opted-out Consumer again.
 
-S4.9 **Breach contact.** Security breach notices under clause 13.7 go to: for Lead Velocity, Jonathan West (Information Officer), howzit@leadvelocity.co.za; for the Client, [CLIENT INFORMATION OFFICER NAME], [CLIENT EMAIL].
+S4.9 **Breach contact.** Security breach notices under clause 13.7 go to: for Lead Velocity, Jonathan Jettoo (Information Officer), howzit@leadvelocity.co.za; for the Client, [CLIENT INFORMATION OFFICER NAME], [CLIENT EMAIL].
 
 S4.10 **Cross-border.** Lead Velocity's service providers that may process Lead Data outside South Africa are listed in its privacy notice at sortmycover.co.za/privacy (clause 13.8).
 
