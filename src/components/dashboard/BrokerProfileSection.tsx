@@ -54,6 +54,7 @@ export default function BrokerProfileSection({ brokerId }: { brokerId: string })
           <p><span className="text-muted-foreground">FSP:</span> {row.fsp_number || missing}</p>
           <p className="flex flex-wrap items-center gap-1">
             <MessageCircle className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+            <span className="text-muted-foreground">WhatsApp:</span>
             {row.whatsapp_number ? fmtZa(row.whatsapp_number) : missing}
             {row.whatsapp_confirmed_at && <span className="inline-flex items-center gap-1 text-xs text-emerald-400"><BadgeCheck className="h-3.5 w-3.5" />confirmed {format(new Date(row.whatsapp_confirmed_at), "d MMM")}</span>}
           </p>

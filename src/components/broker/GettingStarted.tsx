@@ -11,7 +11,7 @@ import { m, stagger, item, EASE } from "./motion";
 import { FspForm, ProfilePatch, WhatsAppForm } from "./ProfileForms";
 import type { BrokerPlanState } from "@/lib/brokerPlan";
 import { loadBrokerDocuments, openAdminDocument } from "@/lib/adminDocs";
-import { fmtZa } from "@/lib/brokerProfile";
+import { fmtZa, toZaE164 } from "@/lib/brokerProfile";
 import { TERMS, zar } from "@/lib/pricing";
 import { SUPPORT_EMAIL } from "@/lib/smc";
 import {
@@ -56,6 +56,8 @@ export default function GettingStarted({ broker, planState, onGo, onBrokerPatch 
     const paid = !!planState?.paid;
     const proof = planState?.proof || null;
     const waDone = !!broker?.whatsapp_number && !!broker?.whatsapp_confirmed_at;
+    // No WhatsApp on record yet: offer his phone number on record to confirm.
+    const waSuggest = broker?.whatsapp_number || toZaE164(broker?.phone_number || "");
     return [
       {
         key: "agreement", label: "Review your signed agreement", done: !!planState?.hasSignedAgreement,
@@ -87,8 +89,8 @@ export default function GettingStarted({ broker, planState, onGo, onBrokerPatch 
       {
         key: "whatsapp", label: "Confirm your business WhatsApp number", done: waDone,
         detail: waDone ? `New leads and bookings reach you on ${fmtZa(broker.whatsapp_number)}.`
-          : broker?.whatsapp_number ? `Is ${fmtZa(broker.whatsapp_number)} your business WhatsApp?` : "New leads and bookings are sent to this number.",
-        action: { label: waDone ? "Change" : broker?.whatsapp_number ? "Confirm" : "Add it", expand: true },
+          : waSuggest ? `Is ${fmtZa(waSuggest)} your business WhatsApp? New leads and bookings are sent to it.` : "New leads and bookings are sent to this number.",
+        action: { label: waDone ? "Change" : waSuggest ? "Confirm" : "Add it", expand: true },
         panel: <WhatsAppForm broker={broker} onSaved={saved("whatsapp")} />,
       },
       {
